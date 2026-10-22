@@ -79,8 +79,9 @@ describe("blog dashboard action guardrails", () => {
     assert.match(editPage, /if \(isFirstPublish && publishedSellerProfileId\)/);
     assert.match(editPage, /postId: updated\.id/);
     assert.match(editPage, /sellerProfileId: publishedSellerProfileId/);
-    assert.match(blogFanout, /where: publicBlogPostWhere\(\{ id: postId, sellerProfileId \}\)/);
-    assert.match(blogFanout, /const sellerUserId = publicPost\.sellerProfile\.userId/);
+    assert.match(blogFanout, /id: postId,[\s\S]*sellerProfileId,[\s\S]*authorType: "MAKER",[\s\S]*status: "PUBLISHED",[\s\S]*authorAccountActive: true/);
+    assert.match(blogFanout, /const seller = await sellerPublicBlogAuthor\(sellerProfileId\)/);
+    assert.match(blogFanout, /const sellerUserId = seller\.userId/);
     assert.match(
       blogFanout,
       /userFollowerNotificationPage\(prisma, \{\s*sellerProfileId,\s*afterFollowId: cursor,\s*limit: BLOG_FOLLOWER_FANOUT_PAGE_SIZE,/s,

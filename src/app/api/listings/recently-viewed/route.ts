@@ -2,12 +2,11 @@
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
-import { publicListingWhere } from "@/lib/listingVisibility";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { sellerPublicRecentlyViewedListings } from "@/lib/sellerProfilePublicAccess";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimit(searchRatelimit, `recently-viewed:${getIP(req)}`);
@@ -17,7 +16,7 @@ export async function GET(req: NextRequest) {
   const ids = idsParam
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter((id) => /^[A-Za-z0-9._:-]{1,191}$/u.test(id))
     .slice(0, 10);
 
   if (ids.length === 0) {
@@ -26,12 +25,10 @@ export async function GET(req: NextRequest) {
 
   const { userId } = await auth();
   let meId: string | null = null;
-  let blockedSellerIds: string[] = [];
   if (userId) {
     try {
       const me = await ensureUserByClerkId(userId);
       meId = me.id;
-      blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
     } catch (err) {
       const accountResponse = accountAccessErrorResponse(err);
       if (accountResponse) return accountResponse;
@@ -39,26 +36,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const rows = await prisma.listing.findMany({
-    where: publicListingWhere({
-      id: { in: ids },
-      ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-    }),
-    select: {
-      id: true,
-      title: true,
-      priceCents: true,
-      currency: true,
-      photos: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } },
-      seller: {
-        select: {
-          displayName: true,
-          avatarImageUrl: true,
-          ownerImageUrl: true,
-        },
-      },
-    },
-  });
+  const rows = await sellerPublicRecentlyViewedListings(meId, ids);
 
   // Preserve recency order from the requested ids
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -83,9 +61,9 @@ export async function GET(req: NextRequest) {
     title: r.title,
     priceCents: r.priceCents,
     currency: r.currency,
-    photoUrl: r.photos[0]?.url ?? null,
-    sellerDisplayName: r.seller.displayName ?? "Maker",
-    sellerAvatarImageUrl: r.seller.avatarImageUrl ?? r.seller.ownerImageUrl ?? null,
+    photoUrl: r.photoUrl,
+    sellerDisplayName: r.sellerDisplayName,
+    sellerAvatarImageUrl: r.sellerAvatarImageUrl,
     saved: savedListingIds.has(r.id),
   }));
 

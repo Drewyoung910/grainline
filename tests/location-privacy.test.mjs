@@ -52,21 +52,18 @@ describe("public location projection", () => {
     );
   });
 
-  it("coarsens public discovery unless exact-location consent is explicit", () => {
+  it("coarsens every public discovery point", () => {
     const first = coarsePublicLocationPoint({ lat: 30.251, lng: -97.749 });
     const sameCell = coarsePublicLocationPoint({ lat: 30.274, lng: -97.726 });
     assert.deepEqual(first, sameCell);
-    assert.deepEqual(
-      coarsePublicLocationPoint({ lat: 30.251, lng: -97.749, exactLocationOptIn: true }),
-      { lat: 30.251, lng: -97.749 },
-    );
+    assert.notDeepEqual(first, { lat: 30.251, lng: -97.749 });
   });
 
   it("uses one canonical seller projection across every public surface", () => {
     const raw = { lat: 30.04995, lng: -97.35001 };
     const radiusMeters = 1609.344;
     assert.deepEqual(
-      publicSellerLocationPoint({ ...raw, radiusMeters, exactLocationOptIn: true }),
+      publicSellerLocationPoint({ ...raw, radiusMeters }),
       privacySafeLocationPoint({ ...raw, radiusMeters }),
     );
     assert.equal(
@@ -74,8 +71,8 @@ describe("public location projection", () => {
       true,
     );
     assert.deepEqual(
-      publicSellerLocationPoint({ ...raw, radiusMeters: 0, exactLocationOptIn: true }),
-      { ...raw, approximate: false },
+      publicSellerLocationPoint({ ...raw, radiusMeters: 0 }),
+      { ...coarsePublicLocationPoint(raw), approximate: true },
     );
   });
 
@@ -108,12 +105,14 @@ describe("public location source boundaries", () => {
     const mapCard = source("src/components/MapCard.tsx");
 
     for (const page of [listing, seller]) {
-      assert.match(page, /publicSellerLocationPoint\(/);
-      assert.match(page, /isSupportedLocationPoint\(lat, lng\)/);
-      assert.match(page, /exactLocationOptIn: .*publicMapOptIn/);
+      assert.match(page, /sellerPublicLocation\(/);
       assert.match(page, /showPickupMap && pickupMapPoint &&/);
-      assert.match(page, /displayLat=\{pickupMapPoint\.lat\}/);
-      assert.match(page, /displayLng=\{pickupMapPoint\.lng\}/);
+      assert.match(page, /displayLat=\{pickupMapPoint\.publicLat\}/);
+      assert.match(page, /displayLng=\{pickupMapPoint\.publicLng\}/);
+      assert.doesNotMatch(page, /\blat: true,/);
+      assert.doesNotMatch(page, /\blng: true,/);
+      assert.doesNotMatch(page, /\bradiusMeters: true,/);
+      assert.doesNotMatch(page, /\bpublicMapOptIn: true,/);
       assert.doesNotMatch(page, /<DynamicMapCard[\s\S]{0,120}\blat=\{lat\}/);
       assert.doesNotMatch(page, /<DynamicMapCard[\s\S]{0,120}\blng=\{lng\}/);
     }
@@ -121,25 +120,30 @@ describe("public location source boundaries", () => {
     assert.match(mapCard, /displayLat: number/);
     assert.match(mapCard, /displayLng: number/);
     assert.doesNotMatch(mapCard, /jitterAround|seededRand|Math\.random|\bseed\??:/);
+
+    const publicMaps = [
+      source("src/app/map/page.tsx"),
+      source("src/app/sellers/map/page.tsx"),
+      source("src/app/page.tsx"),
+    ];
+    for (const publicMap of publicMaps) {
+      assert.match(publicMap, /sellerPublicMapPoints\(/);
+      assert.match(publicMap, /lat: seller\.publicLat/);
+      assert.match(publicMap, /lng: seller\.publicLng/);
+      assert.doesNotMatch(publicMap, /prisma\.sellerProfile\.findMany\(\{[\s\S]{0,350}publicMapOptIn/u);
+    }
+
+    assert.match(seller, /latitude: pickupMapPoint\.publicLat/);
+    assert.match(seller, /longitude: pickupMapPoint\.publicLng/);
+    assert.doesNotMatch(seller, /latitude: lat, longitude: lng/);
   });
 
   it("evaluates anonymous browse membership against a coarse public point", () => {
     const browse = source("src/app/browse/page.tsx");
-    assert.match(browse, /sp\."publicMapOptIn" = true AND COALESCE\(sp\."radiusMeters", 0\) = 0/);
-    assert.match(browse, /publicLatSql/);
-    assert.match(browse, /publicLngSql/);
-    assert.match(browse, /PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE/);
-    assert.match(browse, /PUBLIC_LOCATION_METERS_PER_DEGREE/);
-    assert.match(browse, /WHEN COALESCE\(sp\."radiusMeters", 0\) > 0/);
-    assert.match(browse, /radiusLatSql/);
-    assert.match(browse, /radiusLngSql/);
-    assert.match(browse, /gridCellCenterSql/);
-    assert.match(browse, /sp\.lat BETWEEN -90 AND 90/);
-    assert.match(browse, /sp\.lng BETWEEN -180 AND 180/);
-    assert.match(browse, /LEAST\(89\.975, GREATEST\(-89\.975,/);
-    assert.match(browse, /LEAST\(179\.975, GREATEST\(-179\.975,/);
-    assert.doesNotMatch(browse, /radians\(\(sp\.lat::float -/);
-    assert.doesNotMatch(browse, /radians\(\(sp\.lng::float -/);
+    assert.match(browse, /sellerPublicBrowseNearbySellerIds\(/);
+    assert.doesNotMatch(browse, /FROM "SellerProfile" sp/);
+    assert.doesNotMatch(browse, /sp\.lat::float8|sp\.lng::float8|sp\."radiusMeters"/);
+    assert.doesNotMatch(browse, /publicLatSql|publicLngSql|gridCellCenterSql/);
   });
 
   it("coarsens new and historical commission locations before public discovery", () => {

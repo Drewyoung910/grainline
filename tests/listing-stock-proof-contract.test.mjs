@@ -21,7 +21,7 @@ test("native proof executes the production tagged UPDATE with bound parameters",
   let captured;
   const rows = await loadStockUpdate()({ $queryRaw: async (parts, ...values) => {
     captured = { text: parts.join("?"), values }; return [{ stockQuantity: 10 }];
-  } }, "listing", { seller: { id: "seller" } }, true, 5, 10);
+  } }, "listing", { sellerProfileId: "seller" }, true, 5, 10);
   assert.equal(rows[0].stockQuantity, 10);
   assert.match(captured.text, /WITH previous_listing AS MATERIALIZED/);
   assert.match(captured.text, /FOR UPDATE/);

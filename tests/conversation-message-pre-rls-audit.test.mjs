@@ -197,7 +197,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     const indexMigration = source("prisma/migrations/20260722190000_prepare_conversation_message_scale_indexes/migration.sql");
 
     assert.ok(
-      newPage.indexOf("canAttachConversationContextListing(contextListing") <
+      newPage.indexOf("sellerParticipantConversationListingTarget(") <
         newPage.indexOf("const existing = await findActorConversationPair"),
       "listing context must be validated before redirecting into an existing pair thread",
     );

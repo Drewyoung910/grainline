@@ -104,7 +104,63 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/database-full-chain-source"
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
-      - run: npx prisma generate
+      - name: Generate Prisma client for candidate behavior tests
+        run: npx prisma generate
+      - name: Verify public SellerProfile candidate source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_tests=()
+          while IFS= read -r test_file
+          do
+            package_tests+=("$test_file")
+          done < <(
+              grep -El \
+                '202610(19|20)|verifySellerProfilePublicPreparationSources' \
+                tests/*.test.mjs \
+                | sort
+            )
+          test "${#package_tests[@]}" -ge 70
+          node \
+            --disable-warning=MODULE_TYPELESS_PACKAGE_JSON \
+            --experimental-strip-types \
+            --test \
+            --test-concurrency=1 \
+            "${package_tests[@]}"
+      - name: Preserve retained SellerProfile authority evidence before isolation
+        env:
+          SELLER_PROFILE_RETAINED_EVIDENCE_PRESERVE_DIR: ${{ runner.temp }}/seller-profile-retained-authority-evidence
+        run: node scripts/seller-profile-public-retained-authority-evidence.mjs
+      - name: Isolate public SellerProfile candidate from historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          mkdir -p "$holding/migrations" "$holding/tests"
+          node --input-type=module - <<'NODE' > "$holding/migration-names.txt"
+          import {
+            SELLER_PROFILE_PUBLIC_ENABLE,
+            SELLER_PROFILE_PUBLIC_PREPARATIONS,
+          } from './scripts/seller-profile-public-preparation-manifest.mjs';
+
+          for (const {name} of [
+            ...SELLER_PROFILE_PUBLIC_PREPARATIONS,
+            SELLER_PROFILE_PUBLIC_ENABLE,
+          ]) console.log(name);
+          NODE
+          while IFS= read -r migration
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done < "$holding/migration-names.txt"
+          grep -El \
+            '202610(19|20)|verifySellerProfilePublicPreparationSources' \
+            tests/*.test.mjs \
+            | sort > "$holding/test-files.txt"
+          while IFS= read -r test_file
+          do
+            mv "$test_file" "$holding/tests/$(basename "$test_file")"
+          done < "$holding/test-files.txt"
+          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -366,6 +422,8 @@ jobs:
           tests/seller-profile-private-enable-production-workflow.test.mjs
           tests/seller-profile-private-force-postgres.test.mjs
           tests/seller-profile-private-force-production-workflow.test.mjs
+          tests/seller-profile-enable-production-inspect.test.mjs
+          tests/seller-profile-enable-production-workflow.test.mjs
       - name: Verify post-retirement account-deletion repair source package
         run: >-
           node --test
@@ -544,7 +602,18 @@ jobs:
             tests/conversation-message-pre-rls-audit.test.mjs \
             tests/conversation-message-recipient-rls.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            source_path="$test_file"
+            if [[ ! -f "$source_path" ]]
+            then
+              source_path="$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+              test -f "$source_path"
+            fi
+            if [[ "$source_path" = "$test_file" ]]
+            then
+              mv "$source_path" "$holding/$(basename "$test_file")"
+            else
+              cp "$source_path" "$holding/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User public-identity first package until historical release guards pass
         shell: bash
@@ -579,7 +648,14 @@ jobs:
             tests/user-public-seller-state-production-inspect.test.mjs \
             tests/user-public-seller-state-preparation-production-workflow.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            if [[ -f "$test_file" ]]
+            then
+              mv "$test_file" "$holding/$(basename "$test_file")"
+            else
+              # Shared source guards that read the later SellerProfile package
+              # remain isolated until that candidate is restored.
+              test -f "$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User public blog-state package until its predecessor passes
         shell: bash
@@ -594,7 +670,12 @@ jobs:
             tests/user-public-blog-state-source.test.mjs \
             tests/user-public-blog-state-postgres.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            if [[ -f "$test_file" ]]
+            then
+              mv "$test_file" "$holding/$(basename "$test_file")"
+            else
+              test -f "$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User public review-commission package until its predecessor passes
         shell: bash
@@ -628,7 +709,12 @@ jobs:
             tests/user-block-email-authorities-source.test.mjs \
             tests/user-block-email-authorities-postgres.test.mjs
           do
-            mv "$test_file" "$holding/$(basename "$test_file")"
+            if [[ -f "$test_file" ]]
+            then
+              mv "$test_file" "$holding/$(basename "$test_file")"
+            else
+              test -f "$RUNNER_TEMP/seller-profile-public-candidate/tests/$(basename "$test_file")"
+            fi
           done
       - name: Isolate User staff admin labels until follower passes
         shell: bash
@@ -2836,6 +2922,7 @@ jobs:
       - name: Tests
         env:
           DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: ${{ runner.temp }}/database-full-chain-source/migrations
+          SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR: ${{ runner.temp }}/seller-profile-retained-authority-evidence
           USER_CLERK_IDENTITY_MIGRATION_PATH: ${{ runner.temp }}/user-clerk-identity-authority/migration/migration.sql
         run: |
           node -e 'const os = require("node:os"); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), totalMemoryMiB: Math.floor(os.totalmem() / 1024 ** 2), testFileConcurrency: 1 }))'
@@ -4838,6 +4925,49 @@ jobs:
           SQL
       - name: Audit runtime grants after User public review-commission snapshot
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      # The next replay installs a checksum-pinned historical grant auditor.
+      # Run only that auditor against the exact schema it reviewed; source tests
+      # continue to see the current schema and the wrapper always restores it.
+      - name: Prepare SellerProfile public predecessor schema for historical audit replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
+          predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
+          predecessor_staff_blob=43e85a986eb4790e222482e81a00afbfcc91dce5
+          current_schema_blob=85fe1be04d0d05734d1c6c6d50f4c9380d28f007
+          git cat-file -e "$predecessor^{commit}"
+          git merge-base --is-ancestor "$predecessor" HEAD
+          test "$(git hash-object prisma/schema.prisma)" = "$current_schema_blob"
+          git show "$predecessor:prisma/schema.prisma" > "$holding/predecessor-schema.prisma"
+          test "$(git hash-object "$holding/predecessor-schema.prisma")" = "$predecessor_schema_blob"
+          git show \
+            "$predecessor:scripts/provision-order-staff-read-role.sql" \
+            > "$holding/predecessor-provision-order-staff-read-role.sql"
+          test \
+            "$(git hash-object "$holding/predecessor-provision-order-staff-read-role.sql")" \
+            = "$predecessor_staff_blob"
+          cat > "$holding/with-predecessor-schema.sh" <<'BASH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          holding="${RUNNER_TEMP:?}/seller-profile-public-candidate"
+          root="${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}"
+          schema="$root/prisma/schema.prisma"
+          current="$holding/current-schema.$$.prisma"
+          test ! -e "$current"
+          test "$(git hash-object "$schema")" = 85fe1be04d0d05734d1c6c6d50f4c9380d28f007
+          cp "$schema" "$current"
+          cleanup() {
+            mv "$current" "$schema"
+            test "$(git hash-object "$schema")" = 85fe1be04d0d05734d1c6c6d50f4c9380d28f007
+          }
+          trap cleanup EXIT
+          cp "$holding/predecessor-schema.prisma" "$schema"
+          test "$(git hash-object "$schema")" = 8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
+          "$@"
+          BASH
+          chmod 700 "$holding/with-predecessor-schema.sh"
       - name: Restore accumulated User access source package
         shell: bash
         run: |
@@ -4927,7 +5057,7 @@ jobs:
             --set=migration_role=ci \
             --file=scripts/provision-order-staff-read-role.sql
       - name: Audit runtime grants after accumulated User access
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User block-email source package
         shell: bash
         run: |
@@ -5030,7 +5160,7 @@ jobs:
           $verify_user_block_email_authorities$;
           SQL
       - name: Audit runtime grants after User block-email authorities
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User follower authority source package
         shell: bash
         run: |
@@ -5138,7 +5268,7 @@ jobs:
           $verify_user_follower_authorities$;
           SQL
       - name: Audit runtime grants after User follower authorities
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User staff admin-label source package
         shell: bash
         run: |
@@ -5243,7 +5373,7 @@ jobs:
           $verify_user_staff_admin_labels$;
           SQL
       - name: Audit runtime grants after User staff admin-label authority
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh" npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore User policyless ENABLE source package
         shell: bash
         run: |
@@ -5332,6 +5462,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Stage exact User ENABLE ledger for integrated FORCE proof
         run: |
@@ -5398,6 +5529,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore Clerk webhook event authority source package
         shell: bash
@@ -5604,6 +5736,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore AccountDeletionSideEffect claim-fence source package
         shell: bash
@@ -5753,6 +5886,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore seller listing Hide/Delete source package
         shell: bash
@@ -5830,6 +5964,7 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
+          "$RUNNER_TEMP/seller-profile-public-candidate/with-predecessor-schema.sh"
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
       - name: Restore SellerProfile private-boundary migration after all predecessors
         shell: bash
@@ -6446,7 +6581,7 @@ jobs:
           --set=staff_role=grainline_staff_read_runtime
           --set=runtime_role=grainline_app_runtime
           --set=migration_role=ci
-          --file=scripts/provision-order-staff-read-role.sql
+          --file="$RUNNER_TEMP/seller-profile-public-candidate/predecessor-provision-order-staff-read-role.sql"
       - name: Prove SellerProfile private boundary in ephemeral PostgreSQL
         run: npm run audit:seller-profile-private-boundary-postgres
         env:
@@ -6457,5 +6592,57 @@ jobs:
           RUNTIME_DB_ROLE=grainline_app_runtime
           MIGRATION_DB_ROLE=ci
           npm run audit:db-grants -- --allow-loopback-ci --staff-read-stage=order-user-combined
+      # The disposable database above intentionally replays each accepted
+      # historical release boundary without the later SellerProfile candidate.
+      # Restore the candidate only after every historical catalog audit so the
+      # source-derived inventory cannot outrun the database state under proof.
+      - name: Restore public SellerProfile candidate after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-profile-public-candidate"
+          while IFS= read -r migration
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done < "$holding/migration-names.txt"
+          while IFS= read -r test_file
+          do
+            mv "$holding/tests/$(basename "$test_file")" "$test_file"
+          done < "$holding/test-files.txt"
+          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
+      # The application now calls the bounded SellerProfile authorities while
+      # collecting static page data. Mirror the reviewed release order for the
+      # final build: preparations first, compatible app second, ENABLE later.
+      - name: Apply public SellerProfile preparations for final Production build
+        env:
+          PGPASSWORD: ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261020240000_enable_seller_profile_rls
+          holding="$(mktemp -d "$RUNNER_TEMP/seller-profile-final-build-enable.XXXXXX")"
+          cleanup() {
+            if test -d "$holding/$migration"
+            then
+              mv "$holding/$migration" "prisma/migrations/$migration"
+            fi
+            rmdir "$holding" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          # Historical release proofs intentionally reconstruct some accepted
+          # states outside Prisma's ledger. Recreate only this disposable CI
+          # database, then use the same reviewed full-chain runner that handles
+          # the repository's historical role convergence requirements.
+          dropdb --host=localhost --username=ci --force grainline_ci
+          createdb --host=localhost --username=ci --owner=ci grainline_ci
+          DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="$DIRECT_URL" \
+            node tools/database-full-chain/apply-ci-chain.mjs
+          cleanup
+          trap - EXIT
+      - name: Require only SellerProfile ENABLE pending for final Production build
+        env:
+          REVIEWED_PENDING_MIGRATIONS: 20261020240000_enable_seller_profile_rls
+        run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Production build
         run: npm run build

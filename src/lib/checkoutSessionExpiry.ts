@@ -6,6 +6,7 @@ import { restoreSellerExpiredCheckoutStockOnce } from "@/lib/checkoutStockRestor
 import { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 import { expireClosedSellerAccountSessions } from "@/lib/orderSellerClosureSessions";
 import { expireBlockedPairCheckoutSessions } from "@/lib/blockedPairCheckoutSessions";
+import { blockedPairCheckoutTargets } from "@/lib/sellerProfileServiceAccess";
 export { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 
 export type ExpireOpenCheckoutSessionsResult = {
@@ -41,19 +42,7 @@ export async function expireOpenCheckoutSessionsForBlockedPair(input: {
   secondUserId: string;
   source: string;
 }) {
-  const sellers = await prisma.sellerProfile.findMany({
-    where: { userId: { in: [input.firstUserId, input.secondUserId] } },
-    select: { id: true, userId: true },
-  });
-  const sellerByUserId = new Map(sellers.map((seller) => [seller.userId, seller.id]));
-  const targets = [
-    sellerByUserId.get(input.secondUserId)
-      ? { buyerId: input.firstUserId, sellerId: sellerByUserId.get(input.secondUserId)! }
-      : null,
-    sellerByUserId.get(input.firstUserId)
-      ? { buyerId: input.secondUserId, sellerId: sellerByUserId.get(input.firstUserId)! }
-      : null,
-  ].filter((target): target is { buyerId: string; sellerId: string } => target !== null);
+  const targets = await blockedPairCheckoutTargets(input);
 
   return expireBlockedPairCheckoutSessions<Stripe.Checkout.Session>({
     targets,

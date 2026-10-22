@@ -1,20 +1,5 @@
 import { Prisma } from "@prisma/client";
 
-// Shared authenticated-owner bootstrap projection. Keep this bounded to fields
-// consumed immediately by ensureSeller callers; page-specific private settings
-// use their own explicit projections below.
-export const sellerBootstrapSelect = {
-  id: true,
-  userId: true,
-  displayName: true,
-  chargesEnabled: true,
-  vacationMode: true,
-  bannerImageUrl: true,
-  avatarImageUrl: true,
-  workshopImageUrl: true,
-  galleryImageUrls: true,
-} satisfies Prisma.SellerProfileSelect;
-
 export const sellerSettingsOwnerSelect = {
   id: true,
   chargesEnabled: true,

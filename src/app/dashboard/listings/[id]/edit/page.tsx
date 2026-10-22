@@ -37,6 +37,7 @@ import InventoryQuantityControl from "@/components/InventoryQuantityControl";
 import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict } from "@/lib/listingStockMutation";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
+import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -187,6 +188,8 @@ async function updateListing(
   if (!actor || actor.banned || actor.deletedAt) {
     return { ok: false, error: "Your account is not available." };
   }
+  const sellerCore = await sellerOwnerCore(actor.id);
+  if (!sellerCore) return { ok: false, error: "Not allowed" };
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
   const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
@@ -299,9 +302,8 @@ async function updateListing(
 
   // Guard ownership
   const listing = await prisma.listing.findFirst({
-    where: { id: listingId, seller: { userId: actor.id } },
+    where: { id: listingId, sellerId: sellerCore.sellerProfileId },
     include: {
-      seller: { select: { userId: true } },
       photos: { orderBy: { sortOrder: "asc" } },
       variantGroups: {
         orderBy: { sortOrder: "asc" },
@@ -332,7 +334,7 @@ async function updateListing(
       urls: [...submittedNewPhotoUrls],
       max: submittedNewPhotoUrls.size,
       clerkUserId: userId,
-      accountUserId: listing.seller.userId,
+      accountUserId: actor.id,
       allowedEndpoints: ["listingImage"],
     }));
     if (verifiedNewPhotoUrls.size !== submittedNewPhotoUrls.size) {
@@ -378,7 +380,7 @@ async function updateListing(
       // Ordinary content saves never rewrite stock. A listing-type conversion
       // is an explicit, separately identified inventory operation in this same
       // transaction, so replay cannot recreate stock after a later conversion.
-      const scope = { listingId, sellerId: listing.sellerId, actorId: listing.seller.userId };
+      const scope = { listingId, sellerId: listing.sellerId, actorId: actor.id };
       const modeMutation = listingType !== stockContext.listingType
         ? await prepareListingStockMutation(tx, scope, stockContext, {
             kind: "listing-type", previousType: stockContext.listingType, listingType, stockQuantity,
@@ -481,7 +483,7 @@ async function updateListing(
       }
       await syncListingDirectUploadReferences({
         client: tx,
-        userId: listing.seller.userId,
+        userId: actor.id,
         listingId,
       });
 
@@ -512,11 +514,11 @@ async function updateListing(
   //   redirected to a 404'd public listing path.
   if (needsPublicContentReview) {
     try {
-      const seller = await prisma.sellerProfile.findFirst({
-        where: { listings: { some: { id: listingId } } },
-        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
-      });
-      if (seller?.chargesEnabled) {
+      const sellerReview = await sellerOwnerListingReview(actor.id);
+      if (
+        sellerReview?.sellerProfileId === listing.sellerId
+        && sellerCore.chargesEnabled
+      ) {
         const photos = await prisma.photo.findMany({
           where: { listingId },
           select: { url: true },
@@ -526,15 +528,15 @@ async function updateListing(
         const { reviewListingWithAI } = await import("@/lib/ai-review");
         const aiResult = await reviewListingWithAI({
           listingId,
-          sellerId: seller.id,
+          sellerId: sellerCore.sellerProfileId,
           title,
           description,
           priceCents,
           currency: listing.currency,
           category: category ?? null,
           tags,
-          sellerName: seller.displayName,
-          listingCount: seller._count.listings,
+          sellerName: sellerCore.displayName,
+          listingCount: sellerReview.totalListingCount,
           imageUrls: photos.map((p) => p.url),
         }).catch(() => ({
           approved: false,
@@ -560,7 +562,11 @@ async function updateListing(
             },
           });
           if (holdResult.count > 0) {
-            queueCheckoutSessionExpiryForListing(listingId, seller.id, "listing_edit_ai_hold");
+            queueCheckoutSessionExpiryForListing(
+              listingId,
+              sellerCore.sellerProfileId,
+              "listing_edit_ai_hold",
+            );
           }
         } else {
           // Stays in the current public status; refresh AI metadata for this pass.
@@ -579,8 +585,12 @@ async function updateListing(
           where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
           data: { status: ListingStatus.DRAFT },
         });
-        if (draftResult.count > 0 && seller) {
-          queueCheckoutSessionExpiryForListing(listingId, seller.id, "listing_edit_seller_disconnected");
+        if (draftResult.count > 0) {
+          queueCheckoutSessionExpiryForListing(
+            listingId,
+            sellerCore.sellerProfileId,
+            "listing_edit_seller_disconnected",
+          );
         }
       }
     } catch (err) {
@@ -683,22 +693,23 @@ export default async function EditListingPage(props: {
   if (!userId) return notFound();
   const actor = await userClerkGate(prisma, userId);
   if (!actor || actor.banned || actor.deletedAt) return notFound();
+  const sellerCore = await sellerOwnerCore(actor.id);
+  if (!sellerCore) return notFound();
 
   const listing = await prisma.listing.findFirst({
-    where: { id, seller: { userId: actor.id } },
+    where: { id, sellerId: sellerCore.sellerProfileId },
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
       variantGroups: {
         orderBy: { sortOrder: "asc" },
         include: { options: { orderBy: { sortOrder: "asc" } } },
       },
-      seller: { select: { chargesEnabled: true } },
     },
   });
   if (!listing) return notFound();
   if (listing.archivedAt) return notFound();
   const editBlockReason = listingEditBlockReason(listing);
-  const chargesEnabled = listing.seller.chargesEnabled;
+  const chargesEnabled = sellerCore.chargesEnabled;
 
   if (editBlockReason) {
     return (

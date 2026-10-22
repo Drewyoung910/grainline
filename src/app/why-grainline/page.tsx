@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { Shield, Hammer, Eye, MessageCircle, MapPin, CheckCircle } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 
 export const metadata: Metadata = {
   title: "Why Grainline | Real handmade woodworking, not factory imports",
@@ -16,13 +16,12 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function WhyGrainlinePage() {
-  const [listingCount, sellerCount, foundingCount] = await Promise.all([
+  const [listingCount, marketplaceCounts] = await Promise.all([
     prisma.listing.count({ where: publicListingWhere() }),
-    prisma.sellerProfile.count({
-      where: activeSellerProfileWhere({ listings: { some: publicListingWhere() } }),
-    }),
-    prisma.sellerProfile.count({ where: { isFoundingMaker: true } }),
+    sellerPublicMarketplaceCounts(),
   ]);
+  const sellerCount = marketplaceCounts.activeSellerCount;
+  const foundingCount = marketplaceCounts.foundingMakerCount;
 
   return (
     <div className="bg-gradient-to-b from-amber-50/40 via-white to-white min-h-[100svh]">

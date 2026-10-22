@@ -76,7 +76,10 @@ describe("account deletion side-effect retries", () => {
     );
 
     assert.match(deletion, /runAccountDeletionStripeRejectSideEffect\(\{/);
-    assert.match(deletion, /collectAccountDeletionMediaKeys\(tx, user\.id, user\.clerkId\)/);
+    assert.match(
+      deletion,
+      /collectAccountDeletionMediaKeys\(\s*tx,\s*user\.id,\s*user\.clerkId,\s*user\.sellerProfile\?\.id \?\? null,\s*\{\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\},\s*\)/s,
+    );
     assert.match(
       deletion,
       /enqueueAccountDeletionMediaDeleteSideEffects\([\s\S]*sideEffectId: localAnonymizeSideEffectId,[\s\S]*claimGeneration: localClaimGeneration,[\s\S]*claimToken: localClaimToken,[\s\S]*mediaKeys,/,

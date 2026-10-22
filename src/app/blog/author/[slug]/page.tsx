@@ -14,7 +14,7 @@ import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { extractRouteId, publicBlogAuthorPath, publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { sellerPublicBlogAuthor } from "@/lib/sellerProfilePublicAccess";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 
 const BASE_URL = "https://thegrainline.com";
@@ -37,23 +37,7 @@ const AUTHOR_POST_SELECT = {
 
 type AuthorPost = Prisma.BlogPostGetPayload<{ select: typeof AUTHOR_POST_SELECT }>;
 
-const getPublicBlogAuthor = cache(async (sellerProfileId: string) =>
-  prisma.sellerProfile.findFirst({
-    where: activeSellerProfileWhere({
-      id: sellerProfileId,
-      blogPosts: { some: publicBlogPostWhere({ sellerProfileId }) },
-    }),
-    select: {
-      id: true,
-      displayName: true,
-      tagline: true,
-      avatarImageUrl: true,
-      bannerImageUrl: true,
-      userId: true,
-      ownerImageUrl: true,
-    },
-  })
-);
+const getPublicBlogAuthor = cache(sellerPublicBlogAuthor);
 
 export async function generateMetadata({
   params,

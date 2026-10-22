@@ -33,6 +33,10 @@ import {
 } from "./qualityScoreFormula.ts";
 import { getPublicListingOrderCounts } from "@/lib/orderPublicAggregateAuthority";
 import { userPublicListingFavoriteCounts } from "@/lib/userFollowerAccess";
+import {
+  sellerServiceQualityScoreBatch,
+  sellerServiceZeroIneligibleQualityScores,
+} from "@/lib/sellerProfileQualityScoreAccess";
 
 const BATCH_SIZE = 200;
 
@@ -46,43 +50,7 @@ async function computeGlobalMeans(): Promise<QualityScoreGlobalMeans> {
 }
 
 async function fetchActiveListingBatch(cursorId: string | null): Promise<ListingQualityScoreRow[]> {
-  const cursorPredicate = cursorId
-    ? Prisma.sql`AND l.id > ${cursorId}`
-    : Prisma.empty;
-
-  const rows = await prisma.$queryRaw<Array<Omit<ListingQualityScoreRow, "orderCount" | "favCount">>>(Prisma.sql`
-    SELECT
-      l.id,
-      l."sellerId",
-      l."viewCount",
-      l."clickCount",
-      COALESCE(ph.cnt, 0) AS "photoCount",
-      COALESCE(ph."hasAlt", false) AS "hasAltText",
-      COALESCE(LENGTH(l.description), 0) AS "descLength",
-      l."aiReviewFlags",
-      l."createdAt",
-      sp."createdAt" AS "sellerCreatedAt",
-      sp."guildLevel",
-      sr."averageRating" AS "sellerAvgRating",
-      COALESCE(sr."reviewCount", 0) AS "sellerReviewCount"
-    FROM "Listing" l
-    JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-    LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS cnt,
-             BOOL_OR(p."altText" IS NOT NULL AND p."altText" != '') AS "hasAlt"
-      FROM "Photo" p WHERE p."listingId" = l.id
-    ) ph ON true
-    LEFT JOIN "SellerRatingSummary" sr ON sr."sellerProfileId" = l."sellerId"
-    WHERE l.status = 'ACTIVE'
-      AND l."isPrivate" = false
-      AND sp."chargesEnabled" = true
-      AND sp."stripeAccountSupported" = true
-      AND sp."vacationMode" = false
-      AND sp."ownerAccountActive" = true
-      ${cursorPredicate}
-    ORDER BY l.id ASC
-    LIMIT ${BATCH_SIZE}
-  `);
+  const rows = await sellerServiceQualityScoreBatch(cursorId, BATCH_SIZE);
   if (rows.length === 0) return [];
   const listingIds = rows.map((row) => row.id);
   const [orderCounts, favoriteCounts] = await Promise.all([
@@ -129,19 +97,7 @@ export async function recalculateAllQualityScores(): Promise<{
   }
 
   // Zero out inactive/private listings
-  const zeroed = await prisma.listing.updateMany({
-    where: {
-      OR: [
-        { status: { not: "ACTIVE" } },
-        { isPrivate: true },
-        { seller: { chargesEnabled: false } },
-        { seller: { vacationMode: true } },
-        { seller: { ownerAccountActive: false } },
-      ],
-      qualityScore: { gt: 0 },
-    },
-    data: { qualityScore: 0 },
-  });
+  const zeroed = await sellerServiceZeroIneligibleQualityScores();
 
-  return { updated, zeroed: zeroed.count };
+  return { updated, zeroed };
 }

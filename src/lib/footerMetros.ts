@@ -1,38 +1,15 @@
 import { revalidateTag, unstable_cache } from "next/cache";
-import { prisma } from "@/lib/db";
-import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import {
+  sellerPublicFooterMetros,
+  type SellerPublicFooterMetro,
+} from "@/lib/sellerProfilePublicAccess";
 
 export const FOOTER_METROS_CACHE_TAG = "footer-metros";
 
-export type FooterMetro = {
-  slug: string;
-  name: string;
-  state: string;
-  _count: { listings: number };
-};
+export type FooterMetro = SellerPublicFooterMetro;
 
 async function queryFooterMetros(): Promise<FooterMetro[]> {
-  return prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        {
-          listings: {
-            some: publicListingWhere(),
-          },
-        },
-        {
-          sellerProfiles: {
-            some: activeSellerProfileWhere(),
-          },
-        },
-      ],
-    },
-    select: { slug: true, name: true, state: true, _count: { select: { listings: true } } },
-    orderBy: [{ listings: { _count: "desc" } }, { name: "asc" }, { slug: "asc" }],
-    take: 10,
-  });
+  return [...await sellerPublicFooterMetros()];
 }
 
 export const getFooterMetros = unstable_cache(

@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
-import { prisma } from "@/lib/db";
 import { POPULAR_BLOG_TAGS_CACHE_TAG } from "@/lib/searchCache";
+import { sellerPublicBlogTags } from "@/lib/sellerProfilePublicAccess";
 
 export type PopularBlogTag = {
   tag: string;
@@ -9,30 +9,7 @@ export type PopularBlogTag = {
 
 export const getPopularBlogTagRows = unstable_cache(
   async (limit = 8): Promise<PopularBlogTag[]> => {
-    const tags = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
-      SELECT tag, COUNT(*) as count
-      FROM "BlogPost" bp
-      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
-      CROSS JOIN LATERAL unnest(bp.tags) AS tag
-      WHERE bp.status = 'PUBLISHED'
-        AND bp."publishedAt" IS NOT NULL
-        AND bp."publishedAt" <= NOW()
-        AND bp."authorAccountActive" = true
-        AND (
-          bp."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND sp."stripeAccountSupported" = true
-            AND sp."vacationMode" = false
-            AND sp."ownerAccountActive" = true
-          )
-        )
-      GROUP BY tag
-      ORDER BY count DESC, tag ASC
-      LIMIT ${limit}
-    `;
-
-    return tags.map((r) => ({ tag: r.tag, count: Number(r.count) }));
+    return (await sellerPublicBlogTags(limit)).map(({ tag, count }) => ({ tag, count }));
   },
   ["popular-blog-tag-rows"],
   { revalidate: 3600, tags: [POPULAR_BLOG_TAGS_CACHE_TAG] },

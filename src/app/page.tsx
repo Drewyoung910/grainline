@@ -20,8 +20,7 @@ import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import FollowButton from "@/components/FollowButton";
@@ -33,6 +32,14 @@ import { formatCurrencyCents } from "@/lib/money";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
+import {
+  sellerPublicFeaturedMakers,
+  sellerPublicFollowerListingTarget,
+  sellerPublicListingCards,
+  sellerPublicMapPoints,
+  type SellerPublicFeaturedMaker,
+  type SellerPublicListingCard,
+} from "@/lib/sellerProfilePublicAccess";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -50,137 +57,13 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
-const featuredMakerSelect = {
-  id: true,
-  userId: true,
-  displayName: true,
-  bio: true,
-  storyBody: true,
-  yearsInBusiness: true,
-  createdAt: true,
-  city: true,
-  state: true,
-  tagline: true,
-  bannerImageUrl: true,
-  avatarImageUrl: true,
-  workshopImageUrl: true,
-  featuredListingIds: true,
-  guildLevel: true,
-  isFoundingMaker: true,
-  foundingMakerNumber: true,
-  ownerImageUrl: true,
-} satisfies Prisma.SellerProfileSelect;
+type FeaturedMaker = SellerPublicFeaturedMaker;
 
-type FeaturedMaker = Prisma.SellerProfileGetPayload<{ select: typeof featuredMakerSelect }>;
-
-function makerWeekIndex(count: number) {
-  if (count <= 0) return 0;
-  const now = new Date();
-  const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
-  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(now);
-  monday.setUTCDate(now.getUTCDate() + daysToMonday);
-  monday.setUTCHours(0, 0, 0, 0);
-  return Math.floor(monday.getTime() / (7 * 24 * 60 * 60 * 1000)) % count;
-}
-
-const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
-  const now = new Date();
-  const picked: FeaturedMaker[] = [];
-  const seen = new Set<string>();
-
-  function add(maker: FeaturedMaker | null) {
-    if (!maker || seen.has(maker.id) || picked.length >= 2) return;
-    picked.push(maker);
-    seen.add(maker.id);
-  }
-
-  // Tier 1: admin-featured (featuredUntil > now)
-  const curated = await prisma.sellerProfile.findMany({
-    where: activeSellerProfileWhere({ featuredUntil: { gt: now } }),
-    orderBy: [{ featuredUntil: "desc" }, { id: "asc" }],
-    select: featuredMakerSelect,
-    take: 2,
-  });
-  for (const m of curated) add(m);
-
-  // Tier 2: weekly Guild rotation (deterministic, fills remaining slots)
-  if (picked.length < 2) {
-    const guildWhere = activeSellerProfileWhere({
-      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-      ...(seen.size > 0 ? { id: { notIn: [...seen] } } : {}),
-    });
-    const guildCount = await prisma.sellerProfile.count({ where: guildWhere });
-    if (guildCount > 0) {
-      const startIdx = makerWeekIndex(guildCount);
-      const need = 2 - picked.length;
-      // Pull up to (need * 2) so we have room if some collide with already-seen
-      const weekly = await prisma.sellerProfile.findMany({
-        where: guildWhere,
-        orderBy: { id: "asc" },
-        skip: startIdx,
-        take: need,
-        select: featuredMakerSelect,
-      });
-      for (const m of weekly) add(m);
-      // Wrap-around if skip was near the end
-      if (picked.length < 2 && weekly.length < need) {
-        const wrap = await prisma.sellerProfile.findMany({
-          where: guildWhere,
-          orderBy: { id: "asc" },
-          take: 2 - picked.length,
-          select: featuredMakerSelect,
-        });
-        for (const m of wrap) add(m);
-      }
-    }
-  }
-
-  // Tier 3: top-reviewed fallback
-  if (picked.length < 2) {
-    const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
-      SELECT sp.id AS "sellerId"
-      FROM "SellerProfile" sp
-      LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
-      WHERE sp."chargesEnabled" = true
-        AND sp."stripeAccountSupported" = true
-        AND sp."vacationMode" = false
-        AND sp."ownerAccountActive" = true
-        AND EXISTS (
-          SELECT 1
-          FROM "Listing" l
-          WHERE l."sellerId" = sp.id
-            AND l.status = 'ACTIVE'
-            AND l."isPrivate" = false
-        )
-      ORDER BY COALESCE(srs."reviewCount", 0) DESC, sp.id ASC
-      LIMIT 4
-    `;
-    let candidateIds = topReviewedRows.map((r) => r.sellerId).filter((id) => !seen.has(id));
-    // Weekly rotation within the fallback pool too — without this, the
-    // single most-reviewed maker would hold the spotlight indefinitely
-    // whenever no Guild members exist yet.
-    if (candidateIds.length > 1) {
-      const offset = makerWeekIndex(candidateIds.length);
-      candidateIds = [...candidateIds.slice(offset), ...candidateIds.slice(0, offset)];
-    }
-    if (candidateIds.length > 0) {
-      const candidates = await prisma.sellerProfile.findMany({
-        where: activeSellerProfileWhere({ id: { in: candidateIds } }),
-        select: featuredMakerSelect,
-      });
-      // Preserve the SQL ordering
-      const byId = new Map(candidates.map((c) => [c.id, c]));
-      for (const id of candidateIds) {
-        if (picked.length >= 2) break;
-        const m = byId.get(id);
-        if (m) add(m);
-      }
-    }
-  }
-
-  return picked;
-}, ["home-featured-makers-v4"], { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] });
+const getFeaturedMakers = unstable_cache(
+  async (): Promise<FeaturedMaker[]> => [...await sellerPublicFeaturedMakers()],
+  ["home-featured-makers-v5"],
+  { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] },
+);
 
 const featuredListingSelect = {
   id: true,
@@ -206,18 +89,32 @@ const homeListingCardSelect = {
   stockQuantity: true,
   sellerId: true,
   photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-  seller: {
-    select: {
-      displayName: true,
-      avatarImageUrl: true,
-      guildLevel: true,
-      city: true,
-      state: true,
-      acceptingNewOrders: true,
-      ownerImageUrl: true,
-    },
-  },
 } satisfies Prisma.ListingSelect;
+
+type HomeListingCardSource = Prisma.ListingGetPayload<{ select: typeof homeListingCardSelect }>;
+type HomeListingCard = HomeListingCardSource & {
+  seller: Pick<
+    SellerPublicListingCard,
+    | "displayName"
+    | "avatarImageUrl"
+    | "guildLevel"
+    | "city"
+    | "state"
+    | "acceptingNewOrders"
+    | "ownerImageUrl"
+  >;
+};
+
+function hydrateHomeListingCards(
+  listings: HomeListingCardSource[],
+  sellerCards: ReadonlyMap<string, SellerPublicListingCard>,
+) {
+  return listings.flatMap((listing): HomeListingCard[] => {
+    const seller = sellerCards.get(listing.id);
+    if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
+    return [{ ...listing, seller }];
+  });
+}
 
 async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<FeaturedMakerWithListings[]> {
   const blocked = new Set(blockedSellerIds);
@@ -230,7 +127,7 @@ async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<F
       if (maker.featuredListingIds.length > 0) {
         const featuredRows = await prisma.listing.findMany({
           where: publicListingWhere({
-            id: { in: maker.featuredListingIds },
+            id: { in: [...maker.featuredListingIds] },
             sellerId: maker.id,
             photos: { some: {} },
           }),
@@ -282,8 +179,8 @@ export default async function HomePage() {
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
 
   const [
-    fresh,
-    topSaved,
+    freshRows,
+    topSavedRows,
     mapRows,
     recentBlogPosts,
     featuredMakerBlock,
@@ -319,18 +216,7 @@ export default async function HomePage() {
       take: 12,
       select: homeListingCardSelect,
     }),
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        publicMapOptIn: true,
-        lat: { not: null },
-        lng: { not: null },
-        OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
-        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      }),
-      select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
-      orderBy: { id: "asc" },
-      take: 200,
-    }),
+    sellerPublicMapPoints(meDbId, 200),
     prisma.blogPost.findMany({
       where: publicBlogPostWhere({
         ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}),
@@ -346,25 +232,33 @@ export default async function HomePage() {
         authorImageUrl: true,
         authorSellerName: true,
         authorSellerAvatarUrl: true,
-        sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
       },
     }),
     getFeaturedMakerBlock(blockedSellerIds),
     getCachedHomepageStats(),
   ]);
 
+  const homeListingIds = [...new Set([
+    ...freshRows.map((listing) => listing.id),
+    ...topSavedRows.map((listing) => listing.id),
+  ])];
+  const homeListingCards = await sellerPublicListingCards(meDbId, homeListingIds);
+  const homeListingCardById = new Map(
+    homeListingCards.map((seller) => [seller.listingId, seller]),
+  );
+  const fresh = hydrateHomeListingCards(freshRows, homeListingCardById);
+  const topSaved = hydrateHomeListingCards(topSavedRows, homeListingCardById);
+
   const featuredMakers = featuredMakerBlock;
 
-  const mapPoints = mapRows
-    .map((r) => ({
-      id: r.id,
-      name: r.displayName ?? "Maker",
-      city: r.city,
-      state: r.state,
-      lat: Number(r.lat),
-      lng: Number(r.lng),
-    }))
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  const mapPoints = mapRows.map((seller) => ({
+      id: seller.id,
+      name: seller.displayName || "Maker",
+      city: seller.city,
+      state: seller.state,
+      lat: seller.publicLat,
+      lng: seller.publicLng,
+    }));
 
   const featuredMakerFallbackImages = featuredMakers.map(({ maker, listings }) =>
     listings[0]?.photos[0]?.url ??
@@ -406,7 +300,7 @@ export default async function HomePage() {
     if (follows.length >= 3) {
       const followedIds = follows.map((f) => f.sellerProfileId);
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const [recentListings, recentPosts] = await Promise.all([
+      const [recentListingSources, recentPosts] = await Promise.all([
         prisma.listing.findMany({
           where: publicListingWhere({
             sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) },
@@ -416,7 +310,6 @@ export default async function HomePage() {
           take: 6,
           select: {
             id: true, title: true, priceCents: true, currency: true, createdAt: true, sellerId: true,
-            seller: { select: { displayName: true } },
             photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
           },
         }),
@@ -429,22 +322,28 @@ export default async function HomePage() {
           take: 6,
           select: {
             id: true, slug: true, title: true, coverImageUrl: true, publishedAt: true, sellerProfileId: true,
-            sellerProfile: { select: { displayName: true } },
+            authorSellerName: true,
           },
         }),
       ]);
+      const recentListings = (await Promise.all(recentListingSources.map(async (listing) => {
+        const target = await sellerPublicFollowerListingTarget(listing.id, listing.sellerId);
+        return target
+          ? { ...listing, sellerDisplayName: target.seller.displayName }
+          : null;
+      }))).filter((listing) => listing !== null);
 
       const merged: FromYourMakersItem[] = [
         ...recentListings.map((l): FromYourMakersItem => ({
           kind: "listing", id: l.id, date: l.createdAt.toISOString(), title: l.title, priceCents: l.priceCents, currency: l.currency,
           photoUrl: l.photos[0]?.url ?? null,
           photoAltText: l.photos[0]?.altText ?? null,
-          sellerName: l.seller.displayName ?? "Maker",
+          sellerName: l.sellerDisplayName,
           sellerProfileId: l.sellerId,
         })),
         ...recentPosts.map((p): FromYourMakersItem => ({
           kind: "blog", id: p.id, date: (p.publishedAt ?? new Date(0)).toISOString(), slug: p.slug, title: p.title, coverImageUrl: p.coverImageUrl,
-          sellerName: p.sellerProfile?.displayName ?? "Maker",
+          sellerName: p.authorSellerName ?? "Maker",
           sellerProfileId: p.sellerProfileId ?? "",
         })),
       ];
@@ -1079,14 +978,8 @@ export default async function HomePage() {
             </div>
             <ul className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {recentBlogPosts.map((p) => {
-                const authorName = p.sellerProfile?.displayName
-                  ?? p.authorSellerName
-                  ?? p.authorName
-                  ?? "Former author";
-                const authorAvatar = p.sellerProfile?.avatarImageUrl
-                  ?? p.authorSellerAvatarUrl
-                  ?? p.authorImageUrl
-                  ?? null;
+                const { name: authorName, imageUrl: authorAvatar } =
+                  publicBlogAuthorPresentation(p, "Former author");
                 return (
                   <li key={p.slug} className="relative card-listing">
                     <div className="absolute top-2 right-2 z-10">

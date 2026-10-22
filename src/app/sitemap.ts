@@ -5,8 +5,7 @@ import type { MetadataRoute } from "next";
 import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath, publicSellerShopPath, publicTagPath } from "@/lib/publicPaths";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
@@ -16,11 +15,16 @@ import {
   sitemapChunkForId,
 } from "@/lib/sitemapIndex";
 import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
+import {
+  sellerPublicBlogAuthorSitemap,
+  sellerPublicMetroStaticSlugs,
+  sellerPublicSitemapPage,
+} from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
 const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
-const TERMS_ROUTE_LAST_MODIFIED = new Date("2026-06-14T00:00:00.000Z");
-const PRIVACY_ROUTE_LAST_MODIFIED = new Date("2026-04-24T00:00:00.000Z");
+const TERMS_ROUTE_LAST_MODIFIED = new Date("2026-10-19T00:00:00.000Z");
+const PRIVACY_ROUTE_LAST_MODIFIED = new Date("2026-10-19T00:00:00.000Z");
 const TAG_LANDING_SITEMAP_LIMIT = 100;
 const BLOG_AUTHOR_LANDING_SITEMAP_LIMIT = 100;
 const BLOG_AUTHOR_LANDING_SOURCE_LIMIT = 500;
@@ -54,15 +58,11 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     if (!chunk || chunk.kind === "base") return [];
 
     if (chunk.kind === "sellers") {
-      const sellers = await prisma.sellerProfile.findMany({
-        where: activeSellerProfileWhere({
-          listings: { some: publicListingWhere() },
-        }),
-        select: { id: true, displayName: true, updatedAt: true },
-        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-        skip: chunk.rowSkip,
-        take: chunk.rowTake,
-      });
+      const sellers = await sellerPublicSitemapPage(
+        "SELLERS",
+        chunk.rowSkip,
+        chunk.rowTake,
+      );
 
       return sellers.flatMap((s) => [
         {
@@ -81,19 +81,11 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     }
 
     if (chunk.kind === "customerPhotos") {
-      const sellers = await prisma.sellerProfile.findMany({
-        where: activeSellerProfileWhere({
-          listings: {
-            some: publicListingDetailWhere({
-              reviews: { some: { photos: { some: {} } } },
-            }),
-          },
-        }),
-        select: { id: true, displayName: true, updatedAt: true },
-        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-        skip: chunk.rowSkip,
-        take: chunk.rowTake,
-      });
+      const sellers = await sellerPublicSitemapPage(
+        "CUSTOMER_PHOTOS",
+        chunk.rowSkip,
+        chunk.rowTake,
+      );
 
       return sellers.map((s) => ({
         url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}/customer-photos`,
@@ -181,31 +173,23 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
     }))),
     getPopularListingTags(TAG_LANDING_SITEMAP_LIMIT),
-    prisma.blogPost.findMany({
-      where: publicBlogPostWhere({ sellerProfileId: { not: null } }),
-      select: {
-        sellerProfileId: true,
-        updatedAt: true,
-        sellerProfile: { select: { id: true, displayName: true } },
-      },
-      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-      take: BLOG_AUTHOR_LANDING_SOURCE_LIMIT,
-    }),
+    sellerPublicBlogAuthorSitemap(
+      BLOG_AUTHOR_LANDING_SOURCE_LIMIT,
+      BLOG_AUTHOR_LANDING_SITEMAP_LIMIT,
+    ),
   ]);
 
   // ---------------------------------------------------------------------------
   // Metro city pages — only include metros with content
   // Major metros (no parent) get higher priority than child metros
   // ---------------------------------------------------------------------------
-  const [metrosWithListings, metrosWithCommissions] = await Promise.all([
+  const [metrosWithListings, metrosWithCommissions, sellerMetroSlugs] = await Promise.all([
     prisma.metro.findMany({
       where: {
         isActive: true,
         OR: [
           { listings: { some: publicListingWhere() } },
           { listingCityMetros: { some: publicListingWhere() } },
-          { sellerProfiles: { some: activeSellerProfileWhere() } },
-          { sellerCityProfiles: { some: activeSellerProfileWhere() } },
         ],
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },
@@ -220,6 +204,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },
     }),
+    sellerPublicMetroStaticSlugs(),
   ]);
 
   // Category pages: group active listings by metroId+category and cityMetroId+category
@@ -229,6 +214,17 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     select: { id: true, slug: true, parentMetroId: true, updatedAt: true },
   });
   const metroById = new Map(allMetros.map((m) => [m.id, m]));
+  const sellerMetroSlugSet = new Set(sellerMetroSlugs.map(({ slug }) => slug));
+  const metroRouteMap = new Map(
+    metrosWithListings.map((metro) => [metro.slug, metro] as const),
+  );
+  for (const metro of allMetros) {
+    if (sellerMetroSlugSet.has(metro.slug)) {
+      metroRouteMap.set(metro.slug, metro);
+    }
+  }
+  const metrosWithPublicContent = [...metroRouteMap.values()]
+    .sort((left, right) => left.slug.localeCompare(right.slug));
 
   const [majorCatGroups, cityCatGroups] = await Promise.all([
     prisma.listing.groupBy({
@@ -299,25 +295,15 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     changeFrequency: "weekly" as const,
     priority: 0.6,
   }));
-  const blogAuthorRouteMap = new Map<string, { displayName: string; updatedAt: Date }>();
-  for (const post of blogAuthorSeedPosts) {
-    if (!post.sellerProfileId || !post.sellerProfile) continue;
-    if (blogAuthorRouteMap.has(post.sellerProfileId)) continue;
-    blogAuthorRouteMap.set(post.sellerProfileId, {
-      displayName: post.sellerProfile.displayName,
-      updatedAt: post.updatedAt,
-    });
-    if (blogAuthorRouteMap.size >= BLOG_AUTHOR_LANDING_SITEMAP_LIMIT) break;
-  }
-  const blogAuthorLandingRoutes: MetadataRoute.Sitemap = Array.from(blogAuthorRouteMap.entries()).map(([id, author]) => ({
-    url: `${BASE_URL}${publicBlogAuthorPath(id, author.displayName)}`,
+  const blogAuthorLandingRoutes: MetadataRoute.Sitemap = blogAuthorSeedPosts.map((author) => ({
+    url: `${BASE_URL}${publicBlogAuthorPath(author.id, author.displayName)}`,
     lastModified: author.updatedAt,
     changeFrequency: "weekly" as const,
     priority: 0.6,
   }));
 
   // Metro browse + makers: major metro = 0.8/0.7, child metro = 0.6/0.5
-  const metroRoutes: MetadataRoute.Sitemap = metrosWithListings.flatMap((m) => {
+  const metroRoutes: MetadataRoute.Sitemap = metrosWithPublicContent.flatMap((m) => {
     const isMajor = !m.parentMetroId;
     return [
       {

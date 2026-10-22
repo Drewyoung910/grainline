@@ -7,11 +7,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import FollowButton from "@/components/FollowButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { publicListingWhere } from "@/lib/listingVisibility";
-import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { formatCurrencyCents } from "@/lib/money";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import {
+  sellerOwnerFollowingCount,
+  sellerOwnerFollowingPage,
+} from "@/lib/sellerFollowAccess";
 
 export const metadata: Metadata = {
   title: "Makers You Follow",
@@ -33,55 +35,15 @@ export default async function FollowingPage({
 
   const { page: pageParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
-  const totalFollows = await prisma.follow.count({
-    where: {
-      followerId: me.id,
-      sellerProfile: visibleSellerProfileWhere(),
-    },
-  });
+  const totalFollows = await sellerOwnerFollowingCount(me.id);
   const totalPages = Math.max(1, Math.ceil(totalFollows / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
-  const follows = await prisma.follow.findMany({
-    where: {
-      followerId: me.id,
-      sellerProfile: visibleSellerProfileWhere(),
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    select: {
-      id: true,
-      createdAt: true,
-      sellerProfile: {
-        select: {
-          id: true,
-          displayName: true,
-          tagline: true,
-          avatarImageUrl: true,
-          city: true,
-          state: true,
-          vacationMode: true,
-          vacationReturnDate: true,
-          guildLevel: true,
-          ownerImageUrl: true,
-          _count: { select: { followers: true, listings: { where: publicListingWhere() } } },
-          listings: {
-            where: publicListingWhere(),
-            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-            take: 1,
-            select: {
-              id: true,
-              title: true,
-              priceCents: true,
-              currency: true,
-              photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-            },
-          },
-        },
-      },
-    },
-  });
+  const follows = await sellerOwnerFollowingPage(
+    me.id,
+    PAGE_SIZE,
+    (page - 1) * PAGE_SIZE,
+  );
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
@@ -141,25 +103,25 @@ export default async function FollowingPage({
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
                       {location && <span>{location}</span>}
                       {location && <span>·</span>}
-                      <span>{s._count.followers} follower{s._count.followers !== 1 ? "s" : ""}</span>
+                      <span>{s.followerCount} follower{s.followerCount !== 1 ? "s" : ""}</span>
                       <span>·</span>
-                      <span>{s._count.listings} listing{s._count.listings !== 1 ? "s" : ""}</span>
+                      <span>{s.listingCount} listing{s.listingCount !== 1 ? "s" : ""}</span>
                       <span>·</span>
                       <span>Since {new Date(createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
                     </div>
                     {/* Latest listing */}
-                    {s.listings[0] ? (
-                      <Link href={publicListingPath(s.listings[0].id, s.listings[0].title)} className="flex max-w-full items-center gap-2 mt-2 group w-fit">
-                        {s.listings[0].photos[0]?.url ? (
+                    {s.latestListing ? (
+                      <Link href={publicListingPath(s.latestListing.id, s.latestListing.title)} className="flex max-w-full items-center gap-2 mt-2 group w-fit">
+                        {s.latestListing.photoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={s.listings[0].photos[0].url} alt={s.listings[0].title} className="h-10 w-10 object-cover border border-neutral-200 rounded-md shrink-0" />
+                          <img src={s.latestListing.photoUrl} alt={s.latestListing.title} className="h-10 w-10 object-cover border border-neutral-200 rounded-md shrink-0" />
                         ) : (
                           <div className="h-10 w-10 bg-neutral-100 border border-neutral-200 rounded-md shrink-0" />
                         )}
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-neutral-800 truncate group-hover:underline">{s.listings[0].title}</p>
+                          <p className="text-xs font-medium text-neutral-800 truncate group-hover:underline">{s.latestListing.title}</p>
                           <p className="text-xs text-neutral-500">
-                            {formatCurrencyCents(s.listings[0].priceCents, s.listings[0].currency)}
+                            {formatCurrencyCents(s.latestListing.priceCents, s.latestListing.currency)}
                           </p>
                         </div>
                       </Link>
@@ -172,7 +134,7 @@ export default async function FollowingPage({
                   <FollowButton
                     sellerProfileId={s.id}
                     initialFollowing={true}
-                    initialCount={s._count.followers}
+                    initialCount={s.followerCount}
                     size="sm"
                   />
                 </div>

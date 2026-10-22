@@ -10,9 +10,10 @@ describe("follower listing notification guardrails", () => {
   it("filters blocked follower pairs before in-app and email fanout", () => {
     const fanout = source("src/lib/followerListingNotifications.ts");
 
-    assert.match(fanout, /import \{ publicListingWhere \} from "@\/lib\/listingVisibility"/);
-    assert.match(fanout, /const publicListing = await prisma\.listing\.findFirst\(\{/);
-    assert.match(fanout, /where: publicListingWhere\(\{ id: listing\.id, sellerId: sellerProfileId \}\)/);
+    assert.match(fanout, /import \{ sellerPublicFollowerListingTarget \} from "@\/lib\/sellerProfilePublicAccess"/);
+    assert.match(fanout, /const publicListing = await sellerPublicFollowerListingTarget\(/);
+    assert.match(fanout, /listing\.id,\s*sellerProfileId,/s);
+    assert.doesNotMatch(fanout, /prisma\.listing\./);
     assert.match(fanout, /if \(!publicListing\) return/);
     assert.match(fanout, /const sellerUserId = publicListing\.seller\.userId/);
     assert.match(fanout, /userFollowerNotificationPage\(prisma, \{/);
@@ -20,7 +21,7 @@ describe("follower listing notification guardrails", () => {
     assert.match(fanout, /limit: FOLLOWER_FANOUT_PAGE_SIZE/);
     assert.doesNotMatch(fanout, /prisma\.follow\.findMany/);
     assert.ok(
-      fanout.indexOf("where: publicListingWhere({ id: listing.id, sellerId: sellerProfileId })") <
+      fanout.indexOf("const publicListing = await sellerPublicFollowerListingTarget(") <
         fanout.indexOf("const followers = await userFollowerNotificationPage"),
       "public listing state must be rechecked before follower lookup",
     );
@@ -53,11 +54,12 @@ describe("follower listing notification guardrails", () => {
     assert.match(blogEdit, /sellerProfileId: publishedSellerProfileId/);
     assert.doesNotMatch(blogEdit, /take: 10000/);
 
-    assert.match(blogFanout, /import \{ publicBlogPostWhere \} from "@\/lib\/blogVisibility"/);
+    assert.match(blogFanout, /import \{ sellerPublicBlogAuthor \} from "@\/lib\/sellerProfilePublicAccess"/);
     assert.match(blogFanout, /const BLOG_FOLLOWER_FANOUT_PAGE_SIZE = 1000/);
-    assert.match(blogFanout, /where: publicBlogPostWhere\(\{ id: postId, sellerProfileId \}\)/);
-    assert.match(blogFanout, /if \(!publicPost\?\.sellerProfile\?\.userId\) return/);
-    assert.match(blogFanout, /const sellerUserId = publicPost\.sellerProfile\.userId/);
+    assert.match(blogFanout, /id: postId,[\s\S]*sellerProfileId,[\s\S]*authorType: "MAKER",[\s\S]*status: "PUBLISHED",[\s\S]*authorAccountActive: true/);
+    assert.match(blogFanout, /const seller = await sellerPublicBlogAuthor\(sellerProfileId\)/);
+    assert.match(blogFanout, /if \(!seller\) return/);
+    assert.match(blogFanout, /const sellerUserId = seller\.userId/);
     assert.match(blogFanout, /userFollowerNotificationPage\(prisma, \{/);
     assert.match(blogFanout, /afterFollowId: cursor/);
     assert.match(blogFanout, /limit: BLOG_FOLLOWER_FANOUT_PAGE_SIZE/);
@@ -65,9 +67,9 @@ describe("follower listing notification guardrails", () => {
     assert.match(blogFanout, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOWED_MAKER_NEW_BLOG/);
     assert.match(blogFanout, /sourceId: publicPost\.id/);
     assert.ok(
-      blogFanout.indexOf("where: publicBlogPostWhere({ id: postId, sellerProfileId })") <
+      blogFanout.indexOf("const seller = await sellerPublicBlogAuthor(sellerProfileId)") <
         blogFanout.indexOf("const followers = await userFollowerNotificationPage"),
-      "public blog state must be rechecked before follower lookup",
+      "purpose-bound public seller state must be rechecked before follower lookup",
     );
     assert.ok(
       blogFanout.indexOf("const followers = await userFollowerNotificationPage") <
@@ -80,7 +82,7 @@ describe("follower listing notification guardrails", () => {
     const broadcastRoute = source("src/app/api/seller/broadcast/route.ts");
 
     assert.match(broadcastRoute, /userOwnerBroadcastFollowers\(me\.id, \{/);
-    assert.match(broadcastRoute, /sellerProfileId: seller\.id/);
+    assert.match(broadcastRoute, /sellerProfileId: seller\.sellerProfileId/);
     assert.match(broadcastRoute, /sellersOnly/);
     assert.doesNotMatch(broadcastRoute, /prisma\.follow\.findMany/);
     assert.ok(

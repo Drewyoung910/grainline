@@ -5,10 +5,10 @@ import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { getIP, profileViewRatelimit, safeRateLimitOpen, viewRatelimit } from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
-import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
 import { privateResponse } from "@/lib/privateResponse";
 import { recordSellerProfileView } from "@/lib/sellerProfileViewAccess";
+import { sellerPublicViewTarget } from "@/lib/sellerProfilePublicAccess";
 
 const VIEWED_SELLER_IDS_COOKIE = "viewed_seller_profile_ids";
 
@@ -36,17 +36,15 @@ export async function POST(
   const { id } = await params;
   const { success: dedupOk } = await safeRateLimitOpen(profileViewRatelimit, `${ip}:seller:${id}`);
   if (!dedupOk) return telemetryJson({ ok: true, skipped: true });
+  if (id.length < 1 || id.length > 191) return telemetryJson({ ok: true, skipped: true });
 
-  const seller = await prisma.sellerProfile.findFirst({
-    where: visibleSellerProfileWhere({ id }),
-    select: { userId: true },
-  });
+  const seller = await sellerPublicViewTarget(id);
   if (!seller) return telemetryJson({ ok: true, skipped: true });
 
   const { userId } = await auth();
   if (userId) {
     const viewer = await userIdByClerkId(prisma, userId);
-    if (viewer?.id === seller.userId) return telemetryJson({ ok: true, skipped: true });
+    if (viewer?.id === seller.ownerUserId) return telemetryJson({ ok: true, skipped: true });
   }
 
   const cookieStore = await cookies();

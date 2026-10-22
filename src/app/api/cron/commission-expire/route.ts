@@ -11,6 +11,7 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 import { truncateText } from "@/lib/sanitize";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { commissionInterestNotificationTargets } from "@/lib/commissionInterestResidualAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -56,17 +57,6 @@ export async function GET(req: Request) {
           id: true,
           title: true,
           buyerId: true,
-          interests: {
-            where: {
-              sellerProfile: {
-                ownerAccountActive: true,
-              },
-            },
-            take: COMMISSION_INTEREST_NOTIFY_LIMIT,
-            select: {
-              sellerProfile: { select: { userId: true } },
-            },
-          },
         },
       });
       if (expiring.length === 0) {
@@ -81,6 +71,10 @@ export async function GET(req: Request) {
 
       await mapWithConcurrency(expiring, COMMISSION_EXPIRE_REQUEST_CONCURRENCY, async (request) => {
         try {
+          const sellerUserIds = await commissionInterestNotificationTargets(
+            request.id,
+            COMMISSION_INTEREST_NOTIFY_LIMIT,
+          );
           const updated = await prisma.commissionRequest.updateMany({
             where: { id: request.id, status: CommissionStatus.OPEN },
             data: { status: CommissionStatus.EXPIRED },
@@ -89,9 +83,6 @@ export async function GET(req: Request) {
           expired += 1;
 
           const title = truncateText(request.title, 80);
-          const sellerUserIds = Array.from(
-            new Set(request.interests.map((i) => i.sellerProfile.userId).filter(Boolean)),
-          );
           await createNotification({
             userId: request.buyerId,
             type: "COMMISSION_INTEREST",

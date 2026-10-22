@@ -25,16 +25,26 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
+import {
+  sellerOwnerCore,
+  sellerOwnerListingPublishReview,
+} from "@/lib/sellerProfileOwnerAccess";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
-async function findOwnedListing(listingId: string, ownerId: string) {
-  const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    include: { seller: { select: { userId: true, displayName: true } } },
+async function findOwnedListing(
+  listingId: string,
+  ownerId: string,
+  seller: { sellerProfileId: string; displayName: string },
+) {
+  const listing = await prisma.listing.findFirst({
+    where: { id: listingId, sellerId: seller.sellerProfileId },
   });
-  if (!listing || listing.seller.userId !== ownerId) return null;
-  return listing;
+  if (!listing) return null;
+  return {
+    ...listing,
+    seller: { userId: ownerId, displayName: seller.displayName },
+  };
 }
 
 type OwnedListing = NonNullable<Awaited<ReturnType<typeof findOwnedListing>>>;
@@ -54,7 +64,9 @@ async function getOwnedListing(listingId: string): Promise<OwnedListingResult> {
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 
-  const listing = await findOwnedListing(listingId, me.id);
+  const seller = await sellerOwnerCore(me.id);
+  if (!seller) return { ok: false, error: "Listing not found." };
+  const listing = await findOwnedListing(listingId, me.id, seller);
   if (!listing) return { ok: false, error: "Listing not found." };
   return { ok: true, listing };
 }
@@ -261,23 +273,16 @@ export async function publishListingAction(listingId: string): Promise<{ status:
   const blockReason = publishListingBlockReason(listing);
   if (blockReason) return { error: blockReason };
 
-  const sellerCheck = await prisma.sellerProfile.findUnique({
-    where: { id: listing.sellerId },
-    select: { chargesEnabled: true, vacationMode: true },
-  });
-  if (!sellerCheck?.chargesEnabled || sellerCheck.vacationMode) {
+  const sellerReview = await sellerOwnerListingPublishReview(
+    listing.seller.userId,
+    listing.sellerId,
+  );
+  if (!sellerReview?.chargesEnabled || sellerReview.vacationMode) {
     return { error: "Connect your bank account in Shop Settings to publish." };
   }
 
   try {
-    const sellerInfo = await prisma.sellerProfile.findUnique({
-      where: { id: listing.sellerId },
-      select: {
-        displayName: true,
-        _count: { select: { listings: { where: { status: { in: ["ACTIVE", "SOLD", "SOLD_OUT"] } } } } },
-      },
-    });
-    const listingCount = sellerInfo?._count.listings ?? 0;
+    const listingCount = sellerReview.publishReviewListingCount;
 
     const { reviewListingWithAI } = await import("@/lib/ai-review");
     const { logAdminAction } = await import("@/lib/audit");
@@ -298,7 +303,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       currency: listing.currency,
       category: listing.category ?? null,
       tags: listing.tags,
-      sellerName: sellerInfo?.displayName ?? "Unknown",
+      sellerName: sellerReview.displayName,
       listingCount,
       imageUrls: photos.map((p) => p.url),
     }).catch((error) => {
@@ -384,7 +389,10 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           AND status = 'ACTIVE'
       `;
       if (listing.isPrivate && listing.reservedForUserId && listing.customOrderConversationId) {
-        await sendCustomOrderReadyLink({ listingId });
+        await sendCustomOrderReadyLink({
+          listingId,
+          sellerUserId: listing.seller.userId,
+        });
       }
       await syncThreshold(listing.sellerId);
       // First active listing for this seller might earn the Founding Maker badge.

@@ -1,9 +1,9 @@
 // src/app/api/me/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { privateJson } from "@/lib/privateResponse";
+import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
 
 export async function GET() {
   const { userId } = await auth();
@@ -18,10 +18,7 @@ export async function GET() {
     throw err;
   }
 
-  const sellerProfile = await prisma.sellerProfile.findUnique({
-    where: { userId: user.id },
-    select: { id: true, avatarImageUrl: true },
-  });
+  const sellerProfile = await sellerOwnerAccountSummary(user.id);
 
   return privateJson({
     role: user.role,

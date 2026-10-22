@@ -25,7 +25,8 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(authority, /public\.grainline_message_send_custom_order_ready/);
     assert.match(readyFunction, /pg_catalog\.pg_advisory_xact_lock\(\s*913349/);
     assert.match(readyFunction, /pg_catalog\.hashtext\(p_listing_id\)/);
-    assert.match(helper, /sendCustomOrderReadyLink\(\{ listingId \}: \{ listingId: string \}\)/);
+    assert.match(helper, /sendCustomOrderReadyLink\(\{\s*listingId,\s*sellerUserId,\s*\}: \{\s*listingId: string;\s*sellerUserId: string;\s*\}\)/);
+    assert.doesNotMatch(helper, /prisma\.listing\./);
     assert.match(helper, /messageDelivered: false, messageCreated: false/);
     assert.match(helper, /messageDelivered: true, messageCreated: committed\.created/);
     assert.doesNotMatch(helper, /conversationId,\s*sellerUserId,\s*buyerUserId,\s*sellerName,\s*listing,/);
@@ -34,15 +35,18 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(readyFunction, /existing_message\.message_count <> 1/);
     assert.match(readyFunction, /'custom_order_link',\s*true,\s*message_sent_at/);
     assert.match(helper, /existing valid message heals a prior post-commit notification failure/);
-    assert.match(customPage, /sendCustomOrderReadyLink\(\{\s*listingId: created\.id,\s*\}\)/);
+    assert.match(customPage, /sendCustomOrderReadyLink\(\{\s*listingId: created\.id,\s*sellerUserId: seller\.userId,\s*\}\)/);
     assert.match(customPage, /startActorConversation\(me\.id, reservedForUserId, null\)/);
     assert.match(customPage, /availableConversation\.conversationId !== conversationId/);
     assert.match(customPage, /if \(!readyLink\.messageDelivered\)/);
     assert.match(customPage, /status: ListingStatus\.DRAFT/);
     assert.match(customPage, /readyLink=unavailable/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
-    assert.equal((adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId:/g) ?? []).length, 2);
-    assert.match(adminReview, /currentListing\.status === 'ACTIVE' &&[\s\S]*currentListing\.customOrderConversationId &&[\s\S]*currentListing\.reservedForUserId/);
+    assert.equal(
+      (adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId: listing\.id,\s*sellerUserId: listing\.seller\.userId,\s*\}\)/g) ?? []).length,
+      2,
+    );
+    assert.match(adminReview, /if \(!transition\.applied\) \{[\s\S]*listing\.status === 'ACTIVE' &&[\s\S]*listing\.customOrderConversationId &&[\s\S]*listing\.reservedForUserId/);
     assert.match(sellerActions, /import \{ sendCustomOrderReadyLink \} from "@\/lib\/customOrderReadyLink"/);
     const heldPath = sellerActions.slice(
       sellerActions.indexOf("if (shouldHold)"),
@@ -55,7 +59,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.doesNotMatch(heldPath, /sendCustomOrderReadyLink/);
     assert.match(
       activatedPath,
-      /if \(listing\.isPrivate && listing\.reservedForUserId && listing\.customOrderConversationId\) \{\s*await sendCustomOrderReadyLink\(\{ listingId \}\);\s*\}/,
+      /if \(listing\.isPrivate && listing\.reservedForUserId && listing\.customOrderConversationId\) \{\s*await sendCustomOrderReadyLink\(\{\s*listingId,\s*sellerUserId: listing\.seller\.userId,\s*\}\);\s*\}/,
     );
     assert.ok(
       activatedPath.indexOf("status: \"ACTIVE\"") < activatedPath.indexOf("await sendCustomOrderReadyLink"),

@@ -85,17 +85,20 @@ describe("reverse geocode throttle guardrails", () => {
 
   it("keeps Nominatim requests identifiable and US-only", () => {
     assert.match(source, /"User-Agent": "Grainline\/1\.0 \(thegrainline\.com\)"/);
-    assert.match(source, /if \(addr\.country_code !== "us"\) return null/);
+    assert.match(source, /countrycodes: "us"/);
   });
 
-  it("uses bounded Nominatim locality coordinates for auto-created metros", () => {
-    assert.match(source, /async function lookupLocalityCentroid\(city: string, state: string\)/);
-    assert.match(source, /q: `\$\{city\}, \$\{state\}, United States`/);
+  it("uses only a reviewed public locality for auto-created metros", () => {
+    assert.match(source, /async function lookupLocalityCentroid\(city: string, stateCode: string\)/);
+    assert.match(source, /q: `\$\{city\}, \$\{stateCode\}, United States`/);
     assert.match(source, /const first = Array\.isArray\(data\) \? data\[0\] : null/);
     assert.match(source, /const latitude = Number\(first\?\.lat\)/);
     assert.match(source, /const longitude = Number\(first\?\.lon\)/);
     assert.match(source, /roundedPublicMetroCoordinate\(latitude\)/);
     assert.match(source, /roundedPublicMetroCoordinate\(longitude\)/);
-    assert.match(source, /const centroid = await lookupLocalityCentroid\(city, stateName\)/);
+    assert.match(source, /export async function geocodePublicLocality/);
+    assert.match(source, /const centroid = await lookupLocalityCentroid\(city, stateCode\)/);
+    assert.doesNotMatch(source, /nominatim\.openstreetmap\.org\/reverse/);
+    assert.doesNotMatch(source, /lat: String\(lat\)|lon: String\(lng\)/);
   });
 });

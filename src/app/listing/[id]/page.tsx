@@ -32,8 +32,13 @@ import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
 import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
-import { isSupportedLocationPoint, publicSellerLocationPoint } from "@/lib/locationPrivacy";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
+import { sellerPublicLocation } from "@/lib/sellerProfilePublicAccess";
+import {
+  sellerListingDetailProfile,
+  sellerStaffListingDetailProfile,
+} from "@/lib/sellerProfileListingDetailAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -67,37 +72,6 @@ const getListingForDetailPage = cache(async (listingId: string) =>
       productHeightIn: true,
       sellerId: true,
       photos: { orderBy: { sortOrder: "asc" } },
-      seller: {
-        select: {
-          id: true,
-          userId: true,
-          displayName: true,
-          city: true,
-          state: true,
-          lat: true,
-          lng: true,
-          radiusMeters: true,
-          publicMapOptIn: true,
-          allowLocalPickup: true,
-          chargesEnabled: true,
-          stripeAccountSupported: true,
-          vacationMode: true,
-          acceptingNewOrders: true,
-          acceptsCustomOrders: true,
-          offersGiftWrapping: true,
-          giftWrappingPriceCents: true,
-          returnPolicy: true,
-          shippingPolicy: true,
-          customOrderPolicy: true,
-          tagline: true,
-          avatarImageUrl: true,
-          guildLevel: true,
-          isFoundingMaker: true,
-          foundingMakerNumber: true,
-          ownerAccountActive: true,
-          ownerImageUrl: true,
-        },
-      },
       metroId: true,
       cityMetroId: true,
       metro: { select: { slug: true, name: true, state: true } },
@@ -110,6 +84,11 @@ const getListingForDetailPage = cache(async (listingId: string) =>
   })
 );
 
+const getListingSellerForDetailPage = cache(
+  async (viewerUserId: string | null, listingId: string) =>
+    sellerListingDetailProfile(viewerUserId, listingId),
+);
+
 export async function generateMetadata(
   { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[]>> }
 ): Promise<Metadata> {
@@ -119,8 +98,16 @@ export async function generateMetadata(
   if (sp.preview === "1" || sp.preview === "admin") {
     return { robots: { index: false, follow: false } };
   }
-  const listing = await getListingForDetailPage(listingId);
-  if (!listing) notFound();
+  const listingCore = await getListingForDetailPage(listingId);
+  if (!listingCore) notFound();
+  const seller = await getListingSellerForDetailPage(null, listingId);
+  if (!seller) {
+    return {
+      title: { absolute: "Private listing — Grainline" },
+      robots: { index: false, follow: false },
+    };
+  }
+  const listing = { ...listingCore, seller };
   if (!isPublicListingDetail(listing)) {
     // The page performs viewer-aware authorization for seller previews and
     // buyer-reserved private listings. Metadata cannot reject every private
@@ -211,11 +198,10 @@ export default async function ListingPage({
   }
   const blockedUserIds = await getBlockedUserIdsFor(meId);
 
-  const listing = await listingPromise;
-  if (!listing) return notFound();
+  const listingCore = await listingPromise;
+  if (!listingCore) return notFound();
+  if (me?.banned || me?.deletedAt) return notFound();
 
-  // Preview mode: seller can view their own listing regardless of status/chargesEnabled
-  const viewerIsSeller = !!meId && listing.seller.userId === meId;
   const staffPreviewRequested = sp.preview === "admin";
   let staffPreview = false;
   if (
@@ -233,6 +219,18 @@ export default async function ListingPage({
       sessionId,
     );
   }
+  const seller = staffPreview
+    ? await sellerStaffListingDetailProfile(
+        getOrderStaffReadClient(),
+        meId as string,
+        listingId,
+      )
+    : await getListingSellerForDetailPage(meId, listingId);
+  if (!seller) return notFound();
+  const listing = { ...listingCore, seller };
+
+  // Preview mode: seller can view their own listing regardless of status/chargesEnabled
+  const viewerIsSeller = !!meId && listing.seller.userId === meId;
   const isPreview = (sp.preview === "1" && viewerIsSeller) || staffPreview;
 
   if (!canViewListingDetail(listing, {
@@ -250,6 +248,10 @@ export default async function ListingPage({
   if (!isPreview && blockedUserIds.has(listing.seller.userId)) {
     return notFound();
   }
+
+  const pickupMapPoint = listing.seller.allowLocalPickup
+    ? await sellerPublicLocation(meId, listing.sellerId, listing.id)
+    : null;
 
   if (!isPreview && !editingMine && id !== routeSegmentWithSlug(listing.id, listing.title, "listing")) {
     permanentRedirect(publicListingPath(listing.id, listing.title));
@@ -372,18 +374,7 @@ export default async function ListingPage({
 
   const initials = avatarInitials(sellerName, "S");
 
-  const lat = listing.seller.lat != null ? Number(listing.seller.lat) : null;
-  const lng = listing.seller.lng != null ? Number(listing.seller.lng) : null;
-  const radius = Number(listing.seller.radiusMeters ?? 0);
   const cityState = [listing.seller.city, listing.seller.state].filter(Boolean).join(", ");
-  const pickupMapPoint = lat != null && lng != null && isSupportedLocationPoint(lat, lng)
-    ? publicSellerLocationPoint({
-        lat,
-        lng,
-        radiusMeters: radius,
-        exactLocationOptIn: listing.seller.publicMapOptIn,
-      })
-    : null;
   const showPickupMap = listing.seller.allowLocalPickup && pickupMapPoint != null;
 
   const signedInMessageHref =
@@ -823,9 +814,9 @@ export default async function ListingPage({
         <section className="mb-10 max-w-2xl">
           <div style={{ position: "relative", zIndex: 0 }}>
             <DynamicMapCard
-              displayLat={pickupMapPoint.lat}
-              displayLng={pickupMapPoint.lng}
-              radiusMeters={radius}
+              displayLat={pickupMapPoint.publicLat}
+              displayLng={pickupMapPoint.publicLng}
+              radiusMeters={pickupMapPoint.displayRadiusMeters}
               label={cityState || sellerName}
             />
           </div>
@@ -920,13 +911,11 @@ export default async function ListingPage({
 
       {/* ── Similar makers — scoped to the LISTING's maker city/metro ─────── */}
       <SimilarMakers
-        sellerId={listing.seller.id}
-        metroId={listing.metroId}
-        cityMetroId={listing.cityMetroId}
+        listingId={listing.id}
         metroName={listing.cityMetro?.name ?? listing.metro?.name ?? null}
         city={listing.seller.city}
         state={listing.seller.state}
-        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+        viewerUserId={meId}
       />
 
       {/* ── Reviews ───────────────────────────────────────────────────────── */}
@@ -935,7 +924,9 @@ export default async function ListingPage({
           listingId={listingId}
           listingTitle={listing.title}
           meId={meId}
-          sellerUserId={sellerUserId}
+          sellerName={sellerName}
+          sellerAvatarUrl={sellerAvatar}
+          viewerIsSeller={viewerIsSeller}
           initialSort={sortKey}
           edit={editingMine}
           blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}

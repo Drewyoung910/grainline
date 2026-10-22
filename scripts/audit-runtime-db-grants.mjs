@@ -156,6 +156,15 @@ export const SELLER_PROFILE_PRIVATE_FORCE_MIGRATION =
   "20261015120000_force_seller_profile_private_rls";
 export const SELLER_PROFILE_PRIVATE_FORCE_MIGRATION_SHA256 =
   "fe6178fbf52d6601c1ae99b3421c81624811fb0e31ac4c1939a9a59e1a2c1409";
+export const SELLER_PROFILE_TABLE = "SellerProfile";
+export const SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION =
+  "20261020235950_prepare_seller_profile_public_blog_author_sitemap";
+export const SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION_SHA256 =
+  "b7dd31897eb4b0952f4cb313e4e08965c1d71319635af05629423214ba093fdf";
+export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION =
+  "20261020240000_enable_seller_profile_rls";
+export const SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256 =
+  "f5b4676735d005748b597220584ceecfb8af5539aa72a95a83ac56cd4151e9b5";
 export const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",
@@ -188,6 +197,7 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "OrderRefundReconciliation",
   "OrderStaffCapability",
   "SellerDeauthorizationApplication",
+  "SellerExactMapConsentEvent",
   "SellerProfilePrivate",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
@@ -226,6 +236,12 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_seller_guild_staff_roster(text,text)",
   "grainline_seller_guild_staff_master_pending(text)",
   "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+  "grainline_seller_staff_feature_transition(text,text,text)",
+  "grainline_seller_staff_listing_review_transition(text,text,text,text)",
+  "grainline_seller_staff_listing_detail_profile(text,text)",
+  "grainline_seller_staff_broadcast_targets(text,text[])",
+  "grainline_seller_staff_report_targets(text,text[])",
+  "grainline_seller_staff_verification_target(text,text)",
   "grainline_seller_staff_orderability_state(text,text)",
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -242,6 +258,12 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_seller_guild_staff_roster(text,text)",
     "grainline_seller_guild_staff_master_pending(text)",
     "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+    "grainline_seller_staff_feature_transition(text,text,text)",
+    "grainline_seller_staff_listing_review_transition(text,text,text,text)",
+    "grainline_seller_staff_listing_detail_profile(text,text)",
+    "grainline_seller_staff_broadcast_targets(text,text[])",
+    "grainline_seller_staff_report_targets(text,text[])",
+    "grainline_seller_staff_verification_target(text,text)",
     "grainline_seller_staff_orderability_state(text,text)",
   ],
 );
@@ -264,6 +286,8 @@ export const ORDER_USER_COMBINED_STAFF_READ_STAGE =
 export const STAFF_READ_STAGE_FLAG_PREFIX = "--staff-read-stage=";
 export const SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV =
   "SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATION_ISOLATED";
+export const SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED_ENV =
+  "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED";
 export const USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR_ENV =
   "USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR";
 export const USER_RELATIONSHIP_AUTHORITY_MIGRATION =
@@ -291,18 +315,25 @@ export function resolveTemporarilyAbsentCiTables(
   env = process.env,
   { allowLoopbackCi = false } = {},
 ) {
-  const value = env[SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV];
-  if (value === undefined || value === "") return Object.freeze([]);
-  if (
-    value !== "true"
-    || !allowLoopbackCi
-    || env.GITHUB_ACTIONS !== "true"
-  ) {
-    throw new Error(
-      `${SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV} is allowed only as exact true in loopback CI`,
-    );
+  const temporarilyAbsentTables = [];
+  for (const [variable, table] of [
+    [SELLER_PROFILE_PRIVATE_BOUNDARY_ISOLATED_ENV, "SellerProfilePrivate"],
+    [SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED_ENV, "SellerExactMapConsentEvent"],
+  ]) {
+    const value = env[variable];
+    if (value === undefined || value === "") continue;
+    if (
+      value !== "true"
+      || !allowLoopbackCi
+      || env.GITHUB_ACTIONS !== "true"
+    ) {
+      throw new Error(
+        `${variable} is allowed only as exact true in loopback CI`,
+      );
+    }
+    temporarilyAbsentTables.push(table);
   }
-  return Object.freeze(["SellerProfilePrivate"]);
+  return Object.freeze(temporarilyAbsentTables);
 }
 
 export function resolveTemporarilyReappliedCiFunctions(
@@ -463,11 +494,15 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_message_route_immutable",
   "grainline_message_maintain_thread_state",
   "grainline_seller_owner_public_state_bind",
+  "grainline_seller_exact_map_consent_event_immutable",
+  "grainline_seller_exact_map_consent_revoke",
   "grainline_user_public_seller_state_sync",
   "grainline_blog_post_author_public_state_bind",
+  "grainline_listing_seller_public_state_bind",
   "grainline_blog_comment_author_public_state_bind",
   "grainline_user_public_blog_state_sync",
   "grainline_seller_public_blog_state_sync",
+  "grainline_seller_rating_listing_state_sync",
   "grainline_review_reviewer_public_state_bind",
   "grainline_commission_buyer_public_state_bind",
   "grainline_user_public_review_commission_state_sync",
@@ -476,6 +511,12 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_guild_staff_roster",
   "grainline_seller_guild_staff_master_pending",
   "grainline_seller_guild_staff_transition",
+  "grainline_seller_staff_feature_transition",
+  "grainline_seller_staff_listing_review_transition",
+  "grainline_seller_staff_listing_detail_profile",
+  "grainline_seller_staff_broadcast_targets",
+  "grainline_seller_staff_report_targets",
+  "grainline_seller_staff_verification_target",
   "grainline_seller_staff_orderability_state",
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",
@@ -740,6 +781,26 @@ export function collectSellerProfilePrivateMigrationOrderIssues({
   if (forceApplied && !enableApplied) {
     issues.push(
       "SellerProfilePrivate RLS FORCE is applied without its exact ENABLE prerequisite",
+    );
+  }
+  return issues;
+}
+
+export function collectSellerProfilePublicMigrationOrderIssues({
+  preparationApplied,
+  privateForceApplied,
+  enableApplied,
+}) {
+  if (!enableApplied) return [];
+  const issues = [];
+  if (!preparationApplied) {
+    issues.push(
+      "SellerProfile public RLS ENABLE is applied without its exact final preparation prerequisite",
+    );
+  }
+  if (!privateForceApplied) {
+    issues.push(
+      "SellerProfile public RLS ENABLE is applied without accepted SellerProfilePrivate FORCE",
     );
   }
   return issues;
@@ -1292,6 +1353,21 @@ export function userEmailAddressRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(USER_EMAIL_ADDRESS_TABLE);
 }
 
+export function sellerProfileRlsActivationExpected(inventory) {
+  if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
+    return inventory.sellerProfileRlsActivationApplied;
+  }
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(SELLER_PROFILE_TABLE)
+    && !policies.has(SELLER_PROFILE_TABLE);
+}
+
+export function sellerProfileRlsForceExpected(inventory) {
+  return sellerProfileRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(SELLER_PROFILE_TABLE);
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   const directUploadActivated = directUploadRlsActivationExpected(inventory);
   const reservationActivated =
@@ -1595,6 +1671,22 @@ export async function readSellerProfilePrivateForceState(client) {
   });
 }
 
+export async function readSellerProfilePublicPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION,
+    checksum: SELLER_PROFILE_PUBLIC_PREPARATION_MIGRATION_SHA256,
+    label: "SellerProfile public final preparation",
+  });
+}
+
+export async function readSellerProfilePublicEnableState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION,
+    checksum: SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256,
+    label: "SellerProfile public RLS ENABLE",
+  });
+}
+
 export function collectAccountDeletionMigrationOrderIssues({
   claimFenceApplied,
   mediaKeyApplied,
@@ -1655,6 +1747,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
+      : []),
+    ...(sellerProfileRlsActivationExpected(inventory)
+      ? [SELLER_PROFILE_TABLE]
       : []),
   ];
 }
@@ -2645,6 +2740,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === USER_TABLE
       && userRlsActivationExpected(inventory)
     )
+    || (
+      tableName === SELLER_PROFILE_TABLE
+      && sellerProfileRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -2702,6 +2801,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? userRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
+        : tableName === SELLER_PROFILE_TABLE
+          ? sellerProfileRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
@@ -3094,6 +3195,12 @@ export async function auditLiveDatabase({
   const sellerProfilePrivateForce =
     await readSellerProfilePrivateForceState(client);
   issues.push(...sellerProfilePrivateForce.issues);
+  const sellerProfilePublicPreparation =
+    await readSellerProfilePublicPreparationState(client);
+  issues.push(...sellerProfilePublicPreparation.issues);
+  const sellerProfilePublicEnable =
+    await readSellerProfilePublicEnableState(client);
+  issues.push(...sellerProfilePublicEnable.issues);
   issues.push(...collectSellerProfilePrivateMigrationOrderIssues({
     preparationApplied: sellerProfilePrivatePreparation.applied,
     retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
@@ -3101,6 +3208,11 @@ export async function auditLiveDatabase({
     invariantsApplied: sellerProfilePrivateInvariants.applied,
     enableApplied: sellerProfilePrivateEnable.applied,
     forceApplied: sellerProfilePrivateForce.applied,
+  }));
+  issues.push(...collectSellerProfilePublicMigrationOrderIssues({
+    preparationApplied: sellerProfilePublicPreparation.applied,
+    privateForceApplied: sellerProfilePrivateForce.applied,
+    enableApplied: sellerProfilePublicEnable.applied,
   }));
   issues.push(...collectAccountDeletionMigrationOrderIssues({
     claimFenceApplied: accountDeletionClaimFencePreparation.applied,
@@ -3143,6 +3255,7 @@ export async function auditLiveDatabase({
       accountDeletionSideEffectForce.applied,
     sellerProfilePrivateRlsEnabled: sellerProfilePrivateEnable.applied,
     sellerProfilePrivateRlsForced: sellerProfilePrivateForce.applied,
+    sellerProfileRlsActivationApplied: sellerProfilePublicEnable.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,

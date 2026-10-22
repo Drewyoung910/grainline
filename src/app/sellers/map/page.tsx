@@ -1,10 +1,9 @@
 // src/app/sellers/map/page.tsx
-import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import SellersMap from "@/components/SellersMap";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { auth } from "@clerk/nextjs/server";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { prisma } from "@/lib/db";
+import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -15,29 +14,13 @@ export default async function SellersMapPage() {
     const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-
-  const sellers = await prisma.sellerProfile.findMany({
-    where: {
-      lat: { not: null },
-      lng: { not: null },
-      publicMapOptIn: true,
-      ...activeSellerProfileWhere(),
-      ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      OR: [{ radiusMeters: null }, { radiusMeters: 0 }], // exact pins only
-    },
-    select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
-    orderBy: { id: "asc" },
-    take: 500,
-  });
-
-  const pins = sellers.map((s) => ({
-    id: s.id,
-    name: s.displayName ?? "Maker",
-    lat: Number(s.lat),
-    lng: Number(s.lng),
-    city: s.city,
-    state: s.state,
+  const pins = (await sellerPublicMapPoints(meDbId, 500)).map((seller) => ({
+    id: seller.id,
+    name: seller.displayName || "Maker",
+    lat: seller.publicLat,
+    lng: seller.publicLng,
+    city: seller.city,
+    state: seller.state,
   }));
 
   return (
@@ -46,7 +29,7 @@ export default async function SellersMapPage() {
         <div>
           <h1 className="font-display text-2xl font-semibold">Find makers near you</h1>
           <p className="text-sm text-neutral-600 mt-1">
-            Makers who opted into the public map appear as exact pins. Click a pin to preview a profile.
+            Makers choose an approximate pin or explicitly publish an exact one. Click a pin to preview a profile.
           </p>
         </div>
       </header>

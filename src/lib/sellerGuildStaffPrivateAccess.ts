@@ -27,6 +27,12 @@ export type SellerGuildStaffTransitionResult = {
   sellerDisplayName: string | null;
 };
 
+export type SellerStaffFeatureTransitionResult = {
+  applied: boolean;
+  auditId: string | null;
+  sellerProfileId: string | null;
+};
+
 type SellerGuildStaffMasterPendingRow = {
   id: string;
   craftDescription: string;
@@ -145,4 +151,32 @@ export async function applySellerGuildStaffTransition(
       )
   `;
   return rows[0] ?? null;
+}
+
+export async function applySellerStaffFeatureTransition(
+  client: SellerGuildStaffReadClient,
+  input: {
+    actorId: string;
+    sellerProfileId: string;
+    operation: "FEATURE" | "UNFEATURE";
+  },
+) {
+  const rows = await client.$queryRaw<SellerStaffFeatureTransitionResult[]>`
+    SELECT *
+      FROM public.grainline_seller_staff_feature_transition(
+        ${input.actorId},
+        ${input.sellerProfileId},
+        ${input.operation}
+      )
+  `;
+  const result = rows[0] ?? null;
+  if (result
+      && result.sellerProfileId !== null
+      && result.sellerProfileId !== input.sellerProfileId) {
+    throw new Error("Seller feature transition returned an invalid target");
+  }
+  if (result?.applied && !result.auditId) {
+    throw new Error("Seller feature transition omitted its audit witness");
+  }
+  return result;
 }

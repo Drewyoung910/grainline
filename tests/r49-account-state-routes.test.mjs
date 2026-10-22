@@ -43,7 +43,12 @@ describe("R49 account-state route guardrails", () => {
 
   it("keeps review seller side effects behind a fresh seller-account check", () => {
     const text = source("src/app/api/reviews/route.ts");
-    assert.match(text, /ownerAccountActive: true/);
+    assert.equal(
+      (text.match(/sellerActorReviewListingTarget\(me\.id, listingId\)/g) ?? []).length,
+      2,
+      "review creation must refresh the seller target after the review write",
+    );
+    assert.match(text, /listingForOwnerCheck && listingForOwnerCheck\.seller\.ownerAccountActive !== true/);
     assert.match(text, /if \(listing\?\.seller\.userId && listing\.seller\.ownerAccountActive === true\)/);
     assert.doesNotMatch(text, /seller:\s*\{[\s\S]*?user:\s*\{/);
   });
@@ -92,7 +97,7 @@ describe("R49 account-state route guardrails", () => {
     assert.doesNotMatch(recentlyViewedRoute, /safeRateLimitOpen\(searchRatelimit/);
     assert.ok(
       recentlyViewedRoute.indexOf("safeRateLimit(searchRatelimit") <
-        recentlyViewedRoute.indexOf("prisma.listing.findMany"),
+        recentlyViewedRoute.indexOf("sellerPublicRecentlyViewedListings(meId, ids)"),
       "recently-viewed GET should fail closed before public listing reads",
     );
   });
@@ -159,8 +164,8 @@ describe("R49 account-state route guardrails", () => {
     const text = source("src/app/api/favorites/route.ts");
 
     assert.match(text, /prisma\.block\.findFirst/);
-    assert.match(text, /\{ blockerId: me\.id, blockedId: listing\.seller\.userId \}/);
-    assert.match(text, /\{ blockerId: listing\.seller\.userId, blockedId: me\.id \}/);
+    assert.match(text, /\{ blockerId: me\.id, blockedId: listing\.ownerUserId \}/);
+    assert.match(text, /\{ blockerId: listing\.ownerUserId, blockedId: me\.id \}/);
     assert.ok(
       text.indexOf("prisma.block.findFirst") < text.indexOf("prisma.favorite.upsert"),
       "favorite POST should check block state before writing the favorite",

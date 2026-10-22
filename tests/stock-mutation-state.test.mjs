@@ -17,6 +17,16 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
+function sellerPrivateBoundaryMigrationSource(name) {
+  const isolatedMigrationsDir = process.env.SELLER_PROFILE_PRIVATE_BOUNDARY_MIGRATIONS_DIR;
+  return readFileSync(
+    isolatedMigrationsDir
+      ? `${isolatedMigrationsDir}/${name}/migration.sql`
+      : new URL(`../prisma/migrations/${name}/migration.sql`, import.meta.url),
+    "utf8",
+  );
+}
+
 describe("stock mutation state", () => {
   it("applies manual stock changes as deltas when the client sends its expected baseline", () => {
     assert.equal(
@@ -126,26 +136,27 @@ describe("stock mutation state", () => {
 
   it("rechecks public seller state before claiming back-in-stock subscribers", () => {
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
-    const fanoutSql = stockRoute.slice(
-      stockRoute.indexOf("WITH available_listing AS"),
-      stockRoute.indexOf("next_subscribers AS"),
+    const claimAuthority = sellerPrivateBoundaryMigrationSource(
+      "20261013130000_move_seller_supported_snapshot_sql_callers",
     );
 
-    assert.match(fanoutSql, /INNER JOIN "SellerProfile" sp ON sp\.id = l\."sellerId"/);
-    assert.doesNotMatch(fanoutSql, /JOIN "User"/);
-    assert.match(fanoutSql, /l\.status = 'ACTIVE'::"ListingStatus"/);
-    assert.match(fanoutSql, /l\."isPrivate" = false/);
-    assert.match(fanoutSql, /COALESCE\(l\."stockQuantity", 0\) > 0/);
-    assert.match(fanoutSql, /sp\."chargesEnabled" = true/);
-    assert.match(fanoutSql, /sp\."stripeAccountSupported" = true/);
-    assert.match(fanoutSql, /sp\."vacationMode" = false/);
-    assert.match(fanoutSql, /sp\."ownerAccountActive" = true/);
+    assert.doesNotMatch(stockRoute, /JOIN "SellerProfile"/);
+    assert.match(claimAuthority, /source_listing_status <> 'ACTIVE'/);
+    assert.match(claimAuthority, /source_listing_type <> 'IN_STOCK'/);
+    assert.match(claimAuthority, /source_is_private/);
+    assert.match(claimAuthority, /COALESCE\(source_stock_quantity, 0\) <= 0/);
+    assert.match(claimAuthority, /NOT source_charges_enabled/);
+    assert.match(claimAuthority, /NOT source_stripe_account_supported/);
+    assert.match(claimAuthority, /source_vacation_mode/);
+    assert.match(claimAuthority, /source_seller_banned/);
+    assert.match(claimAuthority, /source_seller_deleted_at IS NOT NULL/);
   });
 
   it("uses subscription-scoped email dedup keys for repeat back-in-stock subscriptions", () => {
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
 
-    assert.match(stockRoute, /SELECT ns\."userId", ns\.id AS "stockNotificationId"/);
+    assert.match(stockRoute, /stock_notification\."userId"/);
+    assert.match(stockRoute, /stock_notification\.id AS "stockNotificationId"/);
     assert.match(stockRoute, /claimBackInStockNotification\(\{[\s\S]{0,180}stockNotificationId/);
     assert.match(stockRoute, /claim\.claimed && claim\.userId/);
     assert.match(stockRoute, /const stockNotificationIdByUserId = new Map/);

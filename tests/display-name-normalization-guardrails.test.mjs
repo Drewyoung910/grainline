@@ -25,6 +25,9 @@ describe("seller display-name lookup normalization guardrails", () => {
     const onboarding = source("src/app/dashboard/onboarding/actions.ts");
     const profile = source("src/app/dashboard/profile/page.tsx");
     const ownerAccess = source("src/lib/sellerOwnerPrivateAccess.ts");
+    const profileAuthority = source(
+      "prisma/migrations/20261020200000_prepare_seller_profile_owner_profile_editor/migration.sql",
+    );
     const deletion = readFileSync(
       sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
       "utf8",
@@ -33,7 +36,9 @@ describe("seller display-name lookup normalization guardrails", () => {
     assert.match(ensureSeller, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(onboarding, /displayNameNormalized: normalizeDisplayNameForLookup\(displayName\)/);
     assert.match(profile, /const displayNameNormalized = normalizeDisplayNameForLookup\(displayName\)/);
-    assert.match(ownerAccess, /displayNameNormalized: \{\s*equals: input\.displayNameNormalized,\s*mode: "insensitive",?\s*\}/s);
+    assert.match(ownerAccess, /\$\{input\.displayNameNormalized\}::text/);
+    assert.match(profileAuthority, /pg_catalog\.lower\(candidate\."displayNameNormalized"\)/);
+    assert.match(profileAuthority, /INTO duplicate_display_name/);
     assert.match(profile, /displayNameNormalized,/);
     assert.match(deletion, /"displayNameNormalized" = 'Deleted maker'/);
   });
@@ -43,9 +48,14 @@ describe("seller display-name lookup normalization guardrails", () => {
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const browse = source("src/app/browse/page.tsx");
 
-    for (const text of [suggestions, blogSuggestions, browse]) {
+    for (const text of [suggestions, blogSuggestions]) {
       assert.match(text, /normalizeDisplayNameForLookup\(q\)/);
-      assert.match(text, /displayNameNormalized: \{ contains: normalizedDisplayNameQuery, mode: "insensitive"/);
+      assert.match(text, /sellerPublicNameSuggestions\([^)]*normalizedDisplayNameQuery/s);
     }
+    assert.match(browse, /normalizeDisplayNameForLookup\(q\)/);
+    assert.match(
+      browse,
+      /sellerDisplayNameNormalized:\s*\{\s*contains:\s*normalizedDisplayNameQuery,\s*mode:\s*"insensitive"/s,
+    );
   });
 });

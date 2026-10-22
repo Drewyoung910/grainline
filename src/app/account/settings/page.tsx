@@ -1,12 +1,12 @@
 // src/app/account/settings/page.tsx
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
 import { AccountExportButton } from "@/components/AccountExportButton";
 import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import type { Metadata } from "next";
+import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
 
 export const metadata: Metadata = {
   title: "Notification Preferences",
@@ -26,10 +26,7 @@ const DEFAULT_OFF_EMAIL: NotificationPreferenceKey[] = ["EMAIL_SELLER_BROADCAST"
 export default async function AccountSettingsPage() {
   const me = await ensureUserForPage("/account/settings");
 
-  const sellerProfile = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true },
-  });
+  const sellerProfile = await sellerOwnerAccountSummary(me.id);
 
   const prefs = normalizeNotificationPreferences(me.notificationPreferences);
   const hasSeller = !!sellerProfile;

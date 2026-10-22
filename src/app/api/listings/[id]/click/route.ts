@@ -14,6 +14,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
 import { privateResponse } from "@/lib/privateResponse";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 const CLICKED_LISTING_IDS_COOKIE = "clicked_listing_ids";
 
@@ -73,12 +74,15 @@ export async function POST(
   const viewer = userId ? await userIdByClerkId(prisma, userId) : null;
   if (userId && !viewer) return telemetryJson({ ok: true, skipped: true });
   const viewerUserId = viewer?.id ?? null;
+  const viewerSellerProfileId = viewerUserId
+    ? (await sellerOwnerCore(viewerUserId))?.sellerProfileId ?? null
+    : null;
 
   const tracked = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.updateMany({
       where: publicListingWhere({
         id,
-        ...(viewerUserId ? { seller: { userId: { not: viewerUserId } } } : {}),
+        ...(viewerSellerProfileId ? { sellerId: { not: viewerSellerProfileId } } : {}),
       }),
       data: { clickCount: { increment: 1 } },
     });

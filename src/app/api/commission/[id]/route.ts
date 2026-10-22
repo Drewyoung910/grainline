@@ -11,7 +11,11 @@ import { getBlockedIdsFor } from "@/lib/blocks";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
-import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import {
+  publicCommissionInterestCards,
+  publicCommissionInterestCounts,
+} from "@/lib/commissionInterestCount";
+import { commissionInterestNotificationTargets } from "@/lib/commissionInterestResidualAccess";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { commissionStatusRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
@@ -45,10 +49,7 @@ export async function GET(
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
-  const visibleInterestWhere = publicCommissionInterestWhere(
-    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
-  );
+  const { blockedUserIds } = await getBlockedIdsFor(meId);
 
   const request = await prisma.commissionRequest.findFirst({
     where: openCommissionWhere({
@@ -65,40 +66,23 @@ export async function GET(
       timeline: true,
       referenceImageUrls: true,
       status: true,
-      interestedCount: true,
-      _count: { select: { interests: { where: visibleInterestWhere } } },
       expiresAt: true,
       createdAt: true,
       buyerName: true,
       buyerImageUrl: true,
-      interests: {
-        where: visibleInterestWhere,
-        take: COMMISSION_INTEREST_DISPLAY_LIMIT,
-        select: {
-          createdAt: true,
-          sellerProfile: {
-            select: {
-              id: true,
-              displayName: true,
-              avatarImageUrl: true,
-              guildLevel: true,
-            },
-          },
-        },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      },
     },
   });
 
   if (!request) return privateJson({ error: "Not found" }, { status: 404 });
 
-  const { _count, buyerName, buyerImageUrl, interests, ...requestBody } = request;
+  const [interestCounts, interests] = await Promise.all([
+    publicCommissionInterestCounts([request.id], meId),
+    publicCommissionInterestCards(request.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT),
+  ]);
+  const { buyerName, buyerImageUrl, ...requestBody } = request;
   return privateJson({
     ...requestBody,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: request.interestedCount,
-      _count,
-    }),
+    interestedCount: interestCounts.get(request.id) ?? 0,
     buyer: { name: buyerName, imageUrl: buyerImageUrl },
     interests: interests.map((interest) => ({
       createdAt: interest.createdAt,
@@ -129,17 +113,6 @@ export async function PATCH(
       status: true,
       expiresAt: true,
       title: true,
-      interests: {
-        where: {
-          sellerProfile: {
-            ownerAccountActive: true,
-          },
-        },
-        take: COMMISSION_INTEREST_NOTIFY_LIMIT,
-        select: {
-          sellerProfile: { select: { userId: true } },
-        },
-      },
     },
   });
   if (!request) return privateJson({ error: "Not found" }, { status: 404 });
@@ -167,7 +140,11 @@ export async function PATCH(
     throw e;
   }
   const { status } = patchParsed;
-  if ((status as CommissionStatus) === CommissionStatus.FULFILLED && request.interests.length === 0) {
+  const interestedSellerUserIds = await commissionInterestNotificationTargets(
+    id,
+    COMMISSION_INTEREST_NOTIFY_LIMIT,
+  );
+  if ((status as CommissionStatus) === CommissionStatus.FULFILLED && interestedSellerUserIds.length === 0) {
     return privateJson({ error: "A commission request needs at least one interested maker before it can be fulfilled." }, { status: 400 });
   }
 
@@ -185,11 +162,11 @@ export async function PATCH(
   after(async () => {
     try {
       await mapWithConcurrency(
-        request.interests,
+        interestedSellerUserIds,
         10,
-        (interest) =>
+        (interestedSellerUserId) =>
           createNotification({
-            userId: interest.sellerProfile.userId,
+            userId: interestedSellerUserId,
             type: "COMMISSION_INTEREST",
             title: isFulfilled ? "Commission request fulfilled" : "Commission request closed",
             body: isFulfilled
@@ -209,7 +186,7 @@ export async function PATCH(
         extra: {
           commissionRequestId: id,
           status,
-          interestedSellerCount: request.interests.length,
+          interestedSellerCount: interestedSellerUserIds.length,
         },
       });
     }

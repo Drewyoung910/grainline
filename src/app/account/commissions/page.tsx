@@ -7,7 +7,10 @@ import Link from "next/link";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import type { Metadata } from "next";
 import { CATEGORY_LABELS } from "@/lib/categories";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import {
+  ownerCommissionInterestSummaries,
+  type OwnerCommissionInterestSummary,
+} from "@/lib/commissionInterestResidualAccess";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import type { CommissionStatus } from "@prisma/client";
 
@@ -48,33 +51,19 @@ export default async function MyCommissionsPage() {
       budgetMinCents: true,
       budgetMaxCents: true,
       status: true,
-      interestedCount: true,
-      _count: { select: { interests: true } },
       createdAt: true,
-      interests: {
-        take: 3,
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          sellerProfile: {
-            select: {
-              id: true,
-              displayName: true,
-              avatarImageUrl: true,
-              ownerImageUrl: true,
-            },
-          },
-        },
-      },
     },
   });
-  const requests = requestRows.map(({ _count, ...request }) => ({
-    ...request,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: request.interestedCount,
-      _count,
-    }),
-  }));
+  const interestSummaries: ReadonlyMap<string, OwnerCommissionInterestSummary> = requestRows.length > 0
+    ? await ownerCommissionInterestSummaries(me.id, requestRows.map(({ id }) => id), 3)
+    : new Map<string, OwnerCommissionInterestSummary>();
+  const requests = requestRows.map((request) => {
+    const summary = interestSummaries.get(request.id);
+    if (!summary) {
+      throw new Error("Commission-interest summary is missing for an owned request");
+    }
+    return { ...request, ...summary };
+  });
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-6">

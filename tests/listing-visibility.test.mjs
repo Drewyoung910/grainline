@@ -48,33 +48,12 @@ describe("listing visibility", () => {
           status: ListingStatus.ACTIVE,
           isPrivate: false,
           archivedAt: null,
-          seller: {
-            chargesEnabled: true,
-            stripeAccountSupported: true,
-            vacationMode: false,
-            ownerAccountActive: true,
-          },
+          sellerPubliclyOrderable: true,
         },
         { sellerId: "seller_1" },
       ],
     });
 
-    assert.deepEqual(publicListingWhere({ seller: { id: "seller_1" } }), {
-      AND: [
-        {
-          status: ListingStatus.ACTIVE,
-          isPrivate: false,
-          archivedAt: null,
-          seller: {
-            chargesEnabled: true,
-            stripeAccountSupported: true,
-            vacationMode: false,
-            ownerAccountActive: true,
-          },
-        },
-        { seller: { id: "seller_1" } },
-      ],
-    });
   });
 
   it("composes public listing detail filters for active and sold-out public pages", () => {
@@ -84,12 +63,7 @@ describe("listing visibility", () => {
           status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
           isPrivate: false,
           archivedAt: null,
-          seller: {
-            chargesEnabled: true,
-            stripeAccountSupported: true,
-            vacationMode: false,
-            ownerAccountActive: true,
-          },
+          sellerPubliclyOrderable: true,
         },
         { sellerId: "seller_1" },
       ],

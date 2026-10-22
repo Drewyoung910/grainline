@@ -46,12 +46,35 @@ describe("public query determinism", () => {
     const metroCategoryPage = source("src/app/browse/[metroSlug]/[category]/page.tsx");
     const blogDetail = source("src/app/blog/[slug]/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
+    const similarMakers = source("src/components/SimilarMakers.tsx");
     const sellersMap = source("src/app/sellers/map/page.tsx");
     const publicMap = source("src/app/map/page.tsx");
     const makersMetro = source("src/app/makers/[metroSlug]/page.tsx");
+    const sellerPublicMapAuthority = source(
+      "prisma/migrations/20261019010000_prepare_seller_profile_public_map_authority/migration.sql",
+    );
+    const sellerPublicSimilarMakersAuthority = source(
+      "prisma/migrations/20261019080000_prepare_seller_profile_public_similar_makers/migration.sql",
+    );
+    const sellerPublicFeaturedMakersAuthority = source(
+      "prisma/migrations/20261019090000_prepare_seller_profile_public_featured_makers/migration.sql",
+    );
+    const sellerPublicMetroDirectoryAuthority = source(
+      "prisma/migrations/20261019110000_prepare_seller_profile_public_metro_directory/migration.sql",
+    );
+    const sellerActorSimilarListingAuthority = source(
+      "prisma/migrations/20261020235987_prepare_seller_profile_similar_listing_candidates/migration.sql",
+    );
 
-    assert.match(home, /orderBy: \[\{ featuredUntil: "desc" \}, \{ id: "asc" \}\]/);
-    assert.match(home, /ORDER BY COALESCE\(srs\."reviewCount", 0\) DESC, sp\.id ASC/);
+    assert.match(home, /sellerPublicFeaturedMakers\(\)/);
+    assert.match(
+      sellerPublicFeaturedMakersAuthority,
+      /ORDER BY \(active\.profile\)\."featuredUntil" DESC,[\s\S]*\(active\.profile\)\.id ASC/,
+    );
+    assert.match(
+      sellerPublicFeaturedMakersAuthority,
+      /ORDER BY COALESCE\(summary\."reviewCount", 0\) DESC,[\s\S]*\(active\.profile\)\.id ASC[\s\S]*LIMIT 4/,
+    );
     assert.match(home, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -66,7 +89,8 @@ describe("public query determinism", () => {
     assert.match(browse, /sort === "price_desc" \? \[\{ priceCents: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /sort === "popular" \? \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /const featured = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(browse, /const featuredRows = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(browse, /const featured = await hydrateSellerCards\(meDbId, featuredRows\)/);
     assert.match(browse, /b\.listing\.createdAt\.getTime\(\) - a\.listing\.createdAt\.getTime\(\)/);
     assert.match(browse, /b\.listing\.id\.localeCompare\(a\.listing\.id\)/);
 
@@ -91,10 +115,9 @@ describe("public query determinism", () => {
     assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
     assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
     assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
-    assert.match(metroPage, /const blockedSellerProfileWhere: Prisma\.SellerProfileWhereInput/);
     assert.match(metroPage, /const blockedSellerListingWhere: Prisma\.ListingWhereInput/);
     assert.match(metroPage, /const listingWhere = publicListingWhere\(\{[\s\S]*\.\.\.blockedSellerListingWhere/);
-    assert.match(metroPage, /where: activeSellerProfileWhere\(\{[\s\S]*\.\.\.blockedSellerProfileWhere[\s\S]*\}\)/);
+    assert.match(metroPage, /sellerPublicMetroCount\(meDbId, metro\.id, isMajorMetro, false\)/);
     assert.match(metroPage, /listings: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroPage, /listingCityMetros: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -111,68 +134,89 @@ describe("public query determinism", () => {
       assert.match(metroText, /where: \{ userId: meDbId, listingId: \{ in: listingIds \} \}/);
     }
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(makersMetro, /orderBy: \[\{ followers: \{ _count: "desc" \} \}, \{ id: "asc" \}\]/);
-    assert.match(makersMetro, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
-    assert.match(makersMetro, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
-    assert.match(makersMetro, /getBlockedSellerProfileIdsFor\(meDbId\)/);
-    assert.match(makersMetro, /const sellerWhere = activeSellerProfileWhere\(\{\s*\.\.\.blockedSellerWhere/);
-    assert.match(makersMetro, /const visibleSellerWhere = activeSellerProfileWhere\(blockedSellerWhere\)/);
-    assert.match(makersMetro, /sellerProfiles: \{ some: visibleSellerWhere \}/);
-    assert.match(makersMetro, /sellerCityProfiles: \{ some: visibleSellerWhere \}/);
+    assert.match(makersMetro, /sellerPublicMetroStaticSlugs\(\)/);
+    assert.match(makersMetro, /sellerPublicMetroMakers\(meDbId, metro\.id, isMajorMetro, 24\)/);
+    assert.match(makersMetro, /sellerPublicNearbyMetros\(meDbId, metro\.id\)/);
+    assert.doesNotMatch(makersMetro, /prisma\.sellerProfile/);
+    assert.match(
+      sellerPublicMetroDirectoryAuthority,
+      /ORDER BY \([\s\S]*FROM public\."Follow" AS follower[\s\S]*\) DESC,\s*seller\.id ASC\s+LIMIT p_limit/,
+    );
+    assert.match(
+      sellerPublicMetroDirectoryAuthority,
+      /ORDER BY listing\."createdAt" DESC, listing\.id DESC\s+LIMIT 1/,
+    );
+    assert.match(
+      sellerPublicMetroDirectoryAuthority,
+      /ORDER BY candidates\.name ASC, candidates\.slug ASC/,
+    );
 
-    assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
+    assert.match(similar, /sellerActorSimilarListingCandidates\(viewerUserId, id\)/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);
     assert.match(similar, /b\.id\.localeCompare\(a\.id\)/);
-    assert.match(similar, /LEFT JOIN LATERAL/);
-    assert.match(similar, /ROW_NUMBER\(\) OVER \(ORDER BY p\."sortOrder" ASC, p\.id ASC\)/);
-    assert.doesNotMatch(similar, /\(SELECT p\.url FROM "Photo" p/);
+    assert.match(sellerActorSimilarListingAuthority, /listing\."createdAt" DESC,\s*listing\.id DESC/);
+    assert.match(sellerActorSimilarListingAuthority, /LEFT JOIN LATERAL/);
+    assert.match(
+      sellerActorSimilarListingAuthority,
+      /row_number\(\) OVER \(\s*ORDER BY photo\."sortOrder" ASC, photo\.id ASC\s*\)/,
+    );
+    assert.doesNotMatch(sellerActorSimilarListingAuthority, /\(SELECT photo\.url FROM public\."Photo" AS photo/);
 
-    assert.match(sellersMap, /getBlockedSellerProfileIdsFor\(meDbId\)/);
-    assert.match(sellersMap, /\.\.\.\(blockedSellerIds\.length > 0 \? \{ id: \{ notIn: blockedSellerIds \} \} : \{\}\)/);
-    assert.ok(
-      sellersMap.indexOf('orderBy: { id: "asc" }') < sellersMap.indexOf("take: 500"),
-      "sellers map should order before the cap",
+    assert.match(similarMakers, /sellerPublicSimilarMakers\(/);
+    assert.doesNotMatch(similarMakers, /prisma\.sellerProfile/);
+    assert.match(
+      sellerPublicSimilarMakersAuthority,
+      /ORDER BY listing\."qualityScore" DESC, listing\.id DESC/,
     );
+    assert.match(
+      sellerPublicSimilarMakersAuthority,
+      /ORDER BY photo\."sortOrder" ASC\s+LIMIT 1/,
+    );
+    assert.match(
+      sellerPublicSimilarMakersAuthority,
+      /ORDER BY candidates\.scope_priority ASC,[\s\S]*candidates\."guildLevel"::public\."GuildLevel" DESC,[\s\S]*candidates\.follower_count DESC,[\s\S]*candidates\.id ASC\s+LIMIT p_limit/,
+    );
+
+    assert.match(sellersMap, /sellerPublicMapPoints\(meDbId, 500\)/);
+    assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);
+    assert.match(sellerPublicMapAuthority, /FROM public\."Block" AS relationship/);
     assert.match(publicMap, /const MAP_SELLER_POINT_LIMIT = 500/);
-    assert.match(publicMap, /const visibleSellerWhere = activeSellerProfileWhere\(/);
-    assert.match(publicMap, /sellerProfiles: \{\s*some: visibleSellerWhere/);
-    assert.match(publicMap, /sellerCityProfiles: \{\s*some: visibleSellerWhere/);
-    assert.match(publicMap, /\.\.\.visibleSellerWhere/);
-    assert.ok(
-      publicMap.indexOf('orderBy: { id: "asc" }') < publicMap.indexOf("take: MAP_SELLER_POINT_LIMIT"),
-      "public map should order before the cap",
-    );
+    assert.match(publicMap, /sellerPublicMapMetros\(meDbId\)/);
+    assert.doesNotMatch(publicMap, /activeSellerProfileWhere|sellerProfiles:|sellerCityProfiles:/);
+    assert.match(publicMap, /sellerPublicMapPoints\(\s*meDbId,\s*MAP_SELLER_POINT_LIMIT/);
+    assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);
   });
 
   it("filters browse geo seller pre-pass by public seller and listing visibility", () => {
     const browse = source("src/app/browse/page.tsx");
-    const geoStart = browse.indexOf("const blockedSellerGeoSql");
-    const geoEnd = browse.indexOf("sellerIdFilters.push(rows.map((r) => r.id));", geoStart);
-    const geoBlock = browse.slice(geoStart, geoEnd);
+    const sellerPublicBrowseAuthority = source(
+      "prisma/migrations/20261019030000_prepare_seller_profile_public_browse_authority/migration.sql",
+    );
 
-    assert.match(geoBlock, /FROM "SellerProfile" sp/);
-    assert.match(geoBlock, /sp\."chargesEnabled" = true/);
-    assert.match(geoBlock, /sp\."stripeAccountSupported" = true/);
-    assert.match(geoBlock, /sp\."vacationMode" = false/);
-    assert.match(geoBlock, /sp\."ownerAccountActive" = true/);
-    assert.doesNotMatch(geoBlock, /JOIN "User"/);
-    assert.match(geoBlock, /blockedSellerGeoSql/);
-    assert.match(geoBlock, /EXISTS \(\s*SELECT 1\s*FROM "Listing" l/);
-    assert.match(geoBlock, /l\."sellerId" = sp\.id/);
-    assert.match(geoBlock, /l\.status = 'ACTIVE'::"ListingStatus"/);
-    assert.match(geoBlock, /l\."isPrivate" = false/);
-    assert.match(geoBlock, /sp\.lat::float/);
-    assert.match(geoBlock, /sp\.lng::float/);
+    assert.match(browse, /sellerPublicBrowseNearbySellerIds\(/);
+    assert.match(sellerPublicBrowseAuthority, /FROM public\."SellerProfile" AS seller/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."chargesEnabled" = true/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."stripeAccountSupported" = true/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."vacationMode" = false/);
+    assert.match(sellerPublicBrowseAuthority, /seller\."ownerAccountActive" = true/);
+    assert.doesNotMatch(sellerPublicBrowseAuthority, /JOIN "User"/);
+    assert.match(sellerPublicBrowseAuthority, /FROM public\."Block" AS relationship/);
+    assert.match(sellerPublicBrowseAuthority, /EXISTS \(\s*SELECT 1\s*FROM public\."Listing" AS listing/);
+    assert.match(sellerPublicBrowseAuthority, /listing\."sellerId" = seller\.id/);
+    assert.match(sellerPublicBrowseAuthority, /listing\.status::text = 'ACTIVE'/);
+    assert.match(sellerPublicBrowseAuthority, /listing\."isPrivate" = false/);
+    assert.match(sellerPublicBrowseAuthority, /seller\.lat/);
+    assert.match(sellerPublicBrowseAuthority, /seller\.lng/);
+    assert.match(sellerPublicBrowseAuthority, /ORDER BY public_points\.id ASC/);
   });
 
   it("orders equal-count public tag caps by tag", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
-    const popularTags = source("src/lib/popularTags.ts");
+    const tagAuthority = source("prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql");
 
-    assert.match(popularTags, /ORDER BY count DESC, tag ASC/);
-    assert.match(source("src/lib/popularBlogTags.ts"), /ORDER BY count DESC, tag ASC/);
+    assert.equal((tagAuthority.match(/ORDER BY pg_catalog\.count\(\*\) DESC, tags\.tag ASC/gu) ?? []).length, 3);
     assert.match(sellerPage, /getCachedPublicSellerTopTags\(seller\.id\)/);
-    assert.match(popularTags, /ORDER BY count DESC, tag ASC\s*LIMIT \$\{PUBLIC_SELLER_TOP_TAG_LIMIT\}/);
+    assert.match(source("src/lib/popularTags.ts"), /sellerPublicSellerTags\(sellerId, PUBLIC_SELLER_TOP_TAG_LIMIT\)/);
   });
 
   it("reuses cached popular blog tag rows outside full blog search", () => {
@@ -191,25 +235,31 @@ describe("public query determinism", () => {
   it("keeps public search suggestion caps stable on ties", () => {
     const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
+    const sellerPublicNameAuthority = source(
+      "prisma/migrations/20261019040000_prepare_seller_profile_public_name_authority/migration.sql",
+    );
 
     assert.match(searchSuggestions, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(searchSuggestions, /orderBy: \[\{ displayNameNormalized: "asc" \}, \{ id: "asc" \}\]/);
+    assert.match(searchSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
+    assert.match(sellerPublicNameAuthority, /ORDER BY seller\."displayNameNormalized" ASC, seller\.id ASC\s+LIMIT p_limit/);
     assert.match(searchSuggestions, /ORDER BY sim DESC, latest_created_at DESC, latest_id DESC\s*LIMIT 2/);
     assert.match(searchSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 3/);
 
     assert.match(blogSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 5/);
     assert.match(blogSuggestions, /getPopularBlogTags\(200\)[\s\S]*\.slice\(0, 5\)/);
-    assert.match(blogSuggestions, /orderBy: \[\{ displayNameNormalized: "asc" \}, \{ id: "asc" \}\]/);
+    assert.match(blogSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, false, 3\)/);
+    assert.match(sellerPublicNameAuthority, /ORDER BY seller\."displayNameNormalized" ASC, seller\.id ASC\s+LIMIT p_limit/);
   });
 
-  it("keeps cached homepage featured makers on a public projection allowlist", () => {
+  it("keeps cached homepage featured makers on the bounded authority", () => {
     const homePage = source("src/app/page.tsx");
+    const sellerAccess = source("src/lib/sellerProfilePublicAccess.ts");
 
-    assert.match(homePage, /const featuredMakerSelect = \{/);
-    assert.match(homePage, /satisfies Prisma\.SellerProfileSelect/);
-    assert.match(homePage, /select: featuredMakerSelect/);
-    assert.doesNotMatch(homePage, /featuredMakerInclude/);
-    assert.doesNotMatch(homePage, /include: featuredMaker/);
+    assert.match(homePage, /sellerPublicFeaturedMakers\(\)/);
+    assert.match(homePage, /type FeaturedMaker = SellerPublicFeaturedMaker/);
+    assert.doesNotMatch(homePage, /prisma\.sellerProfile/);
+    assert.match(sellerAccess, /export type SellerPublicFeaturedMaker = Readonly/);
+    assert.match(sellerAccess, /grainline_seller_public_featured_makers\(\)/);
   });
 
   it("keeps public fuzzy suggestions on indexable trigram predicates", () => {
@@ -249,6 +299,9 @@ describe("public query determinism", () => {
     const publicOrderAuthority = source(
       "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
     );
+    const sellerPublicFooterMetroAuthority = source(
+      "prisma/migrations/20261019120000_prepare_seller_profile_public_footer_metros/migration.sql",
+    );
     const blogCommentLimits = source("src/lib/blogCommentLimits.ts");
     const blogCommentApi = source("src/app/api/blog/[slug]/comments/route.ts");
     const blogDetail = source("src/app/blog/[slug]/page.tsx");
@@ -278,7 +331,11 @@ describe("public query determinism", () => {
     assert.match(customerPhotosPage, /skip: \(page - 1\) \* PAGE_SIZE/);
     assert.match(customerPhotosPage, /Page \{page\} of \{totalPages\}/);
 
-    assert.match(footerMetros, /orderBy: \[\{ listings: \{ _count: "desc" \} \}, \{ name: "asc" \}, \{ slug: "asc" \}\]/);
+    assert.match(footerMetros, /sellerPublicFooterMetros\(\)/);
+    assert.match(
+      sellerPublicFooterMetroAuthority,
+      /ORDER BY \([\s\S]*FROM public\."Listing" AS listing[\s\S]*\) DESC,\s*metro\.name ASC,\s*metro\.slug ASC\s+LIMIT 10/,
+    );
     assert.match(publicSellerStats, /getPublicSellerOrderStats/u);
     assert.match(publicOrderAuthority, /ORDER BY source_order\."shippedAt" DESC, source_order\.id DESC/);
     assert.match(publicOrderAuthority, /LIMIT 30/);
@@ -315,7 +372,11 @@ describe("public query determinism", () => {
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
-    assert.match(browse, /fetchListings\(where, orderBy, PAGE_SIZE, \(standardPage - 1\) \* PAGE_SIZE, false\)/);
+    assert.match(
+      browse,
+      /const listingRows = await fetchListings\(\s*where,\s*orderBy,\s*PAGE_SIZE,\s*\(standardPage - 1\) \* PAGE_SIZE,\s*false,?\s*\)/s,
+    );
+    assert.match(browse, /listings = await hydrateSellerCards\(meDbId, listingRows\)/);
 
     assert.match(sellerShop, /const clampedPage = Math\.min\(Math\.max\(page, 1\), totalPages\)/);
     assert.match(sellerShop, /skip: \(clampedPage - 1\) \* PAGE_SIZE/);
@@ -341,9 +402,8 @@ describe("public query determinism", () => {
 
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 500/);
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 20/);
-    assert.match(commissionDetail, /const visibleInterestWhere = publicCommissionInterestWhere\(/);
-    assert.match(commissionDetail, /interests: \{\s*where: visibleInterestWhere,/);
-    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\],\s*take: COMMISSION_INTEREST_DISPLAY_LIMIT/);
+    assert.match(commissionDetail, /publicCommissionInterestCounts\(\[request\.id\], meId\)/);
+    assert.match(commissionDetail, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);
     assert.doesNotMatch(commissionDetail, /sellerProfile: \{\s*chargesEnabled: true,\s*vacationMode: false,\s*user: \{ banned: false, deletedAt: null \}/s);
 
     assert.match(commissionApi, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
@@ -356,8 +416,7 @@ describe("public query determinism", () => {
     assert.doesNotMatch(commissionDetailApi, /prisma\.commissionRequest\.findUnique\(\{\s*where: \{ id \}/);
     assert.doesNotMatch(commissionDetailApi, /request\.buyer\.banned \|\| request\.buyer\.deletedAt/);
     assert.match(commissionDetailApi, /interests: interests\.map\(\(interest\) => \(\{/);
-    assert.match(commissionDetailApi, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-    assert.doesNotMatch(commissionDetailApi, /orderBy: \{ createdAt: "asc" \}/);
+    assert.match(commissionDetailApi, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);
   });
 
   it("normalizes public browse tag query params before filtering and preserving them", () => {

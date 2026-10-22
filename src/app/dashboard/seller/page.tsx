@@ -38,6 +38,13 @@ import {
   updateSellerOwnerMetroAssignment,
   updateSellerOwnerShopSettings,
 } from "@/lib/sellerOwnerPrivateAccess";
+import {
+  parseSellerLocationInput,
+  sellerShopSettingsDatabaseErrorMessage,
+  validateSellerShippingInput,
+} from "@/lib/sellerShopSettingsInput";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -51,12 +58,6 @@ const checkboxClass =
 function shortText(v: unknown, maxLength: number) {
   const s = typeof v === "string" ? sanitizeText(v).slice(0, maxLength).trim() : "";
   return s || null;
-}
-function toFloat(v: unknown) {
-  const s = typeof v === "string" ? v.trim() : v;
-  if (s === "" || s === undefined) return null;
-  const n = parseFloat(String(s));
-  return Number.isFinite(n) ? n : null;
 }
 function toBoundedNonNegativeFloat(v: unknown, max: number) {
   const raw = typeof v === "number" ? String(v) : typeof v === "string" ? v.trim() : "";
@@ -81,10 +82,21 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const state = shortText(formData.get("state"), 50);
 
   // Location (for pickup map)
-  const lat = toFloat(formData.get("lat"));
-  const lng = toFloat(formData.get("lng"));
-  let radiusMeters = toFloat(formData.get("radiusMeters"));
   const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";
+  const publicMapExactConsent =
+    String(formData.get("publicMapExactConsent") ?? "") === "on";
+  const locationResult = parseSellerLocationInput({
+    lat: formData.get("lat"),
+    lng: formData.get("lng"),
+    radiusMeters: formData.get("radiusMeters"),
+    publicMapOptIn,
+    publicMapExactConsent,
+    publicMapExactConsentVersion: formData.get("publicMapExactConsentVersion"),
+    publicMapExactConsentLat: formData.get("publicMapExactConsentLat"),
+    publicMapExactConsentLng: formData.get("publicMapExactConsentLng"),
+  });
+  if (!locationResult.ok) return locationResult;
+  const location = locationResult.value;
 
   // Shipping/tax in dollars
   const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"), {
@@ -95,14 +107,6 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   });
   const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
   const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on";
-
-  if (publicMapOptIn) {
-    if (!(Number.isFinite(lat as number) && Number.isFinite(lng as number))) {
-      return { ok: false, error: "To appear on the public map, set an exact pin location." };
-    }
-    // exact pin for public map
-    radiusMeters = 0;
-  }
 
   // Ship-from address
   const rawShipFromName = formData.get("shipFromName");
@@ -119,7 +123,6 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const shipFromCity = typeof rawShipFromCity === "string" ? sanitizeAddressField(rawShipFromCity, 100) || null : null;
   const shipFromState = typeof rawShipFromState === "string" ? sanitizeAddressField(rawShipFromState, 50) || null : null;
   const shipFromPostal = typeof rawShipFromPostal === "string" ? sanitizeAddressField(rawShipFromPostal, 20) || null : null;
-  const shipFromCountry = (typeof rawShipFromCountry === "string" ? sanitizeAddressField(rawShipFromCountry, 2) : "")?.toUpperCase() || "US";
   const shipFromPhone = typeof rawShipFromPhone === "string"
     ? sanitizeOptionalE164Phone(rawShipFromPhone)
     : null;
@@ -130,8 +133,12 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     };
   }
 
-  // Preferred carriers
-  const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);
+  const shippingInputResult = validateSellerShippingInput(
+    rawShipFromCountry,
+    formData.getAll("preferredCarriers"),
+  );
+  if (!shippingInputResult.ok) return shippingInputResult;
+  const { shipFromCountry, preferredCarriers } = shippingInputResult.value;
 
   // Default package — form accepts inches/lb but DB stores cm/g.
   // Conversions: 1 in = 2.54 cm; 1 lb = 453.592 g.
@@ -146,42 +153,52 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     return lbToG(raw);
   })();
 
-  await updateSellerOwnerShopSettings(prisma, {
-    sellerProfileId: seller.id,
-    userId: seller.userId,
-    city,
-    state,
-    lat: lat as number | null,
-    lng: lng as number | null,
-    radiusMeters: radiusMeters as number | null,
-    publicMapOptIn,
-    shippingFlatRateCents,
-    freeShippingOverCents,
-    allowLocalPickup,
-    useCalculatedShipping,
-    preferredCarriers,
-    shipFromName,
-    shipFromLine1,
-    shipFromLine2,
-    shipFromCity,
-    shipFromState,
-    shipFromPostal,
-    shipFromCountry,
-    shipFromPhone,
-    defaultPkgLengthCm,
-    defaultPkgWidthCm,
-    defaultPkgHeightCm,
-    defaultPkgWeightGrams,
-  });
-
-  // Assign metro geography when lat/lng is set — non-fatal
-  if (lat != null && lng != null) {
-    try {
-      const { findOrCreateMetro } = await import("@/lib/geo-metro");
-      const { metroId, cityMetroId } = await findOrCreateMetro(lat, lng);
-      await updateSellerOwnerMetroAssignment(prisma, {
+  try {
+    await withDbUserContext(seller.userId, (client) =>
+      updateSellerOwnerShopSettings(client, {
         sellerProfileId: seller.id,
         userId: seller.userId,
+        city,
+        state,
+        ...location,
+        shippingFlatRateCents,
+        freeShippingOverCents,
+        allowLocalPickup,
+        useCalculatedShipping,
+        preferredCarriers,
+        shipFromName,
+        shipFromLine1,
+        shipFromLine2,
+        shipFromCity,
+        shipFromState,
+        shipFromPostal,
+        shipFromCountry,
+        shipFromPhone,
+        defaultPkgLengthCm,
+        defaultPkgWidthCm,
+        defaultPkgHeightCm,
+        defaultPkgWeightGrams,
+      }),
+    );
+  } catch (error) {
+    const publicError = sellerShopSettingsDatabaseErrorMessage(
+      getPrismaRawSqlState(error),
+    );
+    if (publicError) return { ok: false, error: publicError };
+    throw error;
+  }
+
+  // Assign metro geography when lat/lng is set — non-fatal
+  if (location.lat != null && location.lng != null) {
+    try {
+      const { findOrCreateMetro } = await import("@/lib/geo-metro");
+      const { metroId, cityMetroId } = await findOrCreateMetro(
+        location.lat,
+        location.lng,
+        city && state ? { city, state } : null,
+      );
+      await updateSellerOwnerMetroAssignment(seller.userId, {
+        sellerProfileId: seller.id,
         metroId,
         cityMetroId,
       });
@@ -325,7 +342,7 @@ export default async function SellerSettingsPage({
         vacationMessage={currentRow?.vacationMessage ?? null}
       />
 
-      <ActionForm action={updateSellerProfile} className="card-section space-y-6 p-6">
+      <ActionForm action={updateSellerProfile} preserveOnError className="card-section space-y-6 p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">City</label>
@@ -355,6 +372,11 @@ export default async function SellerSettingsPage({
             defaultLng={currentRow?.lng != null ? Number(currentRow.lng) : null}
             defaultRadiusMeters={currentRow?.radiusMeters ?? null}
             defaultPublicMapOptIn={currentRow?.publicMapOptIn ?? false}
+            defaultPublicMapExactConsent={
+              currentRow?.publicMapExactConsentAt != null
+              && currentRow.publicMapExactConsentVersion === 1
+              && currentRow.publicMapExactConsentCoordinateHash != null
+            }
           />
           <p className="mt-2 text-xs text-neutral-500">
             Drag the pin or click the map to set your pickup spot.
@@ -445,7 +467,18 @@ export default async function SellerSettingsPage({
 
         <div className="border-t border-neutral-100 pt-4 space-y-3">
           <h2 className="text-lg font-semibold font-display">Ship from address</h2>
-          <SellerShipFromAddressFields defaults={currentRow ?? {}} />
+          <SellerShipFromAddressFields
+            defaults={{
+              shipFromName: currentRow?.shipFromName,
+              shipFromLine1: currentRow?.shipFromLine1,
+              shipFromLine2: currentRow?.shipFromLine2,
+              shipFromCity: currentRow?.shipFromCity,
+              shipFromState: currentRow?.shipFromState,
+              shipFromPostal: currentRow?.shipFromPostal,
+              shipFromCountry: currentRow?.shipFromCountry,
+              shipFromPhone: currentRow?.shipFromPhone,
+            }}
+          />
         </div>
 
         {/* Default package size — inputs in inches/lb; converted to cm/g

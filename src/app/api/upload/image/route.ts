@@ -6,7 +6,6 @@ import sharp from "sharp";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { prisma } from "@/lib/db";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
@@ -31,6 +30,7 @@ import {
   uploadTypeMessage,
 } from "@/lib/uploadRules";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { recordDirectUploadVerified } from "@/lib/directUploadLifecycle";
@@ -117,19 +117,13 @@ export async function POST(req: Request) {
     );
   }
   if (SELLER_ONLY_ENDPOINTS.has(endpoint)) {
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { userId: me.id },
-      select: { id: true },
-    });
+    const seller = await sellerOwnerCore(me.id);
     if (!seller) return privateJson({ error: "Seller profile required" }, { status: 403 });
   }
   if (BLOG_AUTHOR_ENDPOINTS.has(endpoint)) {
     const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
     if (!isStaff) {
-      const seller = await prisma.sellerProfile.findUnique({
-        where: { userId: me.id },
-        select: { id: true },
-      });
+      const seller = await sellerOwnerCore(me.id);
       if (!seller) return privateJson({ error: "Seller profile required" }, { status: 403 });
     }
   }

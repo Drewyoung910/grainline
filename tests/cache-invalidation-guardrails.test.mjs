@@ -50,7 +50,7 @@ describe("public cache invalidation guardrails", () => {
     assert.match(v2Webhook, /v2\.core\.account\.closed[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(status, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/status"/);
     assert.match(create, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/api\/stripe\/connect\/create"/);
-    assert.match(vacation, /data: \{ vacationMode, vacationReturnDate, vacationMessage \}[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
+    assert.match(vacation, /sellerOwnerVacationUpdate\(seller\.userId,[\s\S]*vacationMode,[\s\S]*vacationReturnDate,[\s\S]*vacationMessage,[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(sellerSettings, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/dashboard\/seller"/);
     assert.doesNotMatch(sellerSettings, /data: \{ chargesEnabled \}/);
     assert.match(onboarding, /mirrorStripeChargesEnabled\(\{[\s\S]*route: "\/dashboard\/onboarding"/);

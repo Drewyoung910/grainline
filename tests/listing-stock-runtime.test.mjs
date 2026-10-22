@@ -45,7 +45,7 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
   const prisma = { ...tx,
     listing: { findFirst: async () => {
       const row = (await db.query('SELECT * FROM "Listing"')).rows[0];
-      return row && owned ? { ...row, seller: { id: "seller", userId: "owner" } } : null;
+      return row && owned ? row : null;
     } },
     $transaction: async (run) => {
       if (beforeTransaction) await beforeTransaction();
@@ -67,6 +67,9 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
     "@/lib/notificationServiceAccess": {}, "@/lib/email": {}, "@/lib/emailOutbox": {},
     "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipients: async () => [] },
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "owner" }) },
+    "@/lib/sellerProfileOwnerAccess": { sellerOwnerCore: async () => (
+      owned ? { sellerProfileId: "seller", displayName: "Seller", createdAt: new Date(), chargesEnabled: true, vacationMode: false } : null
+    ) },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/concurrency": {}, "@/lib/stockMutationState": stock,
     "@/lib/listingStockMutation": receipts,

@@ -1,26 +1,14 @@
 import { unstable_cache } from "next/cache";
-import { prisma } from "@/lib/db";
+import {
+  sellerPublicListingTags,
+  sellerPublicSellerTags,
+} from "@/lib/sellerProfilePublicAccess";
 
 export const PUBLIC_SELLER_TOP_TAG_LIMIT = 8;
 
 export const getPopularListingTags = unstable_cache(
   async (limit = 12): Promise<string[]> => {
-    const rows = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
-      SELECT tag, COUNT(*) AS count
-      FROM "Listing" l
-      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      CROSS JOIN LATERAL unnest(l.tags) AS tag
-      WHERE l.status = 'ACTIVE'
-        AND l."isPrivate" = false
-        AND sp."chargesEnabled" = true
-        AND sp."stripeAccountSupported" = true
-        AND sp."vacationMode" = false
-        AND sp."ownerAccountActive" = true
-      GROUP BY tag
-      ORDER BY count DESC, tag ASC
-      LIMIT ${limit}
-    `;
-
+    const rows = await sellerPublicListingTags(limit);
     return rows.map((row) => row.tag);
   },
   ["popular-listing-tags"],
@@ -29,23 +17,7 @@ export const getPopularListingTags = unstable_cache(
 
 export const getCachedPublicSellerTopTags = unstable_cache(
   async (sellerId: string): Promise<string[]> => {
-    const rows = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
-      SELECT tag, COUNT(*) AS count
-      FROM "Listing" l
-      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      CROSS JOIN LATERAL unnest(l.tags) AS tag
-      WHERE l."sellerId" = ${sellerId}
-        AND l.status = 'ACTIVE'
-        AND l."isPrivate" = false
-        AND sp."chargesEnabled" = true
-        AND sp."stripeAccountSupported" = true
-        AND sp."vacationMode" = false
-        AND sp."ownerAccountActive" = true
-      GROUP BY tag
-      ORDER BY count DESC, tag ASC
-      LIMIT ${PUBLIC_SELLER_TOP_TAG_LIMIT}
-    `;
-
+    const rows = await sellerPublicSellerTags(sellerId, PUBLIC_SELLER_TOP_TAG_LIMIT);
     return rows.map((row) => row.tag);
   },
   ["public-seller-top-tags-v1"],

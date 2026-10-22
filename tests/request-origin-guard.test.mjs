@@ -144,7 +144,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.listing.findUnique",
+      "sellerListingTransactionSource(me.id, listingId)",
       "upsertOwnerCart(me.id)",
       "await lockOwnerCart(me.id, cart.id, tx)",
     ]);
@@ -153,14 +153,14 @@ describe("request origin guard", () => {
       "safeRateLimit(",
       "readBoundedJson(req",
       "ownerCartByUserId(me.id)",
-      "prisma.listing.findUnique",
+      "sellerListingTransactionSource(me.id, item.listingId)",
       "await lockOwnerCart(me.id, cart.id, tx)",
     ]);
     assertGuardBefore("src/app/api/cart/checkout/single/route.ts", [
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "sellerSingleCheckoutSource(body.listingId)",
+      "sellerSingleCheckoutSource(me.id, body.listingId)",
       "createSnapshotSingleCheckoutStockReservation({",
       "stripe.checkout.sessions.create",
     ]);
@@ -195,7 +195,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.listing.findFirst",
+      "sellerPublicFavoriteTarget(listingId)",
       "prisma.favorite.upsert",
     ]);
     assertGuardBefore("src/app/api/favorites/[listingId]/route.ts", [
@@ -220,13 +220,13 @@ describe("request origin guard", () => {
       "await params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.follow.upsert",
+      "createSellerFollow(me.id, sellerId)",
     ]);
     assertHandlerGuardBefore("src/app/api/follow/[sellerId]/route.ts", "export async function DELETE(", [
       "await params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.follow.deleteMany",
+      "deleteSellerFollow(me.id, sellerId)",
     ]);
     assertHandlerGuardBefore("src/app/api/search/saved/route.ts", "export async function POST(", [
       "await auth()",

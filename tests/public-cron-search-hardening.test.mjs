@@ -170,7 +170,7 @@ describe("cron and public route hardening", () => {
     assert.match(blogSuggestions, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blogSuggestions, /normalizeSearchSuggestionQuery/);
     assert.match(blogSuggestions, /BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY/);
-    assert.match(blogSuggestions, /activeSellerProfileWhere/);
+    assert.match(blogSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, false, 3\)/);
     assert.match(blogSuggestions, /bp\."publishedAt" IS NOT NULL/);
     assert.match(blogSuggestions, /bp\."publishedAt" <= NOW\(\)/);
     assert.doesNotMatch(blogSuggestions, /similarity\(bp\.title, \$\{q\}\) > 0\.2/);
@@ -182,7 +182,7 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(globalSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
     assert.match(globalSuggestions, /publicListingWhere/);
-    assert.match(globalSuggestions, /activeSellerProfileWhere/);
+    assert.match(globalSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
     assert.match(globalSuggestions, /bp\."publishedAt" IS NOT NULL/);
     assert.match(globalSuggestions, /bp\."publishedAt" <= NOW\(\)/);
 
@@ -198,19 +198,14 @@ describe("cron and public route hardening", () => {
     assert.match(blogPage, /getBlockedIdsFor\(meDbId\)/);
     assert.match(blogPage, /"BlogPost"\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
     assert.match(blogPage, /getPopularBlogTagRows\(20\)/);
-    assert.match(popularBlogTags, /bp\."publishedAt" IS NOT NULL/);
-    assert.match(popularBlogTags, /bp\."publishedAt" <= NOW\(\)/);
+    assert.match(popularBlogTags, /sellerPublicBlogTags\(limit\)/);
+    assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"/);
 
     assert.match(similarListings, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(similarListings, /rateLimitResponse\(rate\.reset, "Too many similar-listing requests\."\)/);
-    assert.match(similarListings, /publicListingWhere\(\{ id \}\)/);
-    assert.match(similarListings, /getBlockedSellerProfileIdsFor/);
-    assert.match(similarListings, /l\."sellerId" != ALL\(\$\{blockedSellerIds\}\)/);
+    assert.match(similarListings, /sellerActorSimilarListingCandidates\(viewerUserId, id\)/);
     assert.match(similarListings, /me\?\.banned \|\| me\?\.deletedAt/);
-    assert.match(similarListings, /sp\."stripeAccountSupported" = true/);
-    assert.match(similarListings, /LEFT JOIN LATERAL/);
-    assert.match(similarListings, /ROW_NUMBER\(\) OVER \(ORDER BY p\."sortOrder" ASC, p\.id ASC\)/);
-    assert.doesNotMatch(similarListings, /\(SELECT p\.url FROM "Photo" p/);
+    assert.doesNotMatch(similarListings, /prisma\.\$queryRaw|SellerProfile|publicListingWhere/);
   });
 
   it("keeps public commission reads bounded and rate-limited", () => {
@@ -237,7 +232,7 @@ describe("cron and public route hardening", () => {
     assert.match(blogSuggestions, /getBlockedIdsFor\(meDbId\)/);
     assert.match(blogSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(blogSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
-    assert.match(blogSuggestions, /id: \{ notIn: blockedSellerIds \}/);
+    assert.match(blogSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, false, 3\)/);
   });
 
   it("keeps checkout rollback scoped to the signed-in buyer and idempotent stock restore", () => {

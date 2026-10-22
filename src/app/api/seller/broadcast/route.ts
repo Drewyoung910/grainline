@@ -41,6 +41,8 @@ import {
 } from "@/lib/requestBody";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { withSerializableRetry } from "@/lib/transactionRetry";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { canDeliverSellerBroadcast } from "@/lib/sellerBroadcastDeliveryState";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
@@ -72,15 +74,7 @@ export async function POST(req: NextRequest) {
   if (me.banned || me.deletedAt)
     return privateJson({ error: "Account is suspended" }, { status: 403 });
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: {
-      id: true,
-      displayName: true,
-      chargesEnabled: true,
-      vacationMode: true,
-    },
-  });
+  const seller = await sellerOwnerCore(me.id);
   if (!seller)
     return privateJson({ error: "No seller profile" }, { status: 403 });
   if (!seller.chargesEnabled || seller.vacationMode) {
@@ -92,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   const { success: attemptOk, reset: attemptReset } = await safeRateLimit(
     broadcastAttemptRatelimit,
-    seller.id,
+    seller.sellerProfileId,
   );
   if (!attemptOk)
     return privateResponse(
@@ -158,13 +152,13 @@ export async function POST(req: NextRequest) {
     captureProfanityFlag({
       source: "seller_broadcast",
       matchCount: profCheck.matches.length,
-      extra: { sellerProfileId: seller.id },
+      extra: { sellerProfileId: seller.sellerProfileId },
     });
   }
 
   // Enforce 7-day rate limit between broadcasts
   const lastBroadcast = await prisma.sellerBroadcast.findFirst({
-    where: { sellerProfileId: seller.id },
+    where: { sellerProfileId: seller.sellerProfileId },
     orderBy: { sentAt: "desc" },
     select: { sentAt: true },
   });
@@ -185,7 +179,7 @@ export async function POST(req: NextRequest) {
 
   // Get followers (optionally filtered to sellers only)
   const followers = await userOwnerBroadcastFollowers(me.id, {
-    sellerProfileId: seller.id,
+    sellerProfileId: seller.sellerProfileId,
     sellersOnly,
   });
   const notificationFollowers = followers.filter((f) =>
@@ -196,7 +190,7 @@ export async function POST(req: NextRequest) {
   );
   const { success: rlOk, reset } = await safeRateLimit(
     broadcastRatelimit,
-    seller.id,
+    seller.sellerProfileId,
   );
   if (!rlOk)
     return privateResponse(
@@ -207,7 +201,7 @@ export async function POST(req: NextRequest) {
   // transaction so the Redis weekly limiter is not the only concurrency guard.
   const broadcastResult = await withSerializableRetry(() => prisma.$transaction(async (tx) => {
     const latest = await tx.sellerBroadcast.findFirst({
-      where: { sellerProfileId: seller.id },
+      where: { sellerProfileId: seller.sellerProfileId },
       orderBy: { sentAt: "desc" },
       select: { sentAt: true },
     });
@@ -220,7 +214,7 @@ export async function POST(req: NextRequest) {
 
     const created = await tx.sellerBroadcast.create({
       data: {
-        sellerProfileId: seller.id,
+        sellerProfileId: seller.sellerProfileId,
         message,
         imageUrl,
         recipientCount: notificationFollowers.length,
@@ -250,24 +244,17 @@ export async function POST(req: NextRequest) {
   // Send notifications after response; avoids losing work on function teardown.
   after(async () => {
     try {
-      const currentBroadcast = await prisma.sellerBroadcast.findUnique({
-        where: { id: broadcast.id },
-        select: {
-          sellerProfile: {
-            select: {
-              ownerAccountActive: true,
-              chargesEnabled: true,
-              vacationMode: true,
-            },
-          },
-        },
-      });
-      if (
-        !currentBroadcast ||
-        !currentBroadcast.sellerProfile.chargesEnabled ||
-        currentBroadcast.sellerProfile.vacationMode ||
-        currentBroadcast.sellerProfile.ownerAccountActive !== true
-      ) {
+      const [currentBroadcast, currentSeller] = await Promise.all([
+        prisma.sellerBroadcast.findUnique({
+          where: { id: broadcast.id },
+          select: { sellerProfileId: true },
+        }),
+        sellerOwnerCore(me.id),
+      ]);
+      if (!canDeliverSellerBroadcast(
+        currentBroadcast?.sellerProfileId ?? null,
+        currentSeller,
+      )) {
         return;
       }
       const sellerName = seller.displayName ?? "A maker you follow";
@@ -291,7 +278,7 @@ export async function POST(req: NextRequest) {
           tags: { source: "seller_broadcast_notification" },
           extra: {
             broadcastId: broadcast.id,
-            sellerProfileId: seller.id,
+            sellerProfileId: seller.sellerProfileId,
             followerId: notificationFollowers[index]?.followerId ?? null,
           },
         });
@@ -343,7 +330,7 @@ export async function POST(req: NextRequest) {
           tags: { source: "seller_broadcast_email" },
           extra: {
             broadcastId: broadcast.id,
-            sellerProfileId: seller.id,
+            sellerProfileId: seller.sellerProfileId,
             followerId: emailFollowers[index]?.userId ?? null,
           },
         });
@@ -352,7 +339,10 @@ export async function POST(req: NextRequest) {
       Sentry.captureException(error, {
         level: "warning",
         tags: { source: "seller_broadcast_after" },
-        extra: { broadcastId: broadcast.id, sellerProfileId: seller.id },
+        extra: {
+          broadcastId: broadcast.id,
+          sellerProfileId: seller.sellerProfileId,
+        },
       });
     }
   });
@@ -381,10 +371,7 @@ export async function GET(req: NextRequest) {
   if (me.banned || me.deletedAt)
     return privateJson({ error: "Account is suspended" }, { status: 403 });
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true },
-  });
+  const seller = await sellerOwnerCore(me.id);
   if (!seller)
     return privateJson({ error: "No seller profile" }, { status: 403 });
 
@@ -398,7 +385,7 @@ export async function GET(req: NextRequest) {
 
   const [broadcasts, total] = await Promise.all([
     prisma.sellerBroadcast.findMany({
-      where: { sellerProfileId: seller.id },
+      where: { sellerProfileId: seller.sellerProfileId },
       orderBy: [{ sentAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -410,7 +397,9 @@ export async function GET(req: NextRequest) {
         recipientCount: true,
       },
     }),
-    prisma.sellerBroadcast.count({ where: { sellerProfileId: seller.id } }),
+    prisma.sellerBroadcast.count({
+      where: { sellerProfileId: seller.sellerProfileId },
+    }),
   ]);
 
   return privateJson({ broadcasts, total, page, pageSize });

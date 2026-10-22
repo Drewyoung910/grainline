@@ -42,7 +42,7 @@ describe("social interaction route hardening", () => {
     assert.match(route, /logServerError\(error, \{/);
     assert.match(route, /source: "follow_notification"/);
     assert.doesNotMatch(route, /console\.error\("Failed to create follow notification:/);
-    assert.match(route, /return privateJson\(\{ following: true, followerCount \}\)/);
+    assert.match(route, /return privateJson\(\{ following: true, followerCount: result\.followerCount \}\)/);
     assert.match(notifications, /createNotificationServiceRow\(\{/);
     assert.match(serviceSql, /ON CONFLICT \("userId", "type", "dedupKey"\) DO NOTHING/);
     assert.match(serviceSql, /notification_dedup_key :=[\s\S]{0,200}pg_catalog\.md5\(replay_material\)/);

@@ -39,14 +39,27 @@ describe("User public seller-state source boundary", () => {
   it("routes seller and listing visibility through the bounded snapshot", () => {
     const listing = read("src/lib/listingVisibility.ts");
     const seller = read("src/lib/sellerVisibility.ts");
-    const saved = read("src/lib/savedListingVisibility.ts");
     const blog = read("src/lib/blogVisibility.ts");
-    const commission = read("src/lib/commissionInterestCount.ts");
+    const savedAuthority = read(
+      "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
+    );
+    const commissionAuthority = read(
+      "prisma/migrations/20261020235000_prepare_seller_profile_public_commission_interests/migration.sql",
+    );
+    const visibilityMirrorAuthority = read(
+      "prisma/migrations/20261020235989_prepare_seller_profile_public_visibility_mirrors/migration.sql",
+    );
 
-    for (const source of [listing, seller, saved, blog, commission]) {
+    for (const source of [listing, seller, savedAuthority, commissionAuthority]) {
       assert.match(source, /ownerAccountActive/);
       assert.doesNotMatch(source, /user:\s*\{\s*banned:\s*false,\s*deletedAt:\s*null/);
     }
+    assert.match(blog, /authorSellerPubliclyOrderable/);
+    assert.doesNotMatch(blog, /user:\s*\{\s*banned:\s*false,\s*deletedAt:\s*null/);
+    assert.match(
+      visibilityMirrorAuthority,
+      /NEW\."authorSellerPubliclyOrderable" := \([\s\S]*linked_seller\."ownerAccountActive" = true/,
+    );
     assert.match(listing, /listing\.seller\.userId === viewer\.dbUserId/);
     assert.doesNotMatch(listing, /clerkUserId/);
   });
@@ -73,22 +86,25 @@ describe("User public seller-state source boundary", () => {
       "src/app/blog/page.tsx",
       "src/app/api/blog/search/route.ts",
       "src/app/api/blog/search/suggestions/route.ts",
-      "src/lib/popularBlogTags.ts",
     ]) {
       const source = read(path);
       assert.match(source, /(?:bp|"BlogPost")\."authorAccountActive" = true/);
       assert.doesNotMatch(source, /JOIN "User" [a-z_]+ ON [a-z_]+\.id = (?:bp|"BlogPost")\."authorId"/);
-      assert.match(source, /sp\."ownerAccountActive" = true/);
+      assert.match(source, /grainline_seller_public_blog_author/);
+      assert.doesNotMatch(source, /JOIN "SellerProfile"/);
       assert.doesNotMatch(source, /seller_user/);
     }
+    const popularBlogTags = read("src/lib/popularBlogTags.ts");
+    assert.match(popularBlogTags, /sellerPublicBlogTags\(limit\)/);
+    assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
 
     const commission = read("src/app/commission/page.tsx");
     assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
     assert.match(commission, /cr\."buyerAccountActive" = true/);
     assert.match(commission, /cr\."buyerName", cr\."buyerImageUrl"/);
     assert.match(commission, /buyer: \{ name: r\.buyerName, imageUrl: r\.buyerImageUrl \}/);
-    assert.match(commission, /isp\."ownerAccountActive" = true/);
-    assert.doesNotMatch(commission, /JOIN "User" iu ON iu\.id = isp\."userId"/);
+    assert.match(commission, /publicCommissionInterestCounts\(rawResults\.map/);
+    assert.doesNotMatch(commission, /JOIN (?:public\.)?"SellerProfile"/);
 
     const quality = read("src/lib/quality-score.ts");
     assert.match(quality, /userPublicListingFavoriteCounts\(prisma, listingIds\)/);

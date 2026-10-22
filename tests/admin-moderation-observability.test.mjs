@@ -29,11 +29,16 @@ describe("admin moderation hardening follow-ups", () => {
 
   it("sanitizes admin listing rejection reasons before persistence and notifications", () => {
     const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const transitionMigration = source(
+      "prisma/migrations/20261020235999_prepare_seller_profile_staff_listing_review_transition/migration.sql",
+    );
 
     assert.match(reviewRoute, /import \{ sanitizeText, truncateText \} from '@\/lib\/sanitize'/);
     assert.match(reviewRoute, /const sanitizedReason = truncateText\(sanitizeText\(reason \?\? ''\), 500\)\.trim\(\)/);
-    assert.match(reviewRoute, /if \(!sanitizedReason\) return privateJson\(\{ error: 'Reason required for rejection' \}/);
-    assert.match(reviewRoute, /rejectionReason: sanitizedReason/);
+    assert.match(reviewRoute, /reason: sanitizedReason/);
+    assert.match(reviewRoute, /transition\.blockReason === 'REASON_REQUIRED'/);
+    assert.match(transitionMigration, /p_operation = 'REJECT' AND pg_catalog\.btrim\(p_reason\) = ''/);
+    assert.match(transitionMigration, /"rejectionReason" = p_reason/);
     assert.match(reviewRoute, /reason: sanitizedReason/);
     assert.match(reviewRoute, /Reason: \$\{sanitizedReason\}/);
     assert.doesNotMatch(reviewRoute, /rejectionReason: reason/);
@@ -42,30 +47,26 @@ describe("admin moderation hardening follow-ups", () => {
 
   it("rechecks seller orderability before admin listing approval", () => {
     const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const transitionMigration = source(
+      "prisma/migrations/20261020235999_prepare_seller_profile_staff_listing_review_transition/migration.sql",
+    );
 
     assert.match(reviewRoute, /function sellerUnavailableReason/);
-    assert.match(reviewRoute, /chargesEnabled: true/);
-    assert.match(reviewRoute, /vacationMode: false/);
     assert.match(reviewRoute, /if \(!seller\.ownerAccountActive\) return 'Seller account is unavailable\.'/);
-    assert.match(reviewRoute, /seller: \{[\s\S]*ownerAccountActive: true/);
-    assert.match(reviewRoute, /listing\.updateMany\(\{[\s\S]*ownerAccountActive: true/);
-    assert.match(reviewRoute, /status: 'PENDING_REVIEW'/);
-    assert.match(reviewRoute, /SET status = 'SOLD_OUT'/);
-    assert.match(reviewRoute, /"listingType" = 'IN_STOCK'/);
-    assert.match(reviewRoute, /COALESCE\("stockQuantity", 0\) <= 0/);
-    assert.match(reviewRoute, /const finalStatus = Number\(soldOutCount\) > 0 \? 'SOLD_OUT' : 'ACTIVE'/);
-    assert.match(reviewRoute, /metadata: \{ finalStatus \}/);
+    assert.match(reviewRoute, /sellerProfileStaffListingReviewTransition/);
+    assert.match(transitionMigration, /FROM public\."Listing" AS listing[\s\S]*FOR UPDATE/);
+    assert.match(transitionMigration, /FROM public\."SellerProfile" AS seller[\s\S]*FOR UPDATE/);
+    assert.match(transitionMigration, /source_listing\.status <> 'PENDING_REVIEW'/);
+    assert.match(transitionMigration, /NOT source_seller\."ownerAccountActive"/);
+    assert.match(transitionMigration, /NOT source_seller\."chargesEnabled"/);
+    assert.match(transitionMigration, /source_seller\."vacationMode"/);
+    assert.match(transitionMigration, /source_listing\."listingType" = 'IN_STOCK'/);
+    assert.match(transitionMigration, /COALESCE\(source_listing\."stockQuantity", 0\) <= 0/);
+    assert.match(transitionMigration, /jsonb_build_object\('finalStatus', final_status::text\)/);
     assert.match(reviewRoute, /return privateJson\(\{ error: unavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
-    assert.match(reviewRoute, /return privateJson\(\{ error: currentUnavailableReason \}, \{ status: HTTP_STATUS\.CONFLICT \}\)/);
-    assert.match(reviewRoute, /currentListing\.status === 'ACTIVE' &&\s*!\s*currentUnavailableReason/s);
-    assert.match(reviewRoute, /if \(approved\.finalStatus === 'ACTIVE'\) \{/);
+    assert.match(reviewRoute, /listing\.status === 'ACTIVE'/);
     assert.ok(
-      reviewRoute.indexOf("const unavailableReason = sellerUnavailableReason(listing.seller)") <
-        reviewRoute.indexOf("const approved = await prisma.$transaction"),
-      "seller orderability should be checked before ACTIVE approval mutation",
-    );
-    assert.ok(
-      reviewRoute.indexOf("const approved = await prisma.$transaction") <
+      reviewRoute.indexOf("sellerProfileStaffListingReviewTransition(") <
         reviewRoute.indexOf("await maybeGrantFoundingMaker(listing.sellerId)"),
       "Founding Maker grant should only run after guarded ACTIVE mutation succeeds",
     );

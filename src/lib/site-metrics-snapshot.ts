@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getPublicMarketplaceListingMetrics } from "@/lib/orderPublicAggregateAuthority";
+import { sellerPublicMarketplaceRatingAverage } from "@/lib/sellerProfilePublicAccess";
 
 export type SiteMetricsSnapshotResult = {
   avgConversion: number;
@@ -9,20 +10,9 @@ export type SiteMetricsSnapshotResult = {
 };
 
 export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapshotResult> {
-  const [traffic, ratingRows] = await Promise.all([
+  const [traffic, avgRating] = await Promise.all([
     getPublicMarketplaceListingMetrics(),
-    prisma.$queryRaw<Array<{ avgRating: number | null }>>`
-      SELECT AVG(r."ratingX2")::float / 2.0 AS "avgRating"
-      FROM "Review" r
-      JOIN "Listing" l ON l.id = r."listingId"
-      JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      WHERE l.status = 'ACTIVE'
-        AND l."isPrivate" = false
-        AND sp."chargesEnabled" = true
-        AND sp."stripeAccountSupported" = true
-        AND sp."vacationMode" = false
-        AND sp."ownerAccountActive" = true
-    `,
+    sellerPublicMarketplaceRatingAverage(),
   ]);
 
   const totalViews = traffic.totalViews;
@@ -32,7 +22,7 @@ export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapsho
   const payload = {
     avgConversion: totalViews > 0 ? totalOrders / totalViews : 0,
     avgCtr: totalViews > 0 ? totalClicks / totalViews : 0,
-    avgRating: ratingRows[0]?.avgRating ?? 3.0,
+    avgRating: avgRating ?? 3.0,
     calculatedAt,
   };
 

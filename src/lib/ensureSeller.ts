@@ -1,9 +1,10 @@
 // src/lib/ensureSeller.ts
+import { randomUUID } from "node:crypto";
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { AccountAccessError, ensureUserByClerkId } from "@/lib/ensureUser";
 import { userAccountByClerkId } from "@/lib/userIdentityAccess";
-import { sellerBootstrapSelect } from "@/lib/sellerProfileSelects";
+import { sellerOwnerBootstrap } from "@/lib/sellerProfileOwnerAccess";
 import {
   normalizeDisplayNameForLookup,
   sanitizeUserName,
@@ -46,22 +47,13 @@ export async function ensureSeller() {
     );
   }
 
-  // 2) Ensure we have a SellerProfile row
-  let seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: sellerBootstrapSelect,
+  // 2) Atomically load or create the SellerProfile row.
+  const displayName = sanitizeUserName(me.name ?? "") || "Maker";
+  const seller = await sellerOwnerBootstrap(me.id, {
+    proposedSellerProfileId: randomUUID(),
+    displayName,
+    displayNameNormalized: normalizeDisplayNameForLookup(displayName),
   });
-  if (!seller) {
-    const displayName = sanitizeUserName(me.name ?? "") || "Maker";
-    seller = await prisma.sellerProfile.create({
-      data: {
-        userId: me.id,
-        displayName,
-        displayNameNormalized: normalizeDisplayNameForLookup(displayName),
-      },
-      select: sellerBootstrapSelect,
-    });
-  }
 
   return { me, seller };
 }

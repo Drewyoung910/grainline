@@ -4,8 +4,8 @@ import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { rateLimitResponse, reviewVoteRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { canViewListingDetail } from "@/lib/listingVisibility";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { sellerPublicReviewVoteTarget } from "@/lib/sellerProfilePublicAccess";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
@@ -30,34 +30,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const review = await prisma.review.findUnique({
-    where: { id },
-    select: {
-      reviewerId: true,
-      helpfulCount: true,
-      listing: {
-        select: {
-          id: true,
-          status: true,
-          isPrivate: true,
-          reservedForUserId: true,
-          seller: {
-            select: {
-              userId: true,
-              ownerAccountActive: true,
-              chargesEnabled: true,
-              stripeAccountSupported: true,
-              vacationMode: true,
-            },
-          },
-        },
-      },
-    },
-  });
+  const review = await sellerPublicReviewVoteTarget(me.id, id);
   if (!review) return privateJson({ error: "Not found" }, { status: 404 });
-  if (!canViewListingDetail(review.listing, { dbUserId: me.id })) {
-    return privateJson({ error: "Not found" }, { status: 404 });
-  }
 
   // Don't allow voting on your own review
   if (review.reviewerId === me.id) {
@@ -65,7 +39,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   // Don't allow the seller to vote helpful on reviews of their own listing
   // (would let sellers boost their best reviews).
-  if (review.listing.seller.userId === me.id) {
+  if (review.sellerUserId === me.id) {
     return privateJson({ error: "Cannot vote on your own listing" }, { status: 400 });
   }
 

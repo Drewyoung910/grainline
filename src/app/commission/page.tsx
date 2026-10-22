@@ -12,7 +12,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { MapPin } from "@/components/icons";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
-import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { Suspense } from "react";
@@ -145,7 +145,7 @@ async function CommissionPageContent({
       SELECT
         cr.id, cr.title, cr.description, cr.category,
         cr."budgetMinCents", cr."budgetMaxCents", cr.timeline,
-        cr."referenceImageUrls", COALESCE(ci."interestCount", 0)::int AS "interestedCount", cr."createdAt",
+        cr."referenceImageUrls", cr."createdAt",
         cr."isNational",
         cr."buyerId", cr."buyerName", cr."buyerImageUrl",
         CASE
@@ -160,16 +160,6 @@ async function CommissionPageContent({
           ELSE NULL
         END AS distance_m
       FROM "CommissionRequest" cr
-      LEFT JOIN LATERAL (
-        SELECT COUNT(*)::int AS "interestCount"
-        FROM "CommissionInterest" ci
-        INNER JOIN "SellerProfile" isp ON isp.id = ci."sellerProfileId"
-        WHERE ci."commissionRequestId" = cr.id
-          AND isp."chargesEnabled" = true
-          AND isp."stripeAccountSupported" = true
-          AND isp."vacationMode" = false
-          AND isp."ownerAccountActive" = true
-      ) ci ON true
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
         AND cr."buyerAccountActive" = true
@@ -203,7 +193,6 @@ async function CommissionPageContent({
       budgetMaxCents: number | null;
       timeline: string | null;
       referenceImageUrls: string[];
-      interestedCount: number;
       createdAt: Date;
       isNational: boolean;
       buyerId: string;
@@ -216,6 +205,9 @@ async function CommissionPageContent({
       return args;
     })());
 
+    const interestCounts = rawResults.length > 0
+      ? await publicCommissionInterestCounts(rawResults.map(({ id }) => id), null)
+      : new Map<string, number>();
     requests = rawResults.map((r) => ({
       id: r.id,
       title: r.title,
@@ -225,7 +217,7 @@ async function CommissionPageContent({
       budgetMaxCents: r.budgetMaxCents,
       timeline: r.timeline,
       referenceImageUrls: r.referenceImageUrls,
-      interestedCount: Number(r.interestedCount),
+      interestedCount: interestCounts.get(r.id) ?? 0,
       createdAt: r.createdAt,
       isNational: r.isNational,
       buyer: { name: r.buyerName, imageUrl: r.buyerImageUrl },
@@ -248,20 +240,18 @@ async function CommissionPageContent({
         budgetMaxCents: true,
         timeline: true,
         referenceImageUrls: true,
-        interestedCount: true,
-        _count: { select: { interests: { where: publicCommissionInterestWhere() } } },
         createdAt: true,
         isNational: true,
         buyerName: true,
         buyerImageUrl: true,
       },
     });
-    requests = found.map(({ _count, buyerName, buyerImageUrl, ...request }) => ({
+    const interestCounts = found.length > 0
+      ? await publicCommissionInterestCounts(found.map(({ id }) => id), null)
+      : new Map<string, number>();
+    requests = found.map(({ buyerName, buyerImageUrl, ...request }) => ({
       ...request,
-      interestedCount: resolvedInterestedCount({
-        interestedCount: request.interestedCount,
-        _count,
-      }),
+      interestedCount: interestCounts.get(request.id) ?? 0,
       buyer: { name: buyerName, imageUrl: buyerImageUrl },
     }));
   }

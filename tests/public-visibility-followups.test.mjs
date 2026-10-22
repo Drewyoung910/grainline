@@ -2,22 +2,21 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 
-const { savedListingFavoriteWhere } = await import("../src/lib/savedListingVisibility.ts");
-
 function read(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
 describe("public visibility follow-ups", () => {
-  it("keeps account dashboard saved listings on the shared saved-page filter", () => {
+  it("keeps account dashboard saved listings on the owner-bound authority", () => {
     const accountPage = read("src/app/account/page.tsx");
-    assert.match(accountPage, /savedListingFavoriteWhere\(me\.id, blockedSellerIds\)/);
+    assert.match(accountPage, /sellerOwnerSavedListingPage\(me\.id, 6, 0\)/);
+    assert.doesNotMatch(accountPage, /prisma\.favorite|savedListingFavoriteWhere|blockedSellerIds/);
   });
 
-  it("validates favorite targets through public listing detail visibility", () => {
+  it("validates favorite targets through the bounded public favorite authority", () => {
     const favoritesRoute = read("src/app/api/favorites/route.ts");
-    assert.match(favoritesRoute, /publicListingDetailWhere\(\{ id: listingId \}\)/);
-    assert.doesNotMatch(favoritesRoute, /favorite\.upsert\(\{[\s\S]*create: \{ userId: me\.id, listingId \}[\s\S]*findUnique\(\{[\s\S]*where: \{ id: listingId \}/);
+    assert.match(favoritesRoute, /sellerPublicFavoriteTarget\(listingId\)/);
+    assert.doesNotMatch(favoritesRoute, /publicListingDetailWhere|select:\s*\{[^}]*seller:/u);
   });
 
   it("keeps listing detail related listings and review aggregates on public visibility filters", () => {
@@ -58,8 +57,9 @@ describe("public visibility follow-ups", () => {
     assert.match(blogPage, /const viewerBlogPostWhere = \(extra: Prisma\.BlogPostWhereInput = \{\}\) =>/);
     assert.match(blogPage, /authorId: \{ notIn: blockedUserIds \}/);
     assert.match(blogPage, /sellerProfileId: \{ notIn: blockedSellerIds \}/);
-    assert.match(blogPage, /const featuredSellerFilter: Prisma\.ListingWhereInput =/);
-    assert.match(blogPage, /sellerId: \{ notIn: blockedSellerIds \}/);
+    assert.match(blogPage, /sellerPublicRecentlyViewedListings\(meId, post\.featuredListingIds\)/);
+    assert.match(blogPage, /sellerId: post\.sellerProfileId/);
+    assert.match(blogPage, /\.filter\(\(\{ id \}\) => !makerListingIds \|\| makerListingIds\.has\(id\)\)/);
     assert.match(blogPage, /where: viewerBlogPostWhere\(\{\s*id: \{ not: post\.id \}/);
   });
 
@@ -104,15 +104,9 @@ describe("public visibility follow-ups", () => {
     assert.doesNotMatch(sellerPage, /select: \{ tags: true \}/);
     assert.match(popularTags, /export const PUBLIC_SELLER_TOP_TAG_LIMIT = 8/);
     assert.match(popularTags, /export const getCachedPublicSellerTopTags = unstable_cache\(/);
-    assert.match(popularTags, /l\."sellerId" = \$\{sellerId\}/);
-    assert.match(popularTags, /unnest\(l\.tags\) AS tag/);
-    assert.match(popularTags, /l\.status = 'ACTIVE'/);
-    assert.match(popularTags, /l\."isPrivate" = false/);
-    assert.match(popularTags, /sp\."chargesEnabled" = true/);
-    assert.match(popularTags, /sp\."vacationMode" = false/);
-    assert.match(popularTags, /sp\."ownerAccountActive" = true/);
-    assert.doesNotMatch(popularTags, /JOIN "User"/);
-    assert.match(popularTags, /LIMIT \$\{PUBLIC_SELLER_TOP_TAG_LIMIT\}/);
+    assert.match(popularTags, /sellerPublicSellerTags\(sellerId, PUBLIC_SELLER_TOP_TAG_LIMIT\)/);
+    assert.match(popularTags, /sellerPublicListingTags\(limit\)/);
+    assert.doesNotMatch(popularTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
     assert.match(popularTags, /tags: \["popular-listing-tags"\]/);
   });
 
@@ -130,17 +124,22 @@ describe("public visibility follow-ups", () => {
 
     for (const source of [sellerPage, sellerShopPage]) {
       assert.doesNotMatch(source, /clerkId: true/);
-      assert.match(source, /const isOwner = !!meId && seller\.userId === meId/);
+      assert.match(source, /const isOwner = seller\.viewerIsOwner/);
+      assert.doesNotMatch(source, /seller\.userId/);
     }
-    assert.match(sellerShopPage, /const blockedUserIds = await getBlockedUserIdsFor\(meId\)/);
-    assert.match(sellerShopPage, /!isOwner && blockedUserIds\.has\(seller\.userId\)/);
+    assert.match(sellerPage, /sellerPublicViewTarget\(seller\.id\)/);
+    assert.match(sellerShopPage, /getSellerProfileForShopPage\(meId, sellerId\)/);
     assert.match(visibility, /listing\.seller\.userId === viewer\.dbUserId/);
 
     assert.doesNotMatch(customerPhotosPage, /clerkId: true/);
-    assert.match(customerPhotosPage, /const isOwner = !!meId && seller\.userId === meId/);
-    assert.match(reviewsSection, /where: \{ userId: sellerUserId \}/);
+    assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.sellerProfile/);
+    assert.match(reviewsSection, /sellerName: string;/);
+    assert.match(reviewsSection, /sellerAvatarUrl: string \| null;/);
+    assert.match(reviewsSection, /viewerIsSeller: boolean;/);
+    assert.doesNotMatch(reviewsSection, /prisma\.sellerProfile/);
+    assert.doesNotMatch(reviewsSection, /select: \{ seller: \{ select: \{ userId: true \} \} \}/);
     assert.match(reviewsSection, /!r\.sellerReply && viewerIsSeller/);
-    assert.doesNotMatch(reviewsSection, /where: \{ clerkId: sellerUserId \}/);
   });
 
   it("resolves analytics ownership to local ids and fails closed for missing local users", () => {
@@ -151,7 +150,8 @@ describe("public visibility follow-ups", () => {
       const source = read(routePath);
       assert.match(source, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(source, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(source, /seller: \{ userId: \{ not: viewerUserId \} \}/);
+      assert.match(source, /sellerOwnerCore\(viewerUserId\)/);
+      assert.match(source, /sellerId: \{ not: viewerSellerProfileId \}/);
       assert.doesNotMatch(source, /seller: \{ user: \{ clerkId:/);
     }
   });
@@ -163,41 +163,43 @@ describe("public visibility follow-ups", () => {
     assert.match(profilePage, /galleryImageUrlsTouched \? \{ galleryImageUrls, galleryAltTexts \} : \{\}/);
   });
 
-  it("builds saved listing filters with only public active or sold-out listings", () => {
-    assert.deepEqual(savedListingFavoriteWhere("user_1", ["seller_2"]), {
-      userId: "user_1",
-      listing: {
-        AND: [
-          {
-            status: { in: ["ACTIVE", "SOLD_OUT"] },
-            isPrivate: false,
-            seller: {
-              chargesEnabled: true,
-              stripeAccountSupported: true,
-              vacationMode: false,
-              ownerAccountActive: true,
-            },
-          },
-          { sellerId: { notIn: ["seller_2"] } },
-        ],
-      },
-    });
+  it("keeps saved listing count and page reads on one owner-bound visibility authority", () => {
+    const savedPage = read("src/app/account/saved/page.tsx");
+    const access = read("src/lib/sellerSavedListingAccess.ts");
+    const migration = read(
+      "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
+    );
+
+    assert.match(savedPage, /sellerOwnerSavedListingCount\(me\.id\)/);
+    assert.match(savedPage, /sellerOwnerSavedListingPage\([\s\S]*me\.id,[\s\S]*PAGE_SIZE,/);
+    assert.doesNotMatch(savedPage, /prisma\.favorite|savedListingFavoriteWhere/);
+    assert.match(access, /grainline_seller_owner_saved_listing_count\(\)/);
+    assert.match(access, /grainline_seller_owner_saved_listing_page\(/);
+    assert.match(migration, /favorite\."userId" = request_user_id/g);
+    assert.match(migration, /listing\.status::text IN \('ACTIVE', 'SOLD_OUT'\)/g);
+    assert.match(migration, /listing\."isPrivate" = false/g);
+    assert.match(migration, /seller\."vacationMode" = false/g);
+    assert.match(migration, /public\."Block" AS relationship/g);
   });
 
   it("cleans up follow rows if a block races the follow write", () => {
     const followRoute = read("src/app/api/follow/[sellerId]/route.ts");
+    const followMigration = read(
+      "prisma/migrations/20261019170000_prepare_seller_profile_follow_authority/migration.sql",
+    );
 
-    assert.match(followRoute, /const blockAfterFollow = await prisma\.block\.findFirst/);
-    assert.match(followRoute, /await prisma\.follow\.deleteMany\(\{\s*where: \{ followerId: me\.id, sellerProfileId: sellerProfile\.id \}/s);
+    assert.match(followRoute, /createSellerFollow\(me\.id, sellerId\)/);
+    assert.doesNotMatch(followRoute, /prisma\.(block|follow)/);
     assert.match(followRoute, /return privateJson\(\{ error: "Blocked" \}, \{ status: 403 \}\)/);
     assert.ok(
-      followRoute.indexOf("const blockAfterFollow") > followRoute.indexOf("await prisma.follow.upsert"),
-      "follow route must re-check block state after the follow write",
+      followMigration.indexOf("grainline_user_block_pair_lock(target_user_id)")
+        < followMigration.indexOf('INSERT INTO public."Follow"'),
+      "follow creation must take the shared block-pair lock before inserting",
     );
     assert.ok(
-      followRoute.indexOf("const followerCount", followRoute.indexOf("const blockAfterFollow")) >
-        followRoute.indexOf("const blockAfterFollow"),
-      "follow route must not count or notify until the post-write block recheck passes",
+      followMigration.indexOf('FROM public."Block" AS relationship')
+        < followMigration.indexOf('INSERT INTO public."Follow"'),
+      "follow creation must reject reciprocal blocks while holding the pair lock",
     );
   });
 });

@@ -1026,3 +1026,24 @@ repair, then the Case-refund cluster, #664 and #662. No new RLS table begins
 before those money/case fixes. Public `SellerProfile` will start with an
 options comparison and Drew's sign-off; no further column deletion is part of
 that security design.
+
+### 2026-10-16 policyless FORCE acceptance
+
+The historical source-preparation state above is now closed. PR #587 merged
+the isolated posture-only successor unchanged as exact main
+`994fc18da95d2d896cec5baf73d3cce2227966a7`. Protected Production run
+`38837514490` applied only
+`20261015120000_force_seller_profile_private_rls` and passed the exact-main,
+CI/ENABLE binding, source-byte, owner-boundary, restart-safe, only-pending,
+migration-ledger, forced-catalog and global-grant gates. Retained artifact
+`seller-profile-private-force-production-38837514490` has id `12018968805`
+and digest
+`sha256:c21270de58c8c7e925c4cd71878e7bd6a7d20f6a9183414bbcba720bb56a5bcb`.
+
+`SellerProfilePrivate` is therefore policyless FORCE in Production with zero
+ordinary-runtime/`PUBLIC` direct table authority. Its private-boundary RLS work
+is complete. The separate public `SellerProfile` table remains RLS-disabled
+with broad predecessor runtime CRUD authority. Its alternatives, current
+caller inventory, no-drop rule and recommended bounded-projection design are
+recorded in `docs/seller-profile-public-rls-options.md`; no public-table
+implementation begins before Drew selects an option.

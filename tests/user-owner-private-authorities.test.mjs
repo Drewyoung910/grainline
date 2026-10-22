@@ -99,7 +99,8 @@ describe("User owner-private authorities", () => {
     assert.match(access, /export async function updateUserOwnerShippingAddress/);
     assert.match(access, /export async function acceptUserOwnerLegalTerms/);
     assert.match(access, /export async function updateUserOwnerNotificationPreference/);
-    assert.match(settings, /prisma\.sellerProfile\.findUnique/);
+    assert.match(settings, /sellerOwnerAccountSummary\(me\.id\)/);
+    assert.doesNotMatch(settings, /prisma\.sellerProfile/);
     assert.match(settings, /normalizeNotificationPreferences\(me\.notificationPreferences\)/);
     assert.doesNotMatch(settings, /prisma\.user\./);
     assert.match(shipping, /name: user\.shippingName \?\? null/);

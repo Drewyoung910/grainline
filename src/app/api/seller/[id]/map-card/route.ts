@@ -5,11 +5,9 @@
 // currently map-eligible (active/orderable + publicMapOptIn) resolve here,
 // matching the pin queries on /map and the homepage map section.
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
-import { publicListingWhere } from "@/lib/listingVisibility";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
+import { sellerPublicMapCard } from "@/lib/sellerProfilePublicAccess";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { logServerError } from "@/lib/serverErrorLogger";
 
@@ -28,34 +26,7 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const seller = await prisma.sellerProfile.findFirst({
-      where: activeSellerProfileWhere({ id, publicMapOptIn: true }),
-      select: {
-        id: true,
-        displayName: true,
-        tagline: true,
-        city: true,
-        state: true,
-        guildLevel: true,
-        isFoundingMaker: true,
-        foundingMakerNumber: true,
-        avatarImageUrl: true,
-        bannerImageUrl: true,
-        ownerImageUrl: true,
-        listings: {
-          where: publicListingWhere(),
-          orderBy: [{ qualityScore: "desc" }, { id: "desc" }],
-          take: 1,
-          select: {
-            photos: {
-              take: 1,
-              orderBy: { sortOrder: "asc" },
-              select: { url: true },
-            },
-          },
-        },
-      },
-    });
+    const seller = await sellerPublicMapCard(id);
     if (!seller) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -68,7 +39,7 @@ export async function GET(
       name: seller.displayName ?? "Maker",
       path: publicSellerPath(seller.id, seller.displayName),
       avatarUrl: seller.avatarImageUrl ?? seller.ownerImageUrl ?? null,
-      photoUrl: seller.bannerImageUrl ?? seller.listings[0]?.photos[0]?.url ?? null,
+      photoUrl: seller.bannerImageUrl ?? seller.coverImageUrl ?? null,
       guildLevel: seller.guildLevel ?? null,
       isFoundingMaker: seller.isFoundingMaker,
       foundingMakerNumber: seller.foundingMakerNumber ?? null,

@@ -29,9 +29,9 @@ import {
 import { applyCartAddMutation } from "@/lib/cartAddMutation";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import {
-  listingSellerOrderStateSelect,
   sellerCheckoutPrivateState,
 } from "@/lib/sellerCheckoutPrivateAccess";
+import { sellerListingTransactionSource } from "@/lib/sellerTransactionAccess";
 
 const CartAddSchema = z.object({
   listingId: z.string().min(1),
@@ -100,13 +100,7 @@ export async function POST(req: Request) {
     const quantity = parsed.quantity ?? 1;
     const selectedVariantOptionIds = parsed.selectedVariantOptionIds ?? [];
 
-    const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
-      include: {
-        seller: { select: listingSellerOrderStateSelect },
-        variantGroups: { include: { options: true } },
-      },
-    });
+    const listing = await sellerListingTransactionSource(me.id, listingId);
     if (!listing) return privateJson({ error: "Listing not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
     if (listing.status !== "ACTIVE") {

@@ -26,29 +26,14 @@ import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/qu
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
 import {
-  PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE,
-  PUBLIC_LOCATION_METERS_PER_DEGREE,
-} from "@/lib/locationPrivacy";
+  sellerPublicBrowseNearbySellerIds,
+  sellerPublicListingCards,
+  type SellerPublicListingCard,
+} from "@/lib/sellerProfilePublicAccess";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
 const MAX_BROWSE_RADIUS_MILES = 500;
-
-function gridCellCenterSql(
-  coordinateSql: Prisma.Sql,
-  minimum: number,
-  maximum: number,
-  cellSizeSql: Prisma.Sql,
-) {
-  const cellIndexSql = Prisma.sql`LEAST(
-    CEIL(${maximum - minimum}::float8 / ${cellSizeSql}) - 1,
-    FLOOR((${coordinateSql} - ${minimum}) / ${cellSizeSql})
-  )`;
-  const lowerBoundSql = Prisma.sql`(${minimum} + ${cellIndexSql} * ${cellSizeSql})`;
-  return Prisma.sql`(
-    ${lowerBoundSql} + LEAST(${maximum}, ${lowerBoundSql} + ${cellSizeSql})
-  ) / 2`;
-}
 
 type Search = {
   q?: string;
@@ -83,8 +68,6 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
-type ListingWithIncludes = Awaited<ReturnType<typeof fetchListings>>[number];
-
 async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[], take: number, skip: number, withFavCount: boolean) {
   return prisma.listing.findMany({
     where,
@@ -108,23 +91,25 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
       tags: true,
       qualityScore: true,
       photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-      seller: {
-        select: {
-          displayName: true,
-          avatarImageUrl: true,
-          guildLevel: true,
-          city: true,
-          state: true,
-          acceptingNewOrders: true,
-          ownerImageUrl: true,
-        },
-      },
       ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
     },
   });
 }
 
-function scoreListings(listings: ListingWithIncludes[], query?: string) {
+type ListingRow = Awaited<ReturnType<typeof fetchListings>>[number];
+type ListingWithIncludes = ListingRow & { seller: SellerPublicListingCard };
+
+async function hydrateSellerCards(viewerUserId: string | null, rows: ListingRow[]) {
+  const cards = await sellerPublicListingCards(viewerUserId, rows.map((listing) => listing.id));
+  const cardByListingId = new Map(cards.map((seller) => [seller.listingId, seller]));
+  return rows.flatMap((listing): ListingWithIncludes[] => {
+    const seller = cardByListingId.get(listing.id);
+    if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
+    return [{ ...listing, seller }];
+  });
+}
+
+function scoreListings(listings: ListingRow[], query?: string) {
   const qLower = (query ?? "").toLowerCase().trim();
   const searchTerms = qLower.split(/\s+/).filter(Boolean).slice(0, 6);
 
@@ -300,63 +285,12 @@ async function BrowseContent({
   const sellerIdFilters: string[][] = [];
 
   if (hasLocationFilter) {
-    const blockedSellerGeoSql = blockedSellerIds.length > 0
-      ? Prisma.sql`AND sp.id NOT IN (${Prisma.join(blockedSellerIds)})`
-      : Prisma.empty;
-    const radiusCellSizeSql = Prisma.sql`(sp."radiusMeters"::float8 / ${PUBLIC_LOCATION_METERS_PER_DEGREE})`;
-    const radiusLatSql = gridCellCenterSql(Prisma.sql`sp.lat::float8`, -90, 90, radiusCellSizeSql);
-    const radiusLngSql = gridCellCenterSql(Prisma.sql`sp.lng::float8`, -180, 180, radiusCellSizeSql);
-    const publicLatSql = Prisma.sql`(
-      CASE
-        WHEN COALESCE(sp."radiusMeters", 0) > 0
-          THEN ${radiusLatSql}
-        WHEN sp."publicMapOptIn" = true AND COALESCE(sp."radiusMeters", 0) = 0
-          THEN sp.lat::float8
-        ELSE LEAST(89.975, GREATEST(-89.975,
-          (floor(sp.lat::float8 * ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}) + 0.5)
-            / ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}
-        ))
-      END
-    )`;
-    const publicLngSql = Prisma.sql`(
-      CASE
-        WHEN COALESCE(sp."radiusMeters", 0) > 0
-          THEN ${radiusLngSql}
-        WHEN sp."publicMapOptIn" = true AND COALESCE(sp."radiusMeters", 0) = 0
-          THEN sp.lng::float8
-        ELSE LEAST(179.975, GREATEST(-179.975,
-          (floor(sp.lng::float8 * ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}) + 0.5)
-            / ${PUBLIC_LOCATION_GRID_CELLS_PER_DEGREE}
-        ))
-      END
-    )`;
-    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT sp.id
-      FROM "SellerProfile" sp
-      WHERE sp.lat IS NOT NULL AND sp.lng IS NOT NULL
-      AND sp.lat BETWEEN -90 AND 90
-      AND sp.lng BETWEEN -180 AND 180
-      AND sp."chargesEnabled" = true
-      AND sp."stripeAccountSupported" = true
-      AND sp."vacationMode" = false
-      AND sp."ownerAccountActive" = true
-      ${blockedSellerGeoSql}
-      AND EXISTS (
-        SELECT 1
-        FROM "Listing" l
-        WHERE l."sellerId" = sp.id
-        AND l.status = 'ACTIVE'::"ListingStatus"
-        AND l."isPrivate" = false
-      )
-      AND (
-        6371 * 2 * asin(sqrt(
-          pow(sin(radians((${publicLatSql} - ${latFilter!}) / 2)), 2) +
-          cos(radians(${latFilter!})) * cos(radians(${publicLatSql})) *
-          pow(sin(radians((${publicLngSql} - ${lngFilter!}) / 2)), 2)
-        ))
-      ) <= ${radiusFilter! * 1.60934}
-    `;
-    sellerIdFilters.push(rows.map((r) => r.id));
+    sellerIdFilters.push([...await sellerPublicBrowseNearbySellerIds(
+      meDbId,
+      latFilter!,
+      lngFilter!,
+      radiusFilter!,
+    )]);
   }
 
   // Partial tag matches use cached popular tags instead of per-request unnest.
@@ -389,6 +323,19 @@ async function BrowseContent({
     const tagWordConditions: Prisma.ListingWhereInput[] = searchWords.map((word) => ({
       tags: { has: word.toLowerCase() },
     }));
+    const sellerNameCondition: Prisma.ListingWhereInput = {
+      OR: normalizedDisplayNameQuery
+        ? [
+            { sellerDisplayName: { contains: q, mode: "insensitive" as const } },
+            {
+              sellerDisplayNameNormalized: {
+                contains: normalizedDisplayNameQuery,
+                mode: "insensitive" as const,
+              },
+            },
+          ]
+        : [{ sellerDisplayName: { contains: q, mode: "insensitive" as const } }],
+    };
 
     where.OR = [
       // Full phrase match (highest relevance, scored in JS)
@@ -400,16 +347,7 @@ async function BrowseContent({
       // Partial tag matches (existing logic)
       ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
       // Seller name match
-      {
-        seller: {
-          OR: [
-            { displayName: { contains: q, mode: "insensitive" as const } },
-            ...(normalizedDisplayNameQuery
-              ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
-              : []),
-          ],
-        },
-      },
+      sellerNameCondition,
     ];
   }
   if (Object.keys(priceFilter).length > 0) where.priceCents = priceFilter;
@@ -424,16 +362,8 @@ async function BrowseContent({
     where.shipsWithinDays = { lte: shipsFilter };
   }
   if (ratingFilter && Number.isFinite(ratingFilter)) {
-    const sellerWhere = (where.seller ?? {}) as Prisma.SellerProfileWhereInput;
-    where.seller = {
-      ...sellerWhere,
-      ratingSummary: {
-        is: {
-          averageRating: { gte: ratingFilter },
-          reviewCount: { gt: 0 },
-        },
-      },
-    };
+    where.sellerAverageRating = { gte: ratingFilter };
+    where.sellerReviewCount = { gt: 0 };
   }
 
   // Apply intersected seller ID constraints (preserve block notIn if set)
@@ -464,14 +394,22 @@ async function BrowseContent({
     total = scored.length;
     const relevantTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const relevantPage = Math.min(Math.max(pageNum, 1), relevantTotalPages);
-    listings = scored
+    const listingRows = scored
       .slice((relevantPage - 1) * PAGE_SIZE, relevantPage * PAGE_SIZE)
       .map((s) => s.listing);
+    listings = await hydrateSellerCards(meDbId, listingRows);
   } else {
     total = await prisma.listing.count({ where });
     const standardTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const standardPage = Math.min(Math.max(pageNum, 1), standardTotalPages);
-    listings = await fetchListings(where, orderBy, PAGE_SIZE, (standardPage - 1) * PAGE_SIZE, false);
+    const listingRows = await fetchListings(
+      where,
+      orderBy,
+      PAGE_SIZE,
+      (standardPage - 1) * PAGE_SIZE,
+      false,
+    );
+    listings = await hydrateSellerCards(meDbId, listingRows);
   }
 
   const visiblePopularTags = popularTags.slice(0, 12);
@@ -536,7 +474,7 @@ async function BrowseContent({
 
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
-    const featured = await fetchListings(
+    const featuredRows = await fetchListings(
       publicListingWhere(
         blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
       ),
@@ -545,6 +483,7 @@ async function BrowseContent({
       0,
       false,
     );
+    const featured = await hydrateSellerCards(meDbId, featuredRows);
     const [featuredFavorites, featuredRatings] = await Promise.all([
       meDbId && featured.length > 0
         ? prisma.favorite.findMany({

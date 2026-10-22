@@ -237,6 +237,12 @@ WITH required(function_signature) AS (
     ('public."grainline_seller_guild_staff_roster"(text, text)'),
     ('public."grainline_seller_guild_staff_master_pending"(text)'),
     ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
+    ('public."grainline_seller_staff_feature_transition"(text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text)'),
+    ('public."grainline_seller_staff_listing_detail_profile"(text, text)'),
+    ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
+    ('public."grainline_seller_staff_report_targets"(text, text[])'),
+    ('public."grainline_seller_staff_verification_target"(text, text)'),
     ('public."grainline_seller_staff_orderability_state"(text, text)')
 ), missing AS (
   SELECT function_signature FROM required
@@ -313,6 +319,24 @@ GRANT EXECUTE ON FUNCTION
   public.grainline_seller_guild_staff_transition(text, text, text, text, text, boolean)
   TO :"staff_role";
 GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_staff_feature_transition(text, text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_staff_listing_review_transition(text, text, text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_staff_listing_detail_profile(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_staff_broadcast_targets(text, text[])
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_staff_report_targets(text, text[])
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
+  public.grainline_seller_staff_verification_target(text, text)
+  TO :"staff_role";
+GRANT EXECUTE ON FUNCTION
   public.grainline_seller_staff_orderability_state(text, text)
   TO :"staff_role";
 
@@ -378,6 +402,12 @@ WITH table_authority AS (
     ('public."grainline_seller_guild_staff_roster"(text, text)'),
     ('public."grainline_seller_guild_staff_master_pending"(text)'),
     ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
+    ('public."grainline_seller_staff_feature_transition"(text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text)'),
+    ('public."grainline_seller_staff_listing_detail_profile"(text, text)'),
+    ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
+    ('public."grainline_seller_staff_report_targets"(text, text[])'),
+    ('public."grainline_seller_staff_verification_target"(text, text)'),
     ('public."grainline_seller_staff_orderability_state"(text, text)')
 ), expected_authority AS (
   SELECT function_signature,

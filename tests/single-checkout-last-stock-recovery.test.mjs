@@ -170,7 +170,7 @@ describe("single-checkout last-stock recovery", () => {
     assert.match(route, /const \{ userId \} = await auth\(\)/);
     assert.match(route, /ensureUserByClerkId\(userId\)/);
     assert.match(route, /singleCheckoutLockKey\(me\.id, listingId\)/);
-    assert.match(route, /sellerSingleCheckoutResumeSource\(listingId\)/);
+    assert.match(route, /sellerSingleCheckoutResumeSource\(me\.id, listingId\)/);
     assert.match(route, /singleCheckoutResumeSourceIsAvailable\(listing, me\.id\)/);
     assert.match(route, /sellerCheckoutPrivateState\(\{/);
     assert.match(route, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId\)/);
@@ -179,7 +179,7 @@ describe("single-checkout last-stock recovery", () => {
     assert.match(route, /privateJson\(resumed \?\? EMPTY_RESUME\)/);
     assert.doesNotMatch(route, /stockQuantity/);
     assert.doesNotMatch(source("src/lib/singleCheckoutResume.ts"), /stockQuantity/);
-    assert.ok(route.indexOf("getCheckoutLock(checkoutLockKey)") < route.indexOf("sellerSingleCheckoutResumeSource(listingId)"));
+    assert.ok(route.indexOf("getCheckoutLock(checkoutLockKey)") < route.indexOf("sellerSingleCheckoutResumeSource(me.id, listingId)"));
   });
 
   it("resumes a Buy Now payment before requesting a fresh shipping quote", () => {

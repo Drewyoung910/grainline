@@ -14,24 +14,27 @@ import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 /**
  * Emits the buyer's ready-to-purchase card from one durable source id.
  *
- * Do not add caller-supplied participants, conversation ids, payload fields,
- * links, or dedup keys. The Listing reservation is the authority and every
- * security-relevant output is derived from it inside the locked transaction.
+ * The caller must pass the seller user id it already authorized or loaded with
+ * the Listing. Do not add a caller-supplied buyer, conversation id, payload,
+ * link, or dedup key. The fixed database authority verifies seller ownership;
+ * the Listing reservation derives every other security-relevant output.
  */
-export async function sendCustomOrderReadyLink({ listingId }: { listingId: string }) {
-  if (!listingId) return { messageDelivered: false, messageCreated: false };
-
-  const initial = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: { seller: { select: { userId: true } } },
-  });
-  if (!initial) return { messageDelivered: false, messageCreated: false };
+export async function sendCustomOrderReadyLink({
+  listingId,
+  sellerUserId,
+}: {
+  listingId: string;
+  sellerUserId: string;
+}) {
+  if (!listingId || !sellerUserId) {
+    return { messageDelivered: false, messageCreated: false };
+  }
 
   let committed: SentActorCustomOrderReady | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       committed = await sendActorCustomOrderReady(
-        initial.seller.userId,
+        sellerUserId,
         listingId,
       );
       break;

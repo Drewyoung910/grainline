@@ -9,10 +9,10 @@ describe("sitemap entry limit guardrails", () => {
     const terms = readFileSync("src/app/terms/page.tsx", "utf8");
     const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
 
-    assert.match(terms, /Last Updated: June 14, 2026/);
-    assert.match(privacy, /Last Updated: April 24, 2026/);
-    assert.match(source, /const TERMS_ROUTE_LAST_MODIFIED = new Date\("2026-06-14T00:00:00\.000Z"\)/);
-    assert.match(source, /const PRIVACY_ROUTE_LAST_MODIFIED = new Date\("2026-04-24T00:00:00\.000Z"\)/);
+    assert.match(terms, /Last Updated: October 19, 2026/);
+    assert.match(privacy, /Last Updated: October 19, 2026/);
+    assert.match(source, /const TERMS_ROUTE_LAST_MODIFIED = new Date\("2026-10-19T00:00:00\.000Z"\)/);
+    assert.match(source, /const PRIVACY_ROUTE_LAST_MODIFIED = new Date\("2026-10-19T00:00:00\.000Z"\)/);
     assert.match(source, /url: `\$\{BASE_URL\}\/terms`, lastModified: TERMS_ROUTE_LAST_MODIFIED/);
     assert.match(source, /url: `\$\{BASE_URL\}\/privacy`, lastModified: PRIVACY_ROUTE_LAST_MODIFIED/);
   });
@@ -44,10 +44,11 @@ describe("sitemap entry limit guardrails", () => {
 
   it("keeps dynamic sitemap entries behind public visibility predicates", () => {
     assert.match(source, /import \{ publicBlogPostWhere \} from "@\/lib\/blogVisibility"/);
-    assert.match(source, /import \{ publicListingDetailWhere, publicListingWhere \} from "@\/lib\/listingVisibility"/);
-    assert.match(source, /import \{ activeSellerProfileWhere \} from "@\/lib\/sellerVisibility"/);
-    assert.match(source, /where: activeSellerProfileWhere\(\{\s*listings: \{ some: publicListingWhere\(\) \}/s);
-    assert.match(source, /where: activeSellerProfileWhere\(\{\s*listings: \{\s*some: publicListingDetailWhere\(\{/s);
+    assert.match(source, /import \{ publicListingWhere \} from "@\/lib\/listingVisibility"/);
+    assert.match(source, /from "@\/lib\/sellerProfilePublicAccess"/);
+    assert.doesNotMatch(source, /activeSellerProfileWhere/);
+    assert.match(source, /sellerPublicSitemapPage\(\s*"SELLERS"/s);
+    assert.match(source, /sellerPublicSitemapPage\(\s*"CUSTOMER_PHOTOS"/s);
     assert.match(source, /where: publicBlogPostWhere\(\)/);
     assert.match(source, /where: openCommissionWhere\(\)/);
     assert.match(source, /where: publicListingWhere\(\)/);

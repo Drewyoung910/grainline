@@ -46,6 +46,7 @@ import {
 } from "@/lib/orderItemSnapshot";
 import { readSellerOrderDetail } from "@/lib/orderParticipantDetailAuthority";
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -103,12 +104,9 @@ export default async function SellerOrderDetailPage({
   const me = await userIdByClerkId(prisma, userId);
   if (!me) redirect("/sign-in?redirect_url=/dashboard/sales");
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true },
-  });
+  const seller = await sellerOwnerCore(me.id);
   if (!seller) redirect("/dashboard/seller");
-  const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.id);
+  const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.sellerProfileId);
   if (!sellerPrivate) redirect("/dashboard/seller");
   if (!sellerPrivate.onboardingComplete) redirect("/dashboard?setup=required");
 

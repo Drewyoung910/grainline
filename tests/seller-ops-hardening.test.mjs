@@ -66,7 +66,7 @@ describe("seller operational route hardening", () => {
     assert.match(route, /source: "seller_broadcast_email"/);
     assert.match(route, /source: "seller_broadcast_after"/);
     assert.match(route, /broadcastId: broadcast\.id/);
-    assert.match(route, /sellerProfileId: seller\.id/);
+    assert.match(route, /sellerProfileId: seller\.sellerProfileId/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
     assert.doesNotMatch(route, /extra:\s*\{[^}]*message/s);
   });
@@ -77,7 +77,7 @@ describe("seller operational route hardening", () => {
 
     assert.match(getRoute, /parseBoundedPositiveIntParam\(\s*url\.searchParams\.get\("page"\),\s*1,\s*1000,\s*\)/s);
     assert.match(getRoute, /safeRateLimit\(\s*sellerBroadcastReadRatelimit,\s*userId,\s*\)/s);
-    assert.match(getRoute, /where: \{ sellerProfileId: seller\.id \}/);
+    assert.match(getRoute, /where: \{ sellerProfileId: seller\.sellerProfileId \}/);
     assert.match(getRoute, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.ok(
       getRoute.indexOf("sellerBroadcastReadRatelimit,\n    userId") <
@@ -99,8 +99,8 @@ describe("seller operational route hardening", () => {
       /syncSellerBroadcastDirectUploadReferences\(\{[\s\S]*requireAllTracked: Boolean\(imageUrl\),[\s\S]*\}\);/,
     );
     assert.match(route, /allowedEndpoints: \[\s*"listingImage",\s*"bannerImage",\s*"galleryImage",\s*\]/s);
-    assert.match(route, /safeRateLimit\(\s*broadcastAttemptRatelimit,\s*seller\.id,\s*\)/s);
-    assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.id,\s*\)/s);
+    assert.match(route, /safeRateLimit\(\s*broadcastAttemptRatelimit,\s*seller\.sellerProfileId,\s*\)/s);
+    assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.sellerProfileId,\s*\)/s);
     assert.match(route, /BROADCAST_COOLDOWN_MS = 7 \* 24 \* 60 \* 60 \* 1000/);
     assert.match(route, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(route, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
@@ -113,20 +113,28 @@ describe("seller operational route hardening", () => {
     assert.match(route, /enqueueEmailOutbox\(\{/);
     assert.match(route, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
     assert.match(route, /dedupKey: `seller-broadcast:\$\{broadcast\.id\}:\$\{f\.userId\}`/);
-    assert.match(route, /const currentBroadcast = await prisma\.sellerBroadcast\.findUnique/);
-    assert.match(route, /!currentBroadcast\s*\|\|[\s\S]*!currentBroadcast\.sellerProfile\.chargesEnabled[\s\S]*currentBroadcast\.sellerProfile\.vacationMode[\s\S]*currentBroadcast\.sellerProfile\.ownerAccountActive !== true/);
+    assert.match(
+      route,
+      /const \[currentBroadcast, currentSeller\] = await Promise\.all\(\[/,
+    );
+    assert.match(route, /sellerOwnerCore\(me\.id\)/);
+    assert.match(
+      route,
+      /canDeliverSellerBroadcast\(\s*currentBroadcast\?\.sellerProfileId \?\? null,\s*currentSeller,\s*\)/s,
+    );
+    assert.doesNotMatch(route, /currentBroadcast\.sellerProfile/);
     assert.match(route, /nextAvailableAt: nextAvailable\.toISOString\(\)/);
     assert.doesNotMatch(route, /nextAvailable\.toLocaleDateString/);
     assert.match(composer, /function broadcastErrorMessage/);
     assert.match(composer, /new Date\(data\.nextAvailableAt\)/);
     assert.match(composer, /next\.toLocaleDateString\("en-US"/);
 
-    const attemptLimiter = route.indexOf("broadcastAttemptRatelimit,\n    seller.id");
+    const attemptLimiter = route.indexOf("broadcastAttemptRatelimit,\n    seller.sellerProfileId");
     const bodyRead = route.indexOf("readBoundedJson(req, BROADCAST_BODY_MAX_BYTES)");
     const schemaParse = route.indexOf("BroadcastSchema.parse");
     const firstPartyMedia = route.indexOf("verifyFirstPartyMediaUrlForPersistence({");
     const cooldownCheck = route.indexOf("prisma.sellerBroadcast.findFirst");
-    const weeklyLimiter = route.indexOf("broadcastRatelimit,\n    seller.id");
+    const weeklyLimiter = route.indexOf("broadcastRatelimit,\n    seller.sellerProfileId");
     const createBroadcast = route.indexOf("tx.sellerBroadcast.create");
 
     assert.ok(attemptLimiter !== -1, "broadcast attempt limiter should exist");
@@ -157,7 +165,7 @@ describe("seller operational route hardening", () => {
     );
   });
 
-  it("keeps seller profile FAQ and featured listing writes capped under serializable transactions", () => {
+  it("keeps seller profile FAQ and featured listing writes concurrency-safe and capped", () => {
     const profile = source("src/app/dashboard/profile/page.tsx");
     const addFaq = profile.slice(profile.indexOf("async function addFaq"), profile.indexOf("async function deleteFaq"));
     const toggleFeatured = profile.slice(
@@ -174,12 +182,10 @@ describe("seller operational route hardening", () => {
     assert.match(addFaq, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
     assert.match(profile, /fullSeller\.faqs\.length >= SELLER_FAQ_LIMIT/);
 
-    assert.match(toggleFeatured, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(toggleFeatured, /tx\.listing\.count\(\{ where: \{ id: listingId, sellerId: seller\.id \} \}/);
-    assert.match(toggleFeatured, /sellerOwnerFeaturedListingIds\(tx, \{/);
-    assert.match(toggleFeatured, /updateSellerOwnerFeaturedListingIds\(tx, \{/);
-    assert.match(toggleFeatured, /if \(current\.length >= SELLER_FEATURED_LISTING_LIMIT\) return/);
-    assert.match(toggleFeatured, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(toggleFeatured, /toggleSellerOwnerFeaturedListing\(seller\.userId, \{/);
+    assert.doesNotMatch(toggleFeatured, /tx\.listing\.count/);
+    assert.doesNotMatch(toggleFeatured, /sellerOwnerFeaturedListingIds/);
+    assert.doesNotMatch(toggleFeatured, /updateSellerOwnerFeaturedListingIds/);
     assert.match(profile, /featured\.size >= SELLER_FEATURED_LISTING_LIMIT/);
   });
 
@@ -188,8 +194,8 @@ describe("seller operational route hardening", () => {
     const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
 
     assert.match(analytics, /ensureUserByClerkId\(userId\)/);
-    assert.match(analytics, /where: \{ userId: me\.id \}/);
-    assert.match(analytics, /const sellerId = sellerProfile\.id/);
+    assert.match(analytics, /sellerOwnerCore\(me\.id\)/);
+    assert.match(analytics, /const sellerId = sellerProfile\.sellerProfileId/);
     assert.match(analytics, /accountAccessErrorResponse\(err\)/);
     assert.match(analytics, /const profileViewAggPromise = prisma\.sellerProfileViewDaily\.aggregate\(\{/);
     assert.match(analytics, /where: \{ sellerProfileId: sellerId, date: analyticsDateRange \}/);
@@ -201,7 +207,7 @@ describe("seller operational route hardening", () => {
     assert.doesNotMatch(sellerProfileView, /sellerProfile\.updateMany|sellerProfileViewDaily\.upsert/);
 
     assert.match(recentSales, /ensureUserByClerkId\(userId\)/);
-    assert.match(recentSales, /where: \{ userId: me\.id \}/);
+    assert.match(recentSales, /sellerOwnerCore\(me\.id\)/);
     assert.match(recentSales, /readSellerRecentSales\(me\.id\)/);
     assert.doesNotMatch(recentSales, /items:\s*\{\s*(?:some|every):\s*\{\s*listing:/s);
     const sellerAnalyticsAuthority = source(
@@ -296,8 +302,9 @@ describe("seller operational route hardening", () => {
   it("keeps listing stock updates owner-scoped in the final mutation", () => {
     const route = source("src/app/api/listings/[id]/stock/route.ts");
 
-    assert.match(route, /where: \{ id, seller: \{ userId: me\.id \} \}/);
-    assert.match(route, /AND "sellerId" = \$\{listing\.seller\.id\}/);
+    assert.match(route, /const seller = await sellerOwnerCore\(me\.id\)/);
+    assert.match(route, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
+    assert.match(route, /AND "sellerId" = \$\{seller\.sellerProfileId\}/);
     assert.match(route, /source: "stock_back_in_stock_fanout"/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });

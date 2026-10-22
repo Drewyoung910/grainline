@@ -16,6 +16,7 @@ import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseUpdateBlogStatus } from "@/lib/blogStatusInput";
 import { fanOutBlogPostToFollowers } from "@/lib/followerBlogNotifications";
+import { sellerOwnerBlogEditor } from "@/lib/sellerProfileOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -47,10 +48,7 @@ export default async function EditBlogPostPage({
 
   const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true, listings: { where: { status: "ACTIVE" }, select: { id: true, title: true }, orderBy: { updatedAt: "desc" } } },
-  });
+  const seller = await sellerOwnerBlogEditor(me.id);
 
   async function updateBlogPost(_prevState: unknown, formData: FormData) {
     "use server";
@@ -182,7 +180,7 @@ export default async function EditBlogPostPage({
       });
       return tx.blogPost.findUnique({
         where: { id },
-        select: { id: true, slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },
+        select: { id: true, slug: true, sellerProfileId: true },
       });
     });
     if (!updated) return { ok: false, error: "Post changed while saving. Refresh and try again." };
@@ -219,7 +217,7 @@ export default async function EditBlogPostPage({
       <BlogPostForm
         action={updateBlogPost}
         isStaff={isStaff}
-        listings={seller?.listings ?? []}
+        listings={seller ? [...seller.listings] : []}
         submitLabel="Save changes"
         defaultValues={{
           title: post.title,

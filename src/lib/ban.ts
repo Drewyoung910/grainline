@@ -18,6 +18,7 @@ import { getOrderStaffReadClient } from './orderStaffReadDb'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { sanitizeAdminAuditReason } from './audit'
 import { repairBanUserExternalSideEffects } from './banSideEffectRepair'
+import { withDbUserContext } from './dbUserContext'
 import {
   mintUserStaffCapability,
   userStaffBanApply,
@@ -25,9 +26,8 @@ import {
   userStaffUnbanApply,
 } from './userStaffAccess'
 import {
-  disableSellerForStaff,
   sellerStaffOrderabilityState,
-  setSellerStaffOrderability,
+  transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
 import * as Sentry from '@sentry/nextjs'
 
@@ -63,6 +63,17 @@ function throwBanAuthorityPolicyError(error: unknown): never {
   }
   if (message.includes('User ban state changed')) {
     throw new BanUserPolicyError('User ban state changed. Refresh and try again.', 409)
+  }
+  throw error
+}
+
+function throwSellerOrderabilityPolicyError(error: unknown): never {
+  const message = error instanceof Error ? error.message : ''
+  if (
+    message.includes('Seller staff orderability state changed')
+    || message.includes('Seller staff orderability target changed')
+  ) {
+    throw new BanUserPolicyError('Seller profile changed. Refresh and try again.', 409)
   }
   throw error
 }
@@ -314,7 +325,7 @@ export async function banUser({ userId, adminId, reason }: {
     null,
     staffClient,
   )
-  const clerkSync = await prisma.$transaction(async (tx) => {
+  const clerkSync = await withDbUserContext(adminId, async (tx) => {
     const bannedAt = new Date()
     let target: Awaited<ReturnType<typeof userStaffBanApply>>
     try {
@@ -327,23 +338,29 @@ export async function banUser({ userId, adminId, reason }: {
     } catch (error) {
       throwBanAuthorityPolicyError(error)
     }
-    const [sellerPublic, commissionRequests] = await Promise.all([
-      tx.sellerProfile.findUnique({
-        where: { userId },
-        select: { id: true, chargesEnabled: true, vacationMode: true },
-      }),
-      tx.commissionRequest.findMany({
-        where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
-        select: { id: true, status: true },
-      }),
-    ])
-    if (sellerPublic?.id !== reviewedSeller?.id) {
-      throw new BanUserPolicyError('Seller profile changed. Refresh and try again.', 409)
+    const commissionRequests = await tx.commissionRequest.findMany({
+      where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
+      select: { id: true, status: true },
+    })
+    let sellerPublic: Awaited<ReturnType<typeof transitionSellerStaffOrderability>>
+    try {
+      sellerPublic = await transitionSellerStaffOrderability(tx, {
+        targetUserId: userId,
+        expected: reviewedSeller
+          ? {
+              id: reviewedSeller.id,
+              chargesEnabled: reviewedSeller.chargesEnabled,
+              vacationMode: reviewedSeller.vacationMode,
+            }
+          : null,
+        next: reviewedSeller ? { chargesEnabled: false, vacationMode: true } : null,
+      })
+    } catch (error) {
+      throwSellerOrderabilityPolicyError(error)
     }
     const sellerProfile = sellerPublic
       ? { ...sellerPublic, stripeAccountId: reviewedSeller?.stripeAccountId ?? null }
       : null
-    await disableSellerForStaff(tx, userId)
     let removedCommissionInterestRequestIds: string[] = []
     if (sellerProfile) {
       const cleanup = await removeSellerCommissionInterests(tx, sellerProfile.id)
@@ -510,7 +527,7 @@ export async function unbanUser({ userId, adminId, reason }: {
     capabilityBanMetadata.flaggedOpenOrders,
     staffClient,
   )
-  const clerkSync = await prisma.$transaction(async (tx) => {
+  const clerkSync = await withDbUserContext(adminId, async (tx) => {
     const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviews(
       banReviewCapability,
       userId,
@@ -527,20 +544,26 @@ export async function unbanUser({ userId, adminId, reason }: {
     } catch (error) {
       throwBanAuthorityPolicyError(error)
     }
-    const previousSellerProfile = await tx.sellerProfile.findUnique({
-      where: { userId },
-      select: { id: true, chargesEnabled: true, vacationMode: true },
-    })
-    if (previousSellerProfile?.id !== seller?.id) {
-      throw new BanUserPolicyError('Seller profile changed. Refresh and try again.', 409)
-    }
-    if (sellerRestore) {
-      await setSellerStaffOrderability(tx, {
-        sellerProfileId: sellerRestore.id,
-        userId,
-        chargesEnabled: sellerRestore.chargesEnabled,
-        vacationMode: sellerRestore.vacationMode,
+    let previousSellerProfile: Awaited<ReturnType<typeof transitionSellerStaffOrderability>>
+    try {
+      previousSellerProfile = await transitionSellerStaffOrderability(tx, {
+        targetUserId: userId,
+        expected: seller
+          ? {
+              id: seller.id,
+              chargesEnabled: seller.chargesEnabled,
+              vacationMode: seller.vacationMode,
+            }
+          : null,
+        next: sellerRestore
+          ? {
+              chargesEnabled: sellerRestore.chargesEnabled,
+              vacationMode: sellerRestore.vacationMode,
+            }
+          : null,
       })
+    } catch (error) {
+      throwSellerOrderabilityPolicyError(error)
     }
     const unbanAuditLog = await tx.adminAuditLog.create({
       data: {

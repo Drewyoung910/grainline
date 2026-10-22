@@ -3,7 +3,6 @@ import * as Sentry from '@sentry/nextjs'
 import { after, NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 import { userClerkGate } from '@/lib/userIdentityAccess'
-import { logAdminActionOrThrow } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { NOTIFICATION_SOURCE_TYPES } from '@/lib/notificationSources'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
@@ -21,6 +20,8 @@ import {
 import { privateJson, privateResponse } from '@/lib/privateResponse'
 import { HTTP_STATUS } from '@/lib/httpStatus'
 import { sanitizeText, truncateText } from '@/lib/sanitize'
+import { getOrderStaffReadClient } from '@/lib/orderStaffReadDb'
+import { sellerProfileStaffListingReviewTransition } from '@/lib/sellerProfileStaffAccess'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
@@ -109,108 +110,51 @@ export async function PATCH(
   const { action, reason } = body
   const sanitizedReason = truncateText(sanitizeText(reason ?? ''), 500).trim()
 
-  const listing = await prisma.listing.findUnique({
-    where: { id },
-    include: {
-      seller: {
-        select: {
-          userId: true,
-          displayName: true,
-          chargesEnabled: true,
-          vacationMode: true,
-          ownerAccountActive: true,
-        },
-      },
+  const transition = await sellerProfileStaffListingReviewTransition(
+    getOrderStaffReadClient(),
+    {
+      actorId: admin.id,
+      listingId: id,
+      operation: action === 'approve' ? 'APPROVE' : 'REJECT',
+      reason: sanitizedReason,
     },
-  })
-  if (!listing) return privateJson({ error: 'Not found' }, { status: HTTP_STATUS.NOT_FOUND })
+  )
+  if (!transition) return privateJson({ error: 'Not found' }, { status: HTTP_STATUS.NOT_FOUND })
+  const listing = transition.listing
+  if (transition.blockReason === 'REASON_REQUIRED') {
+    return privateJson({ error: 'Reason required for rejection' }, { status: HTTP_STATUS.BAD_REQUEST })
+  }
+  if (action === 'approve' && transition.blockReason) {
+    const unavailableReason = sellerUnavailableReason(listing.seller)
+    if (!unavailableReason) {
+      throw new Error('Listing review transition returned an inconsistent seller block')
+    }
+    return privateJson({ error: unavailableReason }, { status: HTTP_STATUS.CONFLICT })
+  }
+  if (!transition.applied) {
+    if (
+      action === 'approve' &&
+      listing.status === 'ACTIVE' &&
+      !sellerUnavailableReason(listing.seller) &&
+      listing.customOrderConversationId &&
+      listing.reservedForUserId
+    ) {
+      await sendCustomOrderReadyLink({
+        listingId: listing.id,
+        sellerUserId: listing.seller.userId,
+      })
+    }
+    return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
+  }
+  if (!transition.auditId) {
+    throw new Error('Listing review transition did not return its audit authority')
+  }
 
   if (action === 'approve') {
-    const unavailableReason = sellerUnavailableReason(listing.seller)
-    if (unavailableReason) {
-      return privateJson({ error: unavailableReason }, { status: HTTP_STATUS.CONFLICT })
-    }
-
-    const approved = await prisma.$transaction(async (tx) => {
-      const updated = await tx.listing.updateMany({
-        where: {
-          id,
-          status: 'PENDING_REVIEW',
-          seller: {
-            chargesEnabled: true,
-            vacationMode: false,
-            ownerAccountActive: true,
-          },
-        },
-        data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
-      })
-      if (updated.count === 0) {
-        return { count: 0, finalStatus: null as 'ACTIVE' | 'SOLD_OUT' | null, auditLogId: null as string | null }
-      }
-      const soldOutCount = await tx.$executeRaw`
-        UPDATE "Listing"
-        SET status = 'SOLD_OUT'
-        WHERE id = ${id}
-          AND "sellerId" = ${listing.sellerId}
-          AND "listingType" = 'IN_STOCK'
-          AND COALESCE("stockQuantity", 0) <= 0
-          AND status = 'ACTIVE'
-      `
-      const finalStatus = Number(soldOutCount) > 0 ? 'SOLD_OUT' : 'ACTIVE'
-      const auditLogId = await logAdminActionOrThrow({
-        client: tx,
-        adminId: admin.id,
-        action: 'APPROVE_LISTING',
-        targetType: 'LISTING',
-        targetId: id,
-        reason: sanitizedReason || 'Approved',
-        metadata: { finalStatus },
-      })
-      return {
-        count: updated.count,
-        finalStatus,
-        auditLogId,
-      }
-    })
-    if (approved.count === 0) {
-      const currentListing = await prisma.listing.findUnique({
-        where: { id },
-        include: {
-          seller: {
-            select: {
-              userId: true,
-              displayName: true,
-              chargesEnabled: true,
-              vacationMode: true,
-              ownerAccountActive: true,
-            },
-          },
-        },
-      })
-      if (!currentListing) return privateJson({ error: 'Not found' }, { status: HTTP_STATUS.NOT_FOUND })
-      const currentUnavailableReason = sellerUnavailableReason(currentListing.seller)
-      if (currentListing.status === 'PENDING_REVIEW' && currentUnavailableReason) {
-        return privateJson({ error: currentUnavailableReason }, { status: HTTP_STATUS.CONFLICT })
-      }
-      if (
-        currentListing.status === 'ACTIVE' &&
-        !currentUnavailableReason &&
-        currentListing.customOrderConversationId &&
-        currentListing.reservedForUserId
-      ) {
-        await sendCustomOrderReadyLink({
-          listingId: currentListing.id,
-        })
-      }
-      return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
-    }
-    if (!approved.auditLogId || !approved.finalStatus) {
-      throw new Error('Approved listing transition did not return its audit authority')
-    }
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_approve_guild_threshold')
-    if (approved.finalStatus === 'ACTIVE') {
+    if (listing.status === 'ACTIVE') {
       // First active listing for this seller might earn the Founding Maker badge.
       try {
         await maybeGrantFoundingMaker(listing.sellerId)
@@ -225,10 +169,11 @@ export async function PATCH(
       if (listing.customOrderConversationId && listing.reservedForUserId) {
         await sendCustomOrderReadyLink({
           listingId: listing.id,
+          sellerUserId: listing.seller.userId,
         })
       }
     }
-    const notificationBody = approved.finalStatus === 'SOLD_OUT'
+    const notificationBody = listing.status === 'SOLD_OUT'
       ? `Your listing "${listing.title}" has been approved. Add stock to make it available to buyers.`
       : `Your listing "${listing.title}" has been approved and is now live!`
     await createNotification({
@@ -238,7 +183,7 @@ export async function PATCH(
       body: notificationBody,
       link: publicListingPath(id, listing.title),
       sourceType: NOTIFICATION_SOURCE_TYPES.LISTING_ADMIN_REVIEW,
-      sourceId: approved.auditLogId,
+      sourceId: transition.auditId,
     }).catch((error) => {
       Sentry.captureException(error, {
         level: 'warning',
@@ -247,29 +192,6 @@ export async function PATCH(
       })
     })
   } else if (action === 'reject') {
-    if (!sanitizedReason) return privateJson({ error: 'Reason required for rejection' }, { status: HTTP_STATUS.BAD_REQUEST })
-    const rejected = await prisma.$transaction(async (tx) => {
-      const updated = await tx.listing.updateMany({
-        where: { id, status: 'PENDING_REVIEW' },
-        data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: sanitizedReason }
-      })
-      if (updated.count === 0) return { count: 0, auditLogId: null as string | null }
-      const auditLogId = await logAdminActionOrThrow({
-        client: tx,
-        adminId: admin.id,
-        action: 'REJECT_LISTING',
-        targetType: 'LISTING',
-        targetId: id,
-        reason: sanitizedReason,
-      })
-      return { count: updated.count, auditLogId }
-    })
-    if (rejected.count === 0) {
-      return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
-    }
-    if (!rejected.auditLogId) {
-      throw new Error('Rejected listing transition did not return its audit authority')
-    }
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_reject_guild_threshold')
@@ -280,7 +202,7 @@ export async function PATCH(
       body: `Your listing "${listing.title}" was not approved. Reason: ${sanitizedReason}. Please edit and resubmit.`,
       link: `/dashboard/listings/${id}/edit`,
       sourceType: NOTIFICATION_SOURCE_TYPES.LISTING_ADMIN_REVIEW,
-      sourceId: rejected.auditLogId,
+      sourceId: transition.auditId,
     }).catch((error) => {
       Sentry.captureException(error, {
         level: 'warning',

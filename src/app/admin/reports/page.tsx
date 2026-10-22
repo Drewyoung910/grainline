@@ -7,6 +7,7 @@ import { ResolveReportButton } from "@/components/admin/ResolveReportButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { userStaffAdminLabels, userStaffReportLabels } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
 
@@ -96,9 +97,9 @@ export default async function AdminReportsPage() {
   }
 
   if (sellerTargetIds.length > 0) {
-    const sellers = await prisma.sellerProfile.findMany({
-      where: { id: { in: sellerTargetIds } },
-      select: { id: true, displayName: true },
+    const sellers = await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
+      actorId: staff.id,
+      sellerProfileIds: sellerTargetIds,
     });
     for (const seller of sellers) {
       sellerPathMap.set(seller.id, publicSellerPath(seller.id, seller.displayName));

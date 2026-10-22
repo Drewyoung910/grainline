@@ -215,7 +215,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
     assert.doesNotMatch(broadcasts, /tx\.notification\./);
     assert.match(favorite, /sourceType: NOTIFICATION_SOURCE_TYPES\.FAVORITE,\s*sourceId: listingId/);
-    assert.match(follow, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOW,\s*sourceId: sellerProfile\.id/);
+    assert.match(follow, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOW,\s*sourceId: sellerId/);
     assert.match(review, /sourceType: NOTIFICATION_SOURCE_TYPES\.REVIEW,\s*sourceId: created\.id/);
     assert.match(messagePage, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: committedNotificationMessageId/);
     assert.match(customOrderRequest, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: requestMessage\.messageId/);

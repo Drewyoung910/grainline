@@ -19,7 +19,7 @@ import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
-import { publicCommissionInterestWhere, resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
 import { syncCommissionRequestDirectUploadReferences } from "@/lib/directUploadLifecycle";
@@ -73,16 +73,12 @@ export async function GET(req: NextRequest) {
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
-  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meId);
+  const { blockedUserIds } = await getBlockedIdsFor(meId);
 
   const where = openCommissionWhere({
     ...(categoryValid ? { category: category as Category } : {}),
     ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
   });
-  const visibleInterestWhere = publicCommissionInterestWhere(
-    blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {},
-  );
-
   const total = await prisma.commissionRequest.count({ where });
   const currentPage = Math.min(page, Math.max(1, Math.ceil(total / pageSize)));
   const requestRows = await prisma.commissionRequest.findMany({
@@ -100,20 +96,18 @@ export async function GET(req: NextRequest) {
       timeline: true,
       referenceImageUrls: true,
       status: true,
-      interestedCount: true,
-      _count: { select: { interests: { where: visibleInterestWhere } } },
       expiresAt: true,
       createdAt: true,
       buyerName: true,
       buyerImageUrl: true,
     },
   });
-  const requests = requestRows.map(({ _count, buyerName, buyerImageUrl, ...request }) => ({
+  const interestCounts = requestRows.length > 0
+    ? await publicCommissionInterestCounts(requestRows.map(({ id }) => id), meId)
+    : new Map<string, number>();
+  const requests = requestRows.map(({ buyerName, buyerImageUrl, ...request }) => ({
     ...request,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: request.interestedCount,
-      _count,
-    }),
+    interestedCount: interestCounts.get(request.id) ?? 0,
     buyer: { name: buyerName, imageUrl: buyerImageUrl },
   }));
 

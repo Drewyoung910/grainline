@@ -469,8 +469,16 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     );
     assert.match(workflow.slice(futureFence, compatibleApply), /post-historical-seller-profile-migrations/u);
     assert.match(
+      workflow.slice(futureFence, compatibleApply),
+      /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u,
+    );
+    assert.match(
       workflow.slice(futureRestore, coreRestore),
       /done < "\$destination\/manifest"/u,
+    );
+    assert.match(
+      workflow.slice(futureRestore, coreRestore),
+      /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=/u,
     );
     for (const [digest, migration] of [
       [

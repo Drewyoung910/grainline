@@ -34,9 +34,10 @@ describe("user report target access guardrails", () => {
     assert.doesNotMatch(source, /prisma\.(?:message|conversation)\.count/);
     assert.match(
       source,
-      /canViewListingDetail\(listing, \{ dbUserId: me\.id \}\)/,
-      "listing reports must require public or reserved listing access",
+      /sellerActorReportResourceTarget\(\s*me\.id,\s*body\.targetType,\s*body\.targetId,\s*reportedId,\s*\)/,
+      "listing and review reports must use exact actor-bound resource authority",
     );
+    assert.doesNotMatch(source, /prisma\.(?:listing|review)\.findUnique/);
     assert.match(
       source,
       /post: publicBlogPostWhere\(\)/,
@@ -49,7 +50,7 @@ describe("user report target access guardrails", () => {
     );
     assert.match(
       source,
-      /visibleSellerProfileWhere\(\{ id: body\.targetId, userId: reportedId \}\)/,
+      /sellerPublicReportTarget\(body\.targetId, reportedId\)/,
       "seller-profile reports must require a public seller profile owned by the reported user",
     );
   });
@@ -64,6 +65,8 @@ describe("user report target access guardrails", () => {
     assert.doesNotMatch(sellerPage, /targetType="SELLER"/);
     assert.match(adminReports, /targetType === "SELLER_PROFILE" \|\| targetType === "SELLER"/);
     assert.match(adminReports, /isSellerProfileReportTarget\(r\.targetType\)/);
+    assert.match(adminReports, /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/);
+    assert.doesNotMatch(adminReports, /prisma\.sellerProfile\./);
     assert.match(adminReports, /publicSellerPath\(seller\.id, seller\.displayName\)/);
     assert.match(docs, /\| Seller profiles \| `SELLER_PROFILE` \| `BlockReportButton` on `\/seller\/\[id\]` \|/);
     assert.doesNotMatch(docs, /\| Seller profiles \| `SELLER` \|/);

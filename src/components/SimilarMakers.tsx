@@ -6,100 +6,35 @@
 // elements), so guild status renders as a text pill, not the GuildBadge
 // popover button.
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import MediaImage from "@/components/MediaImage";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
-import { publicListingWhere } from "@/lib/listingVisibility";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
+import { sellerPublicSimilarMakers } from "@/lib/sellerProfilePublicAccess";
 
 const MAX_SIMILAR_MAKERS = 4;
 
-const similarMakerSelect = {
-  id: true,
-  displayName: true,
-  tagline: true,
-  city: true,
-  state: true,
-  guildLevel: true,
-  avatarImageUrl: true,
-  bannerImageUrl: true,
-  ownerImageUrl: true,
-  listings: {
-    where: publicListingWhere(),
-    orderBy: [{ qualityScore: "desc" }, { id: "desc" }],
-    take: 1,
-    select: {
-      photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-    },
-  },
-} satisfies Prisma.SellerProfileSelect;
-
 export default async function SimilarMakers({
-  sellerId,
-  metroId,
-  cityMetroId,
+  listingId,
   metroName,
   city,
   state,
-  blockedUserIds = [],
+  viewerUserId,
 }: {
-  /** The listing's seller — always excluded from results. */
-  sellerId: string;
-  metroId: string | null;
-  cityMetroId: string | null;
+  /** The visible listing binds the source seller and geographic scope. */
+  listingId: string;
   metroName: string | null;
   city: string | null;
   state: string | null;
-  /** Blocked USER ids for the current viewer (either direction). */
-  blockedUserIds?: string[];
+  viewerUserId: string | null;
 }) {
-  const baseWhere = (extra: Record<string, unknown>) =>
-    activeSellerProfileWhere({
-      id: { not: sellerId },
-      ...(blockedUserIds.length > 0 ? { userId: { notIn: blockedUserIds } } : {}),
-      listings: { some: publicListingWhere() },
-      ...extra,
-    });
-  const orderBy = [
-    { guildLevel: "desc" as const },
-    { followers: { _count: "desc" as const } },
-    { id: "asc" as const },
-  ];
-
-  // Same metro as the listing's maker first (major metro or child city)
-  const metroIds = [metroId, cityMetroId].filter((v): v is string => Boolean(v));
-  let makers =
-    metroIds.length > 0
-      ? await prisma.sellerProfile.findMany({
-          where: baseWhere({
-            OR: [{ metroId: { in: metroIds } }, { cityMetroId: { in: metroIds } }],
-          }),
-          orderBy,
-          take: MAX_SIMILAR_MAKERS,
-          select: similarMakerSelect,
-        })
-      : [];
+  const makers = await sellerPublicSimilarMakers(
+    viewerUserId,
+    listingId,
+    MAX_SIMILAR_MAKERS,
+  );
   let scopeLabel = metroName ?? city;
-
-  // Always fill to the max with same-state makers (case-insensitive — state
-  // is free text on profiles, so "Tx" and "TX" must match).
-  if (makers.length < MAX_SIMILAR_MAKERS && state) {
-    const found = new Set(makers.map((m) => m.id));
-    const stateMakers = await prisma.sellerProfile.findMany({
-      where: baseWhere({
-        state: { equals: state, mode: "insensitive" },
-        id: { notIn: [sellerId, ...found] },
-      }),
-      orderBy,
-      take: MAX_SIMILAR_MAKERS - makers.length,
-      select: similarMakerSelect,
-    });
-    if (makers.length === 0 && stateMakers.length > 0) scopeLabel = state.toUpperCase();
-    makers = [...makers, ...stateMakers];
-  }
+  if (makers[0]?.scopeKind === "STATE" && state) scopeLabel = state.toUpperCase();
 
   if (makers.length === 0) return null;
 
@@ -114,7 +49,7 @@ export default async function SimilarMakers({
         {makers.map((maker) => {
           const rating = ratings.get(maker.id) ?? null;
           const avatar = maker.avatarImageUrl ?? maker.ownerImageUrl ?? null;
-          const cover = maker.bannerImageUrl ?? maker.listings[0]?.photos[0]?.url ?? null;
+          const cover = maker.bannerImageUrl ?? maker.coverImageUrl;
           return (
             <li key={maker.id} className="card-listing group">
               <Link href={publicSellerPath(maker.id, maker.displayName)} className="block">

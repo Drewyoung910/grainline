@@ -22,12 +22,11 @@ import {
 } from "@/lib/metrics";
 import { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
-import { logAdminAction, logAdminActionOrThrow } from "@/lib/audit";
+import { logAdminAction } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
@@ -43,11 +42,16 @@ import {
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import {
   applySellerGuildStaffTransition,
+  applySellerStaffFeatureTransition,
   sellerGuildStaffMasterList,
   sellerGuildStaffMasterPendingList,
   sellerGuildStaffMemberList,
   sellerGuildStaffRevokedMemberList,
 } from "@/lib/sellerGuildStaffPrivateAccess";
+import {
+  sellerProfileStaffReportTargets,
+  sellerProfileStaffVerificationTarget,
+} from "@/lib/sellerProfileStaffAccess";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -179,20 +183,9 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
   const verificationId = String(formData.get("verificationId") ?? "");
   const adminOverride = me.role === "ADMIN" && formData.get("adminOverride") === "on";
 
-  const verification = await prisma.makerVerification.findUnique({
-    where: { id: verificationId },
-    select: {
-      status: true,
-      sellerProfileId: true,
-      sellerProfile: {
-        select: {
-          userId: true,
-          id: true,
-          displayName: true,
-          ownerAccountActive: true,
-        },
-      },
-    },
+  const verification = await sellerProfileStaffVerificationTarget(getOrderStaffReadClient(), {
+    actorId: me.id,
+    verificationId,
   });
   if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
   if (verification.status !== "PENDING") return { ok: false, error: "Application is no longer pending. Refresh this page." };
@@ -305,48 +298,40 @@ async function rejectGuildMember(formData: FormData) {
   const verificationId = String(formData.get("verificationId") ?? "");
   const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
 
-  const verification = await prisma.makerVerification.findUnique({
-    where: { id: verificationId },
-    select: {
-      status: true,
-      sellerProfileId: true,
-      sellerProfile: {
-        select: { userId: true, displayName: true },
-      },
-    },
-  });
-  if (!verification || verification.status !== "PENDING") return;
-
   const rejection = await applySellerGuildStaffTransition(getOrderStaffReadClient(), {
     actorId: me.id,
     operation: "REJECT_GUILD_MEMBER",
     verificationId,
     reviewNotes,
   });
-  if (!rejection?.applied || !rejection.auditId) return;
+  if (
+    !rejection?.applied
+    || !rejection.auditId
+    || !rejection.sellerProfileId
+    || !rejection.sellerUserId
+    || !rejection.sellerDisplayName
+  ) return;
 
-  if (verification?.sellerProfile.userId) {
-    await createNotification({
-      userId: verification.sellerProfile.userId,
-      type: "VERIFICATION_REJECTED",
-      title: "Guild Member application update",
-      body: reviewNotes ?? "Please review your application",
-      link: "/dashboard/verification",
-      dedupScope: `guild-member-reject:${verificationId}`,
-      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
-      sourceId: rejection.auditId,
-    });
-  }
+  await createNotification({
+    userId: rejection.sellerUserId,
+    type: "VERIFICATION_REJECTED",
+    title: "Guild Member application update",
+    body: reviewNotes ?? "Please review your application",
+    link: "/dashboard/verification",
+    dedupScope: `guild-member-reject:${verificationId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: rejection.auditId,
+  });
 
   const emailRecipient = await userEmailDeliveryRecipient(prisma, {
-    userId: verification.sellerProfile.userId,
+    userId: rejection.sellerUserId,
     preferenceKey: "EMAIL_VERIFICATION_REJECTED",
   });
   if (emailRecipient) {
     try {
       await sendVerificationRejected({
         seller: {
-          displayName: verification.sellerProfile.displayName,
+          displayName: rejection.sellerDisplayName,
           email: emailRecipient.email,
         },
         notes: reviewNotes,
@@ -354,7 +339,7 @@ async function rejectGuildMember(formData: FormData) {
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {
         verificationId,
-        sellerProfileId: null,
+        sellerProfileId: rejection.sellerProfileId,
       });
     }
   }
@@ -419,34 +404,9 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
   const me = await requireStaff();
   const verificationId = String(formData.get("verificationId") ?? "");
 
-  const verification = await prisma.makerVerification.findUnique({
-    where: { id: verificationId },
-    select: {
-      status: true,
-      sellerProfileId: true,
-      sellerProfile: {
-        select: {
-          userId: true,
-          id: true,
-          displayName: true,
-          ownerAccountActive: true,
-          sellerMetrics: {
-            select: {
-              calculatedAt: true,
-              periodMonths: true,
-              averageRating: true,
-              reviewCount: true,
-              onTimeShippingRate: true,
-              responseRate: true,
-              totalSalesCents: true,
-              completedOrderCount: true,
-              activeCaseCount: true,
-              accountAgeDays: true,
-            },
-          },
-        },
-      },
-    },
+  const verification = await sellerProfileStaffVerificationTarget(getOrderStaffReadClient(), {
+    actorId: me.id,
+    verificationId,
   });
   if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
   if (verification.status !== "GUILD_MASTER_PENDING") {
@@ -534,38 +494,30 @@ async function rejectGuildMaster(formData: FormData) {
   const verificationId = String(formData.get("verificationId") ?? "");
   const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
 
-  const verification = await prisma.makerVerification.findUnique({
-    where: { id: verificationId },
-    select: {
-      status: true,
-      sellerProfileId: true,
-      sellerProfile: {
-        select: { userId: true, displayName: true },
-      },
-    },
-  });
-  if (!verification || verification.status !== "GUILD_MASTER_PENDING") return;
-
   const rejection = await applySellerGuildStaffTransition(getOrderStaffReadClient(), {
     actorId: me.id,
     operation: "REJECT_GUILD_MASTER",
     verificationId,
     reviewNotes,
   });
-  if (!rejection?.applied || !rejection.auditId) return;
+  if (
+    !rejection?.applied
+    || !rejection.auditId
+    || !rejection.sellerProfileId
+    || !rejection.sellerUserId
+    || !rejection.sellerDisplayName
+  ) return;
 
-  if (verification?.sellerProfile.userId) {
-    await createNotification({
-      userId: verification.sellerProfile.userId,
-      type: "VERIFICATION_REJECTED",
-      title: "Guild Master application update",
-      body: reviewNotes ?? "Please review your application",
-      link: "/dashboard/verification",
-      dedupScope: `guild-master-reject:${verificationId}`,
-      sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
-      sourceId: rejection.auditId,
-    });
-  }
+  await createNotification({
+    userId: rejection.sellerUserId,
+    type: "VERIFICATION_REJECTED",
+    title: "Guild Master application update",
+    body: reviewNotes ?? "Please review your application",
+    link: "/dashboard/verification",
+    dedupScope: `guild-master-reject:${verificationId}`,
+    sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
+    sourceId: rejection.auditId,
+  });
 
   revalidatePath("/admin/verification");
 }
@@ -661,34 +613,12 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
 async function featureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdminOnly();
-
-  const ownSeller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true },
+  const result = await applySellerStaffFeatureTransition(getOrderStaffReadClient(), {
+    actorId: me.id,
+    sellerProfileId,
+    operation: "FEATURE",
   });
-  if (ownSeller?.id === sellerProfileId) return;
-
-  const now = new Date();
-  const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: activeSellerProfileWhere({
-        id: sellerProfileId,
-        guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-        OR: [{ featuredUntil: null }, { featuredUntil: { lte: now } }],
-      }),
-      data: { featuredUntil: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
-    });
-    if (updated.count === 0) return updated;
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "FEATURE_MAKER",
-      targetType: "SELLER_PROFILE",
-      targetId: sellerProfileId,
-    });
-    return updated;
-  });
-  if (result.count === 0) return;
+  if (!result?.applied) return;
 
   revalidatePath("/admin/verification");
   revalidatePath("/");
@@ -698,23 +628,12 @@ async function featureMaker(sellerProfileId: string) {
 async function unfeatureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdminOnly();
-
-  const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.sellerProfile.updateMany({
-      where: { id: sellerProfileId, featuredUntil: { not: null } },
-      data: { featuredUntil: null },
-    });
-    if (updated.count === 0) return updated;
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: me.id,
-      action: "UNFEATURE_MAKER",
-      targetType: "SELLER_PROFILE",
-      targetId: sellerProfileId,
-    });
-    return updated;
+  const result = await applySellerStaffFeatureTransition(getOrderStaffReadClient(), {
+    actorId: me.id,
+    sellerProfileId,
+    operation: "UNFEATURE",
   });
-  if (result.count === 0) return;
+  if (!result?.applied) return;
 
   revalidatePath("/admin/verification");
   revalidatePath("/");
@@ -726,13 +645,18 @@ export default async function AdminVerificationPage() {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
   const staffClient = getOrderStaffReadClient();
-  const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
+  const [memberPendingSource, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
     prisma.makerVerification.findMany({
       where: { status: "PENDING" },
       orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
       take: 50,
-      include: {
-        sellerProfile: { select: { displayName: true, id: true } },
+      select: {
+        id: true,
+        craftDescription: true,
+        yearsExperience: true,
+        portfolioUrl: true,
+        appliedAt: true,
+        sellerProfileId: true,
       },
     }),
     sellerGuildStaffMasterPendingList(staffClient, staff.id),
@@ -740,6 +664,18 @@ export default async function AdminVerificationPage() {
     sellerGuildStaffMasterList(staffClient, staff.id),
     sellerGuildStaffRevokedMemberList(staffClient, staff.id),
   ]);
+  const memberTargets = await sellerProfileStaffReportTargets(staffClient, {
+    actorId: staff.id,
+    sellerProfileIds: memberPendingSource.map((verification) => verification.sellerProfileId),
+  });
+  const memberTargetById = new Map(memberTargets.map((target) => [target.id, target]));
+  const memberPending = memberPendingSource.map((verification) => {
+    const sellerProfile = memberTargetById.get(verification.sellerProfileId);
+    if (!sellerProfile) {
+      throw new Error("Guild Member staff projection omitted a pending seller");
+    }
+    return { ...verification, sellerProfile };
+  });
 
   const masterMetricsMap = new Map<string, SellerMetricsResult>();
   for (const v of masterPending) {

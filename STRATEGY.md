@@ -4,59 +4,379 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Split SellerProfile public and private authority (updated 2026-10-13)
+### Marketplace operating decisions (Drew, 2026-10-19)
 
-The User-family RLS program and the separately tracked
-`AccountDeletionSideEffect` and `ClerkWebhookEvent` ledgers are accepted through
-policyless FORCE in Production. The next RLS domain is SellerProfile, which is
-not a simple owner table: one row combines public maker/shop content with
-ship-from contact/address, Stripe and reconciliation state, conditional exact
-coordinates, staff/Guild state, onboarding and analytics.
+These are product and policy decisions, not claims that the behavior is live.
+Public Terms, Privacy, help and handbook copy must change only with the matching
+implemented behavior and attorney review.
 
-Follow `docs/seller-profile-private-boundary-pre-rls-audit.md`. The approved
-first implementation boundary is additive compatibility only: create and
-backfill a one-to-one private operational companion, maintain temporary
-transactional convergence, and add a public-safe availability snapshot. Then
-convert explicit public, owner, Stripe, shipping, staff/cron, export/deletion
-and effective database-function callers. Do not drop predecessor columns,
-revoke grants or enable SellerProfile RLS until the converted application is
-live, predecessor deployments are drained, installed function/grant state is
-inspected, and rollback is proved. Keep CommissionRequest as a separate release.
+- Makers bear the published 5% platform fee plus Stripe processing costs. The
+  implementation must choose and disclose either a fixed formula known before
+  purchase or a later reconciliation of the actual provider fee; it must not
+  silently deduct an unknowable final fee at checkout.
+- Makers are contractually responsible for refunds, disputes, dispute fees and
+  uninsured lost or damaged packages. Under the current Connect configuration
+  Grainline can still retain residual platform liability when recovery fails,
+  so product copy must not promise that Grainline can never absorb a loss.
+- Negative balances are recovered from future earnings first, then through
+  supported Stripe balance/bank-debit mechanisms. A backup card requires a
+  separate SetupIntent/PaymentMethod flow and explicit authorization; a payout
+  debit card is not assumed to be chargeable. While debt remains, keep sales
+  open only while fulfillment is healthy and the debt is shrinking, retain all
+  payouts, and suspend for fraud signals, lack of progress or a reviewed cap.
+- Payout holds are delivery-based: about seven days after delivery for new
+  makers and 30 days after delivery for higher-risk makers, extendable to 90
+  days in severe cases. Implement this with an internal payable ledger plus
+  manual payouts or reserves; changing an account-wide payout schedule alone
+  does not prove per-order holds.
+- Tracking is required for shipped physical orders. Carrier evidence or buyer
+  confirmation establishes delivery; an unconfirmed order closes without
+  claiming delivery 30 days after its estimated-delivery window. External
+  tracking must match the buyer destination and a carrier scan after the order.
+- Local pickup uses a buyer-held code entered at handoff. Without it, an order
+  closes 30 days after ready-for-pickup unless the buyer reports a problem.
+- The case window is 30 days from the later of the estimated delivery date and
+  actual delivery or pickup. Insurance and signature remain optional, with an
+  insurance prompt above $250 and uninsured loss assigned to the maker.
+- Address fields use browser autofill and local ZIP-to-city/state data, then a
+  submit-time suggested correction through the reviewed verifier. Map search
+  runs only on explicit Search. Do not send personal/confidential addresses to
+  the public Nominatim service; disclose any Shippo address verification.
+- Public map membership authorizes an approximate pin only. Publishing an exact
+  point requires separate, versioned consent that says it is exact and public,
+  recommends a workshop/business address, and can be removed easily. Existing
+  map opt-ins are never grandfathered into exact publication.
+- Transactional order, shipping, case and refund mail is preference-independent
+  and always attempted; delivery cannot be promised. Only marketing mail is
+  optional.
+- Keep the code repository public during the high-change period and revisit
+  privacy later. Do not move the private vulnerability backlog into the public
+  repository. Direct charges are not the current payment design, but Connect
+  responsibilities and residual loss exposure require Stripe/accounting review
+  before launch rather than waiting for a loss.
+- Still undecided: high-value order controls (3DS threshold, payout hold and
+  per-item/per-order caps) and the maximum made-to-order processing time. The
+  current $100,000 item cap and 365-day processing bound are not accepted launch
+  policy merely because they exist in code.
 
-The Phase 0 source candidate is now prepared and has passed focused source
-checks, Prisma validation and an exact-migration rollback-only PostgreSQL 16
-proof. The next release action is review/merge and guarded additive migration;
-Phase 1 caller conversion may proceed in isolated source but cannot deploy
-before the companion is installed.
+### Split SellerProfile public and private authority (updated 2026-10-18)
 
-The first isolated Phase 1 caller slice is also prepared: public visibility,
-search, commission-interest, stock-notification and conversation eligibility
-now use the derived `stripeAccountSupported` snapshot instead of the private
-provider-version diagnostic. Exact version reads remain intentionally in
-checkout, Stripe, reconciliation, export and deletion paths until those
-families receive purpose-bound private operations. The next stacked slice
-removes all nine nested `seller: true` reads with explicit checkout, quote and
-ownership projections plus a recursive zero-count guard. A third stacked slice
-converts the three direct broad owner reads to explicit bootstrap, settings and
-profile-editor projections; the source guard now proves zero broad direct or
-nested SellerProfile reads. A fourth stacked slice centralizes Stripe Connect
-owner, webhook and reconciliation access in one compatibility module so the
-post-Phase-0 fixed-operation release can replace a single implementation point
-without changing provider behavior. Three following slices centralize shipping
-quote fulfillment inputs, owner onboarding/export reads, and staff
-ban/unban/undo seller state behind equally narrow compatibility modules. These
-slices stay stacked behind Phase 0. An eighth slice centralizes account-deletion
-seller pauses and anonymization behind an ownership-bound, fail-closed
-compatibility module. A ninth moves seller onboarding reads and writes behind
-owner-bound purpose-specific operations. A tenth does the same for shop-settings,
-including private ship-from data and best-effort metro assignment. An eleventh
-moves seller profile-editor reads, profile/avatar updates and featured-listing
-state behind the same owner-bound boundary. A twelfth centralizes the daily and
-monthly Guild cron scans and guarded state transitions while preserving their
-transactional verification/audit coupling. A thirteenth moves the authenticated
-Guild dashboard and both application rechecks behind the owner-bound access
-layer. The fixed database operations, staff Guild state, checkout and effective
-SQL-function families remain.
+The private companion conversion is complete. `SellerProfilePrivate` is
+policyless FORCE in Production with zero ordinary-runtime/`PUBLIC` direct table
+authority. ENABLE was accepted by protected run `38825901687`; the separate
+FORCE release was accepted from exact main `994fc18da95d2d896cec5baf73d3cce2227966a7`
+by protected run `38837514490`. Follow
+`docs/seller-profile-private-boundary-pre-rls-audit.md` for the completed split
+and retained evidence.
+
+The next RLS domain is the remaining public `SellerProfile` table. It still
+mixes anonymous catalog data with raw coordinates, owner settings and
+staff/system-controlled state, while the runtime role retains broad CRUD.
+Drew selected Option B on 2026-10-18: keep the schema intact, expose bounded
+public projections, move non-public reads and all writes behind fixed
+operations, prove zero direct base-table callers, then revoke grants and apply
+ENABLE and FORCE as separate releases. No security release drops another
+column. See `docs/seller-profile-public-rls-options.md`.
+
+Phase 0 closed on 2026-10-19. The schema-aware AST inventory on exact main
+`e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` finds 99 direct operations, 103
+confirmed relation accesses and 17 raw SQL accesses across 100 source files.
+A machine-checked manifest now assigns all 100 to their public-profile,
+eligibility, public-map, owner, participant, staff, service and transaction
+contracts. The full-chain PostgreSQL 16 catalog also records 130 matching
+security-definer functions, six direct table triggers, 16 incoming foreign
+keys and the exact function execute-principal split. The manifest also
+reconciles every reported opaque source shape, and the catalog now classifies
+98 retained fixed authorities, 32 internal-support functions and all six
+direct table triggers. All 55 scalar columns now have one machine-checked
+maximum-disclosure class. The Phase 0 baseline mapped the 98 retained
+authorities to 93 direct database behavior proofs, two composed behavior proofs
+and three explicit source-only gaps. The real 397-migration PostgreSQL 16 chain
+now closes those gaps at 96 direct database behavior proofs and two composed
+behavior proofs. Caller conversion and retained behavior evidence are
+complete. The isolated 398-migration PostgreSQL 16 candidate now proves
+policyless ENABLE, zero direct runtime/staff/PUBLIC authority, role-provisioning
+replay and database-first rollback compatibility. The exact-address/Nominatim
+boundary and final consent wording are closed in the source candidate. The
+protected ENABLE workflow and restart-safe count-only inspector are also
+prepared: they bind the exact successful main checks and exact live compatible
+deployment, admit only the reviewed ENABLE migration, run the global grant
+audit and retain sanitized evidence. Production remains blocked on exact-head
+audit reconciliation, merge/deploy of the compatible source, exact-head CI and
+a separately authorized ENABLE dispatch. FORCE remains a later posture-only
+release.
+
+The location review confirmed that predecessor public maps and seller JSON-LD
+could publish raw points even though Privacy 2.7 and Terms 4.19/4.20 promise
+approximate-only display. Option B first applied approximate public points on
+every surface: radius-sized grids for positive privacy radii and the coarse
+public grid otherwise. The 2026-10-19 product decision now permits exact public
+output only under a separate versioned consent stored in the protected private
+companion. The predecessor checkbox did publish exact points for opted-in
+zero-radius makers; it is deliberately not treated as the new separate exact
+consent, so those existing opt-ins become approximate until re-consent. The
+current grant is bound to the exact reviewed coordinate and an append-only
+grant/withdrawal event; source-location, privacy or account changes revoke it.
+The exact-address path must also stop forwarding personal/confidential address
+queries to public Nominatim before the exact-pin option ships. An isolated
+Phase 1 candidate applies the projection rule to the three public maps,
+seller/listing map cards, seller JSON-LD and browse-distance SQL, with
+failing-first behavior evidence. The first additive database authority serves
+the three directory/home maps with bounded presentation fields and a coarse
+point. The second binds one approximate point to an already-visible seller or
+listing, preserving owner and reserved-buyer behavior while denying archived,
+blocked and staff-preview-only access. The third operation applies the same
+approximation and visibility rules to browse-radius membership and returns
+seller ids only. A fourth exact projection serves global and blog seller-name
+suggestions with only seller id/name, active-seller, optional public-listing,
+search, limit and reciprocal-block rules. Two more exact operations provide
+only the seller sitemap counts and id/name/updated-at pages for ordinary and
+customer-photo routes. A seventh exact aggregate returns only the active
+public-seller and founding-maker counts used by four marketing surfaces; its
+founding count preserves the historical all-profile allocation rule. An eighth
+returns one metro seller count while owning major/city membership, optional
+public-listing eligibility and reciprocal blocks for the three metro count
+callers. A ninth listing-bound operation returns at most four public similar-
+maker cards, derives metro-before-state scope only from a viewer-visible source
+listing, owns active candidate seller/listing visibility,
+reciprocal blocks and stable Guild/follower ordering, and exposes no ownership
+or raw-geography column. A tenth exact operation owns the homepage's two-maker
+spotlight selection: active admin-featured sellers first, weekly Guild rotation
+second and a weekly rotation within the top-four reviewed public sellers last.
+It returns only the rendered spotlight fields; `userId` is purpose-bound to
+suppressing the current seller's follow control. An eleventh exact operation
+serves the public map-card endpoint with active/map-opt-in eligibility and the
+top public-listing cover inside the database; it returns no raw coordinate,
+owner identifier or control field. Three more exact operations serve the metro
+maker directory: static slugs, capped rendered maker cards and nearby metros.
+They preserve the three predecessor eligibility contracts while moving active
+seller, public-listing, reciprocal-block and stable-order predicates into the
+database. A fifteenth exact operation serves the cached footer city links,
+preserving the predecessor's active-seller-or-public-listing eligibility,
+all-listing popularity rank, stable order and ten-row cap without returning
+the rank. A sixteenth returns only the visible seller's owner identifier for
+self-view suppression in seller telemetry, preserving vacation visibility and
+leaving the existing fixed view-record write unchanged. A seventeenth exact
+operation performs actor-bound reciprocal Follow cleanup after an outgoing
+Block, using the shared sorted pair lock and returning only a deletion count.
+An eighteenth exact operation returns one boolean proving that a report target
+is a publicly visible seller owned by the reported user, without exposing the
+seller row or owner id. A nineteenth actor-bound owner account summary returns
+only the profile id, avatar and active-listing count needed by account chrome. All
+nineteen keep the old table grant unchanged. Three follow authorities then
+replace the public follow endpoint's direct seller, Follow and Block access:
+bounded public state, actor-bound create under the shared sorted Block-pair
+lock, and owner-bound stale cleanup. A separate actor-bound owner core now
+serves the seven analytics, broadcast, upload and seller-sales callers that share profile id,
+display name, creation time and shop-state gates. An actor-bound blog-editor
+operation then converts three more direct owner lookups and returns only the
+profile id plus active listing ids/titles, preserving both zero-listing sellers
+and staff authors without seller profiles. A separate actor-bound listing-review
+operation preserves the all-status listing count used by post-create AI review
+while returning only profile id, display name and that count. Together with
+reusing the owner bootstrap for the new-listing readiness banner, this reduces
+the candidate source inventory. A separate actor-and-target-bound listing-metro
+source returns the exact coordinate pair only to the server-side metro mapper.
+The candidate now has 47 direct operations in 25 files, 15 raw SQL accesses in
+12 files, 75 total consumer files, 179 reconciled opaque query shapes and one
+remaining owner-coordinate consumer file. The candidate catalog contains the
+unchanged 98 retained and 32 internal functions plus 26 converted authorities.
+A twenty-seventh actor-and-target-bound operation then replaces the two seller
+reads in listing publish/reactivation while preserving its narrower
+ACTIVE/SOLD/SOLD_OUT moderation count. The candidate is now at 45 direct
+operations in 24 files; relation, raw SQL, total-consumer and opaque-shape counts
+are unchanged, and the catalog contains 157 functions partitioned into 98
+retained, 32 internal and 27 converted authorities. It
+is not merged or live; no public route now derives from the raw seller point in
+application SQL.
+The listing-edit page then reuses the prepared owner-core and all-status
+listing-review authorities for ownership, readiness and AI review. This removes
+one direct operation and four relation accesses without another database
+function. The candidate is now at 44 direct operations in 23 files, 94 relation
+accesses in 49 files, 15 raw SQL accesses in 12 files and 74 total consumer
+files; the 179 opaque shapes and 157-function catalog are unchanged.
+The workshop dashboard then leaves the ledger entirely: one actor-bound
+dashboard-state authority replaces its direct seller read, and its three
+listing actions reuse owner core plus the composite Listing owner key. The
+candidate is now at 43 direct operations in 22 files, 91 relation accesses in
+48 files, 15 raw SQL accesses in 12 files and 73 total consumer files. Its
+158-function catalog partitions into 98 retained, 32 internal and 28 converted
+authorities; opaque-shape and coordinate counts are unchanged.
+One actor-bound conversation participant-card authority then replaces the
+inbox batch seller lookup and thread counterpart seller lookup. It returns
+bounded seller-card fields only for requested users who already share a
+conversation with the active actor. The candidate is now at 41 direct
+operations in 20 files, 91 relation accesses in 48 files, 15 raw SQL accesses
+in 12 files and 72 total consumer files. Its 159-function catalog partitions
+into 98 retained, 32 internal and 29 converted authorities. The full-chain
+PostgreSQL 16 proof found that the original projection returned Prisma-managed
+`varchar` columns through a declared `text` table result; the forward
+correction adds explicit casts, and the behavior fixture now uses the real
+column widths so the `42804` regression cannot be hidden by an all-text model.
+The seller-vacation route then leaves the ledger by replacing its direct update
+with an active-owner mutation that binds the expected seller id and preserves
+the post-commit cache and checkout-expiry side effects. UTC epoch input avoids
+session-timezone drift for the date-only return value. The candidate is now at
+40 direct operations in 19 files, 91 relation accesses in 48 files, 15 raw SQL
+accesses in 12 files and 71 total consumer files. Its 160-function catalog
+partitions into 98 retained, 32 internal and 30 converted authorities.
+The public blog-author landing page then leaves the ledger through an exact
+seven-field projection available only for an active seller with a currently
+published, active-author blog post. Its owner id remains purpose-bound to the
+existing reciprocal-block check before canonical redirects. The candidate is
+now at 39 direct operations in 18 files, 91 relation accesses in 48 files, 15
+raw SQL accesses in 12 files and 70 total consumer files. It has 178 reconciled
+opaque shapes, and its 161-function catalog partitions into 98 retained, 32
+internal and 31 converted authorities.
+The account feed then leaves the ledger through an actor-bound followed-seller
+card projection. It verifies the Follow edge, active seller state and reciprocal
+blocks both before and after the three feed queries, and returns only id, name
+and Guild level. The candidate is now at 38 direct operations in 17 files, 85
+relation accesses in 47 files, 15 raw SQL accesses in 12 files and 69 total
+consumer files. It has 174 reconciled opaque shapes, and its 162-function
+catalog partitions into 98 retained, 32 internal and 32 converted authorities.
+The customer-photo landing page then leaves the ledger through a bounded seller
+header projection that preserves anonymous metadata, the historical owner
+canonical path, reciprocal blocks and an explicit public-photo eligibility
+gate. Its photo query uses only listing status/privacy after that gate and
+rechecks seller eligibility before rendering. The candidate is now at 37 direct
+operations in 16 files, 85 relation accesses in 47 files, 15 raw SQL accesses
+in 12 files and 68 total consumer files. It has 172 reconciled opaque shapes,
+and its 163-function catalog partitions into 98 retained, 32 internal and 33
+converted authorities.
+The listing review section then stops repeating seller and ownership reads that
+the authorized listing-detail loader has already completed. The parent passes
+the seller reply name/avatar and its database-derived ownership result into the
+server component, removing one direct SellerProfile read and one
+Listing-to-SellerProfile join without adding an authority or changing rendered
+review behavior. The candidate is now at 36 direct operations in 15 files, 84
+relation accesses in 46 files, 15 raw SQL accesses in 12 files and 67 total
+consumer files. It still has 172 reconciled opaque shapes, and its 163-function
+catalog remains 98 retained, 32 internal and 33 converted authorities.
+The Founding Maker allocator then moves its eligibility recheck, advisory lock,
+durable-ledger allocation/restoration and public badge mirror into one bounded
+service authority. The shared helper now executes one statement and validates
+one boolean result; repair uses that result instead of rereading SellerProfile.
+This removes four direct operations and two opaque query-factory calls across
+two files. The candidate is now at 32 direct operations in 13 files, 84
+relation accesses in 46 files, 15 raw SQL accesses in 12 files and 65 total
+consumer files. It has 170 reconciled opaque shapes, and its 164-function
+catalog partitions into 98 retained, 32 internal and 34 converted authorities.
+Seller metrics then replaces its direct profile identity lookup with one
+purpose-bound service authority returning only the seller user id and
+UTC-normalized profile creation clock. The operation intentionally preserves
+inactive and historical seller profiles, matching the predecessor metrics
+behavior. The candidate is now at 31 direct operations in 12 files, 84
+relation accesses in 46 files, 15 raw SQL accesses in 12 files and 64 total
+consumer files. It still has 170 reconciled opaque shapes, and its 165-function
+catalog partitions into 98 retained, 32 internal and 35 converted authorities.
+A cohesive service-identity pass then replaces the signed Clerk welcome
+display-name lookup and the blocked-pair checkout cleanup's user-to-seller
+mapping reads. Each authority returns only its caller's prior bounded fields,
+preserves hidden/inactive seller rows, and validates exact result shapes in the
+TypeScript adapter. The candidate is now at 29 direct operations in 10 files,
+84 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 62 total
+consumer files. It still has 170 reconciled opaque shapes. The versioned
+exact-map consent successor adds one converted owner-settings authority and
+one internal revocation trigger function, so its 169-function catalog now
+partitions into 98 retained, 33 internal and 38 converted authorities.
+The public maker profile and shop-header pass then replaces both broad page
+reads with one viewer-aware fixed projection. The database now owns public
+eligibility, active-owner preview and reciprocal-block denial; it returns
+ordered FAQs, public metro labels and `viewerIsOwner`, while withholding the
+owner id, raw coordinates, consent state and account/Stripe controls. The
+candidate is now at 27 direct operations in 8 files, 84 relation accesses in
+46 files, 15 raw SQL accesses in 12 files and 60 total consumer files. It still
+has 170 reconciled opaque shapes, and its 170-function catalog partitions into
+98 retained, 33 internal and 39 converted authorities.
+The owner Guild-application state pass then replaces the API and dashboard
+eligibility reads with one actor-bound projection of seller level and current
+verification status. The candidate is now at 25 direct operations in 7 files,
+84 relation accesses in 46 files, 15 raw SQL accesses in 12 files and 59 total
+consumer files. It still has 170 reconciled opaque shapes, and its 171-function
+catalog partitions into 98 retained, 33 internal and 40 converted authorities.
+The owner bootstrap pass then replaces the direct find-then-create sequence
+with one idempotent actor-bound database operation. Existing insert triggers
+still initialize the private companion and public owner snapshot. The candidate
+is now at 23 direct operations in 6 files, 84 relation accesses in 46 files, 15
+raw SQL accesses in 12 files and 58 total consumer files. It still has 170
+reconciled opaque shapes, and its 172-function catalog partitions into 98
+retained, 33 internal and 41 converted authorities.
+The staff report-target pass then moves the admin reports page's single seller
+name lookup onto the isolated staff role, retaining the Clerk-role and
+session-bound PIN gate and adding an active-staff database check plus a 50-id
+input cap. The candidate is now at 22 direct operations in 5 files, 84 relation
+accesses in 46 files, 15 raw SQL accesses in 12 files and 57 total consumer
+files. Its 173-function catalog partitions into 98 retained, 33 internal and 42
+converted authorities; the new converted authority is staff-only.
+The staff feature-transition pass then replaces the verification page's
+self-profile read and two feature-state writes with one isolated ADMIN-only
+operation. Eligibility, the seven-day transition and its audit witness are now
+atomic. The candidate is down to 19 direct operations in 4 files, 84 relation
+accesses in 46 files, 15 raw SQL accesses in 12 files and 57 total consumer
+files. It has 169 reconciled opaque shapes, and its 174-function catalog
+partitions into 98 retained, 33 internal and 43 converted authorities.
+The account-deletion media pass then replaces its broad SellerProfile plus
+nested Listing/Photo read with one generation-bound operation. The database
+derives the seller from the active `LOCAL_ANONYMIZE` claim and returns only
+public media URLs; there is no caller-selected user or seller id. The candidate
+is down to 18 direct operations in 3 files, 84 relation accesses in 46 files,
+15 raw SQL accesses in 12 files and 57 total consumer files. It retains 169
+reconciled opaque shapes, and its 175-function catalog partitions into 98
+retained, 33 internal and 44 converted authorities.
+The owner featured-listing pass then replaces the profile editor's separate
+SellerProfile read/write and Listing ownership query with one actor-bound
+operation. It locks the owner's exact profile row, checks Listing ownership and
+atomically removes or appends the id while enforcing the six-listing cap. The
+candidate is down to 16 direct operations in 3 files, 84 relation accesses in
+46 files, 15 raw SQL accesses in 12 files, 57 total consumer files, 169
+reconciled opaque shapes and 7 direct writes. Its 176-function catalog
+partitions into 98 retained, 33 internal and 45 converted authorities.
+The owner auxiliary-update pass then replaces avatar removal and automatic
+metro assignment with two actor-bound operations. Avatar clearing remains in
+the same transaction as DirectUpload-reference synchronization; metro updates
+remain a non-fatal post-geocoding step. The candidate is down to 14 direct
+operations in 3 files and 5 direct writes, with the other source counts
+unchanged. Its 178-function catalog partitions into 98 retained, 33 internal
+and 47 converted authorities.
+The owner onboarding-read pass then replaces the page and action setup reads
+with one actor-bound projection that returns the all-status listing count and
+stable latest-listing summary before combining with private onboarding state.
+The candidate is down to 12 direct operations in 3 files and 5 direct writes,
+with the other source counts unchanged. Its 179-function catalog partitions
+into 98 retained, 33 internal and 48 converted authorities.
+The owner dashboard-read pass then replaces the Guild verification and Shop
+Settings public SellerProfile reads with two actor-bound projections. The
+Guild operation owns its bounded MakerVerification join, and both callers add
+private state sequentially inside the same transaction-local context. The
+candidate is down to 10 direct operations in 3 files and 5 direct writes, with
+the other source counts unchanged. Its 181-function catalog partitions into
+98 retained, 33 internal and 50 converted authorities.
+The owner profile-editor pass then replaces the editable-state read, separate
+duplicate-name lookup and profile write with two actor-bound operations. The
+write locks the exact owner row, returns the advisory duplicate result, keeps
+untouched gallery arrays stable and remains in the same context transaction as
+media-reference synchronization. The candidate is down to 7 direct operations
+in 3 files and 4 direct writes, with the other source counts unchanged. Its
+183-function catalog partitions into 98 retained, 33 internal and 52 converted
+authorities.
+The owner residual pass then converts account export and both onboarding writes
+to actor-bound fixed operations. The candidate is down to 4 direct operations
+in 2 files and 2 direct writes, with 56 total consumer files; all owner-side
+direct access is gone. Its 186-function catalog partitions into 98 retained,
+33 internal and 55 converted authorities. The real 396-migration PostgreSQL 16
+chain proves the new operations and their grant boundary.
+The final staff orderability pass converts the two ban/unban reads and two
+writes to one actor-bound compare-and-set transition. The candidate now has
+zero direct operations and zero direct writes, with 54 total consumer files.
+Its 187-function catalog partitions into 98 retained, 33 internal and 56
+converted authorities. The real 397-migration PostgreSQL 16 chain proves the
+transition's stale-state, staff-identity and grant boundaries.
+Phase 1 continues with additive projection/operation design, the three
+behavior-proof gaps and caller conversion while predecessor grants remain
+intact until compatibility proof is accepted. Production migration, grant,
+ENABLE, FORCE and deployment remain separate approvals. Keep
+`CommissionRequest` as a separate RLS release.
 
 ### Complete the `User` identity/account design audit (updated 2026-10-07)
 
@@ -2655,7 +2975,7 @@ Both landing pages are live.
 - `/why-grainline` (buyer) lives in `src/app/why-grainline/page.tsx`. Sections: hero, handmade-trust problem with two-column comparison, four trust-mechanism cards, badge ladder (Founding/Guild Member/Guild Master with live counts), American-made stat bar with map link, buyer protection step-by-step, espresso final CTA.
 - `/why-sell-on-grainline` (seller) lives in `src/app/why-sell-on-grainline/page.tsx`. Sections: hero, four-platform fee comparison table (Grainline/Etsy/Faire/Amazon Handmade), Etsy take-rate trap deep dive, Founding Maker scarcity counter, what-we-dont-do, what-you-get six-card grid, risk reversal, espresso final CTA. CTA links use Clerk auth state to send signed-in users straight to `/dashboard` and signed-out users to `/sign-up?redirect_url=/dashboard`.
 
-Both are wired into the Shop and Sell footer columns respectively, added to `middleware.ts` `isPublic`, and added to `sitemap.ts` at priority 0.8 monthly. Live `prisma.sellerProfile.count({ where: { isFoundingMaker: true } })` reads power the "X of 250 spots left" counter on the seller page and the "X of 250 granted" pill on the buyer page.
+Both are wired into the Shop and Sell footer columns respectively, added to `middleware.ts` `isPublic`, and added to `sitemap.ts` at priority 0.8 monthly. The bounded `sellerPublicMarketplaceCounts()` authority powers the "X of 250 spots left" counter on the seller page and the "X of 250 granted" pill on the buyer page.
 
 Revisit when: catalog hits ~75 listings (refresh stats and screenshots), Etsy fees change (refresh comparison table), or Drew wants to test conversion variants on the seller landing.
 

@@ -2,8 +2,8 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { userFollowerNotificationPage } from "@/lib/userFollowerAccess";
+import { sellerPublicBlogAuthor } from "@/lib/sellerProfilePublicAccess";
 
 const BLOG_FOLLOWER_FANOUT_PAGE_SIZE = 1000;
 
@@ -15,18 +15,26 @@ export async function fanOutBlogPostToFollowers({
   sellerProfileId: string;
 }) {
   const publicPost = await prisma.blogPost.findFirst({
-    where: publicBlogPostWhere({ id: postId, sellerProfileId }),
+    where: {
+      id: postId,
+      sellerProfileId,
+      authorType: "MAKER",
+      status: "PUBLISHED",
+      publishedAt: { not: null, lte: new Date() },
+      authorAccountActive: true,
+    },
     select: {
       id: true,
       slug: true,
       title: true,
-      sellerProfile: { select: { displayName: true, userId: true } },
     },
   });
-  if (!publicPost?.sellerProfile?.userId) return;
+  if (!publicPost) return;
+  const seller = await sellerPublicBlogAuthor(sellerProfileId);
+  if (!seller) return;
 
-  const sellerUserId = publicPost.sellerProfile.userId;
-  const sellerDisplay = publicPost.sellerProfile.displayName ?? "A maker you follow";
+  const sellerUserId = seller.userId;
+  const sellerDisplay = seller.displayName ?? "A maker you follow";
   let cursor: string | undefined;
 
   while (true) {

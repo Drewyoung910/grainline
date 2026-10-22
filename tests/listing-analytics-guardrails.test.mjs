@@ -52,7 +52,8 @@ describe("listing analytics guardrails", () => {
       assert.match(route, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(route, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
       assert.match(route, /const viewerUserId = viewer\?\.id \?\? null/);
-      assert.match(route, /viewerUserId \? \{ seller: \{ userId: \{ not: viewerUserId \} \} \} : \{\}/);
+      assert.match(route, /sellerOwnerCore\(viewerUserId\)/);
+      assert.match(route, /viewerSellerProfileId \? \{ sellerId: \{ not: viewerSellerProfileId \} \} : \{\}/);
       assert.doesNotMatch(route, /seller: \{ user: \{ clerkId:/);
       assert.match(route, new RegExp(`data: \\{ ${counter}: \\{ increment: 1 \\} \\}`));
       assert.match(route, /publicListingWhere\(\{/);

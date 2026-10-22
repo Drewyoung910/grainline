@@ -4,7 +4,6 @@ import { auth } from "@clerk/nextjs/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -15,6 +14,7 @@ import {
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { getPopularBlogTags } from "@/lib/popularBlogTags";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -38,20 +38,17 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
     return tx.$queryRaw<Array<{ slug: string; title: string }>>(Prisma.sql`
       SELECT bp.slug, bp.title
       FROM "BlogPost" bp
-      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
         AND bp."authorAccountActive" = true
-        AND (
-          bp."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND sp."stripeAccountSupported" = true
-            AND sp."vacationMode" = false
-            AND sp."ownerAccountActive" = true
+        AND CASE
+          WHEN bp."sellerProfileId" IS NULL THEN true
+          ELSE EXISTS (
+            SELECT 1
+              FROM public.grainline_seller_public_blog_author(bp."sellerProfileId")
           )
-        )
+        END
         ${blockedAuthorPredicate}
         ${blockedSellerPredicate}
         AND bp.title % ${q}
@@ -98,20 +95,7 @@ export async function GET(req: NextRequest) {
     ),
 
     // Author / seller display name matches
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        OR: [
-          { displayName: { contains: q, mode: "insensitive" } },
-          ...(normalizedDisplayNameQuery
-            ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
-            : []),
-        ],
-        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      }),
-      select: { id: true, displayName: true },
-      take: 3,
-      orderBy: [{ displayNameNormalized: "asc" }, { id: "asc" }],
-    }),
+    sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, false, 3),
   ]);
 
   const suggestions: BlogSuggestion[] = [];

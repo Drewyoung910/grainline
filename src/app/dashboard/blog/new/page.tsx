@@ -16,6 +16,7 @@ import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseCreateBlogStatus } from "@/lib/blogStatusInput";
 import { fanOutBlogPostToFollowers } from "@/lib/followerBlogNotifications";
+import { sellerOwnerBlogEditor } from "@/lib/sellerProfileOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -31,10 +32,7 @@ export default async function NewBlogPostPage() {
   const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
 
   // For makers: fetch their seller profile + listings for featured listing checkboxes
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true, listings: { where: { status: "ACTIVE" }, select: { id: true, title: true }, orderBy: { updatedAt: "desc" } } },
-  });
+  const seller = await sellerOwnerBlogEditor(me.id);
   if (!isStaff && !seller) redirect("/dashboard");
 
   async function createBlogPost(_prevState: unknown, formData: FormData) {
@@ -111,12 +109,12 @@ export default async function NewBlogPostPage() {
     const readingTimeMinutes = calculateReadingTime(body);
     const authorType: BlogAuthorType = isStaffUser ? "STAFF" : "MAKER";
     const sellerForAuthor = !isStaffUser
-      ? await prisma.sellerProfile.findUnique({ where: { userId: author.id }, select: { id: true } })
+      ? await sellerOwnerBlogEditor(author.id)
       : null;
     if (!isStaffUser && !sellerForAuthor) {
       return { ok: false, error: "Create a maker profile before publishing blog posts." };
     }
-    const sellerProfileId = sellerForAuthor?.id ?? null;
+    const sellerProfileId = sellerForAuthor?.sellerProfileId ?? null;
     const uniqueFeaturedListingIds = [...new Set(featuredListingIds)].slice(0, 6);
     const verifiedFeaturedListings = uniqueFeaturedListingIds.length
       ? await prisma.listing.findMany({
@@ -216,7 +214,7 @@ export default async function NewBlogPostPage() {
         <BlogPostForm
           action={createBlogPost}
           isStaff={isStaff}
-          listings={seller?.listings ?? []}
+          listings={seller ? [...seller.listings] : []}
           submitLabel="Create Post"
         />
       </section>

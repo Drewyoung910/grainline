@@ -1,12 +1,15 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { blockRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { createUserBlock, deleteUserBlock } from "@/lib/blockMutationAccess";
+import {
+  cleanupUserBlockFollows,
+  createUserBlock,
+  deleteUserBlock,
+} from "@/lib/blockMutationAccess";
 import { expireOpenCheckoutSessionsForBlockedPair } from "@/lib/checkoutSessionExpiry";
 import { after } from "next/server";
 
@@ -69,16 +72,7 @@ export async function POST(
 
   // Remove reciprocal Follow rows (both directions)
   try {
-    // If I follow their seller profile, remove
-    const blockedSeller = await prisma.sellerProfile.findUnique({ where: { userId: blockedId }, select: { id: true } });
-    if (blockedSeller) {
-      await prisma.follow.deleteMany({ where: { followerId: me.id, sellerProfileId: blockedSeller.id } });
-    }
-    // If they follow my seller profile, remove
-    const mySeller = await prisma.sellerProfile.findUnique({ where: { userId: me.id }, select: { id: true } });
-    if (mySeller) {
-      await prisma.follow.deleteMany({ where: { followerId: blockedId, sellerProfileId: mySeller.id } });
-    }
+    await cleanupUserBlockFollows(me.id, blockedId);
   } catch (error) {
     logServerError(error, {
       source: "block_follow_cleanup",

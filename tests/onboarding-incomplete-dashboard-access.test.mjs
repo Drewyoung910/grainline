@@ -38,19 +38,18 @@ describe("onboarding-incomplete dashboard access", () => {
 
   it("keeps sales and analytics out of the normal metrics flow for incomplete sellers", () => {
     const sales = source("src/app/dashboard/sales/page.tsx");
-    assert.match(sales, /select: \{ id: true, displayName: true, chargesEnabled: true \}/);
-    assert.match(sales, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.id\)/);
+    assert.match(sales, /const seller = await sellerOwnerCore\(me\.id\)/);
+    assert.match(sales, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.sellerProfileId\)/);
     assert.match(sales, /if \(!sellerPrivate\.onboardingComplete\)/);
     assert.match(sales, /Connect Stripe to start accepting orders/);
 
     const salesDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
-    assert.match(salesDetail, /select: \{ id: true \}/);
-    assert.doesNotMatch(salesDetail, /select: \{[^}]*displayName: true/);
-    assert.match(salesDetail, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.id\)/);
+    assert.match(salesDetail, /const seller = await sellerOwnerCore\(me\.id\)/);
+    assert.match(salesDetail, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, seller\.sellerProfileId\)/);
     assert.match(salesDetail, /if \(!sellerPrivate\.onboardingComplete\) redirect\("\/dashboard\?setup=required"\)/);
 
     const analyticsApi = source("src/app/api/seller/analytics/route.ts");
-    assert.match(analyticsApi, /const sellerPrivate = await sellerOwnerPrivateState\(me\.id, sellerProfile\.id\)/);
+    assert.match(analyticsApi, /sellerProfile\.sellerProfileId/);
     assert.match(analyticsApi, /if \(!sellerPrivate\.onboardingComplete\)/);
     assert.match(analyticsApi, /code: "SETUP_REQUIRED"/);
 
@@ -63,13 +62,16 @@ describe("onboarding-incomplete dashboard access", () => {
     const newListing = source("src/app/dashboard/listings/new/page.tsx");
     assert.match(newListing, /if \(!saveAsDraft && !seller\.chargesEnabled\)/);
     assert.match(newListing, /if \(!saveAsDraft && seller\.vacationMode\)/);
-    assert.match(newListing, /select: \{ chargesEnabled: true, vacationMode: true \}/);
+    assert.match(newListing, /const chargesEnabled = seller\.chargesEnabled/);
+    assert.match(newListing, /const vacationMode = seller\.vacationMode/);
+    assert.doesNotMatch(newListing, /select: \{ chargesEnabled: true, vacationMode: true \}/);
     assert.match(newListing, /disabled=\{Boolean\(publishBlockedMessage\)\}/);
     assert.match(newListing, /Save as Draft/);
 
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
-    assert.match(shopActions, /select: \{ chargesEnabled: true, vacationMode: true \}/);
-    assert.match(shopActions, /if \(!sellerCheck\?\.chargesEnabled \|\| sellerCheck\.vacationMode\)/);
+    assert.match(shopActions, /sellerOwnerListingPublishReview\(/);
+    assert.match(shopActions, /if \(!sellerReview\?\.chargesEnabled \|\| sellerReview\.vacationMode\)/);
+    assert.doesNotMatch(shopActions, /prisma\.sellerProfile\./);
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");

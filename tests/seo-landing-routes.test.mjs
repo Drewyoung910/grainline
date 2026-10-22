@@ -25,11 +25,10 @@ describe("SEO landing route guardrails", () => {
     const page = source("src/app/blog/author/[slug]/page.tsx");
 
     assert.match(page, /import \{ cache \} from "react"/);
-    assert.match(page, /const getPublicBlogAuthor = cache\(async \(sellerProfileId: string\) =>/);
+    assert.match(page, /const getPublicBlogAuthor = cache\(sellerPublicBlogAuthor\)/);
     assert.match(page, /extractRouteId\(slug\)/);
     assert.match(page, /publicBlogAuthorPath\(author\.id, author\.displayName\)/);
-    assert.match(page, /activeSellerProfileWhere\(\{/);
-    assert.match(page, /blogPosts: \{ some: publicBlogPostWhere\(\{ sellerProfileId \}\) \}/);
+    assert.doesNotMatch(page, /prisma\.sellerProfile|activeSellerProfileWhere/);
     assert.match(page, /publicBlogPostWhere\(\{ sellerProfileId: author\.id \}\)/);
     assert.match(page, /getBlockedUserIdsFor\(meDbId\)/);
     assert.ok(
@@ -44,7 +43,7 @@ describe("SEO landing route guardrails", () => {
 
   it("wires discoverable author and tag links to canonical landing routes", () => {
     assert.match(source("src/components/BlogSearchBar.tsx"), /publicBlogAuthorPath\(s\.sellerProfileId, s\.label\)/);
-    assert.match(source("src/app/blog/[slug]/page.tsx"), /publicBlogAuthorPath\(post\.sellerProfile\.id, authorName\)/);
+    assert.match(source("src/app/blog/[slug]/page.tsx"), /publicBlogAuthorPath\(post\.sellerProfileId, authorName\)/);
     assert.match(source("src/app/listing/[id]/page.tsx"), /href=\{publicTagPath\(t\.toLowerCase\(\)\)\}/);
     assert.match(source("src/middleware.ts"), /"\/tag\(\.\*\)"/);
   });
@@ -56,9 +55,9 @@ describe("SEO landing route guardrails", () => {
     assert.match(sitemap, /const BLOG_AUTHOR_LANDING_SITEMAP_LIMIT = 100/);
     assert.match(sitemap, /const BLOG_AUTHOR_LANDING_SOURCE_LIMIT = 500/);
     assert.match(sitemap, /getPopularListingTags\(TAG_LANDING_SITEMAP_LIMIT\)/);
-    assert.match(sitemap, /take: BLOG_AUTHOR_LANDING_SOURCE_LIMIT/);
+    assert.match(sitemap, /sellerPublicBlogAuthorSitemap\(\s*BLOG_AUTHOR_LANDING_SOURCE_LIMIT,\s*BLOG_AUTHOR_LANDING_SITEMAP_LIMIT/s);
     assert.match(sitemap, /publicTagPath\(tag\)/);
-    assert.match(sitemap, /publicBlogAuthorPath\(id, author\.displayName\)/);
+    assert.match(sitemap, /publicBlogAuthorPath\(author\.id, author\.displayName\)/);
     assert.match(sitemap, /assertSitemapEntryLimit\(\[/);
   });
 });

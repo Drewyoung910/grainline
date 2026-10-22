@@ -54,7 +54,7 @@ export default function TermsPage() {
       <div className="mb-10">
         <p className="text-sm text-neutral-500 mb-2">Legal</p>
         <h1 className="font-display text-4xl font-semibold mb-2">Terms of Service</h1>
-        <p className="text-sm text-neutral-500">Last Updated: June 14, 2026</p>
+        <p className="text-sm text-neutral-500">Last Updated: October 19, 2026</p>
 
         <div className="mt-6 rounded border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-900">
           <strong>DRAFT — Under Attorney Review.</strong> Last reviewed June 14, 2026. This document
@@ -418,16 +418,20 @@ export default function TermsPage() {
             is publicly visible to all users and may be indexed by search engines: your display name,
             tagline, biography, profile and banner photos, workshop photos, gallery images, city and
             state, years in business, shop policies, FAQ answers, ratings and reviews, follower count,
-            active listings, and blog posts. Your precise workshop coordinates, if set, are used to
-            display your approximate location on the Makers Map but exact coordinates are not displayed
-            to users. Your email address is never displayed publicly.
+            active listings, and blog posts. A saved workshop point is displayed approximately by
+            default. If you separately choose &quot;Publish this exact pin publicly&quot; after reviewing
+            the location warning, the precise saved point is public on maps, shop and listing pages,
+            and structured search data until you withdraw that choice or change the point. Your email
+            address is never displayed publicly.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.20 Makers Map</h3>
           <p>
-            If you set a workshop location, your shop will appear as a pin on the publicly accessible
-            Makers Map. Only your approximate location (city/region level) is displayed on the map.
-            You may remove your map pin at any time by clearing your location in your dashboard settings.
+            If you turn on public map visibility, your shop may appear as a pin on the publicly
+            accessible Makers Map. The pin is approximate unless you separately publish the exact
+            saved point. You may withdraw exact-pin consent, return to an approximate pin, or turn off
+            public map visibility through your dashboard settings. Moving the saved point requires a
+            new exact-pin consent before the new point can be published exactly.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.21 Intellectual Property Warranty</h3>

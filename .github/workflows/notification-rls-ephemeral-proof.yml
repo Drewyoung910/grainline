@@ -151,6 +151,7 @@ jobs:
                 mv "$path" "$destination/$migration"
               done
           test -s "$manifest"
+          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true" >> "$GITHUB_ENV"
       - name: Isolate staged Core Order ENABLE from historical proof
         shell: bash
         run: |
@@ -255,6 +256,7 @@ jobs:
           while read -r migration; do
             mv "$destination/$migration" "prisma/migrations/$migration"
           done < "$destination/manifest"
+          echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
       - name: Restore reviewed Production-owner Order buyer correction
         run: >-
           mv

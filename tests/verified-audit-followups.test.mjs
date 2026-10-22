@@ -50,7 +50,7 @@ describe("verified audit follow-up guardrails", () => {
   it("validates new message recipients and listing context before creating a conversation", () => {
     const text = source("src/app/messages/new/page.tsx");
     assert.match(text, /canStartConversationWith/);
-    assert.match(text, /canAttachConversationContextListing/);
+    assert.match(text, /sellerParticipantConversationListingTarget/);
     assert.match(text, /prisma\.block\.findFirst/);
     assert.equal(text.includes("contextListingId: listing"), false);
   });
@@ -250,11 +250,8 @@ describe("verified audit follow-up guardrails", () => {
 
   it("keeps global blog search suggestions on the public blog visibility predicate", () => {
     const text = source("src/app/api/search/suggestions/route.ts");
-    assert.match(text, /LEFT JOIN "SellerProfile" sp ON sp\.id = bp\."sellerProfileId"/);
-    assert.match(text, /sp\."chargesEnabled" = true/);
-    assert.match(text, /sp\."vacationMode" = false/);
-    assert.match(text, /sp\."stripeAccountSupported" = true/);
-    assert.match(text, /sp\."ownerAccountActive" = true/);
+    assert.match(text, /grainline_seller_public_blog_author/);
+    assert.doesNotMatch(text, /LEFT JOIN "SellerProfile" sp ON sp\.id = bp\."sellerProfileId"/);
     assert.doesNotMatch(text, /seller_user/);
     assert.match(text, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(text, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
@@ -279,46 +276,96 @@ describe("verified audit follow-up guardrails", () => {
       assert.doesNotMatch(text, /seller: \{ vacationMode: false, chargesEnabled: true/, `${path} should use listing visibility helpers`);
     }
 
-    const rawSqlPaths = [
-      "src/app/page.tsx",
+    const qualityScore = source("src/lib/quality-score.ts");
+    assert.match(qualityScore, /sellerServiceQualityScoreBatch\(cursorId, BATCH_SIZE\)/);
+    assert.doesNotMatch(qualityScore, /JOIN "SellerProfile"|stripeAccountVersion/);
+    const qualityScoreAuthority = source(
+      "prisma/migrations/20261020235988_prepare_seller_profile_quality_score_authorities/migration.sql",
+    );
+    assert.match(qualityScoreAuthority, /seller\."stripeAccountSupported" = true/);
+    assert.doesNotMatch(qualityScoreAuthority, /stripeAccountVersion/);
+    const similarListings = source("src/app/api/listings/[id]/similar/route.ts");
+    assert.match(similarListings, /sellerActorSimilarListingCandidates\(viewerUserId, id\)/);
+    assert.doesNotMatch(similarListings, /JOIN "SellerProfile"|stripeAccountVersion/);
+    const similarListingAuthority = source(
+      "prisma/migrations/20261020235987_prepare_seller_profile_similar_listing_candidates/migration.sql",
+    );
+    assert.match(similarListingAuthority, /seller\."stripeAccountSupported" = true/);
+    assert.doesNotMatch(similarListingAuthority, /stripeAccountVersion/);
+    const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
+    assert.match(globalSuggestions, /grainline_seller_public_follower_listing_target/);
+    assert.doesNotMatch(globalSuggestions, /JOIN "SellerProfile"|stripeAccountVersion/);
+    for (const path of [
       "src/app/blog/page.tsx",
       "src/app/api/blog/search/route.ts",
       "src/app/api/blog/search/suggestions/route.ts",
-      "src/app/api/listings/[id]/similar/route.ts",
-      "src/app/api/search/suggestions/route.ts",
+    ]) {
+      const text = source(path);
+      assert.match(text, /grainline_seller_public_blog_author/);
+      assert.doesNotMatch(text, /JOIN "SellerProfile"|stripeAccountVersion/);
+    }
+    const publicAggregateAuthority = source(
+      "prisma/migrations/20261019060000_prepare_seller_profile_public_marketplace_counts/migration.sql",
+    );
+    for (const path of [
       "src/lib/popularTags.ts",
       "src/lib/popularBlogTags.ts",
       "src/lib/site-metrics-snapshot.ts",
-      "src/lib/quality-score.ts",
-    ];
-    for (const path of rawSqlPaths) {
-      const text = source(path);
-      assert.match(text, /sp\."stripeAccountSupported" = true/, `${path} should use the public-safe seller capability snapshot`);
-      assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
+    ]) {
+      assert.doesNotMatch(source(path), /JOIN "SellerProfile"|prisma\.\$queryRaw/);
     }
+    assert.match(publicAggregateAuthority, /seller\."stripeAccountSupported" = true/);
     for (const path of [
-      "src/app/api/reviews/[id]/vote/route.ts",
-      "src/app/api/users/[id]/report/route.ts",
       "src/app/listing/[id]/page.tsx",
       "src/app/messages/[id]/page.tsx",
-      "src/app/messages/new/page.tsx",
-      "src/app/seller/[id]/customer-photos/page.tsx",
-      "src/app/seller/[id]/page.tsx",
-      "src/app/seller/[id]/shop/page.tsx",
-      "src/lib/blogVisibility.ts",
-      "src/lib/commissionInterestCount.ts",
       "src/lib/conversationStartState.ts",
       "src/lib/listingVisibility.ts",
-      "src/lib/savedListingVisibility.ts",
       "src/lib/sellerVisibility.ts",
     ]) {
       const text = source(path);
       assert.match(text, /stripeAccountSupported/, `${path} should use the public-safe seller capability snapshot`);
       assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
     }
+    const blogVisibility = source("src/lib/blogVisibility.ts");
+    assert.match(blogVisibility, /authorSellerPubliclyOrderable/);
+    assert.doesNotMatch(blogVisibility, /stripeAccountVersion/);
+    const visibilityMirrors = source(
+      "prisma/migrations/20261020235989_prepare_seller_profile_public_visibility_mirrors/migration.sql",
+    );
+    assert.match(visibilityMirrors, /seller\."stripeAccountSupported" = true/);
+    assert.doesNotMatch(visibilityMirrors, /stripeAccountVersion/);
+    for (const path of [
+      "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
+      "prisma/migrations/20261020235000_prepare_seller_profile_public_commission_interests/migration.sql",
+      "prisma/migrations/20261020235990_prepare_seller_profile_public_review_vote_target/migration.sql",
+      "prisma/migrations/20261020235995_prepare_seller_profile_participant_conversation_listing_target/migration.sql",
+      "prisma/migrations/20261020235996_prepare_seller_profile_conversation_context_listing/migration.sql",
+      "prisma/migrations/20261020235997_prepare_seller_profile_actor_report_resource_target/migration.sql",
+    ]) {
+      const text = source(path);
+      assert.match(text, /"stripeAccountSupported" = true/);
+      assert.doesNotMatch(text, /stripeAccountVersion/);
+    }
+    const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.sellerProfile\./);
+    for (const path of [
+      "src/app/seller/[id]/page.tsx",
+      "src/app/seller/[id]/shop/page.tsx",
+    ]) {
+      const text = source(path);
+      assert.match(text, /sellerPublicProfile\(viewerUserId, sellerId\)/);
+      assert.doesNotMatch(text, /prisma\.sellerProfile\./);
+    }
     assert.doesNotMatch(source("src/app/page.tsx"), /featuredMakerWhere/);
     assert.match(source("src/lib/conversationStartState.ts"), /listing\.seller\.stripeAccountSupported/);
-    assert.match(source("src/app/messages/new/page.tsx"), /stripeAccountSupported: true/);
+    for (const path of [
+      "prisma/migrations/20261020235995_prepare_seller_profile_participant_conversation_listing_target/migration.sql",
+      "prisma/migrations/20261020235996_prepare_seller_profile_conversation_context_listing/migration.sql",
+      "prisma/migrations/20261020235997_prepare_seller_profile_actor_report_resource_target/migration.sql",
+    ]) {
+      assert.match(source(path), /seller\."stripeAccountSupported" = true/);
+    }
   });
 
   it("keeps footer metro links behind a tagged cache and invalidates metro assignment changes", () => {

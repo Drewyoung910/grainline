@@ -16,7 +16,8 @@ function fixture(options = {}) {
   const actor = options.actor === undefined
     ? { id: "owner", banned: false, deletedAt: null } : options.actor;
   const state = { owner: "owner", active: true, reply: options.reply ?? null,
-    reads: 0, writes: 0, gateCalls: 0 };
+    reads: 0, writes: 0, gateCalls: 0, sellerOwnerCalls: 0,
+    sellerOwnerReviewReplyCalls: 0 };
   let bothRead;
   const barrier = new Promise((resolve) => { bothRead = resolve; });
   const prisma = { review: {
@@ -25,26 +26,13 @@ function fixture(options = {}) {
       if (options.missingReview) return null;
       const snapshot = {
         sellerReply: state.reply,
-        listing: { seller: { userId: options.foreignOwner ? "other-owner" : state.owner,
-          ownerAccountActive: options.inactiveSeller ? false : state.active } },
+        listing: { sellerId: options.foreignOwner ? "other-seller" : "seller" },
       };
       if (options.concurrent) {
         if (state.reads === 2) bothRead();
         await barrier;
       }
       return snapshot;
-    },
-    updateMany: async ({ where, data }) => {
-      state.writes++;
-      assert.equal(where.id, "review");
-      assert.equal(where.sellerReply, null);
-      assert.equal(where.listing.seller.userId, actor.id);
-      assert.equal(where.listing.seller.ownerAccountActive, true);
-      if (options.changeBeforeWrite) options.changeBeforeWrite(state);
-      if (state.reply !== null || state.owner !== where.listing.seller.userId
-        || state.active !== true) return { count: 0 };
-      state.reply = data.sellerReply;
-      return { count: 1 };
     },
   } };
   const dependencies = {
@@ -64,6 +52,30 @@ function fixture(options = {}) {
       assert.equal(clerkId, "clerk-owner");
       return actor;
     } },
+    "@/lib/sellerProfileOwnerAccess": {
+      sellerOwnerCore: async (userId) => {
+        state.sellerOwnerCalls++;
+        assert.equal(userId, actor.id);
+        if (options.inactiveSeller) return null;
+        return { sellerProfileId: "seller" };
+      },
+      sellerOwnerReviewReply: async (userId, input) => {
+        state.sellerOwnerReviewReplyCalls++;
+        state.writes++;
+        assert.equal(userId, actor.id);
+        assert.equal(input.sellerProfileId, "seller");
+        assert.equal(input.reviewId, "review");
+        assert.equal(typeof input.reply, "string");
+        if (options.changeBeforeWrite) options.changeBeforeWrite(state);
+        if (
+          state.reply !== null
+          || state.owner !== actor.id
+          || state.active !== true
+        ) return false;
+        state.reply = input.reply;
+        return true;
+      },
+    },
   };
   const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
@@ -138,5 +150,7 @@ test("active owner reply succeeds without a nested User lookup", async () => {
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
   assert.equal(subject.state.gateCalls, 1);
+  assert.equal(subject.state.sellerOwnerCalls, 1);
+  assert.equal(subject.state.sellerOwnerReviewReplyCalls, 1);
   assert.equal(subject.state.reply, "Thanks for your review");
 });

@@ -6,12 +6,12 @@ import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 import { publicListingPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
-import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
+import { sellerOwnerSavedListingPage } from "@/lib/sellerSavedListingAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { countSellerCompletedOrders } from "@/lib/orderSellerAnalyticsAuthority";
 import { readBuyerOrderSummaryPage } from "@/lib/orderParticipantReadAuthority";
+import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
@@ -31,33 +31,13 @@ export default function AccountPage() {
 
 async function AccountPageContent() {
   const me = await ensureUserForPage("/account");
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
 
   const [recentOrderPage, savedItems, savedSearches, followCount, sellerProfile] = await Promise.all([
     // Most recent 5 orders as a buyer
     readBuyerOrderSummaryPage({ actorUserId: me.id, limit: 5 }),
 
     // Most recent 6 saved (favorited) listings
-    prisma.favorite.findMany({
-      where: savedListingFavoriteWhere(me.id, blockedSellerIds),
-      orderBy: [{ createdAt: "desc" }, { listingId: "desc" }],
-      take: 6,
-      select: {
-        listing: {
-          select: {
-            id: true,
-            title: true,
-            priceCents: true,
-            currency: true,
-            photos: {
-              take: 1,
-              orderBy: { sortOrder: "asc" },
-              select: { url: true },
-            },
-          },
-        },
-      },
-    }),
+    sellerOwnerSavedListingPage(me.id, 6, 0),
 
     listOwnerSavedSearches(me.id, prisma, { take: 3 }),
 
@@ -65,17 +45,7 @@ async function AccountPageContent() {
     prisma.follow.count({ where: { followerId: me.id } }),
 
     // Seller profile stats (if they're a seller)
-    prisma.sellerProfile.findUnique({
-      where: { userId: me.id },
-      select: {
-        id: true,
-        _count: {
-          select: {
-            listings: { where: { status: "ACTIVE" } },
-          },
-        },
-      },
-    }),
+    sellerOwnerAccountSummary(me.id),
   ]);
   const recentOrders = recentOrderPage.rows;
 
@@ -383,7 +353,7 @@ async function AccountPageContent() {
           <div className="card-section p-5 space-y-4">
             <div className="flex gap-6 text-sm">
               <div>
-                <p className="text-2xl font-bold">{sellerProfile._count.listings}</p>
+                <p className="text-2xl font-bold">{sellerProfile.activeListingCount}</p>
                 <p className="text-neutral-500 text-xs">Active listings</p>
               </div>
               <div>

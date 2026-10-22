@@ -19771,3 +19771,113 @@ stale/false-positive/current 579, deferred product/design/ops/legal 86,
 approximate raw allegations left from current max #1126: 0. The raw Claude
 finding remains preserved in its private source ledger under the distinct
 `C-875` namespace.
+
+### Entry 576 - Public SellerProfile Shop Settings activation boundary
+
+Entry 576 records the exact-head reconciliation of four private Claude audit
+allegations whose historical numbers overlap the repository's older ledgers.
+The private source file remains unchanged; this entry uses the descriptions as
+the durable identity rather than treating those numbers as globally unique.
+
+Three current defects were independently reproduced on the isolated public
+SellerProfile candidate:
+
+- `LocationPicker` used Austin as both a harmless visual map center and its
+  submitted state. A maker with no saved point therefore acquired Austin
+  coordinates and metro assignment when saving unrelated Shop Settings.
+- The server action used permissive coordinate parsing, truncated long country
+  input into a different two-letter value, accepted unbounded carrier payloads
+  until the database call, and did not translate the fixed operation's expected
+  validation/authority denials into form errors.
+- The server component passed its complete combined public/private settings
+  state into the client ship-from component even though that component consumes
+  only eight address/contact fields. The extra owner-only state was not a
+  cross-account leak, but it unnecessarily entered the browser payload.
+
+The candidate now keeps its visual center separate from nullable saved state,
+requires an explicit location selection before radius or public-map choices,
+strictly validates the coordinate/radius/exact-consent and country/carrier
+contracts, preserves unsaved form values on expected errors, translates only
+reviewed PostgreSQL denial states, and constructs an eight-field ship-from
+client payload. Unknown database failures still throw.
+
+Failing-first evidence recorded three failures before implementation: the new
+behavior module did not exist, broad client serialization remained, and Austin
+was still submitted. The final focused run passes 21 behavior and boundary
+checks, including the existing provider/privacy, exact-consent, public-profile
+conversion and retained-authority suites. `tsc --noEmit`, scoped
+lint and `git diff --check` pass. The SQL and sealed ENABLE migration bytes are
+unchanged. This is prepared source only; merge, exact-head CI, Production
+deployment and SellerProfile ENABLE have not occurred.
+
+Current running tally after Entry 576 remains verified fixed/reduced 1108,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+86, approximate raw allegations left from current max #1126: 0. The tally is
+unchanged because these private-ledger labels overlap previously reconciled raw
+categories and are not canonical repository finding IDs.
+
+### Entry 575 - Public SellerProfile UTC authority boundary
+
+Entry 575 independently verifies private Claude finding C-754 against the
+current isolated public SellerProfile candidate. It was real. Three new fixed
+authorities wrote values into `timestamp without time zone` columns without an
+explicit UTC conversion: follow creation used bare `clock_timestamp()`, while
+Founding Maker allocation and owner bootstrap used `CURRENT_TIMESTAMP`.
+PostgreSQL therefore interpreted the stored wall clock through the caller's
+session timezone.
+
+The corrected candidate uses `clock_timestamp() AT TIME ZONE 'UTC'` for Follow
+creation, a single UTC `granted_at` for the Founding Maker ledger and public
+badge update, and one UTC `bootstrap_at` for both new SellerProfile timestamps.
+The proof is behavioral and uses the complete PostgreSQL 16 migration chain.
+It changes the session to `America/Los_Angeles`, then checks stored values
+against the database UTC wall clock. The new proof failed on the exact
+pre-correction candidate at the Follow assertion and passed after all three
+authorities were corrected across all 398 migrations and the policyless ENABLE
+scenario.
+
+This is prepared source only. No Production database, deployment, grant or RLS
+state changed. Release packaging must still install all reviewed preparation
+functions before the converted application deploys, then apply ENABLE through
+its separate protected workflow.
+
+Current running tally after Entry 575 remains verified fixed/reduced 1106,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+86, approximate raw allegations left from current max #1126: 0. The tally is
+unchanged because C-754 is a private-ledger label whose numeric suffix collides
+with older canonical repository findings.
+
+### Entry 576 - Public SellerProfile compatible preparation release gate
+
+Entry 576 closes the local release-packaging gap discovered while reconciling
+C-754. The isolated public SellerProfile branch had a protected workflow for
+the final policyless ENABLE migration, but no exact workflow for installing its
+47 additive predecessor migrations. Deploying the converted app before those
+functions exist would fail, while a broad migration deploy could apply ENABLE
+too early.
+
+The candidate now has one immutable 47-migration preparation manifest, a
+count-only/read-only Production inspector and a protected restart-safe
+workflow. The workflow binds exact main and all required exact-main checks,
+accepts only a successful migration prefix, holds ENABLE outside the Prisma
+tree, applies only the reviewed suffix, restores ENABLE even on failure, then
+requires ENABLE to be the only pending migration. It preserves the public
+table's RLS-off predecessor grants, confirms the private companion remains
+policyless FORCE, runs the global grant audit and retains sanitized evidence.
+Git-triggered Vercel deployment is already disabled, so the converted runtime
+can be promoted only after this preparation postflight.
+
+Nine focused manifest/inspector/workflow checks pass. The complete PostgreSQL
+16 migration-chain proof also invokes the same inspector immediately before
+the first preparation and immediately before ENABLE. It reads exactly `ready`
+and `prepared`, respectively, and the complete 398-migration behavior proof
+passes afterward.
+
+This is prepared source only. No Production migration, deployment, grant or
+RLS state changed. Merge review, exact-head CI and a separately authorized
+preparation dispatch remain required.
+
+Current running tally after Entry 576 remains verified fixed/reduced 1106,
+verified stale/false-positive/current 579, deferred product/design/ops/legal
+86, approximate raw allegations left from current max #1126: 0. This entry
+closes release machinery rather than a new canonical product finding.

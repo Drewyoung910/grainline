@@ -11,9 +11,12 @@ import GuildBadge from "@/components/GuildBadge";
 import type { GuildLevelValue } from "@/components/GuildBadge";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicSellerPath } from "@/lib/publicPaths";
-import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import {
+  sellerPublicMetroCount,
+  sellerPublicMetroMakers,
+  sellerPublicMetroStaticSlugs,
+  sellerPublicNearbyMetros,
+} from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -21,17 +24,8 @@ const BASE_URL = "https://thegrainline.com";
 // generateStaticParams — only metros with at least one active seller
 // ---------------------------------------------------------------------------
 export async function generateStaticParams() {
-  const metros = await prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { sellerProfiles: { some: activeSellerProfileWhere() } },
-        { sellerCityProfiles: { some: activeSellerProfileWhere() } },
-      ],
-    },
-    select: { slug: true },
-  });
-  return metros.map((m) => ({ metroSlug: m.slug }));
+  const metros = await sellerPublicMetroStaticSlugs();
+  return metros.map(({ slug }) => ({ metroSlug: slug }));
 }
 
 // ---------------------------------------------------------------------------
@@ -80,8 +74,6 @@ export default async function MakersMetroPage({
       latitude: true,
       longitude: true,
       parentMetroId: true,
-      parentMetro: { select: { id: true, slug: true, name: true } },
-      childMetros: { select: { id: true, slug: true, name: true } },
     },
   });
   if (!metro) return notFound();
@@ -94,68 +86,11 @@ export default async function MakersMetroPage({
     const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-  const blockedSellerWhere = blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {};
-
-  const sellerWhere = activeSellerProfileWhere({
-    ...blockedSellerWhere,
-    listings: { some: publicListingWhere() },
-    ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-  });
-  const visibleSellerWhere = activeSellerProfileWhere(blockedSellerWhere);
-
-  const sellers = await prisma.sellerProfile.findMany({
-    where: sellerWhere,
-    orderBy: [{ followers: { _count: "desc" } }, { id: "asc" }],
-    take: 24,
-    select: {
-      id: true,
-      displayName: true,
-      tagline: true,
-      city: true,
-      state: true,
-      avatarImageUrl: true,
-      bannerImageUrl: true,
-      guildLevel: true,
-      isVerifiedMaker: true,
-      ownerImageUrl: true,
-      listings: {
-        where: publicListingWhere(),
-        take: 1,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
-      },
-      _count: {
-        select: {
-          listings: { where: publicListingWhere() },
-          followers: true,
-        },
-      },
-    },
-  });
-
-  const sellerCount = await prisma.sellerProfile.count({ where: sellerWhere });
-
-  // Nearby metros with content
-  const nearbyRaw = isMajorMetro
-    ? metro.childMetros
-    : [metro.parentMetro, ...metro.childMetros].filter(Boolean) as { id: string; slug: string; name: string }[];
-
-  const nearbyIds = nearbyRaw.map((m) => m.id);
-  const nearbyWithContent = nearbyIds.length > 0
-    ? await prisma.metro.findMany({
-        where: {
-          id: { in: nearbyIds },
-          isActive: true,
-          OR: [
-            { sellerProfiles: { some: visibleSellerWhere } },
-            { sellerCityProfiles: { some: visibleSellerWhere } },
-          ],
-        },
-        select: { id: true, slug: true, name: true },
-        orderBy: [{ name: "asc" }, { slug: "asc" }],
-      })
-    : [];
+  const [sellers, sellerCount, nearbyWithContent] = await Promise.all([
+    sellerPublicMetroMakers(meDbId, metro.id, isMajorMetro, 24),
+    sellerPublicMetroCount(meDbId, metro.id, isMajorMetro, true),
+    sellerPublicNearbyMetros(meDbId, metro.id),
+  ]);
 
   // JSON-LD — LocalBusiness collection
   const localBusinessLd = {
@@ -230,8 +165,8 @@ export default async function MakersMetroPage({
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {sellers.map((seller) => {
             const avatar = seller.avatarImageUrl ?? seller.ownerImageUrl;
-            const coverPhoto = seller.bannerImageUrl ?? seller.listings[0]?.photos[0]?.url;
-            const activeCount = seller._count.listings;
+            const coverPhoto = seller.bannerImageUrl ?? seller.coverImageUrl;
+            const activeCount = seller.activeListingCount;
             return (
               <li key={seller.id} className="card-listing">
                 {/* Cover photo from latest listing */}

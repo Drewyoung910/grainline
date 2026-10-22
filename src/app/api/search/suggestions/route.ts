@@ -14,9 +14,9 @@ import {
   normalizeSearchSuggestionQuery,
 } from "@/lib/searchSuggestionState";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
+import { sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
 
 async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[]) {
   return prisma.$transaction(async (tx) => {
@@ -27,12 +27,14 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
       ? tx.$queryRaw<Array<{ title: string; sim: number }>>`
           SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND sp."stripeAccountSupported" = true
-            AND sp."ownerAccountActive" = true
+            AND EXISTS (
+              SELECT 1
+                FROM public.grainline_seller_public_follower_listing_target(
+                  l.id,
+                  l."sellerId"
+                )
+            )
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
@@ -44,12 +46,14 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
       : tx.$queryRaw<Array<{ title: string; sim: number }>>`
           SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
           FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND sp."stripeAccountSupported" = true
-            AND sp."ownerAccountActive" = true
+            AND EXISTS (
+              SELECT 1
+                FROM public.grainline_seller_public_follower_listing_target(
+                  l.id,
+                  l."sellerId"
+                )
+            )
             AND l.title % ${q}
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
@@ -75,20 +79,17 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
     return tx.$queryRaw<Array<{ slug: string; title: string }>>(Prisma.sql`
       SELECT bp.slug, bp.title
       FROM "BlogPost" bp
-      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
         AND bp."publishedAt" <= NOW()
         AND bp."authorAccountActive" = true
-        AND (
-          bp."sellerProfileId" IS NULL
-          OR (
-            sp."chargesEnabled" = true
-            AND sp."vacationMode" = false
-            AND sp."stripeAccountSupported" = true
-            AND sp."ownerAccountActive" = true
+        AND CASE
+          WHEN bp."sellerProfileId" IS NULL THEN true
+          ELSE EXISTS (
+            SELECT 1
+              FROM public.grainline_seller_public_blog_author(bp."sellerProfileId")
           )
-        )
+        END
         ${blockedAuthorPredicate}
         ${blockedSellerPredicate}
         AND bp.title % ${q}
@@ -142,21 +143,7 @@ export async function GET(req: NextRequest) {
     }),
 
     // Seller name matches
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        OR: [
-          { displayName: { contains: q, mode: "insensitive" } },
-          ...(normalizedDisplayNameQuery
-            ? [{ displayNameNormalized: { contains: normalizedDisplayNameQuery, mode: "insensitive" as const } }]
-            : []),
-        ],
-        listings: { some: publicListingWhere() },
-        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      }),
-      select: { displayName: true },
-      take: 2,
-      orderBy: [{ displayNameNormalized: "asc" }, { id: "asc" }],
-    }),
+    sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, true, 2),
 
     // Fuzzy title suggestions via pg_trgm. Keep threshold conservative to avoid
     // surfacing weak visual/homograph matches as marketplace suggestions.

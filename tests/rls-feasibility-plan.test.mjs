@@ -512,8 +512,9 @@ describe("RLS feasibility plan guardrails", () => {
       assert.match(doc, /Webhook\/cron\/admin\s+low-stock/);
       assert.match(doc, /service\/write-path/);
     }
-    assert.match(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
-    assert.match(stockRoute, /seller: \{ select: \{ id: true, userId: true \} \}/);
+    assert.match(stockRoute, /const seller = await sellerOwnerCore\(me\.id\)/);
+    assert.match(stockRoute, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
+    assert.doesNotMatch(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
     assert.match(messageReadRoute, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
     assert.match(stockRoute, /findRecentOwnerLowStockNotification\(/);
     assert.match(ownerAccess, /export async function markOwnerMessageNotificationsRead/);
@@ -970,6 +971,7 @@ describe("RLS feasibility plan guardrails", () => {
   it("centralizes Cart and CartItem owner reads and writes for the parent-join RLS prototype", () => {
     const ownerAccess = source("src/lib/cartOwnerAccess.ts");
     const sellerCheckoutAccess = source("src/lib/sellerCheckoutPrivateAccess.ts");
+    const sellerTransactionAccess = source("src/lib/sellerTransactionAccess.ts");
     const cartRoute = source("src/app/api/cart/route.ts");
     const cartAdd = source("src/app/api/cart/add/route.ts");
     const cartUpdate = source("src/app/api/cart/update/route.ts");
@@ -997,10 +999,11 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
     assert.match(ownerAccess, /export async function ownerCartExportRows/);
-    assert.match(ownerAccess, /include: sellerCartCheckoutInclude/);
-    assert.match(ownerAccess, /seller: \{ select: listingSellerOrderStateSelect \}/);
-    assert.match(sellerCheckoutAccess, /seller: \{ select: cartCheckoutSellerSelect \}/);
-    assert.match(sellerCheckoutAccess, /export const sellerCartCheckoutInclude/);
+    assert.match(ownerAccess, /withSellerActorCartTransaction/);
+    assert.match(ownerAccess, /attachCartSellerStates/);
+    assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
+    assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
+    assert.doesNotMatch(ownerAccess, /seller:\s*\{/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);
     assert.match(ownerAccess, /db\.cart\.findFirst/);
     assert.match(ownerAccess, /db\.cart\.upsert/);
@@ -1029,16 +1032,12 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(shippingQuote, /ownerCartForShippingQuoteById\(me\.id, body\.cartId, body\.sellerId\)/);
     assert.match(shippingQuote, /ownerCartForShippingQuote\(me\.id, body\.sellerId\)/);
     assert.match(accountExport, /ownerCartExportRows\(user\.id\)/);
-    assert.match(sellerCheckoutAccess, /export const listingSellerOrderStateSelect/);
-    assert.match(sellerCheckoutAccess, /stripeAccountSupported: true/);
+    assert.match(sellerTransactionAccess, /export function sellerListingTransactionSource/);
+    assert.match(sellerTransactionAccess, /stripeAccountSupported: boolean/);
+    assert.match(sellerTransactionAccess, /grainline_seller_actor_listing_transaction_state/);
     assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
-    assert.match(sellerCheckoutAccess, /export const cartCheckoutSellerSelect/);
-    const orderStateSelect = sellerCheckoutAccess.slice(
-      sellerCheckoutAccess.indexOf("export const listingSellerOrderStateSelect"),
-      sellerCheckoutAccess.indexOf("export const cartCheckoutSellerSelect"),
-    );
     assert.doesNotMatch(
-      orderStateSelect,
+      sellerTransactionAccess,
       /shipFrom|manualStripeReconciliation|guildMasterReviewNotes/,
     );
 
@@ -1098,15 +1097,17 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function upsertOwnerSavedBlogPost/);
     assert.match(ownerAccess, /export async function deleteOwnerSavedBlogPost/);
     assert.match(ownerAccess, /export async function ownerSavedBlogPostIdRows/);
-    assert.match(ownerAccess, /export async function countVisibleOwnerSavedBlogPosts/);
-    assert.match(ownerAccess, /export async function ownerSavedBlogPostPageRows/);
+    assert.match(ownerAccess, /export function countVisibleOwnerSavedBlogPosts/);
+    assert.match(ownerAccess, /export function ownerSavedBlogPostPageRows/);
     assert.match(ownerAccess, /export async function ownerSavedBlogPostExportRows/);
     assert.match(ownerAccess, /db: SavedBlogPostOwnerAccessClient = prisma/);
     assert.match(ownerAccess, /db\.savedBlogPost\.findUnique/);
     assert.match(ownerAccess, /db\.savedBlogPost\.upsert/);
     assert.match(ownerAccess, /db\.savedBlogPost\.deleteMany/);
     assert.match(ownerAccess, /db\.savedBlogPost\.findMany/);
-    assert.match(ownerAccess, /db\.savedBlogPost\.count/);
+    assert.match(ownerAccess, /grainline_seller_owner_saved_blog_post_count/);
+    assert.match(ownerAccess, /grainline_seller_owner_saved_blog_post_page/);
+    assert.match(ownerAccess, /withDbUserContext\(userId/);
     assert.match(ownerAccess, /ownerSavedBlogPostWhere\(userId/);
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
     assert.doesNotMatch(ownerAccess, /prisma\.savedBlogPost\.(?:count|findMany|findUnique|upsert|deleteMany)/);
@@ -1120,7 +1121,7 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(saveRoute, /deleteOwnerSavedBlogPost\(me\.id, post\.id\)/);
     assert.match(accountFeed, /ownerSavedBlogPostIdRows\(me\.id, blogPostIds\)/);
     assert.match(accountExport, /ownerSavedBlogPostExportRows\(user\.id\)/);
-    assert.match(accountSaved, /countVisibleOwnerSavedBlogPosts\(me\.id, savedPostBlogWhere\)/);
+    assert.match(accountSaved, /countVisibleOwnerSavedBlogPosts\(me\.id\)/);
     assert.match(accountSaved, /ownerSavedBlogPostPageRows\(me\.id, \{/);
   });
 

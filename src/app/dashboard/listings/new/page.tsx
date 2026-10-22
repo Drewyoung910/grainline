@@ -39,6 +39,10 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
+import {
+  sellerOwnerListingMetroSource,
+  sellerOwnerListingReview,
+} from "@/lib/sellerProfileOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -303,10 +307,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   // Assign metro geography from seller's location — non-fatal (runs for both draft and publish)
   try {
-    const sellerLocation = await prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: { lat: true, lng: true },
-    });
+    const sellerLocation = await sellerOwnerListingMetroSource(seller.userId, seller.id);
     if (sellerLocation?.lat != null && sellerLocation?.lng != null) {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(sellerLocation.lat, sellerLocation.lng);
@@ -355,15 +356,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   // AI listing review + first-listing hold
   try {
-    const sellerInfo = await prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: {
-        displayName: true,
-        _count: { select: { listings: true } }
-      }
-    })
+    const sellerInfo = await sellerOwnerListingReview(seller.userId);
+    if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
+      throw new Error("Seller listing-review authority returned a different seller");
+    }
 
-    const listingCount = sellerInfo?._count.listings ?? 0
+    const listingCount = sellerInfo?.totalListingCount ?? 0
 
     const { reviewListingWithAI } = await import('@/lib/ai-review')
 
@@ -376,7 +374,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       currency: created.currency,
       category: created.category ?? null,
       tags: created.tags,
-      sellerName: sellerInfo?.displayName ?? 'Unknown',
+      sellerName: sellerInfo?.displayName ?? seller.displayName ?? 'Unknown',
       listingCount,
       imageUrls,
     }).catch((): AIReviewResult => ({
@@ -495,12 +493,8 @@ export default async function NewListingPage({
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/listings/new");
 
   const { seller } = await ensureSeller();
-  const sellerData = await prisma.sellerProfile.findUnique({
-    where: { id: seller.id },
-    select: { chargesEnabled: true, vacationMode: true },
-  });
-  const chargesEnabled = sellerData?.chargesEnabled ?? false;
-  const vacationMode = sellerData?.vacationMode ?? false;
+  const chargesEnabled = seller.chargesEnabled;
+  const vacationMode = seller.vacationMode;
   const publishBlockedMessage = !chargesEnabled
     ? PUBLISH_REQUIRES_STRIPE_MESSAGE
     : vacationMode

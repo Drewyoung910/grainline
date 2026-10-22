@@ -6,7 +6,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { publicListingDetailWhere } from "@/lib/listingVisibility";
+import { sellerPublicFavoriteTarget } from "@/lib/sellerProfilePublicAccess";
 import { publicListingPath } from "@/lib/publicPaths";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
@@ -68,19 +68,16 @@ export async function POST(req: Request) {
   }
   if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const listing = await prisma.listing.findFirst({
-    where: publicListingDetailWhere({ id: listingId }),
-    select: { title: true, seller: { select: { userId: true } } },
-  });
+  const listing = await sellerPublicFavoriteTarget(listingId);
   if (!listing) return privateJson({ error: "Listing not found." }, { status: HTTP_STATUS.NOT_FOUND });
-  if (listing.seller.userId === me.id) {
+  if (listing.ownerUserId === me.id) {
     return privateJson({ error: "Cannot favorite your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
   }
   const blockExists = await prisma.block.findFirst({
     where: {
       OR: [
-        { blockerId: me.id, blockedId: listing.seller.userId },
-        { blockerId: listing.seller.userId, blockedId: me.id },
+        { blockerId: me.id, blockedId: listing.ownerUserId },
+        { blockerId: listing.ownerUserId, blockedId: me.id },
       ],
     },
     select: { id: true },
@@ -103,7 +100,7 @@ export async function POST(req: Request) {
 
   // Notify listing owner (non-fatal; createNotification handles exact duplicate suppression)
   try {
-    const ownerUserId = listing.seller.userId;
+    const ownerUserId = listing.ownerUserId;
     if (ownerUserId && ownerUserId !== me.id) {
       const favName = me.name ?? "Someone";
       await createNotification({
@@ -122,7 +119,7 @@ export async function POST(req: Request) {
     logServerError(e, {
       source: "favorite_notification",
       level: "warning",
-      extra: { listingId, dbUserId: me.id, sellerUserId: listing.seller.userId },
+      extra: { listingId, dbUserId: me.id, sellerUserId: listing.ownerUserId },
     });
   }
 

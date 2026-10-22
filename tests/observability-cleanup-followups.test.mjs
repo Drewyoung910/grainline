@@ -18,7 +18,8 @@ describe("observability cleanup follow-ups", () => {
       assert.match(text, /publicListingWhere\(\{\s*id,/);
       assert.match(text, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(text, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(text, /viewerUserId \? \{ seller: \{ userId: \{ not: viewerUserId \} \} \} : \{\}/);
+      assert.match(text, /sellerOwnerCore\(viewerUserId\)/);
+      assert.match(text, /viewerSellerProfileId \? \{ sellerId: \{ not: viewerSellerProfileId \} \} : \{\}/);
       assert.doesNotMatch(text, /seller: \{ user: \{ clerkId:/);
       assert.match(text, /listing\.updateMany/);
       assert.doesNotMatch(text, /listing\.update\(\{\s*where: \{ id \}/);
@@ -47,8 +48,11 @@ describe("observability cleanup follow-ups", () => {
         { id: "seller_1" },
       ],
     });
-    assert.match(source("src/app/api/follow/[sellerId]/route.ts"), /visibleSellerProfileWhere\(\{ id: sellerId \}\)/);
-    assert.match(source("src/app/account/following/page.tsx"), /sellerProfile: visibleSellerProfileWhere\(\)/);
+    assert.match(source("src/app/api/follow/[sellerId]/route.ts"), /sellerPublicFollowState\(sellerId\)/);
+    const followingPage = source("src/app/account/following/page.tsx");
+    assert.match(followingPage, /sellerOwnerFollowingCount\(me\.id\)/);
+    assert.match(followingPage, /sellerOwnerFollowingPage\([\s\S]*me\.id,/);
+    assert.doesNotMatch(followingPage, /visibleSellerProfileWhere|activeSellerProfileWhere/);
   });
 
   it("keeps staff order totals on the gift-wrap-aware helper", () => {
@@ -68,9 +72,9 @@ describe("observability cleanup follow-ups", () => {
     assert.match(sellerPage, /getSellerRatingMap\(\[seller\.id\]\)/);
     assert.match(viewRoute, /profileViewRatelimit/);
     assert.match(viewRoute, /hasTrackingCookie/);
-    assert.match(viewRoute, /viewer\?\.id === seller\.userId/);
+    assert.match(viewRoute, /viewer\?\.id === seller\.ownerUserId/);
     assert.match(viewRoute, /isLikelyBot/);
-    assert.match(viewRoute, /visibleSellerProfileWhere\(\{ id \}\)/);
+    assert.match(viewRoute, /sellerPublicViewTarget\(id\)/);
   });
 
   it("records account export generation durably without exported payload data", () => {

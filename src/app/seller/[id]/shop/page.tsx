@@ -18,9 +18,9 @@ import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { sellerPublicProfile } from "@/lib/sellerProfilePublicAccess";
 import { normalizeTag } from "@/lib/tags";
 
 const PAGE_SIZE = 20;
@@ -44,43 +44,10 @@ type ShopSearch = {
   tag?: string;
 };
 
-const getSellerProfileForShopPage = cache(async (sellerId: string) =>
-  prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: {
-      id: true,
-      userId: true,
-      displayName: true,
-      avatarImageUrl: true,
-      guildLevel: true,
-      city: true,
-      state: true,
-      acceptingNewOrders: true,
-      chargesEnabled: true,
-      stripeAccountSupported: true,
-      vacationMode: true,
-      vacationReturnDate: true,
-      vacationMessage: true,
-      isFoundingMaker: true,
-      foundingMakerNumber: true,
-      ownerAccountActive: true,
-      ownerImageUrl: true,
-    },
-  })
+const getSellerProfileForShopPage = cache(
+  (viewerUserId: string | null, sellerId: string) =>
+    sellerPublicProfile(viewerUserId, sellerId),
 );
-
-type ShopSellerProfile = NonNullable<Awaited<ReturnType<typeof getSellerProfileForShopPage>>>;
-
-function sellerShopIsPubliclyVisible(
-  seller: Awaited<ReturnType<typeof getSellerProfileForShopPage>>,
-): seller is ShopSellerProfile {
-  return Boolean(
-    seller &&
-      seller.chargesEnabled &&
-      seller.stripeAccountSupported &&
-      seller.ownerAccountActive,
-  );
-}
 
 export async function generateMetadata({
   params,
@@ -89,8 +56,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await getSellerProfileForShopPage(sellerId);
-  if (!sellerShopIsPubliclyVisible(seller)) return {};
+  const seller = await getSellerProfileForShopPage(null, sellerId);
+  if (!seller) return {};
   const name = seller.displayName ?? "Maker";
   return {
     title: { absolute: `${name}'s Shop — Grainline` },
@@ -121,29 +88,18 @@ export default async function SellerShopPage({
   const statusRaw = sp.status ?? "";
   const tag = normalizeTag(sp.tag);
 
-  const [seller, authResult] = await Promise.all([
-    getSellerProfileForShopPage(sellerId),
-    auth(),
-  ]);
-
-  if (!seller) return notFound();
-  const sellerShopHref = publicSellerShopPath(seller.id, seller.displayName);
-
   // Get current viewer for favorites
-  const { userId } = authResult;
+  const { userId } = await auth();
   let meId: string | null = null;
   if (userId) {
     const me = await userIdByClerkId(prisma, userId);
     meId = me?.id ?? null;
   }
 
-  const isOwner = !!meId && seller.userId === meId;
-  if (!seller.ownerAccountActive) {
-    return notFound();
-  }
-  if (!isOwner && !sellerShopIsPubliclyVisible(seller)) return notFound();
-  const blockedUserIds = await getBlockedUserIdsFor(meId);
-  if (!isOwner && blockedUserIds.has(seller.userId)) return notFound();
+  const seller = await getSellerProfileForShopPage(meId, sellerId);
+  if (!seller) return notFound();
+  const sellerShopHref = publicSellerShopPath(seller.id, seller.displayName);
+  const isOwner = seller.viewerIsOwner;
 
   const validStatuses = STATUS_TABS.map((t) => t.value).filter(Boolean);
   const statusFilter = isOwner && validStatuses.includes(statusRaw as typeof validStatuses[number])
@@ -318,7 +274,7 @@ export default async function SellerShopPage({
               />
             )}
           </div>
-          {meId !== seller.userId && (
+          {!isOwner && (
             <div className="mt-1">
               <FollowButton
                 sellerProfileId={seller.id}

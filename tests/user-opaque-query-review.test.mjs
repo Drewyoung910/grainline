@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { auditUserIndirectAccess } from "../scripts/audit-user-indirect-access.mjs";
 
-const REVIEWED_FACTORY_CALL = /^(?:publicListingWhere|publicListingDetailWhere|activeSellerProfileWhere|visibleSellerProfileWhere|openCommissionWhere|openCommissionMutationWhere|publicBlogPostWhere|ownerCartWhere|ownerCartItemWhere|ownerSavedBlogPostWhere|savedListingFavoriteWhere|visibleBlogCommentWhere|publicCommissionInterestWhere)\(/;
+const REVIEWED_FACTORY_CALL = /^(?:publicListingWhere|publicListingDetailWhere|activeSellerProfileWhere|visibleSellerProfileWhere|openCommissionWhere|openCommissionMutationWhere|publicBlogPostWhere|ownerCartWhere|ownerCartItemWhere|ownerSavedBlogPostWhere|visibleBlogCommentWhere)\(/;
 
 function canonicalShape(shape) {
   const query = shape.query ?? shape.definition ?? shape;
@@ -35,21 +35,21 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   const reviewedFactories = report.opaqueShapes.filter((shape) => REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
   const reviewedResidual = report.opaqueShapes.filter((shape) => !REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
 
-  assert.equal(report.opaqueShapes.length, 218);
-  assert.equal(reviewedFactories.length, 184);
-  assert.equal(reviewedResidual.length, 34);
-  assert.equal(report.opaqueFactoryShapes.length, 12);
+  assert.equal(report.opaqueShapes.length, 143);
+  assert.equal(reviewedFactories.length, 107);
+  assert.equal(reviewedResidual.length, 36);
+  assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 152,
-    sha256: "a2d6479ba3a3502e7c59181008c4a65aaf577d67702a7c9bf402ef7543fe4662",
+    unique: 87,
+    sha256: "775b18e232e0934df642616b814ce99ac02a1802d0629ae8daf26fc587c45156",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 28,
-    sha256: "bf2c34b814e8e982ba84eb0da7b7d7c831a4b9318d1fbdb64e993520edf7ba20",
+    unique: 30,
+    sha256: "da175b47d652166d69ea946d3e87487c495dcbf9a6f9228786873b9c20ef8d39",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
-    unique: 12,
-    sha256: "8be152475784c708b5045963749df829459dc7da639b6bcaec5bfeccc6ee64a2",
+    unique: 11,
+    sha256: "ebc70a765e572ac13d5ab93e07298cd292a18de2498f297fec6e1bbc8195402b",
   });
 });
 
@@ -58,18 +58,25 @@ test("reviewed shared filters use scalar ownership and lifecycle snapshots inste
   const seller = readFileSync("src/lib/sellerVisibility.ts", "utf8");
   const blog = readFileSync("src/lib/blogVisibility.ts", "utf8");
   const commission = readFileSync("src/lib/commissionState.ts", "utf8");
-  const interests = readFileSync("src/lib/commissionInterestCount.ts", "utf8");
   const cart = readFileSync("src/lib/cartOwnerAccess.ts", "utf8");
   const savedBlog = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
-  const savedListing = readFileSync("src/lib/savedListingVisibility.ts", "utf8");
+  const sellerPublicMirrors = readFileSync(
+    "prisma/migrations/20261020235989_prepare_seller_profile_public_visibility_mirrors/migration.sql",
+    "utf8",
+  );
 
-  for (const source of [listing, seller, blog, interests, savedListing]) {
-    assert.match(source, /ownerAccountActive: true/);
+  for (const source of [listing, seller, blog]) {
     assert.doesNotMatch(source, /\buser:\s*\{/);
   }
+  assert.match(listing, /sellerPubliclyOrderable: true/);
+  assert.match(seller, /ownerAccountActive: true/);
+  assert.match(
+    sellerPublicMirrors,
+    /"sellerPubliclyOrderable" = \([\s\S]*seller\."chargesEnabled" = true[\s\S]*seller\."stripeAccountSupported" = true[\s\S]*seller\."vacationMode" = false[\s\S]*seller\."ownerAccountActive" = true/,
+  );
   assert.match(blog, /authorAccountActive: true/);
+  assert.match(blog, /authorSellerPubliclyOrderable: true/);
   assert.match(commission, /buyerAccountActive: true/);
   assert.match(cart, /\{ cart: \{ userId \} \}/);
   assert.match(savedBlog, /return \{ AND: \[\{ userId \}, where\] \}/);
-  assert.match(savedListing, /return \{[\s\S]*userId,[\s\S]*listing:/);
 });

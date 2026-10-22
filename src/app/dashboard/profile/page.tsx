@@ -29,12 +29,11 @@ import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/se
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { withSerializableRetry } from "@/lib/transactionRetry";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import {
   clearSellerOwnerAvatar,
-  duplicateSellerOwnerDisplayName,
-  sellerOwnerFeaturedListingIds,
   sellerOwnerProfileEditorState,
-  updateSellerOwnerFeaturedListingIds,
+  toggleSellerOwnerFeaturedListing,
   updateSellerOwnerProfile,
 } from "@/lib/sellerOwnerPrivateAccess";
 
@@ -181,17 +180,10 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
       : null;
 
-  // Soft uniqueness check — warn (don't block) if another seller has the same name
-  const duplicate = await duplicateSellerOwnerDisplayName({
-    sellerProfileId: seller.id,
-    displayName,
-    displayNameNormalized,
-  });
-
-  await prisma.$transaction(async (tx) => {
-    await updateSellerOwnerProfile(tx, {
+  let duplicateDisplayName = false;
+  await withDbUserContext(seller.userId, async (tx) => {
+    const result = await updateSellerOwnerProfile(tx, {
       sellerProfileId: seller.id,
-      userId: seller.userId,
       displayName,
       displayNameNormalized,
       tagline,
@@ -217,6 +209,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       offersGiftWrapping,
       giftWrappingPriceCents,
     });
+    duplicateDisplayName = result.duplicateDisplayName;
     await syncSellerProfileDirectUploadReferences({
       client: tx,
       userId: seller.userId,
@@ -231,7 +224,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   revalidateFeaturedMakerCaches();
   revalidatePath("/");
 
-  if (duplicate) {
+  if (duplicateDisplayName) {
     redirect("/dashboard/profile?warning=duplicate-name");
   }
   return { ok: true };
@@ -298,10 +291,9 @@ async function removeSellerAvatar() {
   const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
   if (!success) return;
   const { seller } = await ensureSeller();
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(seller.userId, async (tx) => {
     await clearSellerOwnerAvatar(tx, {
       sellerProfileId: seller.id,
-      userId: seller.userId,
     });
     await syncSellerProfileDirectUploadReferences({
       client: tx,
@@ -323,30 +315,10 @@ async function toggleFeaturedListing(listingId: string) {
   if (!success) return;
   const { seller } = await ensureSeller();
 
-  await withSerializableRetry(() => prisma.$transaction(async (tx) => {
-    // Verify seller owns the listing before featuring it.
-    const owned = await tx.listing.count({ where: { id: listingId, sellerId: seller.id } });
-    if (owned === 0) return;
-
-    const freshSeller = await sellerOwnerFeaturedListingIds(tx, {
-      sellerProfileId: seller.id,
-      userId: seller.userId,
-    });
-    const current = freshSeller?.featuredListingIds ?? [];
-    let next: string[];
-    if (current.includes(listingId)) {
-      next = current.filter((id) => id !== listingId);
-    } else {
-      if (current.length >= SELLER_FEATURED_LISTING_LIMIT) return;
-      next = [...current, listingId];
-    }
-
-    await updateSellerOwnerFeaturedListingIds(tx, {
-      sellerProfileId: seller.id,
-      userId: seller.userId,
-      featuredListingIds: next,
-    });
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+  await toggleSellerOwnerFeaturedListing(seller.userId, {
+    sellerProfileId: seller.id,
+    listingId,
+  });
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);

@@ -35,8 +35,8 @@ describe("API read route rate-limit sweep", () => {
       ["src/app/api/cart/route.ts", "safeRateLimit(cartReadRatelimit, userId)", "const cart = await ownerCartForDisplay"],
       ["src/app/api/messages/[id]/list/route.ts", "safeRateLimit(messageListRatelimit, userId)", "getActorConversation(me.id, id)"],
       ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "await ownerNotificationBellData"],
-      ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
-      ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
+      ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "sellerOwnerCore(me.id)"],
+      ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "sellerOwnerCore(me.id)"],
       ["src/app/api/seller/broadcast/route.ts", "safeRateLimit(\n    sellerBroadcastReadRatelimit,\n    userId,\n  )", "userClerkGate(prisma, userId)"],
     ]) {
       const file = source(path);
@@ -80,7 +80,7 @@ describe("API read route rate-limit sweep", () => {
     for (const [path, dbNeedle] of [
       ["src/app/api/blog/[slug]/comments/route.ts", "prisma.blogPost.findFirst"],
       ["src/app/api/commission/[id]/route.ts", "prisma.commissionRequest.findUnique"],
-      ["src/app/api/follow/[sellerId]/route.ts", "prisma.sellerProfile.findFirst"],
+      ["src/app/api/follow/[sellerId]/route.ts", "sellerPublicFollowState(sellerId)"],
       ["src/app/api/search/popular-tags/route.ts", "getPopularListingTags(8)"],
       ["src/app/api/search/popular-blog-tags/route.ts", "getPopularBlogTags(8)"],
     ]) {

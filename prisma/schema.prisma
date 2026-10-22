@@ -297,8 +297,32 @@ model SellerProfilePrivate {
   metricWarningSentAt         DateTime?
   listingsBelowThresholdSince DateTime?
 
+  // Versioned, explicit consent to publish the exact SellerProfile point.
+  // Public-map membership alone continues to authorize approximate output.
+  publicMapExactConsentAt             DateTime?
+  publicMapExactConsentCoordinateHash String?   @db.VarChar(64)
+  publicMapExactConsentVersion        Int?
+
   profileViews Int      @default(0)
   updatedAt    DateTime @updatedAt
+}
+
+// Append-only legal/privacy evidence for exact public map consent. It has no
+// foreign keys so withdrawal evidence survives account deletion; ordinary
+// runtime and staff roles have no direct table authority.
+model SellerExactMapConsentEvent {
+  id                 String   @id @db.VarChar(64)
+  sellerProfileId    String   @db.VarChar(191)
+  actorUserId        String?  @db.VarChar(191)
+  eventType          String   @db.VarChar(20)
+  consentTextVersion Int
+  consentTextSha256  String   @db.VarChar(64)
+  coordinateHash     String   @db.VarChar(64)
+  reason             String?  @db.VarChar(40)
+  createdAt          DateTime @default(now())
+
+  @@index([sellerProfileId, createdAt])
+  @@index([actorUserId, createdAt])
 }
 
 model SellerFaq {
@@ -339,6 +363,14 @@ model Listing {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   archivedAt   DateTime?
+
+  // Public SellerProfile projections maintained by database triggers. Public
+  // catalog filters use these bounded mirrors after SellerProfile RLS.
+  sellerPubliclyOrderable     Boolean @default(false)
+  sellerDisplayName           String  @default("") @db.VarChar(100)
+  sellerDisplayNameNormalized String  @default("") @db.VarChar(100)
+  sellerAverageRating         Float   @default(0)
+  sellerReviewCount           Int     @default(0)
 
   // Processing time
   processingTimeMinDays Int?
@@ -424,6 +456,8 @@ model Listing {
   @@index([clickCount])
   @@index([status, createdAt, id])
   @@index([status, isPrivate, qualityScore])
+  @@index([sellerPubliclyOrderable, status, isPrivate, archivedAt])
+  @@index([sellerAverageRating, sellerReviewCount])
   @@index([priceCents])
   @@index([qualityScore])
   @@index([sellerId, updatedAt])
@@ -1363,35 +1397,38 @@ enum BlogAuthorType {
 }
 
 model BlogPost {
-  id                    String          @id @default(cuid())
-  slug                  String          @unique @db.VarChar(255)
-  title                 String          @db.VarChar(200)
-  excerpt               String?         @db.VarChar(500)
-  body                  String          @db.VarChar(50000)
-  materialDisclosure    String?         @db.VarChar(500)
-  coverImageUrl         String?         @db.VarChar(2048)
-  videoUrl              String?         @db.VarChar(2048)
-  authorId              String?
-  author                User?           @relation("BlogPostsAuthored", fields: [authorId], references: [id], onDelete: SetNull)
-  authorAccountActive   Boolean         @default(false)
-  authorName            String?         @db.VarChar(100)
-  authorImageUrl        String?         @db.VarChar(2048)
-  authorSellerName      String?         @db.VarChar(100)
-  authorSellerAvatarUrl String?         @db.VarChar(2048)
-  authorType            BlogAuthorType
-  sellerProfileId       String?
-  sellerProfile         SellerProfile?  @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
-  type                  BlogPostType    @default(STANDARD)
-  status                BlogPostStatus  @default(DRAFT)
-  featuredListingIds    String[]        @default([])
-  tags                  String[]        @default([])
-  metaDescription       String?         @db.VarChar(320)
-  readingTimeMinutes    Int?
-  publishedAt           DateTime?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  comments              BlogComment[]
-  savedBy               SavedBlogPost[]
+  id                            String          @id @default(cuid())
+  slug                          String          @unique @db.VarChar(255)
+  title                         String          @db.VarChar(200)
+  excerpt                       String?         @db.VarChar(500)
+  body                          String          @db.VarChar(50000)
+  materialDisclosure            String?         @db.VarChar(500)
+  coverImageUrl                 String?         @db.VarChar(2048)
+  videoUrl                      String?         @db.VarChar(2048)
+  authorId                      String?
+  author                        User?           @relation("BlogPostsAuthored", fields: [authorId], references: [id], onDelete: SetNull)
+  authorAccountActive           Boolean         @default(false)
+  authorName                    String?         @db.VarChar(100)
+  authorImageUrl                String?         @db.VarChar(2048)
+  authorSellerName              String?         @db.VarChar(100)
+  authorSellerAvatarUrl         String?         @db.VarChar(2048)
+  authorType                    BlogAuthorType
+  sellerProfileId               String?
+  sellerProfile                 SellerProfile?  @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
+  // Bound from sellerProfileId by database triggers. Staff-authored posts with
+  // no seller remain public through the nullable relation predicate.
+  authorSellerPubliclyOrderable Boolean         @default(false)
+  type                          BlogPostType    @default(STANDARD)
+  status                        BlogPostStatus  @default(DRAFT)
+  featuredListingIds            String[]        @default([])
+  tags                          String[]        @default([])
+  metaDescription               String?         @db.VarChar(320)
+  readingTimeMinutes            Int?
+  publishedAt                   DateTime?
+  createdAt                     DateTime        @default(now())
+  updatedAt                     DateTime        @updatedAt
+  comments                      BlogComment[]
+  savedBy                       SavedBlogPost[]
 
   @@index([status, publishedAt])
   @@index([authorId])

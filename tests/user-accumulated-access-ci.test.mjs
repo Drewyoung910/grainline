@@ -115,6 +115,22 @@ function accountDeletionSuccessorTestPath(file) {
   return stagedPath;
 }
 
+function accumulatedUserTestPath(file) {
+  const livePath = path.join("tests", file);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "seller-profile-public-candidate",
+    "tests",
+    file,
+  );
+  assert.ok(
+    existsSync(stagedPath),
+    `missing isolated accumulated User test ${file}`,
+  );
+  return stagedPath;
+}
+
 function accountDeletionSuccessorMigrationPath(migration) {
   const livePath = path.join("prisma", "migrations", migration);
   if (existsSync(livePath)) return livePath;
@@ -331,7 +347,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
-    for (const file of heldTests) cpSync(`tests/${file}`, path.join(root, "tests", file));
+    for (const file of heldTests) {
+      cpSync(accumulatedUserTestPath(file), path.join(root, "tests", file));
+    }
     for (const file of accountDeletionSuccessorTests) {
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
     }
@@ -348,6 +366,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       ...sellerProfilePrivateBoundaryPaths,
       postRetirementRepairPath,
       blockedCheckoutRefundWitnessPath,
+      "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
       runtimeProvisionScript,
@@ -361,6 +380,17 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       RUNNER_TEMP: holding,
       GITHUB_ENV: path.join(holding, "github-env"),
     };
+    const sellerPublicTestHolding = path.join(
+      holding,
+      "seller-profile-public-candidate",
+      "tests",
+    );
+    mkdirSync(sellerPublicTestHolding, { recursive: true });
+    cpSync(
+      path.join(root, "tests", "db-grant-inventory.test.mjs"),
+      path.join(sellerPublicTestHolding, "db-grant-inventory.test.mjs"),
+    );
+    rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -381,6 +411,17 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
     mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
+    execFileSync("bash", ["-c", bashBody("Prepare SellerProfile public predecessor schema for historical audit replay")], { cwd: root, env: scriptEnv });
+    execFileSync(
+      path.join(holding, "seller-profile-public-candidate", "with-predecessor-schema.sh"),
+      [
+        "bash",
+        "-c",
+        'test "$(git hash-object prisma/schema.prisma)" = 8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9',
+      ],
+      { cwd: root, env: scriptEnv },
+    );
+    assert.equal(hash("prisma/schema.prisma"), original[trackedPaths.indexOf("prisma/schema.prisma")]);
     execFileSync("bash", ["-c", bashBody("Restore accumulated User access source package")], { cwd: root, env: scriptEnv });
     assert.equal(
       execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(),

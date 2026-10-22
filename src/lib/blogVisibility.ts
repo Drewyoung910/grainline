@@ -1,11 +1,21 @@
 import { BlogPostStatus, Prisma } from "@prisma/client";
 
-const PUBLIC_BLOG_SELLER_PROFILE_STATE = {
-  chargesEnabled: true,
-  stripeAccountSupported: true,
-  vacationMode: false,
-  ownerAccountActive: true,
-} satisfies Prisma.SellerProfileWhereInput;
+type PublicBlogAuthorPresentationSource = Readonly<{
+  authorName: string | null;
+  authorImageUrl: string | null;
+  authorSellerName: string | null;
+  authorSellerAvatarUrl: string | null;
+}>;
+
+export function publicBlogAuthorPresentation(
+  source: PublicBlogAuthorPresentationSource,
+  fallbackName: string,
+) {
+  return Object.freeze({
+    name: source.authorSellerName ?? source.authorName ?? fallbackName,
+    imageUrl: source.authorSellerAvatarUrl ?? source.authorImageUrl ?? null,
+  });
+}
 
 export function publicBlogPostWhere(extra: Prisma.BlogPostWhereInput = {}): Prisma.BlogPostWhereInput {
   return {
@@ -16,9 +26,7 @@ export function publicBlogPostWhere(extra: Prisma.BlogPostWhereInput = {}): Pris
         authorAccountActive: true,
         OR: [
           { sellerProfileId: null },
-          {
-            sellerProfile: PUBLIC_BLOG_SELLER_PROFILE_STATE,
-          },
+          { authorSellerPubliclyOrderable: true },
         ],
       },
       extra,

@@ -34,7 +34,7 @@ export default function PrivacyPage() {
       <div className="mb-10">
         <p className="text-sm text-neutral-500 mb-2">Legal</p>
         <h1 className="font-display text-4xl font-semibold mb-2">Privacy Policy</h1>
-        <p className="text-sm text-neutral-500">Last Updated: April 24, 2026</p>
+        <p className="text-sm text-neutral-500">Last Updated: October 19, 2026</p>
 
         <div className="mt-6 rounded border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-900">
           <strong>DRAFT — Under Attorney Review.</strong> Last reviewed March 30, 2026. This document
@@ -140,10 +140,12 @@ export default function PrivacyPage() {
             We collect approximate location data (city, state, country) derived from your IP address
             for general analytics and to improve location-based features. For map features, Makers
             may optionally provide precise workshop location coordinates. Your precise GPS coordinates
-            are stored securely but only your approximate location (city/region level) is displayed
-            publicly on the Grainline map. You may remove your location at any time through your
-            dashboard settings. We do not track your precise device GPS location without your
-            explicit permission.
+            are stored securely. Grainline displays an approximate point by default. A Maker may
+            separately choose to publish the exact saved pin after reviewing an explicit warning that
+            the point will be visible on public maps, shop and listing pages, and structured search
+            data. Changing the saved point or privacy settings withdraws that exact-pin consent. You
+            may return to an approximate point or remove map visibility through dashboard settings.
+            We do not track your precise device GPS location without your explicit permission.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">2.8 Photo Metadata</h3>
@@ -372,12 +374,12 @@ export default function PrivacyPage() {
               <a href="https://upstash.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">upstash.com/privacy</a>
             </li>
             <li>
-              <strong>OpenStreetMap (Nominatim)</strong> — Address search and reverse geocoding.
+              <strong>OpenStreetMap (Nominatim)</strong> — Address search and broad location search.
               When you use address autocomplete, address search text may be sent from Grainline
-              servers to OpenStreetMap&apos;s Nominatim API. When Makers set their workshop location,
-              coordinates may be sent to determine city and state information for the Makers Map and
-              city-level pages. Address autocomplete requests are proxied by Grainline rather than
-              sent directly from your browser to Nominatim.{" "}
+              servers to OpenStreetMap&apos;s Nominatim API. The workshop map search accepts and sends
+              only a city and state or ZIP code; it does not send the dragged pin, precise
+              coordinates, or a workshop street address. Address and location searches are proxied by
+              Grainline rather than sent directly from your browser to Nominatim.{" "}
               <a href="https://nominatim.org" target="_blank" rel="noopener noreferrer" className="underline">nominatim.org</a>
             </li>
             <li>

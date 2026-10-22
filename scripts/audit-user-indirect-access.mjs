@@ -5,7 +5,7 @@ import ts from "typescript";
 
 // Source inventory only: no database connection or credentials are loaded.
 // Model relations come from the checked-out schema, including intermediate models.
-export function auditUserIndirectAccess(root) {
+export function auditModelIndirectAccess(root, targetModel) {
   const schema = fs.readFileSync(path.join(root, "prisma/schema.prisma"), "utf8");
   const models = new Map();
   for (const match of schema.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm)) {
@@ -15,6 +15,9 @@ export function auditUserIndirectAccess(root) {
       if (field) fields.set(field[1], field[2]);
     }
     models.set(match[1], fields);
+  }
+  if (!models.has(targetModel)) {
+    throw new Error(`Unknown Prisma model: ${targetModel}`);
   }
   const delegates = new Map([...models.keys()].map((model) => [model[0].toLowerCase() + model.slice(1), model]));
   const files = [];
@@ -37,6 +40,7 @@ export function auditUserIndirectAccess(root) {
   const factoryRelations = [];
   const opaqueFactoryShapes = [];
   const queryMethods = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy", "create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn", "upsert", "delete", "deleteMany"]);
+  const rowReturningMethods = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "create", "createManyAndReturn", "update", "updateManyAndReturn", "upsert", "delete"]);
   const shapeKeys = new Set(["select", "include", "where", "data", "create", "update", "orderBy", "having", "_count"]);
   const wrappers = new Set(["AND", "OR", "NOT", "is", "isNot", "some", "every", "none", "connect", "disconnect", "connectOrCreate", "set", "delete", "deleteMany", "updateMany", "upsert"]);
   function location(node) {
@@ -70,6 +74,14 @@ export function auditUserIndirectAccess(root) {
       }
     }
     return node;
+  }
+  function declaredShapeModel(node) {
+    if (!ts.isIdentifier(node)) return null;
+    const symbol = checker.getSymbolAtLocation(node);
+    const declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0];
+    if (!declaration || !ts.isVariableDeclaration(declaration) || !declaration.type) return null;
+    const match = /^(?:Prisma\.)?(\w+)WhereInput$/u.exec(declaration.type.getText());
+    return match && models.has(match[1]) ? match[1] : null;
   }
   function properties(node, onOpaque, seen = new Set()) {
     node = unwrap(node);
@@ -118,7 +130,7 @@ export function auditUserIndirectAccess(root) {
       const nextTrail = [...trail, property.key];
       if (models.has(nextModel)) {
         if (unwrap(property.value).kind === ts.SyntaxKind.FalseKeyword) continue;
-        if (nextModel === "User") {
+        if (nextModel === targetModel) {
           const projection = unwrap(property.value);
           const selected = ts.isObjectLiteralExpression(projection) ? properties(projection, () => {}).find(({ key }) => key === "select") : null;
           relations.push({ ...location(property.node), query: location(call), model, path: nextTrail.join("."), fields: selected ? properties(selected.value, () => {}).map(({ key }) => key).sort() : [], fullRow: projection.kind === ts.SyntaxKind.TrueKeyword });
@@ -129,6 +141,23 @@ export function auditUserIndirectAccess(root) {
         scanShape(property.value, model, nextTrail, call, new Set(seen));
       }
     }
+  }
+  function projectionSummary(argument, method) {
+    if (!argument || !rowReturningMethods.has(method)) {
+      return { fields: [], fullRow: false, projectionOpaque: false };
+    }
+    let projectionOpaque = false;
+    const queryProperties = properties(argument, () => { projectionOpaque = true; });
+    const select = queryProperties.find(({ key }) => key === "select");
+    if (!select) {
+      return { fields: [], fullRow: true, projectionOpaque };
+    }
+    let fieldOpaque = false;
+    const fields = properties(select.value, () => { fieldOpaque = true; })
+      .map(({ key }) => key)
+      .filter(Boolean)
+      .sort();
+    return { fields, fullRow: false, projectionOpaque: projectionOpaque || fieldOpaque };
   }
   function sqlText(node, seen = new Set()) {
     node = unwrap(node);
@@ -160,6 +189,33 @@ export function auditUserIndirectAccess(root) {
   for (const file of files) {
     const source = program.getSourceFile(file);
     function visit(node) {
+      if (
+        ts.isBinaryExpression(node)
+        && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        && ts.isPropertyAccessExpression(node.left)
+      ) {
+        const model = declaredShapeModel(node.left.expression);
+        const key = node.left.name.text;
+        if (model) {
+          const nextModel = models.get(model)?.get(key);
+          const trail = ["assignment", key];
+          if (models.has(nextModel)) {
+            if (nextModel === targetModel) {
+              relations.push({
+                ...location(node.left),
+                query: location(node),
+                model,
+                path: trail.join("."),
+                fields: [],
+                fullRow: false,
+              });
+            }
+            scanShape(node.right, nextModel, trail, node);
+          } else if (shapeKeys.has(key) || wrappers.has(key)) {
+            scanShape(node.right, model, trail, node);
+          }
+        }
+      }
       if (ts.isFunctionDeclaration(node) && node.type && node.body) {
         const type = /^Prisma\.(\w+?)(?:WhereInput|Select|Include|CreateInput|UpdateInput)$/.exec(node.type.getText());
         if (type && models.has(type[1])) {
@@ -182,7 +238,14 @@ export function auditUserIndirectAccess(root) {
         if (queryMethods.has(access.name.text) && ts.isPropertyAccessExpression(access.expression)) {
           const model = delegates.get(access.expression.name.text);
           if (model) {
-            if (model === "User") direct.push({ ...location(node), method: access.name.text, receiver: access.expression.expression.getText() });
+            if (model === targetModel) {
+              direct.push({
+                ...location(node),
+                method: access.name.text,
+                receiver: access.expression.expression.getText(),
+                ...projectionSummary(node.arguments[0], access.name.text),
+              });
+            }
             if (node.arguments[0]) scanShape(node.arguments[0], model, [], node);
           }
         }
@@ -191,7 +254,11 @@ export function auditUserIndirectAccess(root) {
       if (raw && ts.isPropertyAccessExpression(raw) && /^\$(?:queryRaw|executeRaw)(?:Unsafe)?$/.test(raw.name.text)) {
         const sql = ts.isTaggedTemplateExpression(node) ? sqlText(node.template) : sqlText(node.arguments[0]);
         const stripped = sql.replace(/--[^\n]*|\/\*[\s\S]*?\*\//g, "").replace(/'(?:''|[^'])*'/g, "''");
-        if (/\b(?:FROM|JOIN|UPDATE|INTO|TABLE)\s+(?:"?public"?\s*\.\s*)?"User"(?!\w)/i.test(stripped)) rawSql.push({ ...location(node), method: raw.name.text });
+        const targetTable = new RegExp(
+          `\\b(?:FROM|JOIN|UPDATE|INTO|TABLE)\\s+(?:"?public"?\\s*\\.\\s*)?"${targetModel}"(?!\\w)`,
+          "iu",
+        );
+        if (targetTable.test(stripped)) rawSql.push({ ...location(node), method: raw.name.text });
       }
       ts.forEachChild(node, visit);
     }
@@ -199,10 +266,60 @@ export function auditUserIndirectAccess(root) {
   }
   function unique(items) { return [...new Map(items.map((item) => [JSON.stringify(item), item])).values()]; }
   const relationAccesses = unique(relations);
-  return { directCount: direct.length, relationCount: relationAccesses.length, relationFiles: new Set(relationAccesses.map(({ query }) => query.file)).size, rawSqlCount: rawSql.length, rawSqlFiles: new Set(rawSql.map(({ file }) => file)).size, direct, relations: relationAccesses, rawSql, factoryRelations: unique(factoryRelations), opaqueShapes: unique(opaqueShapes), opaqueFactoryShapes: unique(opaqueFactoryShapes), limitations: ["Delegate names identify candidate Prisma operations; receiver types are not proven.", "Imported const objects and local aliases are resolved; query-shape factories are inventoried separately without evaluating caller arguments.", "Unresolved factory calls and computed keys are reported as opaque; their absence of User dependencies is not proven.", "Raw SQL covers static fragments reaching raw calls; arbitrary runtime SQL generators need manual review.", "Migration and installed database function bodies require a separate catalog inventory."] };
+  const directFiles = new Set(direct.map(({ file }) => file));
+  const relationFiles = new Set(relationAccesses.map(({ query }) => query.file));
+  const rawSqlFiles = new Set(rawSql.map(({ file }) => file));
+  const sourceFiles = new Set([...directFiles, ...relationFiles, ...rawSqlFiles]);
+  return {
+    model: targetModel,
+    directCount: direct.length,
+    directFiles: directFiles.size,
+    directFullRowCount: direct.filter(({ fullRow }) => fullRow).length,
+    directProjectionOpaqueCount: direct.filter(({ projectionOpaque }) => projectionOpaque).length,
+    relationCount: relationAccesses.length,
+    relationFiles: relationFiles.size,
+    relationFullRowCount: relationAccesses.filter(({ fullRow }) => fullRow).length,
+    rawSqlCount: rawSql.length,
+    rawSqlFiles: rawSqlFiles.size,
+    sourceFiles: sourceFiles.size,
+    direct,
+    relations: relationAccesses,
+    rawSql,
+    factoryRelations: unique(factoryRelations),
+    opaqueShapes: unique(opaqueShapes),
+    opaqueFactoryShapes: unique(opaqueFactoryShapes),
+    limitations: [
+      "Delegate names identify candidate Prisma operations; receiver types are not proven.",
+      "Imported const objects and local aliases are resolved; query-shape factories are inventoried separately without evaluating caller arguments.",
+      `Unresolved factory calls and computed keys are reported as opaque; their absence of ${targetModel} dependencies is not proven.`,
+      "Raw SQL covers static fragments reaching raw calls; arbitrary runtime SQL generators need manual review.",
+      "Migration and installed database function bodies require a separate catalog inventory.",
+    ],
+  };
+}
+
+export function auditUserIndirectAccess(root) {
+  return auditModelIndirectAccess(root, "User");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  const report = auditUserIndirectAccess(process.cwd());
-  process.stdout.write(`${JSON.stringify(process.argv.includes("--json") ? report : { directCount: report.directCount, relationCount: report.relationCount, relationFiles: report.relationFiles, rawSqlCount: report.rawSqlCount, rawSqlFiles: report.rawSqlFiles, factoryRelationCount: report.factoryRelations.length, opaqueShapeCount: report.opaqueShapes.length, opaqueFactoryShapeCount: report.opaqueFactoryShapes.length, limitations: report.limitations }, null, 2)}\n`);
+  const model = process.argv.find((argument) => argument.startsWith("--model="))?.slice("--model=".length) || "User";
+  const report = auditModelIndirectAccess(process.cwd(), model);
+  process.stdout.write(`${JSON.stringify(process.argv.includes("--json") ? report : {
+    model: report.model,
+    directCount: report.directCount,
+    directFiles: report.directFiles,
+    directFullRowCount: report.directFullRowCount,
+    directProjectionOpaqueCount: report.directProjectionOpaqueCount,
+    relationCount: report.relationCount,
+    relationFiles: report.relationFiles,
+    relationFullRowCount: report.relationFullRowCount,
+    rawSqlCount: report.rawSqlCount,
+    rawSqlFiles: report.rawSqlFiles,
+    sourceFiles: report.sourceFiles,
+    factoryRelationCount: report.factoryRelations.length,
+    opaqueShapeCount: report.opaqueShapes.length,
+    opaqueFactoryShapeCount: report.opaqueFactoryShapes.length,
+    limitations: report.limitations,
+  }, null, 2)}\n`);
 }

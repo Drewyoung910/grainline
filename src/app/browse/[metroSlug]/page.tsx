@@ -16,7 +16,11 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import {
+  sellerPublicListingCards,
+  sellerPublicMetroCount,
+  sellerPublicMetroStaticSlugs,
+} from "@/lib/sellerProfilePublicAccess";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { Suspense } from "react";
 import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
@@ -27,19 +31,25 @@ const BASE_URL = "https://thegrainline.com";
 // generateStaticParams — only metros with at least one active listing or seller
 // ---------------------------------------------------------------------------
 export async function generateStaticParams() {
-  const metros = await prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { listings: { some: publicListingWhere() } },
-        { listingCityMetros: { some: publicListingWhere() } },
-        { sellerProfiles: { some: activeSellerProfileWhere() } },
-        { sellerCityProfiles: { some: activeSellerProfileWhere() } },
-      ],
-    },
-    select: { slug: true },
-  });
-  return metros.map((m) => ({ metroSlug: m.slug }));
+  const [metrosWithListings, sellerMetroSlugs] = await Promise.all([
+    prisma.metro.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { listings: { some: publicListingWhere() } },
+          { listingCityMetros: { some: publicListingWhere() } },
+        ],
+      },
+      select: { slug: true },
+    }),
+    sellerPublicMetroStaticSlugs(),
+  ]);
+  return [...new Set([
+    ...metrosWithListings.map(({ slug }) => slug),
+    ...sellerMetroSlugs.map(({ slug }) => slug),
+  ])]
+    .sort((left, right) => left.localeCompare(right))
+    .map((metroSlug) => ({ metroSlug }));
 }
 
 // ---------------------------------------------------------------------------
@@ -65,9 +75,7 @@ export async function generateMetadata({
     prisma.listing.count({
       where: publicListingWhere(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
     }),
-    prisma.sellerProfile.count({
-      where: activeSellerProfileWhere(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
-    }),
+    sellerPublicMetroCount(null, metro.id, isMajor, false),
   ]);
 
   const title = `Handmade Woodworking in ${cityName} | Grainline`;
@@ -129,9 +137,6 @@ async function BrowseMetroContent({
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-  const blockedSellerProfileWhere: Prisma.SellerProfileWhereInput = blockedSellerIds.length > 0
-    ? { id: { notIn: blockedSellerIds } }
-    : {};
   const blockedSellerListingWhere: Prisma.ListingWhereInput = blockedSellerIds.length > 0
     ? { sellerId: { notIn: blockedSellerIds } }
     : {};
@@ -141,7 +146,7 @@ async function BrowseMetroContent({
     ...blockedSellerListingWhere,
   });
 
-  const [listings, listingCount, sellerCount] = await Promise.all([
+  const [listingRows, listingCount, sellerCount] = await Promise.all([
     prisma.listing.findMany({
       where: listingWhere,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -155,30 +160,21 @@ async function BrowseMetroContent({
         listingType: true,
         stockQuantity: true,
         category: true,
+        sellerId: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-        seller: {
-          select: {
-            id: true,
-            displayName: true,
-            avatarImageUrl: true,
-            guildLevel: true,
-            city: true,
-            state: true,
-            acceptingNewOrders: true,
-            ownerImageUrl: true,
-          },
-        },
       },
     }),
     prisma.listing.count({ where: listingWhere }),
-    prisma.sellerProfile.count({
-      where: activeSellerProfileWhere({
-        ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-        ...blockedSellerProfileWhere,
-      }),
-    }),
+    sellerPublicMetroCount(meDbId, metro.id, isMajorMetro, false),
   ]);
   if (listingCount === 0) return notFound();
+  const listingCards = await sellerPublicListingCards(meDbId, listingRows.map((listing) => listing.id));
+  const listingCardById = new Map(listingCards.map((seller) => [seller.listingId, seller]));
+  const listings = listingRows.flatMap((listing) => {
+    const seller = listingCardById.get(listing.id);
+    if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
+    return [{ ...listing, seller }];
+  });
 
   let savedSet = new Set<string>();
   if (meDbId && listings.length > 0) {
@@ -329,7 +325,7 @@ async function BrowseMetroContent({
                   photoUrl: listing.photos[0]?.url ?? null,
                   photoAltText: listing.photos[0]?.altText ?? null,
                   seller: {
-                    id: listing.seller.id,
+                    id: listing.seller.sellerProfileId,
                     displayName: listing.seller.displayName ?? null,
                     avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null,
                     guildLevel: listing.seller.guildLevel ?? null,

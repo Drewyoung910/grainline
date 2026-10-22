@@ -26,7 +26,6 @@ import {
   verifyFirstPartyUploadForPersistence,
 } from "@/lib/uploadPersistenceVerification";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
-import { canViewListingDetail } from "@/lib/listingVisibility";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
@@ -35,7 +34,6 @@ import {
   DirectUploadClaimError,
   syncLegacyMessageDirectUploadReference,
 } from "@/lib/directUploadLifecycle";
-import { canAttachConversationContextListing } from "@/lib/conversationStartState";
 import {
   claimActorConversationMessageEmail,
   getActorConversation,
@@ -47,6 +45,11 @@ import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
+import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
+import {
+  sellerActorConversationContextListing,
+  sellerParticipantConversationListingTarget,
+} from "@/lib/sellerProfilePublicAccess";
 
 export default async function ThreadPage({
   params,
@@ -89,28 +92,7 @@ export default async function ThreadPage({
   const userB = userById.get(conversation.userBId);
   if (!userA || !userB) return notFound();
   const contextListing = conversation.contextListingId
-    ? await prisma.listing.findUnique({
-        where: { id: conversation.contextListingId },
-        select: {
-          id: true,
-          title: true,
-          priceCents: true,
-          currency: true,
-          status: true,
-          isPrivate: true,
-          reservedForUserId: true,
-          seller: {
-            select: {
-              userId: true,
-              ownerAccountActive: true,
-              chargesEnabled: true,
-              stripeAccountSupported: true,
-              vacationMode: true,
-            },
-          },
-          photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        },
-      })
+    ? await sellerActorConversationContextListing(me.id, conversation.id)
     : null;
   const convo = {
     ...conversation,
@@ -119,57 +101,24 @@ export default async function ThreadPage({
     contextListing,
   };
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
+  const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
 
   const requestedListingId = requestedListingParam?.trim();
-  const requestedListing = isParticipant && requestedListingId && requestedListingId.length <= 191
-    ? requestedListingId === convo.contextListing?.id
-      ? convo.contextListing
-      : await prisma.listing.findUnique({
-          where: { id: requestedListingId },
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            isPrivate: true,
-            reservedForUserId: true,
-            seller: {
-              select: {
-                chargesEnabled: true,
-                stripeAccountSupported: true,
-                vacationMode: true,
-                userId: true,
-                ownerAccountActive: true,
-              },
-            },
-          },
-        })
-    : null;
-  const composerContextListing = requestedListing
-    && canAttachConversationContextListing(
-      requestedListing,
-      [convo.userAId, convo.userBId],
-    )
-    ? { id: requestedListing.id, title: requestedListing.title }
+  const composerContextListing = other && requestedListingId && requestedListingId.length <= 191
+    ? await sellerParticipantConversationListingTarget(
+        me.id,
+        other.id,
+        requestedListingId,
+      )
     : null;
 
-  const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
   const otherUnavailableReason = isParticipant ? messagingUnavailableReason(other) : null;
 
   // Check if the other participant is a seller (display name overrides
   // account name so threads with makers show the shop name, not the
   // person's legal name).
   const otherSellerProfile = other
-    ? await prisma.sellerProfile.findUnique({
-        where: { userId: other.id },
-        select: {
-          id: true,
-          displayName: true,
-          acceptsCustomOrders: true,
-          avatarImageUrl: true,
-          chargesEnabled: true,
-          stripeAccountSupported: true,
-        },
-      })
+    ? (await sellerConversationParticipantCards(me.id, [other.id]))[0] ?? null
     : null;
 
   const participantLabel = isStaffReviewMode
@@ -184,11 +133,11 @@ export default async function ThreadPage({
   // When the other party has a public seller profile, the header avatar +
   // name link to that shop. Otherwise no link.
   const sellerProfileHref = !otherUnavailableReason &&
-    otherSellerProfile?.id &&
+    otherSellerProfile?.sellerProfileId &&
     otherSellerProfile.displayName &&
     otherSellerProfile.chargesEnabled &&
     otherSellerProfile.stripeAccountSupported
-    ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
+    ? publicSellerPath(otherSellerProfile.sellerProfileId, otherSellerProfile.displayName)
     : null;
 
   const messageRows = await listLatestActorMessages(me.id, conversation, 201);
@@ -475,14 +424,8 @@ export default async function ThreadPage({
   // ---------------------------------------------------------------------------
 
   const ctx = convo.contextListing;
-  const ctxImg = ctx?.photos?.[0]?.url ?? null;
-  const contextListingHref = ctx &&
-    canViewListingDetail(ctx, {
-      dbUserId: isParticipant ? me.id : null,
-      role: me.role,
-      banned: me.banned,
-      deletedAt: me.deletedAt,
-    })
+  const ctxImg = ctx?.photoUrl ?? null;
+  const contextListingHref = ctx?.canViewDetail
     ? publicListingPath(ctx.id, ctx.title)
     : null;
   const archivedForMe =

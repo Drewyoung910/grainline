@@ -27,6 +27,7 @@ import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money"
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { WorkshopSkeleton } from "@/components/RouteSkeletons";
+import { sellerOwnerCore, sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -56,12 +57,15 @@ async function setStatus(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
+  const sellerCore = await sellerOwnerCore(me.id);
+  if (!sellerCore) return { ok: false, error: "Listing not found." };
 
   const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    include: { seller: { select: { userId: true } } },
+    where: {
+      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
+    },
   });
-  if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
+  if (!listing) return { ok: false, error: "Listing not found." };
   if (listing.archivedAt) {
     return { ok: false, error: "Archived listings cannot be changed here." };
   }
@@ -132,12 +136,15 @@ async function deleteListing(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
+  const sellerCore = await sellerOwnerCore(me.id);
+  if (!sellerCore) return { ok: false, error: "Listing not found." };
 
   const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    include: { seller: { select: { userId: true } } },
+    where: {
+      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
+    },
   });
-  if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
+  if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = deleteListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
@@ -196,12 +203,15 @@ async function withdrawListingReview(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
+  const sellerCore = await sellerOwnerCore(me.id);
+  if (!sellerCore) return { ok: false, error: "Listing not found." };
 
   const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
-    include: { seller: { select: { userId: true } } },
+    where: {
+      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
+    },
   });
-  if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
+  if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = withdrawReviewBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
@@ -271,7 +281,7 @@ async function DashboardPageContent({
   const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
   const forceSetupBanner = params.setup === "required";
 
-  const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([
+  const [listings, savedSearches, verification, notifUnreadCount, dashboardSeller] = await Promise.all([
     prisma.listing.findMany({
       where: { sellerId: seller.id, archivedAt: null },
       select: {
@@ -299,15 +309,15 @@ async function DashboardPageContent({
       select: { status: true },
     }),
     countUnreadOwnerNotifications(me.id),
-    prisma.sellerProfile.findUnique({
-      where: { id: seller.id },
-      select: { guildLevel: true, vacationMode: true, vacationReturnDate: true, chargesEnabled: true },
-    }),
+    sellerOwnerDashboardState(me.id),
   ]);
-  const guildLevel = guildSeller?.guildLevel ?? "NONE";
-  const vacationMode = guildSeller?.vacationMode ?? false;
-  const vacationReturnDate = guildSeller?.vacationReturnDate ?? null;
-  const chargesEnabled = guildSeller?.chargesEnabled ?? false;
+  if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
+    throw new Error("Seller dashboard authority returned an unexpected owner");
+  }
+  const guildLevel = dashboardSeller.guildLevel;
+  const vacationMode = dashboardSeller.vacationMode;
+  const vacationReturnDate = dashboardSeller.vacationReturnDate;
+  const chargesEnabled = dashboardSeller.chargesEnabled;
 
   return (
     <main className="max-w-7xl mx-auto p-8">

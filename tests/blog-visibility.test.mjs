@@ -18,14 +18,7 @@ describe("blog visibility", () => {
           authorAccountActive: true,
           OR: [
             { sellerProfileId: null },
-            {
-              sellerProfile: {
-                chargesEnabled: true,
-                stripeAccountSupported: true,
-                vacationMode: false,
-                ownerAccountActive: true,
-              },
-            },
+            { authorSellerPubliclyOrderable: true },
           ],
         },
         { sellerProfileId: "seller_1" },

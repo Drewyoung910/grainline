@@ -22,9 +22,9 @@ export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25;
  * takes a short Postgres advisory lock around max-number assignment so a burst
  * of simultaneous seller grants cannot exhaust a fixed retry count.
  */
-export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<void> {
+export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<boolean> {
   try {
-    await maybeGrantFoundingMakerWithClient(prisma, sellerProfileId);
+    return await maybeGrantFoundingMakerWithClient(prisma, sellerProfileId);
   } catch (err) {
     // Non-fatal: the listing transition is the primary work, the badge is a bonus.
     logServerError(err, {
@@ -32,6 +32,7 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
       source: "founding_maker_grant",
       extra: { sellerProfileId },
     });
+    return false;
   }
 }
 
@@ -56,12 +57,21 @@ export async function repairMissedFoundingMakerGrants(opts: {
     return { ok: true, scannedListings: 0, attemptedSellers: 0, repairedSellers: 0, remainingSlots: 0 };
   }
 
+  const grantedSellerRows = await prisma.foundingMakerGrant.findMany({
+    where: { sellerProfileId: { not: null } },
+    select: { sellerProfileId: true },
+    take: FOUNDING_MAKER_CAP,
+  });
+  const grantedSellerIds = grantedSellerRows.flatMap(({ sellerProfileId }) =>
+    sellerProfileId ? [sellerProfileId] : [],
+  );
+
   const candidateListings = await prisma.listing.findMany({
-    where: publicListingWhere({
-      seller: {
-        isFoundingMaker: false,
-      },
-    }),
+    where: publicListingWhere(
+      grantedSellerIds.length > 0
+        ? { sellerId: { notIn: grantedSellerIds } }
+        : {},
+    ),
     orderBy: [
       { createdAt: "asc" },
       { id: "asc" },
@@ -83,12 +93,7 @@ export async function repairMissedFoundingMakerGrants(opts: {
 
   let repairedSellers = 0;
   for (const sellerId of sellerIds) {
-    await maybeGrantFoundingMaker(sellerId);
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { id: sellerId },
-      select: { isFoundingMaker: true },
-    });
-    if (seller?.isFoundingMaker) repairedSellers += 1;
+    if (await maybeGrantFoundingMaker(sellerId)) repairedSellers += 1;
   }
 
   return {

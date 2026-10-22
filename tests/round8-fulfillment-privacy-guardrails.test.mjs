@@ -83,6 +83,10 @@ describe("Round 8 public profile privacy guardrails", () => {
 
   it("applies viewer privacy filters to public structured data and customer photos", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
+    const listingDetailAccess = source("src/lib/sellerProfileListingDetailAccess.ts");
+    const listingDetailAuthority = source(
+      "prisma/migrations/20261020235986_prepare_seller_profile_listing_detail_authorities/migration.sql",
+    );
     const seller = source("src/app/seller/[id]/page.tsx");
     const customerPhotos = source("src/app/seller/[id]/customer-photos/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
@@ -90,11 +94,15 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(listing, /reviewerAccountActive: true/);
     assert.doesNotMatch(listing, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(listing, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
-    assert.match(seller, /seller\.publicMapOptIn && !radiusMeters && lat != null && lng != null/);
-    assert.match(seller, /allowLocalPickup: true/);
+    assert.match(seller, /sellerPublicLocation\(meId, seller\.id, null\)/);
+    assert.match(seller, /pickupMapPoint\?\.structuredGeoEligible/);
     assert.match(seller, /const showPickupMap = seller\.allowLocalPickup && pickupMapPoint != null/);
     assert.match(seller, /\{showPickupMap && pickupMapPoint && \(/);
-    assert.match(listing, /allowLocalPickup: true/);
+    assert.match(listing, /sellerListingDetailProfile\(viewerUserId, listingId\)/);
+    assert.match(listingDetailAccess, /allowLocalPickup: boolean/);
+    assert.match(listingDetailAccess, /typeof row\.allowLocalPickup !== "boolean"/);
+    assert.match(listingDetailAuthority, /"allowLocalPickup" boolean/);
+    assert.match(listingDetailAuthority, /seller\."allowLocalPickup"/);
     assert.match(listing, /const showPickupMap = listing\.seller\.allowLocalPickup && pickupMapPoint != null/);
     assert.match(listing, /\{showPickupMap && pickupMapPoint && \(/);
     assert.match(seller, /reviewerAccountActive: true/);

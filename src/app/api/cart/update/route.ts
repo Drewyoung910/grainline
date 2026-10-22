@@ -26,6 +26,7 @@ import {
 } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
+import { sellerListingTransactionSource } from "@/lib/sellerTransactionAccess";
 
 const CartUpdateSchema = z.object({
   cartItemId: z.string().min(1).optional(),
@@ -95,30 +96,7 @@ export async function POST(req: Request) {
     let livePriceVersion = item.priceVersion;
 
     if (quantity > 0) {
-      const listing = await prisma.listing.findUnique({
-        where: { id: item.listingId },
-        select: {
-          listingType: true,
-          priceCents: true,
-          priceVersion: true,
-          stockQuantity: true,
-          status: true,
-          isPrivate: true,
-          reservedForUserId: true,
-          variantGroups: { include: { options: true } },
-          seller: {
-            select: {
-              id: true,
-              userId: true,
-              chargesEnabled: true,
-              stripeAccountSupported: true,
-              vacationMode: true,
-              acceptingNewOrders: true,
-              ownerAccountActive: true,
-            },
-          },
-        },
-      });
+      const listing = await sellerListingTransactionSource(me.id, item.listingId);
       if (!listing || listing.status !== "ACTIVE") {
         return privateJson({ error: "This item is no longer available." }, { status: HTTP_STATUS.BAD_REQUEST });
       }

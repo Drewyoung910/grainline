@@ -41,7 +41,8 @@ describe("post-launch UI follow-ups", () => {
 
   it("reuses the shared address autocomplete on shipping, pickup, and ship-from surfaces", () => {
     assert.match(source("src/components/ShippingAddressForm.tsx"), /AddressAutocomplete/);
-    assert.match(source("src/components/LocationPicker.tsx"), /AddressAutocomplete/);
+    assert.match(source("src/components/LocationPicker.tsx"), /SellerLocationSearch/);
+    assert.match(source("src/components/SellerLocationSearch.tsx"), /\/api\/seller\/location\/search/);
     assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /AddressAutocomplete/);
     assert.match(source("src/app/api/address/autocomplete/route.ts"), /countrycodes/);
     assert.match(source("src/app/api/address/autocomplete/route.ts"), /dedupe/);
@@ -505,23 +506,18 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(fullMapCall, /\bcompact\b/);
   });
 
-  it("prefers live shop avatars over stored public blog identity snapshots", () => {
+  it("uses the database-maintained public blog identity mirrors", () => {
     const homepage = source("src/app/page.tsx");
 
     assert.match(
       homepage,
-      /authorName:\s*true,[\s\S]*authorImageUrl:\s*true,[\s\S]*authorSellerName:\s*true,[\s\S]*authorSellerAvatarUrl:\s*true,[\s\S]*sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true\s*\},?\s*\}/,
-      "homepage blog queries should load stored public identity plus the post-linked shop",
+      /authorName:\s*true,[\s\S]*authorImageUrl:\s*true,[\s\S]*authorSellerName:\s*true,[\s\S]*authorSellerAvatarUrl:\s*true/,
+      "homepage blog queries should load the maintained public author identity",
     );
-    assert.match(
+    assert.match(homepage, /publicBlogAuthorPresentation\(p, "Former author"\)/);
+    assert.doesNotMatch(
       homepage,
-      /const authorName = p\.sellerProfile\?\.displayName[\s\S]*\?\? p\.authorSellerName[\s\S]*\?\? p\.authorName[\s\S]*\?\? "Former author";/,
-      "the post-linked shop name should take precedence over stored identity snapshots",
-    );
-    assert.match(
-      homepage,
-      /const authorAvatar = p\.sellerProfile\?\.avatarImageUrl[\s\S]*\?\? p\.authorSellerAvatarUrl[\s\S]*\?\? p\.authorImageUrl[\s\S]*\?\? null;/,
-      "the stored public author image should remain only the final avatar fallback",
+      /sellerProfile:\s*\{\s*select:\s*\{\s*displayName:\s*true,\s*avatarImageUrl:\s*true/,
     );
   });
 
@@ -552,13 +548,13 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(homepage, /NewsletterSignup/);
     assert.match(homepage, /import \{ getCachedPublicSellerStats \} from "@\/lib\/publicSellerStats"/);
     assert.match(homepage, /import FollowButton from "@\/components\/FollowButton"/);
-    assert.match(homepage, /userId: true/);
-    assert.match(homepage, /storyBody: true/);
-    assert.match(homepage, /yearsInBusiness: true/);
-    assert.match(homepage, /createdAt: true/);
-    assert.match(homepage, /home-featured-makers-v4/);
-    assert.match(homepage, /isFoundingMaker: true/);
-    assert.match(homepage, /foundingMakerNumber: true/);
+    assert.match(homepage, /sellerPublicFeaturedMakers\(\)/);
+    assert.match(homepage, /spotlight\.storyBody \?\? spotlight\.bio/);
+    assert.match(homepage, /spotlight\.yearsInBusiness/);
+    assert.match(homepage, /spotlight\.createdAt/);
+    assert.match(homepage, /home-featured-makers-v5/);
+    assert.match(homepage, /spotlight\.isFoundingMaker/);
+    assert.match(homepage, /spotlight\.foundingMakerNumber/);
     assert.match(homepage, /const featuredMakerIds = featuredMakers\.map\(\(\{ maker \}\) => maker\.id\)/);
     assert.match(homepage, /prisma\.follow\.groupBy\(\{/);
     assert.match(homepage, /where: \{ followerId: meDbId, sellerProfileId: \{ in: featuredMakerIds \} \}/);
@@ -572,10 +568,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /meDbId !== also\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
     assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
-    assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfile/);
+    assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfileId/);
     assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.authorId === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);
-    assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfile\.id\}[\s\S]*initialCount=\{authorFollowerCount\}/);
+    assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfileId\}[\s\S]*initialCount=\{authorFollowerCount\}/);
     assert.match(blogPost, /<NewsletterSignup \/>/);
     assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
     assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
@@ -629,7 +625,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /<X size=\{16\} aria-hidden="true" \/>/);
     assert.doesNotMatch(makerCard, /dangerouslySetInnerHTML|innerHTML/);
     assert.match(mapCardRoute, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
-    assert.match(mapCardRoute, /activeSellerProfileWhere\(\{ id, publicMapOptIn: true \}\)/);
+    assert.match(mapCardRoute, /sellerPublicMapCard\(id\)/);
+    assert.doesNotMatch(mapCardRoute, /prisma\.sellerProfile/);
     assert.match(mapCardRoute, /headers: \{ "Cache-Control": "public, max-age=300" \}/);
   });
 
@@ -641,25 +638,17 @@ describe("post-launch UI follow-ups", () => {
     assert.match(listingPage, /import SimilarMakers from "@\/components\/SimilarMakers"/);
     assert.match(listingPage, /metroId: true/);
     assert.match(listingPage, /cityMetroId: true/);
-    assert.match(listingPage, /<SimilarMakers[\s\S]*sellerId=\{listing\.seller\.id\}[\s\S]*metroId=\{listing\.metroId\}[\s\S]*cityMetroId=\{listing\.cityMetroId\}/);
-    assert.match(listingPage, /blockedUserIds=\{blockedUserIds\.size > 0 \? \[\.\.\.blockedUserIds\] : undefined\}/);
+    assert.match(listingPage, /<SimilarMakers[\s\S]*listingId=\{listing\.id\}[\s\S]*viewerUserId=\{meId\}/);
 
-    assert.match(similarMakers, /activeSellerProfileWhere/);
-    assert.match(similarMakers, /publicListingWhere/);
-    assert.match(similarMakers, /satisfies Prisma\.SellerProfileSelect/);
-    assert.doesNotMatch(similarMakers, /include:/);
-    assert.match(similarMakers, /id: \{ not: sellerId \}/);
-    assert.match(similarMakers, /userId: \{ notIn: blockedUserIds \}/);
-    assert.match(similarMakers, /listings: \{ some: publicListingWhere\(\) \}/);
-    assert.match(similarMakers, /OR: \[\{ metroId: \{ in: metroIds \} \}, \{ cityMetroId: \{ in: metroIds \} \}\]/);
-    assert.match(similarMakers, /id: \{ notIn: \[sellerId, \.\.\.found\] \}/);
-    assert.match(similarMakers, /take: MAX_SIMILAR_MAKERS/);
-    assert.match(similarMakers, /\{ id: "asc" as const \}/);
+    assert.match(similarMakers, /sellerPublicSimilarMakers\(/);
+    assert.doesNotMatch(similarMakers, /prisma\.sellerProfile|activeSellerProfileWhere|publicListingWhere/);
+    assert.match(similarMakers, /const MAX_SIMILAR_MAKERS = 4/);
+    assert.match(similarMakers, /listingId,[\s\S]*MAX_SIMILAR_MAKERS/);
     assert.match(similarMakers, /border-\[3px\] border-\[#EFEAE0\] bg-white/);
     assert.doesNotMatch(similarMakers, /ring-1 ring-black\/10 bg-white/);
     assert.doesNotMatch(similarMakers, /import GuildBadge|<GuildBadge/);
     assert.doesNotMatch(similarMakers, /lat: true|lng: true|radiusMeters: true/);
-    assert.match(docs, /SimilarMakers[\s\S]*activeSellerProfileWhere\(\)[\s\S]*publicListingWhere\(\)[\s\S]*SellerProfile\.userId/);
+    assert.match(docs, /Similar-maker cards use `sellerPublicSimilarMakers\(\)`[\s\S]*grainline_seller_public_similar_makers/);
     assert.match(docs, /Listing detail[\s\S]*SimilarMakers\.tsx[\s\S]*blockedUserIds/);
   });
 
@@ -724,12 +713,13 @@ describe("post-launch UI follow-ups", () => {
     const sitemap = source("src/app/sitemap.ts");
 
     assert.match(sellerPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
-    assert.match(customerPhotosPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
+    assert.match(customerPhotosPage, /sellerId: seller\.id/);
     assert.match(customerPhotosPage, /reviewerAccountActive: true/);
     assert.doesNotMatch(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
     assert.match(customerPhotosPage, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
     assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
-    assert.match(sitemap, /publicListingDetailWhere\(\{\s*reviews: \{ some: \{ photos: \{ some: \{\} \} \} \},\s*\}\)/s);
+    assert.match(sitemap, /sellerPublicSitemapPage\(\s*"CUSTOMER_PHOTOS"/s);
     assert.match(sitemap, /chunk\.kind === "customerPhotos"/);
     assert.match(sitemap, /publicSellerPath\(s\.id, s\.displayName\)}\/customer-photos/);
   });
@@ -737,19 +727,19 @@ describe("post-launch UI follow-ups", () => {
   it("serializes Founding Maker number assignment instead of relying on bounded retries", () => {
     const founding = source("src/lib/foundingMaker.ts");
     const foundingCore = source("src/lib/foundingMakerCore.ts");
+    const foundingAuthority = source(
+      "prisma/migrations/20261020060000_prepare_seller_profile_founding_maker_grant/migration.sql",
+    );
     const repairRoute = source("src/app/api/cron/founding-maker-repair/route.ts");
     const vercel = source("vercel.json");
 
     assert.match(founding, /maybeGrantFoundingMakerWithClient\(prisma, sellerProfileId\)/);
-    assert.match(foundingCore, /import \{ publicListingWhere \} from "\.\/listingVisibility\.ts"/);
-    assert.equal((foundingCore.match(/where: publicListingWhere\(\{ sellerId: sellerProfileId \}\)/g) ?? []).length, 2);
-    assert.match(foundingCore, /pg_advisory_xact_lock/);
-    assert.match(foundingCore, /FOUNDING_MAKER_LOCK_NAMESPACE/);
-    assert.match(foundingCore, /foundingMakerGrant\.aggregate/);
-    assert.match(foundingCore, /foundingMakerGrant\.create/);
-    assert.match(foundingCore, /existingGrant/);
-    assert.match(foundingCore, /stillEligible/);
-    assert.match(foundingCore, /maxWait: 5000, timeout: 10000/);
+    assert.match(foundingCore, /grainline_seller_service_founding_maker_grant/);
+    assert.match(foundingAuthority, /pg_advisory_xact_lock\(913337, 250\)/);
+    assert.equal((foundingAuthority.match(/listing\.status = 'ACTIVE'/g) ?? []).length, 2);
+    assert.match(foundingAuthority, /MAX\(grant_row\."foundingMakerNumber"\)/);
+    assert.match(foundingAuthority, /INSERT INTO public\."FoundingMakerGrant"/);
+    assert.match(foundingAuthority, /existing_number/);
     assert.doesNotMatch(foundingCore, /sellerProfile\.aggregate/);
     assert.match(founding, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(founding, /logServerError\(err, \{/);
@@ -759,14 +749,15 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS/);
     assert.doesNotMatch(founding, /isUniqueConstraintError\(err\)/);
     assert.doesNotMatch(founding, /currentCount \+ 1/);
-    assert.doesNotMatch(foundingCore, /status: "ACTIVE"/);
-    assert.doesNotMatch(foundingCore, /isPrivate: false/);
+    assert.doesNotMatch(foundingCore, /sellerProfile\.(?:findUnique|updateMany)/);
 
     assert.match(founding, /export const FOUNDING_MAKER_REPAIR_LISTING_SCAN_LIMIT = 250/);
     assert.match(founding, /export const FOUNDING_MAKER_REPAIR_SELLER_LIMIT = 25/);
     assert.match(founding, /repairMissedFoundingMakerGrants/);
     assert.match(founding, /prisma\.foundingMakerGrant\.aggregate/);
-    assert.match(founding, /publicListingWhere\(\{\s*seller: \{\s*isFoundingMaker: false/s);
+    assert.match(founding, /prisma\.foundingMakerGrant\.findMany/);
+    assert.match(founding, /sellerId: \{ notIn: grantedSellerIds \}/);
+    assert.doesNotMatch(founding, /seller:\s*\{\s*isFoundingMaker:/s);
     assert.match(founding, /await maybeGrantFoundingMaker\(sellerId\)/);
     assert.match(founding, /remainingSlots/);
     assert.match(repairRoute, /verifyCronRequest\(request\)/);

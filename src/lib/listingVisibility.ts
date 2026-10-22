@@ -1,12 +1,5 @@
 import { ListingStatus, Prisma } from "@prisma/client";
 
-const PUBLIC_SELLER_STATE = {
-  chargesEnabled: true,
-  stripeAccountSupported: true,
-  vacationMode: false,
-  ownerAccountActive: true,
-} satisfies Prisma.SellerProfileWhereInput;
-
 export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
   return {
     AND: [
@@ -14,7 +7,7 @@ export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma
         status: ListingStatus.ACTIVE,
         isPrivate: false,
         archivedAt: null,
-        seller: PUBLIC_SELLER_STATE,
+        sellerPubliclyOrderable: true,
       },
       extra,
     ],
@@ -28,7 +21,7 @@ export function publicListingDetailWhere(extra: Prisma.ListingWhereInput = {}): 
         status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
         isPrivate: false,
         archivedAt: null,
-        seller: PUBLIC_SELLER_STATE,
+        sellerPubliclyOrderable: true,
       },
       extra,
     ],
