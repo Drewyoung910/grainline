@@ -18,7 +18,6 @@ export const SELLER_PROFILE_PUBLIC_CONTRACTS = Object.freeze({
 // contextual eligibility, approximate-map, participant, or transaction behavior.
 export const SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS = Object.freeze({
   "src/app/browse/page.tsx": ["PUBLIC_PROFILE", "PUBLIC_ELIGIBILITY"],
-  "src/lib/quality-score.ts": ["SERVICE"],
 });
 
 const WRITE_METHODS = new Set([

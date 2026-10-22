@@ -40,6 +40,8 @@ export const SELLER_PROFILE_CONVERTED_AUTHORITY_FUNCTIONS = new Set([
   "grainline_seller_service_founding_maker_grant(text)",
   "grainline_seller_service_metrics_identity(text)",
   "grainline_seller_service_welcome_name(text)",
+  "grainline_seller_service_quality_score_batch(text,integer)",
+  "grainline_seller_service_quality_score_zero_ineligible()",
   "grainline_seller_actor_cart_transaction_states(text)",
   "grainline_seller_actor_listing_transaction_state(text)",
   "grainline_seller_staff_orderability_transition(text,text,boolean,boolean,boolean,boolean)",
@@ -147,8 +149,8 @@ function sameStrings(actual, expected) {
 }
 
 export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
-  if (functions.length !== 222) {
-    throw new Error(`SellerProfile function inventory drifted: expected 222, got ${functions.length}`);
+  if (functions.length !== 224) {
+    throw new Error(`SellerProfile function inventory drifted: expected 224, got ${functions.length}`);
   }
   for (const row of functions) {
     if (!row.security_definer || !row.config?.includes("search_path=pg_catalog")) {
@@ -212,7 +214,7 @@ export function classifySellerProfileDatabaseObjects({ functions, triggers }) {
   );
   if (retainedAuthorityFunctions.length !== 98
       || internalSupportFunctions.length !== 33
-      || convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length !== 91) {
+      || convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length !== 93) {
     throw new Error(
       `SellerProfile function dispositions drifted: retained=${retainedAuthorityFunctions.length}; `
       + `internal=${internalSupportFunctions.length}; converted=${convertedAuthorityFunctions.length + convertedStaffAuthorityFunctions.length}`,

@@ -1064,3 +1064,15 @@ across two consumer files and 143 reconciled opaque shapes. The 222-function
 catalog is 98 retained, 33 internal and 91 converted authorities; the
 compatible preparation set contains 69 migrations and the full chain contains
 420.
+
+The quality-score cron now obtains its at-most-200 eligible listing batch and
+atomic ineligible-score reset through two service authorities instead of a raw
+SellerProfile join and Prisma SellerProfile relation predicates. The scoring
+formula, Order/Favorite aggregate authorities, cursor order and existing
+eligibility rules are unchanged. This removes three relation accesses, the last
+raw-SQL access and the service consumer file. The gate is now two relation
+accesses in one file, zero raw-SQL accesses, three relation-bearing factories
+and zero opaque SellerProfile target predicates across one consumer file and
+143 reconciled opaque shapes. The 224-function catalog is 98 retained, 33
+internal and 93 converted authorities; the compatible preparation set contains
+70 migrations and the full chain contains 421.
