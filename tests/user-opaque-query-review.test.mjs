@@ -35,13 +35,13 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   const reviewedFactories = report.opaqueShapes.filter((shape) => REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
   const reviewedResidual = report.opaqueShapes.filter((shape) => !REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
 
-  assert.equal(report.opaqueShapes.length, 144);
-  assert.equal(reviewedFactories.length, 108);
+  assert.equal(report.opaqueShapes.length, 143);
+  assert.equal(reviewedFactories.length, 107);
   assert.equal(reviewedResidual.length, 36);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 88,
-    sha256: "4dec6e09c058d2ccf3ea67d14081b625d83e0218b12934eee7f623bc7794b44d",
+    unique: 87,
+    sha256: "775b18e232e0934df642616b814ce99ac02a1802d0629ae8daf26fc587c45156",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 30,
@@ -60,12 +60,22 @@ test("reviewed shared filters use scalar ownership and lifecycle snapshots inste
   const commission = readFileSync("src/lib/commissionState.ts", "utf8");
   const cart = readFileSync("src/lib/cartOwnerAccess.ts", "utf8");
   const savedBlog = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
+  const sellerPublicMirrors = readFileSync(
+    "prisma/migrations/20261020235989_prepare_seller_profile_public_visibility_mirrors/migration.sql",
+    "utf8",
+  );
 
   for (const source of [listing, seller, blog]) {
-    assert.match(source, /ownerAccountActive: true/);
     assert.doesNotMatch(source, /\buser:\s*\{/);
   }
+  assert.match(listing, /sellerPubliclyOrderable: true/);
+  assert.match(seller, /ownerAccountActive: true/);
+  assert.match(
+    sellerPublicMirrors,
+    /"sellerPubliclyOrderable" = \([\s\S]*seller\."chargesEnabled" = true[\s\S]*seller\."stripeAccountSupported" = true[\s\S]*seller\."vacationMode" = false[\s\S]*seller\."ownerAccountActive" = true/,
+  );
   assert.match(blog, /authorAccountActive: true/);
+  assert.match(blog, /authorSellerPubliclyOrderable: true/);
   assert.match(commission, /buyerAccountActive: true/);
   assert.match(cart, /\{ cart: \{ userId \} \}/);
   assert.match(savedBlog, /return \{ AND: \[\{ userId \}, where\] \}/);
