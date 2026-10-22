@@ -55,7 +55,7 @@ describe("seller display-name lookup normalization guardrails", () => {
     assert.match(browse, /normalizeDisplayNameForLookup\(q\)/);
     assert.match(
       browse,
-      /displayNameNormalized:\s*\{\s*contains:\s*normalizedDisplayNameQuery,\s*mode:\s*"insensitive"/s,
+      /sellerDisplayNameNormalized:\s*\{\s*contains:\s*normalizedDisplayNameQuery,\s*mode:\s*"insensitive"/s,
     );
   });
 });

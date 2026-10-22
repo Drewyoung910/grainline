@@ -62,6 +62,9 @@ describe("public query determinism", () => {
     const sellerPublicMetroDirectoryAuthority = source(
       "prisma/migrations/20261019110000_prepare_seller_profile_public_metro_directory/migration.sql",
     );
+    const sellerActorSimilarListingAuthority = source(
+      "prisma/migrations/20261020235987_prepare_seller_profile_similar_listing_candidates/migration.sql",
+    );
 
     assert.match(home, /sellerPublicFeaturedMakers\(\)/);
     assert.match(
@@ -148,12 +151,16 @@ describe("public query determinism", () => {
       /ORDER BY candidates\.name ASC, candidates\.slug ASC/,
     );
 
-    assert.match(similar, /l\."createdAt" DESC,\s*l\.id DESC/);
+    assert.match(similar, /sellerActorSimilarListingCandidates\(viewerUserId, id\)/);
     assert.match(similar, /b\.createdAt\.getTime\(\) - a\.createdAt\.getTime\(\)/);
     assert.match(similar, /b\.id\.localeCompare\(a\.id\)/);
-    assert.match(similar, /LEFT JOIN LATERAL/);
-    assert.match(similar, /ROW_NUMBER\(\) OVER \(ORDER BY p\."sortOrder" ASC, p\.id ASC\)/);
-    assert.doesNotMatch(similar, /\(SELECT p\.url FROM "Photo" p/);
+    assert.match(sellerActorSimilarListingAuthority, /listing\."createdAt" DESC,\s*listing\.id DESC/);
+    assert.match(sellerActorSimilarListingAuthority, /LEFT JOIN LATERAL/);
+    assert.match(
+      sellerActorSimilarListingAuthority,
+      /row_number\(\) OVER \(\s*ORDER BY photo\."sortOrder" ASC, photo\.id ASC\s*\)/,
+    );
+    assert.doesNotMatch(sellerActorSimilarListingAuthority, /\(SELECT photo\.url FROM public\."Photo" AS photo/);
 
     assert.match(similarMakers, /sellerPublicSimilarMakers\(/);
     assert.doesNotMatch(similarMakers, /prisma\.sellerProfile/);

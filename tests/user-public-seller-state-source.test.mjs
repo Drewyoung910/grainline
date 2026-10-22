@@ -46,11 +46,20 @@ describe("User public seller-state source boundary", () => {
     const commissionAuthority = read(
       "prisma/migrations/20261020235000_prepare_seller_profile_public_commission_interests/migration.sql",
     );
+    const visibilityMirrorAuthority = read(
+      "prisma/migrations/20261020235989_prepare_seller_profile_public_visibility_mirrors/migration.sql",
+    );
 
-    for (const source of [listing, seller, blog, savedAuthority, commissionAuthority]) {
+    for (const source of [listing, seller, savedAuthority, commissionAuthority]) {
       assert.match(source, /ownerAccountActive/);
       assert.doesNotMatch(source, /user:\s*\{\s*banned:\s*false,\s*deletedAt:\s*null/);
     }
+    assert.match(blog, /authorSellerPubliclyOrderable/);
+    assert.doesNotMatch(blog, /user:\s*\{\s*banned:\s*false,\s*deletedAt:\s*null/);
+    assert.match(
+      visibilityMirrorAuthority,
+      /NEW\."authorSellerPubliclyOrderable" := \([\s\S]*linked_seller\."ownerAccountActive" = true/,
+    );
     assert.match(listing, /listing\.seller\.userId === viewer\.dbUserId/);
     assert.doesNotMatch(listing, /clerkUserId/);
   });

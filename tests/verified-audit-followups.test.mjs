@@ -276,15 +276,22 @@ describe("verified audit follow-up guardrails", () => {
       assert.doesNotMatch(text, /seller: \{ vacationMode: false, chargesEnabled: true/, `${path} should use listing visibility helpers`);
     }
 
-    const directSellerRawSqlPaths = [
-      "src/app/api/listings/[id]/similar/route.ts",
-      "src/lib/quality-score.ts",
-    ];
-    for (const path of directSellerRawSqlPaths) {
-      const text = source(path);
-      assert.match(text, /sp\."stripeAccountSupported" = true/, `${path} should use the public-safe seller capability snapshot`);
-      assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
-    }
+    const qualityScore = source("src/lib/quality-score.ts");
+    assert.match(qualityScore, /sellerServiceQualityScoreBatch\(cursorId, BATCH_SIZE\)/);
+    assert.doesNotMatch(qualityScore, /JOIN "SellerProfile"|stripeAccountVersion/);
+    const qualityScoreAuthority = source(
+      "prisma/migrations/20261020235988_prepare_seller_profile_quality_score_authorities/migration.sql",
+    );
+    assert.match(qualityScoreAuthority, /seller\."stripeAccountSupported" = true/);
+    assert.doesNotMatch(qualityScoreAuthority, /stripeAccountVersion/);
+    const similarListings = source("src/app/api/listings/[id]/similar/route.ts");
+    assert.match(similarListings, /sellerActorSimilarListingCandidates\(viewerUserId, id\)/);
+    assert.doesNotMatch(similarListings, /JOIN "SellerProfile"|stripeAccountVersion/);
+    const similarListingAuthority = source(
+      "prisma/migrations/20261020235987_prepare_seller_profile_similar_listing_candidates/migration.sql",
+    );
+    assert.match(similarListingAuthority, /seller\."stripeAccountSupported" = true/);
+    assert.doesNotMatch(similarListingAuthority, /stripeAccountVersion/);
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
     assert.match(globalSuggestions, /grainline_seller_public_follower_listing_target/);
     assert.doesNotMatch(globalSuggestions, /JOIN "SellerProfile"|stripeAccountVersion/);
@@ -311,7 +318,6 @@ describe("verified audit follow-up guardrails", () => {
     for (const path of [
       "src/app/listing/[id]/page.tsx",
       "src/app/messages/[id]/page.tsx",
-      "src/lib/blogVisibility.ts",
       "src/lib/conversationStartState.ts",
       "src/lib/listingVisibility.ts",
       "src/lib/sellerVisibility.ts",
@@ -320,6 +326,14 @@ describe("verified audit follow-up guardrails", () => {
       assert.match(text, /stripeAccountSupported/, `${path} should use the public-safe seller capability snapshot`);
       assert.doesNotMatch(text, /stripeAccountVersion/, `${path} should not read the private Stripe account version`);
     }
+    const blogVisibility = source("src/lib/blogVisibility.ts");
+    assert.match(blogVisibility, /authorSellerPubliclyOrderable/);
+    assert.doesNotMatch(blogVisibility, /stripeAccountVersion/);
+    const visibilityMirrors = source(
+      "prisma/migrations/20261020235989_prepare_seller_profile_public_visibility_mirrors/migration.sql",
+    );
+    assert.match(visibilityMirrors, /seller\."stripeAccountSupported" = true/);
+    assert.doesNotMatch(visibilityMirrors, /stripeAccountVersion/);
     for (const path of [
       "prisma/migrations/20261020040000_prepare_seller_profile_account_feed_cards/migration.sql",
       "prisma/migrations/20261020235000_prepare_seller_profile_public_commission_interests/migration.sql",
