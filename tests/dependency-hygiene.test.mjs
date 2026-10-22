@@ -58,10 +58,12 @@ describe("dependency hygiene guardrails", () => {
       .filter(([path]) => path === "node_modules/postcss" || path.endsWith("/node_modules/postcss"))
       .map(([path, entry]) => [path, entry.version]);
 
-    assert.equal(pkg.dependencies?.next, "^16.3.8");
-    assert.equal(lock.packages?.["node_modules/next"]?.version, "16.3.8");
-    assert.equal(pkg.devDependencies?.["eslint-config-next"], "^16.3.8");
-    assert.equal(lock.packages?.["node_modules/eslint-config-next"]?.version, "16.3.8");
+    assert.equal(pkg.dependencies?.next, "^16.4.2");
+    assert.equal(lock.packages?.["node_modules/next"]?.version, "16.4.2");
+    assert.equal(pkg.devDependencies?.["eslint-config-next"], "^16.4.2");
+    assert.equal(lock.packages?.["node_modules/eslint-config-next"]?.version, "16.4.2");
+    assert.equal(pkg.dependencies?.["@sentry/nextjs"], "^10.76.2");
+    assert.equal(lock.packages?.["node_modules/@sentry/nextjs"]?.version, "10.76.2");
 
     assert.equal(pkg.devDependencies?.postcss, "8.5.23");
     assert.equal(pkg.overrides?.postcss, "8.5.23");
@@ -110,8 +112,9 @@ describe("dependency hygiene guardrails", () => {
     );
     assert.equal(
       lock.packages?.["node_modules/fast-uri"]?.version,
-      "3.1.7",
+      "3.1.9",
     );
+    assert.equal(lock.packages?.["node_modules/qs"]?.version, "6.16.1");
     assert.equal(
       lock.packages?.["node_modules/nanoid"]?.version,
       "3.3.18",
@@ -181,8 +184,8 @@ describe("dependency hygiene guardrails", () => {
     const pkg = json("package.json");
     const lock = json("package-lock.json");
 
-    assert.equal(pkg.dependencies?.["sanitize-html"], "^2.17.7");
-    assert.equal(lock.packages?.["node_modules/sanitize-html"]?.version, "2.17.7");
+    assert.equal(pkg.dependencies?.["sanitize-html"], "^2.18.1");
+    assert.equal(lock.packages?.["node_modules/sanitize-html"]?.version, "2.18.1");
   });
 
   it("keeps every Sharp install on the reviewed patched line", () => {
