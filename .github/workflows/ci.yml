@@ -106,6 +106,22 @@ jobs:
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - name: Generate Prisma client for candidate behavior tests
         run: npx prisma generate
+      - name: Verify C-875 unsubscribe correction source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/user-signed-unsubscribe-authorities.test.mjs
+          tests/user-signed-unsubscribe-authorities-postgres.test.mjs
+          tests/user-signed-unsubscribe-production-inspect.test.mjs
+          tests/user-unsubscribe-optional-preferences-production-workflow.test.mjs
+      - name: Isolate C-875 unsubscribe correction until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-unsubscribe-optional-preferences"
+          migration=20261023030000_correct_user_unsubscribe_optional_email_preferences
+          mkdir "$holding"
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          echo "USER_UNSUBSCRIBE_OPTIONAL_PREFERENCES_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify SupportRequest preparation and ENABLE source package
         run: >-
           node --test --test-concurrency=1
@@ -6658,6 +6674,15 @@ jobs:
           done
           rmdir "$holding/migrations" "$holding/tests" "$holding"
           echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore C-875 unsubscribe correction after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-unsubscribe-optional-preferences"
+          migration=20261023030000_correct_user_unsubscribe_optional_email_preferences
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          rmdir "$holding"
+          echo "USER_UNSUBSCRIBE_OPTIONAL_PREFERENCES_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete SellerProfile chain, including policyless FORCE.
       - name: Apply complete public SellerProfile chain for final Production build

@@ -3051,6 +3051,9 @@ describe("database grant inventory guardrails", () => {
       userEmailAddressAuthorityFunctionNames.every(
         (functionName) => inventory.functions.includes(functionName),
       );
+    const userUnsubscribeOptionalPreferencesCorrectionPresent = existsSync(
+      "prisma/migrations/20261023030000_correct_user_unsubscribe_optional_email_preferences/migration.sql",
+    );
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3275,6 +3278,7 @@ describe("database grant inventory guardrails", () => {
         + (userRlsActivationExpected(inventory) ? 1 : 0)
         + (userEmailAddressRlsActivationExpected(inventory) ? 1 : 0)
         + (userEmailAddressAuthorityPrepared ? 4 : 0)
+        + (userUnsubscribeOptionalPreferencesCorrectionPresent ? 1 : 0)
         + userAuthorityFunctions.length
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
