@@ -95,7 +95,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["User", "RLS_LIVE_FORCE"],
         ["UserEmailAddress", "RLS_LIVE_FORCE"],
-        ["SellerProfile", "RLS_LIVE_ENABLE"],
+        ["SellerProfile", "RLS_LIVE_FORCE"],
         ["SellerProfilePrivate", "RLS_LIVE_FORCE"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],

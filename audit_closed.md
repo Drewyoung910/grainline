@@ -19915,7 +19915,7 @@ deployment `dpl_AP1z7xeSJE6biQHgw9VchzzLJTg7` reached READY and was aliased to
 changed app code only: no SQL, migration, RLS state, grants, or Production
 database state changed.
 
-### Entry 578 - Public SellerProfile policyless ENABLE accepted; FORCE isolated
+### Entry 578 - Public SellerProfile policyless ENABLE and FORCE accepted
 
 Public `SellerProfile` policyless ENABLE is live in Production from exact main
 `b56e226d327347fe155aa07ded0bde999ca929be`. Protected run `39869437488`
@@ -19933,8 +19933,8 @@ the public table-owner bypass posture. Its rollback returns to policyless
 ENABLE without restoring grants. Focused executable tests cover transition,
 grant-drift refusal, restricted-role denial, restart-safe inspection and
 rollback; the complete PostgreSQL 16 chain proves ENABLE immediately before the
-migration and FORCE afterward. Production FORCE remains unapplied and requires
-its own exact-head review, green checks and separate authorization.
+migration and FORCE afterward. Production FORCE subsequently passed its own
+exact-head review, green checks and separate authorization.
 
 After the compatible C-1039 application deployment, a failing-first workflow
 test exposed one release-binding defect before merge: the FORCE binder equated
@@ -19944,3 +19944,21 @@ compatible follow-up deployment. The binder now verifies two distinct ancestry
 edges instead: accepted ENABLE commit to compatible live app commit, then
 compatible live app commit to exact FORCE release commit. The live deployment
 identity remains independently checked before owner database access.
+
+Protected run `39898441606` applied only
+`20261020250000_force_seller_profile_rls` from exact main
+`b42cb4993e215bcc7ebaaa9816f4e27e1a50723c`. It bound successful CI run
+`39895387544`, Conversation/Message FORCE proof `39895387526`, accepted ENABLE
+run `39869437488`, compatible application commit
+`958b8c67970602908cd25a5d194838ffbb24e095`, and live deployment
+`dpl_3APjbWpfPbzNpMrBqBZ8ga1e5gAB` before owner access. The single pending
+migration applied, migration status completed, forced-catalog readback passed,
+and the global runtime-grant audit passed. The live health endpoint remained
+healthy.
+
+Sanitized artifact `seller-profile-force-production-39898441606`, digest
+`sha256:5fc4f65a037df843bc3bb5120a14c36cf04406c87c37b86c74b77a9a2b34e4d4`,
+records both public and private SellerProfile tables as policyless RLS plus
+FORCE, zero runtime/staff/PUBLIC table or column authority, and no row data.
+The public SellerProfile RLS release is complete; any rollback or successor is
+a separate Production operation.
