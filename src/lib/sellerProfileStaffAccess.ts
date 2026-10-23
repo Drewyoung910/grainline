@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type SellerProfileStaffClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
@@ -170,9 +171,7 @@ export async function sellerProfileStaffReportTargets(
   `;
   if (rows.length > requested.size || rows.some((row) => {
     const valid = typeof row.id === "string"
-      && typeof row.displayName === "string"
-      && row.displayName.length > 0
-      && row.displayName.length <= 100
+      && isTextWithinCodePointRange(row.displayName, 1, 100)
       && requested.has(row.id)
       && !returned.has(row.id);
     returned.add(row.id);
@@ -206,9 +205,7 @@ export async function sellerProfileStaffBroadcastTargets(
       && !returned.has(row.broadcastId)
       && validId(row.sellerProfileId)
       && validId(row.sellerUserId)
-      && typeof row.sellerDisplayName === "string"
-      && row.sellerDisplayName.length > 0
-      && row.sellerDisplayName.length <= 100;
+      && isTextWithinCodePointRange(row.sellerDisplayName, 1, 100);
     returned.add(row.broadcastId);
     return !valid;
   })) {
@@ -264,9 +261,7 @@ export async function sellerProfileStaffListingReviewTransition(
     )
     || !validId(row.listingId)
     || row.listingId !== input.listingId
-    || typeof row.title !== "string"
-    || row.title.length < 1
-    || row.title.length > 150
+    || !isTextWithinCodePointRange(row.title, 1, 150)
     || !Number.isSafeInteger(row.priceCents)
     || row.priceCents < 1
     || typeof row.currency !== "string"
@@ -278,9 +273,7 @@ export async function sellerProfileStaffListingReviewTransition(
     || !validNullableId(row.customOrderConversationId)
     || !validNullableId(row.reservedForUserId)
     || !validId(row.sellerUserId)
-    || typeof row.sellerDisplayName !== "string"
-    || row.sellerDisplayName.length < 1
-    || row.sellerDisplayName.length > 100
+    || !isTextWithinCodePointRange(row.sellerDisplayName, 1, 100)
     || typeof row.ownerAccountActive !== "boolean"
     || typeof row.chargesEnabled !== "boolean"
     || typeof row.vacationMode !== "boolean"
@@ -363,9 +356,7 @@ export async function sellerProfileStaffVerificationTarget(
     || !VERIFICATION_STATUSES.has(row.verificationStatus)
     || !validId(row.sellerProfileId)
     || !validId(row.sellerUserId)
-    || typeof row.sellerDisplayName !== "string"
-    || row.sellerDisplayName.length === 0
-    || row.sellerDisplayName.length > 100
+    || !isTextWithinCodePointRange(row.sellerDisplayName, 1, 100)
     || typeof row.ownerAccountActive !== "boolean"
     || (!metricsAbsent && !metricsValid)
   ) {

@@ -5,6 +5,7 @@ import {
   withDbUserContext,
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 export { resolvedInterestedCount } from "@/lib/commissionInterestCountValue";
 
@@ -108,9 +109,7 @@ async function readPublicCommissionInterestCards(
       || !(row.createdAt instanceof Date)
       || Number.isNaN(row.createdAt.getTime())
       || !validId(row.sellerProfileId)
-      || typeof row.displayName !== "string"
-      || row.displayName.length < 1
-      || row.displayName.length > 100
+      || !isTextWithinCodePointRange(row.displayName, 1, 100)
       || !nullableString(row.avatarImageUrl)
       || !nullableString(row.ownerImageUrl)
       || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))

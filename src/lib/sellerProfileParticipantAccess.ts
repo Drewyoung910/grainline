@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type SellerConversationParticipantCardRow = {
   sellerProfileId: string;
@@ -52,8 +53,7 @@ function isCardRow(
     && row.sellerProfileId.length > 0
     && row.sellerProfileId.length <= 191
     && requestedUserIds.has(row.userId)
-    && typeof row.displayName === "string"
-    && row.displayName.length <= 100
+    && isTextWithinCodePointRange(row.displayName, 0, 100)
     && nullableString(row.avatarImageUrl)
     && typeof row.acceptsCustomOrders === "boolean"
     && typeof row.chargesEnabled === "boolean"
@@ -117,9 +117,7 @@ async function readSellerActorAccountFeedCards(
     || rows.some((row) => (
       typeof row.id !== "string"
       || !requestedIds.has(row.id)
-      || typeof row.displayName !== "string"
-      || row.displayName.length < 1
-      || row.displayName.length > 100
+      || !isTextWithinCodePointRange(row.displayName, 1, 100)
       || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
     ))
     || new Set(rows.map((row) => row.id)).size !== rows.length
@@ -163,8 +161,7 @@ async function readSellerOwnerFollowExportRows(
       || !row.sellerProfileId
       || !(row.createdAt instanceof Date)
       || Number.isNaN(row.createdAt.getTime())
-      || typeof row.displayName !== "string"
-      || row.displayName.length > 100
+      || !isTextWithinCodePointRange(row.displayName, 0, 100)
     ))
     || new Set(rows.map((row) => row.sellerProfileId)).size !== rows.length
   ) {

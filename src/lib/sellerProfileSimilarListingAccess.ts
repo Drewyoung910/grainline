@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 import { prisma } from "@/lib/db";
 import { withDbUserContext } from "@/lib/dbUserContext";
@@ -62,11 +63,11 @@ function validId(value: unknown): value is string {
 }
 
 function boundedString(value: unknown, max: number): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= max;
+  return isTextWithinCodePointRange(value, 1, max);
 }
 
 function nullableBoundedString(value: unknown, max: number): value is string | null {
-  return value === null || (typeof value === "string" && value.length <= max);
+  return value === null || isTextWithinCodePointRange(value, 0, max);
 }
 
 function safeMoney(value: unknown): value is number {
