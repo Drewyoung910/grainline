@@ -538,6 +538,120 @@ FROM PUBLIC, :"runtime_role";
 -- silently restore UPDATE after the RLS migration removes it.
 REVOKE UPDATE ON TABLE public."SavedSearch" FROM :"runtime_role";
 
+-- SavedBlogPost uses owner SELECT/INSERT/DELETE policies and never has an
+-- application UPDATE path. Keep the predecessor app compatible while the
+-- activation is pending, but never restore UPDATE on a provisioning replay.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count,
+    (SELECT pg_catalog.array_agg(
+              policy.polname::text || ':' || policy.polcmd::text
+              ORDER BY policy.polname
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_shape,
+    (SELECT pg_catalog.bool_and(
+              policy.polpermissive
+              AND policy.polroles = ARRAY[
+                (SELECT role.oid
+                   FROM pg_catalog.pg_roles AS role
+                  WHERE role.rolname = :'runtime_role')
+              ]::oid[]
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_roles_valid,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_trigger AS trigger_state
+      WHERE trigger_state.tgrelid = class.oid
+        AND NOT trigger_state.tgisinternal) AS trigger_count,
+    pg_catalog.to_regprocedure(
+      'public.grainline_saved_blog_post_insert_guard()'
+    ) IS NOT NULL AS guard_exists,
+    EXISTS (
+      SELECT 1
+        FROM pg_catalog.pg_proc AS routine
+       WHERE routine.oid = pg_catalog.to_regprocedure(
+               'public.grainline_saved_blog_post_insert_guard()'
+             )
+         AND routine.proowner = class.relowner
+         AND routine.prosecdef
+         AND routine.provolatile = 'v'
+         AND routine.proparallel = 'u'
+         AND routine.proconfig = ARRAY['search_path=pg_catalog']::text[]
+    ) AS guard_valid,
+    EXISTS (
+      SELECT 1
+        FROM pg_catalog.pg_trigger AS trigger_state
+       WHERE trigger_state.tgrelid = class.oid
+         AND trigger_state.tgname = 'grainline_saved_blog_post_insert_guard'
+         AND trigger_state.tgfoid = pg_catalog.to_regprocedure(
+               'public.grainline_saved_blog_post_insert_guard()'
+             )
+         AND trigger_state.tgenabled = 'O'
+         AND NOT trigger_state.tgisinternal
+    ) AS trigger_valid
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'SavedBlogPost'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(
+        relrowsecurity
+        AND relforcerowsecurity
+        AND policy_count = 3
+        AND policy_shape = ARRAY[
+          'saved_blog_post_owner_delete:d',
+          'saved_blog_post_owner_insert:a',
+          'saved_blog_post_owner_select:r'
+        ]::text[]
+        AND policy_roles_valid
+        AND trigger_count = 1
+        AND guard_exists
+        AND guard_valid
+        AND trigger_valid
+      ) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+        AND trigger_count = 0
+        AND NOT guard_exists
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_saved_blog_post_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_saved_blog_post_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role";
+
 -- StripeWebhookEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
 -- removes all direct runtime authority. FORCE may be either off (initial

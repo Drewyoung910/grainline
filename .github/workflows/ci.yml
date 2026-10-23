@@ -174,6 +174,26 @@ jobs:
             tests/support-request-email-reuse-privacy-production-workflow.test.mjs \
             "$holding/tests/"
           echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=$holding/migrations/20261023010000_prepare_support_request_authorities/migration.sql" >> "$GITHUB_ENV"
+      - name: Verify SavedBlogPost owner-policy RLS source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/owner-table-rls-activation-production.test.mjs
+          tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs
+      - name: Isolate SavedBlogPost RLS candidate until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/saved-blog-post-rls-candidate"
+          migration=20261023070000_activate_saved_blog_post_rls
+          mkdir -p "$holding/migrations" "$holding/tests"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          for test_file in \
+            tests/owner-table-rls-activation-production.test.mjs \
+            tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs
+          do
+            mv "$test_file" "$holding/tests/$(basename "$test_file")"
+          done
+          echo "OWNER_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -6716,8 +6736,21 @@ jobs:
           mv "$holding/$migration" "prisma/migrations/$migration"
           rmdir "$holding"
           echo "EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SavedBlogPost RLS candidate after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/saved-blog-post-rls-candidate"
+          migration=20261023070000_activate_saved_blog_post_rls
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for test_file in "$holding/tests"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding/migrations" "$holding/tests" "$holding"
+          echo "OWNER_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
-      # against the complete SellerProfile chain, including policyless FORCE.
+      # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build
         env:
           PGPASSWORD: ci

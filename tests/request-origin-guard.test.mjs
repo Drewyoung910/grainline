@@ -208,7 +208,7 @@ describe("request origin guard", () => {
       "await params",
       "await auth()",
       "safeRateLimit(",
-      "upsertOwnerSavedBlogPost",
+      "saveOwnerSavedBlogPost",
     ]);
     assertHandlerGuardBefore("src/app/api/blog/[slug]/save/route.ts", "export async function DELETE(", [
       "await params",

@@ -1,10 +1,81 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import pg from "pg";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : result?.rows ?? [];
 }
 
-export async function proveSellerProfileSavedBlogPostAuthority({ database, seller }) {
+async function proveDeletionWinsConcurrentSave({
+  connectionString,
+  actorUserId,
+  blogPostId,
+  saveId,
+  now,
+}) {
+  const deletion = new pg.Client({ connectionString });
+  const save = new pg.Client({ connectionString });
+  await Promise.all([deletion.connect(), save.connect()]);
+  try {
+    await deletion.query("BEGIN");
+    await deletion.query(
+      `SELECT id FROM public."User" WHERE id = $1 FOR UPDATE`,
+      [actorUserId],
+    );
+    await deletion.query(
+      `UPDATE public."User" SET "deletedAt" = $2 WHERE id = $1`,
+      [actorUserId, now],
+    );
+
+    await save.query("BEGIN");
+    await save.query("SET LOCAL ROLE grainline_app_runtime");
+    await save.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [actorUserId],
+    );
+    const saveAttempt = save.query(
+      `INSERT INTO public."SavedBlogPost"
+        (id, "userId", "blogPostId", "createdAt")
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT ("userId", "blogPostId") DO NOTHING`,
+      [saveId, actorUserId, blogPostId, now],
+    ).then(
+      () => ({ error: null }),
+      (error) => ({ error }),
+    );
+
+    let waitedForDeletion = false;
+    for (let poll = 0; poll < 200; poll += 1) {
+      const waiting = await deletion.query(
+        `SELECT wait_event_type
+           FROM pg_catalog.pg_stat_activity
+          WHERE pid = $1`,
+        [save.processID],
+      );
+      if (waiting.rows[0]?.wait_event_type === "Lock") {
+        waitedForDeletion = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(waitedForDeletion, true, "SavedBlogPost insert did not wait on deletion lock");
+    await deletion.query("COMMIT");
+    const saveOutcome = await saveAttempt;
+    assert.equal(saveOutcome.error?.code, "42501");
+    await save.query("ROLLBACK");
+  } finally {
+    await deletion.query("ROLLBACK").catch(() => {});
+    await save.query("ROLLBACK").catch(() => {});
+    await Promise.all([deletion.end(), save.end()]);
+  }
+}
+
+export async function proveSellerProfileSavedBlogPostAuthority({
+  database,
+  seller,
+  connectionString,
+}) {
   const suffix = seller.sellerProfileId;
   const actorUserId = `${suffix}_saved_blog_actor`;
   const visiblePostId = `${suffix}_saved_blog_visible`;
@@ -13,6 +84,39 @@ export async function proveSellerProfileSavedBlogPostAuthority({ database, selle
   const draftPostId = `${suffix}_saved_blog_draft`;
   const blockId = `${suffix}_saved_blog_block`;
   const now = "2026-10-20 12:00:00";
+
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS enabled,
+           class.relforcerowsecurity AS forced,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS "policyCount",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS "runtimeSelect",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS "runtimeInsert",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS "runtimeDelete",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS "runtimeUpdate"
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'SavedBlogPost'
+  `)), [{
+    enabled: true,
+    forced: true,
+    policyCount: 3,
+    runtimeSelect: true,
+    runtimeInsert: true,
+    runtimeDelete: true,
+    runtimeUpdate: false,
+  }]);
 
   assert.deepEqual(rowsOf(await database.query(`
     SELECT routine.proname AS name,
@@ -125,10 +229,82 @@ export async function proveSellerProfileSavedBlogPostAuthority({ database, selle
       ),
       (error) => error?.code === "42501",
     );
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT id FROM public."SavedBlogPost" ORDER BY id`,
+    )), []);
+    await assert.rejects(
+      database.query(
+        `INSERT INTO public."SavedBlogPost"
+          (id, "userId", "blogPostId", "createdAt")
+         VALUES ($1, $2, $3, $4)`,
+        [`${suffix}_missing_context`, actorUserId, visiblePostId, now],
+      ),
+      (error) => error?.code === "42501",
+    );
     await database.query(
       "SELECT pg_catalog.set_config('app.user_id', $1, false)",
       [actorUserId],
     );
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT "blogPostId"
+         FROM public."SavedBlogPost"
+        ORDER BY "createdAt" DESC, id DESC`,
+    )), [
+      { blogPostId: visiblePostId },
+      { blogPostId: platformPostId },
+      { blogPostId: futurePostId },
+      { blogPostId: draftPostId },
+    ]);
+    await assert.rejects(
+      database.query(
+        `INSERT INTO public."SavedBlogPost"
+          (id, "userId", "blogPostId", "createdAt")
+         VALUES ($1, $2, $3, $4)`,
+        [`${suffix}_forged`, seller.userId, visiblePostId, now],
+      ),
+      (error) => error?.code === "42501",
+    );
+    await assert.rejects(
+      database.query(
+        `INSERT INTO public."SavedBlogPost"
+          (id, "userId", "blogPostId", "createdAt")
+         VALUES ($1, $2, $3, $4)`,
+        [`${suffix}_draft_again`, actorUserId, draftPostId, now],
+      ),
+      (error) => error?.code === "42501",
+    );
+    await assert.rejects(
+      database.query(
+        `UPDATE public."SavedBlogPost"
+            SET "createdAt" = $1
+          WHERE "userId" = $2`,
+        [now, actorUserId],
+      ),
+      (error) => error?.code === "42501",
+    );
+    const removed = rowsOf(await database.query(
+      `DELETE FROM public."SavedBlogPost"
+        WHERE "userId" = $1 AND "blogPostId" = $2
+      RETURNING id`,
+      [actorUserId, visiblePostId],
+    ));
+    assert.equal(removed.length, 1);
+    assert.deepEqual(rowsOf(await database.query(
+      `INSERT INTO public."SavedBlogPost"
+        (id, "userId", "blogPostId", "createdAt")
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [`${suffix}_saved_blog_reinserted`, actorUserId, visiblePostId, now],
+    )), [{ id: `${suffix}_saved_blog_reinserted` }]);
+    const duplicate = rowsOf(await database.query(
+      `INSERT INTO public."SavedBlogPost"
+        (id, "userId", "blogPostId", "createdAt")
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT ("userId", "blogPostId") DO NOTHING
+       RETURNING id`,
+      [`${suffix}_duplicate`, actorUserId, visiblePostId, now],
+    ));
+    assert.deepEqual(duplicate, []);
     const countRows = rowsOf(await database.query(
       "SELECT * FROM public.grainline_seller_owner_saved_blog_post_count()",
     ));
@@ -180,6 +356,14 @@ export async function proveSellerProfileSavedBlogPostAuthority({ database, selle
     await database.query("RESET app.user_id");
   }
 
+  await proveDeletionWinsConcurrentSave({
+    connectionString,
+    actorUserId,
+    blogPostId: visiblePostId,
+    saveId: `${suffix}_deletion_race`,
+    now,
+  });
+
   await database.query(`DELETE FROM public."Block" WHERE id = $1`, [blockId]);
   await database.query(
     `DELETE FROM public."SavedBlogPost" WHERE "userId" = $1`,
@@ -190,4 +374,72 @@ export async function proveSellerProfileSavedBlogPostAuthority({ database, selle
     [[visiblePostId, platformPostId, futurePostId, draftPostId]],
   );
   await database.query(`DELETE FROM public."User" WHERE id = $1`, [actorUserId]);
+}
+
+export async function proveSellerProfileSavedBlogPostRollback({
+  database,
+  repositoryRoot,
+}) {
+  const rollback = readFileSync(
+    join(
+      repositoryRoot,
+      "docs/rls-drafts/saved-blog-post-activation-rollback.sql",
+    ),
+    "utf8",
+  );
+  await database.query(rollback);
+
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS enabled,
+           class.relforcerowsecurity AS forced,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS "policyCount",
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_trigger AS trigger_state
+             WHERE trigger_state.tgrelid = class.oid
+               AND NOT trigger_state.tgisinternal) AS "triggerCount",
+           pg_catalog.to_regprocedure(
+             'public.grainline_saved_blog_post_insert_guard()'
+           ) IS NOT NULL AS "guardExists",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS "runtimeSelect",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS "runtimeInsert",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS "runtimeUpdate",
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS "runtimeDelete"
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'SavedBlogPost'
+  `)), [{
+    enabled: false,
+    forced: false,
+    policyCount: 0,
+    triggerCount: 0,
+    guardExists: false,
+    runtimeSelect: true,
+    runtimeInsert: true,
+    runtimeUpdate: true,
+    runtimeDelete: true,
+  }]);
+
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    const directRead = rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM public."SavedBlogPost"`,
+    ));
+    assert.equal(directRead.length, 1);
+    assert.equal(Number(directRead[0].count) >= 0, true);
+  } finally {
+    await database.query("RESET ROLE");
+  }
 }

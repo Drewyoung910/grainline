@@ -1,0 +1,222 @@
+name: Owner Table RLS Activation Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Reviewed owner-table RLS activation
+        required: true
+        type: choice
+        options:
+          - saved_blog_post_v1
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      compatible_app_commit:
+        description: Exact compatible app commit already live in Production
+        required: true
+        type: string
+      production_deployment_id:
+        description: Exact live compatible Production deployment
+        required: true
+        type: string
+      confirmation:
+        description: Type activate-reviewed-owner-table-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    name: Activate reviewed owner-table RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'activate-reviewed-owner-table-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      OWNER_TABLE_RLS_RELEASE_ID: ${{ inputs.release_id }}
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825a76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind activation to exact main, green checks, and compatible app
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_COMPATIBLE_APP_COMMIT: ${{ inputs.compatible_app_commit }}
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const compatibleAppCommit = process.env.REVIEWED_COMPATIBLE_APP_COMMIT;
+            const deploymentId = process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[0-9a-f]{40}$/.test(compatibleAppCommit ?? '') ||
+                !/^dpl_[A-Za-z0-9]{20,64}$/.test(deploymentId ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '')) {
+              throw new Error('Owner-table RLS binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            if (!Number.isSafeInteger(ciRunId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: ci}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.path !== '.github/workflows/ci.yml' || ci.event !== 'push' ||
+                ci.head_branch !== 'main' || ci.head_sha !== sha ||
+                ci.status !== 'completed' || ci.conclusion !== 'success') {
+              throw new Error('Owner-table RLS main/CI readback drifted');
+            }
+            const {data: appComparison} = await github.rest.repos.compareCommits({
+              ...context.repo,
+              base: compatibleAppCommit,
+              head: sha,
+            });
+            if (!['ahead', 'identical'].includes(appComparison.status)) {
+              throw new Error('Compatible app commit is not an ancestor of release');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {...context.repo, branch: 'main', event: 'push', head_sha: sha, per_page: 100},
+            );
+            const latestByWorkflow = new Map();
+            for (const run of exactPushRuns) {
+              if (run.head_sha !== sha || run.head_branch !== 'main' || run.event !== 'push') continue;
+              const key = run.path || run.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(run.id) > Number(previous.id)) latestByWorkflow.set(key, run);
+            }
+            const required = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missing = [...required].filter((path) => !latestByWorkflow.has(path));
+            if (missing.length !== 0) {
+              throw new Error(`Required exact-main push workflows are absent: ${missing.join(', ')}`);
+            }
+            const unacceptable = [...latestByWorkflow.values()].filter((run) =>
+              run.status !== 'completed' || run.conclusion !== 'success'
+            );
+            if (unacceptable.length !== 0) {
+              throw new Error(`Exact-main push workflows are not all green: ${unacceptable
+                .map((run) => `${run.name}:${run.status}/${run.conclusion}`).join(', ')}`);
+            }
+      - name: Verify reviewed owner-table source before owner access
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
+          latest="$(ls -1d prisma/migrations/*/ | sed 's#/$##; s#.*/##' | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "$migration"
+          node --test \
+            tests/owner-table-rls-activation-production.test.mjs \
+            tests/reviewed-pending-migrations.test.mjs \
+            tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs \
+            tests/saved-blog-post-export.test.mjs
+      - name: Verify exact compatible deployment is live
+        env:
+          REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.compatible_app_commit }}
+        run: node scripts/verify-order-email-free-deployment-surface.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe owner-table state before activation
+        id: preflight
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          OWNER_TABLE_RLS_PHASE: preflight
+          OWNER_TABLE_RLS_EVIDENCE_PATH: ${{ runner.temp }}/owner-table-rls-${{ github.sha }}-preflight.json
+        run: |
+          set -euo pipefail
+          state="$(node scripts/owner-table-rls-activation-production-inspect.mjs)"
+          case "$state" in
+            ready)
+              migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
+              echo "pending=$migration" >> "$GITHUB_OUTPUT"
+              ;;
+            active) echo "pending=" >> "$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+      - name: Require only the reviewed owner-table activation pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Apply only the reviewed owner-table activation
+        if: steps.preflight.outputs.state == 'ready'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Read back exact owner-table RLS catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          OWNER_TABLE_RLS_PHASE: postflight
+          OWNER_TABLE_RLS_EVIDENCE_PATH: ${{ runner.temp }}/owner-table-rls-${{ github.sha }}-postflight.json
+          OWNER_TABLE_RLS_PREVIOUS_EVIDENCE_PATH: ${{ runner.temp }}/owner-table-rls-${{ github.sha }}-preflight.json
+        run: node scripts/owner-table-rls-activation-production-inspect.mjs
+      - name: Require no migrations pending after activation
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ""
+        run: |
+          node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
+      - name: Audit global runtime grants after activation
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized owner-table RLS evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: owner-table-rls-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/owner-table-rls-${{ github.sha }}-*.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false
