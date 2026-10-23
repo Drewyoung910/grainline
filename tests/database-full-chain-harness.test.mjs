@@ -110,6 +110,9 @@ test("repository schema and retirement migration retain the post-retirement sell
 
 test("main CI proves the full chain before recreating the disposable database", () => {
   const workflow = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+  const generatedClient = workflow.indexOf(
+    "      - name: Generate Prisma client for full-chain behavior proof\n",
+  );
   const proof = workflow.indexOf("      - name: Prove full migration chain on PostgreSQL 16\n");
   const reset = workflow.indexOf("      - name: Reset disposable database after full-chain proof\n");
   const preserve = workflow.indexOf("      - name: Preserve full-chain sources for post-isolation tests\n");
@@ -117,7 +120,8 @@ test("main CI proves the full chain before recreating the disposable database", 
     "      - name: Generate Prisma client for candidate behavior tests\n",
     preserve,
   );
-  assert.ok(proof >= 0);
+  assert.ok(generatedClient >= 0);
+  assert.ok(proof > generatedClient);
   assert.ok(reset > proof);
   assert.ok(preserve > reset);
   assert.ok(existingSuite > preserve);

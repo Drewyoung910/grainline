@@ -89,6 +89,8 @@ jobs:
           node --test
           tests/test-runner-resource-boundary.test.mjs
           tests/dependency-hygiene.test.mjs
+      - name: Generate Prisma client for full-chain behavior proof
+        run: npx prisma generate
       - name: Prove full migration chain on PostgreSQL 16
         env:
           DATABASE_FULL_CHAIN_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
