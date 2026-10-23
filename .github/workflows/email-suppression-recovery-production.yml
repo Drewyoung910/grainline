@@ -186,6 +186,7 @@ jobs:
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
         run: |
           set -euo pipefail
           migration=20261023040000_repair_resend_failed_event_suppressions
