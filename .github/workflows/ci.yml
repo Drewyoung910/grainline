@@ -150,6 +150,7 @@ jobs:
           tests/private-table-enable-production.test.mjs
           tests/private-table-preparation-production.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
+          tests/support-request-email-reuse-privacy-production-workflow.test.mjs
           tests/support-request-state.test.mjs
       - name: Isolate SupportRequest candidate until historical release guards pass
         shell: bash
@@ -167,6 +168,7 @@ jobs:
           mv \
             tests/private-table-enable-production.test.mjs \
             tests/private-table-preparation-production.test.mjs \
+            tests/support-request-email-reuse-privacy-production-workflow.test.mjs \
             "$holding/tests/"
           echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=$holding/migrations/20261023010000_prepare_support_request_authorities/migration.sql" >> "$GITHUB_ENV"
       - name: Verify public SellerProfile candidate source package
