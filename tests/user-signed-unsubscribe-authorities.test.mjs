@@ -10,12 +10,15 @@ function source(path) {
 const migrationPath =
   "prisma/migrations/20261004020000_prepare_user_signed_unsubscribe_authorities/migration.sql";
 const migration = source(migrationPath);
+const correctionMigrationPath =
+  "prisma/migrations/20261023030000_correct_user_unsubscribe_optional_email_preferences/migration.sql";
+const correctionMigration = source(correctionMigrationPath);
 
-function functionBlock(name) {
-  const start = migration.indexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
+function functionBlock(name, sql = migration) {
+  const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}`);
   assert.ok(start >= 0, `${name} must exist`);
-  const next = migration.indexOf("CREATE OR REPLACE FUNCTION public.", start + 1);
-  return migration.slice(start, next < 0 ? migration.indexOf("REVOKE ALL", start) : next);
+  const next = sql.indexOf("CREATE OR REPLACE FUNCTION public.", start + 1);
+  return sql.slice(start, next < 0 ? sql.indexOf("REVOKE ALL", start) : next);
 }
 
 describe("User signed-unsubscribe authorities", () => {
@@ -50,7 +53,7 @@ describe("User signed-unsubscribe authorities", () => {
     assert.match(block, /END = ANY \(p_suppression_keys\)/);
   });
 
-  it("disables exactly the application email-preference keys while preserving other JSON", () => {
+  it("records the predecessor all-preference behavior without treating it as current", () => {
     const keySource = source("src/lib/notificationPreferenceKeys.ts");
     const emailBlock = keySource.match(
       /VALID_EMAIL_PREFERENCE_KEYS = \[([\s\S]*?)\] as const/u,
@@ -65,6 +68,35 @@ describe("User signed-unsubscribe authorities", () => {
     assert.match(block, /COALESCE\(account_user\."notificationPreferences", '\{\}'::jsonb\)\s*\|\|/);
     assert.match(block, /"updatedAt" = changed_at/);
     assert.match(block, /GET DIAGNOSTICS updated_rows = ROW_COUNT/);
+  });
+
+  it("corrects current unsubscribe behavior to disable only optional email preferences", () => {
+    const keySource = source("src/lib/notificationPreferenceKeys.ts");
+    const policySource = source("src/lib/emailPreferencePolicy.ts");
+    const emailBlock = keySource.match(
+      /VALID_EMAIL_PREFERENCE_KEYS = \[([\s\S]*?)\] as const/u,
+    )?.[1];
+    const alwaysOnBlock = policySource.match(
+      /ALWAYS_ON_EMAIL_PREFERENCE_KEYS = \[([\s\S]*?)\] as const/u,
+    )?.[1];
+    assert.ok(emailBlock);
+    assert.ok(alwaysOnBlock);
+    const applicationKeys = [...emailBlock.matchAll(/"([A-Z0-9_]+)"/gu)]
+      .map((match) => match[1]);
+    const alwaysOnKeys = new Set(
+      [...alwaysOnBlock.matchAll(/"([A-Z0-9_]+)"/gu)].map((match) => match[1]),
+    );
+    const optionalKeys = applicationKeys.filter((key) => !alwaysOnKeys.has(key));
+    const block = functionBlock(
+      "grainline_user_unsubscribe_preferences_disable",
+      correctionMigration,
+    );
+    const disabledKeys = [...block.matchAll(/'([A-Z0-9_]+)', false/gu)]
+      .map((match) => match[1]);
+    assert.deepEqual(disabledKeys, optionalKeys);
+    for (const key of alwaysOnKeys) assert.doesNotMatch(block, new RegExp(`'${key}', false`, "u"));
+    assert.match(correctionMigration, /11485f55b3bec34f2091430245a4a2cf/u);
+    assert.match(correctionMigration, /d8f4e2a60455233fc7da9f19e242b0a9/u);
   });
 
   it("routes signed unsubscribe through parameterized wrappers with no direct User calls", () => {

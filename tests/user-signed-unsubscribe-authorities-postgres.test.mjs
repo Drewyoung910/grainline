@@ -7,11 +7,16 @@ const migration = readFileSync(
   "prisma/migrations/20261004020000_prepare_user_signed_unsubscribe_authorities/migration.sql",
   "utf8",
 );
+const correctionMigration = readFileSync(
+  "prisma/migrations/20261023030000_correct_user_unsubscribe_optional_email_preferences/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
   await database.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
+    CREATE ROLE grainline_staff_read_runtime LOGIN NOINHERIT;
     CREATE ROLE grainline_untrusted LOGIN NOINHERIT;
     CREATE TABLE public."User" (
       id text PRIMARY KEY,
@@ -36,11 +41,16 @@ async function createDatabase() {
       ('new_opt_in', 'opt@example.com', '2026-10-01', '2026-10-03',
         '{"EMAIL_NEW_REVIEW":true}', '2026-10-03', '2026-10-03'),
       ('gmail_one', 'Drew.You+market@GoogleMail.com', '2026-10-01', NULL,
-        '{"EMAIL_SELLER_BROADCAST":true,"SELLER_BROADCAST":true}', NULL, '2026-10-01'),
+        '{"EMAIL_SELLER_BROADCAST":true,"EMAIL_NEW_ORDER":true,"SELLER_BROADCAST":true}', NULL, '2026-10-01'),
       ('gmail_two', 'd.r.e.w.y.o.u@gmail.com', '2026-10-01', NULL,
-        '{"EMAIL_NEW_MESSAGE":true,"CUSTOM":42}', NULL, '2026-10-01');
+        '{"EMAIL_NEW_MESSAGE":true,"EMAIL_CASE_OPENED":true,"EMAIL_REFUND_ISSUED":true,"CUSTOM":42}', NULL, '2026-10-01');
   `);
   await database.exec(migration);
+  await database.exec(`
+    ALTER TABLE public."User" ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public."User" FORCE ROW LEVEL SECURITY;
+  `);
+  await database.exec(correctionMigration);
   return database;
 }
 
@@ -71,7 +81,7 @@ test("runtime supersession authority preserves creation, deletion, opt-in, and G
   }
 });
 
-test("runtime unsubscribe disables every matching email preference and preserves other keys", async () => {
+test("runtime unsubscribe disables optional email preferences and preserves always-on and unrelated keys", async () => {
   const database = await createDatabase();
   try {
     await database.exec("SET ROLE grainline_app_runtime");
@@ -89,12 +99,12 @@ test("runtime unsubscribe disables every matching email preference and preserves
        ORDER BY id
     `)).rows;
     assert.equal(users.length, 2);
-    for (const user of users) {
-      for (const [key, enabled] of Object.entries(user.preferences)) {
-        if (key.startsWith("EMAIL_")) assert.equal(enabled, false, `${user.id}:${key}`);
-      }
-    }
+    assert.equal(users[0].preferences.EMAIL_SELLER_BROADCAST, false);
+    assert.equal(users[0].preferences.EMAIL_NEW_ORDER, true);
     assert.equal(users[0].preferences.SELLER_BROADCAST, true);
+    assert.equal(users[1].preferences.EMAIL_NEW_MESSAGE, false);
+    assert.equal(users[1].preferences.EMAIL_CASE_OPENED, true);
+    assert.equal(users[1].preferences.EMAIL_REFUND_ISSUED, true);
     assert.equal(users[1].preferences.CUSTOM, 42);
   } finally {
     await database.close();
