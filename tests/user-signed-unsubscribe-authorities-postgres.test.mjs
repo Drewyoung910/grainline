@@ -8,7 +8,8 @@ const migration = readFileSync(
   "utf8",
 );
 const correctionMigration = readFileSync(
-  "prisma/migrations/20261023030000_correct_user_unsubscribe_optional_email_preferences/migration.sql",
+  process.env.USER_UNSUBSCRIBE_OPTIONAL_PREFERENCES_MIGRATION_PATH ||
+    "prisma/migrations/20261023030000_correct_user_unsubscribe_optional_email_preferences/migration.sql",
   "utf8",
 );
 

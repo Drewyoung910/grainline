@@ -11,6 +11,7 @@ const migrationPath =
   "prisma/migrations/20261004020000_prepare_user_signed_unsubscribe_authorities/migration.sql";
 const migration = source(migrationPath);
 const correctionMigrationPath =
+  process.env.USER_UNSUBSCRIBE_OPTIONAL_PREFERENCES_MIGRATION_PATH ||
   "prisma/migrations/20261023030000_correct_user_unsubscribe_optional_email_preferences/migration.sql";
 const correctionMigration = source(correctionMigrationPath);
 
