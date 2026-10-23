@@ -2975,6 +2975,9 @@ describe("database grant inventory guardrails", () => {
     const supportRequestEnableMigrationPresent = existsSync(
       "prisma/migrations/20261023020000_enable_support_request_rls/migration.sql",
     );
+    const supportRequestForceMigrationPresent = existsSync(
+      "prisma/migrations/20261023060000_force_support_request_rls/migration.sql",
+    );
     const sellerProfilePrivatePreparationMigrationPath =
       "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
     const sellerProfilePrivatePreparationMigrationPresent = existsSync(
@@ -3742,6 +3745,9 @@ describe("database grant inventory guardrails", () => {
           ? ["SellerProfilePrivate"]
           : []),
         "StripeWebhookEvent",
+        ...(supportRequestForceMigrationPresent
+          ? [SUPPORT_REQUEST_TABLE ?? "SupportRequest"]
+          : []),
         ...(userRlsForceExpected(inventory) ? [USER_TABLE] : []),
         ...(userEmailAddressRlsForceExpected(inventory)
           ? ["UserEmailAddress"]
