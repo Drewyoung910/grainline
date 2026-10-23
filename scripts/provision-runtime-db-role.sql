@@ -422,6 +422,65 @@ REVOKE ALL ON TABLE public."SellerProfile"
 \endif
 \unset seller_profile_rls_active
 
+-- SupportRequest keeps compatible predecessor CRUD only while RLS is cleanly
+-- off. Once policyless ENABLE (or later FORCE) is present, provisioning must
+-- preserve zero direct table authority and leave access on the reviewed
+-- purpose-bound functions below.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'SupportRequest'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND policy_count = 0) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'SupportRequest RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS support_request_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_support_request_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_support_request_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :support_request_rls_active
+REVOKE ALL ON TABLE public."SupportRequest"
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset support_request_rls_active
+
 -- OrderItem and OrderShippingRateQuote remain separate from the Core Order RLS
 -- release, but the application no longer needs ordinary table access. Preserve
 -- predecessor grants until the exact runtime-lock migration is durably applied;

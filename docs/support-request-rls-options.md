@@ -81,10 +81,13 @@ This should use a lighter release pattern than SellerProfile:
    predecessor grants remain.
 2. Convert callers and deploy the compatible application after failing-first
    behavior tests on the complete PostgreSQL 16 migration chain.
-3. One protected activation migration verifies zero direct callers, revokes
-   runtime/PUBLIC authority, and applies policyless ENABLE plus FORCE together.
-4. Use one reusable private-table activation workflow and generic catalog/grant
-   proof. Do not create a new family of one-time per-table scripts.
+3. One protected activation migration verifies the fixed-operation boundary,
+   revokes runtime/PUBLIC authority, and applies policyless ENABLE with explicit
+   `NO FORCE`. A later posture-only FORCE migration remains separate so ENABLE
+   can be accepted and rolled back before owner bypass changes.
+4. Use reusable private-table ENABLE and FORCE workflows plus generic
+   catalog/grant proofs. Do not create a new family of one-time per-table
+   scripts.
 
 Production activation remains a separate exact-commit operation even after the
 design and source are approved.

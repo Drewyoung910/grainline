@@ -106,7 +106,7 @@ jobs:
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - name: Generate Prisma client for candidate behavior tests
         run: npx prisma generate
-      - name: Verify SupportRequest preparation source package
+      - name: Verify SupportRequest preparation and ENABLE source package
         run: >-
           node --test --test-concurrency=1
           tests/account-export-privacy.test.mjs
@@ -115,21 +115,27 @@ jobs:
           tests/admin-audit-durability.test.mjs
           tests/admin-query-and-email-guardrails.test.mjs
           tests/db-grant-inventory.test.mjs
+          tests/private-table-enable-production.test.mjs
           tests/private-table-preparation-production.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/support-request-state.test.mjs
-      - name: Isolate SupportRequest preparation until historical release guards pass
+      - name: Isolate SupportRequest candidate until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
-          holding="$RUNNER_TEMP/support-request-preparation"
-          mkdir -p "$holding/tests"
-          migration=20261023010000_prepare_support_request_authorities
-          mv "prisma/migrations/$migration" "$holding/migration"
+          holding="$RUNNER_TEMP/support-request-candidate"
+          mkdir -p "$holding/migrations" "$holding/tests"
+          for migration in \
+            20261023010000_prepare_support_request_authorities \
+            20261023020000_enable_support_request_rls
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done
           mv \
+            tests/private-table-enable-production.test.mjs \
             tests/private-table-preparation-production.test.mjs \
-            "$holding/tests/private-table-preparation-production.test.mjs"
-          echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=$holding/migration/migration.sql" >> "$GITHUB_ENV"
+            "$holding/tests/"
+          echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=$holding/migrations/20261023010000_prepare_support_request_authorities/migration.sql" >> "$GITHUB_ENV"
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -6635,18 +6641,22 @@ jobs:
             mv "$holding/tests/$(basename "$test_file")" "$test_file"
           done < "$holding/test-files.txt"
           echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
-      - name: Restore SupportRequest preparation after historical release guards
+      - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
           set -euo pipefail
-          holding="$RUNNER_TEMP/support-request-preparation"
-          migration=20261023010000_prepare_support_request_authorities
-          mv "$holding/migration" "prisma/migrations/$migration"
+          holding="$RUNNER_TEMP/support-request-candidate"
+          for migration in \
+            20261023010000_prepare_support_request_authorities \
+            20261023020000_enable_support_request_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           for test_file in "$holding/tests"/*.mjs
           do
             mv "$test_file" "tests/$(basename "$test_file")"
           done
-          rmdir "$holding/tests" "$holding"
+          rmdir "$holding/migrations" "$holding/tests" "$holding"
           echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete SellerProfile chain, including policyless FORCE.

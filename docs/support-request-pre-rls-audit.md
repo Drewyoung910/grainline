@@ -131,8 +131,8 @@ There are no `BLOCKS_RLS_DESIGN` findings after selecting Option B.
 
 ## Acceptance and rollback
 
-The PostgreSQL 16 proof rebuilt and applied all 424 migrations, then passed the
-preparation scenarios for: anonymous/signed-in submission, forged actor denial,
+The PostgreSQL 16 proof rebuilt and applied all 425 migrations, then passed the
+policyless ENABLE scenarios for: anonymous/signed-in submission, forged actor denial,
 one-use email-result capability, non-owner export denial, staff/PIN boundaries,
 terminal staff transitions, atomic audit metadata, multi-batch
 deletion redaction, unrelated-row preservation, deferred-request convergence,
@@ -144,7 +144,13 @@ delegate or raw base-table statement. Exact-head CI remains the place for the
 single full repository suite and build; they are not repeated after every
 documentation-only adjustment.
 
-The compatible preparation changes no grant or RLS flag. Its rollback is the
-predecessor application, which keeps working through retained grants. The later
-activation rollback restores the exact inspected predecessor grants and disables
-FORCE/RLS before rolling back callers. No security release drops columns.
+The compatible preparation is live from protected run `39933538640`, and the
+compatible application is live at exact commit
+`0ec7c793b3e84497de88371c597ca3547e12d8ab` as deployment
+`dpl_G1yHZgGU3KFLNzqA2GqbVWBCSRfg`. Production still has RLS off and retains
+the predecessor grants. Candidate migration
+`20261023020000_enable_support_request_rls` separately applies policyless
+ENABLE/NO FORCE and revokes direct runtime, staff, and PUBLIC table authority;
+it has not run in Production. Its rollback restores the exact inspected
+predecessor grants and disables RLS before any application rollback. FORCE is a
+later posture-only release. No security release drops columns.

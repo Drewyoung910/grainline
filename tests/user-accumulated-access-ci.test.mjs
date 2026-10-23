@@ -70,7 +70,14 @@ const blockedCheckoutRefundWitness =
   "20261015030000_preserve_blocked_checkout_refund_witness";
 const supportRequestPreparationMigration =
   "20261023010000_prepare_support_request_authorities";
-const supportRequestPreparationTests = [
+const supportRequestEnableMigration =
+  "20261023020000_enable_support_request_rls";
+const supportRequestCandidateMigrations = [
+  supportRequestPreparationMigration,
+  supportRequestEnableMigration,
+];
+const supportRequestCandidateTests = [
+  "private-table-enable-production.test.mjs",
   "private-table-preparation-production.test.mjs",
 ];
 const sellerProfilePrivateBoundaryMigrations = [
@@ -193,8 +200,9 @@ function supportRequestPreparationMigrationPath() {
   if (existsSync(livePath)) return livePath;
   const stagedPath = path.join(
     process.env.RUNNER_TEMP ?? "",
-    "support-request-preparation",
-    "migration",
+    "support-request-candidate",
+    "migrations",
+    supportRequestPreparationMigration,
   );
   assert.ok(existsSync(stagedPath), "missing isolated SupportRequest preparation migration");
   return stagedPath;
@@ -205,7 +213,7 @@ function supportRequestPreparationTestPath(file) {
   if (existsSync(livePath)) return livePath;
   const stagedPath = path.join(
     process.env.RUNNER_TEMP ?? "",
-    "support-request-preparation",
+    "support-request-candidate",
     "tests",
     file,
   );
@@ -331,11 +339,11 @@ test("package-owned tests remain available for their later isolation steps", () 
   assert.match(emailAddress, /user-email-address-history\.test\.mjs/);
 });
 
-test("SupportRequest preparation is isolated before exact-latest historical release guards", () => {
-  const verify = "Verify SupportRequest preparation source package";
-  const isolate = "Isolate SupportRequest preparation until historical release guards pass";
+test("SupportRequest candidate is isolated before exact-latest historical release guards", () => {
+  const verify = "Verify SupportRequest preparation and ENABLE source package";
+  const isolate = "Isolate SupportRequest candidate until historical release guards pass";
   const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
-  const restore = "Restore SupportRequest preparation after historical release guards";
+  const restore = "Restore SupportRequest candidate after historical release guards";
   assert.ok(workflow.indexOf(verify) < workflow.indexOf(isolate));
   assert.ok(workflow.indexOf(isolate) < workflow.indexOf(checkoutReceipt));
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restore));
@@ -391,18 +399,14 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
-    const supportRequestPreparationTarget = path.join(
-      root,
-      "prisma",
-      "migrations",
-      supportRequestPreparationMigration,
-    );
-    if (!existsSync(supportRequestPreparationTarget)) {
-      cpSync(
-        supportRequestPreparationMigrationPath(),
-        supportRequestPreparationTarget,
-        { recursive: true },
-      );
+    for (const migration of supportRequestCandidateMigrations) {
+      const target = path.join(root, "prisma", "migrations", migration);
+      if (!existsSync(target)) {
+        const source = migration === supportRequestPreparationMigration
+          ? supportRequestPreparationMigrationPath()
+          : path.join("prisma", "migrations", migration);
+        cpSync(source, target, { recursive: true });
+      }
     }
     for (const file of heldTests) {
       cpSync(accumulatedUserTestPath(file), path.join(root, "tests", file));
@@ -410,7 +414,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     for (const file of accountDeletionSuccessorTests) {
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
     }
-    for (const file of supportRequestPreparationTests) {
+    for (const file of supportRequestCandidateTests) {
       cpSync(supportRequestPreparationTestPath(file), path.join(root, "tests", file));
     }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
@@ -421,15 +425,16 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${accountDeletionPostRetirementRepair}/migration.sql`;
     const blockedCheckoutRefundWitnessPath =
       `prisma/migrations/${blockedCheckoutRefundWitness}/migration.sql`;
-    const supportRequestPreparationPath =
-      `prisma/migrations/${supportRequestPreparationMigration}/migration.sql`;
+    const supportRequestCandidatePaths = supportRequestCandidateMigrations.map(
+      (migration) => `prisma/migrations/${migration}/migration.sql`,
+    );
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
       postRetirementRepairPath,
       blockedCheckoutRefundWitnessPath,
-      supportRequestPreparationPath,
-      ...supportRequestPreparationTests.map((file) => `tests/${file}`),
+      ...supportRequestCandidatePaths,
+      ...supportRequestCandidateTests.map((file) => `tests/${file}`),
       "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
@@ -455,7 +460,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       path.join(sellerPublicTestHolding, "db-grant-inventory.test.mjs"),
     );
     rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
-    execFileSync("bash", ["-c", bashBody("Isolate SupportRequest preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate SupportRequest candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -465,8 +470,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.ok(sellerProfilePrivateBoundaryPaths.every((relative) => !existsSync(path.join(root, relative))));
     assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
     assert.equal(existsSync(path.join(root, blockedCheckoutRefundWitnessPath)), false);
-    assert.equal(existsSync(path.join(root, supportRequestPreparationPath)), false);
-    assert.ok(supportRequestPreparationTests.every(
+    assert.ok(supportRequestCandidatePaths.every(
+      (relative) => !existsSync(path.join(root, relative)),
+    ));
+    assert.ok(supportRequestCandidateTests.every(
       (file) => !existsSync(path.join(root, "tests", file)),
     ));
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
@@ -521,7 +528,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
     execFileSync("bash", ["-c", bashBody("Restore post-retirement account-deletion repair after all predecessors")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore blocked-checkout refund witness after immutable refund repair")], { cwd: root, env: scriptEnv });
-    execFileSync("bash", ["-c", bashBody("Restore SupportRequest preparation after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore SupportRequest candidate after historical release guards")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

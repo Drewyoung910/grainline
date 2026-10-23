@@ -110,6 +110,7 @@ export const ORDER_ITEM_TABLE = "OrderItem";
 export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote";
 export const USER_TABLE = "User";
 export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
+export const SUPPORT_REQUEST_TABLE = "SupportRequest";
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
@@ -1362,6 +1363,18 @@ export function userEmailAddressRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(USER_EMAIL_ADDRESS_TABLE);
 }
 
+export function supportRequestRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(SUPPORT_REQUEST_TABLE)
+    && !policies.has(SUPPORT_REQUEST_TABLE);
+}
+
+export function supportRequestRlsForceExpected(inventory) {
+  return supportRequestRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(SUPPORT_REQUEST_TABLE);
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -1765,6 +1778,9 @@ export function policylessServiceRlsTableNames(inventory) {
       ? [USER_EMAIL_ADDRESS_TABLE]
       : []),
     ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
+    ...(supportRequestRlsActivationExpected(inventory)
+      ? [SUPPORT_REQUEST_TABLE]
+      : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -2761,6 +2777,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && userRlsActivationExpected(inventory)
     )
     || (
+      tableName === SUPPORT_REQUEST_TABLE
+      && supportRequestRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -2819,6 +2839,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? userEmailAddressRlsForceExpected(inventory)
         : tableName === USER_TABLE
           ? userRlsForceExpected(inventory)
+        : tableName === SUPPORT_REQUEST_TABLE
+          ? supportRequestRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE

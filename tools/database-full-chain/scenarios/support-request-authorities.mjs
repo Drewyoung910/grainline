@@ -93,16 +93,21 @@ export async function proveSupportRequestAuthorities({ database }) {
      WHERE class.oid = 'public."SupportRequest"'::pg_catalog.regclass
   `))[0];
   assert.deepEqual(posture, {
-    enabled: false,
+    enabled: true,
     forced: false,
-    runtimeSelect: true,
-    runtimeInsert: true,
-    runtimeUpdate: true,
-    runtimeDelete: true,
-  }, "preparation must preserve predecessor table posture and grants");
+    runtimeSelect: false,
+    runtimeInsert: false,
+    runtimeUpdate: false,
+    runtimeDelete: false,
+  }, "activation must establish policyless ENABLE with zero direct runtime grants");
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
+    await assert.rejects(
+      database.query(`SELECT id FROM public."SupportRequest" LIMIT 1`),
+      /permission denied|row-level security/u,
+      "runtime must not read SupportRequest directly after activation",
+    );
     await setActor(database, null);
     const anonymous = rowsOf(await database.query(
       `SELECT * FROM public.grainline_support_request_submit(
