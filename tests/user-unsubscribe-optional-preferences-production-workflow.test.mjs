@@ -136,6 +136,17 @@ test("C-875 production release has one exact protected boundary", () => {
   assert.equal((workflow.match(/\bnpx prisma migrate deploy\b/gu) ?? []).length, 1);
 });
 
+test("C-875 production release uses a resolvable immutable checkout pin", () => {
+  const checkoutStep = parsedWorkflow.jobs.apply.steps.find(
+    (step) => typeof step.uses === "string" && step.uses.startsWith("actions/checkout@"),
+  );
+
+  assert.equal(
+    checkoutStep?.uses,
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+  );
+});
+
 test("C-875 CI proves then isolates the correction from historical release guards", () => {
   const verify = ciWorkflow.indexOf(
     "name: Verify C-875 unsubscribe correction source package",
