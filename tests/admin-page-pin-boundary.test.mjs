@@ -97,6 +97,7 @@ test("support status actions repeat the PIN boundary before any mutation", async
   let transitionCalls = 0;
   let revalidations = 0;
   const action = loadSubject("src/app/admin/support/actions.ts", {
+    "@clerk/nextjs/server": { auth: async () => identity },
     "@/lib/adminPageAccess": { requireAdminPageAccess: async () => null },
     "@/lib/ratelimit": {
       adminActionRatelimit: {},
@@ -123,11 +124,12 @@ test("support status actions repeat the PIN boundary before any mutation", async
 test("support status actions use the PIN-verified local actor for one bounded transition", async () => {
   const calls = [];
   const action = loadSubject("src/app/admin/support/actions.ts", {
+    "@clerk/nextjs/server": { auth: async () => identity },
     "@/lib/adminPageAccess": { requireAdminPageAccess: async () => staff },
     "@/lib/ratelimit": {
       adminActionRatelimit: {},
       safeRateLimit: async (_limit, actorId) => {
-        assert.equal(actorId, staff.id);
+        assert.equal(actorId, identity.userId);
         return { success: true };
       },
     },

@@ -38,7 +38,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const sellerFanoutStart = accountDeletion.indexOf("async function cleanupDeletedSellerFanoutRows");
     const sellerFanoutEnd = accountDeletion.indexOf(
-      "async function redactSupportRequestsForDeletedAccount",
+      "async function archiveBlogPostsForDeletedAccount",
       sellerFanoutStart,
     );
     const mediaCollectionStart = accountDeletion.indexOf("async function collectAccountDeletionMediaKeys");
