@@ -191,20 +191,20 @@ function blockedCheckoutRefundWitnessSourcePath() {
   return path.dirname(isolatedMigrationPath);
 }
 
-function supportRequestPreparationMigrationPath() {
+function supportRequestCandidateMigrationPath(migration) {
   const livePath = path.join(
     "prisma",
     "migrations",
-    supportRequestPreparationMigration,
+    migration,
   );
   if (existsSync(livePath)) return livePath;
   const stagedPath = path.join(
     process.env.RUNNER_TEMP ?? "",
     "support-request-candidate",
     "migrations",
-    supportRequestPreparationMigration,
+    migration,
   );
-  assert.ok(existsSync(stagedPath), "missing isolated SupportRequest preparation migration");
+  assert.ok(existsSync(stagedPath), `missing isolated SupportRequest migration ${migration}`);
   return stagedPath;
 }
 
@@ -402,10 +402,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     for (const migration of supportRequestCandidateMigrations) {
       const target = path.join(root, "prisma", "migrations", migration);
       if (!existsSync(target)) {
-        const source = migration === supportRequestPreparationMigration
-          ? supportRequestPreparationMigrationPath()
-          : path.join("prisma", "migrations", migration);
-        cpSync(source, target, { recursive: true });
+        cpSync(supportRequestCandidateMigrationPath(migration), target, { recursive: true });
       }
     }
     for (const file of heldTests) {
