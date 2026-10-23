@@ -72,13 +72,21 @@ const supportRequestPreparationMigration =
   "20261023010000_prepare_support_request_authorities";
 const supportRequestEnableMigration =
   "20261023020000_enable_support_request_rls";
+const supportRequestPrivacyMigration =
+  "20261023050000_correct_support_request_email_reuse_privacy";
+const supportRequestForceMigration =
+  "20261023060000_force_support_request_rls";
 const supportRequestCandidateMigrations = [
   supportRequestPreparationMigration,
   supportRequestEnableMigration,
+  supportRequestPrivacyMigration,
+  supportRequestForceMigration,
 ];
 const supportRequestCandidateTests = [
   "private-table-enable-production.test.mjs",
+  "private-table-force-production.test.mjs",
   "private-table-preparation-production.test.mjs",
+  "support-request-email-reuse-privacy-production-workflow.test.mjs",
 ];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
@@ -340,7 +348,7 @@ test("package-owned tests remain available for their later isolation steps", () 
 });
 
 test("SupportRequest candidate is isolated before exact-latest historical release guards", () => {
-  const verify = "Verify SupportRequest preparation and ENABLE source package";
+  const verify = "Verify SupportRequest preparation, ENABLE, and FORCE source package";
   const isolate = "Isolate SupportRequest candidate until historical release guards pass";
   const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
   const restore = "Restore SupportRequest candidate after historical release guards";
