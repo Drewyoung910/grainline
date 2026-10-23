@@ -12,9 +12,33 @@ on:
       - package.json
       - package-lock.json
       - prisma/**
+      - scripts/assert-reviewed-pending-migrations.mjs
       - scripts/audit-runtime-db-grants.mjs
       - scripts/build-blocked-checkout-refund-delivery-migration.mjs
       - scripts/notification-rls-ephemeral-proof.mjs
+      - scripts/reviewed-manually-applied-migrations.mjs
+      - scripts/notification-rls-rollback-proof.mjs
+      - scripts/stage-notification-rls-candidate-migration.mjs
+      - scripts/verify-notification-activation-release.mjs
+      - scripts/verify-notification-force-release.mjs
+      - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-direct-upload-cleanup-role.sql
+      - scripts/provision-runtime-db-role.sql
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/notification-rls-ephemeral-proof.yml
+      - .github/workflows/user-unsubscribe-optional-preferences-production.yml
+      - docs/rls-drafts/**
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/assert-reviewed-pending-migrations.mjs
+      - scripts/audit-runtime-db-grants.mjs
+      - scripts/build-blocked-checkout-refund-delivery-migration.mjs
+      - scripts/notification-rls-ephemeral-proof.mjs
+      - scripts/reviewed-manually-applied-migrations.mjs
       - scripts/notification-rls-rollback-proof.mjs
       - scripts/stage-notification-rls-candidate-migration.mjs
       - scripts/verify-notification-activation-release.mjs
