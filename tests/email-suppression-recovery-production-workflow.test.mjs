@@ -15,6 +15,7 @@ const workflow = readFileSync(
   ".github/workflows/email-suppression-recovery-production.yml",
   "utf8",
 );
+const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
 const bindingScript = parsed.jobs.apply.steps.find(
   (step) =>
@@ -115,6 +116,38 @@ test("C-715 production release admits one exact restart-safe migration", () => {
   assert.match(workflow, /email-suppression-recovery-production-inspect\.mjs postflight/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   assert.doesNotMatch(workflow, /resend\s+(?:emails|webhooks|domains)/iu);
+});
+
+test("C-715 CI proves then isolates the correction from historical release guards", () => {
+  const verify = ciWorkflow.indexOf(
+    "name: Verify C-715 email suppression recovery source package",
+  );
+  const isolate = ciWorkflow.indexOf(
+    "name: Isolate C-715 email suppression recovery until historical release guards pass",
+  );
+  const historical = ciWorkflow.indexOf(
+    "name: Verify compatible Order checkout receipt authority release",
+  );
+  const restore = ciWorkflow.indexOf(
+    "name: Restore C-715 email suppression recovery after historical release guards",
+  );
+  const finalBuild = ciWorkflow.indexOf(
+    "name: Apply complete public SellerProfile chain for final Production build",
+  );
+
+  assert.ok(verify >= 0);
+  assert.ok(verify < isolate);
+  assert.ok(isolate < historical);
+  assert.ok(historical < restore);
+  assert.ok(restore < finalBuild);
+  assert.match(
+    ciWorkflow.slice(isolate, historical),
+    /mv "prisma\/migrations\/\$migration" "\$holding\/\$migration"/u,
+  );
+  assert.match(
+    ciWorkflow.slice(restore, finalBuild),
+    /mv "\$holding\/\$migration" "prisma\/migrations\/\$migration"/u,
+  );
 });
 
 test("C-715 production inspector accepts counts before repair and requires zero after", () => {
