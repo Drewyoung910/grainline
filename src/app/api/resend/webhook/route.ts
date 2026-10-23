@@ -11,6 +11,7 @@ import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
+  requireResendRecipientTasks,
   RESEND_RECIPIENT_ACTION,
   resendRecipientAction,
   resendSuppressionReason,
@@ -91,34 +92,6 @@ async function markWebhookFailed(svixId: string, err: unknown) {
       lastError: sanitizeEmailOutboxError(err),
     },
   });
-}
-
-async function requireWebhookTasks<T>(
-  tasks: Promise<T>[],
-  source: string,
-  extra: Record<string, unknown>,
-): Promise<T[]> {
-  const results = await Promise.allSettled(tasks);
-  const values: T[] = [];
-  const failures: unknown[] = [];
-
-  results.forEach((result, index) => {
-    if (result.status === "fulfilled") {
-      values.push(result.value);
-      return;
-    }
-    failures.push(result.reason);
-    Sentry.captureException(result.reason, {
-      tags: { source },
-      extra: { ...extra, recipientIndex: index },
-    });
-  });
-
-  if (failures.length > 0) {
-    throw new Error(`${source} failed for ${failures.length} recipient(s)`);
-  }
-
-  return values;
 }
 
 type SafeResendWebhookDetails = {
@@ -258,7 +231,7 @@ export async function POST(request: Request) {
       const reason = suppressionReason === "COMPLAINT"
         ? EmailSuppressionReason.COMPLAINT
         : EmailSuppressionReason.BOUNCE;
-      await requireWebhookTasks(
+      await requireResendRecipientTasks(
         emails.map((email) =>
           suppressEmail({
             email,
@@ -269,7 +242,12 @@ export async function POST(request: Request) {
           }),
         ),
         "resend_webhook_suppress_email",
-        { svixId: id, type: event.type },
+        (reason, recipientIndex) => {
+          Sentry.captureException(reason, {
+            tags: { source: "resend_webhook_suppress_email" },
+            extra: { svixId: id, type: event.type, recipientIndex },
+          });
+        },
       );
       await markWebhookProcessed(id);
       return NextResponse.json({ ok: true, type: event.type, suppressed: emails.length });

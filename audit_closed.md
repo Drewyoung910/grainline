@@ -20023,12 +20023,15 @@ operations.
   BOUNCE suppression. The candidate classifies delivery events by provider
   meaning, suppresses only permanent bounce/complaint/provider-suppressed
   delivery, keeps transient and undetermined bounces observational, makes
+  generic provider suppression preserve stronger direct complaint/bounce
+  evidence, keeps partial-recipient failures replayable,
   historical
   `source = 'resend_transient_failure'` rows inert at lookup time, and adds a
   bounded data-repair migration that removes those invalid rows and the now
-  obsolete failure counters. A failing-first behavior test and PostgreSQL 16
-  full-chain repair scenario cover the change. It remains staged behind the
-  SupportRequest ENABLE and C-875 migrations.
+  obsolete failure counters. Failing-first behavior tests and a PostgreSQL 16
+  full-chain repair/deadlock scenario cover the change. SupportRequest ENABLE
+  is live; the candidate remains staged behind the still-pending C-875
+  migration.
 - **C-715(b), failed Resend webhook receipts should be pruned — refuted as a
   fix.** Failed/unprocessed receipts are deliberate replay and ops-health
   evidence. They remain retained so a provider replay or bounded reclaim can

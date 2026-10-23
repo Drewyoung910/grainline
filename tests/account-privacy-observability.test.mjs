@@ -567,11 +567,12 @@ describe("account and privacy route observability guardrails", () => {
 
   it("captures each Resend suppression task failure before retrying the webhook", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
+    const state = source("src/lib/resendWebhookEventState.ts");
 
-    assert.match(route, /Promise\.allSettled\(tasks\)/);
+    assert.match(state, /Promise\.allSettled\(tasks\)/);
     assert.match(route, /"resend_webhook_suppress_email"/);
     assert.doesNotMatch(route, /"resend_webhook_transient_failure"/);
-    assert.match(route, /recipientIndex: index/);
+    assert.match(route, /recipientIndex/);
     assert.doesNotMatch(route, /await Promise\.all\(\s*emails\.map/s);
   });
 });

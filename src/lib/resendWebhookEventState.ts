@@ -13,6 +13,45 @@ export type ResendRecipientAction =
 export type ResendSuppressionReason = "BOUNCE" | "COMPLAINT" | null;
 export type ResendSuppressionSource = "resend" | "resend_provider_suppressed" | null;
 
+type ResendSuppressionIdentity = {
+  reason: string;
+  source: string | null;
+};
+
+export function preserveDirectResendSuppression(
+  existing: ResendSuppressionIdentity,
+  incoming: ResendSuppressionIdentity,
+): boolean {
+  return incoming.source === "resend_provider_suppressed"
+    && existing.source === "resend"
+    && (existing.reason === "BOUNCE" || existing.reason === "COMPLAINT");
+}
+
+export async function requireResendRecipientTasks<T>(
+  tasks: Promise<T>[],
+  source: string,
+  onFailure?: (reason: unknown, recipientIndex: number) => void,
+): Promise<T[]> {
+  const results = await Promise.allSettled(tasks);
+  const values: T[] = [];
+  const failures: unknown[] = [];
+
+  results.forEach((result, recipientIndex) => {
+    if (result.status === "fulfilled") {
+      values.push(result.value);
+      return;
+    }
+    failures.push(result.reason);
+    onFailure?.(result.reason, recipientIndex);
+  });
+
+  if (failures.length > 0) {
+    throw new Error(`${source} failed for ${failures.length} recipient(s)`);
+  }
+
+  return values;
+}
+
 /**
  * Classify signed Resend delivery events by the action Grainline may take
  * against the recipient address.

@@ -8,10 +8,12 @@ import {
   normalizeEmailAddress,
   normalizeEmailSuppressionAddress,
 } from "./emailAddressNormalization.ts";
+import { storeProviderSuppressionWithoutWeakeningDirectEvidence } from "./emailSuppressionWriteState.ts";
 
 export { emailSuppressionAddressKeys, emailSuppressionLookupForEmails, normalizeEmailAddress, normalizeEmailSuppressionAddress };
 
 type EmailSuppressionLookup = ReturnType<typeof emailSuppressionLookupForEmails>;
+const RESEND_PROVIDER_SUPPRESSED_SOURCE = "resend_provider_suppressed";
 
 function emailSuppressionMatchWhereSql(
   lookup: EmailSuppressionLookup,
@@ -100,22 +102,34 @@ export async function suppressEmail(opts: {
   const emailKeys = emailSuppressionAddressKeys(opts.email);
 
   try {
-    const suppression = await prisma.emailSuppression.upsert({
-      where: { email },
-      create: {
+    const suppression = opts.source === RESEND_PROVIDER_SUPPRESSED_SOURCE
+      ? await storeProviderSuppressionWithoutWeakeningDirectEvidence({
+        updateMany: (args) => prisma.emailSuppression.updateMany(args),
+        findUnique: (args) => prisma.emailSuppression.findUnique(args),
+        create: (args) => prisma.emailSuppression.create(args),
+      }, {
         email,
         reason: opts.reason,
-        source: opts.source,
+        source: RESEND_PROVIDER_SUPPRESSED_SOURCE,
         eventId: opts.eventId,
-        details: opts.details ?? {},
-      },
-      update: {
-        reason: opts.reason,
-        source: opts.source,
-        eventId: opts.eventId,
-        details: opts.details ?? {},
-      },
-    });
+        details: opts.details,
+      })
+      : await prisma.emailSuppression.upsert({
+        where: { email },
+        create: {
+          email,
+          reason: opts.reason,
+          source: opts.source,
+          eventId: opts.eventId,
+          details: opts.details ?? {},
+        },
+        update: {
+          reason: opts.reason,
+          source: opts.source,
+          eventId: opts.eventId,
+          details: opts.details ?? {},
+        },
+      });
 
     await prisma.newsletterSubscriber.updateMany({
       where: { email: { in: emailKeys.length > 0 ? emailKeys : [email] } },

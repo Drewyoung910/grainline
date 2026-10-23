@@ -93,6 +93,73 @@ import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-fir
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 
+async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
+  const accountDeletionClient = new pg.Client({ connectionString });
+  await accountDeletionClient.connect();
+  try {
+    await accountDeletionClient.query("BEGIN");
+    await accountDeletionClient.query(
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'; SET LOCAL deadlock_timeout = '100ms'",
+    );
+    await accountDeletionClient.query(
+      'LOCK TABLE public."EmailFailureCount" IN ROW EXCLUSIVE MODE',
+    );
+  } catch (error) {
+    await accountDeletionClient.query("ROLLBACK").catch(() => {});
+    await accountDeletionClient.end().catch(() => {});
+    throw error;
+  }
+
+  const completion = (async () => {
+    try {
+      let sawRecoveryWaiting = false;
+      for (let poll = 0; poll < 200; poll += 1) {
+        const waiting = await accountDeletionClient.query(`
+          SELECT pg_catalog.count(*)::integer AS count
+            FROM pg_catalog.pg_locks
+           WHERE locktype = 'relation'
+             AND relation = 'public."EmailFailureCount"'::regclass
+             AND NOT granted
+             AND pid <> pg_catalog.pg_backend_pid()
+        `);
+        if (Number(waiting.rows[0]?.count ?? 0) > 0) {
+          sawRecoveryWaiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.equal(
+        sawRecoveryWaiting,
+        true,
+        "C-715 recovery never waited behind the account-deletion first lock",
+      );
+      await accountDeletionClient.query(
+        'LOCK TABLE public."EmailSuppression" IN ROW EXCLUSIVE MODE',
+      );
+      await accountDeletionClient.query("COMMIT");
+      return Object.freeze({
+        sawRecoveryWaiting,
+        accountDeletionLockOrder: Object.freeze([
+          "EmailFailureCount",
+          "EmailSuppression",
+        ]),
+      });
+    } catch (error) {
+      await accountDeletionClient.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      await accountDeletionClient.end().catch(() => {});
+    }
+  })();
+
+  return Object.freeze({
+    outcome: completion.then(
+      (evidence) => Object.freeze({ evidence, error: null }),
+      (error) => Object.freeze({ evidence: null, error }),
+    ),
+  });
+}
+
 test(
   "builds the complete migrated schema on PostgreSQL 16 before seeding current seller-private data",
   {
@@ -122,6 +189,7 @@ test(
       let historicalCaseRefundDamage;
       let historicalDisputeFirstEventGap;
       let historicalResendFailureSuppressions;
+      let emailSuppressionConcurrencyProof;
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
@@ -182,6 +250,10 @@ test(
           if (artifact.name === EMAIL_SUPPRESSION_RECOVERY_MIGRATION) {
             historicalResendFailureSuppressions =
               await seedHistoricalResendFailureSuppressions(adapter);
+            emailSuppressionConcurrencyProof =
+              await startEmailSuppressionAccountDeletionConcurrencyProof(
+                proofDatabaseUrl,
+              );
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -435,6 +507,16 @@ test(
       await proveHistoricalResendFailureSuppressionRepair({
         database: adapter,
         fixture: historicalResendFailureSuppressions,
+      });
+      assert.ok(
+        emailSuppressionConcurrencyProof,
+        "C-715 account-deletion lock-order proof must run before recovery",
+      );
+      const concurrencyOutcome = await emailSuppressionConcurrencyProof.outcome;
+      if (concurrencyOutcome.error) throw concurrencyOutcome.error;
+      assert.deepEqual(concurrencyOutcome.evidence, {
+        sawRecoveryWaiting: true,
+        accountDeletionLockOrder: ["EmailFailureCount", "EmailSuppression"],
       });
     } finally {
       await client.end();

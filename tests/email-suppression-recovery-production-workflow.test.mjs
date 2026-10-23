@@ -121,11 +121,23 @@ test("C-715 production release admits one exact restart-safe migration", () => {
   assert.equal(MIGRATION, "20261023040000_repair_resend_failed_event_suppressions");
   assert.equal(
     MIGRATION_SHA256,
-    "9c49d44b84900ac24afb744ab1fac24421a92616a90e747c7a1b608fc386bfe9",
+    "7f438ca723b05cf2e91a581f48223c0a577fc58715e22ff7176de4206ad8a2c8",
   );
   assert.match(workflow, new RegExp(MIGRATION_SHA256, "u"));
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
-  assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
+  const applySql = workflow.indexOf("name: Apply reviewed recovery transaction outside Prisma's ledger");
+  const recordLedger = workflow.indexOf("name: Record the committed recovery in Prisma's ledger");
+  assert.ok(applySql >= 0);
+  assert.ok(recordLedger > applySql);
+  assert.match(
+    workflow.slice(applySql, recordLedger),
+    /psql "\$DIRECT_URL"[\s\S]*--set=ON_ERROR_STOP=on[\s\S]*--file="prisma\/migrations\/\$migration\/migration\.sql"/u,
+  );
+  assert.match(
+    workflow.slice(recordLedger),
+    /npx prisma migrate resolve --applied "\$migration"/u,
+  );
   assert.match(workflow, /email-suppression-recovery-production-inspect\.mjs preflight/u);
   assert.match(workflow, /email-suppression-recovery-production-inspect\.mjs postflight/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
@@ -139,7 +151,7 @@ test("C-715 repair is atomic, serialized, and self-verifying", () => {
   assert.match(migrationSql, /pg_advisory_xact_lock/u);
   assert.match(
     migrationSql,
-    /LOCK TABLE[\s\S]*public\."EmailSuppression"[\s\S]*public\."EmailFailureCount"[\s\S]*IN SHARE ROW EXCLUSIVE MODE/u,
+    /LOCK TABLE[\s\S]*public\."EmailFailureCount"[\s\S]*public\."EmailSuppression"[\s\S]*IN SHARE ROW EXCLUSIVE MODE/u,
   );
   assert.match(migrationSql, /email_suppression_recovery_preflight/u);
   assert.match(migrationSql, /email_suppression_recovery_postflight/u);

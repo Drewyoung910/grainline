@@ -4,8 +4,9 @@
 
 This package verifies and corrects the recipient-suppression half of Claude
 finding **C-715** before the email tables enter RLS preparation. It is based on
-main `0ec7c793b3e84497de88371c597ca3547e12d8ab` and remains a local candidate
-until the earlier SupportRequest and C-875 migrations are released in order.
+main `2673c7b0c471723b52bd00e4e5195864c07e954c` and remains a local candidate
+until the earlier C-875 migration is successfully released. SupportRequest
+ENABLE is already live.
 
 It does not enable RLS, change table grants, contact Resend, deploy the app or
 run Production SQL.
@@ -32,6 +33,8 @@ The candidate:
 - records provider-suppressed delivery as a delivery block rather than falsely
   labeling it as a recipient spam complaint, and preserves that origin in the
   row's `resend_provider_suppressed` source;
+- preserves an existing direct complaint or permanent-bounce event when a
+  later generic `email.suppressed` event arrives for the same address;
 - records `email.failed` through privacy-safe observability without suppressing
   a recipient;
 - excludes every predecessor `resend_transient_failure` row from suppression
@@ -60,13 +63,18 @@ the current replay contract.
 
 - Failing-first behavior tests reject durable suppression for transient or
   undetermined bounces, reject complaint classification for
-  `email.suppressed`, and require an atomic locked repair migration.
+  `email.suppressed`, preserve direct complaint/bounce provenance in both event
+  orderings, exercise partial-recipient failure plus replay, and require an
+  atomic locked repair migration.
 - A PostgreSQL 16 full-chain run seeded the predecessor damage before the
   candidate migration and failed without the repair.
 - The completed full-chain run applied all 427 migrations and proved that the
   invalid suppression and counters were removed while a real hard bounce and a
-  real complaint remained.
-- The focused behavior and observability suite passes 44 tests.
+  real complaint remained. A second PostgreSQL connection held the same
+  `EmailFailureCount`-then-`EmailSuppression` lock order used by account
+  deletion while the migration ran; the migration waited, completed without a
+  deadlock, and the account-deletion transaction committed.
+- The focused behavior and observability suite passes 46 tests.
 - The protected Production workflow requires exact main, exact successful push
   workflows, the exact candidate checksum, and an exact live deployment of the
   corrected app before owner access. Its read-only preflight records aggregate
@@ -74,17 +82,26 @@ the current replay contract.
   reads back zero invalid suppressions and counters after apply. The migration
   repeats the owner/source checks while holding table and advisory locks inside
   one explicit transaction, then performs its own postflight before commit.
+  The workflow executes that transaction directly with `psql` and only records
+  it in Prisma's ledger after commit. A failed transaction therefore leaves no
+  failed Prisma migration row requiring an owner-level manual resolution; if
+  ledger recording fails after commit, the idempotent transaction can replay
+  before `migrate resolve --applied` is retried.
 
 ## Release order
 
-1. Release SupportRequest ENABLE (`20261023020000`).
-2. Release C-875 optional-email unsubscribe correction (`20261023030000`).
-3. Merge C-715, allow its exact commit to deploy, and verify the deployment
+1. SupportRequest ENABLE (`20261023020000`) is already live.
+2. Release C-875 optional-email unsubscribe correction (`20261023030000`). Its
+   first Production run `39975560599` failed during GitHub Actions setup before
+   checkout, credentials, or SQL because its checkout pin was incomplete. Main
+   `2673c7b0c471723b52bd00e4e5195864c07e954c` corrects that pin, but the
+   migration remains pending until a later protected run succeeds.
+3. Merge C-715 only after C-875 is live, allow its exact commit to deploy, and verify the deployment
    marker on both canonical aliases.
 4. Run the protected C-715 workflow for
    `20261023040000_repair_resend_failed_event_suppressions`.
 5. Continue the email-table RLS audit only after the readback passes.
 
-Merging C-715 before the two earlier migrations are applied would make its
-candidate the newest pending migration and block their exact pending-set
-guards. Keep it local until those releases finish.
+Merging C-715 before C-875 is applied would make its candidate the newest
+pending migration and block C-875's exact pending-set guard. Keep it local
+until that release finishes.

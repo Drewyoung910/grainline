@@ -15,8 +15,8 @@ SELECT pg_catalog.pg_advisory_xact_lock(
 );
 
 LOCK TABLE
-  public."EmailSuppression",
-  public."EmailFailureCount"
+  public."EmailFailureCount",
+  public."EmailSuppression"
 IN SHARE ROW EXCLUSIVE MODE;
 
 DO $email_suppression_recovery_preflight$
@@ -53,11 +53,11 @@ BEGIN
 END
 $email_suppression_recovery_preflight$;
 
+DELETE FROM public."EmailFailureCount";
+
 DELETE FROM public."EmailSuppression"
 WHERE source = 'resend_transient_failure'
   AND reason = 'BOUNCE'::public."EmailSuppressionReason";
-
-DELETE FROM public."EmailFailureCount";
 
 DO $email_suppression_recovery_postflight$
 BEGIN
