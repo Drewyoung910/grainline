@@ -19906,7 +19906,41 @@ reader correction is sufficient.
 The new behavior test failed on exact main for the 100-emoji maker name and
 150-emoji listing title, then passed with the correction while still rejecting
 101- and 151-code-point values. The focused SellerProfile suite passes all 35
-checks across the affected consumer families. This is app source only: no SQL,
-migration, RLS state, grants, Production database, or deployment changed.
-SellerProfile FORCE remains separately staged and must not run before this
-compatible app correction is merged and deployed.
+checks across the affected consumer families. PR #613 merged as exact main
+`958b8c67970602908cd25a5d194838ffbb24e095`; exact-main CI run
+`39885674997` and the related proof workflows passed. Vercel Production
+deployment `dpl_AP1z7xeSJE6biQHgw9VchzzLJTg7` reached READY and was aliased to
+`thegrainline.com`. Canonical health returned `{ "ok": true }`; the homepage,
+`/browse`, and both live public seller pages returned HTTP 200. The deployment
+changed app code only: no SQL, migration, RLS state, grants, or Production
+database state changed.
+
+### Entry 578 - Public SellerProfile policyless ENABLE accepted; FORCE isolated
+
+Public `SellerProfile` policyless ENABLE is live in Production from exact main
+`b56e226d327347fe155aa07ded0bde999ca929be`. Protected run `39869437488`
+applied only `20261020240000_enable_seller_profile_rls` after exact-main CI,
+Conversation/Message FORCE proof and exact compatible deployment checks. The
+sanitized postflight recorded ENABLE with NO FORCE, zero policies, zero
+non-owner table/column grants, no runtime/staff column authority and unchanged
+policyless FORCE on `SellerProfilePrivate`. Strict deployment verification and
+focused public-route smoke passed after the catalog change.
+
+The next isolated candidate adds only
+`20261020250000_force_seller_profile_rls`. It requires the exact ENABLE ledger,
+accepted public/private posture and zero direct authority before changing only
+the public table-owner bypass posture. Its rollback returns to policyless
+ENABLE without restoring grants. Focused executable tests cover transition,
+grant-drift refusal, restricted-role denial, restart-safe inspection and
+rollback; the complete PostgreSQL 16 chain proves ENABLE immediately before the
+migration and FORCE afterward. Production FORCE remains unapplied and requires
+its own exact-head review, green checks and separate authorization.
+
+After the compatible C-1039 application deployment, a failing-first workflow
+test exposed one release-binding defect before merge: the FORCE binder equated
+the older accepted ENABLE workflow head with the newer live application commit.
+That made the protected workflow impossible to dispatch safely after any
+compatible follow-up deployment. The binder now verifies two distinct ancestry
+edges instead: accepted ENABLE commit to compatible live app commit, then
+compatible live app commit to exact FORCE release commit. The live deployment
+identity remains independently checked before owner database access.

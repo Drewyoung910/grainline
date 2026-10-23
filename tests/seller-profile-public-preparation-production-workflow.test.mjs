@@ -151,10 +151,7 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
     "Restore public SellerProfile candidate after historical release guards",
   );
   const applyForBuild = ci.indexOf(
-    "Apply public SellerProfile preparations for final Production build",
-  );
-  const pendingForBuild = ci.indexOf(
-    "Require only SellerProfile ENABLE pending for final Production build",
+    "Apply complete public SellerProfile chain for final Production build",
   );
   const finalHistoricalAudit = ci.indexOf(
     "Audit runtime grants after SellerProfile private boundary",
@@ -180,12 +177,11 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
       historical < finalHistoricalAudit &&
       finalHistoricalAudit < restore &&
       restore < applyForBuild &&
-      applyForBuild < pendingForBuild &&
-      pendingForBuild < build,
+      applyForBuild < build,
   );
   assert.match(
-    ci.slice(applyForBuild, pendingForBuild),
-    /20261020240000_enable_seller_profile_rls[\s\S]*dropdb[\s\S]*createdb[\s\S]*DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="\$DIRECT_URL"[\s\S]*node tools\/database-full-chain\/apply-ci-chain\.mjs/u,
+    ci.slice(applyForBuild, build),
+    /dropdb[\s\S]*createdb[\s\S]*DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="\$DIRECT_URL"[\s\S]*node tools\/database-full-chain\/apply-ci-chain\.mjs[\s\S]*npx prisma migrate status/u,
   );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
   assert.match(
@@ -214,4 +210,5 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   );
   assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_ENABLE/u);
+  assert.match(ci, /20261020250000_force_seller_profile_rls/u);
 });

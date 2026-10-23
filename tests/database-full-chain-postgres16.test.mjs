@@ -80,6 +80,8 @@ import {
   SELLER_PROFILE_PUBLIC_ENABLE,
   SELLER_PROFILE_PUBLIC_PREPARATIONS,
 } from "../scripts/seller-profile-public-preparation-manifest.mjs";
+import { SELLER_PROFILE_FORCE } from
+  "../scripts/seller-profile-force-production-inspect.mjs";
 import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-followup-correction.mjs";
 import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
@@ -146,6 +148,12 @@ test(
             assert.equal(evidence.state, "prepared");
             assert.equal(evidence.pendingCount, 0);
           }
+          if (artifact.name === SELLER_PROFILE_FORCE.name) {
+            await proveSellerProfilePolicylessEnable({
+              database: adapter,
+              forced: false,
+            });
+          }
           if (artifact.name === CASE_REFUND_FOLLOWUP_MIGRATION) {
             fixture = await seedSellerProfilePrivateFixture(adapter);
             historicalCaseRefundDamage =
@@ -187,7 +195,10 @@ test(
       );
 
       await assertSellerProfilePrivateLayout(adapter);
-      await proveSellerProfilePolicylessEnable({ database: adapter });
+      await proveSellerProfilePolicylessEnable({
+        database: adapter,
+        forced: true,
+      });
       assert.ok(fixture, "seller fixture must be seeded before Case follow-up");
       assert.ok(
         historicalCaseRefundDamage,
