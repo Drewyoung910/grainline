@@ -100,7 +100,7 @@ describe("dependency hygiene guardrails", () => {
     assert.match(auditScript, /runAudit\(\["--omit=dev"\]\)/);
     assert.match(auditScript, /Full dependency audit failed/);
     assert.match(auditScript, /GHSA-vfj7-8cjw-p6xm/);
-    assert.match(auditScript, /2026-10-24T00:00:00\.000Z/);
+    assert.match(auditScript, /2026-11-21T00:00:00\.000Z/);
     assert.equal(pkg.overrides?.["brace-expansion"], undefined);
     assert.equal(
       lock.packages?.["node_modules/brace-expansion"]?.version,
@@ -146,7 +146,7 @@ describe("dependency hygiene guardrails", () => {
     };
     const accepted = partitionFullBlockingEntries(
       report,
-      new Date("2026-10-23T23:59:59.999Z"),
+      new Date("2026-11-20T23:59:59.999Z"),
     );
     assert.equal(accepted.blocking.length, 0);
     assert.deepEqual(
@@ -162,7 +162,7 @@ describe("dependency hygiene guardrails", () => {
 
     const expired = partitionFullBlockingEntries(
       report,
-      new Date("2026-10-24T00:00:00.000Z"),
+      new Date("2026-11-21T00:00:00.000Z"),
     );
     assert.equal(expired.blocking.length, 5);
 
@@ -174,7 +174,7 @@ describe("dependency hygiene guardrails", () => {
     assert.deepEqual(
       partitionFullBlockingEntries(
         unrelated,
-        new Date("2026-10-23T23:59:59.999Z"),
+        new Date("2026-11-20T23:59:59.999Z"),
       ).blocking.map(([name]) => name),
       ["remoteParser"],
     );
