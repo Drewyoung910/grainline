@@ -4,9 +4,8 @@
 
 This package verifies and corrects the recipient-suppression half of Claude
 finding **C-715** before the email tables enter RLS preparation. It is based on
-main `cdcb7673e59855bf07232e3c212b30bd5db47ef7` and remains a local candidate
-until the earlier C-875 migration is successfully released. SupportRequest
-ENABLE is already live.
+main `cdcb7673e59855bf07232e3c212b30bd5db47ef7` and remains an unreleased draft
+candidate. SupportRequest ENABLE and the earlier C-875 migration are live.
 
 It does not enable RLS, change table grants, contact Resend, deploy the app or
 run Production SQL.
@@ -101,18 +100,15 @@ the current replay contract.
 ## Release order
 
 1. SupportRequest ENABLE (`20261023020000`) is already live.
-2. Release C-875 optional-email unsubscribe correction (`20261023030000`). Its
-   first Production run `39975560599` failed during GitHub Actions setup before
-   checkout, credentials, or SQL because its checkout pin was incomplete. Main
-   `cdcb7673e59855bf07232e3c212b30bd5db47ef7` contains both the corrected pin
-   and the exact-main Notification-proof trigger needed by its release binder;
-   the migration remains pending until a later protected run succeeds.
-3. Merge C-715 only after C-875 is live, allow its exact commit to deploy, and verify the deployment
+2. C-875 optional-email unsubscribe correction (`20261023030000`) is live. The
+   protected retry run `40000712652` applied it from exact main
+   `cdcb7673e59855bf07232e3c212b30bd5db47ef7` and passed its function, ACL,
+   migration-ledger and zero-pending postflight.
+3. Merge C-715 after exact-head review and CI, allow its exact commit to deploy, and verify the deployment
    marker on both canonical aliases.
 4. Run the protected C-715 workflow for
    `20261023040000_repair_resend_failed_event_suppressions`.
 5. Continue the email-table RLS audit only after the readback passes.
 
-Merging C-715 before C-875 is applied would make its candidate the newest
-pending migration and block C-875's exact pending-set guard. Keep it local
-until that release finishes.
+C-875 no longer blocks this candidate. Keep main free of another pending
+migration between the C-715 merge and its protected Production run.

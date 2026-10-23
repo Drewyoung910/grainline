@@ -20030,8 +20030,7 @@ operations.
   bounded data-repair migration that removes those invalid rows and the now
   obsolete failure counters. Failing-first behavior tests and a PostgreSQL 16
   full-chain repair/deadlock scenario cover the change. SupportRequest ENABLE
-  is live; the candidate remains staged behind the still-pending C-875
-  migration.
+  and C-875 are live; the C-715 candidate remains an unreleased draft.
 - **C-715(b), failed Resend webhook receipts should be pruned — refuted as a
   fix.** Failed/unprocessed receipts are deliberate replay and ops-health
   evidence. They remain retained so a provider replay or bounded reclaim can
