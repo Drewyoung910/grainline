@@ -78,6 +78,13 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 - If CI or Vercel fails, stop broadening scope and fix the build first. Do not continue piling new fixes on top of a red pipeline.
 - For docs-only audit closure, `git diff --check` is usually enough before commit.
 - Security fixes need tests where practical. If a security property cannot be tested locally, document the manual verification or runtime dependency.
+- Prisma documents `applied_steps_count` as deprecated. A migration applied
+  manually and then recorded with `prisma migrate resolve --applied` can have a
+  finished, unrolled-back ledger row with `applied_steps_count = 0`. Accept
+  that shape only through the byte-pinned allowlist in
+  `scripts/reviewed-manually-applied-migrations.mjs`; never relax the general
+  incomplete-migration check or rewrite a Production ledger row merely to
+  manufacture a step count.
 
 ### Security posture
 

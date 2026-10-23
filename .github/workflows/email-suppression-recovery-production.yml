@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_commit:
-        description: Exact reviewed main commit already live in Production
+        description: Exact reviewed main commit containing the release workflow
         required: true
         type: string
       main_ci_run_id:
@@ -13,6 +13,10 @@ on:
         type: string
       production_deployment_id:
         description: Exact live Production deployment for the corrected Resend handler
+        required: true
+        type: string
+      production_deployment_commit:
+        description: Exact compatible commit served by that Production deployment
         required: true
         type: string
       confirmation:
@@ -67,27 +71,54 @@ jobs:
           REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
           REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
           REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
+          REVIEWED_PRODUCTION_DEPLOYMENT_COMMIT: ${{ inputs.production_deployment_commit }}
+          REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT: 18bdcb7e59a435001e8a8c903606ff8b78819249
         with:
           script: |
             const sha = process.env.REVIEWED_RELEASE_COMMIT;
             const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
             const deploymentId = process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID;
+            const deploymentCommit =
+              process.env.REVIEWED_PRODUCTION_DEPLOYMENT_COMMIT;
+            const minimumCompatibleAppCommit =
+              process.env.REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT;
             if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
                 !/^[1-9][0-9]{0,19}$/.test(value ?? '') ||
-                !/^dpl_[A-Za-z0-9]{20,64}$/.test(deploymentId ?? '')) {
+                !/^dpl_[A-Za-z0-9]{20,64}$/.test(deploymentId ?? '') ||
+                !/^[0-9a-f]{40}$/.test(deploymentCommit ?? '') ||
+                !/^[0-9a-f]{40}$/.test(minimumCompatibleAppCommit ?? '')) {
               throw new Error('C-715 release binding drifted');
             }
             const runId = Number(value);
             if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
-            const [{data: main}, {data: run}] = await Promise.all([
+            const [
+              {data: main},
+              {data: run},
+              {data: comparison},
+              {data: minimumComparison},
+            ] = await Promise.all([
               github.rest.repos.getBranch({...context.repo, branch: 'main'}),
               github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+              github.rest.repos.compareCommits({
+                ...context.repo,
+                basehead: `${deploymentCommit}...${sha}`,
+              }),
+              github.rest.repos.compareCommits({
+                ...context.repo,
+                basehead: `${minimumCompatibleAppCommit}...${deploymentCommit}`,
+              }),
             ]);
             if (main.commit.sha !== sha || run.name !== 'CI' ||
                 run.event !== 'push' || run.head_branch !== 'main' ||
                 run.head_sha !== sha || run.status !== 'completed' ||
                 run.conclusion !== 'success') {
               throw new Error('C-715 main/CI readback drifted');
+            }
+            if (!['ahead', 'identical'].includes(comparison.status)) {
+              throw new Error('C-715 compatible Production deployment is not an ancestor');
+            }
+            if (!['ahead', 'identical'].includes(minimumComparison.status)) {
+              throw new Error('Production deployment predates the reviewed C-715 app');
             }
             const exactPushRuns = await github.paginate(
               github.rest.actions.listWorkflowRunsForRepo,
@@ -153,7 +184,7 @@ jobs:
       - name: Verify corrected Resend handler is live
         env:
           REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
-          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.production_deployment_commit }}
         run: node scripts/verify-order-email-free-deployment-surface.mjs
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
