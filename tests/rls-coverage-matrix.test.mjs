@@ -44,6 +44,7 @@ describe("site-wide RLS coverage matrix", () => {
       "RLS_LIVE_PHASE_A_PENDING_POSTFLIGHT",
       "RLS_LIVE_PHASE_B",
       "RLS_LIVE_FORCE",
+      "RLS_LIVE_ENABLE",
       "RLS_LIVE_FORCE_PENDING_POSTFLIGHT",
       "RLS_LIVE_ENABLE_FORCE_CANDIDATE",
       "PLANNED_RLS",
@@ -70,6 +71,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(liveRows.map((row) => row.model), [
       "User",
       "UserEmailAddress",
+      "SellerProfile",
       "SellerProfilePrivate",
       "Conversation",
       "Message",
@@ -93,6 +95,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["User", "RLS_LIVE_FORCE"],
         ["UserEmailAddress", "RLS_LIVE_FORCE"],
+        ["SellerProfile", "RLS_LIVE_ENABLE"],
         ["SellerProfilePrivate", "RLS_LIVE_FORCE"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
@@ -117,7 +120,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /Current candidate source contains 70 Prisma models\. Twenty-nine have committed[\s\S]*forty-one have no committed RLS activation[\s\S]*Retained Production evidence still covers the 69 model tables on current main:[\s\S]*twenty-nine FORCE and forty without RLS/,
+      /Current candidate source contains 70 Prisma models\.[\s\S]*nineteen[\s\S]*Production FORCE evidence[\s\S]*one with retained Production[\s\S]*ENABLE-only evidence[\s\S]*fifty without a live RLS activation/,
     );
     assert.match(
       matrix,

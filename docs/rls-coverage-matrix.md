@@ -1,20 +1,20 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-10-19
+Last updated: 2026-10-22
 
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Candidate-source snapshot scope: 70 Prisma models.
 
-Current candidate source contains 70 Prisma models. Twenty-nine have committed
-ENABLE plus FORCE migrations and forty-one have no committed RLS activation.
+Current candidate source contains 70 Prisma models. The matrix records nineteen
+with retained Production FORCE evidence, one with retained Production
+ENABLE-only evidence, and fifty without a live RLS activation.
 `SellerProfilePrivate` is an additive, zero-direct-runtime companion whose
 policyless ENABLE and separate FORCE successor are now accepted in Production.
-Retained Production evidence still covers the 69 model tables on current main:
-twenty-nine FORCE and forty without RLS. The new candidate-only exact-map
-consent evidence table has no Production claim. The previously listed
-twenty-eight FORCE models are in
+Public `SellerProfile` is policyless ENABLE in Production with zero direct
+runtime, staff or `PUBLIC` authority; its separate FORCE successor remains
+unapplied. The earlier protected-table inventory is in
 `docs/remaining-rls-table-prioritization-audit-20261012.md`.
 
 `User` is
@@ -77,6 +77,8 @@ when its future authority implications and closure criteria are recorded.
   runtime-role and maintenance proof.
 - `RLS_LIVE_FORCE`: production RLS is enabled and FORCE-hardened with retained
   proof outside the historical SavedSearch/Notification A/B labels.
+- `RLS_LIVE_ENABLE`: production RLS is enabled with retained proof, while its
+  separately reviewed FORCE successor remains unapplied.
 - `RLS_LIVE_FORCE_PENDING_POSTFLIGHT`: production RLS and FORCE are applied and
   guarded owner-side scope proofs passed, but the distinct actual pooled-runtime
   FORCE postflight and retained evidence are still pending. This is a temporary
