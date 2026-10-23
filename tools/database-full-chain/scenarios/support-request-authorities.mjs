@@ -113,12 +113,12 @@ export async function proveSupportRequestAuthorities({ database }) {
   `))[0];
   assert.deepEqual(posture, {
     enabled: true,
-    forced: false,
+    forced: true,
     runtimeSelect: false,
     runtimeInsert: false,
     runtimeUpdate: false,
     runtimeDelete: false,
-  }, "activation must establish policyless ENABLE with zero direct runtime grants");
+  }, "activation must establish policyless ENABLE/FORCE with zero direct runtime grants");
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
