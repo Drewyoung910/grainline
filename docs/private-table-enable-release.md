@@ -12,6 +12,10 @@ rewrite rows, or change an external provider.
 The first catalogued release is `support_request_v1`, which admits only
 `20261023020000_enable_support_request_rls` at SHA-256
 `370698b0617fbb5eb2d4d04d7acef43141628f8a8d3a6e672d4b1ef973493b61`.
+That release is live from exact main
+`13ee34504d58e28008ddc166459b75a1f4abcd6a` through protected run
+`39961147411`; the accepted catalog is policyless ENABLE/NO FORCE with zero
+runtime, staff, or `PUBLIC` table/column authority.
 
 ## Required order
 
