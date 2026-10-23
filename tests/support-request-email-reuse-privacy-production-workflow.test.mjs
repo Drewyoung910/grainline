@@ -386,7 +386,7 @@ test("C-1150 migration is atomic, restart-safe, and self-verifying", () => {
 
 test("C-1150 release proof runs before SupportRequest candidate isolation", () => {
   const verify = ciWorkflow.indexOf(
-    "name: Verify SupportRequest preparation and ENABLE source package",
+    "name: Verify SupportRequest preparation",
   );
   const isolate = ciWorkflow.indexOf(
     "name: Isolate SupportRequest candidate until historical release guards pass",
