@@ -19935,3 +19935,12 @@ grant-drift refusal, restricted-role denial, restart-safe inspection and
 rollback; the complete PostgreSQL 16 chain proves ENABLE immediately before the
 migration and FORCE afterward. Production FORCE remains unapplied and requires
 its own exact-head review, green checks and separate authorization.
+
+After the compatible C-1039 application deployment, a failing-first workflow
+test exposed one release-binding defect before merge: the FORCE binder equated
+the older accepted ENABLE workflow head with the newer live application commit.
+That made the protected workflow impossible to dispatch safely after any
+compatible follow-up deployment. The binder now verifies two distinct ancestry
+edges instead: accepted ENABLE commit to compatible live app commit, then
+compatible live app commit to exact FORCE release commit. The live deployment
+identity remains independently checked before owner database access.

@@ -44,9 +44,14 @@ function exactPushRuns(releaseSha, conclusion = "success") {
   }));
 }
 
-async function runBinding({ auxiliaryConclusion = "success", compareStatus = "ahead" } = {}) {
+async function runBinding({
+  auxiliaryConclusion = "success",
+  enableToCompatibleStatus = "ahead",
+  compatibleToReleaseStatus = "ahead",
+} = {}) {
   const releaseSha = "a".repeat(40);
   const compatibleSha = "b".repeat(40);
+  const enableSha = "c".repeat(40);
   const listJobsForWorkflowRun = () => {};
   const listWorkflowRunsForRepo = () => {};
   const runs = new Map([
@@ -63,7 +68,7 @@ async function runBinding({ auxiliaryConclusion = "success", compareStatus = "ah
     [103, {
       name: "SellerProfile ENABLE Production",
       path: ".github/workflows/seller-profile-enable-production.yml",
-      event: "workflow_dispatch", head_branch: "main", head_sha: compatibleSha,
+      event: "workflow_dispatch", head_branch: "main", head_sha: enableSha,
       run_attempt: 1, status: "completed", conclusion: "success",
     }],
   ]);
@@ -71,7 +76,15 @@ async function runBinding({ auxiliaryConclusion = "success", compareStatus = "ah
     rest: {
       repos: {
         getBranch: async () => ({ data: { commit: { sha: releaseSha } } }),
-        compareCommits: async () => ({ data: { status: compareStatus } }),
+        compareCommits: async ({ base, head }) => {
+          if (base === enableSha && head === compatibleSha) {
+            return { data: { status: enableToCompatibleStatus } };
+          }
+          if (base === compatibleSha && head === releaseSha) {
+            return { data: { status: compatibleToReleaseStatus } };
+          }
+          throw new Error(`unexpected comparison ${base}...${head}`);
+        },
       },
       actions: {
         getWorkflowRun: async ({ run_id }) => ({ data: runs.get(run_id) }),
@@ -103,7 +116,7 @@ async function runBinding({ auxiliaryConclusion = "success", compareStatus = "ah
     REVIEWED_CONVERSATION_FORCE_PROOF_RUN_ID: "102",
     REVIEWED_ENABLE_RUN_ID: "103",
     REVIEWED_COMPATIBLE_APP_COMMIT: compatibleSha,
-    REVIEWED_PRODUCTION_DEPLOYMENT_ID: "dpl_DPS8x8vfkQqandrvAgVWxRLCgT43",
+    REVIEWED_PRODUCTION_DEPLOYMENT_ID: "dpl_AP1z7xeSJE6biQHgw9VchzzLJTg7",
   } };
   await new AsyncFunction("github", "context", "process", bindingScript)(
     github,
@@ -121,7 +134,15 @@ test("FORCE workflow is exact-main, accepted-ENABLE, compatible-deployment, and 
   assert.match(workflow, /force-reviewed-seller-profile-rls/u);
   assert.match(workflow, /SellerProfile ENABLE Production/u);
   assert.match(workflow, /seller-profile-enable-production\.yml/u);
-  assert.match(workflow, /enableRun\.head_sha !== compatibleAppCommit/u);
+  assert.doesNotMatch(workflow, /enableRun\.head_sha !== compatibleAppCommit/u);
+  assert.match(
+    workflow,
+    /base:\s*enableRun\.head_sha,[\s\S]*head:\s*compatibleAppCommit/u,
+  );
+  assert.match(
+    workflow,
+    /base:\s*compatibleAppCommit,[\s\S]*head:\s*sha/u,
+  );
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(workflow, /REVIEWED_RELEASE_COMMIT: \$\{\{ inputs\.compatible_app_commit \}\}/u);
   await assert.doesNotReject(runBinding());
@@ -130,8 +151,12 @@ test("FORCE workflow is exact-main, accepted-ENABLE, compatible-deployment, and 
     /Exact-main push workflows are not all green/u,
   );
   await assert.rejects(
-    runBinding({ compareStatus: "diverged" }),
-    /Accepted ENABLE run is not an ancestor/u,
+    runBinding({ enableToCompatibleStatus: "diverged" }),
+    /Accepted ENABLE run is not an ancestor of compatible app/u,
+  );
+  await assert.rejects(
+    runBinding({ compatibleToReleaseStatus: "diverged" }),
+    /Compatible app commit is not an ancestor of FORCE release/u,
   );
 });
 

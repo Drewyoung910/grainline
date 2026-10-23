@@ -200,10 +200,10 @@ jobs:
                 enableRun.path !== '.github/workflows/seller-profile-enable-production.yml' ||
                 enableRun.event !== 'workflow_dispatch' ||
                 enableRun.head_branch !== 'main' ||
+                !/^[0-9a-f]{40}$/.test(enableRun.head_sha ?? '') ||
                 Number(enableRun.run_attempt) !== 1 ||
                 enableRun.status !== 'completed' ||
-                enableRun.conclusion !== 'success' ||
-                enableRun.head_sha !== compatibleAppCommit) {
+                enableRun.conclusion !== 'success') {
               throw new Error('SellerProfile ENABLE run readback drifted');
             }
             const enableJobs = await github.paginate(
@@ -217,13 +217,21 @@ jobs:
             if (proofJobs.length !== 1) {
               throw new Error('SellerProfile ENABLE job is absent');
             }
-            const {data: comparison} = await github.rest.repos.compareCommits({
+            const {data: enableComparison} = await github.rest.repos.compareCommits({
+              ...context.repo,
+              base: enableRun.head_sha,
+              head: compatibleAppCommit,
+            });
+            if (!['ahead', 'identical'].includes(enableComparison.status)) {
+              throw new Error('Accepted ENABLE run is not an ancestor of compatible app');
+            }
+            const {data: appComparison} = await github.rest.repos.compareCommits({
               ...context.repo,
               base: compatibleAppCommit,
               head: sha,
             });
-            if (!['ahead', 'identical'].includes(comparison.status)) {
-              throw new Error('Accepted ENABLE run is not an ancestor');
+            if (!['ahead', 'identical'].includes(appComparison.status)) {
+              throw new Error('Compatible app commit is not an ancestor of FORCE release');
             }
       - name: Verify exact SellerProfile FORCE source and migration bytes
         shell: bash

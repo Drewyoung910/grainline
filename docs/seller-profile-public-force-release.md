@@ -46,8 +46,9 @@ path. Before owner access it requires:
 - exact current-main commit and successful exact-head CI;
 - every required exact-main push workflow green;
 - the accepted SellerProfile ENABLE production run and job;
-- proof that the compatible live application commit is an ancestor of the
-  FORCE release commit;
+- proof that the accepted ENABLE workflow commit is an ancestor of the
+  compatible live application commit, which is itself an ancestor of the FORCE
+  release commit;
 - the exact compatible Vercel deployment still live;
 - the immutable FORCE migration as the newest migration; and
 - zero residual SellerProfile base-table consumers.
