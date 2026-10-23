@@ -6,6 +6,16 @@ import {
   verifyUserSignedUnsubscribeCatalog,
 } from "../scripts/user-signed-unsubscribe-production-inspect.mjs";
 
+test("signed-unsubscribe inspector pins the C-875 corrected preference authority", () => {
+  const preferenceAuthority = USER_SIGNED_UNSUBSCRIBE_FUNCTIONS.find(
+    ({ name }) => name === "grainline_user_unsubscribe_preferences_disable",
+  );
+  assert.equal(
+    preferenceAuthority?.sourceMd5,
+    "d8f4e2a60455233fc7da9f19e242b0a9",
+  );
+});
+
 function catalog(state) {
   return {
     identity: {

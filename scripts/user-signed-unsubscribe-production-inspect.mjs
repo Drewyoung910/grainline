@@ -12,7 +12,7 @@ export const USER_SIGNED_UNSUBSCRIBE_FUNCTIONS = Object.freeze([
   Object.freeze({
     name: "grainline_user_unsubscribe_preferences_disable",
     identityArguments: "p_suppression_keys text[]",
-    sourceMd5: "11485f55b3bec34f2091430245a4a2cf",
+    sourceMd5: "d8f4e2a60455233fc7da9f19e242b0a9",
     volatility: "v",
   }),
   Object.freeze({
