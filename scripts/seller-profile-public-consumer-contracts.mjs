@@ -48,7 +48,6 @@ const REVIEWED_NON_TARGET_QUERY_FACTORIES = new Set([
   "publicBlogPostWhere",
   "publicListingDetailWhere",
   "publicListingWhere",
-  "supportRequestAccountExportWhere",
   "timestampCursorWhere",
   "viewerBlogPostWhere",
   "visibleBlogCommentWhere",
@@ -149,8 +148,8 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 118
-      || reviewedNonTargetResiduals.length !== 25) {
+      || reviewedNonTargetFactoryCalls.length !== 116
+      || reviewedNonTargetResiduals.length !== 24) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

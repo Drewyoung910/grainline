@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -286,28 +287,19 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs account-linked support and data-request contact fields on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const access = source("src/lib/supportRequestAccess.ts");
+    const authority = source(supportRequestPreparationMigrationPath());
 
-    assert.match(deletion, /import \{[^}]*supportRequestAccountExportWhere[^}]*\} from "@\/lib\/supportRequest"/);
-    assert.match(deletion, /const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted\.thegrainline\.local"/);
-    assert.match(deletion, /const DELETED_SUPPORT_REQUEST_MESSAGE = "\[Support request removed after account deletion\]"/);
-    assert.match(deletion, /async function redactSupportRequestsForDeletedAccount/);
-    assert.match(deletion, /supportRequestAccountExportWhere\(deletedUserId, accountEmails\)/);
-    assert.match(deletion, /tx\.supportRequest\.findMany\(\{/);
-    assert.match(
-      deletion,
-      /redactAccountDeletionText\(request\.closureEvidence, sensitiveValues, undefined, 4000\)\.text/,
-    );
-    assert.match(
-      deletion,
-      /redactAccountDeletionText\(request\.emailLastError, sensitiveValues, undefined, 1000\)\.text/,
-    );
-    assert.match(deletion, /userId: null/);
-    assert.match(deletion, /name: null/);
-    assert.match(deletion, /email: DELETED_SUPPORT_REQUEST_EMAIL/);
-    assert.match(deletion, /orderId: null/);
-    assert.match(deletion, /listingId: null/);
-    assert.match(deletion, /message: DELETED_SUPPORT_REQUEST_MESSAGE/);
-    assert.match(deletion, /redactSupportRequestsForDeletedAccount\(tx, user\.id, accountEmails, accountSensitiveValues\)/);
+    assert.match(deletion, /redactSupportRequestsForAccountDeletion\(/);
+    assert.doesNotMatch(deletion, /tx\.supportRequest\./);
+    assert.match(access, /grainline_support_request_account_deletion_redact_batch/);
+    assert.match(authority, /"userId" = NULL/);
+    assert.match(authority, /name = NULL/);
+    assert.match(authority, /email = 'deleted-account@deleted\.thegrainline\.local'/);
+    assert.match(authority, /"orderId" = NULL/);
+    assert.match(authority, /"listingId" = NULL/);
+    assert.match(authority, /message = '\[Support request removed after account deletion\]'/);
+    assert.match(authority, /grainline_account_deletion_redact_text_core/);
   });
 
   it("does not let one hard provider suppression block account-deletion suppressions for other aliases", () => {

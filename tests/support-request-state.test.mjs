@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, it } from "node:test";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 const {
   isSupportRequestStatus,
@@ -10,6 +11,14 @@ const supportRequestRetention = await import("../src/lib/supportRequestRetention
 
 function source(path) {
   return readFileSync(path, "utf8");
+}
+
+function sourceFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.(?:ts|tsx)$/u.test(entry.name) ? [path] : [];
+  });
 }
 
 describe("support request state transitions", () => {
@@ -57,31 +66,41 @@ describe("support request state transitions", () => {
     const actions = source("src/app/admin/support/actions.ts");
     const page = source("src/app/admin/support/page.tsx");
 
-    assert.match(actions, /select: \{ kind: true, status: true, closedAt: true \}/);
-    assert.match(actions, /supportRequestStatusTransition\(current, status, now\)/);
-    assert.match(actions, /\.\.\.transition\.metadata/);
-    assert.doesNotMatch(actions, /metadata:\s*\{\s*status\s*\}/);
+    assert.match(actions, /requireAdminPageAccess\(\)/);
+    assert.match(actions, /transitionSupportRequest\(\{/);
+    assert.doesNotMatch(actions, /supportRequest\.(?:find|update)/);
     assert.match(page, /request\.status === "OPEN"[\s\S]*In progress/);
     assert.match(page, /request\.status === "IN_PROGRESS"[\s\S]*Reopen/);
+  });
+
+  it("keeps every application caller off direct SupportRequest table access", () => {
+    const directDelegate = /\.supportRequest(?:\b|\.)/u;
+    const directSql = /\b(?:FROM|JOIN|INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:public\.)?"SupportRequest"\b/iu;
+
+    for (const path of sourceFiles("src")) {
+      const contents = source(path);
+      assert.doesNotMatch(contents, directDelegate, path);
+      assert.doesNotMatch(contents, directSql, path);
+    }
   });
 
   it("requires durable closure evidence before closing data requests", () => {
     const actions = source("src/app/admin/support/actions.ts");
     const page = source("src/app/admin/support/page.tsx");
     const schema = source("prisma/schema.prisma");
+    const authority = source(supportRequestPreparationMigrationPath());
 
     assert.match(schema, /closureEvidence\s+String\?\s+@db\.VarChar\(4000\)/);
     assert.match(schema, /closureEvidenceAt\s+DateTime\?/);
     assert.match(schema, /closureEvidenceById\s+String\?/);
     assert.match(schema, /closureEvidenceBy\s+User\?\s+@relation\("SupportRequestClosureEvidence"/);
 
-    assert.match(actions, /current\.kind === "DATA_REQUEST"/);
-    assert.match(actions, /status === "CLOSED"/);
-    assert.match(actions, /normalizeSupportRequestClosureEvidence\(formData\?\.get\("closureEvidence"\)\)/);
-    assert.match(actions, /closureEvidenceById: admin\.id/);
-    assert.match(actions, /closureEvidenceRecorded: true/);
-    assert.match(actions, /closureEvidenceLength: closureEvidence\.evidence\.length/);
-    assert.doesNotMatch(actions, /metadata: \{[\s\S]*closureEvidence: closureEvidence\.evidence/);
+    assert.match(actions, /normalizeSupportRequestClosureEvidence\(rawEvidence\)/);
+    assert.match(authority, /source_request\.kind = 'DATA_REQUEST'/);
+    assert.match(authority, /"closureEvidenceById" = CASE/);
+    assert.match(authority, /'closureEvidenceRecorded'/);
+    assert.match(authority, /'closureEvidenceLength'/);
+    assert.doesNotMatch(authority, /'closureEvidence',\s*p_closure_evidence/);
 
     assert.match(page, /name="closureEvidence"/);
     assert.match(page, /required/);
@@ -95,6 +114,7 @@ describe("support request state transitions", () => {
     const cutoff = supportRequestRetention.supportRequestRetentionCutoff({ now });
     const route = source("src/app/api/cron/notification-prune/route.ts");
     const helper = source("src/lib/supportRequestRetention.ts");
+    const authority = source(supportRequestPreparationMigrationPath());
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260630143000_seller_metrics_sales_bigint/migration.sql");
     const privacy = source("src/app/privacy/page.tsx");
@@ -104,10 +124,10 @@ describe("support request state transitions", () => {
     assert.equal(cutoff.toISOString(), "2026-07-01T12:00:00.000Z");
     assert.match(route, /pruneClosedSupportRequests\(\)/);
     assert.match(route, /supportRequestsPruned/);
-    assert.match(helper, /WHERE status = 'CLOSED'/);
-    assert.match(helper, /"closedAt" IS NOT NULL/);
-    assert.match(helper, /"closedAt" < \$\{cutoff\}/);
-    assert.doesNotMatch(helper, /status IN \('OPEN', 'IN_PROGRESS'\)/);
+    assert.match(helper, /deleteSupportRequestRetentionBatch\(batchSize\)/);
+    assert.match(authority, /request\.status = 'CLOSED'/);
+    assert.match(authority, /request\."closedAt" IS NOT NULL/);
+    assert.match(authority, /INTERVAL '730 days'/);
     assert.match(schema, /@@index\(\[status, closedAt\]\)/);
     assert.match(migration, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "SupportRequest_status_closedAt_idx"/);
     assert.match(privacy, /Closed support and privacy data-request\s+records are retained for up to <strong>2 years<\/strong>/);

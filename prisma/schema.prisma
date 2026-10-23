@@ -1697,6 +1697,7 @@ model SupportRequest {
   slaDueAt            DateTime
   emailSentAt         DateTime?
   emailLastError      String?              @db.VarChar(1000)
+  emailDeliveryToken  String?              @db.Uuid
   closedAt            DateTime?
   closureEvidence     String?              @db.VarChar(4000)
   closureEvidenceAt   DateTime?

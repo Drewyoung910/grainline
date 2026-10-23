@@ -17,6 +17,7 @@ import { inspectOwnerSavedSearchCanary } from "@/lib/savedSearchOwnerAccess";
 import { runSavedSearchRlsCanary } from "@/lib/savedSearchRlsCanary";
 import { orderOpsHealthSummary } from "@/lib/orderOpsHealth";
 import { orderDisputeRecoveryHealthSummary } from "@/lib/orderDisputeRecoveryAuthority";
+import { overdueSupportRequestCount as readOverdueSupportRequestCount } from "@/lib/supportRequestAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -98,12 +99,7 @@ export async function GET(request: Request) {
         prisma.emailOutbox.count({
           where: { status: "DEAD" },
         }),
-        prisma.supportRequest.count({
-          where: {
-            status: { in: ["OPEN", "IN_PROGRESS"] },
-            slaDueAt: { lt: now },
-          },
-        }),
+        readOverdueSupportRequestCount(),
         stripeWebhookHealthSummary(),
         prisma.resendWebhookEvent.count({
           where: {

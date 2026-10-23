@@ -23,13 +23,17 @@ describe("server action hardening guardrails", () => {
   });
 
   it("keeps admin server actions behind local active-staff gates", () => {
-    for (const path of ["src/app/admin/actions.ts", "src/app/admin/support/actions.ts"]) {
-      const actions = source(path);
-      assert.match(actions, /userClerkGate\(prisma,\s*userId\)/);
-      assert.match(actions, /user\.banned/);
-      assert.match(actions, /user\.deletedAt/);
-      assert.match(actions, /user\.role !== "EMPLOYEE"\s*&&\s*user\.role !== "ADMIN"/);
-    }
+    const adminActions = source("src/app/admin/actions.ts");
+    assert.match(adminActions, /userClerkGate\(prisma,\s*userId\)/);
+    assert.match(adminActions, /user\.banned/);
+    assert.match(adminActions, /user\.deletedAt/);
+    assert.match(adminActions, /user\.role !== "EMPLOYEE"\s*&&\s*user\.role !== "ADMIN"/);
+
+    const supportActions = source("src/app/admin/support/actions.ts");
+    assert.match(supportActions, /requireAdminPageAccess\(\)/);
+    assert.match(supportActions, /if \(!user\) throw new Error\("Admin PIN required"\)/);
+    assert.match(supportActions, /const admin = await requireAdmin\(\)/);
+    assert.match(supportActions, /actorUserId: admin\.id/);
   });
 
   it("keeps listing action follower fanout and AI-review failures observable without rolling back primary work", () => {

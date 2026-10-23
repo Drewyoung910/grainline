@@ -1,6 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
 import { sendRenderedEmail } from "@/lib/email";
-import { prisma } from "@/lib/db";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import {
@@ -11,13 +10,14 @@ import {
 import { getIP, rateLimitResponse, safeRateLimit, supportRequestRatelimit } from "@/lib/ratelimit";
 import {
   normalizeSupportRequest,
-  SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
   supportRequestHtml,
   supportRequestRecipient,
-  supportRequestSlaDueAt,
-  supportRequestStorageKind,
   supportRequestSubject,
 } from "@/lib/supportRequest";
+import {
+  recordSupportRequestDelivery,
+  submitSupportRequest,
+} from "@/lib/supportRequestAccess";
 import { currentSupportRequestUserId } from "@/lib/supportRequestAccount";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -39,29 +39,17 @@ export async function POST(req: Request) {
     return privateJson({ error: "Invalid JSON" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
-  const normalized = normalizeSupportRequest("support", body as Record<string, unknown>);
+  const normalized = normalizeSupportRequest(
+    "support",
+    body as Record<string, unknown> | null | undefined,
+  );
   if (!normalized.ok) return privateJson({ error: normalized.error }, { status: HTTP_STATUS.BAD_REQUEST });
 
-  const slaDueAt = supportRequestSlaDueAt();
   const emailHash = hashEmailForTelemetry(normalized.request.email);
   const requesterUserId = await currentSupportRequestUserId();
-  let record: { id: string; slaDueAt: Date };
+  let record: { id: string; slaDueAt: Date; emailDeliveryToken: string };
   try {
-    record = await prisma.supportRequest.create({
-      data: {
-        userId: requesterUserId,
-        kind: supportRequestStorageKind(normalized.request.kind),
-        name: normalized.request.name,
-        email: normalized.request.email,
-        topic: normalized.request.topic,
-        orderId: normalized.request.orderId,
-        listingId: normalized.request.listingId,
-        message: normalized.request.message,
-        slaDueAt,
-        emailLastError: SUPPORT_REQUEST_EMAIL_PENDING_MARKER,
-      },
-      select: { id: true, slaDueAt: true },
-    });
+    record = await submitSupportRequest(normalized.request, requesterUserId);
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "support_request_create" },
@@ -81,9 +69,13 @@ export async function POST(req: Request) {
     }, { throwOnFailure: true });
   } catch (error) {
     const emailLastError = sanitizeEmailOutboxError(error);
-    await prisma.supportRequest.update({
-      where: { id: record.id },
-      data: { emailLastError },
+    await recordSupportRequestDelivery({
+      requestId: record.id,
+      deliveryToken: record.emailDeliveryToken,
+      sent: false,
+      error: emailLastError,
+    }).then((applied) => {
+      if (!applied) throw new Error("Support request delivery capability was already consumed");
     }).catch((updateError) => {
       Sentry.captureException(updateError, {
         tags: { source: "support_request_email_error_update" },
@@ -101,10 +93,13 @@ export async function POST(req: Request) {
   }
 
   try {
-    await prisma.supportRequest.update({
-      where: { id: record.id },
-      data: { emailSentAt: new Date(), emailLastError: null },
+    const applied = await recordSupportRequestDelivery({
+      requestId: record.id,
+      deliveryToken: record.emailDeliveryToken,
+      sent: true,
+      error: null,
     });
+    if (!applied) throw new Error("Support request delivery capability was already consumed");
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "support_request_email_sent_update" },

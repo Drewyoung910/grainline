@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -32,20 +33,21 @@ describe("admin query and email guardrails", () => {
     const audit = source("src/app/admin/audit/page.tsx");
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
     const reviews = source("src/app/admin/reviews/page.tsx");
-    const support = source("src/app/admin/support/page.tsx");
+    const supportMigration = source(supportRequestPreparationMigrationPath());
 
     assert.match(users, /userStaffDirectoryPage\(staffClient, \{ actorId: staff\.id, query: q, page \}\)/);
     assert.match(audit, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(broadcasts, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(reviews, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(reviews, /photos: \{ orderBy: \[\{ sortOrder: "asc" \}, \{ id: "asc" \}\] \}/);
-    assert.match(support, /orderBy: \[\{ slaDueAt: "asc" \}, \{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-    assert.match(support, /orderBy: \[\{ closedAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(supportMigration, /ORDER BY request\."slaDueAt" ASC, request\."createdAt" ASC, request\.id ASC/);
+    assert.match(supportMigration, /ORDER BY request\."closedAt" DESC, request\.id DESC/);
   });
 
   it("does not silently truncate admin review or support queues", () => {
     const reviews = source("src/app/admin/reviews/page.tsx");
     const support = source("src/app/admin/support/page.tsx");
+    const supportMigration = source(supportRequestPreparationMigrationPath());
 
     assert.match(reviews, /const PAGE_SIZE = 50/);
     assert.match(reviews, /const total = await prisma\.review\.count\(\)/);
@@ -54,11 +56,12 @@ describe("admin query and email guardrails", () => {
     assert.doesNotMatch(reviews, /take: 100/);
 
     assert.match(support, /const ACTIVE_PAGE_SIZE = 50/);
-    assert.match(support, /const activeCount = await prisma\.supportRequest\.count\(\{ where: activeWhere \}\)/);
+    assert.match(support, /const activeCount = supportState\.activeCount/);
     assert.match(support, /Support Requests \(\{activeCount\} open\)/);
-    assert.match(support, /skip: \(page - 1\) \* ACTIVE_PAGE_SIZE/);
-    assert.match(support, /take: ACTIVE_PAGE_SIZE/);
-    assert.doesNotMatch(support, /take: 100/);
+    assert.match(support, /readSupportRequestStaffState\(\s*staff\.id,\s*requestedPage,\s*ACTIVE_PAGE_SIZE,\s*20,\s*\)/);
+    assert.match(supportMigration, /OFFSET \(\(p_page - 1\) \* p_page_size\)/);
+    assert.match(supportMigration, /LIMIT p_page_size/);
+    assert.match(supportMigration, /LIMIT p_recent_limit/);
   });
 
   it("bounds free-text search params before contains queries", () => {

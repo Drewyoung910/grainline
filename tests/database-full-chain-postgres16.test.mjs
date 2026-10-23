@@ -75,6 +75,7 @@ import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/
 import { proveSellerProfileServiceIdentities } from "../tools/database-full-chain/scenarios/seller-profile-service-identities.mjs";
 import { proveSellerProfileRetainedAuthorityGaps } from "../tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs";
 import { proveSellerProfilePolicylessEnable } from "../tools/database-full-chain/scenarios/seller-profile-enable.mjs";
+import { proveSupportRequestAuthorities } from "../tools/database-full-chain/scenarios/support-request-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
@@ -420,6 +421,7 @@ test(
         historicalGap: historicalDisputeFirstEventGap,
         scenarioNamespace: "migration_chain",
       });
+      await proveSupportRequestAuthorities({ database: adapter });
     } finally {
       await client.end();
       rmSync(preparationEvidenceDirectory, { recursive: true, force: true });

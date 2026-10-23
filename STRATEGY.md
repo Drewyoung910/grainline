@@ -3458,6 +3458,22 @@ Public `SellerProfile` now runs policyless ENABLE in Production from exact main
 `b56e226d327347fe155aa07ded0bde999ca929be` through protected run
 `39869437488`. Direct runtime, staff and PUBLIC table/column authority is zero;
 the compatible application uses fixed operations and maintained public mirrors.
-The remaining FORCE step is a separate posture-only release: it changes only
-table-owner bypass behavior, requires the accepted ENABLE evidence and exact
-compatible deployment, and must not run without its own Production approval.
+The separate posture-only FORCE release subsequently completed in protected
+Production run `39898441606`. Public `SellerProfile` and
+`SellerProfilePrivate` are now policyless ENABLE plus FORCE with zero direct
+runtime, staff or PUBLIC table/column authority.
+
+### Remaining private-table RLS direction (2026-10-23)
+
+Keep the accepted private-table protections, but stop reproducing the
+SellerProfile-scale one-time release machinery. Finish genuinely private
+tables in cohesive batches with reusable full-chain behavior proof and a
+generic activation workflow. Public catalog and reference tables receive a
+separate per-table disposition; public-read data does not need bespoke
+function-per-read RLS when bounded public views plus revoked writes provide the
+required boundary.
+
+`SupportRequest` is the next private table. Drew approved policyless RLS with
+zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
+must close the Server Action PIN gap and malformed-intake handling before a
+separate activation. Production activation remains separately authorized.

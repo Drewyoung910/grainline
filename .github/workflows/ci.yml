@@ -106,6 +106,30 @@ jobs:
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - name: Generate Prisma client for candidate behavior tests
         run: npx prisma generate
+      - name: Verify SupportRequest preparation source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/account-export-privacy.test.mjs
+          tests/account-privacy-observability.test.mjs
+          tests/account-state-residue-followups.test.mjs
+          tests/admin-audit-durability.test.mjs
+          tests/admin-query-and-email-guardrails.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/round9-account-deletion-pii-guardrails.test.mjs
+          tests/support-request-state.test.mjs
+      - name: Isolate SupportRequest preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/support-request-preparation"
+          mkdir -p "$holding/tests"
+          migration=20261023010000_prepare_support_request_authorities
+          mv "prisma/migrations/$migration" "$holding/migration"
+          mv \
+            tests/private-table-preparation-production.test.mjs \
+            "$holding/tests/private-table-preparation-production.test.mjs"
+          echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=$holding/migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -116,7 +140,7 @@ jobs:
             package_tests+=("$test_file")
           done < <(
               grep -El \
-                '202610(19|20)|verifySellerProfilePublicPreparationSources|seller-profile-force' \
+                '202610(19|20)|verifySellerProfilePublic(PreparationSources|ConsumerContracts)|seller-profile-force' \
                 tests/*.test.mjs \
                 | sort
             )
@@ -154,7 +178,7 @@ jobs:
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done < "$holding/migration-names.txt"
           grep -El \
-            '202610(19|20)|verifySellerProfilePublicPreparationSources|seller-profile-force' \
+            '202610(19|20)|verifySellerProfilePublic(PreparationSources|ConsumerContracts)|seller-profile-force' \
             tests/*.test.mjs \
             | sort > "$holding/test-files.txt"
           while IFS= read -r test_file
@@ -4937,7 +4961,7 @@ jobs:
           predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
           predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
           predecessor_staff_blob=43e85a986eb4790e222482e81a00afbfcc91dce5
-          current_schema_blob=85fe1be04d0d05734d1c6c6d50f4c9380d28f007
+          current_schema_blob=670338c14593b9a49ae71ae5458f62657b1b8e9b
           git cat-file -e "$predecessor^{commit}"
           git merge-base --is-ancestor "$predecessor" HEAD
           test "$(git hash-object prisma/schema.prisma)" = "$current_schema_blob"
@@ -4957,11 +4981,11 @@ jobs:
           schema="$root/prisma/schema.prisma"
           current="$holding/current-schema.$$.prisma"
           test ! -e "$current"
-          test "$(git hash-object "$schema")" = 85fe1be04d0d05734d1c6c6d50f4c9380d28f007
+          test "$(git hash-object "$schema")" = 670338c14593b9a49ae71ae5458f62657b1b8e9b
           cp "$schema" "$current"
           cleanup() {
             mv "$current" "$schema"
-            test "$(git hash-object "$schema")" = 85fe1be04d0d05734d1c6c6d50f4c9380d28f007
+            test "$(git hash-object "$schema")" = 670338c14593b9a49ae71ae5458f62657b1b8e9b
           }
           trap cleanup EXIT
           cp "$holding/predecessor-schema.prisma" "$schema"
@@ -6611,6 +6635,19 @@ jobs:
             mv "$holding/tests/$(basename "$test_file")" "$test_file"
           done < "$holding/test-files.txt"
           echo "SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=" >> "$GITHUB_ENV"
+      - name: Restore SupportRequest preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/support-request-preparation"
+          migration=20261023010000_prepare_support_request_authorities
+          mv "$holding/migration" "prisma/migrations/$migration"
+          for test_file in "$holding/tests"/*.mjs
+          do
+            mv "$test_file" "tests/$(basename "$test_file")"
+          done
+          rmdir "$holding/tests" "$holding"
+          echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete SellerProfile chain, including policyless FORCE.
       - name: Apply complete public SellerProfile chain for final Production build

@@ -11,7 +11,7 @@ import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { supportRequestAccountExportWhere } from "@/lib/supportRequest";
+import { exportOwnerSupportRequests } from "@/lib/supportRequestAccess";
 import {
   accountEmailSuppressionKeysForEmails,
 } from "@/lib/userEmailAddresses";
@@ -273,29 +273,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         createdAt: true,
       },
     }),
-    prisma.supportRequest.findMany({
-      where: supportRequestAccountExportWhere(user.id, accountEmails),
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        kind: true,
-        status: true,
-        name: true,
-        email: true,
-        topic: true,
-        orderId: true,
-        listingId: true,
-        message: true,
-        slaDueAt: true,
-        emailSentAt: true,
-        emailLastError: true,
-        closedAt: true,
-        closureEvidence: true,
-        closureEvidenceAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
+    exportOwnerSupportRequests(user.id),
     accountEmailSuppressionKeys.length > 0
       ? prisma.emailSuppression.findMany({
           where: { email: { in: accountEmailSuppressionKeys } },

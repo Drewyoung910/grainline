@@ -1,10 +1,8 @@
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
 import Link from "next/link";
-import { Prisma, type SupportRequestStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import InlineActionButton from "@/components/InlineActionButton";
-import { prisma } from "@/lib/db";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
   SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS,
@@ -14,32 +12,16 @@ import {
 import { setSupportRequestStatus } from "./actions";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { userStaffAdminLabels } from "@/lib/userStaffAccess";
+import {
+  readSupportRequestStaffState,
+  type SupportRequestStaffRow,
+} from "@/lib/supportRequestAccess";
 
 export const metadata: Metadata = { title: "Support Requests — Admin" };
 
 const ACTIVE_PAGE_SIZE = 50;
 
-const SUPPORT_REQUEST_ROW_SELECT = {
-  id: true,
-  kind: true,
-  status: true,
-  name: true,
-  email: true,
-  topic: true,
-  orderId: true,
-  listingId: true,
-  message: true,
-  slaDueAt: true,
-  emailSentAt: true,
-  emailLastError: true,
-  closureEvidence: true,
-  closureEvidenceAt: true,
-  closureEvidenceById: true,
-  createdAt: true,
-} satisfies Prisma.SupportRequestSelect;
-
-type SupportRequestBaseRow = Prisma.SupportRequestGetPayload<{ select: typeof SUPPORT_REQUEST_ROW_SELECT }>;
-type SupportRequestRow = SupportRequestBaseRow & { closureEvidenceBy: { email: string } | null };
+type SupportRequestRow = SupportRequestStaffRow & { closureEvidenceBy: { email: string } | null };
 
 function formatDate(value: Date) {
   return value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -205,27 +187,20 @@ export default async function AdminSupportPage({
 
   const { page: pageParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
-  const activeStatuses: SupportRequestStatus[] = ["OPEN", "IN_PROGRESS"];
-  const activeWhere = { status: { in: activeStatuses } } satisfies Prisma.SupportRequestWhereInput;
-  const activeCount = await prisma.supportRequest.count({ where: activeWhere });
+  let supportState = await readSupportRequestStaffState(
+    staff.id,
+    requestedPage,
+    ACTIVE_PAGE_SIZE,
+    20,
+  );
+  const activeCount = supportState.activeCount;
   const totalPages = Math.max(1, Math.ceil(activeCount / ACTIVE_PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
-
-  const [activeRequestRows, recentlyClosedRows] = await Promise.all([
-    prisma.supportRequest.findMany({
-      where: activeWhere,
-      orderBy: [{ slaDueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
-      skip: (page - 1) * ACTIVE_PAGE_SIZE,
-      take: ACTIVE_PAGE_SIZE,
-      select: SUPPORT_REQUEST_ROW_SELECT,
-    }),
-    prisma.supportRequest.findMany({
-      where: { status: "CLOSED" },
-      orderBy: [{ closedAt: "desc" }, { id: "desc" }],
-      take: 20,
-      select: SUPPORT_REQUEST_ROW_SELECT,
-    }),
-  ]);
+  if (page !== requestedPage) {
+    supportState = await readSupportRequestStaffState(staff.id, page, ACTIVE_PAGE_SIZE, 20);
+  }
+  const activeRequestRows = supportState.active;
+  const recentlyClosedRows = supportState.recent;
   const closureLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
     actorId: staff.id,
     userIds: [...activeRequestRows, ...recentlyClosedRows]
@@ -233,7 +208,7 @@ export default async function AdminSupportPage({
       .filter((id): id is string => Boolean(id)),
   });
   const closureLabelById = new Map(closureLabels.map((label) => [label.id, label]));
-  const attachClosureLabel = (request: SupportRequestBaseRow): SupportRequestRow => ({
+  const attachClosureLabel = (request: SupportRequestStaffRow): SupportRequestRow => ({
     ...request,
     closureEvidenceBy: request.closureEvidenceById
       ? { email: closureLabelById.get(request.closureEvidenceById)?.email ?? "Unknown" }

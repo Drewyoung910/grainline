@@ -90,8 +90,72 @@ const pages = [
   ["reviews/page.tsx", "prisma.review.count("],
   ["review/page.tsx", "prisma.listing.count("],
   ["reports/page.tsx", "prisma.userReport.findMany("],
-  ["support/page.tsx", "prisma.supportRequest."],
+  ["support/page.tsx", "readSupportRequestStaffState("],
 ];
+
+test("support status actions repeat the PIN boundary before any mutation", async () => {
+  let transitionCalls = 0;
+  let revalidations = 0;
+  const action = loadSubject("src/app/admin/support/actions.ts", {
+    "@clerk/nextjs/server": { auth: async () => identity },
+    "@/lib/adminPageAccess": { requireAdminPageAccess: async () => null },
+    "@/lib/ratelimit": {
+      adminActionRatelimit: {},
+      safeRateLimit: async () => ({ success: true }),
+    },
+    "@/lib/supportRequestState": { isSupportRequestStatus: () => true },
+    "@/lib/supportRequest": {
+      normalizeSupportRequestClosureEvidence: () => ({ ok: true, evidence: "x".repeat(40) }),
+    },
+    "@/lib/supportRequestAccess": {
+      transitionSupportRequest: async () => { transitionCalls++; return "updated"; },
+    },
+    "@/lib/serverErrorLogger": { logServerError: () => {} },
+    "next/cache": { revalidatePath: () => { revalidations++; } },
+  });
+  assert.deepEqual(
+    await action.setSupportRequestStatus("request-1", "CLOSED"),
+    { ok: false, error: "Could not update this request." },
+  );
+  assert.equal(transitionCalls, 0);
+  assert.equal(revalidations, 0);
+});
+
+test("support status actions use the PIN-verified local actor for one bounded transition", async () => {
+  const calls = [];
+  const action = loadSubject("src/app/admin/support/actions.ts", {
+    "@clerk/nextjs/server": { auth: async () => identity },
+    "@/lib/adminPageAccess": { requireAdminPageAccess: async () => staff },
+    "@/lib/ratelimit": {
+      adminActionRatelimit: {},
+      safeRateLimit: async (_limit, actorId) => {
+        assert.equal(actorId, identity.userId);
+        return { success: true };
+      },
+    },
+    "@/lib/supportRequestState": { isSupportRequestStatus: () => true },
+    "@/lib/supportRequest": {
+      normalizeSupportRequestClosureEvidence: () => ({ ok: true, evidence: "e".repeat(40) }),
+    },
+    "@/lib/supportRequestAccess": {
+      transitionSupportRequest: async (input) => { calls.push(input); return "updated"; },
+    },
+    "@/lib/serverErrorLogger": { logServerError: () => {} },
+    "next/cache": { revalidatePath: (path) => calls.push(path) },
+  });
+  const formData = new FormData();
+  formData.set("closureEvidence", "e".repeat(40));
+  assert.deepEqual(
+    await action.setSupportRequestStatus("request-2", "CLOSED", undefined, formData),
+    { ok: true },
+  );
+  assert.deepEqual(calls, [{
+    actorUserId: staff.id,
+    requestId: "request-2",
+    status: "CLOSED",
+    closureEvidence: "e".repeat(40),
+  }, "/admin/support"]);
+});
 
 test("every sensitive admin page returns the existing challenge before its data queries", async () => {
   const PinGate = () => null;
