@@ -50,13 +50,22 @@ function exactPushRuns(releaseSha, conclusion = "success") {
   }));
 }
 
-async function runBinding({ auxiliaryConclusion = "success" } = {}) {
+async function runBinding({
+  auxiliaryConclusion = "success",
+  comparisonStatus = "identical",
+  deploymentCommit = null,
+} = {}) {
   const releaseSha = "a".repeat(40);
+  const liveSha = deploymentCommit ?? releaseSha;
   const listWorkflowRunsForRepo = () => {};
   const github = {
     rest: {
       repos: {
         getBranch: async () => ({ data: { commit: { sha: releaseSha } } }),
+        compareCommits: async ({ basehead }) => {
+          assert.equal(basehead, `${liveSha}...${releaseSha}`);
+          return { data: { status: comparisonStatus } };
+        },
       },
       actions: {
         getWorkflowRun: async () => ({ data: {
@@ -80,6 +89,7 @@ async function runBinding({ auxiliaryConclusion = "success" } = {}) {
     REVIEWED_RELEASE_COMMIT: releaseSha,
     REVIEWED_MAIN_CI_RUN_ID: "101",
     REVIEWED_PRODUCTION_DEPLOYMENT_ID: "dpl_AP1z7xeSJE6biQHgw9VchzzLJTg7",
+    REVIEWED_PRODUCTION_DEPLOYMENT_COMMIT: liveSha,
   } };
   await new AsyncFunction("github", "context", "process", bindingScript)(
     github,
@@ -111,9 +121,17 @@ test("C-715 production release is exact-main, exact-deployment, and Production b
     /REVIEWED_RELEASE_COMMIT: \$\{\{ inputs\.release_commit \}\}/u,
   );
   await assert.doesNotReject(runBinding());
+  await assert.doesNotReject(runBinding({
+    comparisonStatus: "ahead",
+    deploymentCommit: "b".repeat(40),
+  }));
   await assert.rejects(
     runBinding({ auxiliaryConclusion: "failure" }),
     /Exact-main push workflows are not all green/u,
+  );
+  await assert.rejects(
+    runBinding({ comparisonStatus: "diverged" }),
+    /compatible Production deployment is not an ancestor/u,
   );
 });
 
@@ -166,6 +184,17 @@ test("C-715 production release admits one exact restart-safe migration", () => {
   assert.match(workflow, /email-suppression-recovery-production-inspect\.mjs postflight/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   assert.doesNotMatch(workflow, /resend\s+(?:emails|webhooks|domains)/iu);
+});
+
+test("C-715 release accepts its exact compatible live app ancestor for readback", () => {
+  assert.match(workflow, /production_deployment_commit:/u);
+  assert.match(workflow, /REVIEWED_PRODUCTION_DEPLOYMENT_COMMIT/u);
+  assert.match(workflow, /compareCommits/u);
+  assert.match(workflow, /basehead: `\$\{deploymentCommit\}\.\.\.\$\{sha\}`/u);
+  assert.match(
+    workflow,
+    /REVIEWED_RELEASE_COMMIT: \$\{\{ inputs\.production_deployment_commit \}\}/u,
+  );
 });
 
 test("C-715 repair is atomic, serialized, and self-verifying", () => {

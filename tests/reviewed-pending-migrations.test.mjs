@@ -6,10 +6,15 @@ import {
 
 const applied = (migration_name) => ({
   migration_name,
+  checksum: "1".repeat(64),
   finished_at: new Date("2026-10-12T00:00:00Z"),
   rolled_back_at: null,
   applied_steps_count: "1",
 });
+
+const C715 = "20261023040000_repair_resend_failed_event_suppressions";
+const C715_CHECKSUM =
+  "7f438ca723b05cf2e91a581f48223c0a577fc58715e22ff7176de4206ad8a2c8";
 
 test("accepts only the exact reviewed pending migration set", () => {
   const directories = ["20261001000000_first", "20261002000000_second"];
@@ -50,4 +55,29 @@ test("accepts one successful retry after a separately recorded rollback", () => 
     ],
     expectedPending: [],
   }), []);
+});
+
+test("accepts only the exact reviewed Prisma-resolved C-715 row", () => {
+  const resolved = {
+    ...applied(C715),
+    checksum: C715_CHECKSUM,
+    applied_steps_count: "0",
+  };
+  assert.deepEqual(collectReviewedPendingMigrationIssues({
+    directoryNames: [C715],
+    rows: [resolved],
+    expectedPending: [],
+  }), []);
+  for (const row of [
+    { ...resolved, checksum: "0".repeat(64) },
+    { ...resolved, finished_at: null },
+    { ...resolved, rolled_back_at: new Date("2026-10-12T00:01:00Z") },
+    { ...resolved, applied_steps_count: "2" },
+  ]) {
+    assert.notDeepEqual(collectReviewedPendingMigrationIssues({
+      directoryNames: [C715],
+      rows: [row],
+      expectedPending: [],
+    }), []);
+  }
 });

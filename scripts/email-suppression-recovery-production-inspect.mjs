@@ -169,15 +169,13 @@ async function inspectLedger(client) {
     });
   }
   const candidateRows = byName.get(MIGRATION) ?? [];
-  assert.ok(candidateRows.length <= 1, "candidate ledger is duplicated");
-  const candidate = candidateRows[0] ?? null;
-  if (candidate) {
-    assert.equal(candidate.checksum, MIGRATION_SHA256);
-    assert.ok(candidate.finished_at);
-    assert.equal(candidate.rolled_back_at, null);
-    assert.equal(Number(candidate.applied_steps_count), 1);
-  }
-  return candidate ? "applied" : "pending";
+  if (candidateRows.length === 0) return "pending";
+  assertReviewedPeerMigrationLedger({
+    migrationName: MIGRATION,
+    repositoryChecksum: MIGRATION_SHA256,
+    rows: candidateRows,
+  });
+  return "applied";
 }
 
 async function main() {

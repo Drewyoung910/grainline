@@ -1,9 +1,14 @@
 #!/usr/bin/env node
-import { readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
+import {
+  isReviewedSuccessfulMigration,
+  REVIEWED_MANUALLY_APPLIED_MIGRATIONS,
+} from "./reviewed-manually-applied-migrations.mjs";
 
 const { Client } = pg;
 const MIGRATION_NAME = /^[0-9]{14}_[a-z0-9_]+$/u;
@@ -38,11 +43,7 @@ export function collectReviewedPendingMigrationIssues({
       pending.push(name);
       continue;
     }
-    const successful = matches.filter((row) =>
-      row.finished_at !== null
-      && row.finished_at !== undefined
-      && row.rolled_back_at === null
-      && Number(row.applied_steps_count) === 1);
+    const successful = matches.filter(isReviewedSuccessfulMigration);
     const unresolved = matches.filter((row) =>
       row.rolled_back_at === null
       && !successful.includes(row));
@@ -76,6 +77,13 @@ export async function assertReviewedPendingMigrations({
   const directoryNames = readdirSync(migrationsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && MIGRATION_NAME.test(entry.name))
     .map((entry) => entry.name);
+  for (const [name, expectedChecksum] of REVIEWED_MANUALLY_APPLIED_MIGRATIONS) {
+    if (!directoryNames.includes(name)) continue;
+    const actualChecksum = createHash("sha256")
+      .update(readFileSync(path.join(migrationsDir, name, "migration.sql")))
+      .digest("hex");
+    if (actualChecksum !== expectedChecksum) throw stopped();
+  }
   const client = new ClientImpl({
     connectionString,
     ...postgresChannelBindingClientOptions(new URL(connectionString)),
@@ -89,7 +97,8 @@ export async function assertReviewedPendingMigrations({
     await client.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const result = await client.query(
-      `SELECT migration_name, finished_at, rolled_back_at, applied_steps_count
+      `SELECT migration_name, checksum, finished_at, rolled_back_at,
+              applied_steps_count
          FROM public._prisma_migrations
         WHERE migration_name = ANY($1::text[])
         ORDER BY migration_name`,
