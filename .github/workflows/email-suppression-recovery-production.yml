@@ -59,6 +59,8 @@ jobs:
           package-manager-cache: false
           token: ""
       - run: npm ci --ignore-scripts
+      - name: Generate Prisma client after lifecycle scripts were disabled
+        run: npx prisma generate
       - name: Bind release to exact live main and completed push workflows
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:

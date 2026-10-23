@@ -4,7 +4,7 @@
 
 This package verifies and corrects the recipient-suppression half of Claude
 finding **C-715** before the email tables enter RLS preparation. It is based on
-main `2673c7b0c471723b52bd00e4e5195864c07e954c` and remains a local candidate
+main `cdcb7673e59855bf07232e3c212b30bd5db47ef7` and remains a local candidate
 until the earlier C-875 migration is successfully released. SupportRequest
 ENABLE is already live.
 
@@ -67,14 +67,24 @@ the current replay contract.
   orderings, exercise partial-recipient failure plus replay, and require an
   atomic locked repair migration.
 - A PostgreSQL 16 full-chain run seeded the predecessor damage before the
-  candidate migration and failed without the repair.
+  candidate migration and failed without the repair. The proof deliberately
+  committed the exact recovery SQL while no Prisma ledger row existed, checked
+  the corrected storage state, then replayed the idempotent SQL and converged
+  to exactly one completed ledger row.
 - The completed full-chain run applied all 427 migrations and proved that the
   invalid suppression and counters were removed while a real hard bounce and a
   real complaint remained. A second PostgreSQL connection held the same
   `EmailFailureCount`-then-`EmailSuppression` lock order used by account
   deletion while the migration ran; the migration waited, completed without a
   deadlock, and the account-deletion transaction committed.
-- The focused behavior and observability suite passes 46 tests.
+- The same disposable PostgreSQL run exercised direct COMPLAINT and permanent
+  BOUNCE evidence before and after generic provider suppression. Generic
+  suppression could not weaken existing direct evidence, while later direct
+  evidence correctly replaced the generic row in storage.
+- The focused behavior and observability suite passes 47 tests.
+- The signed-handler seam still has helper-level multi-recipient failure and
+  replay coverage. A route-level signed-event injection would require a broader
+  handler dependency redesign, so it remains outside this bounded correction.
 - The protected Production workflow requires exact main, exact successful push
   workflows, the exact candidate checksum, and an exact live deployment of the
   corrected app before owner access. Its read-only preflight records aggregate
@@ -94,8 +104,9 @@ the current replay contract.
 2. Release C-875 optional-email unsubscribe correction (`20261023030000`). Its
    first Production run `39975560599` failed during GitHub Actions setup before
    checkout, credentials, or SQL because its checkout pin was incomplete. Main
-   `2673c7b0c471723b52bd00e4e5195864c07e954c` corrects that pin, but the
-   migration remains pending until a later protected run succeeds.
+   `cdcb7673e59855bf07232e3c212b30bd5db47ef7` contains both the corrected pin
+   and the exact-main Notification-proof trigger needed by its release binder;
+   the migration remains pending until a later protected run succeeds.
 3. Merge C-715 only after C-875 is live, allow its exact commit to deploy, and verify the deployment
    marker on both canonical aliases.
 4. Run the protected C-715 workflow for

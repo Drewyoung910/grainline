@@ -117,6 +117,30 @@ test("C-715 production release is exact-main, exact-deployment, and Production b
   );
 });
 
+test("C-715 production release generates Prisma before clean-runner behavior tests", () => {
+  const steps = parsed.jobs.apply.steps;
+  const install = steps.findIndex(
+    (step) => step.run === "npm ci --ignore-scripts",
+  );
+  const generate = steps.findIndex(
+    (step) =>
+      step.name === "Generate Prisma client after lifecycle scripts were disabled",
+  );
+  const focused = steps.findIndex(
+    (step) => step.name === "Verify exact candidate bytes and focused behavior",
+  );
+
+  assert.ok(install >= 0, "the clean runner must install without lifecycle scripts");
+  assert.ok(generate > install, "Prisma generation must follow npm ci --ignore-scripts");
+  assert.equal(steps[generate].run, "npx prisma generate");
+  assert.ok(focused > generate, "generated Prisma types must exist before focused tests import them");
+  assert.match(
+    steps[focused].run,
+    /tests\/resend-delivery-failure-classification\.test\.mjs/u,
+    "the post-generate test must import the C-715 helper and generated Prisma enums",
+  );
+});
+
 test("C-715 production release admits one exact restart-safe migration", () => {
   assert.equal(MIGRATION, "20261023040000_repair_resend_failed_event_suppressions");
   assert.equal(

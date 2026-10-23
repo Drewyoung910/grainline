@@ -79,6 +79,7 @@ import { proveSupportRequestAuthorities } from "../tools/database-full-chain/sce
 import {
   EMAIL_SUPPRESSION_RECOVERY_MIGRATION,
   proveHistoricalResendFailureSuppressionRepair,
+  proveStoredResendSuppressionOrdering,
   seedHistoricalResendFailureSuppressions,
 } from "../tools/database-full-chain/scenarios/email-suppression-recovery.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
@@ -190,6 +191,7 @@ test(
       let historicalDisputeFirstEventGap;
       let historicalResendFailureSuppressions;
       let emailSuppressionConcurrencyProof;
+      let emailSuppressionInterruptionProof;
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
@@ -254,6 +256,26 @@ test(
               await startEmailSuppressionAccountDeletionConcurrencyProof(
                 proofDatabaseUrl,
               );
+            await adapter.executeMigration(artifact.sql, {
+              migrationName: `${artifact.name}-committed-before-ledger`,
+            });
+            const concurrencyOutcome = await emailSuppressionConcurrencyProof.outcome;
+            if (concurrencyOutcome.error) throw concurrencyOutcome.error;
+            await proveHistoricalResendFailureSuppressionRepair({
+              database: adapter,
+              fixture: historicalResendFailureSuppressions,
+            });
+            const ledgerBeforeResolve = await adapter.query(
+              `SELECT pg_catalog.count(*)::integer AS count
+                 FROM public."_prisma_migrations"
+                WHERE migration_name = $1`,
+              [EMAIL_SUPPRESSION_RECOVERY_MIGRATION],
+            );
+            assert.equal(Number(ledgerBeforeResolve.rows[0]?.count ?? -1), 0);
+            emailSuppressionInterruptionProof = Object.freeze({
+              sqlCommittedWithoutLedger: true,
+              concurrency: concurrencyOutcome.evidence,
+            });
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -509,15 +531,34 @@ test(
         fixture: historicalResendFailureSuppressions,
       });
       assert.ok(
-        emailSuppressionConcurrencyProof,
-        "C-715 account-deletion lock-order proof must run before recovery",
+        emailSuppressionInterruptionProof,
+        "C-715 SQL-commit/ledger interruption proof must run before replay",
       );
-      const concurrencyOutcome = await emailSuppressionConcurrencyProof.outcome;
-      if (concurrencyOutcome.error) throw concurrencyOutcome.error;
-      assert.deepEqual(concurrencyOutcome.evidence, {
-        sawRecoveryWaiting: true,
-        accountDeletionLockOrder: ["EmailFailureCount", "EmailSuppression"],
+      assert.deepEqual(emailSuppressionInterruptionProof, {
+        sqlCommittedWithoutLedger: true,
+        concurrency: {
+          sawRecoveryWaiting: true,
+          accountDeletionLockOrder: ["EmailFailureCount", "EmailSuppression"],
+        },
       });
+      const resolvedRecoveryLedger = await adapter.query(
+        `SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+           FROM public."_prisma_migrations"
+          WHERE migration_name = $1`,
+        [EMAIL_SUPPRESSION_RECOVERY_MIGRATION],
+      );
+      assert.equal(resolvedRecoveryLedger.rows.length, 1);
+      assert.equal(resolvedRecoveryLedger.rows[0].finished_at instanceof Date, true);
+      assert.equal(resolvedRecoveryLedger.rows[0].rolled_back_at, null);
+      assert.equal(Number(resolvedRecoveryLedger.rows[0].applied_steps_count), 1);
+      assert.deepEqual(await proveStoredResendSuppressionOrdering({
+        database: adapter,
+      }), [
+        "complaint:direct-preserved-after-generic",
+        "complaint:direct-replaced-generic",
+        "bounce:direct-preserved-after-generic",
+        "bounce:direct-replaced-generic",
+      ]);
     } finally {
       await client.end();
       rmSync(preparationEvidenceDirectory, { recursive: true, force: true });
