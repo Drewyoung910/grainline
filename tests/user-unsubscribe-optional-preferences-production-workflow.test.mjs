@@ -19,7 +19,14 @@ const workflow = readFileSync(
   "utf8",
 );
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const notificationProofWorkflow = readFileSync(
+  ".github/workflows/notification-rls-ephemeral-proof.yml",
+  "utf8",
+);
 const parsedWorkflow = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
+const parsedNotificationProofWorkflow = yaml.load(notificationProofWorkflow, {
+  schema: yaml.JSON_SCHEMA,
+});
 const bindingScript = parsedWorkflow.jobs.apply.steps.find(
   (step) => step.name === "Bind release to exact main and completed push workflows",
 ).with.script;
@@ -144,6 +151,14 @@ test("C-875 production release uses a resolvable immutable checkout pin", () => 
   assert.equal(
     checkoutStep?.uses,
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+  );
+});
+
+test("C-875 workflow changes trigger the exact-main Notification proof required by its binder", () => {
+  assert.ok(
+    parsedNotificationProofWorkflow.on.push.paths.includes(
+      ".github/workflows/user-unsubscribe-optional-preferences-production.yml",
+    ),
   );
 });
 
