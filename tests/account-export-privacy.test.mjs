@@ -75,7 +75,6 @@ describe("account export privacy coverage", () => {
     for (const model of [
       "block",
       "userReport",
-      "supportRequest",
       "emailSuppression",
       "emailOutbox",
       "emailFailureCount",
@@ -88,6 +87,11 @@ describe("account export privacy coverage", () => {
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
     }
+    assert.match(
+      route,
+      /exportOwnerSupportRequests\(user\.id\)/,
+      "account export must query support requests through its owner authority",
+    );
     assert.match(
       route,
       /exportCheckoutStockReservations\(user\.id\)/,
@@ -252,23 +256,23 @@ describe("account export privacy coverage", () => {
   it("exports support and data-request records by stable account link with email fallback", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");
-    const supportStart = route.indexOf("prisma.supportRequest.findMany");
-    const supportEnd = route.indexOf("prisma.emailSuppression.findMany", supportStart);
-    const supportBlock = route.slice(supportStart, supportEnd);
+    const access = source("src/lib/supportRequestAccess.ts");
+    const authority = source("prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql");
 
     assert.match(schema, /supportRequests\s+SupportRequest\[\]/);
     assert.match(schema, /userId\s+String\?/);
     assert.match(schema, /user\s+User\?\s+@relation\(fields: \[userId\], references: \[id\], onDelete: SetNull\)/);
     assert.match(schema, /@@index\(\[userId, createdAt\]\)/);
-    assert.ok(supportStart >= 0, "account export must query supportRequest");
-    assert.match(supportBlock, /supportRequestAccountExportWhere\(user\.id, accountEmails\)/);
-    assert.match(supportBlock, /orderId: true/);
-    assert.match(supportBlock, /listingId: true/);
-    assert.match(supportBlock, /emailLastError: true/);
-    assert.match(supportBlock, /closureEvidence: true/);
-    assert.match(supportBlock, /closureEvidenceAt: true/);
-    assert.doesNotMatch(supportBlock, /closureEvidenceById: true/);
-    assert.doesNotMatch(supportBlock, /where:\s*\{\s*email:\s*accountEmail\s*\}/);
+    assert.match(route, /exportOwnerSupportRequests\(user\.id\)/);
+    assert.doesNotMatch(route, /prisma\.supportRequest\./);
+    assert.match(access, /grainline_support_request_owner_export/);
+    for (const field of ["orderId", "listingId", "emailLastError", "closureEvidence", "closureEvidenceAt"]) {
+      assert.match(authority, new RegExp(`request\\.\\"${field}\\"`));
+    }
+    assert.doesNotMatch(authority.slice(
+      authority.indexOf("grainline_support_request_owner_export"),
+      authority.indexOf("grainline_support_request_staff_state"),
+    ), /emailDeliveryToken/);
   });
 
   it("exports email suppressions by the same exact and canonical keys used for delivery checks", () => {

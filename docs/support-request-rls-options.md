@@ -2,12 +2,15 @@
 
 Date: 2026-10-23
 
-Status: Awaiting Drew's design selection. This document changes no application,
-database, grant, RLS, deployment, or Production state.
+Status: Option B approved for isolated implementation on 2026-10-23. The
+decision authorizes candidate source preparation only; it does not authorize a
+Production migration, grant change, RLS activation, or deployment. The required domain audit is
+`docs/support-request-pre-rls-audit.md`.
 
 ## Verified starting point
 
-The inventory is based on main `95015ecfaf0d6f9c7ca9ed45ffa78f3e99e76c1a`.
+The approved implementation inventory is based on main
+`6be29e5bdf4e401598e902aa6520c67cff741205`.
 `SupportRequest` contains private support and legal-request data: contact details,
 free-text messages, order and listing references, delivery errors, closure evidence,
 and staff attribution. The current runtime-role provisioning contract grants
@@ -110,7 +113,7 @@ count as proof of these behaviors.
 
 ## Decision record
 
-- [ ] Approve Option B for isolated implementation.
+- [x] Approve Option B for isolated implementation (Drew, 2026-10-23).
 - [ ] Choose Option A.
 - [ ] Choose Option C.
 - [ ] Request a revised comparison.

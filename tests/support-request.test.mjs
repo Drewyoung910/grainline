@@ -54,6 +54,13 @@ describe("support request helpers", () => {
     assert.match(source, /message\.length < 10/);
     assert.match(source, /Enter a valid email address/);
     assert.match(source, /Add a few details so we can help/);
+    for (const body of [null, undefined, [], "not-an-object", 42]) {
+      assert.doesNotThrow(() => normalizeSupportRequest("support", body));
+      assert.deepEqual(
+        normalizeSupportRequest("support", body),
+        { ok: false, error: "Enter a valid email address." },
+      );
+    }
   });
 
   it("rejects support email addresses containing control characters", () => {

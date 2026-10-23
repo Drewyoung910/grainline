@@ -71,21 +71,21 @@ describe("account and privacy route observability guardrails", () => {
     const support = source("src/app/api/support/route.ts");
     const dataRequest = source("src/app/api/legal/data-request/route.ts");
     const adminPage = source("src/app/admin/support/page.tsx");
+    const access = source("src/lib/supportRequestAccess.ts");
+    const authority = source("prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql");
 
     for (const route of [support, dataRequest]) {
-      assert.match(route, /SUPPORT_REQUEST_EMAIL_PENDING_MARKER/);
-      assert.match(
-        route,
-        /emailLastError: SUPPORT_REQUEST_EMAIL_PENDING_MARKER/,
-      );
+      assert.match(route, /submitSupportRequest\(/);
+      assert.match(route, /recordSupportRequestDelivery\(/);
       assert.match(route, /sendRenderedEmail\(/);
-      assert.match(
-        route,
-        /data: \{ emailSentAt: new Date\(\), emailLastError: null \}/,
-      );
+      assert.match(route, /sent: true/);
+      assert.match(route, /sent: false/);
       assert.match(route, /email_error_update/);
       assert.match(route, /email_sent_update/);
     }
+    assert.match(access, /grainline_support_request_delivery_record/);
+    assert.match(authority, /Notification email delivery is pending confirmation/);
+    assert.match(authority, /"emailDeliveryToken" = NULL/);
     assert.match(adminPage, /supportRequestEmailNotificationState\(request\)/);
     assert.doesNotMatch(
       adminPage,
@@ -102,7 +102,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(accountLink, /userIdByClerkId\(prisma, clerkUserId\)/);
     for (const route of [support, dataRequest]) {
       assert.match(route, /currentSupportRequestUserId\(\)/);
-      assert.match(route, /userId: requesterUserId/);
+      assert.match(route, /submitSupportRequest\(normalized\.request, requesterUserId\)/);
       assert.doesNotMatch(route, /ensureUser/);
     }
   });

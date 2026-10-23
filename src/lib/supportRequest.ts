@@ -82,8 +82,11 @@ export function normalizeSupportRequest(
     message?: unknown;
     orderId?: unknown;
     listingId?: unknown;
-  },
+  } | null | undefined,
 ): { ok: true; request: NormalizedSupportRequest } | { ok: false; error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, error: "Enter a valid email address." };
+  }
   const email = normalizeEmailAddress(typeof input.email === "string" ? input.email : "");
   if (!email) return { ok: false, error: "Enter a valid email address." };
 

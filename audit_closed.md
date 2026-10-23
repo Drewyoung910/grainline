@@ -19962,3 +19962,36 @@ records both public and private SellerProfile tables as policyless RLS plus
 FORCE, zero runtime/staff/PUBLIC table or column authority, and no row data.
 The public SellerProfile RLS release is complete; any rollback or successor is
 a separate Production operation.
+
+### Entry 579 - SupportRequest compatible authority preparation
+
+Entry 579 independently verifies and closes two defects found during the
+SupportRequest pre-RLS audit. C-747 was real: the admin status Server Action
+checked the staff role but did not repeat the session-bound Admin PIN check.
+Malformed JSON was also real: `null`, arrays and primitive JSON values reached
+the normalizer as though they were objects and could produce a 500 response.
+The action now calls `requireAdminPageAccess()` before any transition, and the
+shared normalizer rejects every non-object input through the ordinary
+validation response.
+
+Drew approved the policyless zero-direct-access design after reviewing three
+options. Candidate migration
+`20261023010000_prepare_support_request_authorities` is additive: it adds a
+one-use delivery capability and nine purpose-bound functions, while leaving
+RLS off and retaining predecessor table grants. All nine source consumers now
+use the typed `supportRequestAccess.ts` boundary for anonymous/authenticated
+submission, delivery evidence, owner export, PIN-verified staff state and
+transitions, account-deletion redaction/provider deferral, health aggregation
+and retention. A source guard rejects new direct Prisma or raw-SQL table
+access.
+
+The PostgreSQL 16 proof rebuilt and applied all 424 migrations, then exercised
+function ownership/ACLs, retained predecessor posture, anonymous and linked
+submissions, forged and replayed delivery capabilities, owner isolation,
+staff denial/allow paths, terminal closure/audit evidence, more-than-500-row
+deletion batches, unrelated-row preservation, provider-deletion convergence,
+overdue counting and two-year retention. The focused application suite and
+TypeScript validation also pass. This is candidate source only. No Production
+migration, grant, RLS flag, deployment or row changed; compatible preparation,
+application deployment and policyless activation remain separate reviewed
+operations.

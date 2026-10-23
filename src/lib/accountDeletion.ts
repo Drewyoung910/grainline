@@ -14,7 +14,10 @@ import {
   accountEmailSuppressionKeysForEmails,
   deleteCurrentUserEmailAddressHistory,
 } from "@/lib/userEmailAddresses";
-import { supportRequestAccountExportWhere, supportRequestSlaDueAt } from "@/lib/supportRequest";
+import {
+  redactSupportRequestsForAccountDeletion,
+  upsertProviderDeletionSupportRequest,
+} from "@/lib/supportRequestAccess";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
   claimAccountCheckoutStockReservations,
@@ -91,10 +94,6 @@ return 0
 const releaseAccountDeletionLockScript = redis.createScript<number>(
   RELEASE_ACCOUNT_DELETION_LOCK_SCRIPT,
 );
-const DELETED_SUPPORT_REQUEST_EMAIL = "deleted-account@deleted.thegrainline.local";
-const DELETED_SUPPORT_REQUEST_MESSAGE = "[Support request removed after account deletion]";
-const PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC = "delete";
-
 export type AccountDeletionLock = {
   key: string;
   userId: string;
@@ -407,81 +406,6 @@ async function cleanupDeletedSellerFanoutRows(
     ],
     now,
   );
-}
-
-async function redactSupportRequestsForDeletedAccount(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  accountEmails: string[],
-  sensitiveValues: string[],
-) {
-  const where = supportRequestAccountExportWhere(deletedUserId, accountEmails);
-  await drainMutatingFilterBatches({
-    keyOf: (request) => request.id,
-    loadBatch: () =>
-      tx.supportRequest.findMany({
-        where,
-        select: { id: true, closureEvidence: true, emailLastError: true },
-        orderBy: { id: "asc" },
-        take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      }),
-    mutate: async (request) => {
-      const closureEvidence = request.closureEvidence
-        ? redactAccountDeletionText(request.closureEvidence, sensitiveValues, undefined, 4000).text
-        : null;
-      const emailLastError = request.emailLastError
-        ? redactAccountDeletionText(request.emailLastError, sensitiveValues, undefined, 1000).text
-        : null;
-
-      await tx.supportRequest.update({
-        where: { id: request.id },
-        data: {
-          userId: null,
-          name: null,
-          email: DELETED_SUPPORT_REQUEST_EMAIL,
-          orderId: null,
-          listingId: null,
-          message: DELETED_SUPPORT_REQUEST_MESSAGE,
-          emailLastError,
-          closureEvidence,
-        },
-      });
-    },
-  });
-}
-
-async function redactSupportClosureEvidenceByDeletedAccount(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  await drainMutatingFilterBatches({
-    keyOf: (request) => request.id,
-    loadBatch: () =>
-      tx.supportRequest.findMany({
-        where: { closureEvidenceById: deletedUserId },
-        select: { id: true, closureEvidence: true },
-        orderBy: { id: "asc" },
-        take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      }),
-    mutate: async (request) => {
-      const closureEvidence = request.closureEvidence
-        ? redactAccountDeletionText(
-            request.closureEvidence,
-            sensitiveValues,
-            undefined,
-            4000,
-          ).text
-        : null;
-      await tx.supportRequest.update({
-        where: { id: request.id },
-        data: {
-          closureEvidenceById: null,
-          closureEvidence,
-        },
-      });
-    },
-  });
 }
 
 async function archiveBlogPostsForDeletedAccount(
@@ -899,51 +823,19 @@ async function deferProviderDeletedAccountAnonymization(input: {
   clerkId: string;
   blockers: AccountDeletionBlocker[];
 }) {
-  const now = new Date();
   const message = providerDeletedAccountDataRequestMessage({
     userId: input.userId,
     blockers: input.blockers,
   });
 
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(input.userId, async (tx) => {
     const user = await deferProviderDeletedUserAccount(tx, {
       clerkId: input.clerkId,
       expectedUserId: input.userId,
     });
     await pauseSellerForAccountDeletion(tx, { userId: input.userId });
-
-    const existingRequest = await tx.supportRequest.findFirst({
-      where: {
-        userId: input.userId,
-        kind: "DATA_REQUEST",
-        status: { in: ["OPEN", "IN_PROGRESS"] },
-        topic: PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC,
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { id: true },
-    });
-
-    if (existingRequest) {
-      await tx.supportRequest.update({
-        where: { id: existingRequest.id },
-        data: {
-          message,
-          slaDueAt: supportRequestSlaDueAt(now),
-        },
-      });
-    } else {
-      await tx.supportRequest.create({
-        data: {
-          userId: input.userId,
-          kind: "DATA_REQUEST",
-          name: user?.name ?? null,
-          email: user?.email ?? `deleted+${input.userId}@deleted.thegrainline.local`,
-          topic: PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC,
-          message,
-          slaDueAt: supportRequestSlaDueAt(now),
-        },
-      });
-    }
+    if (!user) throw new Error("Provider-deleted account could not be deferred");
+    await upsertProviderDeletionSupportRequest(tx, message);
   });
 
   await invalidateAccountStateCache(input.clerkId, "provider_deleted_account_blocked_anonymization");
@@ -1306,12 +1198,11 @@ export async function anonymizeUserAccount(
         resolutionNote: "Auto-resolved after the reported account was deleted.",
       },
     });
-    await redactSupportClosureEvidenceByDeletedAccount(
+    await redactSupportRequestsForAccountDeletion(
       tx,
-      user.id,
+      accountSensitiveValues,
       accountAuditSensitiveValues,
     );
-    await redactSupportRequestsForDeletedAccount(tx, user.id, accountEmails, accountSensitiveValues);
     await tx.emailOutbox.updateMany({
       where: {
         OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],

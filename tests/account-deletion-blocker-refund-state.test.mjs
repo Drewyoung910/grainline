@@ -46,12 +46,9 @@ describe("account deletion blocker refund state", () => {
     );
     assert.match(sellerPrivateAccess, /grainline_seller_account_deletion_pause/);
     assert.match(sellerPrivateAccess, /return \{ count: rows\[0\]\.paused \? 1 : 0 \}/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /tx\.supportRequest\.findFirst\(\{/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /kind: "DATA_REQUEST"/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /topic: PROVIDER_DELETED_ACCOUNT_DATA_REQUEST_TOPIC/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /status: \{ in: \["OPEN", "IN_PROGRESS"\] \}/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /tx\.supportRequest\.create\(\{/);
-    assert.match(deletion.slice(deferStart, byClerkStart), /slaDueAt: supportRequestSlaDueAt\(now\)/);
+    assert.match(deletion.slice(deferStart, byClerkStart), /withDbUserContext\(input\.userId/);
+    assert.match(deletion.slice(deferStart, byClerkStart), /upsertProviderDeletionSupportRequest\(tx, message\)/);
+    assert.doesNotMatch(deletion.slice(deferStart, byClerkStart), /tx\.supportRequest\./);
     assert.match(deletion, /Provider-side account deletion arrived before Grainline deletion blockers cleared\./);
     assert.match(deletion, /Record provider, counsel, or completion evidence before closing\./);
     assert.match(deletion.slice(deferStart, byClerkStart), /source: "clerk_deleted_account_blocked_anonymization"/);
