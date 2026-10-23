@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type SellerProfileOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
@@ -279,9 +280,7 @@ async function readSellerOwnerListingPublishReview(
   if (
     row.sellerProfileId !== sellerProfileId
     || !/^[A-Za-z0-9._:-]{1,191}$/.test(sellerProfileId)
-    || typeof row.displayName !== "string"
-    || row.displayName.length < 1
-    || row.displayName.length > 100
+    || !isTextWithinCodePointRange(row.displayName, 1, 100)
     || typeof row.chargesEnabled !== "boolean"
     || typeof row.vacationMode !== "boolean"
     || typeof row.publishReviewListingCount !== "bigint"
@@ -369,9 +368,7 @@ async function readSellerOwnerListingReview(client: SellerProfileOwnerClient) {
   if (
     typeof row.sellerProfileId !== "string"
     || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.sellerProfileId)
-    || typeof row.displayName !== "string"
-    || row.displayName.length < 1
-    || row.displayName.length > 100
+    || !isTextWithinCodePointRange(row.displayName, 1, 100)
     || typeof row.totalListingCount !== "bigint"
     || row.totalListingCount < 0n
     || row.totalListingCount > BigInt(Number.MAX_SAFE_INTEGER)
@@ -412,9 +409,7 @@ async function readSellerOwnerBlogEditor(client: SellerProfileOwnerClient) {
     if (
       typeof row.listingId !== "string"
       || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.listingId)
-      || typeof row.listingTitle !== "string"
-      || row.listingTitle.length < 1
-      || row.listingTitle.length > 150
+      || !isTextWithinCodePointRange(row.listingTitle, 1, 150)
       || listingIds.has(row.listingId)
     ) {
       throw new Error("Seller owner blog-editor authority returned an invalid listing");
@@ -447,9 +442,7 @@ async function readSellerOwnerCore(client: SellerProfileOwnerClient) {
   if (
     typeof row.sellerProfileId !== "string"
     || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.sellerProfileId)
-    || typeof row.displayName !== "string"
-    || row.displayName.length < 1
-    || row.displayName.length > 100
+    || !isTextWithinCodePointRange(row.displayName, 1, 100)
     || typeof row.createdAtEpochMillis !== "bigint"
     || row.createdAtEpochMillis < 0n
     || row.createdAtEpochMillis > 253402300799999n
@@ -496,9 +489,7 @@ async function readSellerOwnerBootstrap(
     typeof row.id !== "string"
     || !/^[A-Za-z0-9._:-]{1,191}$/.test(row.id)
     || row.userId !== input.userId
-    || typeof row.displayName !== "string"
-    || row.displayName.length < 1
-    || row.displayName.length > 100
+    || !isTextWithinCodePointRange(row.displayName, 1, 100)
     || typeof row.chargesEnabled !== "boolean"
     || typeof row.vacationMode !== "boolean"
     || (row.bannerImageUrl !== null && typeof row.bannerImageUrl !== "string")

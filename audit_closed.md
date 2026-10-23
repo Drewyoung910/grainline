@@ -19881,3 +19881,32 @@ Current running tally after Entry 576 remains verified fixed/reduced 1106,
 verified stale/false-positive/current 579, deferred product/design/ops/legal
 86, approximate raw allegations left from current max #1126: 0. This entry
 closes release machinery rather than a new canonical product finding.
+
+### Entry 577 - Claude session C-1039 SellerProfile Unicode result boundaries
+
+Entry 577 independently verifies Claude session finding C-1039 against exact
+main after public SellerProfile ENABLE. The finding was real. Seller display
+names and listing titles are stored under PostgreSQL character bounds, and the
+write boundary already truncates by Unicode code point. The converted
+SellerProfile result validators instead used JavaScript `String.length`, which
+counts astral characters such as emoji as two UTF-16 code units. A valid
+100-code-point maker name or 150-code-point listing title could therefore make
+public catalog cards, messages, carts and checkout, owner dashboards, staff
+tools, saved listings, and commission-interest reads reject the entire database
+result.
+
+The correction adds one shared code-point range validator and applies it to
+every bounded SellerProfile name/title projection, including public, owner,
+participant, transaction, staff, service, listing-detail, saved-listing,
+similar-listing, and commission-interest consumers. ID bounds, collection-size
+bounds, and unrelated request-shape checks remain unchanged. Existing stored
+data needs no backfill because the database values are valid; deployment of the
+reader correction is sufficient.
+
+The new behavior test failed on exact main for the 100-emoji maker name and
+150-emoji listing title, then passed with the correction while still rejecting
+101- and 151-code-point values. The focused SellerProfile suite passes all 35
+checks across the affected consumer families. This is app source only: no SQL,
+migration, RLS state, grants, Production database, or deployment changed.
+SellerProfile FORCE remains separately staged and must not run before this
+compatible app correction is merged and deployed.

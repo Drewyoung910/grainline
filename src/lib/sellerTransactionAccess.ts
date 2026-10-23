@@ -2,6 +2,7 @@ import {
   type DbUserContextTransactionClient,
   withDbUserContext,
 } from "@/lib/dbUserContext";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 export type SellerTransactionState = Readonly<{
   id: string;
@@ -35,9 +36,7 @@ function validSellerTransactionState(row: SellerTransactionState | undefined): r
     row
     && validId(row.id)
     && validId(row.userId)
-    && typeof row.displayName === "string"
-    && row.displayName.length > 0
-    && row.displayName.length <= 100
+    && isTextWithinCodePointRange(row.displayName, 1, 100)
     && typeof row.chargesEnabled === "boolean"
     && typeof row.stripeAccountSupported === "boolean"
     && typeof row.ownerAccountActive === "boolean"

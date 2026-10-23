@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type SellerProfileServiceClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
@@ -36,9 +37,7 @@ export async function sellerWelcomeDisplayName(
   const row = rows[0];
   if (!row) return null;
   if (
-    typeof row.displayName !== "string"
-    || row.displayName.length < 1
-    || row.displayName.length > 100
+    !isTextWithinCodePointRange(row.displayName, 1, 100)
   ) {
     throw new Error("Seller welcome authority returned an invalid result");
   }

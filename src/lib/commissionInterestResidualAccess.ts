@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type CommissionInterestClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
@@ -87,9 +88,7 @@ async function readOwnerCommissionInterestSummaries(
     if (
       !validId(row.interestId)
       || !validId(row.sellerProfileId)
-      || typeof row.displayName !== "string"
-      || row.displayName.length < 1
-      || row.displayName.length > 100
+      || !isTextWithinCodePointRange(row.displayName, 1, 100)
       || !nullableString(row.avatarImageUrl)
       || !nullableString(row.ownerImageUrl)
     ) {

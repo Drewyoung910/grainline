@@ -6,6 +6,7 @@ import {
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
 import { isSupportedLocationPoint } from "@/lib/locationPrivacy";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 export type SellerPublicMapPoint = Readonly<{
   id: string;
@@ -1287,7 +1288,7 @@ async function readSellerPublicFavoriteTarget(
     || typeof rows[0].listingId !== "string"
     || rows[0].listingId !== listingId
     || typeof rows[0].title !== "string"
-    || rows[0].title.length < 1
+    || !isTextWithinCodePointRange(rows[0].title, 1, 150)
     || typeof rows[0].ownerUserId !== "string"
     || !rows[0].ownerUserId
   ) {
@@ -1346,15 +1347,13 @@ async function readSellerActorReviewListingTarget(
     rows.length !== 1
     || row.listingId !== listingId
     || typeof row.title !== "string"
-    || row.title.length < 1
-    || row.title.length > 150
+    || !isTextWithinCodePointRange(row.title, 1, 150)
     || typeof row.sellerProfileId !== "string"
     || row.sellerProfileId.length < 1
     || typeof row.sellerUserId !== "string"
     || row.sellerUserId.length < 1
     || typeof row.sellerDisplayName !== "string"
-    || row.sellerDisplayName.length < 1
-    || row.sellerDisplayName.length > 100
+    || !isTextWithinCodePointRange(row.sellerDisplayName, 1, 100)
     || typeof row.ownerAccountActive !== "boolean"
   ) {
     throw new Error("Seller review-listing authority returned an invalid result");
@@ -1391,8 +1390,7 @@ async function readSellerParticipantConversationListingTarget(
     rows.length !== 1
     || row.listingId !== listingId
     || typeof row.title !== "string"
-    || row.title.length < 1
-    || row.title.length > 150
+    || !isTextWithinCodePointRange(row.title, 1, 150)
   ) {
     throw new Error("Seller participant conversation-listing authority returned an invalid result");
   }
@@ -1417,7 +1415,7 @@ async function readSellerActorConversationContextListing(
     || typeof row.listingId !== "string"
     || row.listingId.length < 1
     || typeof row.title !== "string"
-    || row.title.length < 1
+    || !isTextWithinCodePointRange(row.title, 1, 150)
     || !Number.isSafeInteger(row.priceCents)
     || Number(row.priceCents) < 0
     || typeof row.currency !== "string"
@@ -1456,8 +1454,7 @@ async function readSellerPublicListingCards(
       || typeof row.sellerProfileId !== "string"
       || !row.sellerProfileId
       || typeof row.displayName !== "string"
-      || row.displayName.length < 1
-      || row.displayName.length > 100
+      || !isTextWithinCodePointRange(row.displayName, 1, 100)
       || !nullableString(row.avatarImageUrl)
       || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
       || !nullableString(row.city)
@@ -1499,14 +1496,14 @@ async function readSellerPublicRecentlyViewedListings(
       typeof row.id !== "string"
       || !requestedIds.has(row.id)
       || typeof row.title !== "string"
-      || row.title.length > 150
+      || !isTextWithinCodePointRange(row.title, 0, 150)
       || typeof row.priceCents !== "number"
       || !Number.isSafeInteger(row.priceCents)
       || typeof row.currency !== "string"
       || row.currency.length > 3
       || !nullableString(row.photoUrl)
       || typeof row.sellerDisplayName !== "string"
-      || row.sellerDisplayName.length > 100
+      || !isTextWithinCodePointRange(row.sellerDisplayName, 0, 100)
       || !nullableString(row.sellerAvatarImageUrl)
     ))
     || new Set(rows.map((row) => row.id)).size !== rows.length
@@ -1542,8 +1539,7 @@ async function readSellerPublicFollowerListingTarget(
     rows.length !== 1
     || row.listingId !== listingId
     || typeof row.title !== "string"
-    || row.title.length < 1
-    || row.title.length > 150
+    || !isTextWithinCodePointRange(row.title, 1, 150)
     || typeof row.priceCents !== "number"
     || !Number.isSafeInteger(row.priceCents)
     || row.priceCents < 0
@@ -1554,8 +1550,7 @@ async function readSellerPublicFollowerListingTarget(
     || typeof row.sellerUserId !== "string"
     || !row.sellerUserId
     || typeof row.sellerDisplayName !== "string"
-    || row.sellerDisplayName.length < 1
-    || row.sellerDisplayName.length > 100
+    || !isTextWithinCodePointRange(row.sellerDisplayName, 1, 100)
   ) {
     throw new Error("Seller public follower-listing authority returned an invalid result");
   }

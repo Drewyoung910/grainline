@@ -5,6 +5,7 @@ import {
   withDbUserContext,
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type ListingDetailAccessClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 type StaffListingDetailAccessClient = Pick<Prisma.TransactionClient, "$queryRaw">;
@@ -69,7 +70,7 @@ function validId(value: unknown): value is string {
 }
 
 function nullableBoundedString(value: unknown, max: number): value is string | null {
-  return value === null || (typeof value === "string" && value.length <= max);
+  return value === null || isTextWithinCodePointRange(value, 0, max);
 }
 
 function parseProfile(
@@ -85,9 +86,7 @@ function parseProfile(
     row.listingId !== listingId
     || !validId(row.sellerProfileId)
     || !validId(row.sellerUserId)
-    || typeof row.displayName !== "string"
-    || row.displayName.length < 1
-    || row.displayName.length > 100
+    || !isTextWithinCodePointRange(row.displayName, 1, 100)
     || !nullableBoundedString(row.city, 100)
     || !nullableBoundedString(row.state, 50)
     || typeof row.allowLocalPickup !== "boolean"

@@ -1,4 +1,5 @@
 import { withDbUserContext, type DbUserContextTransactionClient } from "@/lib/dbUserContext";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type SellerSavedListingCountRow = {
   value: unknown;
@@ -109,9 +110,7 @@ async function readSellerOwnerSavedListingPage(
       !(row.savedAt instanceof Date)
       || Number.isNaN(row.savedAt.getTime())
       || !validId(row.listingId)
-      || typeof row.title !== "string"
-      || row.title.length < 1
-      || row.title.length > 150
+      || !isTextWithinCodePointRange(row.title, 1, 150)
       || !validInteger(row.priceCents, 0)
       || typeof row.currency !== "string"
       || row.currency.length !== 3
@@ -119,9 +118,7 @@ async function readSellerOwnerSavedListingPage(
       || !["MADE_TO_ORDER", "IN_STOCK"].includes(String(row.listingType))
       || !validInteger(row.stockQuantity, 0, true)
       || !validId(row.sellerProfileId)
-      || typeof row.displayName !== "string"
-      || row.displayName.length < 1
-      || row.displayName.length > 100
+      || !isTextWithinCodePointRange(row.displayName, 1, 100)
       || !nullableString(row.avatarImageUrl)
       || !nullableString(row.ownerImageUrl)
       || !["NONE", "GUILD_MEMBER", "GUILD_MASTER"].includes(String(row.guildLevel))
