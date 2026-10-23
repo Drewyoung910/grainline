@@ -15,7 +15,6 @@ const sellerSearchRoute = readFileSync("src/app/api/seller/location/search/route
 test("seller workshop search does not use the confidential-address autocomplete path", () => {
   assert.doesNotMatch(locationPicker, /AddressAutocomplete/u);
   assert.match(locationPicker, /SellerLocationSearch/u);
-  assert.match(sellerSearch, /<form onSubmit=\{search\}/u);
   assert.doesNotMatch(sellerSearch, /useEffect/u);
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import type { SellerLocationSearchResult } from "@/lib/sellerLocationSearchState";
 
 export default function SellerLocationSearch({
@@ -13,8 +13,7 @@ export default function SellerLocationSearch({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function search() {
     setLoading(true);
     setMessage("");
     setResults([]);
@@ -43,7 +42,7 @@ export default function SellerLocationSearch({
 
   return (
     <div className="space-y-2">
-      <form onSubmit={search} className="flex gap-2">
+      <div role="search" className="flex gap-2">
         <label htmlFor="pickup-location-search" className="sr-only">
           Find city, state, or ZIP
         </label>
@@ -52,18 +51,25 @@ export default function SellerLocationSearch({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            if (loading || query.trim().length < 2) return;
+            void search();
+          }}
           placeholder="City, ST or ZIP"
           autoComplete="postal-code"
           className="min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
         />
         <button
-          type="submit"
+          type="button"
+          onClick={() => void search()}
           disabled={loading || query.trim().length < 2}
           className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? "Searching…" : "Search"}
         </button>
-      </form>
+      </div>
       <p className="text-xs text-neutral-500">
         Search sends only a city and state or ZIP. It never sends your street address or dragged pin.
       </p>
