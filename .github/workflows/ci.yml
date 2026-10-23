@@ -118,6 +118,18 @@ jobs:
           tests/private-table-preparation-production.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/support-request-state.test.mjs
+      - name: Isolate SupportRequest preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/support-request-preparation"
+          mkdir -p "$holding/tests"
+          migration=20261023010000_prepare_support_request_authorities
+          mv "prisma/migrations/$migration" "$holding/migration"
+          mv \
+            tests/private-table-preparation-production.test.mjs \
+            "$holding/tests/private-table-preparation-production.test.mjs"
+          echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=$holding/migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -1723,18 +1735,6 @@ jobs:
         run: npm run audit:rls-direct-upload-activation-release
       - name: Verify the sealed StripeWebhookEvent Phase-A predecessor
         run: npm run audit:rls-stripe-webhook-event-activation-sealed-prefix
-      - name: Isolate SupportRequest preparation until historical release guards pass
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/support-request-preparation"
-          mkdir -p "$holding/tests"
-          migration=20261023010000_prepare_support_request_authorities
-          mv "prisma/migrations/$migration" "$holding/migration"
-          mv \
-            tests/private-table-preparation-production.test.mjs \
-            "$holding/tests/private-table-preparation-production.test.mjs"
-          echo "SUPPORT_REQUEST_PREPARATION_MIGRATION_PATH=$holding/migration/migration.sql" >> "$GITHUB_ENV"
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Prove runtime-role provisioning refusals exit nonzero

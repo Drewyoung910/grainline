@@ -331,6 +331,16 @@ test("package-owned tests remain available for their later isolation steps", () 
   assert.match(emailAddress, /user-email-address-history\.test\.mjs/);
 });
 
+test("SupportRequest preparation is isolated before exact-latest historical release guards", () => {
+  const verify = "Verify SupportRequest preparation source package";
+  const isolate = "Isolate SupportRequest preparation until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restore = "Restore SupportRequest preparation after historical release guards";
+  assert.ok(workflow.indexOf(verify) < workflow.indexOf(isolate));
+  assert.ok(workflow.indexOf(isolate) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restore));
+});
+
 test("actual isolation and restoration scripts preserve source bytes while staging the follower catalog", () => {
   const temporary = mkdtempSync(path.join(tmpdir(), "grainline-user-ci-staging-"));
   const root = path.join(temporary, "checkout");
