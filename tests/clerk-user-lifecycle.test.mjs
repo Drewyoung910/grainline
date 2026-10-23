@@ -13,7 +13,12 @@ const {
   isClerkUserNotFoundError,
 } = await import("../src/lib/clerkCurrentUserIdentity.ts");
 const { revokeActiveClerkSessions } = await import("../src/lib/clerkSessionRevocation.ts");
-const { normalizeClerkWebhookEmail, resolveClerkWebhookPrimaryEmail, shouldReserveClerkWelcomeEmail } = await import(
+const {
+  deliverClerkWelcomeEmails,
+  normalizeClerkWebhookEmail,
+  resolveClerkWebhookPrimaryEmail,
+  shouldReserveClerkWelcomeEmail,
+} = await import(
   "../src/lib/clerkWebhookEmail.ts"
 );
 
@@ -270,17 +275,46 @@ describe("Clerk webhook welcome email reservation", () => {
     );
   });
 
-  it("falls back to the durable email outbox if direct welcome sends fail", () => {
+  it("queues only the welcome message whose direct send failed", async () => {
+    const sent = [];
+    const queued = [];
+    const sendErrors = [];
+
+    await deliverClerkWelcomeEmails({
+      deliveries: [
+        { kind: "buyer", email: "buyer-email", dedupKey: "welcome-buyer:user_1" },
+        { kind: "seller", email: "seller-email", dedupKey: "welcome-seller:user_1" },
+      ],
+      send: async (delivery) => {
+        sent.push(delivery.kind);
+        if (delivery.kind === "seller") throw new Error("seller direct send failed");
+      },
+      enqueue: async (delivery) => {
+        queued.push(delivery.kind);
+      },
+      onSendError: (error, delivery) => {
+        sendErrors.push({ message: error.message, kind: delivery.kind });
+      },
+    });
+
+    assert.deepEqual(sent, ["buyer", "seller"]);
+    assert.deepEqual(queued, ["seller"]);
+    assert.deepEqual(sendErrors, [
+      { message: "seller direct send failed", kind: "seller" },
+    ]);
+  });
+
+  it("routes failed direct welcomes through the delivery helper", () => {
     const route = source("src/app/api/clerk/webhook/route.ts");
     const email = source("src/lib/email.ts");
 
     assert.match(email, /export function renderWelcomeBuyerEmail/);
     assert.match(email, /export function renderWelcomeSellerEmail/);
-    assert.match(route, /sendRenderedEmail\(buyerWelcomeEmail, \{ throwOnFailure: true \}\)/);
-    assert.match(route, /sendRenderedEmail\(sellerWelcomeEmail, \{ throwOnFailure: true \}\)/);
     assert.match(route, /reserveUserClerkWelcomeEmail\(prisma, \{\s*clerkId: id,\s*userId: user\.id/);
-    assert.match(route, /enqueueWelcomeFallbackEmail\(buyerWelcomeEmail, `welcome-buyer:\$\{user\.id\}`, user\.id\)/);
-    assert.match(route, /enqueueWelcomeFallbackEmail\(sellerWelcomeEmail, `welcome-seller:\$\{user\.id\}`, user\.id\)/);
+    assert.match(route, /deliverClerkWelcomeEmails\(\{/);
+    assert.match(route, /dedupKey: `welcome-buyer:\$\{user\.id\}`/);
+    assert.match(route, /dedupKey: `welcome-seller:\$\{user\.id\}`/);
+    assert.match(route, /sendRenderedEmail\(renderedEmail, \{[\s\S]*?idempotencyKey: dedupKey/);
     assert.match(route, /source: "clerk_webhook_welcome_email_outbox"/);
   });
 });

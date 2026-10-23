@@ -56,10 +56,10 @@ describe("email delivery guardrails", () => {
     const outbox = source("src/lib/emailOutbox.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
-    assert.match(email, /type EmailSendOptions = \{\s*throwOnFailure\?: boolean;\s*idempotencyKey\?: string;\s*preferenceKey\?: EmailNotificationPreferenceKey;\s*\}/);
-    assert.match(email, /resend!\.emails\.send\(\s*\{[\s\S]*?\},\s*opts\.idempotencyKey \? \{ idempotencyKey: opts\.idempotencyKey \} : undefined,\s*\)/);
-    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{\s*throwOnFailure: true,\s*idempotencyKey: job\.dedupKey,/);
-    assert.match(webhook, /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*preferenceKey:/);
+    assert.match(email, /type EmailSendOptions = \{\s*throwOnFailure\?: boolean;\s*idempotencyKey\?: string;\s*preferenceKey\?: EmailNotificationPreferenceKey;\s*unsubscribeIssuedAt\?: Date;\s*\}/);
+    assert.match(email, /sendEmailProviderRequestWithRetry\([\s\S]*?\{ idempotencyKey \}[\s\S]*?idempotencyKey: opts\.idempotencyKey/);
+    assert.match(outbox, /sendRenderedEmail\([\s\S]*?idempotencyKey: job\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: job\.createdAt/);
+    assert.match(webhook, /sendRenderedEmail\(email, \{[\s\S]*?idempotencyKey: enqueued\.job\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: enqueued\.job\.createdAt/);
   });
 
   it("only injects email-preference destinations into the footer href placeholder", () => {

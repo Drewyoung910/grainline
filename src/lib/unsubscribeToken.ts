@@ -24,9 +24,9 @@ export function createUnsubscribeToken(email: string, issuedAt = Date.now()): st
   return createHmac("sha256", secret).update(unsubscribePayload(normalized, issuedAt)).digest("hex");
 }
 
-export function buildUnsubscribeUrl(email: string): string | null {
+export function buildUnsubscribeUrl(email: string, issuedAt = Date.now()): string | null {
   const normalized = normalizeUnsubscribeEmail(email);
-  const issuedAt = Date.now();
+  if (!Number.isSafeInteger(issuedAt) || issuedAt <= 0) return null;
   const token = normalized ? createUnsubscribeToken(normalized, issuedAt) : null;
   if (!normalized || !token) return null;
 

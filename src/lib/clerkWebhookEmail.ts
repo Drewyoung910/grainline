@@ -61,3 +61,36 @@ export function shouldReserveClerkWelcomeEmail({
 }) {
   return eventType === "user.created" && Boolean(email?.trim()) && !welcomeEmailSentAt;
 }
+
+export type ClerkWelcomeDelivery<T> = {
+  kind: "buyer" | "seller";
+  email: T;
+  dedupKey: string;
+};
+
+export async function deliverClerkWelcomeEmails<T>({
+  deliveries,
+  send,
+  enqueue,
+  onSendError,
+  onEnqueueError,
+}: {
+  deliveries: ClerkWelcomeDelivery<T>[];
+  send: (delivery: ClerkWelcomeDelivery<T>) => Promise<void>;
+  enqueue: (delivery: ClerkWelcomeDelivery<T>) => Promise<void>;
+  onSendError?: (error: unknown, delivery: ClerkWelcomeDelivery<T>) => void;
+  onEnqueueError?: (error: unknown, delivery: ClerkWelcomeDelivery<T>) => void;
+}) {
+  for (const delivery of deliveries) {
+    try {
+      await send(delivery);
+    } catch (error) {
+      onSendError?.(error, delivery);
+      try {
+        await enqueue(delivery);
+      } catch (enqueueError) {
+        onEnqueueError?.(enqueueError, delivery);
+      }
+    }
+  }
+}

@@ -536,6 +536,7 @@ export async function POST(req: Request) {
         preferenceKey: isValidEmailPreferenceKey(preferenceKey)
           ? preferenceKey
           : undefined,
+        unsubscribeIssuedAt: enqueued.job.createdAt,
       });
     } catch (error) {
       directSendError = error;
