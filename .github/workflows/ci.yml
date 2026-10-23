@@ -159,7 +159,8 @@ jobs:
           mkdir -p "$holding/migrations" "$holding/tests"
           for migration in \
             20261023010000_prepare_support_request_authorities \
-            20261023020000_enable_support_request_rls
+            20261023020000_enable_support_request_rls \
+            20261023050000_correct_support_request_email_reuse_privacy
           do
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done
@@ -6680,7 +6681,8 @@ jobs:
           holding="$RUNNER_TEMP/support-request-candidate"
           for migration in \
             20261023010000_prepare_support_request_authorities \
-            20261023020000_enable_support_request_rls
+            20261023020000_enable_support_request_rls \
+            20261023050000_correct_support_request_email_reuse_privacy
           do
             mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           done

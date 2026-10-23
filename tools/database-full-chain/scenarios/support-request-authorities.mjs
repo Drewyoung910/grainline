@@ -15,10 +15,14 @@ export async function proveSupportRequestAuthorities({ database }) {
   const suffix = `support_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const ownerId = `${suffix}_owner`;
   const otherId = `${suffix}_other`;
+  const deletedOwnerId = `${suffix}_deleted_owner`;
   const staffId = `${suffix}_staff`;
   const now = new Date();
   const ownerEmail = `${suffix}@example.test`;
   const oldEmail = `${suffix}-old@example.test`;
+  const reusedEmail = `${suffix.replaceAll("_", "")}@gmail.com`;
+  const reusedAliasEmail = `${suffix.replaceAll("_", ".")}+support@googlemail.com`;
+  const deletedConflictEmail = `${suffix}-deleted-conflict@example.test`;
 
   await database.query(
     `INSERT INTO public."User"
@@ -29,16 +33,31 @@ export async function proveSupportRequestAuthorities({ database }) {
        ($8, $9, $10, 'Support staff', 'EMPLOYEE', false, $7, $7)`,
     [
       ownerId, `${ownerId}_clerk`, ownerEmail,
-      otherId, `${otherId}_clerk`, `${suffix}-other@example.test`,
+      otherId, `${otherId}_clerk`, reusedEmail,
       now,
       staffId, `${staffId}_clerk`, `${suffix}-staff@example.test`,
     ],
   );
   await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, role, banned, "deletedAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, 'Deleted former owner', 'USER', false, $4, $4, $4)`,
+    [deletedOwnerId, `${deletedOwnerId}_clerk`, deletedConflictEmail, now],
+  );
+  await database.query(
     `INSERT INTO public."UserEmailAddress"
        (id, "userId", email, source, "isCurrent", "firstSeenAt", "lastSeenAt", "currentSinceAt")
-     VALUES ($1, $2, $3, 'proof', false, $4, $4, $4)`,
-    [`${suffix}_address`, ownerId, oldEmail, now],
+     VALUES
+       ($1, $2, $3, 'proof', false, $7, $7, $7),
+       ($4, $2, $5, 'proof', false, $7, $7, $7),
+       ($6, $2, $8, 'proof', false, $7, $7, $7),
+       ($9, $2, $10, 'proof', false, $7, $7, $7)`,
+    [
+      `${suffix}_address`, ownerId, oldEmail,
+      `${suffix}_reused_address`, reusedEmail,
+      `${suffix}_reused_alias_address`, now, reusedAliasEmail,
+      `${suffix}_deleted_conflict_address`, deletedConflictEmail,
+    ],
   );
 
   const functionRows = rowsOf(await database.query(`
@@ -158,16 +177,74 @@ export async function proveSupportRequestAuthorities({ database }) {
     ))[0];
     assert.equal(typeof linked.id, "string");
 
+    await setActor(database, otherId);
+    const reusedExact = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_support_request_submit(
+         'data_request', 'Other owner', $1, 'access', NULL, NULL,
+         'This signed-in request belongs only to the current exact-email owner.'
+       )`,
+      [reusedEmail],
+    ))[0];
+    const reusedCanonical = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_support_request_submit(
+         'data_request', 'Other owner', $1, 'access', NULL, NULL,
+         'This signed-in request belongs only to the current Gmail-canonical owner.'
+       )`,
+      [reusedAliasEmail],
+    ))[0];
+    const linkedForeignHistory = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_support_request_submit(
+         'data_request', 'Other owner', $1, 'access', NULL, NULL,
+         'This linked request stays with its stable owner despite another account history match.'
+       )`,
+      [oldEmail],
+    ))[0];
+    await setActor(database, null);
+    const reusedAnonymousExact = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_support_request_submit(
+         'data_request', NULL, $1, 'access', NULL, NULL,
+         'This anonymous request uses an exact address now claimed by another active user.'
+       )`,
+      [reusedEmail],
+    ))[0];
+    const reusedAnonymousCanonical = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_support_request_submit(
+         'data_request', NULL, $1, 'access', NULL, NULL,
+         'This anonymous request uses a canonical address now claimed by another active user.'
+       )`,
+      [reusedAliasEmail],
+    ))[0];
+    const deletedConflictAnonymous = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_support_request_submit(
+         'data_request', NULL, $1, 'access', NULL, NULL,
+         'This anonymous request may follow history because the conflicting owner is deleted.'
+       )`,
+      [deletedConflictEmail],
+    ))[0];
+
+    await setActor(database, ownerId);
     const ownerExport = rowsOf(await database.query(
       `SELECT * FROM public.grainline_support_request_owner_export()`,
     ));
-    assert.deepEqual(new Set(ownerExport.map((row) => row.id)), new Set([anonymous.id, linked.id]));
+    assert.deepEqual(
+      new Set(ownerExport.map((row) => row.id)),
+      new Set([anonymous.id, linked.id, deletedConflictAnonymous.id]),
+    );
     assert.equal(Object.hasOwn(ownerExport[0], "emailDeliveryToken"), false);
 
     await setActor(database, otherId);
-    assert.deepEqual(rowsOf(await database.query(
+    const otherExport = rowsOf(await database.query(
       `SELECT * FROM public.grainline_support_request_owner_export()`,
-    )), []);
+    ));
+    assert.deepEqual(
+      new Set(otherExport.map((row) => row.id)),
+      new Set([
+        reusedExact.id,
+        reusedCanonical.id,
+        linkedForeignHistory.id,
+        reusedAnonymousExact.id,
+      ]),
+    );
     await assert.rejects(
       database.query(
         `SELECT public.grainline_support_request_staff_state(1, 50, 20) AS state`,
@@ -271,7 +348,7 @@ export async function proveSupportRequestAuthorities({ database }) {
       totalClosures += Number(batch.closureCount);
       if (Number(batch.requestCount) < 500 && Number(batch.closureCount) < 500) break;
     }
-    assert.ok(totalRequests >= 503, "all linked and historical-email rows must be redacted");
+    assert.equal(totalRequests, 504, "only the actor's linked and safe historical-email rows may be redacted");
     assert.equal(totalClosures, 501);
     const finalBatch = rowsOf(await database.query(
       `SELECT * FROM public.grainline_support_request_account_deletion_redact_batch(
@@ -297,6 +374,60 @@ export async function proveSupportRequestAuthorities({ database }) {
       `SELECT message FROM public."SupportRequest" WHERE id = $1`,
       [`${suffix}_unrelated`],
     )), [{ message: "This unrelated support request must remain unchanged." }]);
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT id, "userId", email, message
+         FROM public."SupportRequest"
+        WHERE id = ANY($1::text[])
+        ORDER BY id`,
+      [[
+        reusedExact.id,
+        reusedCanonical.id,
+        reusedAnonymousExact.id,
+        reusedAnonymousCanonical.id,
+        linkedForeignHistory.id,
+      ]],
+    )), [
+      {
+        id: linkedForeignHistory.id,
+        userId: otherId,
+        email: oldEmail,
+        message: "This linked request stays with its stable owner despite another account history match.",
+      },
+      {
+        id: reusedAnonymousCanonical.id,
+        userId: null,
+        email: reusedAliasEmail,
+        message: "This anonymous request uses a canonical address now claimed by another active user.",
+      },
+      {
+        id: reusedAnonymousExact.id,
+        userId: null,
+        email: reusedEmail,
+        message: "This anonymous request uses an exact address now claimed by another active user.",
+      },
+      {
+        id: reusedCanonical.id,
+        userId: otherId,
+        email: reusedAliasEmail,
+        message: "This signed-in request belongs only to the current Gmail-canonical owner.",
+      },
+      {
+        id: reusedExact.id,
+        userId: otherId,
+        email: reusedEmail,
+        message: "This signed-in request belongs only to the current exact-email owner.",
+      },
+    ].sort((left, right) => left.id.localeCompare(right.id)));
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT "userId", email, message
+         FROM public."SupportRequest"
+        WHERE id = $1`,
+      [deletedConflictAnonymous.id],
+    )), [{
+      userId: null,
+      email: "deleted-account@deleted.thegrainline.local",
+      message: "[Support request removed after account deletion]",
+    }]);
 
     const oldClosedId = `${suffix}_old_closed`;
     const recentClosedId = `${suffix}_recent_closed`;
