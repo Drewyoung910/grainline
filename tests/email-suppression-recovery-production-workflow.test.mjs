@@ -15,10 +15,10 @@ const workflow = readFileSync(
   ".github/workflows/email-suppression-recovery-production.yml",
   "utf8",
 );
-const migrationSql = readFileSync(
-  "prisma/migrations/20261023040000_repair_resend_failed_event_suppressions/migration.sql",
-  "utf8",
-);
+const migrationPath =
+  process.env.EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH ||
+  "prisma/migrations/20261023040000_repair_resend_failed_event_suppressions/migration.sql";
+const migrationSql = readFileSync(migrationPath, "utf8");
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
 const bindingScript = parsed.jobs.apply.steps.find(
@@ -210,8 +210,16 @@ test("C-715 CI proves then isolates the correction from historical release guard
     /mv "prisma\/migrations\/\$migration" "\$holding\/\$migration"/u,
   );
   assert.match(
+    ciWorkflow.slice(isolate, historical),
+    /EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=\$holding\/\$migration\/migration\.sql/u,
+  );
+  assert.match(
     ciWorkflow.slice(restore, finalBuild),
     /mv "\$holding\/\$migration" "prisma\/migrations\/\$migration"/u,
+  );
+  assert.match(
+    ciWorkflow.slice(restore, finalBuild),
+    /EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=/u,
   );
 });
 

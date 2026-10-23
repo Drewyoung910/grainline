@@ -137,6 +137,7 @@ jobs:
           migration=20261023040000_repair_resend_failed_event_suppressions
           mkdir "$holding"
           mv "prisma/migrations/$migration" "$holding/$migration"
+          echo "EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify SupportRequest preparation and ENABLE source package
         run: >-
           node --test --test-concurrency=1
@@ -6706,6 +6707,7 @@ jobs:
           migration=20261023040000_repair_resend_failed_event_suppressions
           mv "$holding/$migration" "prisma/migrations/$migration"
           rmdir "$holding"
+          echo "EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete SellerProfile chain, including policyless FORCE.
       - name: Apply complete public SellerProfile chain for final Production build
