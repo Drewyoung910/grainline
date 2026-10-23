@@ -2978,6 +2978,9 @@ describe("database grant inventory guardrails", () => {
     const supportRequestForceMigrationPresent = existsSync(
       "prisma/migrations/20261023060000_force_support_request_rls/migration.sql",
     );
+    const savedBlogPostRlsActivationMigrationPresent = existsSync(
+      "prisma/migrations/20261023070000_activate_saved_blog_post_rls/migration.sql",
+    );
     const sellerProfilePrivatePreparationMigrationPath =
       "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
     const sellerProfilePrivatePreparationMigrationPresent = existsSync(
@@ -3231,6 +3234,9 @@ describe("database grant inventory guardrails", () => {
       ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
       ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
       "grainline_notification_preferences_valid",
+      ...(savedBlogPostRlsActivationMigrationPresent
+        ? ["grainline_saved_blog_post_insert_guard"]
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3276,6 +3282,9 @@ describe("database grant inventory guardrails", () => {
           ? supportRequestAuthorityFunctionNames.length
           : 0)
         + (supportRequestEnableMigrationPresent ? 1 : 0)
+        + (savedBlogPostRlsActivationMigrationPresent
+          ? 2 // table plus insert-guard function
+          : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
@@ -3653,6 +3662,9 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "Message",
         "Notification",
+        ...(savedBlogPostRlsActivationMigrationPresent
+          ? ["SavedBlogPost"]
+          : []),
         "SavedSearch",
       ],
     );
@@ -3687,6 +3699,9 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(savedBlogPostRlsActivationMigrationPresent
+          ? ["SavedBlogPost"]
+          : []),
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
@@ -3735,6 +3750,9 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(savedBlogPostRlsActivationMigrationPresent
+          ? ["SavedBlogPost"]
+          : []),
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
@@ -5152,10 +5170,14 @@ describe("database grant inventory guardrails", () => {
     const supportRequestProvisioningPresent = provision.includes(
       "support_request_rls_active",
     );
+    const savedBlogPostProvisioningPresent = provision.includes(
+      "SavedBlogPost RLS is partially or unexpectedly configured",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
-        + Number(supportRequestProvisioningPresent),
+        + Number(supportRequestProvisioningPresent)
+        + Number(savedBlogPostProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5178,6 +5200,16 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :support_request_rls_active[\s\S]*REVOKE ALL ON TABLE public\."SupportRequest"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
+    if (savedBlogPostProvisioningPresent) {
+      assert.match(
+        provision,
+        /SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /REVOKE UPDATE ON TABLE public\."SavedBlogPost" FROM :"runtime_role"/,
       );
     }
     assert.equal(
@@ -5366,6 +5398,16 @@ describe("database grant inventory guardrails", () => {
     );
     assert.ok(savedSearchGrantIndex > 0);
     assert.ok(savedSearchUpdateRevokeIndex > savedSearchGrantIndex);
+    const savedBlogPostGrantIndex = provision.indexOf('public."SavedBlogPost",');
+    const savedBlogPostUpdateRevokeIndex = provision.indexOf(
+      'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"',
+    );
+    assert.ok(savedBlogPostGrantIndex > 0);
+    assert.ok(savedBlogPostUpdateRevokeIndex > savedBlogPostGrantIndex);
+    assert.match(
+      provision,
+      /SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
     const beginIndex = provision.indexOf("BEGIN;");
     const notificationGrantIndex = provision.indexOf('public."Notification",');
     const notificationNarrowIndex = provision.indexOf(

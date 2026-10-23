@@ -5,6 +5,7 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
+import { deleteAllOwnerSavedBlogPosts } from "@/lib/savedBlogPostOwnerAccess";
 import { accountDeletionMediaKeysForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
@@ -1136,7 +1137,7 @@ export async function anonymizeUserAccount(
     await tx.stockNotification.deleteMany({ where: { userId: user.id } });
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id);
     await deleteAccountNotificationServiceRows(tx, user.id);
-    await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
+    await deleteAllOwnerSavedBlogPosts(user.id, tx);
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
     await redactActorMessagesForAccountDeletion({

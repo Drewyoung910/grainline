@@ -8,6 +8,10 @@ const migration = readFileSync(
   "prisma/migrations/20261020235800_prepare_seller_profile_owner_saved_blog_posts/migration.sql",
   "utf8",
 );
+const activation = readFileSync(
+  "prisma/migrations/20261023070000_activate_saved_blog_post_rls/migration.sql",
+  "utf8",
+);
 
 async function readyDatabase() {
   const database = new PGlite();
@@ -41,6 +45,7 @@ async function readyDatabase() {
       "coverImageUrl" text,
       "authorId" text,
       "authorAccountActive" boolean NOT NULL DEFAULT false,
+      "authorSellerPubliclyOrderable" boolean NOT NULL DEFAULT false,
       "authorName" text,
       "authorImageUrl" text,
       "authorSellerName" text,
@@ -55,7 +60,13 @@ async function readyDatabase() {
       id text PRIMARY KEY,
       "userId" text NOT NULL,
       "blogPostId" text NOT NULL,
-      "createdAt" timestamp(3) NOT NULL
+      "createdAt" timestamp(3) NOT NULL,
+      CONSTRAINT "SavedBlogPost_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES public."User"(id) ON DELETE CASCADE,
+      CONSTRAINT "SavedBlogPost_blogPostId_fkey"
+        FOREIGN KEY ("blogPostId") REFERENCES public."BlogPost"(id) ON DELETE CASCADE,
+      CONSTRAINT "SavedBlogPost_userId_blogPostId_key"
+        UNIQUE ("userId", "blogPostId")
     );
     CREATE TABLE public."Block" (
       id text PRIMARY KEY,
@@ -75,26 +86,27 @@ async function readyDatabase() {
       ('vacation', 'seller-vacation', 'Vacation Maker', NULL, true, true, true, true);
     INSERT INTO public."BlogPost" (
       id, slug, title, excerpt, "coverImageUrl", "authorId", "authorAccountActive",
-      "authorName", "authorImageUrl", "authorSellerName", "authorSellerAvatarUrl",
+      "authorSellerPubliclyOrderable", "authorName", "authorImageUrl",
+      "authorSellerName", "authorSellerAvatarUrl",
       "sellerProfileId", type, status, "readingTimeMinutes", "publishedAt"
     ) VALUES
       ('active-post', 'active-post', 'Active Post', 'Excerpt', 'cover.jpg', 'seller-active', true,
-       'Author', 'author.jpg', 'Saved Active', 'saved-active.jpg', 'active', 'STANDARD', 'PUBLISHED', 4,
+       true, 'Author', 'author.jpg', 'Saved Active', 'saved-active.jpg', 'active', 'STANDARD', 'PUBLISHED', 4,
        '2026-10-20 10:00:00'),
       ('platform-post', 'platform-post', 'Platform Post', NULL, NULL, 'other', true,
-       'Platform Author', NULL, NULL, NULL, NULL, 'MAKER_SPOTLIGHT', 'PUBLISHED', NULL,
+       false, 'Platform Author', NULL, NULL, NULL, NULL, 'MAKER_SPOTLIGHT', 'PUBLISHED', NULL,
        '2026-10-20 09:00:00'),
       ('blocked-post', 'blocked-post', 'Blocked Post', NULL, NULL, 'seller-blocked', true,
-       'Blocked Author', NULL, NULL, NULL, 'blocked', 'STANDARD', 'PUBLISHED', 2,
+       true, 'Blocked Author', NULL, NULL, NULL, 'blocked', 'STANDARD', 'PUBLISHED', 2,
        '2026-10-20 08:00:00'),
       ('vacation-post', 'vacation-post', 'Vacation Post', NULL, NULL, 'seller-vacation', true,
-       'Vacation Author', NULL, NULL, NULL, 'vacation', 'STANDARD', 'PUBLISHED', 2,
+       true, 'Vacation Author', NULL, NULL, NULL, 'vacation', 'STANDARD', 'PUBLISHED', 2,
        '2026-10-20 07:00:00'),
       ('future-post', 'future-post', 'Future Post', NULL, NULL, 'seller-active', true,
-       'Future Author', NULL, NULL, NULL, 'active', 'STANDARD', 'PUBLISHED', 2,
+       true, 'Future Author', NULL, NULL, NULL, 'active', 'STANDARD', 'PUBLISHED', 2,
        '2099-01-01 00:00:00'),
       ('draft-post', 'draft-post', 'Draft Post', NULL, NULL, 'seller-active', true,
-       'Draft Author', NULL, NULL, NULL, 'active', 'STANDARD', 'DRAFT', 2,
+       true, 'Draft Author', NULL, NULL, NULL, 'active', 'STANDARD', 'DRAFT', 2,
        '2026-10-20 06:00:00');
     INSERT INTO public."SavedBlogPost" (id, "userId", "blogPostId", "createdAt") VALUES
       ('save-active', 'actor', 'active-post', '2026-10-20 12:00:00'),
@@ -106,8 +118,12 @@ async function readyDatabase() {
       ('save-other', 'other', 'active-post', '2026-10-20 13:00:00');
     INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
     VALUES ('block', 'seller-blocked', 'actor', CURRENT_TIMESTAMP);
+    GRANT USAGE ON SCHEMA public TO grainline_app_runtime;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."SavedBlogPost"
+      TO grainline_app_runtime;
   `);
   await database.exec(migration);
+  await database.exec(activation);
   return database;
 }
 
@@ -186,6 +202,81 @@ test("saved-blog authorities reject missing actors, invalid pages, and ungranted
       database.query("SELECT * FROM public.grainline_seller_owner_saved_blog_post_count()"),
       /permission denied/u,
     );
+  } finally {
+    await database.exec("RESET ROLE").catch(() => {});
+    await database.close();
+  }
+});
+
+test("SavedBlogPost RLS isolates owners and the insert guard rejects ineligible state", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.exec("SET ROLE grainline_app_runtime");
+    assert.deepEqual(
+      (await database.query('SELECT id FROM public."SavedBlogPost" ORDER BY id')).rows,
+      [],
+    );
+
+    await database.query("SELECT set_config('app.user_id', 'actor', false)");
+    assert.deepEqual(
+      (await database.query('SELECT id FROM public."SavedBlogPost" ORDER BY id')).rows,
+      [
+        { id: "save-active" },
+        { id: "save-blocked" },
+        { id: "save-draft" },
+        { id: "save-future" },
+        { id: "save-platform" },
+        { id: "save-vacation" },
+      ],
+    );
+    await assert.rejects(
+      database.query(
+        `INSERT INTO public."SavedBlogPost" (id, "userId", "blogPostId", "createdAt")
+         VALUES ('forged-save', 'other', 'active-post', CURRENT_TIMESTAMP)`,
+      ),
+      /row-level security|actor context/u,
+    );
+    await assert.rejects(
+      database.query(
+        `INSERT INTO public."SavedBlogPost" (id, "userId", "blogPostId", "createdAt")
+         VALUES ('draft-save-2', 'actor', 'draft-post', CURRENT_TIMESTAMP)`,
+      ),
+      /target is not public/u,
+    );
+    await assert.rejects(
+      database.query(
+        `UPDATE public."SavedBlogPost" SET "createdAt" = CURRENT_TIMESTAMP
+          WHERE id = 'save-active'`,
+      ),
+      /permission denied/u,
+    );
+    assert.deepEqual(
+      (await database.query(
+        `DELETE FROM public."SavedBlogPost"
+          WHERE id = 'save-active'
+        RETURNING id`,
+      )).rows,
+      [{ id: "save-active" }],
+    );
+    assert.deepEqual(
+      (await database.query(
+        `INSERT INTO public."SavedBlogPost" (id, "userId", "blogPostId", "createdAt")
+         VALUES ('save-active-again', 'actor', 'active-post', CURRENT_TIMESTAMP)
+         RETURNING id`,
+      )).rows,
+      [{ id: "save-active-again" }],
+    );
+
+    await database.exec("RESET app.user_id");
+    await database.query("SELECT set_config('app.user_id', 'other', false)");
+    assert.deepEqual(
+      (await database.query('SELECT id FROM public."SavedBlogPost" ORDER BY id')).rows,
+      [{ id: "save-other" }],
+    );
+    const deleted = await database.query(
+      `DELETE FROM public."SavedBlogPost" WHERE id = 'save-active' RETURNING id`,
+    );
+    assert.deepEqual(deleted.rows, []);
   } finally {
     await database.exec("RESET ROLE").catch(() => {});
     await database.close();

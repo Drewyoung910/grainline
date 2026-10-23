@@ -1,8 +1,13 @@
-import { BlogPostType, type Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { withDbUserContext, type DbUserContextTransactionClient } from "@/lib/dbUserContext";
+import { buildOwnerSavedBlogPostExportRows } from "@/lib/savedBlogPostExport";
+import {
+  parseOwnerSavedBlogPostPageRows,
+  type SavedBlogPostPageRow,
+} from "@/lib/savedBlogPostPageState";
 
-export type SavedBlogPostOwnerAccessClient = Pick<Prisma.TransactionClient, "savedBlogPost">;
+export type SavedBlogPostOwnerAccessClient = DbUserContextTransactionClient;
 
 export function ownerSavedBlogPostWhere(
   userId: string,
@@ -11,10 +16,10 @@ export function ownerSavedBlogPostWhere(
   return { AND: [{ userId }, where] };
 }
 
-export async function findOwnerSavedBlogPost(
+async function readOwnerSavedBlogPost(
   userId: string,
   blogPostId: string,
-  db: SavedBlogPostOwnerAccessClient = prisma,
+  db: SavedBlogPostOwnerAccessClient,
 ) {
   return db.savedBlogPost.findUnique({
     where: { userId_blogPostId: { userId, blogPostId } },
@@ -22,33 +27,50 @@ export async function findOwnerSavedBlogPost(
   });
 }
 
-export async function upsertOwnerSavedBlogPost(
-  userId: string,
-  blogPostId: string,
-  db: SavedBlogPostOwnerAccessClient = prisma,
-) {
-  return db.savedBlogPost.upsert({
-    where: { userId_blogPostId: { userId, blogPostId } },
-    create: { userId, blogPostId },
-    update: {},
-    select: { id: true },
-  });
+export function findOwnerSavedBlogPost(userId: string, blogPostId: string) {
+  return withDbUserContext(userId, (db) =>
+    readOwnerSavedBlogPost(userId, blogPostId, db));
 }
 
-export async function deleteOwnerSavedBlogPost(
+async function insertOwnerSavedBlogPost(
   userId: string,
   blogPostId: string,
-  db: SavedBlogPostOwnerAccessClient = prisma,
+  db: SavedBlogPostOwnerAccessClient,
+) {
+  const result = await db.savedBlogPost.createMany({
+    data: [{ userId, blogPostId }],
+    skipDuplicates: true,
+  });
+  if (result.count !== 0 && result.count !== 1) {
+    throw new Error("Saved-blog insert returned invalid cardinality");
+  }
+  return readOwnerSavedBlogPost(userId, blogPostId, db);
+}
+
+export function saveOwnerSavedBlogPost(userId: string, blogPostId: string) {
+  return withDbUserContext(userId, (db) =>
+    insertOwnerSavedBlogPost(userId, blogPostId, db));
+}
+
+async function removeOwnerSavedBlogPost(
+  userId: string,
+  blogPostId: string,
+  db: SavedBlogPostOwnerAccessClient,
 ) {
   return db.savedBlogPost.deleteMany({
     where: { userId, blogPostId },
   });
 }
 
-export async function ownerSavedBlogPostIdRows(
+export function deleteOwnerSavedBlogPost(userId: string, blogPostId: string) {
+  return withDbUserContext(userId, (db) =>
+    removeOwnerSavedBlogPost(userId, blogPostId, db));
+}
+
+async function readOwnerSavedBlogPostIdRows(
   userId: string,
   blogPostIds: string[],
-  db: SavedBlogPostOwnerAccessClient = prisma,
+  db: SavedBlogPostOwnerAccessClient,
 ) {
   if (blogPostIds.length === 0) return [] as Array<{ blogPostId: string }>;
   return db.savedBlogPost.findMany({
@@ -57,33 +79,13 @@ export async function ownerSavedBlogPostIdRows(
   });
 }
 
+export function ownerSavedBlogPostIdRows(userId: string, blogPostIds: string[]) {
+  if (blogPostIds.length === 0) return Promise.resolve([] as Array<{ blogPostId: string }>);
+  return withDbUserContext(userId, (db) =>
+    readOwnerSavedBlogPostIdRows(userId, blogPostIds, db));
+}
+
 type SavedBlogPostCountRow = { value: unknown };
-
-type SavedBlogPostPageRow = {
-  blogPostId: unknown;
-  slug: unknown;
-  title: unknown;
-  excerpt: unknown;
-  coverImageUrl: unknown;
-  type: unknown;
-  readingTimeMinutes: unknown;
-  publishedAt: unknown;
-  authorName: unknown;
-  authorImageUrl: unknown;
-  authorSellerName: unknown;
-  authorSellerAvatarUrl: unknown;
-  sellerProfileId: unknown;
-  sellerDisplayName: unknown;
-  sellerAvatarImageUrl: unknown;
-};
-
-function nullableString(value: unknown): value is string | null {
-  return value === null || typeof value === "string";
-}
-
-function validId(value: unknown): value is string {
-  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,191}$/.test(value);
-}
 
 async function readVisibleOwnerSavedBlogPostCount(
   client: DbUserContextTransactionClient,
@@ -119,64 +121,7 @@ async function readOwnerSavedBlogPostPageRows(
         ${skip}::integer
       )
   `;
-  const posts = rows.map((row) => {
-    if (
-      !validId(row.blogPostId)
-      || typeof row.slug !== "string"
-      || row.slug.length < 1
-      || row.slug.length > 255
-      || typeof row.title !== "string"
-      || row.title.length < 1
-      || row.title.length > 200
-      || !nullableString(row.excerpt)
-      || !nullableString(row.coverImageUrl)
-      || !Object.values(BlogPostType).includes(row.type as BlogPostType)
-      || !(row.readingTimeMinutes === null
-        || (Number.isSafeInteger(row.readingTimeMinutes) && Number(row.readingTimeMinutes) >= 0))
-      || !(row.publishedAt instanceof Date)
-      || Number.isNaN(row.publishedAt.getTime())
-      || !nullableString(row.authorName)
-      || !nullableString(row.authorImageUrl)
-      || !nullableString(row.authorSellerName)
-      || !nullableString(row.authorSellerAvatarUrl)
-      || !(row.sellerProfileId === null || validId(row.sellerProfileId))
-      || !nullableString(row.sellerDisplayName)
-      || !nullableString(row.sellerAvatarImageUrl)
-      || (row.sellerProfileId === null
-        && (row.sellerDisplayName !== null || row.sellerAvatarImageUrl !== null))
-      || (row.sellerProfileId !== null && row.sellerDisplayName === null)
-    ) {
-      throw new Error("Seller saved-blog page authority returned an invalid result");
-    }
-    return Object.freeze({
-      blogPost: Object.freeze({
-        id: row.blogPostId,
-        slug: row.slug,
-        title: row.title,
-        excerpt: row.excerpt,
-        coverImageUrl: row.coverImageUrl,
-        type: row.type as BlogPostType,
-        readingTimeMinutes: row.readingTimeMinutes as number | null,
-        publishedAt: row.publishedAt,
-        authorName: row.authorName,
-        authorImageUrl: row.authorImageUrl,
-        authorSellerName: row.authorSellerName,
-        authorSellerAvatarUrl: row.authorSellerAvatarUrl,
-        sellerProfileId: row.sellerProfileId,
-        sellerProfile: row.sellerProfileId === null ? null : Object.freeze({
-          displayName: row.sellerDisplayName!,
-          avatarImageUrl: row.sellerAvatarImageUrl,
-        }),
-      }),
-    });
-  });
-  if (
-    posts.length > take
-    || new Set(posts.map(({ blogPost }) => blogPost.id)).size !== posts.length
-  ) {
-    throw new Error("Seller saved-blog page authority returned invalid cardinality");
-  }
-  return Object.freeze(posts);
+  return parseOwnerSavedBlogPostPageRows(rows, take);
 }
 
 export function ownerSavedBlogPostPageRows(
@@ -203,13 +148,33 @@ export function ownerSavedBlogPostPageRows(
     readOwnerSavedBlogPostPageRows(client, take, skip));
 }
 
-export async function ownerSavedBlogPostExportRows(
+async function readOwnerSavedBlogPostExportRows(
   userId: string,
-  db: SavedBlogPostOwnerAccessClient = prisma,
+  db: SavedBlogPostOwnerAccessClient,
 ) {
-  return db.savedBlogPost.findMany({
+  const savedRows = await db.savedBlogPost.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    select: { blogPostId: true, createdAt: true, blogPost: { select: { title: true, slug: true } } },
+    select: { blogPostId: true, createdAt: true },
   });
+  const targetIds = savedRows.map(({ blogPostId }) => blogPostId);
+  const publicTargets = targetIds.length === 0
+    ? []
+    : await db.blogPost.findMany({
+        where: publicBlogPostWhere({ id: { in: targetIds } }),
+        select: { id: true, title: true, slug: true },
+      });
+  return buildOwnerSavedBlogPostExportRows(savedRows, publicTargets);
+}
+
+export function ownerSavedBlogPostExportRows(userId: string) {
+  return withDbUserContext(userId, (db) =>
+    readOwnerSavedBlogPostExportRows(userId, db));
+}
+
+export function deleteAllOwnerSavedBlogPosts(
+  userId: string,
+  db: SavedBlogPostOwnerAccessClient,
+) {
+  return db.savedBlogPost.deleteMany({ where: { userId } });
 }

@@ -93,6 +93,10 @@ when its future authority implications and closure criteria are recorded.
   proof package are merged and CI-proven, but production still has the prior
   posture because the guarded migration and pooled-runtime postflight have not
   run.
+- `ACTIVATION_CANDIDATE`: the table-specific audit, application conversion,
+  migration, rollback and release proof exist in candidate source only. No
+  production posture change is implied until that source is reviewed, merged
+  and applied through its protected workflow.
 - `PLANNED_RLS`: RLS is the expected target shape, but the table-specific
   actor and operation inventory, staging proof, rollback, and monitoring are
   not complete.
@@ -307,7 +311,7 @@ completed alternative.
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
-| `SavedBlogPost` | `PLANNED_RLS` | Saved blog post | Direct user-owned saved state across account and public blog rendering | Wrap all saved-state reads, export and deletion paths; retain route happy-path proof |
+| `SavedBlogPost` | `ACTIVATION_CANDIDATE` | Saved blog post | Owner-only saved state, with public-blog eligibility checked atomically when a save is created | The full domain audit selected simple owner policies. Candidate source centralizes all owner reads/writes/export/deletion, sets transaction-local `app.user_id`, preserves bounded public projections, and adds an owner-bound insert guard for active users and currently public/orderable posts. One combined ENABLE plus FORCE migration retains SELECT/INSERT/DELETE only, removes UPDATE, adds three owner policies, and is covered by current-schema PostgreSQL behavior, concurrency, rollback, source-seal, catalog and protected-release checks. Production remains unchanged until exact-head review, merge and the generic owner-table activation workflow succeed. |
 | `SellerBroadcast` | `BLOCKED_DESIGN` | Aggregate and fanout | Seller-authored broadcast and recipient fanout metadata | Seller ownership, follower fanout service path and recipient visibility decision |
 | `CommissionRequest` | `BLOCKED_DESIGN` | Commission | Buyer request and location or reference media mixed with seller discovery | Public discovery projection, buyer ownership, location privacy and lifecycle states |
 | `CommissionInterest` | `BLOCKED_DESIGN` | Commission | Seller interest connected to buyer request and optional conversation | Buyer and interested-seller participant rules plus conversation and fanout side effects |

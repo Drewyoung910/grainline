@@ -1091,18 +1091,18 @@ describe("RLS feasibility plan guardrails", () => {
     const accountExport = source("src/app/api/account/export/route.ts");
     const accountSaved = source("src/app/account/saved/page.tsx");
 
-    assert.match(ownerAccess, /export type SavedBlogPostOwnerAccessClient = Pick<Prisma\.TransactionClient, "savedBlogPost">/);
+    assert.match(ownerAccess, /export type SavedBlogPostOwnerAccessClient = DbUserContextTransactionClient/);
     assert.match(ownerAccess, /export function ownerSavedBlogPostWhere/);
-    assert.match(ownerAccess, /export async function findOwnerSavedBlogPost/);
-    assert.match(ownerAccess, /export async function upsertOwnerSavedBlogPost/);
-    assert.match(ownerAccess, /export async function deleteOwnerSavedBlogPost/);
-    assert.match(ownerAccess, /export async function ownerSavedBlogPostIdRows/);
+    assert.match(ownerAccess, /export function findOwnerSavedBlogPost/);
+    assert.match(ownerAccess, /export function saveOwnerSavedBlogPost/);
+    assert.match(ownerAccess, /export function deleteOwnerSavedBlogPost/);
+    assert.match(ownerAccess, /export function ownerSavedBlogPostIdRows/);
     assert.match(ownerAccess, /export function countVisibleOwnerSavedBlogPosts/);
     assert.match(ownerAccess, /export function ownerSavedBlogPostPageRows/);
-    assert.match(ownerAccess, /export async function ownerSavedBlogPostExportRows/);
-    assert.match(ownerAccess, /db: SavedBlogPostOwnerAccessClient = prisma/);
+    assert.match(ownerAccess, /export function ownerSavedBlogPostExportRows/);
+    assert.match(ownerAccess, /export function deleteAllOwnerSavedBlogPosts/);
     assert.match(ownerAccess, /db\.savedBlogPost\.findUnique/);
-    assert.match(ownerAccess, /db\.savedBlogPost\.upsert/);
+    assert.match(ownerAccess, /db\.savedBlogPost\.createMany/);
     assert.match(ownerAccess, /db\.savedBlogPost\.deleteMany/);
     assert.match(ownerAccess, /db\.savedBlogPost\.findMany/);
     assert.match(ownerAccess, /grainline_seller_owner_saved_blog_post_count/);
@@ -1110,14 +1110,15 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /withDbUserContext\(userId/);
     assert.match(ownerAccess, /ownerSavedBlogPostWhere\(userId/);
     assert.doesNotMatch(ownerAccess, /Promise\.all/);
-    assert.doesNotMatch(ownerAccess, /prisma\.savedBlogPost\.(?:count|findMany|findUnique|upsert|deleteMany)/);
+    assert.doesNotMatch(ownerAccess, /prisma\.savedBlogPost\.(?:count|createMany|findMany|findUnique|upsert|deleteMany)/);
+    assert.doesNotMatch(ownerAccess, /savedBlogPost\.upsert/);
 
     assert.match(homepage, /ownerSavedBlogPostIdRows\(meDbId, blogPostIds\)/);
     assert.match(blogIndex, /ownerSavedBlogPostIdRows\(meDbId, allPosts\.map\(\(p\) => p\.id\)\)/);
     assert.match(blogAuthor, /ownerSavedBlogPostIdRows\(meDbId, posts\.map\(\(post\) => post\.id\)\)/);
     assert.match(blogDetail, /findOwnerSavedBlogPost\(meId, post\.id\)/);
     assert.match(saveRoute, /findOwnerSavedBlogPost\(me\.id, post\.id\)/);
-    assert.match(saveRoute, /upsertOwnerSavedBlogPost\(me\.id, post\.id\)/);
+    assert.match(saveRoute, /saveOwnerSavedBlogPost\(me\.id, post\.id\)/);
     assert.match(saveRoute, /deleteOwnerSavedBlogPost\(me\.id, post\.id\)/);
     assert.match(accountFeed, /ownerSavedBlogPostIdRows\(me\.id, blogPostIds\)/);
     assert.match(accountExport, /ownerSavedBlogPostExportRows\(user\.id\)/);
@@ -1127,10 +1128,8 @@ describe("RLS feasibility plan guardrails", () => {
 
   it("blocks new direct owner-style SavedBlogPost reads and writes outside the owner helper", () => {
     const directSavedBlogPostAccessPattern =
-      /\b[A-Za-z_$][\w$]*\.savedBlogPost\.(?:count|create|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
-    const allowedDirectCalls = {
-      "src/lib/accountDeletion.ts": ["tx.savedBlogPost.deleteMany"],
-    };
+      /\b[A-Za-z_$][\w$]*\.savedBlogPost\.(?:count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
+    const allowedDirectCalls = {};
     const directCallsByFile = {};
 
     for (const file of sourceFiles("src")) {
