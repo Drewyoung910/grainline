@@ -1,4 +1,5 @@
 import { normalizeUserText, truncateText } from "./sanitize.ts";
+import { codePointLength } from "./textLength.ts";
 
 export type SupportRequestKind = "support" | "data_request";
 
@@ -95,7 +96,9 @@ export function normalizeSupportRequest(
     ? input.topic
     : "other";
   const message = cleanRequiredText(input.message, 4000);
-  if (message.length < 10) return { ok: false, error: "Add a few details so we can help." };
+  if (codePointLength(message) < 10) {
+    return { ok: false, error: "Add a few details so we can help." };
+  }
 
   return {
     ok: true,
@@ -172,7 +175,7 @@ export function normalizeSupportRequestClosureEvidence(
   value: unknown,
 ): { ok: true; evidence: string } | { ok: false; error: string } {
   const evidence = cleanRequiredText(value, SUPPORT_REQUEST_CLOSURE_EVIDENCE_MAX_CHARS);
-  if (evidence.length < SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS) {
+  if (codePointLength(evidence) < SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS) {
     return { ok: false, error: "Add closure evidence before closing this data request." };
   }
   return { ok: true, evidence };
