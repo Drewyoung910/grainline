@@ -133,8 +133,8 @@ jobs:
           node --test \
             tests/private-table-preparation-production.test.mjs \
             tests/reviewed-pending-migrations.test.mjs \
-            tests/support-request-authority-state.test.mjs \
-            tests/support-request-access-helper.test.mjs
+            tests/support-request-state.test.mjs \
+            tests/support-request.test.mjs
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
         env:

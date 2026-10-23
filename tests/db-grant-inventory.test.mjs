@@ -277,6 +277,7 @@ const {
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
+  SUPPORT_REQUEST_TABLE,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -316,6 +317,8 @@ const {
   userEmailAddressRlsForceExpected,
   userRlsActivationExpected,
   userRlsForceExpected,
+  supportRequestRlsActivationExpected,
+  supportRequestRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -776,6 +779,16 @@ describe("database grant inventory guardrails", () => {
       ...sellerProfileEnabledInventory,
       sellerProfileRlsForceApplied: true,
     };
+    const supportRequestPredecessorInventory = {
+      tables: ["SupportRequest"],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const supportRequestEnabledInventory = {
+      ...supportRequestPredecessorInventory,
+      rlsEnableTables: ["SupportRequest"],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -867,6 +880,44 @@ describe("database grant inventory guardrails", () => {
     } else {
       assert.equal(sellerProfileRlsActivationExpected, undefined);
       assert.equal(sellerProfileRlsForceExpected, undefined);
+    }
+    if (typeof supportRequestRlsActivationExpected === "function") {
+      assert.equal(
+        supportRequestRlsActivationExpected(
+          supportRequestPredecessorInventory,
+        ),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          "SupportRequest",
+          supportRequestPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(
+        supportRequestRlsActivationExpected(supportRequestEnabledInventory),
+        true,
+      );
+      assert.equal(
+        supportRequestRlsForceExpected(supportRequestEnabledInventory),
+        false,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          "SupportRequest",
+          supportRequestEnabledInventory,
+        ),
+        [],
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: "SupportRequest",
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], supportRequestEnabledInventory), []);
+    } else {
+      assert.equal(supportRequestRlsForceExpected, undefined);
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
@@ -2751,6 +2802,9 @@ describe("database grant inventory guardrails", () => {
 
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
+    const supportRequestRlsEnabled =
+      typeof supportRequestRlsActivationExpected === "function"
+      && supportRequestRlsActivationExpected(inventory);
     const sellerProfilePublicCandidatePresent = existsSync(
       SELLER_PROFILE_PUBLIC_CANDIDATE_FIRST_MIGRATION,
     );
@@ -2918,6 +2972,9 @@ describe("database grant inventory guardrails", () => {
       source(supportRequestAuthorityMigrationPath).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const supportRequestEnableMigrationPresent = existsSync(
+      "prisma/migrations/20261023020000_enable_support_request_rls/migration.sql",
+    );
     const sellerProfilePrivatePreparationMigrationPath =
       "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
     const sellerProfilePrivatePreparationMigrationPresent = existsSync(
@@ -3212,6 +3269,7 @@ describe("database grant inventory guardrails", () => {
         + (supportRequestAuthorityPrepared
           ? supportRequestAuthorityFunctionNames.length
           : 0)
+        + (supportRequestEnableMigrationPresent ? 1 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
@@ -3630,6 +3688,9 @@ describe("database grant inventory guardrails", () => {
           ? ["SellerProfilePrivate"]
           : []),
         "StripeWebhookEvent",
+        ...(supportRequestRlsEnabled
+          ? [SUPPORT_REQUEST_TABLE ?? "SupportRequest"]
+          : []),
         ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
         ...(userEmailAddressRlsActivationExpected(inventory)
           ? ["UserEmailAddress"]
@@ -5078,7 +5139,14 @@ describe("database grant inventory guardrails", () => {
     const sellerProfilePublicProvisioningPresent = provision.includes(
       "SellerExactMapConsentEvent",
     );
-    assert.equal(guardResultCount, sellerProfilePublicProvisioningPresent ? 25 : 24);
+    const supportRequestProvisioningPresent = provision.includes(
+      "support_request_rls_active",
+    );
+    assert.equal(
+      guardResultCount,
+      (sellerProfilePublicProvisioningPresent ? 25 : 24)
+        + Number(supportRequestProvisioningPresent),
+    );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
       assert.match(
@@ -5090,6 +5158,16 @@ describe("database grant inventory guardrails", () => {
       assert.doesNotMatch(
         provision,
         /REVOKE ALL ON TABLE public\."SellerProfile"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
+    if (supportRequestProvisioningPresent) {
+      assert.match(
+        provision,
+        /SupportRequest RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :support_request_rls_active[\s\S]*REVOKE ALL ON TABLE public\."SupportRequest"\s+FROM PUBLIC, :"runtime_role"/,
       );
     }
     assert.equal(
