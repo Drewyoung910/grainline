@@ -45,18 +45,19 @@ BEGIN
       FROM (
         VALUES
           ('20261023010000_prepare_support_request_authorities',
-           'c65e259df2bd476e2d265c8973fabbcf018b5f989b4b01a2ca923bb1013dc384'),
+           'c65e259df2bd476e2d265c8973fabbcf018b5f989b4b01a2ca923bb1013dc384', 1, 1),
           ('20261023020000_enable_support_request_rls',
-           '370698b0617fbb5eb2d4d04d7acef43141628f8a8d3a6e672d4b1ef973493b61'),
+           '370698b0617fbb5eb2d4d04d7acef43141628f8a8d3a6e672d4b1ef973493b61', 1, 1),
           ('20261023050000_correct_support_request_email_reuse_privacy',
-           '9db6f9bf2db0dc1d8b96199e4381a33cea51233521e0a59ba9328caa59d337a1')
-      ) AS expected(name, checksum)
+           '9db6f9bf2db0dc1d8b96199e4381a33cea51233521e0a59ba9328caa59d337a1', 0, 1)
+      ) AS expected(name, checksum, minimum_steps, maximum_steps)
       JOIN public._prisma_migrations AS migration
         ON migration.migration_name = expected.name
        AND migration.checksum = expected.checksum
        AND migration.finished_at IS NOT NULL
        AND migration.rolled_back_at IS NULL
-       AND migration.applied_steps_count = 1
+       AND migration.applied_steps_count BETWEEN
+           expected.minimum_steps AND expected.maximum_steps
   ) <> 3 THEN
     RAISE EXCEPTION 'SupportRequest FORCE migration prerequisites drifted';
   END IF;

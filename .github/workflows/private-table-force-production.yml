@@ -1,0 +1,258 @@
+name: Private Table FORCE Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Reviewed private-table policyless FORCE release
+        required: true
+        type: choice
+        options:
+          - support_request_v1
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      enable_run_id:
+        description: Accepted protected private-table ENABLE run
+        required: true
+        type: string
+      correction_run_id:
+        description: Accepted protected C-1150 correction run
+        required: true
+        type: string
+      confirmation:
+        description: Type force-reviewed-private-table-rls
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  force:
+    name: Force reviewed private-table RLS
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'force-reviewed-private-table-rls'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRIVATE_TABLE_FORCE_RELEASE_ID: ${{ inputs.release_id }}
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825a76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind FORCE to exact main, green checks, ENABLE, and correction
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_ENABLE_RUN_ID: ${{ inputs.enable_run_id }}
+          REVIEWED_CORRECTION_RUN_ID: ${{ inputs.correction_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const enableValue = process.env.REVIEWED_ENABLE_RUN_ID;
+            const correctionValue = process.env.REVIEWED_CORRECTION_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(ciValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(enableValue ?? '') ||
+                !/^[1-9][0-9]{0,19}$/.test(correctionValue ?? '')) {
+              throw new Error('Private-table FORCE binding drifted');
+            }
+            const ciRunId = Number(ciValue);
+            const enableRunId = Number(enableValue);
+            const correctionRunId = Number(correctionValue);
+            if (![ciRunId, enableRunId, correctionRunId].every(Number.isSafeInteger)) {
+              throw new Error('Private-table FORCE run id is unsafe');
+            }
+            const [{data: main}, {data: ci}, {data: enable}, {data: correction}] =
+              await Promise.all([
+                github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: ciRunId}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: enableRunId}),
+                github.rest.actions.getWorkflowRun({...context.repo, run_id: correctionRunId}),
+              ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.path !== '.github/workflows/ci.yml' || ci.event !== 'push' ||
+                ci.head_branch !== 'main' || ci.head_sha !== sha ||
+                ci.status !== 'completed' || ci.conclusion !== 'success') {
+              throw new Error('Private-table FORCE main/CI readback drifted');
+            }
+            if (enable.name !== 'Private Table ENABLE Production' ||
+                enable.path !== '.github/workflows/private-table-enable-production.yml' ||
+                enable.event !== 'workflow_dispatch' || enable.head_branch !== 'main' ||
+                enable.run_attempt !== 1 || enable.status !== 'completed' ||
+                enable.conclusion !== 'success' ||
+                !/^[0-9a-f]{40}$/.test(enable.head_sha ?? '')) {
+              throw new Error('Accepted private-table ENABLE run drifted');
+            }
+            if (correction.name !== 'Support Request Email Reuse Privacy Production' ||
+                correction.path !== '.github/workflows/support-request-email-reuse-production.yml' ||
+                correction.event !== 'workflow_dispatch' || correction.head_branch !== 'main' ||
+                correction.run_attempt !== 1 || correction.status !== 'completed' ||
+                correction.conclusion !== 'success' ||
+                !/^[0-9a-f]{40}$/.test(correction.head_sha ?? '')) {
+              throw new Error('Accepted C-1150 correction run drifted');
+            }
+            const [enableJobs, correctionJobs] = await Promise.all([
+              github.paginate(github.rest.actions.listJobsForWorkflowRun,
+                {...context.repo, run_id: enableRunId, per_page: 100}),
+              github.paginate(github.rest.actions.listJobsForWorkflowRun,
+                {...context.repo, run_id: correctionRunId, per_page: 100}),
+            ]);
+            if (enableJobs.filter((job) =>
+              job.name === 'Enable reviewed private-table RLS' &&
+              job.status === 'completed' && job.conclusion === 'success'
+            ).length !== 1) {
+              throw new Error('Accepted private-table ENABLE job is absent');
+            }
+            if (correctionJobs.filter((job) =>
+              job.name === 'Apply reviewed C-1150 SupportRequest privacy correction' &&
+              job.status === 'completed' && job.conclusion === 'success'
+            ).length !== 1) {
+              throw new Error('Accepted C-1150 correction job is absent');
+            }
+            const [enableToCorrection, correctionToRelease] = await Promise.all([
+              github.rest.repos.compareCommits({
+                ...context.repo, base: enable.head_sha, head: correction.head_sha,
+              }),
+              github.rest.repos.compareCommits({
+                ...context.repo, base: correction.head_sha, head: sha,
+              }),
+            ]);
+            if (!['ahead', 'identical'].includes(enableToCorrection.data.status) ||
+                !['ahead', 'identical'].includes(correctionToRelease.data.status)) {
+              throw new Error('ENABLE, correction, and FORCE ancestry drifted');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {...context.repo, branch: 'main', event: 'push', head_sha: sha, per_page: 100},
+            );
+            const latestByWorkflow = new Map();
+            for (const run of exactPushRuns) {
+              if (run.head_sha !== sha || run.head_branch !== 'main' || run.event !== 'push') continue;
+              const key = run.path || run.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(run.id) > Number(previous.id)) latestByWorkflow.set(key, run);
+            }
+            const required = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missing = [...required].filter((path) => !latestByWorkflow.has(path));
+            if (missing.length !== 0) {
+              throw new Error(`Required exact-main push workflows are absent: ${missing.join(', ')}`);
+            }
+            const unacceptable = [...latestByWorkflow.values()].filter((run) =>
+              run.status !== 'completed' || run.conclusion !== 'success'
+            );
+            if (unacceptable.length !== 0) {
+              throw new Error(`Exact-main push workflows are not all green: ${unacceptable
+                .map((run) => `${run.name}:${run.status}/${run.conclusion}`).join(', ')}`);
+            }
+      - name: Verify reviewed policyless FORCE source before owner access
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/private-table-force-catalog.mjs)"
+          latest="$(ls -1d prisma/migrations/*/ | sed 's#/$##; s#.*/##' | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "$migration"
+          node --test tests/private-table-force-production.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe private-table state before FORCE
+        id: preflight
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PRIVATE_TABLE_FORCE_PHASE: preflight
+          PRIVATE_TABLE_FORCE_EVIDENCE_PATH: ${{ runner.temp }}/private-table-force-${{ github.sha }}-preflight.json
+        run: |
+          set -euo pipefail
+          state="$(node scripts/private-table-force-production-inspect.mjs)"
+          case "$state" in
+            ready)
+              migration="$(node scripts/private-table-force-catalog.mjs)"
+              echo "pending=$migration" >> "$GITHUB_OUTPUT"
+              ;;
+            forced) echo "pending=" >> "$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+      - name: Require only the reviewed private-table FORCE pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Apply only the reviewed policyless FORCE
+        if: steps.preflight.outputs.state == 'ready'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Read back exact policyless FORCE catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PRIVATE_TABLE_FORCE_PHASE: postflight
+          PRIVATE_TABLE_FORCE_EVIDENCE_PATH: ${{ runner.temp }}/private-table-force-${{ github.sha }}-postflight.json
+          PRIVATE_TABLE_FORCE_PREVIOUS_EVIDENCE_PATH: ${{ runner.temp }}/private-table-force-${{ github.sha }}-preflight.json
+        run: node scripts/private-table-force-production-inspect.mjs
+      - name: Require no migrations pending after FORCE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ""
+        run: |
+          node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
+      - name: Audit global runtime grants after FORCE
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized private-table FORCE evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: private-table-force-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/private-table-force-${{ github.sha }}-*.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false
