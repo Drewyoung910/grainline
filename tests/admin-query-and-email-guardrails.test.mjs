@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -32,9 +33,7 @@ describe("admin query and email guardrails", () => {
     const audit = source("src/app/admin/audit/page.tsx");
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
     const reviews = source("src/app/admin/reviews/page.tsx");
-    const supportMigration = source(
-      "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql",
-    );
+    const supportMigration = source(supportRequestPreparationMigrationPath());
 
     assert.match(users, /userStaffDirectoryPage\(staffClient, \{ actorId: staff\.id, query: q, page \}\)/);
     assert.match(audit, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -48,9 +47,7 @@ describe("admin query and email guardrails", () => {
   it("does not silently truncate admin review or support queues", () => {
     const reviews = source("src/app/admin/reviews/page.tsx");
     const support = source("src/app/admin/support/page.tsx");
-    const supportMigration = source(
-      "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql",
-    );
+    const supportMigration = source(supportRequestPreparationMigrationPath());
 
     assert.match(reviews, /const PAGE_SIZE = 50/);
     assert.match(reviews, /const total = await prisma\.review\.count\(\)/);

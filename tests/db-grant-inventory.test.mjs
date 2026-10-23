@@ -5362,7 +5362,10 @@ describe("database grant inventory guardrails", () => {
     const provisionedFunctionNames = sellerProfilePublicProvisioningPresent
       ? inventory.functions
       : inventory.functions.filter(
-          (functionName) => !SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES.includes(functionName),
+          (functionName) => ![
+            ...SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES,
+            ...SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES,
+          ].includes(functionName),
         );
     for (const fn of provisionedFunctionNames) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;

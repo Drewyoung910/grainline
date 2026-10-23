@@ -68,6 +68,11 @@ const accountDeletionPostRetirementRepair =
   "20261015013000_repair_account_deletion_after_seller_profile_retirement";
 const blockedCheckoutRefundWitness =
   "20261015030000_preserve_blocked_checkout_refund_witness";
+const supportRequestPreparationMigration =
+  "20261023010000_prepare_support_request_authorities";
+const supportRequestPreparationTests = [
+  "private-table-preparation-production.test.mjs",
+];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -177,6 +182,35 @@ function blockedCheckoutRefundWitnessSourcePath() {
     "missing isolated blocked-checkout refund witness migration",
   );
   return path.dirname(isolatedMigrationPath);
+}
+
+function supportRequestPreparationMigrationPath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    supportRequestPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "support-request-preparation",
+    "migration",
+  );
+  assert.ok(existsSync(stagedPath), "missing isolated SupportRequest preparation migration");
+  return stagedPath;
+}
+
+function supportRequestPreparationTestPath(file) {
+  const livePath = path.join("tests", file);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "support-request-preparation",
+    "tests",
+    file,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated SupportRequest preparation test ${file}`);
+  return stagedPath;
 }
 
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
@@ -347,11 +381,27 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const supportRequestPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      supportRequestPreparationMigration,
+    );
+    if (!existsSync(supportRequestPreparationTarget)) {
+      cpSync(
+        supportRequestPreparationMigrationPath(),
+        supportRequestPreparationTarget,
+        { recursive: true },
+      );
+    }
     for (const file of heldTests) {
       cpSync(accumulatedUserTestPath(file), path.join(root, "tests", file));
     }
     for (const file of accountDeletionSuccessorTests) {
       cpSync(accountDeletionSuccessorTestPath(file), path.join(root, "tests", file));
+    }
+    for (const file of supportRequestPreparationTests) {
+      cpSync(supportRequestPreparationTestPath(file), path.join(root, "tests", file));
     }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
@@ -361,11 +411,15 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${accountDeletionPostRetirementRepair}/migration.sql`;
     const blockedCheckoutRefundWitnessPath =
       `prisma/migrations/${blockedCheckoutRefundWitness}/migration.sql`;
+    const supportRequestPreparationPath =
+      `prisma/migrations/${supportRequestPreparationMigration}/migration.sql`;
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
       postRetirementRepairPath,
       blockedCheckoutRefundWitnessPath,
+      supportRequestPreparationPath,
+      ...supportRequestPreparationTests.map((file) => `tests/${file}`),
       "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
@@ -391,6 +445,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       path.join(sellerPublicTestHolding, "db-grant-inventory.test.mjs"),
     );
     rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
+    execFileSync("bash", ["-c", bashBody("Isolate SupportRequest preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -400,6 +455,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.ok(sellerProfilePrivateBoundaryPaths.every((relative) => !existsSync(path.join(root, relative))));
     assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
     assert.equal(existsSync(path.join(root, blockedCheckoutRefundWitnessPath)), false);
+    assert.equal(existsSync(path.join(root, supportRequestPreparationPath)), false);
+    assert.ok(supportRequestPreparationTests.every(
+      (file) => !existsSync(path.join(root, "tests", file)),
+    ));
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
     assert.doesNotMatch(historicalStaff, /grainline_user_staff_/);
     assert.equal(execFileSync("git", ["hash-object", staffScript], { cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim(), historicalStaffBlob);
@@ -452,6 +511,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, postRetirementRepairPath)), false);
     execFileSync("bash", ["-c", bashBody("Restore post-retirement account-deletion repair after all predecessors")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore blocked-checkout refund witness after immutable refund repair")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore SupportRequest preparation after historical release guards")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

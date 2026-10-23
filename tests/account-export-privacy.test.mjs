@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -257,7 +258,7 @@ describe("account export privacy coverage", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");
     const access = source("src/lib/supportRequestAccess.ts");
-    const authority = source("prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql");
+    const authority = source(supportRequestPreparationMigrationPath());
 
     assert.match(schema, /supportRequests\s+SupportRequest\[\]/);
     assert.match(schema, /userId\s+String\?/);

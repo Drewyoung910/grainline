@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -46,9 +47,7 @@ describe("admin audit durability", () => {
     }
 
     const supportActions = source("src/app/admin/support/actions.ts");
-    const supportTransition = source(
-      "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql",
-    );
+    const supportTransition = source(supportRequestPreparationMigrationPath());
     assert.match(supportActions, /transitionSupportRequest\(\{/);
     assert.match(
       supportTransition,

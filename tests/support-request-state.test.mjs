@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, it } from "node:test";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 const {
   isSupportRequestStatus,
@@ -87,7 +88,7 @@ describe("support request state transitions", () => {
     const actions = source("src/app/admin/support/actions.ts");
     const page = source("src/app/admin/support/page.tsx");
     const schema = source("prisma/schema.prisma");
-    const authority = source("prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql");
+    const authority = source(supportRequestPreparationMigrationPath());
 
     assert.match(schema, /closureEvidence\s+String\?\s+@db\.VarChar\(4000\)/);
     assert.match(schema, /closureEvidenceAt\s+DateTime\?/);
@@ -113,7 +114,7 @@ describe("support request state transitions", () => {
     const cutoff = supportRequestRetention.supportRequestRetentionCutoff({ now });
     const route = source("src/app/api/cron/notification-prune/route.ts");
     const helper = source("src/lib/supportRequestRetention.ts");
-    const authority = source("prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql");
+    const authority = source(supportRequestPreparationMigrationPath());
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260630143000_seller_metrics_sales_bigint/migration.sql");
     const privacy = source("src/app/privacy/page.tsx");

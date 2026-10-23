@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -72,7 +73,7 @@ describe("account and privacy route observability guardrails", () => {
     const dataRequest = source("src/app/api/legal/data-request/route.ts");
     const adminPage = source("src/app/admin/support/page.tsx");
     const access = source("src/lib/supportRequestAccess.ts");
-    const authority = source("prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql");
+    const authority = source(supportRequestPreparationMigrationPath());
 
     for (const route of [support, dataRequest]) {
       assert.match(route, /submitSupportRequest\(/);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
+import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -189,9 +190,7 @@ describe("account-state residue hardening", () => {
   it("clears deleted staff closure links and redacts support closure evidence text", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const access = source("src/lib/supportRequestAccess.ts");
-    const migration = source(
-      "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql",
-    );
+    const migration = source(supportRequestPreparationMigrationPath());
 
     assert.match(
       deletion,
