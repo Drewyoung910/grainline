@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { normalizeSupportRequestClosureEvidence } from "@/lib/supportRequest";
@@ -11,10 +12,13 @@ import { logServerError } from "@/lib/serverErrorLogger";
 export type SupportRequestActionState = { ok: boolean; error?: string };
 
 async function requireAdmin() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  if (!success) throw new Error("Rate limited");
+
   const user = await requireAdminPageAccess();
   if (!user) throw new Error("Admin PIN required");
-  const { success } = await safeRateLimit(adminActionRatelimit, user.id);
-  if (!success) throw new Error("Rate limited");
   return user;
 }
 

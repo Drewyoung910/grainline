@@ -10,7 +10,6 @@ describe("admin server action guardrails", () => {
   it("blocks suspended or deleted staff accounts inside admin server actions", () => {
     for (const path of [
       "src/app/admin/actions.ts",
-      "src/app/admin/support/actions.ts",
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/verification/page.tsx",
@@ -27,6 +26,10 @@ describe("admin server action guardrails", () => {
         `${path} must block suspended or deleted staff accounts inside admin server actions`,
       );
     }
+
+    const supportActions = source("src/app/admin/support/actions.ts");
+    assert.match(supportActions, /requireAdminPageAccess\(\)/);
+    assert.doesNotMatch(supportActions, /\bprisma\.user\./);
   });
 
   it("blocks suspended or deleted staff accounts inside admin APIs", () => {
@@ -78,7 +81,7 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/reviews/page.tsx", "prisma.review.count"],
       ["src/app/admin/review/page.tsx", "prisma.listing.count"],
       ["src/app/admin/reports/page.tsx", "prisma.userReport.findMany"],
-      ["src/app/admin/support/page.tsx", "prisma.supportRequest."],
+      ["src/app/admin/support/page.tsx", "readSupportRequestStaffState("],
     ]) {
       const text = source(path);
       const pageStart = text.indexOf("export default async function");
@@ -100,7 +103,6 @@ describe("admin server action guardrails", () => {
   it("rate-limits admin server actions before local admin DB lookups", () => {
     for (const path of [
       "src/app/admin/actions.ts",
-      "src/app/admin/support/actions.ts",
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/verification/page.tsx",
@@ -114,6 +116,15 @@ describe("admin server action guardrails", () => {
         `${path} must rate-limit before local admin user lookup`,
       );
     }
+
+    const supportActions = source("src/app/admin/support/actions.ts");
+    assert.match(supportActions, /const \{ userId \} = await auth\(\)/);
+    assert.match(supportActions, /safeRateLimit\(adminActionRatelimit, userId\)/);
+    assert.ok(
+      supportActions.indexOf("safeRateLimit(adminActionRatelimit, userId)") <
+        supportActions.indexOf("requireAdminPageAccess()"),
+      "support actions must rate-limit before the shared admin DB and PIN boundary",
+    );
   });
 
   it("lets staff record an externally voided label before refund reconciliation", () => {

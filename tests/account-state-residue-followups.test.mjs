@@ -188,21 +188,22 @@ describe("account-state residue hardening", () => {
 
   it("clears deleted staff closure links and redacts support closure evidence text", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const helperStart = deletion.indexOf("async function redactSupportClosureEvidenceByDeletedAccount");
-    const helper = deletion.slice(helperStart, deletion.indexOf("async function archiveBlogPostsForDeletedAccount", helperStart));
-
-    assert.ok(helperStart >= 0, "account deletion should redact staff closure evidence references");
-    assert.match(helper, /where: \{ closureEvidenceById: deletedUserId \}/);
-    assert.doesNotMatch(helper, /\$queryRaw|FROM "SupportRequest"/);
-    assert.match(
-      helper,
-      /redactAccountDeletionText\(\s*request\.closureEvidence,\s*sensitiveValues,\s*undefined,\s*4000,\s*\)/,
+    const access = source("src/lib/supportRequestAccess.ts");
+    const migration = source(
+      "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql",
     );
-    assert.match(helper, /closureEvidenceById: null/);
-    assert.match(helper, /closureEvidence,/);
+
     assert.match(
       deletion,
-      /redactSupportClosureEvidenceByDeletedAccount\(\s*tx,\s*user\.id,\s*accountAuditSensitiveValues,\s*\)/,
+      /redactSupportRequestsForAccountDeletion\(\s*tx,\s*accountSensitiveValues,\s*accountAuditSensitiveValues,\s*\)/,
+    );
+    assert.match(access, /grainline_support_request_account_deletion_redact_batch/);
+    assert.match(access, /while \(requestCount === 500 \|\| closureCount === 500\)/);
+    assert.match(migration, /WHERE request\."closureEvidenceById" = actor_id/);
+    assert.match(migration, /SET "closureEvidenceById" = NULL/);
+    assert.match(
+      migration,
+      /grainline_account_deletion_redact_text_core\(request\."closureEvidence", p_audit_sensitive_values\)/,
     );
   });
 
