@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-10-08
+Last updated: 2026-10-23
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -33,11 +33,16 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 ## Request Boundaries
 
-Grainline uses database-level Row Level Security for `User`, `UserEmailAddress`, `SavedSearch`,
-`Notification`, `Conversation`, `Message`, `DirectUpload`,
-`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
-`StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
-`OrderRefundReconciliation`, and `OrderPaymentEvent`. All sixteen tables have
+Grainline uses database-level Row Level Security for `User`, `UserEmailAddress`,
+`SellerProfile`, `SellerProfilePrivate`, `Conversation`, `Message`, `Order`,
+`OrderShippingRateQuote`, `OrderDisputeRecovery`, `OrderPaymentEvent`,
+`OrderRefundReconciliation`, `OrderStaffCapability`, `SellerPayoutEvent`,
+`SellerDeauthorizationApplication`, `OrderItem`, `CheckoutStockReservation`,
+`Case`, `CaseResolutionClaim`, `CaseStripeDisputeApplication`,
+`CaseSellerRefundApplication`, `CaseOpenApplication`, `CaseMessage`,
+`CaseMessageAttachment`, `SavedSearch`, `ClerkWebhookEvent`, `DirectUpload`,
+`DirectUploadReference`, `AccountDeletionSideEffect`, `StripeWebhookEvent`, and
+`Notification`. All thirty tables have
 complete retained `FORCE ROW LEVEL SECURITY` acceptance. `User` is policyless
 and FORCE-hardened with zero policies and zero runtime/staff/`PUBLIC` direct
 table or column authority. Its Phase-A release is bound to guarded ENABLE run
@@ -98,10 +103,17 @@ fixed-operation catalog, policyless ENABLE/FORCE posture, and pooled-runtime
 proof remain retained in the Case rollout records. Case evidence UI/API
 enablement, private-R2 route smoke, cleanup scheduling, token retirement, and
 provider variables remain disabled separate releases; they are not evidence
-that Case database RLS is incomplete. Order/payment/shipping is the active
-sensitive-data program. User, public/private catalog data, carts, and other
-service/audit ledgers remain separately reviewed later groups; do not bundle
-their policies or grants.
+that Case database RLS is incomplete. Order/payment/shipping, User, and the
+public/private SellerProfile split are complete Production groups.
+SupportRequest is the active private-table candidate; its fixed operations and
+converted callers are candidate source only, with RLS still off and predecessor
+grants unchanged. Carts and other private service/audit ledgers remain
+separately reviewed later groups; do not bundle their policies or grants.
+
+### Historical Order Rollout Record
+
+The chronology below preserves intermediate rollout evidence. Use
+`docs/rls-coverage-matrix.md` for current table posture.
 
 The core `Order` table is in accepted compatibility preparation, not active
 RLS. Exact main `fb27a5efe9551ceec724b92e2d3c39cd9c50bd87`, CI

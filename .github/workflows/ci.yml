@@ -140,7 +140,7 @@ jobs:
             package_tests+=("$test_file")
           done < <(
               grep -El \
-                '202610(19|20)|verifySellerProfilePublicPreparationSources|seller-profile-force' \
+                '202610(19|20)|verifySellerProfilePublic(PreparationSources|ConsumerContracts)|seller-profile-force' \
                 tests/*.test.mjs \
                 | sort
             )
@@ -178,7 +178,7 @@ jobs:
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done < "$holding/migration-names.txt"
           grep -El \
-            '202610(19|20)|verifySellerProfilePublicPreparationSources|seller-profile-force' \
+            '202610(19|20)|verifySellerProfilePublic(PreparationSources|ConsumerContracts)|seller-profile-force' \
             tests/*.test.mjs \
             | sort > "$holding/test-files.txt"
           while IFS= read -r test_file

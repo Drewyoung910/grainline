@@ -211,4 +211,8 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   assert.match(ci, /SELLER_PROFILE_PUBLIC_PREPARATIONS/u);
   assert.match(ci, /SELLER_PROFILE_PUBLIC_ENABLE/u);
   assert.match(ci, /20261020250000_force_seller_profile_rls/u);
+  assert.match(
+    ci,
+    /verifySellerProfilePublic\(PreparationSources\|ConsumerContracts\)/u,
+  );
 });

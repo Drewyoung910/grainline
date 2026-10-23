@@ -75,11 +75,21 @@ describe("site-wide RLS coverage matrix", () => {
       "SellerProfilePrivate",
       "Conversation",
       "Message",
+      "Order",
+      "OrderShippingRateQuote",
+      "OrderDisputeRecovery",
       "OrderPaymentEvent",
       "OrderRefundReconciliation",
+      "OrderStaffCapability",
       "SellerPayoutEvent",
+      "SellerDeauthorizationApplication",
+      "OrderItem",
       "CheckoutStockReservation",
       "Case",
+      "CaseResolutionClaim",
+      "CaseStripeDisputeApplication",
+      "CaseSellerRefundApplication",
+      "CaseOpenApplication",
       "CaseMessage",
       "CaseMessageAttachment",
       "SavedSearch",
@@ -99,14 +109,24 @@ describe("site-wide RLS coverage matrix", () => {
         ["SellerProfilePrivate", "RLS_LIVE_FORCE"],
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
+        ["Order", "RLS_LIVE_FORCE"],
+        ["OrderShippingRateQuote", "RLS_LIVE_FORCE"],
+        ["OrderDisputeRecovery", "RLS_LIVE_FORCE"],
         ["OrderPaymentEvent", "RLS_LIVE_FORCE"],
         [
           "OrderRefundReconciliation",
           "RLS_LIVE_FORCE",
         ],
+        ["OrderStaffCapability", "RLS_LIVE_FORCE"],
         ["SellerPayoutEvent", "RLS_LIVE_FORCE"],
+        ["SellerDeauthorizationApplication", "RLS_LIVE_FORCE"],
+        ["OrderItem", "RLS_LIVE_FORCE"],
         ["CheckoutStockReservation", "RLS_LIVE_FORCE"],
         ["Case", "RLS_LIVE_FORCE"],
+        ["CaseResolutionClaim", "RLS_LIVE_FORCE"],
+        ["CaseStripeDisputeApplication", "RLS_LIVE_FORCE"],
+        ["CaseSellerRefundApplication", "RLS_LIVE_FORCE"],
+        ["CaseOpenApplication", "RLS_LIVE_FORCE"],
         ["CaseMessage", "RLS_LIVE_FORCE"],
         ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
@@ -120,7 +140,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /Current candidate source contains 70 Prisma models\.[\s\S]*nineteen[\s\S]*Production FORCE evidence[\s\S]*one with retained Production[\s\S]*ENABLE-only evidence[\s\S]*fifty without a live RLS activation/,
+      /Current candidate source contains 70 Prisma models\.[\s\S]*thirty[\s\S]*Production FORCE evidence[\s\S]*forty without a live RLS\s+activation/,
     );
     assert.match(
       matrix,
@@ -142,14 +162,14 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /All sixteen tables have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*User` is policyless[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
+      /All thirty tables have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*User` is policyless[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(
       architecture,
       /CheckoutStockReservation` is a completed service-ledger boundary/,
     );
-    assert.match(architecture, /Order\/payment\/shipping is the active/);
+    assert.match(architecture, /SupportRequest is the active private-table candidate/);
     assert.doesNotMatch(architecture, /Case-family RLS is still off/);
   });
 
