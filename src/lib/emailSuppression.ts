@@ -40,6 +40,7 @@ async function emailSuppressionExists(
     SELECT "id"
     FROM "EmailSuppression"
     WHERE ${emailSuppressionMatchWhereSql(lookup)}
+      AND "source" IS DISTINCT FROM 'resend_transient_failure'
       ${predicate}
     LIMIT 1
   `);

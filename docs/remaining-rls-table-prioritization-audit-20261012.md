@@ -123,10 +123,12 @@ large cross-domain blast radius.
 - `AdminAuditLog` has legitimate undo and account-deletion redaction updates.
   Replace those mutations with narrow operations before revoking UPDATE and
   DELETE.
-- `EmailSuppression`, `EmailFailureCount`, and `NewsletterSubscriber` are
-  service-oriented, but anonymous subscription/confirmation, webhook, mail,
-  export, and deletion paths mean they need explicit functions or a dedicated
-  role rather than only a blanket revoke.
+- `EmailSuppression` and `NewsletterSubscriber` are service-oriented, but
+  anonymous subscription/confirmation, webhook, mail, export, and deletion
+  paths mean they need explicit functions or a dedicated role rather than only
+  a blanket revoke. `EmailFailureCount` became obsolete after C-715 corrected
+  the Resend event classification; keep its compatibility export/deletion reads
+  bounded, then retire the empty table instead of designing RLS for it.
 
 ### Owner-scoped tables can be grouped, but a plain policy is incomplete
 

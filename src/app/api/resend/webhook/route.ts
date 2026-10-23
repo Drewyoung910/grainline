@@ -1,39 +1,31 @@
-import { EmailSuppressionReason, Prisma } from "@prisma/client";
+import { EmailSuppressionReason } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { Resend, type WebhookEventPayload } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { normalizeEmailSuppressionAddress, suppressEmail } from "@/lib/emailSuppression";
+import { suppressEmail } from "@/lib/emailSuppression";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { resolveResendWebhookConfig } from "@/lib/resendWebhookConfig";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import {
+  RESEND_RECIPIENT_ACTION,
+  resendRecipientAction,
+} from "@/lib/resendWebhookEventState";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const RESEND_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
 const RESEND_WEBHOOK_BODY_MAX_BYTES = 256 * 1024;
-const TRANSIENT_FAILURE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 5;
 const RESEND_WEBHOOK_RETRY_AFTER_SECONDS = Math.ceil(RESEND_WEBHOOK_RETRY_AFTER_MS / 1000);
 
 function emailsFromEvent(event: WebhookEventPayload): string[] {
   const to = "to" in event.data ? event.data.to : [];
   if (Array.isArray(to)) return to.filter(Boolean);
   return typeof to === "string" && to ? [to] : [];
-}
-
-function suppressionReason(type: string): EmailSuppressionReason | null {
-  if (type === "email.bounced") return EmailSuppressionReason.BOUNCE;
-  if (type === "email.complained" || type === "email.suppressed") return EmailSuppressionReason.COMPLAINT;
-  return null;
-}
-
-function isTransientFailure(type: string) {
-  return type === "email.failed";
 }
 
 function isUniqueViolation(err: unknown) {
@@ -127,7 +119,18 @@ async function requireWebhookTasks<T>(
   return values;
 }
 
-function safeResendWebhookDetails(event: WebhookEventPayload, svixId: string, emails: string[]): Prisma.InputJsonValue {
+type SafeResendWebhookDetails = {
+  svixId: string;
+  type: string;
+  recipientCount: number;
+  recipientHashes: string[];
+};
+
+function safeResendWebhookDetails(
+  event: WebhookEventPayload,
+  svixId: string,
+  emails: string[],
+): SafeResendWebhookDetails {
   return {
     svixId,
     type: event.type,
@@ -137,53 +140,6 @@ function safeResendWebhookDetails(event: WebhookEventPayload, svixId: string, em
       return hash ? [hash] : [];
     }),
   };
-}
-
-async function recordTransientFailure(
-  email: string,
-  eventId: string,
-  details: Prisma.InputJsonValue,
-): Promise<boolean> {
-  const normalized = normalizeEmailSuppressionAddress(email);
-  if (!normalized) return false;
-
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - TRANSIENT_FAILURE_WINDOW_MS);
-  const failures = await prisma.$queryRaw<{ count: number }[]>(Prisma.sql`
-    INSERT INTO "EmailFailureCount" (
-      email,
-      count,
-      "firstFailedAt",
-      "lastFailedAt",
-      "lastEventId"
-    )
-    VALUES (${normalized}, 1, ${now}, ${now}, ${eventId})
-    ON CONFLICT (email) DO UPDATE SET
-      count = CASE
-        WHEN "EmailFailureCount"."firstFailedAt" < ${windowStart} THEN 1
-        WHEN "EmailFailureCount"."lastEventId" = ${eventId} THEN "EmailFailureCount".count
-        ELSE "EmailFailureCount".count + 1
-      END,
-      "firstFailedAt" = CASE
-        WHEN "EmailFailureCount"."firstFailedAt" < ${windowStart} THEN ${now}
-        ELSE "EmailFailureCount"."firstFailedAt"
-      END,
-      "lastFailedAt" = ${now},
-      "lastEventId" = ${eventId}
-    RETURNING count
-  `);
-  const failureCount = Number(failures[0]?.count ?? 0);
-
-  if (failureCount < TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD) return false;
-
-  await suppressEmail({
-    email: normalized,
-    reason: EmailSuppressionReason.BOUNCE,
-    source: "resend_transient_failure",
-    eventId,
-    details,
-  });
-  return true;
 }
 
 export async function POST(request: Request) {
@@ -287,11 +243,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const reason = suppressionReason(event.type);
+    const action = resendRecipientAction(event.type);
     const emails = emailsFromEvent(event);
     const safeDetails = safeResendWebhookDetails(event, id, emails);
 
-    if (reason) {
+    if (
+      action === RESEND_RECIPIENT_ACTION.SUPPRESS_BOUNCE
+      || action === RESEND_RECIPIENT_ACTION.SUPPRESS_COMPLAINT
+    ) {
+      const reason = action === RESEND_RECIPIENT_ACTION.SUPPRESS_BOUNCE
+        ? EmailSuppressionReason.BOUNCE
+        : EmailSuppressionReason.COMPLAINT;
       await requireWebhookTasks(
         emails.map((email) =>
           suppressEmail({
@@ -309,18 +271,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, type: event.type, suppressed: emails.length });
     }
 
-    if (isTransientFailure(event.type)) {
-      const suppressed = await requireWebhookTasks(
-        emails.map((email) => recordTransientFailure(email, id, safeDetails)),
-        "resend_webhook_transient_failure",
-        { svixId: id, type: event.type },
-      );
+    if (action === RESEND_RECIPIENT_ACTION.OBSERVE_PROVIDER_FAILURE) {
+      Sentry.captureMessage("Resend reported an email send failure", {
+        level: "warning",
+        tags: { source: "resend_webhook_provider_failure" },
+        extra: safeDetails,
+      });
       await markWebhookProcessed(id);
       return NextResponse.json({
         ok: true,
         type: event.type,
-        failuresTracked: emails.length,
-        suppressed: suppressed.filter(Boolean).length,
+        providerFailure: true,
       });
     }
 

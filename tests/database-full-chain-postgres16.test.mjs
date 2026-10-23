@@ -76,6 +76,11 @@ import { proveSellerProfileServiceIdentities } from "../tools/database-full-chai
 import { proveSellerProfileRetainedAuthorityGaps } from "../tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs";
 import { proveSellerProfilePolicylessEnable } from "../tools/database-full-chain/scenarios/seller-profile-enable.mjs";
 import { proveSupportRequestAuthorities } from "../tools/database-full-chain/scenarios/support-request-authorities.mjs";
+import {
+  EMAIL_SUPPRESSION_RECOVERY_MIGRATION,
+  proveHistoricalResendFailureSuppressionRepair,
+  seedHistoricalResendFailureSuppressions,
+} from "../tools/database-full-chain/scenarios/email-suppression-recovery.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
@@ -116,6 +121,7 @@ test(
       let fixture;
       let historicalCaseRefundDamage;
       let historicalDisputeFirstEventGap;
+      let historicalResendFailureSuppressions;
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
@@ -172,6 +178,10 @@ test(
                 seller: fixture,
                 scenarioNamespace: "migration_chain",
               });
+          }
+          if (artifact.name === EMAIL_SUPPRESSION_RECOVERY_MIGRATION) {
+            historicalResendFailureSuppressions =
+              await seedHistoricalResendFailureSuppressions(adapter);
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -422,6 +432,10 @@ test(
         scenarioNamespace: "migration_chain",
       });
       await proveSupportRequestAuthorities({ database: adapter });
+      await proveHistoricalResendFailureSuppressionRepair({
+        database: adapter,
+        fixture: historicalResendFailureSuppressions,
+      });
     } finally {
       await client.end();
       rmSync(preparationEvidenceDirectory, { recursive: true, force: true });
