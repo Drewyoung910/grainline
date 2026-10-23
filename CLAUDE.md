@@ -213,6 +213,15 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 - Section headings: clean `.font-display` serif text only — no inline icons (icons were removed from "Fresh from the Workshop" and "Buyer Favorites" headings for cleaner appearance)
 - No emoji in headings or navigation
 
+### Toasts
+
+- Error toasts persist until the user dismisses them. Success and informational
+  toasts remain for six seconds, pause their remaining time while hovered or
+  keyboard-focused, and then resume.
+- Every toast has a native button labeled `Dismiss message` with a 44px minimum
+  target. Preserve `alert` semantics for errors, `status` for other messages,
+  and cleanup of all pending timers when the provider unmounts.
+
 ## Tech Stack
 
 - **Framework**: Next.js 16.4.2 (App Router), React 19.2.5, TypeScript

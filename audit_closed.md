@@ -19995,3 +19995,24 @@ TypeScript validation also pass. This is candidate source only. No Production
 migration, grant, RLS flag, deployment or row changed; compatible preparation,
 application deployment and policyless activation remain separate reviewed
 operations.
+
+### Entry 580 - Claude session C-837 accessible toast timing and dismissal
+
+Entry 580 independently verifies Claude session finding C-837 against current
+main. The finding was real. Every global toast, including account-deletion and
+upload errors, disappeared after three seconds. The shared provider offered no
+dismiss button and did not pause while a message was being read or operated.
+
+Error messages now persist until explicit dismissal. Success and informational
+messages remain for six seconds, pause with their exact remaining time while
+hovered or keyboard-focused, and resume when interaction leaves the toast.
+Every message has a native, labeled dismiss button with a 44px target. The
+existing polite live region plus per-message `alert`/`status` semantics remain
+in place. Provider-local IDs keep duplicate messages independently actionable,
+and dismissal and unmount both clear their exact pending timers.
+
+The behavioral component test executes the transpiled provider with controlled
+hooks, events and time. It failed against current main, then passed four cases:
+persistent errors and exact dismissal; timed success with hover pause/resume;
+external informational events with focus pause/resume; and duplicate-message
+identity plus manual/unmount timer cleanup.
