@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 export const EMAIL_SEND_MAX_ATTEMPTS = 3;
 export const EMAIL_SEND_RETRY_BASE_DELAY_MS = 500;
 export const EMAIL_SEND_RETRY_MAX_DELAY_MS = 5_000;
@@ -19,6 +21,15 @@ type RetryOptions = {
   maxAttempts?: number;
   sleep?: (delayMs: number) => Promise<void>;
   onRetry?: (error: unknown, attempt: number, delayMs: number) => void;
+};
+
+type EmailProviderSendResult<T> = {
+  data?: T | null;
+  error?: unknown | null;
+};
+
+type EmailProviderRetryOptions = RetryOptions & {
+  idempotencyKey?: string;
 };
 
 function readRecordValue(value: unknown, key: string): unknown {
@@ -70,7 +81,64 @@ export function isRetryableEmailSendError(error: unknown) {
   const code = readRecordValue(error, "code");
   if (typeof code === "string" && RETRYABLE_NODE_ERROR_CODES.has(code)) return true;
 
+  // Resend reports fetch/network failures as a returned application_error with
+  // no HTTP status instead of rejecting the promise.
+  const name = readRecordValue(error, "name");
+  if (status === null && name === "application_error") return true;
+
   return error instanceof TypeError;
+}
+
+export function requireEmailProviderSuccess<T extends { id?: unknown }>(
+  result: EmailProviderSendResult<T>,
+) {
+  if (result.error != null) {
+    if (result.error instanceof Error) throw result.error;
+
+    const message = readRecordValue(result.error, "message");
+    const providerError = new Error(
+      typeof message === "string" && message.trim()
+        ? message
+        : "Email provider rejected the send request",
+    );
+    const name = readRecordValue(result.error, "name");
+    const statusCode = readRecordValue(result.error, "statusCode");
+    const code = readRecordValue(result.error, "code");
+    if (typeof name === "string" && name) providerError.name = name;
+    if (typeof statusCode === "number" || typeof statusCode === "string") {
+      Object.assign(providerError, { statusCode });
+    }
+    if (typeof code === "string") Object.assign(providerError, { code });
+    throw providerError;
+  }
+
+  if (!result.data || typeof result.data.id !== "string" || !result.data.id.trim()) {
+    throw new TypeError("Email provider returned success without a message id");
+  }
+
+  return result.data;
+}
+
+export async function sendEmailProviderRequestWithRetry<T extends { id?: unknown }>(
+  operation: (
+    idempotencyKey: string,
+    attempt: number,
+  ) => Promise<EmailProviderSendResult<T>>,
+  options: EmailProviderRetryOptions = {},
+) {
+  // Resolve this once per logical send. Every in-process provider retry must
+  // use the same key so an accepted request with a lost response cannot send a
+  // second message.
+  const idempotencyKey = options.idempotencyKey?.trim() || `grainline-email-${randomUUID()}`;
+
+  return sendEmailWithRetry(
+    async (attempt) => requireEmailProviderSuccess(await operation(idempotencyKey, attempt)),
+    {
+      maxAttempts: options.maxAttempts,
+      sleep: options.sleep,
+      onRetry: options.onRetry,
+    },
+  );
 }
 
 export async function sendEmailWithRetry<T>(

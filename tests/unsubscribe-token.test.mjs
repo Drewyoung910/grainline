@@ -21,13 +21,17 @@ describe("unsubscribe token lifecycle", () => {
   });
 
   it("builds a tokenized one-click unsubscribe URL", () => {
-    const url = new URL(buildUnsubscribeUrl("Drew@Example.COM") ?? "");
+    const issuedAt = 1_800_000_000_000;
+    const first = buildUnsubscribeUrl("Drew@Example.COM", issuedAt);
+    const url = new URL(first ?? "");
 
     assert.equal(url.origin, "https://example.test");
     assert.equal(url.pathname, "/api/email/unsubscribe");
     assert.equal(url.searchParams.get("email"), "drew@example.com");
-    assert.match(url.searchParams.get("issuedAt") ?? "", /^\d+$/);
+    assert.equal(url.searchParams.get("issuedAt"), String(issuedAt));
     assert.match(url.searchParams.get("token") ?? "", /^[a-f0-9]{64}$/);
+    assert.equal(buildUnsubscribeUrl("drew@example.com", issuedAt), first);
+    assert.equal(buildUnsubscribeUrl("drew@example.com", Number.NaN), null);
   });
 
   it("verifies the original address and rejects address/token tampering", () => {

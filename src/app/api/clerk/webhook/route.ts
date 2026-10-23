@@ -13,6 +13,7 @@ import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
 import {
+  deliverClerkWelcomeEmails,
   shouldReserveClerkWelcomeEmail,
 } from "@/lib/clerkWebhookEmail";
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
@@ -281,31 +282,41 @@ export async function POST(req: Request) {
           })
         : null;
 
-      try {
-        await sendRenderedEmail(buyerWelcomeEmail, { throwOnFailure: true });
-        if (sellerWelcomeEmail) {
-          await sendRenderedEmail(sellerWelcomeEmail, { throwOnFailure: true });
-        }
-      } catch (error) {
-        Sentry.captureException(error, {
-          tags: { source: "clerk_webhook_welcome_email" },
-          extra: { svixId, clerkId: id, userId: user.id },
-        });
-        await enqueueWelcomeFallbackEmail(buyerWelcomeEmail, `welcome-buyer:${user.id}`, user.id).catch((enqueueError) => {
+      await deliverClerkWelcomeEmails({
+        deliveries: [
+          {
+            kind: "buyer",
+            email: buyerWelcomeEmail,
+            dedupKey: `welcome-buyer:${user.id}`,
+          },
+          ...(sellerWelcomeEmail
+            ? [{
+                kind: "seller" as const,
+                email: sellerWelcomeEmail,
+                dedupKey: `welcome-seller:${user.id}`,
+              }]
+            : []),
+        ],
+        send: ({ email: renderedEmail, dedupKey }) =>
+          sendRenderedEmail(renderedEmail, {
+            throwOnFailure: true,
+            idempotencyKey: dedupKey,
+          }),
+        enqueue: ({ email: renderedEmail, dedupKey }) =>
+          enqueueWelcomeFallbackEmail(renderedEmail, dedupKey, user.id),
+        onSendError: (error, delivery) => {
+          Sentry.captureException(error, {
+            tags: { source: "clerk_webhook_welcome_email" },
+            extra: { svixId, clerkId: id, userId: user.id, kind: delivery.kind },
+          });
+        },
+        onEnqueueError: (enqueueError, delivery) => {
           Sentry.captureException(enqueueError, {
             tags: { source: "clerk_webhook_welcome_email_outbox" },
-            extra: { svixId, clerkId: id, userId: user.id, kind: "buyer" },
+            extra: { svixId, clerkId: id, userId: user.id, kind: delivery.kind },
           });
-        });
-        if (sellerWelcomeEmail) {
-          await enqueueWelcomeFallbackEmail(sellerWelcomeEmail, `welcome-seller:${user.id}`, user.id).catch((enqueueError) => {
-            Sentry.captureException(enqueueError, {
-              tags: { source: "clerk_webhook_welcome_email_outbox" },
-              extra: { svixId, clerkId: id, userId: user.id, kind: "seller" },
-            });
-          });
-        }
-      }
+        },
+      });
     }
 
     await markClerkWebhookProcessed(svixId, claimGeneration);

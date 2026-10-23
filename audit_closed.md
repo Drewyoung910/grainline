@@ -19995,3 +19995,22 @@ TypeScript validation also pass. This is candidate source only. No Production
 migration, grant, RLS flag, deployment or row changed; compatible preparation,
 application deployment and policyless activation remain separate reviewed
 operations.
+
+## 2026-10-23 C-351 email provider result and retry regression
+
+- **C-351 — verified again on exact main and corrected.** Exact main
+  `cdcb7673e59855bf07232e3c212b30bd5db47ef7` awaited
+  `resend.emails.send()` through a helper that recognized only thrown errors.
+  Resend can instead resolve with `{ data: null, error: ... }`; the central
+  sender then treated that response as success, and an outbox caller could mark
+  the message `SENT`. Direct retry attempts without a caller-supplied key also
+  lacked a stable provider idempotency key, and the Clerk welcome fallback
+  queued both welcome emails when only the second send failed.
+- The correction validates every returned provider envelope, requires a
+  non-empty provider message ID, reuses one idempotency key across all retries,
+  derives queued unsubscribe tokens from the immutable outbox creation time,
+  and queues only the failed welcome email. Current optional-versus-required
+  unsubscribe behavior remains intact. A behavior probe on exact main returned
+  the provider error envelope as a successful result; the corrected retry,
+  Clerk delivery, unsubscribe-token and delivery-guardrail suites pass 35/35,
+  and TypeScript plus scoped lint pass.

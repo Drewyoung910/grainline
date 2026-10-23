@@ -344,6 +344,7 @@ async function processEmailOutboxJob(
         preferenceKey: isValidEmailPreferenceKey(job.preferenceKey)
           ? job.preferenceKey
           : undefined,
+        unsubscribeIssuedAt: job.createdAt,
       },
     );
     await prisma.emailOutbox.update({

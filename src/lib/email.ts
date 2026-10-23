@@ -9,7 +9,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeUserText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
-import { sendEmailWithRetry } from "@/lib/emailRetry";
+import { sendEmailProviderRequestWithRetry } from "@/lib/emailRetry";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderTotalCents } from "@/lib/orderTotals";
@@ -232,6 +232,7 @@ type EmailSendOptions = {
   throwOnFailure?: boolean;
   idempotencyKey?: string;
   preferenceKey?: EmailNotificationPreferenceKey;
+  unsubscribeIssuedAt?: Date;
 };
 
 async function findInactiveEmailAccount(recipient: string, subject: string) {
@@ -273,7 +274,10 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
   const emailHash = hashEmailForTelemetry(recipient);
 
   const unsubscribeUrl = isOptionalEmailPreferenceKey(opts.preferenceKey)
-    ? buildUnsubscribeUrl(recipient)
+    ? buildUnsubscribeUrl(
+        recipient,
+        opts.unsubscribeIssuedAt?.getTime() ?? Date.now(),
+      )
     : null;
   const htmlForRecipient = injectEmailPreferenceLink(html, unsubscribeUrl);
   if (!HAS_RESEND) {
@@ -304,8 +308,8 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
       return;
     }
 
-    await sendEmailWithRetry(
-      () =>
+    await sendEmailProviderRequestWithRetry(
+      (idempotencyKey) =>
         resend!.emails.send(
           {
             from: EMAIL_FROM,
@@ -321,9 +325,10 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
                 }
               : undefined,
           },
-          opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey } : undefined,
+          { idempotencyKey },
         ),
       {
+        idempotencyKey: opts.idempotencyKey,
         onRetry: (err, attempt, delayMs) => {
           Sentry.captureException(sanitizedEmailSentryError(err), {
             level: "warning",
