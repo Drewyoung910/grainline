@@ -111,6 +111,16 @@ response and is cleared on first successful result recording.
 2. **Malformed JSON object handling:** the shared normalizer now rejects `null`,
    arrays and primitives as ordinary validation failures before reading fields.
    Both public intake routes use that boundary.
+3. **C-1150: historical email reuse crossed the requester boundary after the
+   authority conversion.** The first fixed owner-export and deletion operations
+   matched every `UserEmailAddress` row, including an address now held by a
+   different active account and its Gmail-canonical equivalents. The correction
+   keeps stable `SupportRequest.userId` ownership authoritative, permits email
+   fallback only for unlinked requests, and derives that fallback through the
+   existing conflict-filtered user-email authority. The full-chain PostgreSQL
+   scenario covers export and deletion for exact reuse, Gmail canonical reuse,
+   linked and anonymous conflicting requests, active versus deleted conflicting
+   owners, and a nonconflicting historical address.
 
 ### DEFERRED_PRODUCT_WORK
 
@@ -122,20 +132,22 @@ response and is cleared on first successful result recording.
    show it to requesters. Changing that promise requires a product/support SLA
    decision. The fixed operation preserves the stored deadline contract until
    that decision lands.
-3. Email-history fallback may associate an anonymous request that used somebody
-   else's address with that person's export/deletion. This is an accepted
-   tradeoff for unauthenticated privacy intake and remains documented rather
-   than silently changed by RLS.
+3. Email-history fallback may associate an anonymous request with an account
+   when the submitted address remains in that account's history and no other
+   active user currently holds the exact address or Gmail-canonical equivalent.
+   This is the bounded tradeoff for unauthenticated privacy intake. A request
+   linked to another account by stable `userId` never enters email fallback.
 
 There are no `BLOCKS_RLS_DESIGN` findings after selecting Option B.
 
 ## Acceptance and rollback
 
-The PostgreSQL 16 proof rebuilt and applied all 425 migrations, then passed the
+The PostgreSQL 16 proof rebuilt and applied all 427 migrations, then passed the
 policyless ENABLE scenarios for: anonymous/signed-in submission, forged actor denial,
 one-use email-result capability, non-owner export denial, staff/PIN boundaries,
 terminal staff transitions, atomic audit metadata, multi-batch
-deletion redaction, unrelated-row preservation, deferred-request convergence,
+deletion redaction, exact and Gmail-canonical email-reuse isolation,
+unrelated-row preservation, deferred-request convergence,
 overdue aggregation, and two-year retention.
 
 The focused application suite passes 78 checks, TypeScript passes, and a source
