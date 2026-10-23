@@ -2899,6 +2899,25 @@ describe("database grant inventory guardrails", () => {
     ) && source(listingHideDeleteMigrationPath).includes(
       "CREATE FUNCTION public.grainline_listing_delete_reference_state(",
     );
+    const supportRequestAuthorityMigrationPath =
+      "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql";
+    const supportRequestAuthorityFunctionNames = [
+      "grainline_support_request_submit",
+      "grainline_support_request_delivery_record",
+      "grainline_support_request_owner_export",
+      "grainline_support_request_staff_state",
+      "grainline_support_request_staff_transition",
+      "grainline_support_request_account_deletion_redact_batch",
+      "grainline_support_request_provider_deletion_upsert",
+      "grainline_support_request_overdue_count",
+      "grainline_support_request_retention_delete_batch",
+    ];
+    const supportRequestAuthorityPrepared = existsSync(
+      supportRequestAuthorityMigrationPath,
+    ) && supportRequestAuthorityFunctionNames.every((functionName) =>
+      source(supportRequestAuthorityMigrationPath).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const sellerProfilePrivatePreparationMigrationPath =
       "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
     const sellerProfilePrivatePreparationMigrationPresent = existsSync(
@@ -3126,6 +3145,9 @@ describe("database grant inventory guardrails", () => {
       ...(listingHideDeleteMigrationPresent
         ? ["grainline_listing_delete_reference_state"]
         : []),
+      ...(supportRequestAuthorityPrepared
+        ? supportRequestAuthorityFunctionNames
+        : []),
       ...(clerkWebhookAuthorityPrepared
         ? clerkWebhookAuthorityFunctionNames
         : []),
@@ -3187,6 +3209,9 @@ describe("database grant inventory guardrails", () => {
         + (accountDeletionClaimFencePrepared ? 13 : 0)
         + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
         + (listingHideDeleteMigrationPresent ? 1 : 0)
+        + (supportRequestAuthorityPrepared
+          ? supportRequestAuthorityFunctionNames.length
+          : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)

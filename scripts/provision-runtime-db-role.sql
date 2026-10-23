@@ -1759,6 +1759,68 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- SupportRequest compatible authorities are optional until their additive
+-- migration lands. When present, converge only the reviewed service functions
+-- without changing predecessor table CRUD or RLS posture.
+WITH support_request_service(function_signature) AS (
+  VALUES
+    ('public."grainline_support_request_submit"(text, text, text, text, text, text, text)'),
+    ('public."grainline_support_request_delivery_record"(text, uuid, boolean, text)'),
+    ('public."grainline_support_request_owner_export"()'),
+    ('public."grainline_support_request_staff_state"(integer, integer, integer)'),
+    ('public."grainline_support_request_staff_transition"(text, text, text)'),
+    ('public."grainline_support_request_account_deletion_redact_batch"(text[], text[])'),
+    ('public."grainline_support_request_provider_deletion_upsert"(text)'),
+    ('public."grainline_support_request_overdue_count"()'),
+    ('public."grainline_support_request_retention_delete_batch"(integer)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM support_request_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH support_request_service(function_signature) AS (
+  VALUES
+    ('public."grainline_support_request_submit"(text, text, text, text, text, text, text)'),
+    ('public."grainline_support_request_delivery_record"(text, uuid, boolean, text)'),
+    ('public."grainline_support_request_owner_export"()'),
+    ('public."grainline_support_request_staff_state"(integer, integer, integer)'),
+    ('public."grainline_support_request_staff_transition"(text, text, text)'),
+    ('public."grainline_support_request_account_deletion_redact_batch"(text[], text[])'),
+    ('public."grainline_support_request_provider_deletion_upsert"(text)'),
+    ('public."grainline_support_request_overdue_count"()'),
+    ('public."grainline_support_request_retention_delete_batch"(integer)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM support_request_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH support_request_service(function_signature) AS (
+  VALUES
+    ('public."grainline_support_request_submit"(text, text, text, text, text, text, text)'),
+    ('public."grainline_support_request_delivery_record"(text, uuid, boolean, text)'),
+    ('public."grainline_support_request_owner_export"()'),
+    ('public."grainline_support_request_staff_state"(integer, integer, integer)'),
+    ('public."grainline_support_request_staff_transition"(text, text, text)'),
+    ('public."grainline_support_request_account_deletion_redact_batch"(text[], text[])'),
+    ('public."grainline_support_request_provider_deletion_upsert"(text)'),
+    ('public."grainline_support_request_overdue_count"()'),
+    ('public."grainline_support_request_retention_delete_batch"(integer)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM support_request_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- SellerPayoutEvent compatible authority is optional until its additive
 -- migration lands. When present, converge only the three reviewed service
 -- functions without changing predecessor table CRUD or RLS posture.

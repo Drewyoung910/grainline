@@ -32,7 +32,6 @@ describe("admin audit durability", () => {
     for (const path of [
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
-      "src/app/admin/support/actions.ts",
       "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/reports/[id]/resolve/route.ts",
       "src/app/api/admin/reviews/[id]/route.ts",
@@ -45,6 +44,18 @@ describe("admin audit durability", () => {
         `${path} must audit inside the mutation transaction`,
       );
     }
+
+    const supportActions = source("src/app/admin/support/actions.ts");
+    const supportTransition = source(
+      "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql",
+    );
+    assert.match(supportActions, /transitionSupportRequest\(\{/);
+    assert.match(
+      supportTransition,
+      /UPDATE public\."SupportRequest"[\s\S]*INSERT INTO public\."AdminAuditLog"/,
+      "support status transitions must co-commit their mutation and audit witness",
+    );
+    assert.match(supportTransition, /BEGIN;[\s\S]*COMMIT;/);
 
     const listingReview = source("src/app/api/admin/listings/[id]/review/route.ts");
     const listingReviewTransition = source(

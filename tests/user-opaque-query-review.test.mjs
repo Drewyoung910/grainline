@@ -35,17 +35,17 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   const reviewedFactories = report.opaqueShapes.filter((shape) => REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
   const reviewedResidual = report.opaqueShapes.filter((shape) => !REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
 
-  assert.equal(report.opaqueShapes.length, 143);
+  assert.equal(report.opaqueShapes.length, 140);
   assert.equal(reviewedFactories.length, 107);
-  assert.equal(reviewedResidual.length, 36);
+  assert.equal(reviewedResidual.length, 33);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
     unique: 87,
     sha256: "775b18e232e0934df642616b814ce99ac02a1802d0629ae8daf26fc587c45156",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 30,
-    sha256: "da175b47d652166d69ea946d3e87487c495dcbf9a6f9228786873b9c20ef8d39",
+    unique: 27,
+    sha256: "38ed9c1a3cb5d1cdc2db9b3c4b917256cc5c4a7001099a141c95aa7e052226a4",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,
