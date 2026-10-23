@@ -505,7 +505,11 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
     assert.match(route, /processingStartedAt: null/);
     assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
-    assert.match(route, /resendRecipientAction\(event\.type\)/);
+    assert.match(route, /resendRecipientAction\(\s*event\.type,/);
+    assert.match(
+      route,
+      /event\.type === "email\.bounced" \? event\.data\.bounce\.type : undefined/,
+    );
     assert.match(route, /source: "resend_webhook_provider_failure"/);
     assert.match(state, /type === "email\.failed"/);
     assert.match(state, /OBSERVE_PROVIDER_FAILURE/);

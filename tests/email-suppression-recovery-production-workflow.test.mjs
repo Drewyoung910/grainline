@@ -15,6 +15,10 @@ const workflow = readFileSync(
   ".github/workflows/email-suppression-recovery-production.yml",
   "utf8",
 );
+const migrationSql = readFileSync(
+  "prisma/migrations/20261023040000_repair_resend_failed_event_suppressions/migration.sql",
+  "utf8",
+);
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
 const bindingScript = parsed.jobs.apply.steps.find(
@@ -91,6 +95,16 @@ test("C-715 production release is exact-main, exact-deployment, and Production b
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.equal(parsed.jobs.apply.environment, "Production");
   assert.match(workflow, /apply-reviewed-email-suppression-recovery/u);
+  assert.match(
+    workflow,
+    /uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\s+# v7\.0\.1/u,
+    "the Production workflow must pin checkout to the reviewed v7.0.1 commit",
+  );
+  assert.match(
+    workflow,
+    /uses: actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020\s+# v7\.0\.0/u,
+    "the Production workflow must pin setup-node to the reviewed v7.0.0 commit",
+  );
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(
     workflow,
@@ -107,7 +121,7 @@ test("C-715 production release admits one exact restart-safe migration", () => {
   assert.equal(MIGRATION, "20261023040000_repair_resend_failed_event_suppressions");
   assert.equal(
     MIGRATION_SHA256,
-    "cf61924b1d3bb6f944432b584b39990aee344e25e867a9f06046c4421c521dca",
+    "9c49d44b84900ac24afb744ab1fac24421a92616a90e747c7a1b608fc386bfe9",
   );
   assert.match(workflow, new RegExp(MIGRATION_SHA256, "u"));
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
@@ -116,6 +130,21 @@ test("C-715 production release admits one exact restart-safe migration", () => {
   assert.match(workflow, /email-suppression-recovery-production-inspect\.mjs postflight/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   assert.doesNotMatch(workflow, /resend\s+(?:emails|webhooks|domains)/iu);
+});
+
+test("C-715 repair is atomic, serialized, and self-verifying", () => {
+  assert.match(migrationSql, /^BEGIN;/mu);
+  assert.match(migrationSql, /SET LOCAL lock_timeout = '10s'/u);
+  assert.match(migrationSql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.match(migrationSql, /pg_advisory_xact_lock/u);
+  assert.match(
+    migrationSql,
+    /LOCK TABLE[\s\S]*public\."EmailSuppression"[\s\S]*public\."EmailFailureCount"[\s\S]*IN SHARE ROW EXCLUSIVE MODE/u,
+  );
+  assert.match(migrationSql, /email_suppression_recovery_preflight/u);
+  assert.match(migrationSql, /email_suppression_recovery_postflight/u);
+  assert.match(migrationSql, /COMMIT;\s*$/u);
+  assert.doesNotMatch(migrationSql, /DROP TABLE/u);
 });
 
 test("C-715 CI proves then isolates the correction from historical release guards", () => {

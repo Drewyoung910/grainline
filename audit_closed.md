@@ -20021,7 +20021,9 @@ operations.
   correction prepared, not yet live.** The predecessor counted signed Resend
   `email.failed` events as recipient failures and converted five into a durable
   BOUNCE suppression. The candidate classifies delivery events by provider
-  meaning, suppresses only terminal bounce/complaint events, makes historical
+  meaning, suppresses only permanent bounce/complaint/provider-suppressed
+  delivery, keeps transient and undetermined bounces observational, makes
+  historical
   `source = 'resend_transient_failure'` rows inert at lookup time, and adds a
   bounded data-repair migration that removes those invalid rows and the now
   obsolete failure counters. A failing-first behavior test and PostgreSQL 16

@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import {
   RESEND_RECIPIENT_ACTION,
   resendRecipientAction,
+  resendSuppressionReason,
+  resendSuppressionSource,
 } from "../src/lib/resendWebhookEventState.ts";
 
 describe("Resend recipient failure classification", () => {
@@ -21,18 +23,50 @@ describe("Resend recipient failure classification", () => {
     );
   });
 
-  it("suppresses permanent bounce and complaint outcomes", () => {
+  it("suppresses only permanent bounce outcomes", () => {
     assert.equal(
-      resendRecipientAction("email.bounced"),
+      resendRecipientAction("email.bounced", "Permanent"),
       RESEND_RECIPIENT_ACTION.SUPPRESS_BOUNCE,
     );
     assert.equal(
-      resendRecipientAction("email.complained"),
+      resendRecipientAction("email.bounced", "Transient"),
+      RESEND_RECIPIENT_ACTION.OBSERVE_DELIVERY_DELAY,
+    );
+    assert.equal(
+      resendRecipientAction("email.bounced", "Undetermined"),
+      RESEND_RECIPIENT_ACTION.OBSERVE_PROVIDER_FAILURE,
+    );
+    assert.equal(
+      resendRecipientAction("email.bounced"),
+      RESEND_RECIPIENT_ACTION.OBSERVE_PROVIDER_FAILURE,
+    );
+  });
+
+  it("keeps complaints distinct from provider-suppressed delivery", () => {
+    const complaintAction = resendRecipientAction("email.complained");
+    const providerSuppressedAction = resendRecipientAction("email.suppressed");
+    assert.equal(
+      complaintAction,
       RESEND_RECIPIENT_ACTION.SUPPRESS_COMPLAINT,
     );
     assert.equal(
-      resendRecipientAction("email.suppressed"),
-      RESEND_RECIPIENT_ACTION.SUPPRESS_COMPLAINT,
+      providerSuppressedAction,
+      RESEND_RECIPIENT_ACTION.SUPPRESS_PROVIDER,
+    );
+    assert.equal(resendSuppressionReason(complaintAction), "COMPLAINT");
+    assert.equal(resendSuppressionReason(providerSuppressedAction), "BOUNCE");
+    assert.equal(resendSuppressionSource(complaintAction), "resend");
+    assert.equal(
+      resendSuppressionSource(providerSuppressedAction),
+      "resend_provider_suppressed",
+    );
+    assert.equal(
+      resendSuppressionReason(RESEND_RECIPIENT_ACTION.OBSERVE_PROVIDER_FAILURE),
+      null,
+    );
+    assert.equal(
+      resendSuppressionSource(RESEND_RECIPIENT_ACTION.OBSERVE_PROVIDER_FAILURE),
+      null,
     );
   });
 

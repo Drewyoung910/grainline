@@ -13,6 +13,8 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
   RESEND_RECIPIENT_ACTION,
   resendRecipientAction,
+  resendSuppressionReason,
+  resendSuppressionSource,
 } from "@/lib/resendWebhookEventState";
 
 export const runtime = "nodejs";
@@ -243,23 +245,25 @@ export async function POST(request: Request) {
   }
 
   try {
-    const action = resendRecipientAction(event.type);
+    const action = resendRecipientAction(
+      event.type,
+      event.type === "email.bounced" ? event.data.bounce.type : undefined,
+    );
     const emails = emailsFromEvent(event);
     const safeDetails = safeResendWebhookDetails(event, id, emails);
+    const suppressionReason = resendSuppressionReason(action);
+    const suppressionSource = resendSuppressionSource(action);
 
-    if (
-      action === RESEND_RECIPIENT_ACTION.SUPPRESS_BOUNCE
-      || action === RESEND_RECIPIENT_ACTION.SUPPRESS_COMPLAINT
-    ) {
-      const reason = action === RESEND_RECIPIENT_ACTION.SUPPRESS_BOUNCE
-        ? EmailSuppressionReason.BOUNCE
-        : EmailSuppressionReason.COMPLAINT;
+    if (suppressionReason && suppressionSource) {
+      const reason = suppressionReason === "COMPLAINT"
+        ? EmailSuppressionReason.COMPLAINT
+        : EmailSuppressionReason.BOUNCE;
       await requireWebhookTasks(
         emails.map((email) =>
           suppressEmail({
             email,
             reason,
-            source: "resend",
+            source: suppressionSource,
             eventId: id,
             details: safeDetails,
           }),

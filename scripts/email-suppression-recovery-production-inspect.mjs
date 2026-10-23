@@ -21,7 +21,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MIGRATION =
   "20261023040000_repair_resend_failed_event_suppressions";
 export const MIGRATION_SHA256 =
-  "cf61924b1d3bb6f944432b584b39990aee344e25e867a9f06046c4421c521dca";
+  "9c49d44b84900ac24afb744ab1fac24421a92616a90e747c7a1b608fc386bfe9";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");

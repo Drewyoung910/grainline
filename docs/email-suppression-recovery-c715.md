@@ -20,13 +20,18 @@ optional email.
 
 That classification was invalid. Resend uses `email.failed` for send failures
 that can include provider configuration, API-key, quota, message and recipient
-problems. Temporary delivery is represented by `email.delivery_delayed`, while
-terminal rejection is represented by `email.bounced`.
+problems. Temporary delivery is represented by `email.delivery_delayed` or a
+`Transient` bounce, while a `Permanent` bounce is durable recipient evidence.
 
 The candidate:
 
 - classifies signed events in `resendRecipientAction()`;
-- suppresses only terminal bounce, complaint and provider-suppressed events;
+- suppresses only permanent bounce, complaint and provider-suppressed events;
+- treats transient and undetermined bounces as observability events instead of
+  durable address evidence;
+- records provider-suppressed delivery as a delivery block rather than falsely
+  labeling it as a recipient spam complaint, and preserves that origin in the
+  row's `resend_provider_suppressed` source;
 - records `email.failed` through privacy-safe observability without suppressing
   a recipient;
 - excludes every predecessor `resend_transient_failure` row from suppression
@@ -35,9 +40,13 @@ The candidate:
   `20261023040000_repair_resend_failed_event_suppressions`, which removes only
   those invalid BOUNCE rows and the obsolete `EmailFailureCount` rows.
 
-The route was the only writer of `EmailFailureCount`. Real provider BOUNCE and
-COMPLAINT suppressions, manual suppressions and account-deletion suppressions
-are retained.
+The route was the only writer of `EmailFailureCount`. The table remains for one
+compatibility window because account export, account deletion and rollback to
+the predecessor application still reference it. The repair empties it; a later
+no-consumer migration can remove the model, export field, deletion call, grant
+and table together. Dropping it in this recovery would break those paths.
+Real provider BOUNCE and COMPLAINT suppressions, manual suppressions and
+account-deletion suppressions are retained.
 
 ## Refuted half of C-715
 
@@ -49,19 +58,22 @@ the current replay contract.
 
 ## Evidence
 
-- A failing-first behavior test could not import the new classifier on the
-  predecessor.
+- Failing-first behavior tests reject durable suppression for transient or
+  undetermined bounces, reject complaint classification for
+  `email.suppressed`, and require an atomic locked repair migration.
 - A PostgreSQL 16 full-chain run seeded the predecessor damage before the
   candidate migration and failed without the repair.
-- The completed full-chain run applied all 425 migrations and proved that the
+- The completed full-chain run applied all 427 migrations and proved that the
   invalid suppression and counters were removed while a real hard bounce and a
   real complaint remained.
-- The focused behavior and observability suite passes 37 tests.
+- The focused behavior and observability suite passes 44 tests.
 - The protected Production workflow requires exact main, exact successful push
   workflows, the exact candidate checksum, and an exact live deployment of the
   corrected app before owner access. Its read-only preflight records aggregate
   counts only, requires this migration to be the sole pending migration, and
-  reads back zero invalid suppressions and counters after apply.
+  reads back zero invalid suppressions and counters after apply. The migration
+  repeats the owner/source checks while holding table and advisory locks inside
+  one explicit transaction, then performs its own postflight before commit.
 
 ## Release order
 
