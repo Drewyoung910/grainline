@@ -20014,3 +20014,26 @@ operations.
   the provider error envelope as a successful result; the corrected retry,
   Clerk delivery, unsubscribe-token and delivery-guardrail suites pass 35/35,
   and TypeScript plus scoped lint pass.
+
+## 2026-10-23 C-715 email suppression recovery candidate
+
+- **C-715(a), permanent suppression after provider send failures — verified;
+  correction prepared, not yet live.** The predecessor counted signed Resend
+  `email.failed` events as recipient failures and converted five into a durable
+  BOUNCE suppression. The candidate classifies delivery events by provider
+  meaning, suppresses only permanent bounce/complaint/provider-suppressed
+  delivery, keeps transient and undetermined bounces observational, makes
+  generic provider suppression preserve stronger direct complaint/bounce
+  evidence, keeps partial-recipient failures replayable,
+  historical
+  `source = 'resend_transient_failure'` rows inert at lookup time, and adds a
+  bounded data-repair migration that removes those invalid rows and the now
+  obsolete failure counters. Failing-first behavior tests and a PostgreSQL 16
+  full-chain repair/deadlock scenario cover the change. SupportRequest ENABLE
+  and C-875 are live; the C-715 candidate remains an unreleased draft.
+- **C-715(b), failed Resend webhook receipts should be pruned — refuted as a
+  fix.** Failed/unprocessed receipts are deliberate replay and ops-health
+  evidence. They remain retained so a provider replay or bounded reclaim can
+  finish the original delivery; pruning them would hide incomplete work.
+- Detailed scope, evidence and release order:
+  `docs/email-suppression-recovery-c715.md`.

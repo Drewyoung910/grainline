@@ -149,7 +149,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
   }
   if (targetOpaqueShapes.length !== 0
       || reviewedNonTargetFactoryCalls.length !== 116
-      || reviewedNonTargetResiduals.length !== 24) {
+      // C-715 adds three typed EmailSuppression client adapters. They are
+      // non-target calls whose exact source frontier is also pinned by the
+      // User opaque-query digest test.
+      || reviewedNonTargetResiduals.length !== 27) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

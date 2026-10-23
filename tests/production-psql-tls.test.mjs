@@ -38,6 +38,7 @@ describe("protected production psql TLS roots", () => {
     assert.deepEqual(reviewedSteps, [
       "direct-upload-activation-production-recovery.yml:Converge activated runtime and cleanup grants",
       "direct-upload-cleanup-role-provision.yml:Converge cleanup role to three-function authority",
+      "email-suppression-recovery-production.yml:Apply reviewed recovery transaction outside Prisma's ledger",
       "order-case-corrections-production.yml:Converge reviewed runtime function grants",
       "order-compatible-production.yml:Converge compatible runtime grants",
       "order-payment-event-aggregate-authority-production.yml:Converge reviewed runtime grants",

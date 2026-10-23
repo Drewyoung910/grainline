@@ -89,6 +89,8 @@ jobs:
           node --test
           tests/test-runner-resource-boundary.test.mjs
           tests/dependency-hygiene.test.mjs
+      - name: Generate Prisma client for full-chain behavior proof
+        run: npx prisma generate
       - name: Prove full migration chain on PostgreSQL 16
         env:
           DATABASE_FULL_CHAIN_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
@@ -122,6 +124,20 @@ jobs:
           mkdir "$holding"
           mv "prisma/migrations/$migration" "$holding/$migration"
           echo "USER_UNSUBSCRIBE_OPTIONAL_PREFERENCES_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
+      - name: Verify C-715 email suppression recovery source package
+        run: >-
+          node --test
+          tests/email-suppression-recovery-production-workflow.test.mjs
+          tests/resend-delivery-failure-classification.test.mjs
+      - name: Isolate C-715 email suppression recovery until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-suppression-recovery"
+          migration=20261023040000_repair_resend_failed_event_suppressions
+          mkdir "$holding"
+          mv "prisma/migrations/$migration" "$holding/$migration"
+          echo "EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify SupportRequest preparation and ENABLE source package
         run: >-
           node --test --test-concurrency=1
@@ -6683,6 +6699,15 @@ jobs:
           mv "$holding/$migration" "prisma/migrations/$migration"
           rmdir "$holding"
           echo "USER_UNSUBSCRIBE_OPTIONAL_PREFERENCES_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore C-715 email suppression recovery after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-suppression-recovery"
+          migration=20261023040000_repair_resend_failed_event_suppressions
+          mv "$holding/$migration" "prisma/migrations/$migration"
+          rmdir "$holding"
+          echo "EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete SellerProfile chain, including policyless FORCE.
       - name: Apply complete public SellerProfile chain for final Production build

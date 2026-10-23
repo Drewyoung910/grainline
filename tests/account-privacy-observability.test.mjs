@@ -495,29 +495,28 @@ describe("account and privacy route observability guardrails", () => {
     );
   });
 
-  it("preserves Resend webhook error evidence even when marking the event failed errors", () => {
+  it("preserves Resend webhook error evidence without suppressing recipients for provider failures", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
+    const state = source("src/lib/resendWebhookEventState.ts");
+    const suppression = source("src/lib/emailSuppression.ts");
     const launch = source("docs/launch-checklist.md");
 
     assert.match(route, /markWebhookFailed\(id, err\)\.catch/);
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
     assert.match(route, /processingStartedAt: null/);
     assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
-    assert.match(route, /const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 5/);
-    assert.match(route, /return type === "email\.failed"/);
-    assert.match(route, /normalizeEmailSuppressionAddress\(email\)/);
-    assert.match(route, /INSERT INTO "EmailFailureCount"/);
-    assert.match(route, /ON CONFLICT \(email\) DO UPDATE SET/);
+    assert.match(route, /resendRecipientAction\(\s*event\.type,/);
     assert.match(
       route,
-      /"EmailFailureCount"\."firstFailedAt" < \$\{windowStart\}/,
+      /event\.type === "email\.bounced" \? event\.data\.bounce\.type : undefined/,
     );
-    assert.match(
-      route,
-      /WHEN "EmailFailureCount"\."lastEventId" = \$\{eventId\} THEN "EmailFailureCount"\.count/,
-    );
-    assert.doesNotMatch(route, /emailFailureCount\.findUnique/);
-    assert.doesNotMatch(route, /email\.delivery_delayed/);
+    assert.match(route, /source: "resend_webhook_provider_failure"/);
+    assert.match(state, /type === "email\.failed"/);
+    assert.match(state, /OBSERVE_PROVIDER_FAILURE/);
+    assert.match(state, /type === "email\.delivery_delayed"/);
+    assert.doesNotMatch(route, /INSERT INTO "EmailFailureCount"/);
+    assert.doesNotMatch(route, /resend_transient_failure/);
+    assert.match(suppression, /"source" IS DISTINCT FROM 'resend_transient_failure'/);
     assert.match(launch, /Delivery-delayed provider events may be monitored in the Resend dashboard/);
     assert.match(launch, /app intentionally ignores them for durable suppression/);
     assert.doesNotMatch(
@@ -566,13 +565,14 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(userDeletedBlock, /await markClerkWebhookProcessed\(svixId\);\s*return NextResponse\.json\(\s*\{ ok: true \}\s*\);[\s\S]*inProgress/);
   });
 
-  it("captures each Resend recipient task failure before retrying the webhook", () => {
+  it("captures each Resend suppression task failure before retrying the webhook", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
+    const state = source("src/lib/resendWebhookEventState.ts");
 
-    assert.match(route, /Promise\.allSettled\(tasks\)/);
+    assert.match(state, /Promise\.allSettled\(tasks\)/);
     assert.match(route, /"resend_webhook_suppress_email"/);
-    assert.match(route, /"resend_webhook_transient_failure"/);
-    assert.match(route, /recipientIndex: index/);
+    assert.doesNotMatch(route, /"resend_webhook_transient_failure"/);
+    assert.match(route, /recipientIndex/);
     assert.doesNotMatch(route, /await Promise\.all\(\s*emails\.map/s);
   });
 });

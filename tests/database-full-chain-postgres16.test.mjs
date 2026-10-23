@@ -76,6 +76,12 @@ import { proveSellerProfileServiceIdentities } from "../tools/database-full-chai
 import { proveSellerProfileRetainedAuthorityGaps } from "../tools/database-full-chain/scenarios/seller-profile-retained-authority-gaps.mjs";
 import { proveSellerProfilePolicylessEnable } from "../tools/database-full-chain/scenarios/seller-profile-enable.mjs";
 import { proveSupportRequestAuthorities } from "../tools/database-full-chain/scenarios/support-request-authorities.mjs";
+import {
+  EMAIL_SUPPRESSION_RECOVERY_MIGRATION,
+  proveHistoricalResendFailureSuppressionRepair,
+  proveStoredResendSuppressionOrdering,
+  seedHistoricalResendFailureSuppressions,
+} from "../tools/database-full-chain/scenarios/email-suppression-recovery.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
@@ -87,6 +93,73 @@ import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-fol
 import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
+
+async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
+  const accountDeletionClient = new pg.Client({ connectionString });
+  await accountDeletionClient.connect();
+  try {
+    await accountDeletionClient.query("BEGIN");
+    await accountDeletionClient.query(
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'; SET LOCAL deadlock_timeout = '100ms'",
+    );
+    await accountDeletionClient.query(
+      'LOCK TABLE public."EmailFailureCount" IN ROW EXCLUSIVE MODE',
+    );
+  } catch (error) {
+    await accountDeletionClient.query("ROLLBACK").catch(() => {});
+    await accountDeletionClient.end().catch(() => {});
+    throw error;
+  }
+
+  const completion = (async () => {
+    try {
+      let sawRecoveryWaiting = false;
+      for (let poll = 0; poll < 200; poll += 1) {
+        const waiting = await accountDeletionClient.query(`
+          SELECT pg_catalog.count(*)::integer AS count
+            FROM pg_catalog.pg_locks
+           WHERE locktype = 'relation'
+             AND relation = 'public."EmailFailureCount"'::regclass
+             AND NOT granted
+             AND pid <> pg_catalog.pg_backend_pid()
+        `);
+        if (Number(waiting.rows[0]?.count ?? 0) > 0) {
+          sawRecoveryWaiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.equal(
+        sawRecoveryWaiting,
+        true,
+        "C-715 recovery never waited behind the account-deletion first lock",
+      );
+      await accountDeletionClient.query(
+        'LOCK TABLE public."EmailSuppression" IN ROW EXCLUSIVE MODE',
+      );
+      await accountDeletionClient.query("COMMIT");
+      return Object.freeze({
+        sawRecoveryWaiting,
+        accountDeletionLockOrder: Object.freeze([
+          "EmailFailureCount",
+          "EmailSuppression",
+        ]),
+      });
+    } catch (error) {
+      await accountDeletionClient.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      await accountDeletionClient.end().catch(() => {});
+    }
+  })();
+
+  return Object.freeze({
+    outcome: completion.then(
+      (evidence) => Object.freeze({ evidence, error: null }),
+      (error) => Object.freeze({ evidence: null, error }),
+    ),
+  });
+}
 
 test(
   "builds the complete migrated schema on PostgreSQL 16 before seeding current seller-private data",
@@ -116,6 +189,9 @@ test(
       let fixture;
       let historicalCaseRefundDamage;
       let historicalDisputeFirstEventGap;
+      let historicalResendFailureSuppressions;
+      let emailSuppressionConcurrencyProof;
+      let emailSuppressionInterruptionProof;
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
@@ -172,6 +248,34 @@ test(
                 seller: fixture,
                 scenarioNamespace: "migration_chain",
               });
+          }
+          if (artifact.name === EMAIL_SUPPRESSION_RECOVERY_MIGRATION) {
+            historicalResendFailureSuppressions =
+              await seedHistoricalResendFailureSuppressions(adapter);
+            emailSuppressionConcurrencyProof =
+              await startEmailSuppressionAccountDeletionConcurrencyProof(
+                proofDatabaseUrl,
+              );
+            await adapter.executeMigration(artifact.sql, {
+              migrationName: `${artifact.name}-committed-before-ledger`,
+            });
+            const concurrencyOutcome = await emailSuppressionConcurrencyProof.outcome;
+            if (concurrencyOutcome.error) throw concurrencyOutcome.error;
+            await proveHistoricalResendFailureSuppressionRepair({
+              database: adapter,
+              fixture: historicalResendFailureSuppressions,
+            });
+            const ledgerBeforeResolve = await adapter.query(
+              `SELECT pg_catalog.count(*)::integer AS count
+                 FROM public."_prisma_migrations"
+                WHERE migration_name = $1`,
+              [EMAIL_SUPPRESSION_RECOVERY_MIGRATION],
+            );
+            assert.equal(Number(ledgerBeforeResolve.rows[0]?.count ?? -1), 0);
+            emailSuppressionInterruptionProof = Object.freeze({
+              sqlCommittedWithoutLedger: true,
+              concurrency: concurrencyOutcome.evidence,
+            });
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -422,6 +526,39 @@ test(
         scenarioNamespace: "migration_chain",
       });
       await proveSupportRequestAuthorities({ database: adapter });
+      await proveHistoricalResendFailureSuppressionRepair({
+        database: adapter,
+        fixture: historicalResendFailureSuppressions,
+      });
+      assert.ok(
+        emailSuppressionInterruptionProof,
+        "C-715 SQL-commit/ledger interruption proof must run before replay",
+      );
+      assert.deepEqual(emailSuppressionInterruptionProof, {
+        sqlCommittedWithoutLedger: true,
+        concurrency: {
+          sawRecoveryWaiting: true,
+          accountDeletionLockOrder: ["EmailFailureCount", "EmailSuppression"],
+        },
+      });
+      const resolvedRecoveryLedger = await adapter.query(
+        `SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+           FROM public."_prisma_migrations"
+          WHERE migration_name = $1`,
+        [EMAIL_SUPPRESSION_RECOVERY_MIGRATION],
+      );
+      assert.equal(resolvedRecoveryLedger.rows.length, 1);
+      assert.equal(resolvedRecoveryLedger.rows[0].finished_at instanceof Date, true);
+      assert.equal(resolvedRecoveryLedger.rows[0].rolled_back_at, null);
+      assert.equal(Number(resolvedRecoveryLedger.rows[0].applied_steps_count), 1);
+      assert.deepEqual(await proveStoredResendSuppressionOrdering({
+        database: adapter,
+      }), [
+        "complaint:direct-preserved-after-generic",
+        "complaint:direct-replaced-generic",
+        "bounce:direct-preserved-after-generic",
+        "bounce:direct-replaced-generic",
+      ]);
     } finally {
       await client.end();
       rmSync(preparationEvidenceDirectory, { recursive: true, force: true });
