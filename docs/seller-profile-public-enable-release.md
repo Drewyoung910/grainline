@@ -1,7 +1,8 @@
 # SellerProfile public policyless ENABLE release
 
-Status: accepted in Production. Policyless ENABLE is live; FORCE remains a
-separate, unapplied release.
+Status: accepted predecessor. Policyless ENABLE was followed by the separately
+accepted policyless FORCE release documented in
+`docs/seller-profile-public-force-release.md`.
 
 ## Production acceptance
 
@@ -121,12 +122,13 @@ preparation suffix, restores ENABLE, and requires ENABLE to be the sole pending
 migration afterward. Git-triggered Vercel deployment is disabled, so the
 converted runtime is promoted only after the preparation postflight succeeds.
 
-## Next release
+## Completed successor
 
-The ENABLE evidence is accepted. The separate FORCE candidate is documented in
-`docs/seller-profile-public-force-release.md`. FORCE still requires its own
-exact-head CI, independent database/security review, protected workflow and
-separate Production authorization.
+The ENABLE evidence remains the accepted predecessor. Separate protected run
+`39898441606` later applied only the FORCE successor after exact-head CI,
+independent review and separate Production authorization. Its retained evidence
+and final posture are documented in
+`docs/seller-profile-public-force-release.md`.
 
 The prior exact-location blockers are closed in this source candidate. The
 workshop map now uses explicit-submit city/state-or-ZIP search, rejects numeric
@@ -138,7 +140,8 @@ surfaces and withdrawal behavior.
 
 ## Release order
 
-1. Compatible preparations, source deployment and policyless ENABLE are live.
-2. Preserve the accepted ENABLE evidence and compatible deployment identity.
-3. Review the posture-only FORCE release on exact main.
-4. Run FORCE only through its protected workflow after separate authorization.
+1. Compatible preparations, source deployment and policyless ENABLE went live.
+2. The accepted ENABLE evidence and compatible deployment identity were bound
+   into the separately reviewed FORCE release.
+3. Protected run `39898441606` applied the posture-only FORCE migration.
+4. Preserve both stages' evidence; any rollback remains a separate operation.
