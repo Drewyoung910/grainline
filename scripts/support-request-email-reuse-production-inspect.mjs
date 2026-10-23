@@ -15,6 +15,7 @@ import pg from "pg";
 
 import { assertReviewedPeerMigrationLedger } from "./order-refund-immutable-event-production-ledger.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
+import { isReviewedSuccessfulMigration } from "./reviewed-manually-applied-migrations.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -479,6 +480,35 @@ export function verifyCorrectionCatalog(catalog, ledgerState) {
   });
 }
 
+export function supportRequestEmailReuseMigrationState(candidateRows) {
+  assert.ok(Array.isArray(candidateRows), "candidate ledger rows are invalid");
+  const successful = candidateRows.filter(isReviewedSuccessfulMigration);
+  assert.ok(successful.length <= 1, "candidate has duplicate successful rows");
+  if (successful.length === 1) {
+    assert.equal(
+      successful[0].migration_name,
+      MIGRATION,
+      "candidate migration name drifted",
+    );
+    assert.equal(
+      successful[0].checksum,
+      MIGRATION_SHA256,
+      "candidate checksum drifted",
+    );
+  }
+  const otherRows = candidateRows.filter((row) => row !== successful[0]);
+  assert.ok(
+    otherRows.every(
+      (row) =>
+        row.finished_at === null &&
+        row.rolled_back_at !== null &&
+        Number(row.applied_steps_count) === 0,
+    ),
+    "candidate has an unresolved or partial failed attempt",
+  );
+  return successful.length === 1 ? "applied" : "pending";
+}
+
 async function inspectLedger(client) {
   const directories = migrationDirectories();
   assert.ok(directories.includes(MIGRATION), "candidate migration is missing");
@@ -523,31 +553,7 @@ async function inspectLedger(client) {
   }
 
   const candidateRows = byName.get(MIGRATION) ?? [];
-  const successful = candidateRows.filter(
-    (row) =>
-      row.finished_at !== null &&
-      row.rolled_back_at === null &&
-      Number(row.applied_steps_count) === 1,
-  );
-  assert.ok(successful.length <= 1, "candidate has duplicate successful rows");
-  if (successful.length === 1) {
-    assert.equal(
-      successful[0].checksum,
-      MIGRATION_SHA256,
-      "candidate checksum drifted",
-    );
-  }
-  const otherRows = candidateRows.filter((row) => row !== successful[0]);
-  assert.ok(
-    otherRows.every(
-      (row) =>
-        row.finished_at === null &&
-        row.rolled_back_at !== null &&
-        Number(row.applied_steps_count) === 0,
-    ),
-    "candidate has an unresolved or partial failed attempt",
-  );
-  return successful.length === 1 ? "applied" : "pending";
+  return supportRequestEmailReuseMigrationState(candidateRows);
 }
 
 async function main() {

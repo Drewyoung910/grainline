@@ -15,6 +15,7 @@ import {
   PREDECESSOR_SOURCE_MD5,
   REQUIRED_PREDECESSORS,
   UNCHANGED_SUPPORT_REQUEST_FUNCTIONS,
+  supportRequestEmailReuseMigrationState,
   verifyCorrectionCatalog,
 } from "../scripts/support-request-email-reuse-production-inspect.mjs";
 
@@ -345,6 +346,29 @@ test("C-1150 inspector accepts predecessor and interrupted corrected state, but 
     () => verifyCorrectionCatalog(directGrant, "pending"),
     /Expected values to be strictly deep-equal/u,
   );
+});
+
+test("C-1150 ledger accepts only its exact reviewed zero-step resolve", () => {
+  const resolved = {
+    migration_name: MIGRATION,
+    checksum: MIGRATION_SHA256,
+    finished_at: new Date("2026-10-23T12:00:00.000Z"),
+    rolled_back_at: null,
+    applied_steps_count: 0,
+  };
+  assert.equal(supportRequestEmailReuseMigrationState([resolved]), "applied");
+  for (const row of [
+    { ...resolved, migration_name: "20261023050000_unreviewed" },
+    { ...resolved, checksum: "0".repeat(64) },
+    { ...resolved, finished_at: null },
+    { ...resolved, rolled_back_at: new Date("2026-10-23T12:01:00.000Z") },
+    { ...resolved, applied_steps_count: 2 },
+  ]) {
+    assert.throws(
+      () => supportRequestEmailReuseMigrationState([row]),
+      /candidate/u,
+    );
+  }
 });
 
 test("C-1150 migration is atomic, restart-safe, and self-verifying", () => {
