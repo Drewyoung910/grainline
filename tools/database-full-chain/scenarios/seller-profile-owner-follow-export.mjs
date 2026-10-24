@@ -7,7 +7,10 @@ function rowsOf(result) {
 export async function proveSellerProfileOwnerFollowExport({ database, seller }) {
   const actorUserId = `${seller.userId}_follow_export_actor`;
   const followId = `${seller.sellerProfileId}_follow_export`;
-  const now = new Date("2026-10-20T12:00:00.000Z");
+  // Follow.createdAt is timestamp without time zone. Bind the intended UTC
+  // wall-clock value instead of a JavaScript Date, whose driver serialization
+  // otherwise depends on the machine's local timezone.
+  const now = "2026-10-20T12:00:00.000";
 
   assert.deepEqual(rowsOf(await database.query(`
     SELECT routine.prosecdef AS "securityDefiner",
@@ -63,7 +66,7 @@ export async function proveSellerProfileOwnerFollowExport({ database, seller }) 
     assert.equal(rows.length, 1);
     assert.equal(rows[0].sellerProfileId, seller.sellerProfileId);
     assert.equal(rows[0].displayName, "Full Chain Workshop");
-    assert.equal(rows[0].createdAt.toISOString(), now.toISOString());
+    assert.equal(rows[0].createdAt.toISOString(), `${now}Z`);
   } finally {
     await database.query("RESET ROLE");
   }

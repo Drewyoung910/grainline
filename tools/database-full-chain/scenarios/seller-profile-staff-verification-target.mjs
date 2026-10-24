@@ -8,7 +8,9 @@ export async function proveSellerProfileStaffVerificationTarget({ database, sell
   const staffUserId = `${seller.userId}_verification_staff`;
   const verificationId = `${seller.sellerProfileId}_staff_verification`;
   const metricsId = `${seller.sellerProfileId}_staff_metrics`;
-  const now = new Date("2026-10-21T09:00:00.000Z");
+  // SellerMetrics.calculatedAt is timestamp without time zone. Bind the UTC
+  // wall-clock value directly so the fixture is independent of host timezone.
+  const now = "2026-10-21T09:00:00.000";
 
   assert.deepEqual(rowsOf(await database.query(`
     SELECT routine.prosecdef AS "securityDefiner",
@@ -89,7 +91,7 @@ export async function proveSellerProfileStaffVerificationTarget({ database, sell
       sellerUserId: seller.userId,
       sellerDisplayName: "Full Chain Workshop",
       ownerAccountActive: true,
-      metricsCalculatedAt: now.toISOString(),
+      metricsCalculatedAt: `${now}Z`,
       metricsPeriodMonths: 3,
       metricsAverageRating: 4.9,
       metricsReviewCount: 18,

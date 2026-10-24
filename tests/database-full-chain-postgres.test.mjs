@@ -7,9 +7,9 @@ import test from "node:test";
 import pg from "pg";
 
 import {
-  assertDisposablePostgres16Target,
-  createPostgres16Adapter,
-} from "../tools/database-full-chain/postgres16/adapter.mjs";
+  assertDisposablePostgresTarget,
+  createPostgresAdapter,
+} from "../tools/database-full-chain/postgres/adapter.mjs";
 import { createCiRoleScriptCallbacks } from "../tools/database-full-chain/scenarios/ci-role-scripts.mjs";
 import {
   applyFullMigrationChain,
@@ -103,6 +103,7 @@ import { CASE_REFUND_FOLLOWUP_MIGRATION } from "../scripts/build-case-refund-fol
 import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-first-event-case-correction.mjs";
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
+const expectedPostgresMajor = process.env.DATABASE_FULL_CHAIN_POSTGRES_MAJOR?.trim() || "16";
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
   const accountDeletionClient = new pg.Client({ connectionString });
@@ -172,7 +173,7 @@ async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionSt
 }
 
 test(
-  "builds the complete migrated schema on PostgreSQL 16 before seeding current seller-private data",
+  `builds the complete migrated schema on PostgreSQL ${expectedPostgresMajor} before seeding current seller-private data`,
   {
     skip: proofDatabaseUrl ? false : "DATABASE_FULL_CHAIN_PROOF_DATABASE_URL is not set",
     timeout: 120_000,
@@ -191,10 +192,12 @@ test(
       `)).rows[0];
       assert.equal(identity.current_user, "ci");
       assert.equal(identity.current_database, "grainline_ci");
-      assertDisposablePostgres16Target(proofDatabaseUrl, identity.server_version);
+      assertDisposablePostgresTarget(proofDatabaseUrl, identity.server_version, {
+        expectedMajor: expectedPostgresMajor,
+      });
 
       const repositoryRoot = findRepositoryRoot();
-      const adapter = createPostgres16Adapter(client);
+      const adapter = createPostgresAdapter(client);
       const roles = createCiRoleScriptCallbacks();
       let fixture;
       let historicalCaseRefundDamage;
@@ -213,7 +216,7 @@ test(
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
-        engine: "postgres16",
+        engine: "postgresql",
         bootstrapRoles: roles.bootstrapRoles,
         convergeRoles: roles.convergeRoles,
         beforeMigration: async ({ artifact }) => {

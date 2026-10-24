@@ -20,6 +20,7 @@ import {
 } from "../tools/database-full-chain/scenarios/seller-profile-private-fixture.mjs";
 import { runPsqlScript } from "../tools/database-full-chain/scenarios/psql-script.mjs";
 import { assertDisposablePostgres16Target } from "../tools/database-full-chain/postgres16/adapter.mjs";
+import { assertDisposablePostgresTarget } from "../tools/database-full-chain/postgres/adapter.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = findRepositoryRoot(here);
@@ -113,7 +114,9 @@ test("main CI proves the full chain before recreating the disposable database", 
   const generatedClient = workflow.indexOf(
     "      - name: Generate Prisma client for full-chain behavior proof\n",
   );
-  const proof = workflow.indexOf("      - name: Prove full migration chain on PostgreSQL 16\n");
+  const proof = workflow.indexOf(
+    "      - name: Prove full migration chain on PostgreSQL 16 compatibility\n",
+  );
   const reset = workflow.indexOf("      - name: Reset disposable database after full-chain proof\n");
   const preserve = workflow.indexOf("      - name: Preserve full-chain sources for post-isolation tests\n");
   const existingSuite = workflow.indexOf(
@@ -133,6 +136,10 @@ test("main CI proves the full chain before recreating the disposable database", 
   assert.match(
     workflow,
     /DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: \$\{\{ runner\.temp \}\}\/database-full-chain-source\/migrations/u,
+  );
+  assert.match(
+    workflow,
+    /production-postgres17:[\s\S]*image: postgres:17[\s\S]*DATABASE_FULL_CHAIN_POSTGRES_MAJOR: "17"[\s\S]*npm run test:database-full-chain/u,
   );
 });
 
@@ -291,6 +298,21 @@ test("PostgreSQL 16 adapter rejects non-disposable targets and other server majo
   assert.throws(
     () => assertDisposablePostgres16Target("postgresql://ci@127.0.0.1/grainline_ci", "17.5"),
     /PostgreSQL 16/u,
+  );
+});
+
+test("version-neutral PostgreSQL adapter binds the requested production major", () => {
+  const target = "postgresql://ci@127.0.0.1:5432/grainline_ci?sslmode=disable";
+  assert.doesNotThrow(() =>
+    assertDisposablePostgresTarget(target, "17.11", { expectedMajor: "17" }),
+  );
+  assert.throws(
+    () => assertDisposablePostgresTarget(target, "16.10", { expectedMajor: "17" }),
+    /PostgreSQL 17/u,
+  );
+  assert.throws(
+    () => assertDisposablePostgresTarget(target, "17.11", { expectedMajor: "latest" }),
+    /expectedMajor/u,
   );
 });
 
