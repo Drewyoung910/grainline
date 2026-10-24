@@ -88,6 +88,14 @@ const supportRequestCandidateTests = [
   "private-table-preparation-production.test.mjs",
   "support-request-email-reuse-privacy-production-workflow.test.mjs",
 ];
+const ownerTableCandidateMigrations = [
+  "20261023070000_activate_saved_blog_post_rls",
+  "20261023080000_activate_cart_cart_item_rls",
+];
+const ownerTableCandidateTests = [
+  "owner-table-rls-activation-production.test.mjs",
+  "seller-profile-owner-saved-blog-post-authority-postgres.test.mjs",
+];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -226,6 +234,32 @@ function supportRequestPreparationTestPath(file) {
     file,
   );
   assert.ok(existsSync(stagedPath), `missing isolated SupportRequest preparation test ${file}`);
+  return stagedPath;
+}
+
+function ownerTableCandidateMigrationPath(migration) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "saved-blog-post-rls-candidate",
+    "migrations",
+    migration,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated owner-table migration ${migration}`);
+  return stagedPath;
+}
+
+function ownerTableCandidateTestPath(file) {
+  const livePath = path.join("tests", file);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "saved-blog-post-rls-candidate",
+    "tests",
+    file,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated owner-table test ${file}`);
   return stagedPath;
 }
 
@@ -451,6 +485,16 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     for (const file of supportRequestCandidateTests) {
       cpSync(supportRequestPreparationTestPath(file), path.join(root, "tests", file));
     }
+    for (const migration of ownerTableCandidateMigrations) {
+      cpSync(
+        ownerTableCandidateMigrationPath(migration),
+        path.join(root, "prisma", "migrations", migration),
+        { recursive: true },
+      );
+    }
+    for (const file of ownerTableCandidateTests) {
+      cpSync(ownerTableCandidateTestPath(file), path.join(root, "tests", file));
+    }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
       (migration) => `prisma/migrations/${migration}/migration.sql`,
@@ -462,6 +506,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     const supportRequestCandidatePaths = supportRequestCandidateMigrations.map(
       (migration) => `prisma/migrations/${migration}/migration.sql`,
     );
+    const ownerTableCandidatePaths = ownerTableCandidateMigrations.map(
+      (migration) => `prisma/migrations/${migration}/migration.sql`,
+    );
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
@@ -469,6 +516,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       blockedCheckoutRefundWitnessPath,
       ...supportRequestCandidatePaths,
       ...supportRequestCandidateTests.map((file) => `tests/${file}`),
+      ...ownerTableCandidatePaths,
+      ...ownerTableCandidateTests.map((file) => `tests/${file}`),
       "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
@@ -494,6 +543,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       path.join(sellerPublicTestHolding, "db-grant-inventory.test.mjs"),
     );
     rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
+    execFileSync("bash", ["-c", bashBody("Isolate SavedBlogPost RLS candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SupportRequest candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
@@ -508,6 +558,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       (relative) => !existsSync(path.join(root, relative)),
     ));
     assert.ok(supportRequestCandidateTests.every(
+      (file) => !existsSync(path.join(root, "tests", file)),
+    ));
+    assert.ok(ownerTableCandidatePaths.every(
+      (relative) => !existsSync(path.join(root, relative)),
+    ));
+    assert.ok(ownerTableCandidateTests.every(
       (file) => !existsSync(path.join(root, "tests", file)),
     ));
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
@@ -563,6 +619,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore post-retirement account-deletion repair after all predecessors")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore blocked-checkout refund witness after immutable refund repair")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SupportRequest candidate after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }
