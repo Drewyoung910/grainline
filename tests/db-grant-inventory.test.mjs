@@ -278,6 +278,8 @@ const {
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
   SUPPORT_REQUEST_TABLE,
+  SAVED_BLOG_POST_TABLE,
+  SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -789,6 +791,18 @@ describe("database grant inventory guardrails", () => {
       ...supportRequestPredecessorInventory,
       rlsEnableTables: ["SupportRequest"],
     };
+    const savedBlogPostPredecessorInventory = {
+      rlsPolicyTables: [],
+      savedBlogPostOwnerPrivilegesProvisioned: false,
+    };
+    const savedBlogPostProvisionedInventory = {
+      ...savedBlogPostPredecessorInventory,
+      savedBlogPostOwnerPrivilegesProvisioned: true,
+    };
+    const savedBlogPostActivatedInventory = {
+      ...savedBlogPostPredecessorInventory,
+      rlsPolicyTables: [SAVED_BLOG_POST_TABLE],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -800,6 +814,27 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       requiredRuntimeTablePrivileges("User", phaseAInventory),
       REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SAVED_BLOG_POST_TABLE,
+        savedBlogPostPredecessorInventory,
+      ),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SAVED_BLOG_POST_TABLE,
+        savedBlogPostProvisionedInventory,
+      ),
+      SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        SAVED_BLOG_POST_TABLE,
+        savedBlogPostActivatedInventory,
+      ),
+      SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
     );
     assert.deepEqual(
       requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
@@ -4928,6 +4963,32 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, [
       "ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
     ]);
+  });
+
+  it("derives the SavedBlogPost predecessor grant posture only from the complete provisioning guard", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-saved-blog-grant-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    mkdirSync(join(root, "scripts"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model SavedBlogPost {",
+        "  id String @id",
+        "}",
+      ].join("\n"),
+    );
+
+    const guard = "SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning";
+    const revoke = 'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"';
+    const provisioningPath = join(root, "scripts", "provision-runtime-db-role.sql");
+
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, false);
+    writeFileSync(provisioningPath, `${guard}\n`);
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, false);
+    writeFileSync(provisioningPath, `${revoke};\n`);
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, false);
+    writeFileSync(provisioningPath, `${guard}\n${revoke};\n`);
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, true);
   });
 
   it("does not demand the staged refund-reconciliation table before its sealed migration is restored", () => {

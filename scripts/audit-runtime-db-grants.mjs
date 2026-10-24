@@ -111,6 +111,8 @@ export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote";
 export const USER_TABLE = "User";
 export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 export const SUPPORT_REQUEST_TABLE = "SupportRequest";
+export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
+export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
@@ -2519,6 +2521,20 @@ export function collectRuntimeFunctionGrantOptionIssues(rows) {
 export function deriveGrantInventory(rootDir = ROOT_DIR) {
   const schema = readFileSync(path.join(rootDir, "prisma", "schema.prisma"), "utf8");
   const migrationSql = readMigrationSql(rootDir);
+  const runtimeProvisioningPath = path.join(rootDir, "scripts", "provision-runtime-db-role.sql");
+  const runtimeProvisioningSql = existsSync(runtimeProvisioningPath)
+    ? readFileSync(runtimeProvisioningPath, "utf8")
+    : "";
+  // Historical proof workflows intentionally hide successor migrations but
+  // still run the branch-tip provisioning script. Recognize the deliberately
+  // narrowed, app-compatible predecessor only when both its fail-closed
+  // posture guard and exact UPDATE revocation remain present. The live audit
+  // will then reject either an absent revocation or any extra table privilege.
+  const savedBlogPostOwnerPrivilegesProvisioned = runtimeProvisioningSql.includes(
+    "SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning",
+  ) && runtimeProvisioningSql.includes(
+    'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"',
+  );
 
   const modelBlocks = [...schema.matchAll(/^model\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
   const schemaTables = modelBlocks.map((match) => mappedDbName(match[2], match[1]));
@@ -2684,6 +2700,7 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     rlsPolicyTables,
     rlsEnableTables: sortedUnique([...rlsEnableTables]),
     rlsForceTables: sortedUnique([...rlsForceTables]),
+    savedBlogPostOwnerPrivilegesProvisioned,
   };
 }
 
@@ -2798,6 +2815,15 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
   }
   if (tableName === "SavedSearch" && rlsPolicyTables.includes("SavedSearch")) {
     return SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES;
+  }
+  if (
+    tableName === SAVED_BLOG_POST_TABLE
+    && (
+      inventory?.savedBlogPostOwnerPrivilegesProvisioned === true
+      || rlsPolicyTables.includes(SAVED_BLOG_POST_TABLE)
+    )
+  ) {
+    return SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES;
   }
   return REQUIRED_TABLE_PRIVILEGES;
 }

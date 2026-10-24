@@ -148,10 +148,12 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 116
+      || reviewedNonTargetFactoryCalls.length !== 117
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
+      // SavedBlogPost export adds one reviewed publicBlogPostWhere call so it
+      // never reads private BlogPost target fields through a relation query.
       || reviewedNonTargetResiduals.length !== 27) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
