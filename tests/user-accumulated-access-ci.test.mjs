@@ -72,13 +72,17 @@ const supportRequestPreparationMigration =
   "20261023010000_prepare_support_request_authorities";
 const supportRequestEnableMigration =
   "20261023020000_enable_support_request_rls";
+const supportRequestEmailReuseCorrectionMigration =
+  "20261023050000_correct_support_request_email_reuse_privacy";
 const supportRequestCandidateMigrations = [
   supportRequestPreparationMigration,
   supportRequestEnableMigration,
+  supportRequestEmailReuseCorrectionMigration,
 ];
 const supportRequestCandidateTests = [
   "private-table-enable-production.test.mjs",
   "private-table-preparation-production.test.mjs",
+  "support-request-email-reuse-privacy-production-workflow.test.mjs",
 ];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
