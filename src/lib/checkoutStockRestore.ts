@@ -319,14 +319,6 @@ async function restoreLegacyUnorderedCheckoutStockOnce(input: {
       items = restorableStockItemsFromMetadata(input.metadata);
     }
 
-    if (items.length === 0 && input.metadata.cartId && input.metadata.sellerId) {
-      const cartItems = await tx.cartItem.findMany({
-        where: { cartId: input.metadata.cartId, listing: { sellerId: input.metadata.sellerId } },
-        select: { listingId: true, quantity: true },
-      });
-      items = mergeRestorableStockItems(cartItems);
-    }
-
     if (items.length === 0) {
       Sentry.captureMessage("Checkout stock restoration skipped because no reserved items were recoverable", {
         level: "warning",
