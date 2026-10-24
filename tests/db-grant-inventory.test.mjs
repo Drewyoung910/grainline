@@ -286,6 +286,9 @@ const {
   SUPPORT_REQUEST_TABLE,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
+  CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+  CART_OWNER_COLUMN_PRIVILEGES,
+  CART_ITEM_OWNER_COLUMN_PRIVILEGES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -809,6 +812,15 @@ describe("database grant inventory guardrails", () => {
       ...savedBlogPostPredecessorInventory,
       rlsPolicyTables: [SAVED_BLOG_POST_TABLE],
     };
+    const cartCartItemRlsActivationPresent = existsSync(
+      CART_CART_ITEM_RLS_MIGRATION,
+    );
+    const cartPredecessorInventory = {
+      rlsPolicyTables: [],
+    };
+    const cartActivatedInventory = {
+      rlsPolicyTables: ["Cart", "CartItem"],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -1224,6 +1236,47 @@ describe("database grant inventory guardrails", () => {
       requiredRuntimeColumnPrivileges("Notification", notificationInventory),
       NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
     );
+    if (cartCartItemRlsActivationPresent) {
+      assert.deepEqual(
+        CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+        ["SELECT", "INSERT", "DELETE"],
+      );
+      assert.deepEqual(
+        CART_OWNER_COLUMN_PRIVILEGES,
+        ['"updatedAt":UPDATE'],
+      );
+      assert.deepEqual(
+        CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+        [
+          '"priceCents":UPDATE',
+          '"priceVersion":UPDATE',
+          '"selectedVariantOptionIds":UPDATE',
+          "quantity:UPDATE",
+        ],
+      );
+      for (const tableName of ["Cart", "CartItem"]) {
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(tableName, cartPredecessorInventory),
+          REQUIRED_TABLE_PRIVILEGES,
+        );
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(tableName, cartActivatedInventory),
+          CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+        );
+      }
+      assert.deepEqual(
+        requiredRuntimeColumnPrivileges("Cart", cartPredecessorInventory),
+        [],
+      );
+      assert.deepEqual(
+        requiredRuntimeColumnPrivileges("Cart", cartActivatedInventory),
+        CART_OWNER_COLUMN_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeColumnPrivileges("CartItem", cartActivatedInventory),
+        CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges(
         "Conversation",
@@ -1302,6 +1355,52 @@ describe("database grant inventory guardrails", () => {
         "table Notification runtime role has unexpected column privileges: title:UPDATE",
       ],
     );
+
+    if (cartCartItemRlsActivationPresent) {
+      const exactCartRow = {
+        ...exactPhaseARow,
+        runtime_column_privileges: CART_OWNER_COLUMN_PRIVILEGES,
+      };
+      assert.deepEqual(
+        collectTablePrivilegeAllowlistIssues(exactCartRow, "table Cart", {
+          requiredPrivileges: CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+          requiredColumnPrivileges: CART_OWNER_COLUMN_PRIVILEGES,
+        }),
+        [],
+      );
+      const exactCartItemRow = {
+        ...exactPhaseARow,
+        runtime_column_privileges: CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+      };
+      assert.deepEqual(
+        collectTablePrivilegeAllowlistIssues(exactCartItemRow, "table CartItem", {
+          requiredPrivileges: CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+          requiredColumnPrivileges: CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+        }),
+        [],
+      );
+      assert.deepEqual(
+        collectTablePrivilegeAllowlistIssues(
+          {
+            ...exactCartItemRow,
+            runtime_privileges: [...exactCartItemRow.runtime_privileges, "UPDATE"],
+            runtime_column_privileges: [
+              ...CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+              "listingId:UPDATE",
+            ],
+          },
+          "table CartItem",
+          {
+            requiredPrivileges: CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+            requiredColumnPrivileges: CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+          },
+        ),
+        [
+          "table CartItem runtime role has unexpected table privileges: UPDATE",
+          "table CartItem runtime role has unexpected column privileges: listingId:UPDATE",
+        ],
+      );
+    }
   });
 
   it("keeps Core Order predecessor grants until policyless ENABLE and then audits FORCE separately", () => {
