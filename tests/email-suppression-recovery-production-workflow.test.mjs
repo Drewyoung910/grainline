@@ -65,14 +65,12 @@ async function runBinding({
     rest: {
       repos: {
         getBranch: async () => ({ data: { commit: { sha: releaseSha } } }),
-        compareCommits: async ({ basehead }) => {
-          if (basehead === `${liveSha}...${releaseSha}`) {
+        compareCommits: async ({ base, head }) => {
+          if (base === liveSha && head === releaseSha) {
             return { data: { status: comparisonStatus } };
           }
-          assert.equal(
-            basehead,
-            `${MINIMUM_COMPATIBLE_APP_COMMIT}...${liveSha}`,
-          );
+          assert.equal(base, MINIMUM_COMPATIBLE_APP_COMMIT);
+          assert.equal(head, liveSha);
           return { data: { status: minimumComparisonStatus } };
         },
       },
@@ -211,7 +209,10 @@ test("C-715 release accepts its exact compatible live app ancestor for readback"
     new RegExp(`REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT: ${MINIMUM_COMPATIBLE_APP_COMMIT}`, "u"),
   );
   assert.match(workflow, /compareCommits/u);
-  assert.match(workflow, /basehead: `\$\{deploymentCommit\}\.\.\.\$\{sha\}`/u);
+  assert.match(
+    workflow,
+    /compareCommits\(\{[\s\S]*base: deploymentCommit,[\s\S]*head: sha,/u,
+  );
   assert.match(
     workflow,
     /REVIEWED_RELEASE_COMMIT: \$\{\{ inputs\.production_deployment_commit \}\}/u,
