@@ -113,6 +113,14 @@ export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 export const SUPPORT_REQUEST_TABLE = "SupportRequest";
 export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
 export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
+export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
+export const CART_OWNER_COLUMN_PRIVILEGES = ["\"updatedAt\":UPDATE"];
+export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
+  "\"priceCents\":UPDATE",
+  "\"priceVersion\":UPDATE",
+  "\"selectedVariantOptionIds\":UPDATE",
+  "quantity:UPDATE",
+];
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
@@ -2826,14 +2834,27 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
   ) {
     return SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES;
   }
+  if (
+    (tableName === "Cart" || tableName === "CartItem")
+    && rlsPolicyTables.includes(tableName)
+  ) {
+    return CART_CART_ITEM_OWNER_TABLE_PRIVILEGES;
+  }
   return REQUIRED_TABLE_PRIVILEGES;
 }
 
 export function requiredRuntimeColumnPrivileges(tableName, inventory) {
-  return tableName === "Notification"
-    && (inventory.rlsPolicyTables ?? []).includes("Notification")
-    ? NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES
-    : [];
+  const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
+  if (tableName === "Notification" && rlsPolicyTables.includes("Notification")) {
+    return NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES;
+  }
+  if (tableName === "Cart" && rlsPolicyTables.includes("Cart")) {
+    return CART_OWNER_COLUMN_PRIVILEGES;
+  }
+  if (tableName === "CartItem" && rlsPolicyTables.includes("CartItem")) {
+    return CART_ITEM_OWNER_COLUMN_PRIVILEGES;
+  }
+  return [];
 }
 
 export function collectPolicylessServiceRlsIssues(rows, inventory) {

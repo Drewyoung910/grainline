@@ -286,6 +286,9 @@ const {
   SUPPORT_REQUEST_TABLE,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
+  CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+  CART_OWNER_COLUMN_PRIVILEGES,
+  CART_ITEM_OWNER_COLUMN_PRIVILEGES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -809,6 +812,12 @@ describe("database grant inventory guardrails", () => {
       ...savedBlogPostPredecessorInventory,
       rlsPolicyTables: [SAVED_BLOG_POST_TABLE],
     };
+    const cartPredecessorInventory = {
+      rlsPolicyTables: [],
+    };
+    const cartActivatedInventory = {
+      rlsPolicyTables: ["Cart", "CartItem"],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -1224,6 +1233,28 @@ describe("database grant inventory guardrails", () => {
       requiredRuntimeColumnPrivileges("Notification", notificationInventory),
       NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
     );
+    for (const tableName of ["Cart", "CartItem"]) {
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, cartPredecessorInventory),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, cartActivatedInventory),
+        CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+      );
+    }
+    assert.deepEqual(
+      requiredRuntimeColumnPrivileges("Cart", cartPredecessorInventory),
+      [],
+    );
+    assert.deepEqual(
+      requiredRuntimeColumnPrivileges("Cart", cartActivatedInventory),
+      CART_OWNER_COLUMN_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeColumnPrivileges("CartItem", cartActivatedInventory),
+      CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+    );
     assert.deepEqual(
       requiredRuntimeTablePrivileges(
         "Conversation",
@@ -1300,6 +1331,50 @@ describe("database grant inventory guardrails", () => {
         "table Notification runtime role has unexpected table privileges: INSERT",
         "table Notification runtime role is missing column privileges: read:UPDATE",
         "table Notification runtime role has unexpected column privileges: title:UPDATE",
+      ],
+    );
+
+    const exactCartRow = {
+      ...exactPhaseARow,
+      runtime_column_privileges: CART_OWNER_COLUMN_PRIVILEGES,
+    };
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(exactCartRow, "table Cart", {
+        requiredPrivileges: CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+        requiredColumnPrivileges: CART_OWNER_COLUMN_PRIVILEGES,
+      }),
+      [],
+    );
+    const exactCartItemRow = {
+      ...exactPhaseARow,
+      runtime_column_privileges: CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+    };
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(exactCartItemRow, "table CartItem", {
+        requiredPrivileges: CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+        requiredColumnPrivileges: CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+      }),
+      [],
+    );
+    assert.deepEqual(
+      collectTablePrivilegeAllowlistIssues(
+        {
+          ...exactCartItemRow,
+          runtime_privileges: [...exactCartItemRow.runtime_privileges, "UPDATE"],
+          runtime_column_privileges: [
+            ...CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+            "listingId:UPDATE",
+          ],
+        },
+        "table CartItem",
+        {
+          requiredPrivileges: CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
+          requiredColumnPrivileges: CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+        },
+      ),
+      [
+        "table CartItem runtime role has unexpected table privileges: UPDATE",
+        "table CartItem runtime role has unexpected column privileges: listingId:UPDATE",
       ],
     );
   });
