@@ -253,6 +253,11 @@ test("new User families are proved then isolated until historical prerequisites 
   const apply = "Apply accumulated User access in disposable PostgreSQL";
   const audit = "Audit runtime grants after accumulated User access";
   const converge = "Converge accumulated User and Order isolated runtime and staff grants";
+  const restoreCurrentGrantSources =
+    "Restore SellerProfile private-boundary migration after all predecessors";
+  const reconvergeCurrent =
+    "Reconverge current runtime grants after restored money corrections";
+  const auditCurrent = "Audit runtime grants after Case refund recovery";
   const isolateWitness =
     "Isolate blocked-checkout refund witness until immutable refund repair passes";
   const restoreWitness =
@@ -268,6 +273,9 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.ok(workflow.indexOf(converge) < workflow.indexOf(audit));
   assert.match(step(converge), /--file=scripts\/provision-runtime-db-role\.sql/);
   assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
+  assert.ok(workflow.indexOf(restoreCurrentGrantSources) < workflow.indexOf(reconvergeCurrent));
+  assert.ok(workflow.indexOf(reconvergeCurrent) < workflow.indexOf(auditCurrent));
+  assert.match(step(reconvergeCurrent), /--file=scripts\/provision-runtime-db-role\.sql/);
   assert.ok(workflow.indexOf(audit) < workflow.indexOf("Production build"));
   assert.ok(workflow.indexOf(isolateWitness) < workflow.indexOf(
     "Isolate immutable Order refund-event repair until current Production predecessors pass",

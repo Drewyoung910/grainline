@@ -6616,6 +6616,13 @@ jobs:
             await client.end();
           }
           NODE
+      - name: Reconverge current runtime grants after restored money corrections
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
       - name: Audit runtime grants after Case refund recovery
         run: >-
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL"
