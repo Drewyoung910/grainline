@@ -17,11 +17,18 @@ import {
 const releaseId = "saved_blog_post_v1";
 const release = ownerTableRlsActivation(releaseId);
 const verified = verifyOwnerTableRlsActivationSource(releaseId);
+const cartReleaseId = "cart_cart_item_v1";
+const cartRelease = ownerTableRlsActivation(cartReleaseId);
+const cartVerified = verifyOwnerTableRlsActivationSource(cartReleaseId);
 const workflow = readFileSync(
   ".github/workflows/owner-table-rls-activation-production.yml",
   "utf8",
 );
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
+const cartRollback = readFileSync(
+  "docs/rls-drafts/cart-cartitem-activation-rollback.sql",
+  "utf8",
+);
 
 const retainedRows = release.retainedFunctions.map((entry) => ({
   function_name: entry.name,
@@ -201,6 +208,20 @@ test("catalog admits only the byte-sealed combined owner-policy activation", () 
   assert.doesNotMatch(sql, /DROP (?:TABLE|COLUMN)/iu);
 });
 
+test("catalog admits the byte-sealed Cart and CartItem owner-policy group", () => {
+  assert.equal(cartVerified.digest, cartRelease.migrationSha256);
+  assert.deepEqual(cartRelease.tables, ["Cart", "CartItem"]);
+  assert.equal(cartRelease.policies.length, 8);
+  assert.equal(cartVerified.serviceFunctionSources.size, 2);
+  const sql = readFileSync(cartVerified.migrationPath, "utf8");
+  assert.equal((sql.match(/ENABLE ROW LEVEL SECURITY/gu) ?? []).length, 2);
+  assert.equal((sql.match(/FORCE ROW LEVEL SECURITY/gu) ?? []).length, 2);
+  assert.equal((sql.match(/\bCREATE POLICY\b/gu) ?? []).length, 8);
+  assert.doesNotMatch(sql, /DROP (?:TABLE|COLUMN)/iu);
+  assert.equal((cartRollback.match(/NO FORCE ROW LEVEL SECURITY/gu) ?? []).length, 2);
+  assert.doesNotMatch(cartRollback, /DISABLE ROW LEVEL SECURITY|DROP (?:TABLE|POLICY|FUNCTION)/iu);
+});
+
 test("inspector proves predecessor and active states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "owner-table-rls-"));
   try {
@@ -253,6 +274,10 @@ test("Production workflow is exact-bound, deployment-bound, and sole-pending", (
   assert.ok(parsed.on.workflow_dispatch);
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(OWNER_TABLE_RLS_CONFIRMATION, "u"));
+  assert.deepEqual(parsed.on.workflow_dispatch.inputs.release_id.options, [
+    "saved_blog_post_v1",
+    "cart_cart_item_v1",
+  ]);
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(workflow, /compareCommits/u);
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);

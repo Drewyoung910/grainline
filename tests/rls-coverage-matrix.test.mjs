@@ -53,6 +53,7 @@ describe("site-wide RLS coverage matrix", () => {
       "ACTIVATION_RELEASE_ISOLATED",
       "ACTIVATION_RELEASE_MERGED_UNAPPLIED",
       "ACTIVATION_PRODUCTION_WIRING_ISOLATED",
+      "ACTIVATION_CANDIDATE",
       "BLOCKED_DESIGN",
       "ALTERNATIVE_REVIEW",
     ]);
@@ -97,6 +98,7 @@ describe("site-wide RLS coverage matrix", () => {
       "DirectUpload",
       "DirectUploadReference",
       "AccountDeletionSideEffect",
+      "SupportRequest",
       "StripeWebhookEvent",
       "Notification",
     ]);
@@ -134,6 +136,7 @@ describe("site-wide RLS coverage matrix", () => {
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
         ["AccountDeletionSideEffect", "RLS_LIVE_FORCE"],
+        ["SupportRequest", "RLS_LIVE_ENABLE"],
         ["StripeWebhookEvent", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],

@@ -652,6 +652,93 @@ $grainline_saved_blog_post_provisioning_abort$;
 
 REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role";
 
+-- Cart and CartItem use owner policies after their joint activation. Keep
+-- compatible predecessor CRUD while both tables are cleanly unprotected, but
+-- do not let this script's bulk grant reopen whole-table UPDATE afterward.
+WITH table_state AS (
+  SELECT
+    class.relname,
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.array_agg(
+              policy.polname::text || ':' || policy.polcmd::text
+              ORDER BY policy.polname
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_shape
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname IN ('Cart', 'CartItem')
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 2
+      AND bool_and(
+        relrowsecurity
+        AND relforcerowsecurity
+        AND CASE relname
+          WHEN 'Cart' THEN policy_shape = ARRAY[
+            'cart_owner_delete:d',
+            'cart_owner_insert:a',
+            'cart_owner_select:r',
+            'cart_owner_update:w'
+          ]::text[]
+          WHEN 'CartItem' THEN policy_shape = ARRAY[
+            'cart_item_owner_delete:d',
+            'cart_item_owner_insert:a',
+            'cart_item_owner_select:r',
+            'cart_item_owner_update:w'
+          ]::text[]
+          ELSE false
+        END
+      ) AS active,
+    COUNT(*) = 2
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_shape IS NULL
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'Cart RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false) AS grainline_cart_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_cart_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_cart_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_cart_rls_active
+REVOKE ALL ON TABLE public."Cart", public."CartItem"
+  FROM PUBLIC, :"runtime_role";
+GRANT SELECT, INSERT, DELETE ON TABLE public."Cart"
+  TO :"runtime_role";
+GRANT UPDATE ("updatedAt") ON TABLE public."Cart"
+  TO :"runtime_role";
+GRANT SELECT, INSERT, DELETE ON TABLE public."CartItem"
+  TO :"runtime_role";
+GRANT UPDATE (quantity, "priceCents", "priceVersion", "selectedVariantOptionIds")
+  ON TABLE public."CartItem" TO :"runtime_role";
+\endif
+\unset grainline_cart_rls_active
+
 -- StripeWebhookEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
 -- removes all direct runtime authority. FORCE may be either off (initial

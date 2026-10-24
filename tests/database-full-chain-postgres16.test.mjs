@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -85,6 +85,12 @@ import {
   proveStoredResendSuppressionOrdering,
   seedHistoricalResendFailureSuppressions,
 } from "../tools/database-full-chain/scenarios/email-suppression-recovery.mjs";
+import {
+  CART_CARTITEM_RLS_MIGRATION,
+  proveCartCartItemPredecessorExposure,
+  proveCartCartItemRlsAuthorities,
+  seedCartCartItemPredecessorFixture,
+} from "../tools/database-full-chain/scenarios/cart-cartitem-rls.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import {
@@ -196,6 +202,14 @@ test(
       let historicalResendFailureSuppressions;
       let emailSuppressionConcurrencyProof;
       let emailSuppressionInterruptionProof;
+      let cartCartItemFixture;
+      let cartCartItemPredecessorEvidence;
+      let cartCartItemReadyEvidencePath;
+      class DisposableOwnerClient extends pg.Client {
+        constructor() {
+          super({ connectionString: proofDatabaseUrl });
+        }
+      }
       const summary = await applyFullMigrationChain({
         adapter,
         repositoryRoot,
@@ -280,6 +294,35 @@ test(
               sqlCommittedWithoutLedger: true,
               concurrency: concurrencyOutcome.evidence,
             });
+          }
+          if (artifact.name === CART_CARTITEM_RLS_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before Cart RLS proof");
+            cartCartItemReadyEvidencePath = join(
+              preparationEvidenceDirectory,
+              "cart-cartitem-owner-table-ready.json",
+            );
+            const ready = await inspectOwnerTableRlsActivationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                OWNER_TABLE_RLS_RELEASE_ID: "cart_cart_item_v1",
+                OWNER_TABLE_RLS_PHASE: "preflight",
+                OWNER_TABLE_RLS_EVIDENCE_PATH: cartCartItemReadyEvidencePath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "c".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(ready.state, "ready");
+            assert.equal(ready.policies.length, 0);
+            assert.equal(ready.serviceFunctions.length, 0);
+            cartCartItemFixture = await seedCartCartItemPredecessorFixture({
+              database: adapter,
+              seller: fixture,
+            });
+            cartCartItemPredecessorEvidence =
+              await proveCartCartItemPredecessorExposure({
+                database: adapter,
+                fixture: cartCartItemFixture,
+              });
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -467,11 +510,6 @@ test(
         seller: fixture,
         connectionString: proofDatabaseUrl,
       });
-      class DisposableOwnerClient extends pg.Client {
-        constructor() {
-          super({ connectionString: proofDatabaseUrl });
-        }
-      }
       const ownerTableEvidencePath = join(
         preparationEvidenceDirectory,
         "saved-blog-post-owner-table-active.json",
@@ -504,6 +542,27 @@ test(
         { Client: DisposableOwnerClient, rootDir: repositoryRoot },
       );
       assert.equal(ownerTablePostflight.state, "active");
+      assert.ok(
+        cartCartItemReadyEvidencePath,
+        "Cart/CartItem ready evidence must exist before activation",
+      );
+      const cartCartItemPostflight = await inspectOwnerTableRlsActivationProduction(
+        {
+          DIRECT_URL: proofDatabaseUrl,
+          OWNER_TABLE_RLS_RELEASE_ID: "cart_cart_item_v1",
+          OWNER_TABLE_RLS_PHASE: "postflight",
+          OWNER_TABLE_RLS_EVIDENCE_PATH: join(
+            preparationEvidenceDirectory,
+            "cart-cartitem-owner-table-postflight.json",
+          ),
+          OWNER_TABLE_RLS_PREVIOUS_EVIDENCE_PATH: cartCartItemReadyEvidencePath,
+          PRODUCTION_MIGRATION_RELEASE_COMMIT: "c".repeat(40),
+        },
+        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+      );
+      assert.equal(cartCartItemPostflight.state, "active");
+      assert.equal(cartCartItemPostflight.policies.length, 8);
+      assert.equal(cartCartItemPostflight.serviceFunctions.length, 2);
       await proveSellerProfilePublicCommissionInterestAuthority({
         database: adapter,
         seller: fixture,
@@ -568,6 +627,33 @@ test(
         scenarioNamespace: "migration_chain",
       });
       await proveSupportRequestAuthorities({ database: adapter });
+      assert.deepEqual(cartCartItemPredecessorEvidence, {
+        crossOwnerRead: true,
+        crossOwnerWrite: true,
+      });
+      await proveCartCartItemRlsAuthorities({
+        database: adapter,
+        fixture: cartCartItemFixture,
+        connectionString: proofDatabaseUrl,
+      });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),
+        "utf8",
+      ));
+      const rollbackState = (await client.query(`
+        SELECT relname, relrowsecurity, relforcerowsecurity
+          FROM pg_catalog.pg_class
+         WHERE oid IN ('public."Cart"'::regclass, 'public."CartItem"'::regclass)
+         ORDER BY relname
+      `)).rows;
+      assert.deepEqual(rollbackState, [
+        { relname: "Cart", relrowsecurity: true, relforcerowsecurity: false },
+        { relname: "CartItem", relrowsecurity: true, relforcerowsecurity: false },
+      ]);
+      await client.query(`
+        ALTER TABLE public."Cart" FORCE ROW LEVEL SECURITY;
+        ALTER TABLE public."CartItem" FORCE ROW LEVEL SECURITY;
+      `);
       await proveHistoricalResendFailureSuppressionRepair({
         database: adapter,
         fixture: historicalResendFailureSuppressions,
