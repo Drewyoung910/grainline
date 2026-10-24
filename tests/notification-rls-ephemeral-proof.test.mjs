@@ -416,8 +416,11 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
   it("proves the exact FORCE release on its isolated branch, main, or explicit dispatch", () => {
     assert.match(workflow, /codex\/rls-notification-force-20260722/);
     assert.match(workflow, /^\s+- main$/m);
+    assert.match(workflow, /pull_request:[\s\S]*branches:[\s\S]*- main/);
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
+    assert.match(workflow, /scripts\/assert-reviewed-pending-migrations\.mjs/);
+    assert.match(workflow, /scripts\/reviewed-manually-applied-migrations\.mjs/);
     assert.match(workflow, /scripts\/notification-rls-ephemeral-proof\.mjs/);
     assert.match(
       workflow,
