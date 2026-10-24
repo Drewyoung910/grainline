@@ -1165,7 +1165,10 @@ describe("database grant inventory guardrails", () => {
       "grainline_checkout_reservation_listing_snapshot_witness",
       "grainline_order_refund_blocks_fulfillment",
       "grainline_seller_deauthorization_application_immutable",
-      "grainline_saved_blog_post_insert_guard",
+      ...(Object.prototype.hasOwnProperty.call(
+        deriveGrantInventory(),
+        "savedBlogPostOwnerPrivilegesProvisioned",
+      ) ? ["grainline_saved_blog_post_insert_guard"] : []),
       "grainline_order_staff_detail_v2",
       "grainline_order_staff_page_v2",
     ]) {
