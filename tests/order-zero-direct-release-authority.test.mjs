@@ -50,7 +50,13 @@ test("prefix inventories independently match the legacy audit derived from each 
     for (let n = 0; n <= 17; n += 1) {
       if (n > 0) copy(scope.manifest.members[n - 1]);
       const independentlyDerived = deriveGrantInventory(root);
-      for (const field of Object.keys(independentlyDerived).filter(key => !["publicRevokes", "publicDefaultPrivilegeRevokes"].includes(key)))
+      for (const field of Object.keys(independentlyDerived).filter(key => ![
+        "publicRevokes",
+        "publicDefaultPrivilegeRevokes",
+        // This posture comes from the current runtime-role provisioning file,
+        // which the migration-prefix fixture intentionally does not copy.
+        "savedBlogPostOwnerPrivilegesProvisioned",
+      ].includes(key)))
         assert.deepEqual(states[n].inventory[field], independentlyDerived[field], `${n}/${field}`);
       assert.deepEqual(defaultPrivilegeRequirements(states[n].inventory), defaultPrivilegeRequirements(independentlyDerived));
     }
