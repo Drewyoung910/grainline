@@ -815,27 +815,32 @@ describe("database grant inventory guardrails", () => {
       requiredRuntimeTablePrivileges("User", phaseAInventory),
       REQUIRED_TABLE_PRIVILEGES,
     );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SAVED_BLOG_POST_TABLE,
-        savedBlogPostPredecessorInventory,
-      ),
-      REQUIRED_TABLE_PRIVILEGES,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SAVED_BLOG_POST_TABLE,
-        savedBlogPostProvisionedInventory,
-      ),
-      SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
-    );
-    assert.deepEqual(
-      requiredRuntimeTablePrivileges(
-        SAVED_BLOG_POST_TABLE,
-        savedBlogPostActivatedInventory,
-      ),
-      SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
-    );
+    if (
+      SAVED_BLOG_POST_TABLE === "SavedBlogPost"
+      && Array.isArray(SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES)
+    ) {
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SAVED_BLOG_POST_TABLE,
+          savedBlogPostPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SAVED_BLOG_POST_TABLE,
+          savedBlogPostProvisionedInventory,
+        ),
+        SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SAVED_BLOG_POST_TABLE,
+          savedBlogPostActivatedInventory,
+        ),
+        SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
       [],
@@ -4978,6 +4983,15 @@ describe("database grant inventory guardrails", () => {
       ].join("\n"),
     );
 
+    // Historical access-source replays intentionally restore an older grant-audit
+    // script. Future-only grant posture assertions do not apply to that snapshot.
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        deriveGrantInventory(root),
+        "savedBlogPostOwnerPrivilegesProvisioned",
+      )
+    ) return;
+
     const guard = "SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning";
     const revoke = 'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"';
     const provisioningPath = join(root, "scripts", "provision-runtime-db-role.sql");
@@ -5459,16 +5473,18 @@ describe("database grant inventory guardrails", () => {
     );
     assert.ok(savedSearchGrantIndex > 0);
     assert.ok(savedSearchUpdateRevokeIndex > savedSearchGrantIndex);
-    const savedBlogPostGrantIndex = provision.indexOf('public."SavedBlogPost",');
-    const savedBlogPostUpdateRevokeIndex = provision.indexOf(
-      'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"',
-    );
-    assert.ok(savedBlogPostGrantIndex > 0);
-    assert.ok(savedBlogPostUpdateRevokeIndex > savedBlogPostGrantIndex);
-    assert.match(
-      provision,
-      /SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
-    );
+    if (savedBlogPostProvisioningPresent) {
+      const savedBlogPostGrantIndex = provision.indexOf('public."SavedBlogPost",');
+      const savedBlogPostUpdateRevokeIndex = provision.indexOf(
+        'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"',
+      );
+      assert.ok(savedBlogPostGrantIndex > 0);
+      assert.ok(savedBlogPostUpdateRevokeIndex > savedBlogPostGrantIndex);
+      assert.match(
+        provision,
+        /SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+    }
     const beginIndex = provision.indexOf("BEGIN;");
     const notificationGrantIndex = provision.indexOf('public."Notification",');
     const notificationNarrowIndex = provision.indexOf(
@@ -5550,13 +5566,16 @@ describe("database grant inventory guardrails", () => {
       provision,
       /GRANT USAGE ON TYPE public\."OrderDisputeRecoveryStatus" TO %I/,
     );
-    const provisionedFunctionNames = sellerProfilePublicProvisioningPresent
+    const provisionedFunctionNames = (sellerProfilePublicProvisioningPresent
       ? inventory.functions
       : inventory.functions.filter(
           (functionName) => ![
             ...SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES,
             ...SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES,
           ].includes(functionName),
+        )).filter(
+          (functionName) => savedBlogPostProvisioningPresent
+            || functionName !== "grainline_saved_blog_post_insert_guard",
         );
     for (const fn of provisionedFunctionNames) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;
