@@ -41,8 +41,8 @@ Grainline uses database-level Row Level Security for `User`, `UserEmailAddress`,
 `Case`, `CaseResolutionClaim`, `CaseStripeDisputeApplication`,
 `CaseSellerRefundApplication`, `CaseOpenApplication`, `CaseMessage`,
 `CaseMessageAttachment`, `SavedSearch`, `ClerkWebhookEvent`, `DirectUpload`,
-`DirectUploadReference`, `AccountDeletionSideEffect`, `StripeWebhookEvent`, and
-`Notification`. All thirty tables have
+`DirectUploadReference`, `AccountDeletionSideEffect`, `SupportRequest`, `Cart`,
+`CartItem`, `StripeWebhookEvent`, and `Notification`. All thirty-three tables have
 complete retained `FORCE ROW LEVEL SECURITY` acceptance. `User` is policyless
 and FORCE-hardened with zero policies and zero runtime/staff/`PUBLIC` direct
 table or column authority. Its Phase-A release is bound to guarded ENABLE run
@@ -103,11 +103,9 @@ fixed-operation catalog, policyless ENABLE/FORCE posture, and pooled-runtime
 proof remain retained in the Case rollout records. Case evidence UI/API
 enablement, private-R2 route smoke, cleanup scheduling, token retirement, and
 provider variables remain disabled separate releases; they are not evidence
-that Case database RLS is incomplete. Order/payment/shipping, User, and the
-public/private SellerProfile split are complete Production groups.
-SupportRequest is the active private-table candidate; its fixed operations and
-converted callers are candidate source only, with RLS still off and predecessor
-grants unchanged. Carts and other private service/audit ledgers remain
+that Case database RLS is incomplete. Order/payment/shipping, User, the
+public/private SellerProfile split, SupportRequest, and Cart/CartItem are
+complete Production groups. Other private service/audit ledgers remain
 separately reviewed later groups; do not bundle their policies or grants.
 
 ### Historical Order Rollout Record

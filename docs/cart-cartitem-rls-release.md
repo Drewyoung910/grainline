@@ -1,6 +1,9 @@
 # Cart and CartItem RLS release
 
-Status: isolated activation candidate; Production is unchanged.
+Status: active in Production. Migration
+`20261023080000_activate_cart_cart_item_rls` was applied by protected run
+`40098629729`; restart-safe closeout run `40106017717` verified the active
+posture and changed no production state.
 
 The private pre-RLS audit covers every application, database, checkout,
 webhook, deletion, listing-cleanup and stock-restoration path. It stays outside
@@ -30,9 +33,9 @@ for quantity, price, price version and variant arrays, creates eight owner
 policies, narrows grants, and enables and forces RLS on both tables in one
 transaction. It does not drop a table or column.
 
-## Evidence required before merge
+## Accepted evidence
 
-The candidate must retain all of the following:
+The release evidence retains all of the following:
 
 1. A full PostgreSQL 16 build from migration one through the activation.
 2. A failing-first predecessor proof showing that the runtime could read and
@@ -74,6 +77,22 @@ been applied:
 
 The shared `production-database-migrations` concurrency group serializes this
 operation with every other protected database release.
+
+## Production completion
+
+- Exact main: `49842ba29f16a55fd4712080bdb0c8d8015a8eb7`.
+- Exact-main CI: run `40103340938`, all 775 steps passed.
+- Compatible application commit:
+  `af1ee330f661c4604bf939085b175d00060d2dd0`.
+- Compatible deployment: `dpl_GikXkpiK6ZoM2r4Zqz3PiCTDfQL6`.
+- Restart-safe protected run: `40106017717`; the migration apply step was
+  skipped because the migration was already active, all preflight and
+  postflight checks passed, no migrations remained pending, the global grant
+  audit passed, and `productionChanged` was `false`.
+- Cart keeps table-level SELECT, INSERT and DELETE plus column-level UPDATE on
+  `updatedAt` only. CartItem keeps table-level SELECT, INSERT and DELETE plus
+  column-level UPDATE on `quantity`, `priceCents`, `priceVersion`, and
+  `selectedVariantOptionIds` only.
 
 ## Recovery
 

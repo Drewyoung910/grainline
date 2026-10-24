@@ -86,6 +86,8 @@ describe("site-wide RLS coverage matrix", () => {
       "SellerPayoutEvent",
       "SellerDeauthorizationApplication",
       "OrderItem",
+      "Cart",
+      "CartItem",
       "CheckoutStockReservation",
       "Case",
       "CaseResolutionClaim",
@@ -124,6 +126,8 @@ describe("site-wide RLS coverage matrix", () => {
         ["SellerPayoutEvent", "RLS_LIVE_FORCE"],
         ["SellerDeauthorizationApplication", "RLS_LIVE_FORCE"],
         ["OrderItem", "RLS_LIVE_FORCE"],
+        ["Cart", "RLS_LIVE_FORCE"],
+        ["CartItem", "RLS_LIVE_FORCE"],
         ["CheckoutStockReservation", "RLS_LIVE_FORCE"],
         ["Case", "RLS_LIVE_FORCE"],
         ["CaseResolutionClaim", "RLS_LIVE_FORCE"],
@@ -137,14 +141,14 @@ describe("site-wide RLS coverage matrix", () => {
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
         ["AccountDeletionSideEffect", "RLS_LIVE_FORCE"],
-        ["SupportRequest", "RLS_LIVE_ENABLE"],
+        ["SupportRequest", "RLS_LIVE_FORCE"],
         ["StripeWebhookEvent", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
     assert.match(
       matrix,
-      /Current candidate source contains 70 Prisma models\.[\s\S]*thirty[\s\S]*Production FORCE evidence[\s\S]*one with policyless Production\s+ENABLE\/NO FORCE[\s\S]*thirty-nine without a live RLS activation/,
+      /Current candidate source contains 70 Prisma models\.[\s\S]*thirty-three with retained Production FORCE evidence[\s\S]*thirty-seven without a\s+live RLS activation/,
     );
     assert.match(
       matrix,
@@ -166,14 +170,17 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /All thirty tables have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*User` is policyless[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
+      /All thirty-three tables have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*User` is policyless[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(
       architecture,
       /CheckoutStockReservation` is a completed service-ledger boundary/,
     );
-    assert.match(architecture, /SupportRequest is the active private-table candidate/);
+    assert.match(
+      architecture,
+      /SupportRequest, and Cart\/CartItem are\s+complete Production groups/,
+    );
     assert.doesNotMatch(architecture, /Case-family RLS is still off/);
   });
 

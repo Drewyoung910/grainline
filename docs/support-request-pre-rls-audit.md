@@ -159,14 +159,14 @@ documentation-only adjustment.
 The compatible preparation is live from protected run `39933538640`, and the
 compatible application is live at exact commit
 `0ec7c793b3e84497de88371c597ca3547e12d8ab` as deployment
-`dpl_G1yHZgGU3KFLNzqA2GqbVWBCSRfg`. Policyless ENABLE/NO FORCE migration
-`20261023020000_enable_support_request_rls` is live from exact main
-`13ee34504d58e28008ddc166459b75a1f4abcd6a` through protected run
-`39961147411`. Production has zero runtime, staff, or PUBLIC table/column
-authority and retains only the nine reviewed fixed operations. Its rollback
-restores the exact inspected predecessor grants and disables RLS before any
-application rollback. C-1150 correction
-`20261023050000_correct_support_request_email_reuse_privacy` must follow C-875
-and C-715 as the sole pending migration and preserve that ENABLE/NO FORCE
-posture. FORCE is a later posture-only release. No security release drops
-columns.
+`dpl_G1yHZgGU3KFLNzqA2GqbVWBCSRfg`. Policyless ENABLE migration
+`20261023020000_enable_support_request_rls` was applied by protected run
+`39961147411`. C-1150 correction
+`20261023050000_correct_support_request_email_reuse_privacy` was applied by
+protected run `40057039732`, preserving stable-user-first ownership and
+conflict-filtered historical-email fallback. FORCE migration
+`20261023060000_force_support_request_rls` was applied by protected run
+`40070613144`. Production now has policyless ENABLE plus FORCE, zero runtime,
+staff, or PUBLIC table/column authority, and only the reviewed owner-owned
+fixed operations. The reviewed rollback restores NO FORCE while retaining
+ENABLE and the narrow authority boundary. No security release drops columns.
