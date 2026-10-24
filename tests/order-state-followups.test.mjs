@@ -89,11 +89,12 @@ describe("order-state audit follow-up guardrails", () => {
   it("keeps cart add creation and quantity caps race-safe", () => {
     const text = source("src/app/api/cart/add/route.ts");
     const ownerAccess = source("src/lib/cartOwnerAccess.ts");
-    assert.match(text, /upsertOwnerCart\(me\.id\)/);
+    assert.match(text, /withOwnerCartTransaction\(me\.id, async \(tx\) =>/);
+    assert.match(text, /upsertOwnerCart\(me\.id, tx\)/);
     assert.doesNotMatch(text, /let cart = await prisma\.cart\.findUnique/);
     assert.match(text, /applyCartAddMutation\(\{/);
     assert.doesNotMatch(text, /isUniqueConstraintError/);
-    assert.match(text, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.doesNotMatch(text, /prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(text, /lockOwnerCart\(me\.id, cart\.id, tx\)/);
     assert.match(text, /createOwnerCartItem\(/);
     assert.match(text, /markOwnerCartItemMadeToOrder\(/);
@@ -117,7 +118,8 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /MAX_CART_TOTAL_QUANTITY = 200/);
     assert.match(text, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(text, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
-    assert.match(text, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(text, /withOwnerCartTransaction\(me\.id, async \(tx\) =>/);
+    assert.doesNotMatch(text, /prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(text, /lockOwnerCart\(me\.id, cart\.id, tx\)/);
     assert.match(text, /const lockedItem = await lockOwnerCartItem\(me\.id, item\.cartId, item\.id, tx\)/);
     assert.match(text, /ownerCartItemQuantityStats\(me\.id, cart\.id, tx\)/);
@@ -135,7 +137,10 @@ describe("order-state audit follow-up guardrails", () => {
     const text = source("src/app/api/cart/update/route.ts");
     const ownerAccess = source("src/lib/cartOwnerAccess.ts");
 
-    assert.match(text, /const matchingItems = await ownerCartItemsByListing\(me\.id, cart\.id, listingId\)/);
+    assert.match(
+      text,
+      /const matchingItems = await ownerCartItemsByListing\(me\.id, cart\.id, listingId, tx\)/,
+    );
     assert.match(ownerAccess, /where: ownerCartItemWhere\(userId, \{ cartId, listingId \}\)/);
     assert.match(ownerAccess, /take: 2/);
     assert.match(text, /matchingItems\.length > 1/);
