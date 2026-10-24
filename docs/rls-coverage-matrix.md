@@ -8,13 +8,13 @@ This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Candidate-source snapshot scope: 70 Prisma models.
 
 Current candidate source contains 70 Prisma models. The matrix records thirty
-with retained Production FORCE evidence and forty without a live RLS
-activation. Both the public `SellerProfile` table and its private companion are
-policyless FORCE in Production with zero direct runtime, staff or `PUBLIC`
-authority. `SupportRequest` compatible preparation and application conversion
-are live, while RLS remains off and predecessor grants remain unchanged. Its
-separate policyless ENABLE/NO FORCE candidate is full-chain proven locally but
-has not run in Production. The earlier protected-table inventory is in
+with retained Production FORCE evidence, one with policyless Production
+ENABLE/NO FORCE, and thirty-nine without a live RLS activation. Both the public
+`SellerProfile` table and its private companion are policyless FORCE in
+Production with zero direct runtime, staff or `PUBLIC` authority.
+`SupportRequest` compatible preparation, application conversion and policyless
+ENABLE/NO FORCE are live with zero direct runtime, staff or `PUBLIC` authority;
+FORCE remains a separately staged posture release. The earlier protected-table inventory is in
 `docs/remaining-rls-table-prioritization-audit-20261012.md`.
 
 `User` is

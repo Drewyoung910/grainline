@@ -97,6 +97,7 @@ describe("site-wide RLS coverage matrix", () => {
       "DirectUpload",
       "DirectUploadReference",
       "AccountDeletionSideEffect",
+      "SupportRequest",
       "StripeWebhookEvent",
       "Notification",
     ]);
@@ -134,13 +135,14 @@ describe("site-wide RLS coverage matrix", () => {
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
         ["AccountDeletionSideEffect", "RLS_LIVE_FORCE"],
+        ["SupportRequest", "RLS_LIVE_ENABLE"],
         ["StripeWebhookEvent", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
     assert.match(
       matrix,
-      /Current candidate source contains 70 Prisma models\.[\s\S]*thirty[\s\S]*Production FORCE evidence[\s\S]*forty without a live RLS\s+activation/,
+      /Current candidate source contains 70 Prisma models\.[\s\S]*thirty[\s\S]*Production FORCE evidence[\s\S]*one with policyless Production\s+ENABLE\/NO FORCE[\s\S]*thirty-nine without a live RLS activation/,
     );
     assert.match(
       matrix,
