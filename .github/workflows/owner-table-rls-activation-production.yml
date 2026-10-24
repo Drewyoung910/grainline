@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - saved_blog_post_v1
+          - cart_cart_item_v1
       release_commit:
         description: Exact reviewed main commit
         required: true
@@ -177,9 +178,21 @@ jobs:
           test "$latest" = "$migration"
           node --test \
             tests/owner-table-rls-activation-production.test.mjs \
-            tests/reviewed-pending-migrations.test.mjs \
-            tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs \
-            tests/saved-blog-post-export.test.mjs
+            tests/reviewed-pending-migrations.test.mjs
+          case "$OWNER_TABLE_RLS_RELEASE_ID" in
+            saved_blog_post_v1)
+              node --test \
+                tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs \
+                tests/saved-blog-post-export.test.mjs
+              ;;
+            cart_cart_item_v1)
+              node --test \
+                tests/anonymous-cart-merge.test.mjs \
+                tests/cart-add-mutation.test.mjs \
+                tests/listing-delete.test.mjs
+              ;;
+            *) exit 1 ;;
+          esac
       - name: Verify exact compatible deployment is live and predecessor skew is closed
         env:
           REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}

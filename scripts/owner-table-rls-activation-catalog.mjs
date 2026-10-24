@@ -15,6 +15,7 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
   saved_blog_post_v1: Object.freeze({
     predecessorDeploymentId: "dpl_9P14wnz14RfsVfaiALkUhR4eejph",
     predecessorSourceCommit: "18bdcb7e59a435001e8a8c903606ff8b78819249",
+    shape: "saved_blog_post",
     migration: "20261023070000_activate_saved_blog_post_rls",
     migrationSha256: "687a254c80e08bb86b605931d8128b0b23b25f7b9904c42c588418b7c69f5b08",
     table: "SavedBlogPost",
@@ -37,6 +38,66 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_seller_owner_saved_blog_post_page",
         arguments: "integer, integer",
+      }),
+    ]),
+  }),
+  cart_cart_item_v1: Object.freeze({
+    predecessorDeploymentId: "dpl_CQzwxpZQzyxn4d9zHJy5o9JMN1Y1",
+    predecessorSourceCommit: "a0524648ec37b397d004e9b816eb933f55ab385a",
+    shape: "cart_cart_item",
+    migration: "20261023080000_activate_cart_cart_item_rls",
+    migrationSha256: "4f1349984a06b66ad649d2a3360f9a7498b3162418187f602f0b4949c9a5d6fb",
+    tables: Object.freeze(["Cart", "CartItem"]),
+    policies: Object.freeze([
+      Object.freeze({ table: "Cart", name: "cart_owner_delete", command: "d" }),
+      Object.freeze({ table: "Cart", name: "cart_owner_insert", command: "a" }),
+      Object.freeze({ table: "Cart", name: "cart_owner_select", command: "r" }),
+      Object.freeze({ table: "Cart", name: "cart_owner_update", command: "w" }),
+      Object.freeze({ table: "CartItem", name: "cart_item_owner_delete", command: "d" }),
+      Object.freeze({ table: "CartItem", name: "cart_item_owner_insert", command: "a" }),
+      Object.freeze({ table: "CartItem", name: "cart_item_owner_select", command: "r" }),
+      Object.freeze({ table: "CartItem", name: "cart_item_owner_update", command: "w" }),
+    ]),
+    serviceFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_cart_item_admin_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_cart_item_seller_listing_cleanup",
+        arguments: "text",
+      }),
+    ]),
+    retainedFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_checkout_reservation_create_cart",
+        arguments: "text, text, text, text, text",
+        runtimeExecute: false,
+      }),
+      Object.freeze({
+        name: "grainline_checkout_reservation_create_cart_consistent",
+        arguments: "text, text, text, text, text, jsonb",
+        runtimeExecute: false,
+      }),
+      Object.freeze({
+        name: "grainline_order_seller_analytics_summary",
+        arguments: "text, bigint, bigint, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_seller_actor_cart_transaction_states",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_checkout_private_state",
+        arguments: "text, text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_shipping_quote_state",
+        arguments: "text, text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_stripe_checkout_order_create",
+        arguments: "text, bigint, text, text, timestamp without time zone, jsonb",
       }),
     ]),
   }),
@@ -91,6 +152,59 @@ export function verifyOwnerTableRlsActivationSource(
     release.migration,
     release.migrationSha256,
   );
+  if (release.shape === "cart_cart_item") {
+    for (const table of release.tables) {
+      const quotedTable = table.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+      const tablePattern = `public\\."${quotedTable}"`;
+      if (
+        !new RegExp(`ALTER\\s+TABLE\\s+${tablePattern}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`, "iu").test(activation.sql)
+        || !new RegExp(`ALTER\\s+TABLE\\s+${tablePattern}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`, "iu").test(activation.sql)
+      ) {
+        throw stopped(`${table} ENABLE/FORCE source drifted`);
+      }
+    }
+    if (
+      (activation.sql.match(/\bCREATE\s+POLICY\b/giu) ?? []).length !== release.policies.length
+      || (activation.sql.match(/\bCREATE\s+TRIGGER\b/giu) ?? []).length !== 0
+      || !/REVOKE\s+ALL\s+ON\s+TABLE\s+public\."Cart",\s*public\."CartItem"/iu.test(activation.sql)
+      || /\bDROP\s+(?:TABLE|COLUMN)\b/iu.test(activation.sql)
+    ) {
+      throw stopped("migration is not the reviewed cart owner-policy shape");
+    }
+    for (const policy of release.policies) {
+      const command = policy.command === "r"
+        ? "SELECT"
+        : policy.command === "a"
+          ? "INSERT"
+          : policy.command === "w"
+            ? "UPDATE"
+            : policy.command === "d"
+              ? "DELETE"
+              : null;
+      if (
+        command === null
+        || !new RegExp(
+          `CREATE\\s+POLICY\\s+${policy.name}\\s+ON\\s+public\\."${policy.table}"[\\s\\S]*?FOR\\s+${command}[\\s\\S]*?TO\\s+grainline_app_runtime`,
+          "iu",
+        ).test(activation.sql)
+      ) {
+        throw stopped(`migration policy ${policy.name} drifted`);
+      }
+    }
+    const serviceFunctionSources = new Map(
+      release.serviceFunctions.map((entry) => [
+        entry.name,
+        functionSourceFromMigration(activation.sql, entry.name),
+      ]),
+    );
+    return Object.freeze({
+      releaseId,
+      release,
+      migrationPath: activation.migrationPath,
+      digest: activation.digest,
+      serviceFunctionSources,
+    });
+  }
   const retained = migrationArtifact(
     rootDir,
     release.retainedFunctionMigration,

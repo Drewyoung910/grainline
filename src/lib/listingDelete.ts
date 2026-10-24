@@ -1,5 +1,4 @@
 import { ListingStatus, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import {
   DirectUploadClaimError,
   syncListingDirectUploadReferences,
@@ -10,10 +9,11 @@ import {
   type ListingRetainedReferenceState,
 } from "@/lib/listingDeleteState";
 import { getListingOrderArchiveBlocked } from "@/lib/orderEligibilityAuthority";
-import { withSerializableRetry } from "@/lib/transactionRetry";
 import { CASE_WINDOW_DAYS } from "@/lib/caseCreateState";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
+import { withSerializableDbUserContext } from "@/lib/dbUserContext";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { deleteCartItemsForSellerListing } from "@/lib/cartServiceAccess";
 
 export const LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 
@@ -52,8 +52,9 @@ export async function deleteListingWithCleanup(
   if (!owner) {
     throw new ListingDeleteError("Listing not found.");
   }
-  return withSerializableRetry(() =>
-    prisma.$transaction(async (tx) => {
+  return withSerializableDbUserContext(
+    normalizedActorUserId,
+    async (tx) => {
       // The row lock keeps the reference decision and delete/archive mutation
       // atomic. New foreign-key references need a conflicting key-share lock,
       // so they cannot appear between this check and the final mutation.
@@ -139,7 +140,7 @@ export async function deleteListingWithCleanup(
 
         await tx.favorite.deleteMany({ where: { listingId: normalizedListingId } });
         await tx.stockNotification.deleteMany({ where: { listingId: normalizedListingId } });
-        await tx.cartItem.deleteMany({ where: { listingId: normalizedListingId } });
+        await deleteCartItemsForSellerListing(tx, normalizedListingId);
         return "archived";
       }
 
@@ -176,6 +177,6 @@ export async function deleteListingWithCleanup(
         throw new ListingDeleteError("Listing state changed; refresh and try again.");
       }
       return "deleted";
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }),
+    },
   );
 }

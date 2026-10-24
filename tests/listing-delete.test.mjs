@@ -37,7 +37,7 @@ describe("listing delete lifecycle", () => {
     );
 
     assert.match(source, /FOR UPDATE OF listing/);
-    assert.match(source, /TransactionIsolationLevel\.Serializable/);
+    assert.match(source, /withSerializableDbUserContext/);
     assert.match(source, /sellerOwnerCore\(normalizedActorUserId\)/);
     assert.match(source, /listing\."sellerId" = \$\{owner\.sellerProfileId\}/);
     assert.doesNotMatch(source, /JOIN public\."SellerProfile"/);
@@ -48,6 +48,8 @@ describe("listing delete lifecycle", () => {
     assert.match(source, /requireAllTracked: true/);
     assert.match(source, /tx\.photo\.deleteMany/);
     assert.match(source, /tx\.listing\.deleteMany/);
+    assert.match(source, /deleteCartItemsForSellerListing/);
+    assert.doesNotMatch(source, /tx\.cartItem\.deleteMany/);
     assert.match(uploadMigration, /grainline_direct_upload_release_listing_delete/);
     assert.match(uploadMigration, /BEFORE DELETE ON public\."Listing"/);
   });
