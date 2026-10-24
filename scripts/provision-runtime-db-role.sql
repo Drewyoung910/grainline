@@ -749,6 +749,14 @@ GRANT SELECT, INSERT, DELETE ON TABLE public."CartItem"
   TO :"runtime_role";
 GRANT UPDATE (quantity, "priceCents", "priceVersion", "selectedVariantOptionIds")
   ON TABLE public."CartItem" TO :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_cart_item_admin_listing_cleanup(text)
+  FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.grainline_cart_item_seller_listing_cleanup(text)
+  FROM PUBLIC, :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_cart_item_admin_listing_cleanup(text)
+  TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.grainline_cart_item_seller_listing_cleanup(text)
+  TO :"runtime_role";
 \endif
 \unset grainline_cart_rls_active
 

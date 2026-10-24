@@ -210,6 +210,12 @@ const SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES = [
   "grainline_listing_seller_public_state_bind",
   "grainline_seller_rating_listing_state_sync",
 ];
+const CART_CART_ITEM_RLS_MIGRATION =
+  "prisma/migrations/20261023080000_activate_cart_cart_item_rls/migration.sql";
+const CART_CART_ITEM_RUNTIME_FUNCTION_NAMES = [
+  "grainline_cart_item_admin_listing_cleanup",
+  "grainline_cart_item_seller_listing_cleanup",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3104,6 +3110,12 @@ describe("database grant inventory guardrails", () => {
     const userUnsubscribeOptionalPreferencesCorrectionPresent = existsSync(
       "prisma/migrations/20261023030000_correct_user_unsubscribe_optional_email_preferences/migration.sql",
     );
+    const cartCartItemRlsActivationPresent = existsSync(
+      CART_CART_ITEM_RLS_MIGRATION,
+    ) && CART_CART_ITEM_RUNTIME_FUNCTION_NAMES.every((functionName) =>
+      source(CART_CART_ITEM_RLS_MIGRATION).includes(
+        `CREATE FUNCTION public.${functionName}(`,
+      ));
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3281,6 +3293,9 @@ describe("database grant inventory guardrails", () => {
       ...(savedBlogPostRlsActivationMigrationPresent
         ? ["grainline_saved_blog_post_insert_guard"]
         : []),
+      ...(cartCartItemRlsActivationPresent
+        ? CART_CART_ITEM_RUNTIME_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3328,6 +3343,9 @@ describe("database grant inventory guardrails", () => {
         + (supportRequestEnableMigrationPresent ? 1 : 0)
         + (savedBlogPostRlsActivationMigrationPresent
           ? 2 // table plus insert-guard function
+          : 0)
+        + (cartCartItemRlsActivationPresent
+          ? 3 // table plus two cleanup functions
           : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
@@ -3418,6 +3436,9 @@ describe("database grant inventory guardrails", () => {
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
     ));
     for (const functionName of [
+      ...(cartCartItemRlsActivationPresent
+        ? CART_CART_ITEM_RUNTIME_FUNCTION_NAMES
+        : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
       ...CASE_INVARIANT_FUNCTIONS.map((entry) => entry.name),
@@ -3703,6 +3724,7 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsActivationExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Conversation",
         "Message",
         "Notification",
@@ -3718,6 +3740,7 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsActivationExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Case",
         "CaseMessage",
         "CaseMessageAttachment",
@@ -3769,6 +3792,7 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsForceExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Case",
         "CaseMessage",
         "CaseMessageAttachment",
@@ -5252,11 +5276,15 @@ describe("database grant inventory guardrails", () => {
     const savedBlogPostProvisioningPresent = provision.includes(
       "SavedBlogPost RLS is partially or unexpectedly configured",
     );
+    const cartCartItemProvisioningPresent = provision.includes(
+      "grainline_cart_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
         + Number(supportRequestProvisioningPresent)
-        + Number(savedBlogPostProvisioningPresent),
+        + Number(savedBlogPostProvisioningPresent)
+        + Number(cartCartItemProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5290,6 +5318,16 @@ describe("database grant inventory guardrails", () => {
         provision,
         /REVOKE UPDATE ON TABLE public\."SavedBlogPost" FROM :"runtime_role"/,
       );
+    }
+    if (cartCartItemProvisioningPresent) {
+      for (const functionName of CART_CART_ITEM_RUNTIME_FUNCTION_NAMES) {
+        assert.match(
+          provision,
+          new RegExp(
+            `REVOKE ALL ON FUNCTION public\\.${functionName}\\(text\\)[\\s\\S]*GRANT EXECUTE ON FUNCTION public\\.${functionName}\\(text\\)`,
+          ),
+        );
+      }
     }
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
