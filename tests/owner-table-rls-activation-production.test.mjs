@@ -8,6 +8,7 @@ import yaml from "js-yaml";
 import {
   OWNER_TABLE_RLS_CONFIRMATION,
   ownerTableRlsActivation,
+  verifyOwnerTableRlsPredecessor,
   verifyOwnerTableRlsActivationSource,
 } from "../scripts/owner-table-rls-activation-catalog.mjs";
 import {
@@ -199,6 +200,22 @@ test("catalog admits only the byte-sealed combined owner-policy activation", () 
   assert.match(sql, /FORCE ROW LEVEL SECURITY/u);
   assert.equal((sql.match(/\bCREATE POLICY\b/gu) ?? []).length, 3);
   assert.doesNotMatch(sql, /DROP (?:TABLE|COLUMN)/iu);
+  assert.equal(
+    verifyOwnerTableRlsPredecessor(
+      releaseId,
+      "dpl_9P14wnz14RfsVfaiALkUhR4eejph",
+      "18bdcb7e59a435001e8a8c903606ff8b78819249",
+    ),
+    release,
+  );
+  assert.throws(
+    () => verifyOwnerTableRlsPredecessor(
+      releaseId,
+      "dpl_B12345678901234567890123",
+      "18bdcb7e59a435001e8a8c903606ff8b78819249",
+    ),
+    /predecessor deployment binding drifted/u,
+  );
 });
 
 test("inspector proves predecessor and active states without recording row data", async () => {
@@ -253,7 +270,18 @@ test("Production workflow is exact-bound, deployment-bound, and sole-pending", (
   assert.ok(parsed.on.workflow_dispatch);
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(OWNER_TABLE_RLS_CONFIRMATION, "u"));
+  assert.match(
+    workflow,
+    /uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\s+# v7\.0\.1/u,
+  );
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
+  assert.ok(parsed.on.workflow_dispatch.inputs.superseded_app_deployment_id.required);
+  assert.ok(parsed.on.workflow_dispatch.inputs.superseded_app_commit.required);
+  assert.match(workflow, /REVIEWED_SUPERSEDED_DEPLOYMENT_ID/u);
+  assert.match(workflow, /REVIEWED_SUPERSEDED_APP_COMMIT/u);
+  assert.match(workflow, /supersededDeploymentId === deploymentId/u);
+  assert.match(workflow, /predecessorComparison\.status !== 'ahead'/u);
+  assert.match(workflow, /OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_DEPLOYMENT_ID/u);
   assert.match(workflow, /compareCommits/u);
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);

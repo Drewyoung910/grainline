@@ -13,6 +13,8 @@ export const OWNER_TABLE_RLS_CONFIRMATION = "activate-reviewed-owner-table-rls";
 
 export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
   saved_blog_post_v1: Object.freeze({
+    predecessorDeploymentId: "dpl_9P14wnz14RfsVfaiALkUhR4eejph",
+    predecessorSourceCommit: "18bdcb7e59a435001e8a8c903606ff8b78819249",
     migration: "20261023070000_activate_saved_blog_post_rls",
     migrationSha256: "687a254c80e08bb86b605931d8128b0b23b25f7b9904c42c588418b7c69f5b08",
     table: "SavedBlogPost",
@@ -50,6 +52,21 @@ export function ownerTableRlsActivation(releaseId) {
   }
   const release = OWNER_TABLE_RLS_ACTIVATIONS[releaseId];
   if (!release) throw stopped("release id is not reviewed");
+  return release;
+}
+
+export function verifyOwnerTableRlsPredecessor(
+  releaseId,
+  deploymentId,
+  sourceCommit,
+) {
+  const release = ownerTableRlsActivation(releaseId);
+  if (
+    deploymentId !== release.predecessorDeploymentId
+    || sourceCommit !== release.predecessorSourceCommit
+  ) {
+    throw stopped("predecessor deployment binding drifted");
+  }
   return release;
 }
 
@@ -140,8 +157,19 @@ export function verifyOwnerTableRlsActivationSource(
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
+    const releaseId = process.env.OWNER_TABLE_RLS_RELEASE_ID ?? "";
+    if (
+      process.env.OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_DEPLOYMENT_ID
+      || process.env.OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_SOURCE_COMMIT
+    ) {
+      verifyOwnerTableRlsPredecessor(
+        releaseId,
+        process.env.OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_DEPLOYMENT_ID,
+        process.env.OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_SOURCE_COMMIT,
+      );
+    }
     const verified = verifyOwnerTableRlsActivationSource(
-      process.env.OWNER_TABLE_RLS_RELEASE_ID ?? "",
+      releaseId,
     );
     process.stdout.write(`${verified.release.migration}\n`);
   } catch (error) {
