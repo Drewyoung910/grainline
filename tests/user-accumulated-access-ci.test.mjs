@@ -252,7 +252,7 @@ test("new User families are proved then isolated until historical prerequisites 
   const restoreForce = "Restore User policyless FORCE source package";
   const apply = "Apply accumulated User access in disposable PostgreSQL";
   const audit = "Audit runtime grants after accumulated User access";
-  const converge = "Converge accumulated User and Order isolated staff grants";
+  const converge = "Converge accumulated User and Order isolated runtime and staff grants";
   const isolateWitness =
     "Isolate blocked-checkout refund witness until immutable refund repair passes";
   const restoreWitness =
@@ -266,6 +266,8 @@ test("new User families are proved then isolated until historical prerequisites 
   assert.ok(workflow.indexOf(apply) < workflow.indexOf(audit));
   assert.ok(workflow.indexOf(apply) < workflow.indexOf(converge));
   assert.ok(workflow.indexOf(converge) < workflow.indexOf(audit));
+  assert.match(step(converge), /--file=scripts\/provision-runtime-db-role\.sql/);
+  assert.match(step(converge), /--file=scripts\/provision-order-staff-read-role\.sql/);
   assert.ok(workflow.indexOf(audit) < workflow.indexOf("Production build"));
   assert.ok(workflow.indexOf(isolateWitness) < workflow.indexOf(
     "Isolate immutable Order refund-event repair until current Production predecessors pass",

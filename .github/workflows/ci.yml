@@ -5136,10 +5136,14 @@ jobs:
             psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
               --file="prisma/migrations/$migration/migration.sql"
           done
-      - name: Converge accumulated User and Order isolated staff grants
+      - name: Converge accumulated User and Order isolated runtime and staff grants
         shell: bash
         run: |
           set -euo pipefail
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=runtime_role=grainline_app_runtime \
+            --set=migration_role=ci \
+            --file=scripts/provision-runtime-db-role.sql
           psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
             --set=staff_role=grainline_staff_read_runtime \
             --set=runtime_role=grainline_app_runtime \
