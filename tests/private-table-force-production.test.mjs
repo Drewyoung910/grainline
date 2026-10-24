@@ -182,6 +182,10 @@ test("inspector rejects any restored direct table authority", async () => {
 test("Production workflow is exact-bound, restart-safe, and sole-pending", () => {
   assert.ok(parsed.on.workflow_dispatch);
   assert.equal(parsed.concurrency.group, "production-database-migrations");
+  assert.match(
+    workflow,
+    /uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\s+# v7\.0\.1/u,
+  );
   assert.match(workflow, new RegExp(PRIVATE_TABLE_FORCE_CONFIRMATION, "u"));
   assert.match(workflow, /Private Table ENABLE Production/u);
   assert.match(workflow, /Support Request Email Reuse Privacy Production/u);
