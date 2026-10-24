@@ -652,6 +652,19 @@ $grainline_saved_blog_post_provisioning_abort$;
 
 REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role";
 
+-- The insert guard is invoked only by the SavedBlogPost trigger. Keep it
+-- unavailable as an ordinary runtime RPC if role provisioning is replayed
+-- after activation.
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  'public."grainline_saved_blog_post_insert_guard"()',
+  :'runtime_role'
+)
+WHERE pg_catalog.to_regprocedure(
+  'public.grainline_saved_blog_post_insert_guard()'
+) IS NOT NULL;
+\gexec
+
 -- StripeWebhookEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
 -- removes all direct runtime authority. FORCE may be either off (initial
