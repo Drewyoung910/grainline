@@ -27,11 +27,19 @@ function checkedUrl(value, label) {
 
 export async function verifyOrderEmailFreeDeploymentSurface({
   deploymentId,
+  blockedPredecessorDeploymentId,
   releaseCommit,
   fetchImpl = globalThis.fetch,
   cacheBuster = Date.now(),
 } = {}) {
   assert.match(deploymentId ?? "", /^dpl_[A-Za-z0-9]{20,64}$/);
+  if (blockedPredecessorDeploymentId !== undefined) {
+    assert.match(
+      blockedPredecessorDeploymentId,
+      /^dpl_[A-Za-z0-9]{20,64}$/,
+    );
+    assert.notEqual(blockedPredecessorDeploymentId, deploymentId);
+  }
   if (releaseCommit !== undefined) {
     assert.match(releaseCommit, /^[0-9a-f]{40}$/);
   }
@@ -41,8 +49,9 @@ export async function verifyOrderEmailFreeDeploymentSurface({
     ? null
     : new RegExp(`<meta(?=[^>]+name=["']grainline-release-commit["'])(?=[^>]+content=["']${releaseCommit}["'])[^>]*>`, "i");
 
-  for (const alias of PUBLIC_ALIASES) {
+  async function verifyPublicAlias(alias, pinnedDeploymentId) {
     const requestUrl = new URL(`https://${alias}/`);
+    if (pinnedDeploymentId) requestUrl.searchParams.set("dpl", pinnedDeploymentId);
     requestUrl.searchParams.set("order_release_check", String(cacheBuster));
     let response = await fetchImpl(requestUrl, {
       headers: NO_STORE_HEADERS,
@@ -63,6 +72,7 @@ export async function verifyOrderEmailFreeDeploymentSurface({
       assert.equal(redirect.hostname, alias, alias);
       assert.equal(redirect.pathname, "/not-available", alias);
       assert.equal(redirect.search, "", alias);
+      if (pinnedDeploymentId) redirect.searchParams.set("dpl", pinnedDeploymentId);
       redirect.searchParams.set("order_release_check", String(cacheBuster));
       response = await fetchImpl(redirect, {
         headers: NO_STORE_HEADERS,
@@ -76,6 +86,17 @@ export async function verifyOrderEmailFreeDeploymentSurface({
     assert.ok(Buffer.byteLength(body, "utf8") <= MAX_PAGE_BYTES, alias);
     assert.match(body, marker, alias);
     if (releaseMarker) assert.match(body, releaseMarker, alias);
+  }
+
+  for (const alias of PUBLIC_ALIASES) {
+    await verifyPublicAlias(alias);
+    // Setting Vercel's Skew Protection Threshold to the compatible deployment
+    // must make requests pinned to its predecessor resolve to this deployment.
+    // Otherwise an already-open browser can keep calling incompatible code
+    // after direct table access is removed below.
+    if (blockedPredecessorDeploymentId) {
+      await verifyPublicAlias(alias, blockedPredecessorDeploymentId);
+    }
   }
 
   for (const alias of PROTECTED_ALIASES) {
@@ -126,6 +147,8 @@ const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).hr
 if (invokedPath === import.meta.url) {
   await verifyOrderEmailFreeDeploymentSurface({
     deploymentId: process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID,
+    blockedPredecessorDeploymentId:
+      process.env.REVIEWED_SUPERSEDED_DEPLOYMENT_ID,
     releaseCommit: process.env.REVIEWED_RELEASE_COMMIT,
   });
 }

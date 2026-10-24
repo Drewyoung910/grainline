@@ -10,7 +10,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import {
   deleteOwnerSavedBlogPost,
   findOwnerSavedBlogPost,
-  upsertOwnerSavedBlogPost,
+  saveOwnerSavedBlogPost,
 } from "@/lib/savedBlogPostOwnerAccess";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
@@ -76,7 +76,7 @@ export async function POST(
   const post = await getPost(slug);
   if (!post) return privateJson({ error: "Not found" }, { status: 404 });
 
-  await upsertOwnerSavedBlogPost(me.id, post.id);
+  await saveOwnerSavedBlogPost(me.id, post.id);
   return privateJson({ saved: true });
 }
 

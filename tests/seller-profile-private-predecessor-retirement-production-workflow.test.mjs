@@ -78,6 +78,58 @@ test("live deployment proof binds public aliases to both deployment and reviewed
   );
 });
 
+test("live deployment proof requires the predecessor skew pin to resolve to the compatible deployment", async () => {
+  const predecessorDeploymentId = "dpl_B12345678901234567890123";
+  const thresholdSurface = ({ thresholdClosed }) => async (input) => {
+    const request = new URL(input);
+    if (request.hostname === "thegrainline.com" && request.pathname === "/api/health") {
+      return Response.json({ ok: true });
+    }
+    if (["thegrainline.com", "grainline.vercel.app"].includes(request.hostname)) {
+      const requestedDeployment = request.searchParams.get("dpl");
+      const servedDeployment = requestedDeployment === predecessorDeploymentId && !thresholdClosed
+        ? predecessorDeploymentId
+        : deploymentId;
+      const servedCommit = servedDeployment === deploymentId ? releaseCommit : "b".repeat(40);
+      return new Response(
+        `<meta content="${servedCommit}" name="grainline-release-commit"><div>dpl=${servedDeployment}</div>`,
+        { status: 200 },
+      );
+    }
+    if (request.hostname === "www.thegrainline.com") {
+      return new Response(null, { status: 308, headers: { location: "https://thegrainline.com/" } });
+    }
+    if (["grainline-drew-youngs-projects.vercel.app", "grainline-git-main-drew-youngs-projects.vercel.app"].includes(request.hostname)) {
+      const redirect = new URL("https://vercel.com/sso-api");
+      redirect.searchParams.set("url", request.toString());
+      redirect.searchParams.set("nonce", "a".repeat(64));
+      return new Response("protected", {
+        status: 302,
+        headers: { location: redirect.toString(), server: "Vercel" },
+      });
+    }
+    throw new Error(`unexpected URL: ${request}`);
+  };
+
+  await verifyOrderEmailFreeDeploymentSurface({
+    blockedPredecessorDeploymentId: predecessorDeploymentId,
+    deploymentId,
+    releaseCommit,
+    cacheBuster: 1,
+    fetchImpl: thresholdSurface({ thresholdClosed: true }),
+  });
+  await assert.rejects(
+    verifyOrderEmailFreeDeploymentSurface({
+      blockedPredecessorDeploymentId: predecessorDeploymentId,
+      deploymentId,
+      releaseCommit,
+      cacheBuster: 1,
+      fetchImpl: thresholdSurface({ thresholdClosed: false }),
+    }),
+    /thegrainline\.com/u,
+  );
+});
+
 test("retirement requires the correction and admits only exact immutable retirement bytes", () => {
   assert.match(workflow, new RegExp(correction, "u"));
   assert.match(workflow, /required SellerProfile app-authority correction is missing/u);

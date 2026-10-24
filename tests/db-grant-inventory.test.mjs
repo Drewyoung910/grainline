@@ -278,6 +278,8 @@ const {
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
   SUPPORT_REQUEST_TABLE,
+  SAVED_BLOG_POST_TABLE,
+  SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -789,6 +791,18 @@ describe("database grant inventory guardrails", () => {
       ...supportRequestPredecessorInventory,
       rlsEnableTables: ["SupportRequest"],
     };
+    const savedBlogPostPredecessorInventory = {
+      rlsPolicyTables: [],
+      savedBlogPostOwnerPrivilegesProvisioned: false,
+    };
+    const savedBlogPostProvisionedInventory = {
+      ...savedBlogPostPredecessorInventory,
+      savedBlogPostOwnerPrivilegesProvisioned: true,
+    };
+    const savedBlogPostActivatedInventory = {
+      ...savedBlogPostPredecessorInventory,
+      rlsPolicyTables: [SAVED_BLOG_POST_TABLE],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -801,6 +815,32 @@ describe("database grant inventory guardrails", () => {
       requiredRuntimeTablePrivileges("User", phaseAInventory),
       REQUIRED_TABLE_PRIVILEGES,
     );
+    if (
+      SAVED_BLOG_POST_TABLE === "SavedBlogPost"
+      && Array.isArray(SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES)
+    ) {
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SAVED_BLOG_POST_TABLE,
+          savedBlogPostPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SAVED_BLOG_POST_TABLE,
+          savedBlogPostProvisionedInventory,
+        ),
+        SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          SAVED_BLOG_POST_TABLE,
+          savedBlogPostActivatedInventory,
+        ),
+        SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
       [],
@@ -2978,6 +3018,9 @@ describe("database grant inventory guardrails", () => {
     const supportRequestForceMigrationPresent = existsSync(
       "prisma/migrations/20261023060000_force_support_request_rls/migration.sql",
     );
+    const savedBlogPostRlsActivationMigrationPresent = existsSync(
+      "prisma/migrations/20261023070000_activate_saved_blog_post_rls/migration.sql",
+    );
     const sellerProfilePrivatePreparationMigrationPath =
       "prisma/migrations/20261013120000_prepare_seller_profile_private_boundary/migration.sql";
     const sellerProfilePrivatePreparationMigrationPresent = existsSync(
@@ -3231,6 +3274,9 @@ describe("database grant inventory guardrails", () => {
       ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
       ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,
       "grainline_notification_preferences_valid",
+      ...(savedBlogPostRlsActivationMigrationPresent
+        ? ["grainline_saved_blog_post_insert_guard"]
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3276,6 +3322,9 @@ describe("database grant inventory guardrails", () => {
           ? supportRequestAuthorityFunctionNames.length
           : 0)
         + (supportRequestEnableMigrationPresent ? 1 : 0)
+        + (savedBlogPostRlsActivationMigrationPresent
+          ? 2 // table plus insert-guard function
+          : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
@@ -3653,6 +3702,9 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "Message",
         "Notification",
+        ...(savedBlogPostRlsActivationMigrationPresent
+          ? ["SavedBlogPost"]
+          : []),
         "SavedSearch",
       ],
     );
@@ -3687,6 +3739,9 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(savedBlogPostRlsActivationMigrationPresent
+          ? ["SavedBlogPost"]
+          : []),
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
@@ -3735,6 +3790,9 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(savedBlogPostRlsActivationMigrationPresent
+          ? ["SavedBlogPost"]
+          : []),
         "SavedSearch",
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
@@ -4912,6 +4970,41 @@ describe("database grant inventory guardrails", () => {
     ]);
   });
 
+  it("derives the SavedBlogPost predecessor grant posture only from the complete provisioning guard", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-saved-blog-grant-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    mkdirSync(join(root, "scripts"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model SavedBlogPost {",
+        "  id String @id",
+        "}",
+      ].join("\n"),
+    );
+
+    // Historical access-source replays intentionally restore an older grant-audit
+    // script. Future-only grant posture assertions do not apply to that snapshot.
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        deriveGrantInventory(root),
+        "savedBlogPostOwnerPrivilegesProvisioned",
+      )
+    ) return;
+
+    const guard = "SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning";
+    const revoke = 'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"';
+    const provisioningPath = join(root, "scripts", "provision-runtime-db-role.sql");
+
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, false);
+    writeFileSync(provisioningPath, `${guard}\n`);
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, false);
+    writeFileSync(provisioningPath, `${revoke};\n`);
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, false);
+    writeFileSync(provisioningPath, `${guard}\n${revoke};\n`);
+    assert.equal(deriveGrantInventory(root).savedBlogPostOwnerPrivilegesProvisioned, true);
+  });
+
   it("does not demand the staged refund-reconciliation table before its sealed migration is restored", () => {
     const root = mkdtempSync(join(tmpdir(), "grainline-refund-inventory-"));
     mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
@@ -5152,10 +5245,14 @@ describe("database grant inventory guardrails", () => {
     const supportRequestProvisioningPresent = provision.includes(
       "support_request_rls_active",
     );
+    const savedBlogPostProvisioningPresent = provision.includes(
+      "SavedBlogPost RLS is partially or unexpectedly configured",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
-        + Number(supportRequestProvisioningPresent),
+        + Number(supportRequestProvisioningPresent)
+        + Number(savedBlogPostProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5178,6 +5275,16 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :support_request_rls_active[\s\S]*REVOKE ALL ON TABLE public\."SupportRequest"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
+    if (savedBlogPostProvisioningPresent) {
+      assert.match(
+        provision,
+        /SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /REVOKE UPDATE ON TABLE public\."SavedBlogPost" FROM :"runtime_role"/,
       );
     }
     assert.equal(
@@ -5366,6 +5473,18 @@ describe("database grant inventory guardrails", () => {
     );
     assert.ok(savedSearchGrantIndex > 0);
     assert.ok(savedSearchUpdateRevokeIndex > savedSearchGrantIndex);
+    if (savedBlogPostProvisioningPresent) {
+      const savedBlogPostGrantIndex = provision.indexOf('public."SavedBlogPost",');
+      const savedBlogPostUpdateRevokeIndex = provision.indexOf(
+        'REVOKE UPDATE ON TABLE public."SavedBlogPost" FROM :"runtime_role"',
+      );
+      assert.ok(savedBlogPostGrantIndex > 0);
+      assert.ok(savedBlogPostUpdateRevokeIndex > savedBlogPostGrantIndex);
+      assert.match(
+        provision,
+        /SavedBlogPost RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+    }
     const beginIndex = provision.indexOf("BEGIN;");
     const notificationGrantIndex = provision.indexOf('public."Notification",');
     const notificationNarrowIndex = provision.indexOf(
@@ -5447,13 +5566,16 @@ describe("database grant inventory guardrails", () => {
       provision,
       /GRANT USAGE ON TYPE public\."OrderDisputeRecoveryStatus" TO %I/,
     );
-    const provisionedFunctionNames = sellerProfilePublicProvisioningPresent
+    const provisionedFunctionNames = (sellerProfilePublicProvisioningPresent
       ? inventory.functions
       : inventory.functions.filter(
           (functionName) => ![
             ...SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES,
             ...SELLER_PROFILE_PUBLIC_VISIBILITY_MIRROR_PRIVATE_FUNCTION_NAMES,
           ].includes(functionName),
+        )).filter(
+          (functionName) => savedBlogPostProvisioningPresent
+            || functionName !== "grainline_saved_blog_post_insert_guard",
         );
     for (const fn of provisionedFunctionNames) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;

@@ -68,7 +68,10 @@ import { proveSellerProfileOwnerOnboardingState } from "../tools/database-full-c
 import { proveSellerProfileOwnerDashboardStates } from "../tools/database-full-chain/scenarios/seller-profile-owner-dashboard-states.mjs";
 import { proveSellerProfileOwnerProfileEditor } from "../tools/database-full-chain/scenarios/seller-profile-owner-profile-editor.mjs";
 import { proveSellerProfileSavedListingAuthority } from "../tools/database-full-chain/scenarios/seller-profile-saved-listing.mjs";
-import { proveSellerProfileSavedBlogPostAuthority } from "../tools/database-full-chain/scenarios/seller-profile-saved-blog-post.mjs";
+import {
+  proveSellerProfileSavedBlogPostAuthority,
+  proveSellerProfileSavedBlogPostRollback,
+} from "../tools/database-full-chain/scenarios/seller-profile-saved-blog-post.mjs";
 import { proveSellerProfileBlockFollowCleanup } from "../tools/database-full-chain/scenarios/seller-profile-block-follow-cleanup.mjs";
 import { proveSellerProfileFoundingMakerGrant } from "../tools/database-full-chain/scenarios/seller-profile-founding-maker-grant.mjs";
 import { proveSellerProfileMetricsIdentity } from "../tools/database-full-chain/scenarios/seller-profile-metrics-identity.mjs";
@@ -83,6 +86,7 @@ import {
   seedHistoricalResendFailureSuppressions,
 } from "../tools/database-full-chain/scenarios/email-suppression-recovery.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
+import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
   SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -461,7 +465,45 @@ test(
       await proveSellerProfileSavedBlogPostAuthority({
         database: adapter,
         seller: fixture,
+        connectionString: proofDatabaseUrl,
       });
+      class DisposableOwnerClient extends pg.Client {
+        constructor() {
+          super({ connectionString: proofDatabaseUrl });
+        }
+      }
+      const ownerTableEvidencePath = join(
+        preparationEvidenceDirectory,
+        "saved-blog-post-owner-table-active.json",
+      );
+      const ownerTableEvidence = await inspectOwnerTableRlsActivationProduction(
+        {
+          DIRECT_URL: proofDatabaseUrl,
+          OWNER_TABLE_RLS_RELEASE_ID: "saved_blog_post_v1",
+          OWNER_TABLE_RLS_PHASE: "preflight",
+          OWNER_TABLE_RLS_EVIDENCE_PATH: ownerTableEvidencePath,
+          PRODUCTION_MIGRATION_RELEASE_COMMIT: "b".repeat(40),
+        },
+        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+      );
+      assert.equal(ownerTableEvidence.state, "active");
+      assert.equal(ownerTableEvidence.policies.length, 3);
+      assert.equal(ownerTableEvidence.guard.triggerName, "grainline_saved_blog_post_insert_guard");
+      const ownerTablePostflight = await inspectOwnerTableRlsActivationProduction(
+        {
+          DIRECT_URL: proofDatabaseUrl,
+          OWNER_TABLE_RLS_RELEASE_ID: "saved_blog_post_v1",
+          OWNER_TABLE_RLS_PHASE: "postflight",
+          OWNER_TABLE_RLS_EVIDENCE_PATH: join(
+            preparationEvidenceDirectory,
+            "saved-blog-post-owner-table-postflight.json",
+          ),
+          OWNER_TABLE_RLS_PREVIOUS_EVIDENCE_PATH: ownerTableEvidencePath,
+          PRODUCTION_MIGRATION_RELEASE_COMMIT: "b".repeat(40),
+        },
+        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+      );
+      assert.equal(ownerTablePostflight.state, "active");
       await proveSellerProfilePublicCommissionInterestAuthority({
         database: adapter,
         seller: fixture,
@@ -559,6 +601,10 @@ test(
         "bounce:direct-preserved-after-generic",
         "bounce:direct-replaced-generic",
       ]);
+      await proveSellerProfileSavedBlogPostRollback({
+        database: adapter,
+        repositoryRoot,
+      });
     } finally {
       await client.end();
       rmSync(preparationEvidenceDirectory, { recursive: true, force: true });
