@@ -10,6 +10,9 @@ import {
   ownerTableRlsActivation,
   verifyOwnerTableRlsActivationSource,
 } from "./owner-table-rls-activation-catalog.mjs";
+import {
+  inspectCartCartItemRlsActivationProduction,
+} from "./cart-cartitem-rls-production-inspect.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const PHASES = new Set(["preflight", "postflight"]);
@@ -305,8 +308,11 @@ export async function inspectOwnerTableRlsActivationProduction(
   if (!PHASES.has(phase)) throw new Error("owner-table RLS phase is invalid");
   if (!COMMIT.test(releaseCommit)) throw new Error("release commit is invalid");
 
-  const verified = verifyOwnerTableRlsActivationSource(releaseId, rootDir);
   const release = ownerTableRlsActivation(releaseId);
+  if (release.shape === "cart_cart_item") {
+    return inspectCartCartItemRlsActivationProduction(env, { Client, rootDir });
+  }
+  const verified = verifyOwnerTableRlsActivationSource(releaseId, rootDir);
   const parsed = new URL(directUrl);
   const client = new Client({
     connectionString: directUrl,

@@ -11,6 +11,8 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { deleteCartItemsForAdminListing } from "@/lib/cartServiceAccess";
 
 export async function DELETE(
   _request: Request,
@@ -37,10 +39,10 @@ export async function DELETE(
   // Staff removal should not be reversible by the seller. Use REJECTED rather
   // than HIDDEN, and clear buyer-facing references that would otherwise point
   // at a removed listing.
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(admin.id, async (tx) => {
     await tx.favorite.deleteMany({ where: { listingId: id } });
     await tx.stockNotification.deleteMany({ where: { listingId: id } });
-    await tx.cartItem.deleteMany({ where: { listingId: id } });
+    await deleteCartItemsForAdminListing(tx, id);
     await tx.listing.update({
       where: { id },
       data: {

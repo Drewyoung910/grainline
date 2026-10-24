@@ -184,16 +184,20 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/saved-blog-post-rls-candidate"
-          migration=20261023070000_activate_saved_blog_post_rls
           mkdir -p "$holding/migrations" "$holding/tests"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          for migration in \
+            20261023070000_activate_saved_blog_post_rls \
+            20261023080000_activate_cart_cart_item_rls
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done
           for test_file in \
             tests/owner-table-rls-activation-production.test.mjs \
             tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs
           do
             mv "$test_file" "$holding/tests/$(basename "$test_file")"
           done
-          echo "OWNER_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+          echo "OWNER_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/20261023070000_activate_saved_blog_post_rls/migration.sql" >> "$GITHUB_ENV"
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -6752,8 +6756,12 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/saved-blog-post-rls-candidate"
-          migration=20261023070000_activate_saved_blog_post_rls
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for migration in \
+            20261023070000_activate_saved_blog_post_rls \
+            20261023080000_activate_cart_cart_item_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           for test_file in "$holding/tests"/*.mjs
           do
             mv "$test_file" "tests/$(basename "$test_file")"

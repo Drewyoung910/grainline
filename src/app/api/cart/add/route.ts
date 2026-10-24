@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -25,6 +24,7 @@ import {
   markOwnerCartItemMadeToOrder,
   ownerCartItemStats,
   upsertOwnerCart,
+  withOwnerCartTransaction,
 } from "@/lib/cartOwnerAccess";
 import { applyCartAddMutation } from "@/lib/cartAddMutation";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
@@ -164,14 +164,13 @@ export async function POST(req: Request) {
     const variantKey = variantResolution.variantKey;
     const listingForCart = listing;
 
-    const cart = await upsertOwnerCart(me.id);
-
     // Idempotent add: lock this buyer's cart row, re-read cap state inside the
     // transaction, then create or increment. The row lock serializes concurrent
     // adds for one cart so distinct-item and total-quantity caps are not only
     // best-effort prechecks.
     async function addOrIncrement() {
-      return prisma.$transaction(async (tx) => {
+      return withOwnerCartTransaction(me.id, async (tx) => {
+        const cart = await upsertOwnerCart(me.id, tx);
         await lockOwnerCart(me.id, cart.id, tx);
 
         const existingCartItem = await findOwnerCartItemByVariant(me.id, cart.id, listingId, variantKey, tx);

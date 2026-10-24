@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -23,6 +22,7 @@ import {
   ownerCartItemQuantityStats,
   ownerCartItemsByListing,
   updateOwnerCartItemQuantity,
+  withOwnerCartTransaction,
 } from "@/lib/cartOwnerAccess";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
@@ -72,24 +72,34 @@ export async function POST(req: Request) {
       return privateJson({ error: "cartItemId or listingId required" }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
-    const cart = await ownerCartByUserId(me.id);
-    if (!cart) return privateJson({ error: "Cart not found" }, { status: HTTP_STATUS.NOT_FOUND });
-
     // Find the cart item — prefer cartItemId. Listing-only updates are a
     // legacy fallback and are ambiguous once variants create multiple rows.
-    let item = cartItemId
-      ? await findOwnerCartItemById(me.id, cart.id, cartItemId)
-      : null;
-    if (!item && !cartItemId && listingId) {
-      const matchingItems = await ownerCartItemsByListing(me.id, cart.id, listingId);
-      if (matchingItems.length > 1) {
-        return privateJson(
-          { error: "Use cartItemId to update variant cart lines." },
-          { status: HTTP_STATUS.BAD_REQUEST },
-        );
+    const source = await withOwnerCartTransaction(me.id, async (tx) => {
+      const cart = await ownerCartByUserId(me.id, tx);
+      if (!cart) return { cart: null, item: null, ambiguous: false };
+      let item = cartItemId
+        ? await findOwnerCartItemById(me.id, cart.id, cartItemId, tx)
+        : null;
+      if (!item && !cartItemId && listingId) {
+        const matchingItems = await ownerCartItemsByListing(me.id, cart.id, listingId, tx);
+        if (matchingItems.length > 1) {
+          return { cart, item: null, ambiguous: true };
+        }
+        item = matchingItems[0] ?? null;
       }
-      item = matchingItems[0] ?? null;
+      return { cart, item, ambiguous: false };
+    });
+    if (!source.cart) {
+      return privateJson({ error: "Cart not found" }, { status: HTTP_STATUS.NOT_FOUND });
     }
+    if (source.ambiguous) {
+      return privateJson(
+        { error: "Use cartItemId to update variant cart lines." },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+    const cart = source.cart;
+    const item = source.item;
     if (!item) return privateJson({ error: "Item not in cart" }, { status: HTTP_STATUS.NOT_FOUND });
 
     let livePriceCents = item.priceCents;
@@ -153,7 +163,7 @@ export async function POST(req: Request) {
       livePriceVersion = listing.priceVersion;
     }
 
-    const mutation = await prisma.$transaction(async (tx) => {
+    const mutation = await withOwnerCartTransaction(me.id, async (tx) => {
       await lockOwnerCart(me.id, cart.id, tx);
 
       const lockedItem = await lockOwnerCartItem(me.id, item.cartId, item.id, tx);

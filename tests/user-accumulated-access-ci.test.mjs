@@ -367,6 +367,25 @@ test("SupportRequest candidate is isolated before exact-latest historical releas
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restore));
 });
 
+test("owner-table candidates are isolated before exact-latest historical release guards", () => {
+  const isolateName = "Isolate SavedBlogPost RLS candidate until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore SavedBlogPost RLS candidate after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of [
+    "20261023070000_activate_saved_blog_post_rls",
+    "20261023080000_activate_cart_cart_item_rls",
+  ]) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.match(isolate, /mv "prisma\/migrations\/\$migration"/);
+  assert.match(restore, /mv "\$holding\/migrations\/\$migration" "prisma\/migrations\/\$migration"/);
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
 test("actual isolation and restoration scripts preserve source bytes while staging the follower catalog", () => {
   const temporary = mkdtempSync(path.join(tmpdir(), "grainline-user-ci-staging-"));
   const root = path.join(temporary, "checkout");

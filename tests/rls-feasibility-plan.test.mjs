@@ -980,7 +980,12 @@ describe("RLS feasibility plan guardrails", () => {
     const shippingQuote = source("src/app/api/shipping/quote/route.ts");
     const accountExport = source("src/app/api/account/export/route.ts");
 
-    assert.match(ownerAccess, /export type CartOwnerAccessClient = Pick<Prisma\.TransactionClient, "cart" \| "cartItem" \| "\$queryRaw">/);
+    assert.match(
+      ownerAccess,
+      /export type CartOwnerAccessClient = Pick<\s*DbUserContextTransactionClient,\s*"cart" \| "cartItem" \| "\$executeRaw" \| "\$queryRaw"\s*>/u,
+    );
+    assert.match(ownerAccess, /export function withOwnerCartTransaction/);
+    assert.match(ownerAccess, /return withDbUserContext\(userId, operation\)/);
     assert.match(ownerAccess, /export function ownerCartWhere/);
     assert.match(ownerAccess, /export function ownerCartItemWhere/);
     assert.match(ownerAccess, /cart: \{ userId \}/);
@@ -993,12 +998,12 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartItemStats/);
     assert.match(ownerAccess, /export async function createOwnerCartItem/);
     assert.match(ownerAccess, /export async function updateOwnerCartItemQuantity/);
-    assert.match(ownerAccess, /export async function updateOwnerCartItemPrice/);
+    assert.match(ownerAccess, /export function updateOwnerCartItemPrice/);
     assert.match(ownerAccess, /export async function ownerCartForCheckoutSeller/);
     assert.match(ownerAccess, /export async function ownerCartForCheckoutResume/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
-    assert.match(ownerAccess, /export async function ownerCartExportRows/);
+    assert.match(ownerAccess, /export function ownerCartExportRows/);
     assert.match(ownerAccess, /withSellerActorCartTransaction/);
     assert.match(ownerAccess, /attachCartSellerStates/);
     assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
@@ -1006,7 +1011,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.doesNotMatch(ownerAccess, /seller:\s*\{/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);
     assert.match(ownerAccess, /db\.cart\.findFirst/);
-    assert.match(ownerAccess, /db\.cart\.upsert/);
+    assert.match(ownerAccess, /INSERT INTO public\."Cart"/);
+    assert.match(ownerAccess, /ON CONFLICT \("userId"\) DO NOTHING/);
     assert.match(ownerAccess, /db\.cartItem\.findFirst/);
     assert.match(ownerAccess, /db\.cartItem\.findMany/);
     assert.match(ownerAccess, /db\.cartItem\.aggregate/);
@@ -1017,13 +1023,15 @@ describe("RLS feasibility plan guardrails", () => {
     assert.doesNotMatch(ownerAccess, /prisma\.(?:cart|cartItem)\.(?:findUnique|findFirst|findMany|upsert|aggregate|create|update|updateMany|delete|deleteMany)/);
 
     assert.match(cartRoute, /ownerCartForDisplay\(me\.id\)/);
-    assert.match(cartAdd, /upsertOwnerCart\(me\.id\)/);
+    assert.match(cartAdd, /withOwnerCartTransaction\(me\.id/);
+    assert.match(cartAdd, /upsertOwnerCart\(me\.id, tx\)/);
     assert.match(cartAdd, /lockOwnerCart\(me\.id, cart\.id, tx\)/);
     assert.match(cartAdd, /createOwnerCartItem\(/);
     assert.match(cartAdd, /incrementOwnerCartItemQuantity\(/);
-    assert.match(cartUpdate, /ownerCartByUserId\(me\.id\)/);
-    assert.match(cartUpdate, /findOwnerCartItemById\(me\.id, cart\.id, cartItemId\)/);
-    assert.match(cartUpdate, /ownerCartItemsByListing\(me\.id, cart\.id, listingId\)/);
+    assert.match(cartUpdate, /withOwnerCartTransaction\(me\.id/);
+    assert.match(cartUpdate, /ownerCartByUserId\(me\.id, tx\)/);
+    assert.match(cartUpdate, /findOwnerCartItemById\(me\.id, cart\.id, cartItemId, tx\)/);
+    assert.match(cartUpdate, /ownerCartItemsByListing\(me\.id, cart\.id, listingId, tx\)/);
     assert.match(cartUpdate, /updateOwnerCartItemQuantity\(/);
     assert.match(cartUpdate, /deleteOwnerCartItem\(/);
     assert.match(checkoutSeller, /ownerCartForCheckoutSeller\(me\.id\)/);
@@ -1064,10 +1072,7 @@ describe("RLS feasibility plan guardrails", () => {
     const directCartAccessPattern =
       /\b[A-Za-z_$][\w$]*\.(?:cart|cartItem)\.(?:aggregate|count|create|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
     const allowedDirectCalls = {
-      "src/app/api/admin/listings/[id]/route.ts": ["tx.cartItem.deleteMany"],
       "src/lib/accountDeletion.ts": ["tx.cart.deleteMany"],
-      "src/lib/checkoutStockRestore.ts": ["tx.cartItem.findMany"],
-      "src/lib/listingDelete.ts": ["tx.cartItem.deleteMany"],
     };
     const directCallsByFile = {};
 

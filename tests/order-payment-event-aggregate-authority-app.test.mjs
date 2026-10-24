@@ -108,7 +108,7 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
     );
     assert.match(listingDelete, /getListingOrderArchiveBlocked/u);
     assert.match(eligibility, /source_order\."paymentRefundBlocked" = false/u);
-    assert.match(listingDelete, /TransactionIsolationLevel\.Serializable/u);
+    assert.match(listingDelete, /withSerializableDbUserContext/u);
     assert.match(banOrderAuthority, /source_order\."paymentRefundBlocked" = false/u);
     assert.match(banOrderAuthority, /SET "reviewNeeded" = true/u);
     assert.match(banOrderAuthority, /FOR UPDATE/u);
