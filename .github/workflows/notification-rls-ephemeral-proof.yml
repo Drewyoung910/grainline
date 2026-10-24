@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - .github/workflows/notification-rls-ephemeral-proof.yml
+      - .github/workflows/private-table-force-production.yml
       - .github/workflows/email-suppression-recovery-production.yml
       - .github/workflows/user-unsubscribe-optional-preferences-production.yml
       - docs/rls-drafts/**
@@ -30,6 +31,7 @@ on:
       - main
     paths:
       - .github/workflows/notification-rls-ephemeral-proof.yml
+      - .github/workflows/private-table-force-production.yml
       - .github/workflows/email-suppression-recovery-production.yml
       - .github/workflows/user-unsubscribe-optional-preferences-production.yml
       - docs/rls-drafts/**

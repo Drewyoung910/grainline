@@ -419,6 +419,11 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /pull_request:[\s\S]*branches:[\s\S]*- main/);
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
+    assert.equal(
+      workflow.split("- .github/workflows/private-table-force-production.yml").length - 1,
+      2,
+      "the required Notification proof must run on both PR and main changes to its private-table FORCE binder",
+    );
     assert.match(workflow, /scripts\/assert-reviewed-pending-migrations\.mjs/);
     assert.match(workflow, /scripts\/reviewed-manually-applied-migrations\.mjs/);
     assert.match(workflow, /scripts\/notification-rls-ephemeral-proof\.mjs/);
