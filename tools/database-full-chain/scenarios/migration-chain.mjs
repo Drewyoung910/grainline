@@ -73,7 +73,7 @@ export function prepareMigrationSql(artifact, engine) {
   if (!artifact?.name || typeof artifact.sql !== "string") {
     throw new TypeError("a migration artifact with name and sql is required");
   }
-  if (engine !== "postgres16") {
+  if (!new Set(["postgres16", "postgresql"]).has(engine)) {
     throw new Error(`unsupported full-chain engine: ${engine}`);
   }
 

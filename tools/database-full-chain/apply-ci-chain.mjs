@@ -4,9 +4,9 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
-  assertDisposablePostgres16Target,
-  createPostgres16Adapter,
-} from "./postgres16/adapter.mjs";
+  assertDisposablePostgresTarget,
+  createPostgresAdapter,
+} from "./postgres/adapter.mjs";
 import { createCiRoleScriptCallbacks } from "./scenarios/ci-role-scripts.mjs";
 import {
   applyFullMigrationChain,
@@ -20,6 +20,14 @@ function requiredDatabaseUrl(env) {
   return value;
 }
 
+function requiredPostgresMajor(env) {
+  const value = env.DATABASE_FULL_CHAIN_POSTGRES_MAJOR?.trim() || "16";
+  if (!/^\d+$/u.test(value)) {
+    throw new Error("DATABASE_FULL_CHAIN_POSTGRES_MAJOR must be a PostgreSQL major version");
+  }
+  return value;
+}
+
 export async function applyDisposableCiMigrationChain(
   env = process.env,
   {
@@ -28,7 +36,8 @@ export async function applyDisposableCiMigrationChain(
   } = {},
 ) {
   const databaseUrl = requiredDatabaseUrl(env);
-  assertDisposablePostgres16Target(databaseUrl);
+  const expectedMajor = requiredPostgresMajor(env);
+  assertDisposablePostgresTarget(databaseUrl, undefined, { expectedMajor });
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
@@ -41,14 +50,14 @@ export async function applyDisposableCiMigrationChain(
     ).rows[0];
     assert.equal(identity.current_user, "ci");
     assert.equal(identity.current_database, "grainline_ci");
-    assertDisposablePostgres16Target(databaseUrl, identity.server_version);
+    assertDisposablePostgresTarget(databaseUrl, identity.server_version, { expectedMajor });
 
-    const adapter = createPostgres16Adapter(client);
+    const adapter = createPostgresAdapter(client);
     const roles = createCiRoleScriptCallbacks({ log });
     const summary = await applyFullMigrationChain({
       adapter,
       repositoryRoot: findRepositoryRoot(),
-      engine: "postgres16",
+      engine: "postgresql",
       bootstrapRoles: roles.bootstrapRoles,
       convergeRoles: roles.convergeRoles,
       onProgress: ({ index, name, total }) => {
@@ -61,6 +70,7 @@ export async function applyDisposableCiMigrationChain(
       migrationCount: summary.migrationCount,
       lastMigration: summary.applied.at(-1),
       roleConvergenceRetries: summary.roleConvergenceRetries,
+      postgresMajor: expectedMajor,
     });
   } finally {
     await client.end();

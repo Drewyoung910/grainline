@@ -65,7 +65,8 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
     with the fix for money, cases, account deletion/privacy, access control,
     database security, migrations, and SQL functions. When one of these paths
     depends on the database, its acceptance run must use the full migrated
-    PostgreSQL 16 schema; isolated unit tests may supplement that proof.
+    PostgreSQL 17 schema that matches Production; PostgreSQL 16 remains a
+    compatibility run, and isolated unit tests may supplement those proofs.
   - Usually require a behavior test that executes the affected code for forms,
     discovery, notifications, email, and other user-facing logic.
   - Copy, styling, and documentation changes normally need review by eye or a

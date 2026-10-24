@@ -43,7 +43,7 @@ export async function proveSellerProfilePublicBlogAuthorSitemap({ database, sell
              pg_catalog.statement_timestamp() AT TIME ZONE 'UTC',
              pg_catalog.statement_timestamp() AT TIME ZONE 'UTC',
              pg_catalog.statement_timestamp() AT TIME ZONE 'UTC')
-     RETURNING "updatedAt"`,
+     RETURNING "updatedAt" AT TIME ZONE 'UTC' AS "updatedAt"`,
     [
       postId,
       `author-sitemap-${seller.sellerProfileId}`.slice(0, 255),

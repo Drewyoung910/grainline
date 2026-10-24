@@ -29,6 +29,7 @@ jobs:
       # Database — CI uses local Postgres service container, not the Neon pooler/direct URLs from Vercel
       DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DATABASE_FULL_CHAIN_POSTGRES_MAJOR: "16"
       # Clerk auth
       CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
@@ -91,7 +92,7 @@ jobs:
           tests/dependency-hygiene.test.mjs
       - name: Generate Prisma client for full-chain behavior proof
         run: npx prisma generate
-      - name: Prove full migration chain on PostgreSQL 16
+      - name: Prove full migration chain on PostgreSQL 16 compatibility
         env:
           DATABASE_FULL_CHAIN_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
         run: npm run test:database-full-chain
@@ -6787,3 +6788,35 @@ jobs:
           npx prisma migrate status
       - name: Production build
         run: npm run build
+
+  production-postgres17:
+    name: Full-chain PostgreSQL 17 production parity
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: grainline_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_FULL_CHAIN_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DATABASE_FULL_CHAIN_POSTGRES_MAJOR: "17"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Generate Prisma client for production-parity behavior proof
+        run: npx prisma generate
+      - name: Prove full migration chain and behavior on PostgreSQL 17
+        run: npm run test:database-full-chain
