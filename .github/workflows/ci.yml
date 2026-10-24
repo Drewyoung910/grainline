@@ -138,7 +138,7 @@ jobs:
           mkdir "$holding"
           mv "prisma/migrations/$migration" "$holding/$migration"
           echo "EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
-      - name: Verify SupportRequest preparation and ENABLE source package
+      - name: Verify SupportRequest preparation, ENABLE, and FORCE source package
         run: >-
           node --test --test-concurrency=1
           tests/account-export-privacy.test.mjs
@@ -148,6 +148,7 @@ jobs:
           tests/admin-query-and-email-guardrails.test.mjs
           tests/db-grant-inventory.test.mjs
           tests/private-table-enable-production.test.mjs
+          tests/private-table-force-production.test.mjs
           tests/private-table-preparation-production.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/support-request-email-reuse-privacy-production-workflow.test.mjs
@@ -161,12 +162,14 @@ jobs:
           for migration in \
             20261023010000_prepare_support_request_authorities \
             20261023020000_enable_support_request_rls \
-            20261023050000_correct_support_request_email_reuse_privacy
+            20261023050000_correct_support_request_email_reuse_privacy \
+            20261023060000_force_support_request_rls
           do
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done
           mv \
             tests/private-table-enable-production.test.mjs \
+            tests/private-table-force-production.test.mjs \
             tests/private-table-preparation-production.test.mjs \
             tests/support-request-email-reuse-privacy-production-workflow.test.mjs \
             "$holding/tests/"
@@ -6684,7 +6687,8 @@ jobs:
           for migration in \
             20261023010000_prepare_support_request_authorities \
             20261023020000_enable_support_request_rls \
-            20261023050000_correct_support_request_email_reuse_privacy
+            20261023050000_correct_support_request_email_reuse_privacy \
+            20261023060000_force_support_request_rls
           do
             mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           done
