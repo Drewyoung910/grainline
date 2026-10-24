@@ -5618,6 +5618,9 @@ describe("database grant inventory guardrails", () => {
         )).filter(
           (functionName) => savedBlogPostProvisioningPresent
             || functionName !== "grainline_saved_blog_post_insert_guard",
+        ).filter(
+          (functionName) => cartCartItemProvisioningPresent
+            || !CART_CART_ITEM_RUNTIME_FUNCTION_NAMES.includes(functionName),
         );
     for (const fn of provisionedFunctionNames) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;
