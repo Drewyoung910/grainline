@@ -20,7 +20,14 @@ const migrationPath =
   "prisma/migrations/20261023040000_repair_resend_failed_event_suppressions/migration.sql";
 const migrationSql = readFileSync(migrationPath, "utf8");
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const notificationProofWorkflow = readFileSync(
+  ".github/workflows/notification-rls-ephemeral-proof.yml",
+  "utf8",
+);
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
+const parsedNotificationProofWorkflow = yaml.load(notificationProofWorkflow, {
+  schema: yaml.JSON_SCHEMA,
+});
 const bindingScript = parsed.jobs.apply.steps.find(
   (step) =>
     step.name === "Bind release to exact live main and completed push workflows",
@@ -65,14 +72,12 @@ async function runBinding({
     rest: {
       repos: {
         getBranch: async () => ({ data: { commit: { sha: releaseSha } } }),
-        compareCommits: async ({ basehead }) => {
-          if (basehead === `${liveSha}...${releaseSha}`) {
+        compareCommits: async ({ base, head }) => {
+          if (base === liveSha && head === releaseSha) {
             return { data: { status: comparisonStatus } };
           }
-          assert.equal(
-            basehead,
-            `${MINIMUM_COMPATIBLE_APP_COMMIT}...${liveSha}`,
-          );
+          assert.equal(base, MINIMUM_COMPATIBLE_APP_COMMIT);
+          assert.equal(head, liveSha);
           return { data: { status: minimumComparisonStatus } };
         },
       },
@@ -211,10 +216,22 @@ test("C-715 release accepts its exact compatible live app ancestor for readback"
     new RegExp(`REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT: ${MINIMUM_COMPATIBLE_APP_COMMIT}`, "u"),
   );
   assert.match(workflow, /compareCommits/u);
-  assert.match(workflow, /basehead: `\$\{deploymentCommit\}\.\.\.\$\{sha\}`/u);
+  assert.match(
+    workflow,
+    /compareCommits\(\{[\s\S]*base: deploymentCommit,[\s\S]*head: sha,/u,
+  );
   assert.match(
     workflow,
     /REVIEWED_RELEASE_COMMIT: \$\{\{ inputs\.production_deployment_commit \}\}/u,
+  );
+});
+
+test("C-715 workflow changes trigger the exact-main Notification proof required by its binder", () => {
+  const workflowPath =
+    ".github/workflows/email-suppression-recovery-production.yml";
+  assert.ok(parsedNotificationProofWorkflow.on.push.paths.includes(workflowPath));
+  assert.ok(
+    parsedNotificationProofWorkflow.on.pull_request.paths.includes(workflowPath),
   );
 });
 
