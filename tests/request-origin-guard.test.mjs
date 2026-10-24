@@ -145,14 +145,15 @@ describe("request origin guard", () => {
       "safeRateLimit(",
       "readBoundedJson(req",
       "sellerListingTransactionSource(me.id, listingId)",
-      "upsertOwnerCart(me.id)",
+      "withOwnerCartTransaction(me.id",
+      "upsertOwnerCart(me.id, tx)",
       "await lockOwnerCart(me.id, cart.id, tx)",
     ]);
     assertGuardBefore("src/app/api/cart/update/route.ts", [
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "ownerCartByUserId(me.id)",
+      "ownerCartByUserId(me.id, tx)",
       "sellerListingTransactionSource(me.id, item.listingId)",
       "await lockOwnerCart(me.id, cart.id, tx)",
     ]);
