@@ -101,11 +101,13 @@ jobs:
               github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
               github.rest.repos.compareCommits({
                 ...context.repo,
-                basehead: `${deploymentCommit}...${sha}`,
+                base: deploymentCommit,
+                head: sha,
               }),
               github.rest.repos.compareCommits({
                 ...context.repo,
-                basehead: `${minimumCompatibleAppCommit}...${deploymentCommit}`,
+                base: minimumCompatibleAppCommit,
+                head: deploymentCommit,
               }),
             ]);
             if (main.commit.sha !== sha || run.name !== 'CI' ||
