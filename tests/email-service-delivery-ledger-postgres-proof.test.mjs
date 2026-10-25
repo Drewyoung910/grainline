@@ -229,12 +229,13 @@ test("email delivery preparation fences claims and prioritizes transactional job
     );
     assert.equal(completed.rows[0].result, "applied");
     const row = await database.query(
-      'SELECT status, "providerMessageId", "claimToken" FROM public."EmailOutbox" WHERE id=$1',
+      'SELECT status, "providerMessageId", "providerAttemptGeneration", "claimToken" FROM public."EmailOutbox" WHERE id=$1',
       ["transactional-new"],
     );
     assert.deepEqual(row.rows[0], {
       status: "SENT",
       providerMessageId: "provider-current",
+      providerAttemptGeneration: 2,
       claimToken: null,
     });
   } finally {
@@ -381,7 +382,7 @@ test("email delivery preparation orders provider attempts before completion and 
     );
     assert.equal(deferred.rows[0].result, "applied");
     const deferredState = await database.query(
-      'SELECT status,attempts,"claimToken","processingStartedAt","firstProviderAttemptAt" FROM public."EmailOutbox" WHERE id=$1',
+      'SELECT status,attempts,"claimToken","processingStartedAt","firstProviderAttemptAt","providerAttemptGeneration" FROM public."EmailOutbox" WHERE id=$1',
       ["optional-defer"],
     );
     assert.deepEqual(deferredState.rows[0], {
@@ -390,6 +391,7 @@ test("email delivery preparation orders provider attempts before completion and 
       claimToken: null,
       processingStartedAt: null,
       firstProviderAttemptAt: null,
+      providerAttemptGeneration: null,
     });
 
     await database.query(...Object.values(insertLegacyJob({
@@ -473,6 +475,61 @@ test("email delivery preparation orders provider attempts before completion and 
       ],
     );
     assert.equal(refusedPostAttemptDeferral.rows[0].result, "stale_claim");
+
+    await database.query(...Object.values(insertLegacyJob({
+      id: "retry-before-current-attempt",
+      templateName: "refund_issued",
+    })));
+    const firstRetryClaim = await database.query(
+      "SELECT * FROM public.grainline_email_outbox_claim_one('retry-before-current-attempt')",
+    );
+    const firstRetryBegin = await database.query(
+      "SELECT public.grainline_email_outbox_begin_provider_attempt($1,$2,$3::uuid) AS result",
+      [
+        "retry-before-current-attempt",
+        firstRetryClaim.rows[0].claimGeneration,
+        firstRetryClaim.rows[0].claimToken,
+      ],
+    );
+    assert.equal(firstRetryBegin.rows[0].result, "ready");
+    const firstRetryFailure = await database.query(
+      "SELECT public.grainline_email_outbox_fail($1,$2,$3::uuid,$4,$5) AS result",
+      [
+        "retry-before-current-attempt",
+        firstRetryClaim.rows[0].claimGeneration,
+        firstRetryClaim.rows[0].claimToken,
+        "provider_retryable",
+        "temporary provider error",
+      ],
+    );
+    assert.equal(firstRetryFailure.rows[0].result, "applied");
+    await database.query(
+      `UPDATE public."EmailOutbox"
+          SET "nextAttemptAt" = now() - interval '1 minute'
+        WHERE id = 'retry-before-current-attempt'`,
+    );
+    const secondRetryClaim = await database.query(
+      "SELECT * FROM public.grainline_email_outbox_claim_one('retry-before-current-attempt')",
+    );
+    assert.equal(Number(secondRetryClaim.rows[0].claimGeneration), 2);
+    const retryDeferredBeforeCurrentAttempt = await database.query(
+      "SELECT public.grainline_email_outbox_defer($1,$2,$3::uuid,$4) AS result",
+      [
+        "retry-before-current-attempt",
+        secondRetryClaim.rows[0].claimGeneration,
+        secondRetryClaim.rows[0].claimToken,
+        "quota_unavailable",
+      ],
+    );
+    assert.equal(retryDeferredBeforeCurrentAttempt.rows[0].result, "applied");
+    const retryDeferredState = await database.query(
+      'SELECT status,attempts,"firstProviderAttemptAt","providerAttemptGeneration" FROM public."EmailOutbox" WHERE id=$1',
+      ["retry-before-current-attempt"],
+    );
+    assert.equal(retryDeferredState.rows[0].status, "PENDING");
+    assert.equal(retryDeferredState.rows[0].attempts, 1);
+    assert.ok(retryDeferredState.rows[0].firstProviderAttemptAt);
+    assert.equal(retryDeferredState.rows[0].providerAttemptGeneration, 1);
   } finally {
     await database.close();
   }
@@ -505,12 +562,13 @@ test("email delivery preparation rechecks eligibility at the provider boundary",
     );
     assert.equal(begin.rows[0].result, "ineligible");
     const state = await database.query(
-      'SELECT status,"sentAt","firstProviderAttemptAt","claimToken","lastError" FROM public."EmailOutbox" WHERE id=$1',
+      'SELECT status,"sentAt","firstProviderAttemptAt","providerAttemptGeneration","claimToken","lastError" FROM public."EmailOutbox" WHERE id=$1',
       ["suppressed-after-claim"],
     );
     assert.equal(state.rows[0].status, "SKIPPED");
     assert.ok(state.rows[0].sentAt);
     assert.equal(state.rows[0].firstProviderAttemptAt, null);
+    assert.equal(state.rows[0].providerAttemptGeneration, null);
     assert.equal(state.rows[0].claimToken, null);
     assert.match(state.rows[0].lastError, /hard-suppressed before provider attempt/iu);
   } finally {
@@ -544,6 +602,15 @@ test("email delivery preparation constrains shapes and sanitizes stored errors",
     assert.ok(state.rows[0].nextAttemptAt);
     assert.equal(state.rows[0].lastError.includes("buyer@example.test"), false);
     assert.equal(/[\r\n]/u.test(state.rows[0].lastError), false);
+
+    await assert.rejects(
+      database.query(
+        `UPDATE public."EmailOutbox"
+            SET "providerAttemptGeneration" = "claimGeneration" + 1
+          WHERE id = 'failure'`,
+      ),
+      /EmailOutbox_providerAttemptGeneration_chk/u,
+    );
 
     await assert.rejects(
       database.query(

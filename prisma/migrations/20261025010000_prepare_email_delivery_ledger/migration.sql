@@ -38,6 +38,7 @@ BEGIN
           ('public."EmailOutbox"'::pg_catalog.regclass, 'claimToken'::text),
           ('public."EmailOutbox"'::pg_catalog.regclass, 'processingStartedAt'::text),
           ('public."EmailOutbox"'::pg_catalog.regclass, 'firstProviderAttemptAt'::text),
+          ('public."EmailOutbox"'::pg_catalog.regclass, 'providerAttemptGeneration'::text),
           ('public."EmailOutbox"'::pg_catalog.regclass, 'providerMessageId'::text),
           ('public."EmailOutbox"'::pg_catalog.regclass, 'acknowledgedAt'::text),
           ('public."EmailOutbox"'::pg_catalog.regclass, 'acknowledgedById'::text),
@@ -88,6 +89,7 @@ ALTER TABLE public."EmailOutbox"
   ADD COLUMN "claimToken" uuid,
   ADD COLUMN "processingStartedAt" timestamp(3) without time zone,
   ADD COLUMN "firstProviderAttemptAt" timestamp(3) without time zone,
+  ADD COLUMN "providerAttemptGeneration" bigint,
   ADD COLUMN "providerMessageId" varchar(255),
   ADD COLUMN "acknowledgedAt" timestamp(3) without time zone,
   ADD COLUMN "acknowledgedById" varchar(191),
@@ -131,6 +133,14 @@ ALTER TABLE public."EmailOutbox"
   ) NOT VALID,
   ADD CONSTRAINT "EmailOutbox_claim_pair_chk"
   CHECK (("claimToken" IS NULL) = ("processingStartedAt" IS NULL)) NOT VALID,
+  ADD CONSTRAINT "EmailOutbox_providerAttemptGeneration_chk"
+  CHECK (
+    "providerAttemptGeneration" IS NULL
+    OR (
+      "providerAttemptGeneration" >= 1
+      AND "providerAttemptGeneration" <= "claimGeneration"
+    )
+  ) NOT VALID,
   ADD CONSTRAINT "EmailOutbox_acknowledgement_pair_chk"
   CHECK (
     ("acknowledgedAt" IS NULL AND "acknowledgedById" IS NULL AND acknowledgement IS NULL)
@@ -168,6 +178,8 @@ ALTER TABLE public."EmailOutbox"
   VALIDATE CONSTRAINT "EmailOutbox_representation_chk";
 ALTER TABLE public."EmailOutbox"
   VALIDATE CONSTRAINT "EmailOutbox_claim_pair_chk";
+ALTER TABLE public."EmailOutbox"
+  VALIDATE CONSTRAINT "EmailOutbox_providerAttemptGeneration_chk";
 ALTER TABLE public."EmailOutbox"
   VALIDATE CONSTRAINT "EmailOutbox_acknowledgement_pair_chk";
 ALTER TABLE public."ResendWebhookEvent"
@@ -665,7 +677,7 @@ BEGIN
      AND status = 'PROCESSING'
      AND "claimGeneration" = p_claim_generation
      AND "claimToken" = p_claim_token
-     AND "firstProviderAttemptAt" IS NULL
+     AND "providerAttemptGeneration" IS DISTINCT FROM p_claim_generation
      AND (
        p_reason IN ('quota_unavailable', 'provider_unavailable')
        OR (
@@ -764,6 +776,7 @@ BEGIN
   END IF;
   UPDATE public."EmailOutbox"
      SET "firstProviderAttemptAt" = COALESCE("firstProviderAttemptAt", source_now),
+         "providerAttemptGeneration" = p_claim_generation,
          "updatedAt" = source_now
    WHERE id = p_job_id;
   RETURN 'ready';
@@ -808,7 +821,7 @@ BEGIN
      AND status = 'PROCESSING'
      AND "claimGeneration" = p_claim_generation
      AND "claimToken" = p_claim_token
-     AND "firstProviderAttemptAt" IS NOT NULL;
+     AND "providerAttemptGeneration" = p_claim_generation;
   GET DIAGNOSTICS changed_count = ROW_COUNT;
   IF changed_count = 1 THEN RETURN 'applied'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public."EmailOutbox" WHERE id = p_job_id) THEN RETURN 'missing'; END IF;
@@ -991,6 +1004,7 @@ BEGIN
          'EmailOutbox_source_pair_chk',
          'EmailOutbox_representation_chk',
          'EmailOutbox_claim_pair_chk',
+         'EmailOutbox_providerAttemptGeneration_chk',
          'EmailOutbox_acknowledgement_pair_chk',
          'ResendWebhookEvent_claimGeneration_chk',
          'ResendWebhookEvent_attempts_nonnegative_chk',
@@ -1014,13 +1028,14 @@ BEGIN
          'EmailOutbox_source_pair_chk',
          'EmailOutbox_representation_chk',
          'EmailOutbox_claim_pair_chk',
+         'EmailOutbox_providerAttemptGeneration_chk',
          'EmailOutbox_acknowledgement_pair_chk',
          'ResendWebhookEvent_claimGeneration_chk',
          'ResendWebhookEvent_attempts_nonnegative_chk',
          'ResendWebhookEvent_claim_pair_chk',
          'ResendWebhookEvent_acknowledgement_pair_chk'
        )
-  ) <> 13 THEN
+  ) <> 14 THEN
     RAISE EXCEPTION 'Email-service preparation constraints are incomplete';
   END IF;
 
