@@ -582,27 +582,24 @@ describe("payment and fulfillment side-effect observability", () => {
     );
   });
 
-  it("persists Stripe order emails to the outbox before any direct send", () => {
+  it("persists Stripe order emails before asking the shared worker for a prompt attempt", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 
     const enqueueIndex = route.indexOf(
       "enqueued = await enqueueEmailOutboxOnce",
     );
-    const directSendIndex = route.indexOf("await sendRenderedEmail(email, {");
+    const processIndex = route.indexOf("await processNewlyEnqueuedEmailOutboxJob(");
 
     assert.notEqual(enqueueIndex, -1);
-    assert.notEqual(directSendIndex, -1);
+    assert.notEqual(processIndex, -1);
     assert.ok(
-      enqueueIndex < directSendIndex,
-      "order emails must reserve the outbox dedup row before direct send",
+      enqueueIndex < processIndex,
+      "order emails must reserve the outbox dedup row before worker delivery",
     );
     assert.match(route, /throw outboxError/);
-    assert.match(route, /status: "SENT"/);
-    assert.match(
-      route,
-      /emailOutboxFailureState\(enqueued\.job\.attempts \+ 1\)/,
-    );
-    assert.match(route, /idempotencyKey: enqueued\.job\.dedupKey/);
+    assert.match(route, /processEmailOutboxJobById/);
+    assert.doesNotMatch(route, /prisma\.emailOutbox\./);
+    assert.doesNotMatch(route, /sendRenderedEmail\(/);
   });
 
   it("skips post-payment side effects for refunded or blocked checkout orders", () => {

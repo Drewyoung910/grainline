@@ -64,7 +64,8 @@ describe("email delivery guardrails", () => {
     assert.match(email, /type EmailSendOptions = \{[\s\S]*?throwOnFailure\?: boolean;[\s\S]*?idempotencyKey\?: string;[\s\S]*?preferenceKey\?: EmailNotificationPreferenceKey;[\s\S]*?unsubscribeIssuedAt\?: Date;[\s\S]*?deliveryEligibilityAlreadyVerified\?: boolean;[\s\S]*?\}/);
     assert.match(email, /sendEmailProviderRequestWithRetry\([\s\S]*?\{ idempotencyKey \}[\s\S]*?idempotencyKey: opts\.idempotencyKey/);
     assert.match(outbox, /sendRenderedEmail\([\s\S]*?idempotencyKey: claimedJob\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: claimedJob\.createdAt/);
-    assert.match(webhook, /sendRenderedEmail\(email, \{[\s\S]*?idempotencyKey: enqueued\.job\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: enqueued\.job\.createdAt/);
+    assert.match(webhook, /processNewlyEnqueuedEmailOutboxJob\([\s\S]*?enqueued,[\s\S]*?processEmailOutboxJobById/);
+    assert.doesNotMatch(webhook, /sendRenderedEmail\(/);
   });
 
   it("allows only the locked outbox provider boundary to bypass duplicate eligibility lookup", () => {

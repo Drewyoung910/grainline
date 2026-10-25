@@ -15,11 +15,13 @@ import {
   renderFirstSaleCongratsEmail,
   renderOrderConfirmedBuyerEmail,
   renderOrderConfirmedSellerEmail,
-  sendRenderedEmail,
 } from "@/lib/email";
-import { enqueueEmailOutboxOnce, type QueuedEmail } from "@/lib/emailOutbox";
-import { emailOutboxFailureState } from "@/lib/emailOutboxState";
-import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import {
+  enqueueEmailOutboxOnce,
+  processEmailOutboxJobById,
+  type QueuedEmail,
+} from "@/lib/emailOutbox";
+import { processNewlyEnqueuedEmailOutboxJob } from "@/lib/emailOutboxImmediate";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
@@ -515,73 +517,17 @@ export async function POST(req: Request) {
       throw outboxError;
     }
 
-    if (!enqueued.job || !enqueued.created) return;
-
-    const claim = await prisma.emailOutbox.updateMany({
-      where: { id: enqueued.job.id, status: "PENDING", attempts: 0 },
-      data: {
-        status: "PROCESSING",
-        attempts: { increment: 1 },
-        nextAttemptAt: null,
-        lastError: null,
-      },
-    });
-    if (claim.count !== 1) return;
-
-    let directSendError: unknown;
     try {
-      await sendRenderedEmail(email, {
-        throwOnFailure: true,
-        idempotencyKey: enqueued.job.dedupKey,
-        preferenceKey: isValidEmailPreferenceKey(preferenceKey)
-          ? preferenceKey
-          : undefined,
-        unsubscribeIssuedAt: enqueued.job.createdAt,
-      });
-    } catch (error) {
-      directSendError = error;
-      Sentry.captureException(error, {
-        tags: { source: "stripe_webhook_email", email: source },
+      await processNewlyEnqueuedEmailOutboxJob(
+        enqueued,
+        processEmailOutboxJobById,
+      );
+    } catch (deliveryError) {
+      Sentry.captureException(deliveryError, {
+        tags: { source: "stripe_webhook_email_outbox_delivery", email: source },
         extra,
       });
-    }
-
-    if (!directSendError) {
-      try {
-        await prisma.emailOutbox.updateMany({
-          where: { id: enqueued.job.id, status: "PROCESSING" },
-          data: {
-            status: "SENT",
-            sentAt: new Date(),
-            nextAttemptAt: null,
-            lastError: null,
-          },
-        });
-      } catch (sentStateError) {
-        Sentry.captureException(sentStateError, {
-          tags: { source: "stripe_webhook_email_sent_state", email: source },
-          extra,
-        });
-        throw sentStateError;
-      }
-      return;
-    }
-
-    try {
-      const failureState = emailOutboxFailureState(enqueued.job.attempts + 1);
-      await prisma.emailOutbox.updateMany({
-        where: { id: enqueued.job.id, status: "PROCESSING" },
-        data: {
-          status: failureState.status,
-          nextAttemptAt: failureState.nextAttemptAt,
-          lastError: sanitizeEmailOutboxError(directSendError),
-        },
-      });
-    } catch (fallbackError) {
-      Sentry.captureException(fallbackError, {
-        tags: { source: "stripe_webhook_email_outbox_failure_state", email: source },
-        extra,
-      });
+      throw deliveryError;
     }
   }
 

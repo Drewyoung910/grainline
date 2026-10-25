@@ -231,14 +231,15 @@ describe("post-launch UI follow-ups", () => {
     assert.match(variantSelector, /max-w-full whitespace-normal break-words/);
   });
 
-  it("sends order confirmations directly from the Stripe webhook with outbox fallback", () => {
+  it("queues and promptly processes Stripe order confirmations through the shared worker", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
     assert.match(webhook, /sendOrderTransactionalEmailWithFallback/);
     assert.match(
       webhook,
-      /sendRenderedEmail\(email, \{\s*throwOnFailure: true,\s*idempotencyKey: enqueued\.job\.dedupKey,\s*preferenceKey: isValidEmailPreferenceKey\(preferenceKey\)/,
+      /processNewlyEnqueuedEmailOutboxJob\(\s*enqueued,\s*processEmailOutboxJobById/,
     );
+    assert.doesNotMatch(webhook, /sendRenderedEmail\(/);
     assert.match(webhook, /enqueueEmailOutbox/);
     assert.match(webhook, /renderOrderConfirmedBuyerEmail/);
     assert.match(webhook, /renderOrderConfirmedSellerEmail/);
