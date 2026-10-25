@@ -318,7 +318,9 @@ describe("account export privacy coverage", () => {
     assert.match(notificationSelectBlock, /sourceId: true/);
 
     assert.ok(outboxStart >= 0, "account export must query EmailOutbox");
-    assert.match(outboxBlock, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: accountEmailSuppressionKeys \} \}\]/);
+    assert.match(outboxBlock, /accountEmailOutboxWhere\(user\.id, accountEmailSuppressionKeys\)/);
+    assert.match(outboxLifecycle, /userId: null/);
+    assert.match(outboxLifecycle, /recipientEmail: \{ in: fallbackEmailKeys \}/);
     assert.match(outboxBlock, /select: EMAIL_OUTBOX_EXPORT_SELECT/);
     assert.match(outboxLifecycle, /recipientEmail: true/);
     assert.match(outboxLifecycle, /templateName: true/);

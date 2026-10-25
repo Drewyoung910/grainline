@@ -37,7 +37,10 @@ import {
   exportBuyerOrderPaymentHistory,
   exportSellerOrderPaymentHistory,
 } from "@/lib/orderPaymentEventReadAuthority";
-import { EMAIL_OUTBOX_EXPORT_SELECT } from "@/lib/emailOutboxContentLifecycle";
+import {
+  accountEmailOutboxWhere,
+  EMAIL_OUTBOX_EXPORT_SELECT,
+} from "@/lib/emailOutboxContentLifecycle";
 import {
   exportBuyerOrders,
   exportSellerOrders,
@@ -283,10 +286,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         })
       : [],
     prisma.emailOutbox.findMany({
-      where:
-        accountEmailSuppressionKeys.length > 0
-          ? { OR: [{ userId: user.id }, { recipientEmail: { in: accountEmailSuppressionKeys } }] }
-          : { userId: user.id },
+      where: accountEmailOutboxWhere(user.id, accountEmailSuppressionKeys),
       orderBy: { createdAt: "desc" },
       select: EMAIL_OUTBOX_EXPORT_SELECT,
     }),

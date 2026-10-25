@@ -23,6 +23,22 @@ export const EMAIL_OUTBOX_EXPORT_SELECT = {
   updatedAt: true,
 } satisfies Prisma.EmailOutboxSelect;
 
+export function accountEmailOutboxWhere(
+  userId: string,
+  fallbackEmailKeys: string[],
+): Prisma.EmailOutboxWhereInput {
+  if (fallbackEmailKeys.length === 0) return { userId };
+  return {
+    OR: [
+      { userId },
+      {
+        userId: null,
+        recipientEmail: { in: fallbackEmailKeys },
+      },
+    ],
+  };
+}
+
 export async function redactEmailOutboxRepresentations(
   client: EmailOutboxMutationClient,
   where: Prisma.EmailOutboxWhereInput,

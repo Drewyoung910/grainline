@@ -79,7 +79,10 @@ import {
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
-import { redactEmailOutboxRepresentations } from "@/lib/emailOutboxContentLifecycle";
+import {
+  accountEmailOutboxWhere,
+  redactEmailOutboxRepresentations,
+} from "@/lib/emailOutboxContentLifecycle";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -1202,9 +1205,13 @@ export async function anonymizeUserAccount(
       accountSensitiveValues,
       accountAuditSensitiveValues,
     );
+    const accountEmailOutboxWhereInput = accountEmailOutboxWhere(
+      user.id,
+      suppressionEmailMatches,
+    );
     await tx.emailOutbox.updateMany({
       where: {
-        OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
+        ...accountEmailOutboxWhereInput,
         sentAt: null,
         status: { in: ["PENDING", "PROCESSING", "FAILED", "DEAD"] },
       },
@@ -1215,15 +1222,12 @@ export async function anonymizeUserAccount(
         lastError: "Skipped because the recipient account was deleted.",
       },
     });
-    const accountEmailOutboxWhere = {
-      OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
-    } satisfies Prisma.EmailOutboxWhereInput;
-    await redactEmailOutboxRepresentations(tx, accountEmailOutboxWhere, {
+    await redactEmailOutboxRepresentations(tx, accountEmailOutboxWhereInput, {
       subject: "Email removed after account deletion",
       html: "[Email removed after account deletion]",
     });
     await tx.emailOutbox.updateMany({
-      where: accountEmailOutboxWhere,
+      where: accountEmailOutboxWhereInput,
       data: { recipientEmail: "deleted-account@deleted.thegrainline.local" },
     });
     await tx.emailFailureCount.deleteMany({

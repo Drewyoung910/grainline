@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  accountEmailOutboxWhere,
   EMAIL_OUTBOX_EXPORT_SELECT,
   redactEmailOutboxRepresentations,
   sellerBroadcastOutboxCancellationWhere,
@@ -9,7 +10,11 @@ const {
 
 function matchesWhere(row, where) {
   if (where.AND) return where.AND.every((part) => matchesWhere(row, part));
+  if (where.OR) return where.OR.some((part) => matchesWhere(row, part));
   if (where.id?.in && !where.id.in.includes(row.id)) return false;
+  if (typeof where.userId === "string" && row.userId !== where.userId) return false;
+  if (where.userId === null && row.userId !== null) return false;
+  if (where.recipientEmail?.in && !where.recipientEmail.in.includes(row.recipientEmail)) return false;
   if (where.payloadVersion === null && row.payloadVersion !== null) return false;
   if (where.payloadVersion?.not === null && row.payloadVersion === null) return false;
   return true;
@@ -36,6 +41,8 @@ describe("email outbox mixed-format lifecycle", () => {
     const rows = [
       {
         id: "legacy",
+        userId: "owner",
+        recipientEmail: "owner@example.com",
         subject: "Private legacy subject",
         html: "<p>Private legacy body</p>",
         payloadVersion: null,
@@ -43,6 +50,8 @@ describe("email outbox mixed-format lifecycle", () => {
       },
       {
         id: "structured",
+        userId: null,
+        recipientEmail: "owner@example.com",
         subject: null,
         html: null,
         payloadVersion: 1,
@@ -50,6 +59,8 @@ describe("email outbox mixed-format lifecycle", () => {
       },
       {
         id: "unrelated",
+        userId: "other",
+        recipientEmail: "owner@example.com",
         subject: null,
         html: null,
         payloadVersion: 1,
@@ -59,7 +70,7 @@ describe("email outbox mixed-format lifecycle", () => {
 
     await redactEmailOutboxRepresentations(
       fakeClient(rows),
-      { id: { in: ["legacy", "structured"] } },
+      accountEmailOutboxWhere("owner", ["owner@example.com"]),
       {
         subject: "Email removed after account deletion",
         html: "[Email removed after account deletion]",
@@ -68,6 +79,8 @@ describe("email outbox mixed-format lifecycle", () => {
 
     assert.deepEqual(rows[0], {
       id: "legacy",
+      userId: "owner",
+      recipientEmail: "owner@example.com",
       subject: "Email removed after account deletion",
       html: "[Email removed after account deletion]",
       payloadVersion: null,
@@ -75,12 +88,35 @@ describe("email outbox mixed-format lifecycle", () => {
     });
     assert.deepEqual(rows[1], {
       id: "structured",
+      userId: null,
+      recipientEmail: "owner@example.com",
       subject: null,
       html: null,
       payloadVersion: 1,
       payload: {},
     });
-    assert.deepEqual(rows[2].payload, { buyerName: "Keep me" });
+    assert.deepEqual(rows[2], {
+      id: "unrelated",
+      userId: "other",
+      recipientEmail: "owner@example.com",
+      subject: null,
+      html: null,
+      payloadVersion: 1,
+      payload: { buyerName: "Keep me" },
+    });
+  });
+
+  it("uses email fallback only for rows without another stable account owner", () => {
+    assert.deepEqual(accountEmailOutboxWhere("owner", ["reused@example.com"]), {
+      OR: [
+        { userId: "owner" },
+        {
+          userId: null,
+          recipientEmail: { in: ["reused@example.com"] },
+        },
+      ],
+    });
+    assert.deepEqual(accountEmailOutboxWhere("owner", []), { userId: "owner" });
   });
 
   it("exports the structured envelope while continuing to omit rendered HTML", () => {
