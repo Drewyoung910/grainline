@@ -245,6 +245,9 @@ type EmailSendOptions = {
   idempotencyKey?: string;
   preferenceKey?: EmailNotificationPreferenceKey;
   unsubscribeIssuedAt?: Date;
+  // Internal outbox-only capability: the generation-fenced database authority
+  // rechecked recipient eligibility while locking this exact job immediately
+  // before the provider boundary.
   deliveryEligibilityAlreadyVerified?: boolean;
 };
 

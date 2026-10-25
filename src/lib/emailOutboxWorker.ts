@@ -112,9 +112,10 @@ async function rollbackUnsentReservations({
 }
 
 /**
- * Runs one generation-fenced claim. Eligibility is already enforced by the
- * claim authority, so this layer owns only quotas, the provider boundary, and
- * terminal claim recording.
+ * Runs one generation-fenced claim. The claim authority screens eligibility,
+ * and beginProviderAttempt rechecks it while locking the exact row after quota
+ * work and immediately before the provider boundary. This layer owns quotas,
+ * provider dispatch, and terminal claim recording.
  */
 export async function processClaimedEmailOutboxJob(
   claim: ClaimedEmailOutboxJob,
