@@ -148,7 +148,11 @@ async function scalarOutcome(
 
 export async function deferEmailOutboxClaim(
   claim: ClaimedEmailOutboxJob,
-  reason: "recipient_optional_quota" | "optional_global_quota" | "provider_unavailable",
+  reason:
+    | "recipient_optional_quota"
+    | "optional_global_quota"
+    | "transactional_global_quota"
+    | "provider_unavailable",
   client: EmailOutboxAuthorityClient = prisma,
 ) {
   return scalarOutcome(await client.$queryRaw<Array<{ result: unknown }>>`

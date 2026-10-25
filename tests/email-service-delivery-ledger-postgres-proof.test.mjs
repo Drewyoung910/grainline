@@ -409,6 +409,33 @@ test("email delivery preparation orders provider attempts before completion and 
       ],
     );
     assert.equal(refusedOptionalDeferral.rows[0].result, "stale_claim");
+
+    await database.query(...Object.values(insertLegacyJob({
+      id: "transactional-global-defer",
+      templateName: "refund_issued",
+    })));
+    const transactionalGlobalClaim = await database.query(
+      "SELECT * FROM public.grainline_email_outbox_claim_one('transactional-global-defer')",
+    );
+    const transactionalGlobalDeferred = await database.query(
+      "SELECT public.grainline_email_outbox_defer($1,$2,$3::uuid,$4) AS result",
+      [
+        "transactional-global-defer",
+        transactionalGlobalClaim.rows[0].claimGeneration,
+        transactionalGlobalClaim.rows[0].claimToken,
+        "transactional_global_quota",
+      ],
+    );
+    assert.equal(transactionalGlobalDeferred.rows[0].result, "applied");
+    const transactionalGlobalState = await database.query(
+      'SELECT status,attempts,"nextAttemptAt","claimToken" FROM public."EmailOutbox" WHERE id=$1',
+      ["transactional-global-defer"],
+    );
+    assert.equal(transactionalGlobalState.rows[0].status, "PENDING");
+    assert.equal(transactionalGlobalState.rows[0].attempts, 0);
+    assert.ok(transactionalGlobalState.rows[0].nextAttemptAt);
+    assert.equal(transactionalGlobalState.rows[0].claimToken, null);
+
     const providerReady = await database.query(
       "SELECT public.grainline_email_outbox_begin_provider_attempt($1,$2,$3::uuid) AS result",
       [

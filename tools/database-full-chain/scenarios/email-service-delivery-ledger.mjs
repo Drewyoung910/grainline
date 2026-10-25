@@ -229,6 +229,26 @@ export async function proveEmailServiceDeliveryLedger({ database }) {
       firstProviderAttemptAt: null,
     });
 
+    await insertLegacyJob(database, {
+      id: `${PREFIX}_transactional_global_defer`,
+      templateName: "refund_issued",
+      recipientEmail: `${PREFIX}_transactional_global_defer@example.test`,
+    });
+    const transactionalGlobalClaim = await database.query(
+      "SELECT * FROM public.grainline_email_outbox_claim_one($1)",
+      [`${PREFIX}_transactional_global_defer`],
+    );
+    const transactionalGlobalDeferred = await database.query(
+      "SELECT public.grainline_email_outbox_defer($1,$2,$3::uuid,$4) AS result",
+      [
+        `${PREFIX}_transactional_global_defer`,
+        transactionalGlobalClaim.rows[0].claimGeneration,
+        transactionalGlobalClaim.rows[0].claimToken,
+        "transactional_global_quota",
+      ],
+    );
+    assert.equal(transactionalGlobalDeferred.rows[0].result, "applied");
+
     const constraintState = await database.query(`
       SELECT conname, convalidated
         FROM pg_catalog.pg_constraint

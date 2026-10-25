@@ -606,12 +606,17 @@ BEGIN
   IF p_reason NOT IN (
     'recipient_optional_quota',
     'optional_global_quota',
+    'transactional_global_quota',
     'provider_unavailable'
   ) THEN
     RAISE EXCEPTION 'Email outbox defer reason is invalid' USING ERRCODE = '22023';
   END IF;
   retry_at := CASE
-    WHEN p_reason IN ('recipient_optional_quota', 'optional_global_quota')
+    WHEN p_reason IN (
+      'recipient_optional_quota',
+      'optional_global_quota',
+      'transactional_global_quota'
+    )
       THEN (pg_catalog.date_trunc('day', source_now) + INTERVAL '1 day')::timestamp(3)
     ELSE source_now + INTERVAL '5 minutes'
   END;
@@ -630,10 +635,20 @@ BEGIN
      AND "firstProviderAttemptAt" IS NULL
      AND (
        p_reason = 'provider_unavailable'
-       OR public.grainline_email_outbox_effective_lane(
-         "templateName"::text,
-         lane::text
-       ) = 'OPTIONAL'
+       OR (
+         p_reason IN ('recipient_optional_quota', 'optional_global_quota')
+         AND public.grainline_email_outbox_effective_lane(
+           "templateName"::text,
+           lane::text
+         ) = 'OPTIONAL'
+       )
+       OR (
+         p_reason = 'transactional_global_quota'
+         AND public.grainline_email_outbox_effective_lane(
+           "templateName"::text,
+           lane::text
+         ) = 'TRANSACTIONAL'
+       )
      );
   GET DIAGNOSTICS changed_count = ROW_COUNT;
   IF changed_count = 1 THEN RETURN 'applied'; END IF;
