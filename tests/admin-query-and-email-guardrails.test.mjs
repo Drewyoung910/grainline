@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
+const { isAlwaysOnEmailPreferenceKey } = await import(
+  "../src/lib/emailPreferencePolicy.ts"
+);
+
 function source(path) {
   return readFileSync(path, "utf8");
 }
@@ -77,15 +81,17 @@ describe("admin query and email guardrails", () => {
     assert.match(messages, /maxLength=\{200\}/);
   });
 
-  it("honors refund email preferences before seller refund emails", () => {
+  it("routes always-on refund email through the fenced outbox worker", () => {
     const finalization = source("src/lib/orderRefundFinalization.ts");
     const outbox = source("src/lib/emailOutbox.ts");
-    const prefIndex = outbox.indexOf("await shouldSendEmail(job.userId, job.preferenceKey)");
-    const sendIndex = outbox.indexOf("await sendRenderedEmail(", prefIndex);
 
+    assert.equal(isAlwaysOnEmailPreferenceKey("EMAIL_REFUND_ISSUED"), true);
     assert.match(finalization, /preferenceKey: "EMAIL_REFUND_ISSUED"/);
-    assert.ok(prefIndex >= 0, "refund outbox delivery must check its preference key");
-    assert.ok(sendIndex > prefIndex, "refund outbox delivery must check preferences before sending");
+    assert.match(finalization, /processEmailOutboxJobById\(committed\.emailOutboxId\)/);
+    assert.match(outbox, /claimEmailOutboxJob\(id\)/);
+    assert.match(outbox, /beginProviderAttempt: beginEmailOutboxProviderAttempt/);
+    assert.doesNotMatch(finalization, /shouldSendEmail\(/);
+    assert.doesNotMatch(outbox, /shouldSendEmail\(/);
   });
 
   it("uses the configured email app URL for dynamic notification links", () => {

@@ -83,6 +83,18 @@ function sanitizedEmailSentryError(error: unknown) {
     sentryError.name = error.name;
     sentryError.stack = error.stack ? sanitizeEmailOutboxError(error.stack) : sentryError.stack;
   }
+  if (error && typeof error === "object") {
+    for (const key of ["status", "statusCode", "code"] as const) {
+      const value = (error as Record<string, unknown>)[key];
+      if (typeof value === "number" || typeof value === "string") {
+        Object.assign(sentryError, {
+          [key]: typeof value === "string"
+            ? sanitizeEmailOutboxError(value).slice(0, 100)
+            : value,
+        });
+      }
+    }
+  }
   return sentryError;
 }
 
@@ -233,6 +245,10 @@ type EmailSendOptions = {
   idempotencyKey?: string;
   preferenceKey?: EmailNotificationPreferenceKey;
   unsubscribeIssuedAt?: Date;
+  // Internal outbox-only capability: the generation-fenced database authority
+  // rechecked recipient eligibility while locking this exact job immediately
+  // before the provider boundary.
+  deliveryEligibilityAlreadyVerified?: boolean;
 };
 
 async function findInactiveEmailAccount(recipient: string, subject: string) {
@@ -259,7 +275,16 @@ function emailDeliverySkippedError(reason: string) {
   return new Error(`Email delivery skipped: ${reason}`);
 }
 
-async function send(to: string, subject: string, html: string, opts: EmailSendOptions = {}) {
+export function isEmailProviderConfigured() {
+  return HAS_RESEND;
+}
+
+async function send(
+  to: string,
+  subject: string,
+  html: string,
+  opts: EmailSendOptions = {},
+): Promise<string | null> {
   const sanitizedSubject = safeSubject(subject);
   const recipient = normalizeEmailAddress(to);
   if (!recipient) {
@@ -269,7 +294,7 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
       extra: { emailHash: hashEmailForTelemetry(to), subjectLength: sanitizedSubject.length },
     });
     if (opts.throwOnFailure) throw emailDeliverySkippedError("invalid recipient");
-    return;
+    return null;
   }
   const emailHash = hashEmailForTelemetry(recipient);
 
@@ -283,7 +308,7 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
   if (!HAS_RESEND) {
     console.log("[email:dev]", { emailHash, subjectLength: sanitizedSubject.length });
     if (opts.throwOnFailure) throw emailDeliverySkippedError("email provider not configured");
-    return;
+    return null;
   }
   if (isOptionalEmailPreferenceKey(opts.preferenceKey) && !unsubscribeUrl) {
     const err = new Error("One-click unsubscribe URL unavailable for configured email send");
@@ -293,22 +318,24 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
       extra: { emailHash, subjectLength: sanitizedSubject.length },
     });
     if (opts.throwOnFailure) throw err;
-    return;
+    return null;
   }
   try {
-    if (await isEmailDeliverySuppressed(recipient)) {
-      console.warn("[email] suppressed recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
-      if (opts.throwOnFailure) throw emailDeliverySkippedError("recipient suppressed");
-      return;
-    }
-    const accountState = await findInactiveEmailAccount(recipient, sanitizedSubject);
-    if (accountState === "banned" || accountState === "deleted") {
-      console.warn("[email] inactive recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
-      if (opts.throwOnFailure) throw emailDeliverySkippedError(`recipient ${accountState}`);
-      return;
+    if (!opts.deliveryEligibilityAlreadyVerified) {
+      if (await isEmailDeliverySuppressed(recipient)) {
+        console.warn("[email] suppressed recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
+        if (opts.throwOnFailure) throw emailDeliverySkippedError("recipient suppressed");
+        return null;
+      }
+      const accountState = await findInactiveEmailAccount(recipient, sanitizedSubject);
+      if (accountState === "banned" || accountState === "deleted") {
+        console.warn("[email] inactive recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
+        if (opts.throwOnFailure) throw emailDeliverySkippedError(`recipient ${accountState}`);
+        return null;
+      }
     }
 
-    await sendEmailProviderRequestWithRetry(
+    const providerResult = await sendEmailProviderRequestWithRetry(
       (idempotencyKey) =>
         resend!.emails.send(
           {
@@ -338,6 +365,7 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
         },
       },
     );
+    return providerResult.id!.trim();
   } catch (err) {
     console.error("[email] send failed:", sanitizeEmailOutboxError(err));
     Sentry.captureException(sanitizedEmailSentryError(err), {
@@ -345,11 +373,12 @@ async function send(to: string, subject: string, html: string, opts: EmailSendOp
       extra: { emailHash, subjectLength: sanitizedSubject.length },
     });
     if (opts.throwOnFailure) throw sanitizedEmailSentryError(err);
+    return null;
   }
 }
 
 export async function sendRenderedEmail(email: RenderedEmail, opts: EmailSendOptions = {}) {
-  await send(email.to, email.subject, email.html, opts);
+  return send(email.to, email.subject, email.html, opts);
 }
 
 export function renderNewsletterConfirmationEmail(opts: { email: string; confirmationUrl: string }) {

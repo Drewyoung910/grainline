@@ -206,19 +206,27 @@ describe("account-state residue hardening", () => {
     );
   });
 
-  it("rechecks outbox recipient account state even without a preference key", () => {
+  it("delegates outbox eligibility to claim and provider-start authorities", () => {
     const outbox = source("src/lib/emailOutbox.ts");
+    const access = source("src/lib/emailOutboxAccess.ts");
+    const worker = source("src/lib/emailOutboxWorker.ts");
 
-    assert.match(outbox, /async function inactiveQueuedEmailRecipientReason/);
-    assert.match(outbox, /if \(job\.userId\) \{[\s\S]*userEmailAccountStateById\(prisma, \{[\s\S]*userId: job\.userId,[\s\S]*expectedEmail: job\.recipientEmail/);
-    assert.match(outbox, /userEmailAccountStateByEmail\(prisma, job\.recipientEmail\)/);
-    assert.doesNotMatch(outbox, /prisma\.user\.(?:findUnique|findFirst|findMany)/);
-    assert.match(outbox, /const inactiveReason = await inactiveQueuedEmailRecipientReason\(job\)/);
-    assert.match(outbox, /skipEmailOutboxJob\(job\.id, inactiveReason\)/);
+    assert.match(outbox, /claimEmailOutboxBatch\(take\)/);
+    assert.match(outbox, /claimEmailOutboxJob\(id\)/);
+    assert.match(outbox, /beginProviderAttempt: beginEmailOutboxProviderAttempt/);
+    assert.match(access, /grainline_email_outbox_claim_batch/);
+    assert.match(access, /grainline_email_outbox_claim_one/);
+    assert.match(access, /grainline_email_outbox_begin_provider_attempt/);
+    const beginIndex = worker.indexOf("await dependencies.beginProviderAttempt(claim)");
+    const sendIndex = worker.indexOf("await dependencies.sendLegacy(claim)");
+    assert.ok(beginIndex >= 0, "the provider-boundary eligibility recheck must exist");
+    assert.ok(sendIndex >= 0, "provider delivery must exist");
     assert.ok(
-      outbox.indexOf("inactiveQueuedEmailRecipientReason(job)") <
-        outbox.indexOf("shouldSendEmail(job.userId, job.preferenceKey)"),
-      "account-state check must run before preference-only checks",
+      beginIndex < sendIndex,
+      "the provider-boundary eligibility recheck must run before provider delivery",
     );
+    assert.doesNotMatch(outbox, /prisma\.user\.(?:findUnique|findFirst|findMany)/);
+    assert.doesNotMatch(outbox, /inactiveQueuedEmailRecipientReason/);
+    assert.doesNotMatch(outbox, /shouldSendEmail\(/);
   });
 });

@@ -81,10 +81,7 @@ export async function finalizeSellerOrderRefund(input: {
   });
 
   if (committed.emailOutboxId) {
-    const delivery = await processEmailOutboxJobById(committed.emailOutboxId);
-    if (delivery === "missing") {
-      throw new Error("Committed refund email outbox row is missing");
-    }
+    await processEmailOutboxJobById(committed.emailOutboxId);
   }
   return committed.result;
 }
@@ -161,10 +158,7 @@ export async function finalizeBlockedCheckoutOrderRefund(input: {
   });
 
   if (committed.emailOutboxId) {
-    const delivery = await processEmailOutboxJobById(committed.emailOutboxId);
-    if (delivery === "missing") {
-      throw new Error("Committed blocked-checkout refund email outbox row is missing");
-    }
+    await processEmailOutboxJobById(committed.emailOutboxId);
   }
   return committed.result;
 }
