@@ -19,12 +19,12 @@ describe("schema hardening follow-ups", () => {
     assert.match(migration, /ON DELETE SET NULL/);
   });
 
-  it("bounds email outbox HTML in schema and at enqueue time", () => {
+  it("bounds nullable legacy email outbox HTML in schema and at enqueue time", () => {
     const schema = source("prisma/schema.prisma");
     const outbox = source("src/lib/emailOutbox.ts");
     const migration = source("prisma/migrations/20260521150000_schema_hardening_text_and_custom_order/migration.sql");
 
-    assert.match(schema, /html\s+String\s+@db\.VarChar\(200000\)/);
+    assert.match(schema, /html\s+String\?\s+@db\.VarChar\(200000\)/);
     assert.match(outbox, /export const EMAIL_OUTBOX_HTML_MAX_CHARS = 200_000/);
     assert.match(outbox, /html: truncateText\(email\.html, EMAIL_OUTBOX_HTML_MAX_CHARS\)/);
     assert.match(migration, /SET "html" = LEFT\("html", 200000\)/);
