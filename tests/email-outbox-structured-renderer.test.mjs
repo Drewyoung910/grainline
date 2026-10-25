@@ -221,6 +221,19 @@ describe("structured email outbox renderer", () => {
       resolution: "DISMISSED",
       refundAmountCents: 1000,
     })));
+    assert.throws(() => renderStructuredEmailOutboxClaim(claim("refund_issued", {
+      ...payloads.refund_issued,
+      orderId: 'order-1\" onclick=\"alert(1)',
+    })));
+  });
+
+  it("HTML-escapes admitted first-party image URLs at the attribute boundary", () => {
+    const rendered = renderStructuredEmailOutboxClaim(claim("followed_maker_new_listing", {
+      ...payloads.followed_maker_new_listing,
+      imageUrl: "https://cdn.thegrainline.com/listings/user-1/photo.jpg?x=&quot; onerror=alert(1)",
+    }));
+    assert.match(rendered.html, /x=&amp;quot; onerror=alert\(1\)/);
+    assert.doesNotMatch(rendered.html, /src="[^"]*&quot; onerror=/);
   });
 
   it("counts Unicode code points at the renderer boundary", () => {

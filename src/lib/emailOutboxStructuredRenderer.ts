@@ -33,7 +33,10 @@ function boundedText(max: number) {
     .refine((value) => codePointLength(value) <= max, `must be at most ${max} characters`);
 }
 
-const identifier = boundedText(191);
+const identifier = boundedText(191).refine(
+  (value) => /^[A-Za-z0-9][A-Za-z0-9_-]{0,190}$/u.test(value),
+  "must be a route-safe identifier",
+);
 const recipientName = boundedText(200).nullable();
 const sellerDisplayName = boundedText(100).nullable();
 const currency = z.string().regex(/^[a-z]{3}$/);

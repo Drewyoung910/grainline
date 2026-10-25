@@ -69,7 +69,12 @@ function orderSubjectSuffix(orderId: string) {
 }
 
 function escapeUrlAttribute(url: string) {
-  return url.replace(/"/g, "%22");
+  return url
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function emailPreferencesUrl() {
@@ -111,7 +116,7 @@ function injectEmailPreferenceLink(html: string, unsubscribeUrl: string | null) 
 /** Validate and escape a URL for use in img src attributes */
 function safeImgUrl(url: string | undefined | null): string | null {
   if (!url || !isFirstPartyMediaUrl(url)) return null;
-  return url.replace(/"/g, "%22");
+  return escapeUrlAttribute(url);
 }
 
 function fmtCents(cents: number, currency: string | null | undefined = DEFAULT_CURRENCY) {
@@ -142,7 +147,7 @@ function trackingUrl(carrier: string | null | undefined, trackingNumber: string)
 }
 
 function btn(label: string, url: string): string {
-  return `<p style="margin:20px 0 0;"><a href="${url}" style="display:inline-block;background:#1C1C1A;color:#FFFFFF;text-decoration:none;padding:12px 28px;font-size:14px;font-weight:600;">${esc(label)}</a></p>`;
+  return `<p style="margin:20px 0 0;"><a href="${escapeUrlAttribute(url)}" style="display:inline-block;background:#1C1C1A;color:#FFFFFF;text-decoration:none;padding:12px 28px;font-size:14px;font-weight:600;">${esc(label)}</a></p>`;
 }
 
 function baseTemplate(title: string, body: string): string {
