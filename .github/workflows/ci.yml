@@ -199,6 +199,23 @@ jobs:
             mv "$test_file" "$holding/tests/$(basename "$test_file")"
           done
           echo "OWNER_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/20261023070000_activate_saved_blog_post_rls/migration.sql" >> "$GITHUB_ENV"
+      - name: Verify email delivery-ledger preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/email-service-delivery-ledger-postgres-proof.test.mjs
+          tests/db-grant-inventory.test.mjs
+      - name: Isolate email delivery-ledger preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-delivery-ledger-candidate"
+          migration=20261025010000_prepare_email_delivery_ledger
+          mkdir -p "$holding/migrations" "$holding/tests"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          mv \
+            tests/email-service-delivery-ledger-postgres-proof.test.mjs \
+            "$holding/tests/email-service-delivery-ledger-postgres-proof.test.mjs"
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -5030,7 +5047,7 @@ jobs:
           predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
           predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
           predecessor_staff_blob=43e85a986eb4790e222482e81a00afbfcc91dce5
-          current_schema_blob=670338c14593b9a49ae71ae5458f62657b1b8e9b
+          current_schema_blob=09a93630f62752dab2ee414ea6430799adf8420d
           git cat-file -e "$predecessor^{commit}"
           git merge-base --is-ancestor "$predecessor" HEAD
           test "$(git hash-object prisma/schema.prisma)" = "$current_schema_blob"
@@ -5050,11 +5067,11 @@ jobs:
           schema="$root/prisma/schema.prisma"
           current="$holding/current-schema.$$.prisma"
           test ! -e "$current"
-          test "$(git hash-object "$schema")" = 670338c14593b9a49ae71ae5458f62657b1b8e9b
+          test "$(git hash-object "$schema")" = 09a93630f62752dab2ee414ea6430799adf8420d
           cp "$schema" "$current"
           cleanup() {
             mv "$current" "$schema"
-            test "$(git hash-object "$schema")" = 670338c14593b9a49ae71ae5458f62657b1b8e9b
+            test "$(git hash-object "$schema")" = 09a93630f62752dab2ee414ea6430799adf8420d
           }
           trap cleanup EXIT
           cp "$holding/predecessor-schema.prisma" "$schema"
@@ -6769,6 +6786,17 @@ jobs:
           done
           rmdir "$holding/migrations" "$holding/tests" "$holding"
           echo "OWNER_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email delivery-ledger preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-delivery-ledger-candidate"
+          migration=20261025010000_prepare_email_delivery_ledger
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          mv \
+            "$holding/tests/email-service-delivery-ledger-postgres-proof.test.mjs" \
+            tests/email-service-delivery-ledger-postgres-proof.test.mjs
+          rmdir "$holding/migrations" "$holding/tests" "$holding"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build

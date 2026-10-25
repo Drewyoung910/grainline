@@ -2102,6 +2102,79 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- The email delivery-ledger preparation is additive and keeps predecessor
+-- table CRUD available until the worker and producer cutovers are complete.
+-- When its functions exist, converge every helper away from PUBLIC/runtime
+-- defaults and restore EXECUTE only for the seven reviewed worker operations.
+WITH email_delivery_ledger_service(function_signature, runtime_access) AS (
+  VALUES
+    ('public."grainline_email_delivery_is_hard_suppressed"(text)', false),
+    ('public."grainline_email_outbox_claim_core"(text, integer)', false),
+    ('public."grainline_email_outbox_effective_lane"(text, text)', false),
+    ('public."grainline_email_outbox_recipient_state"(text, text, text, text)', false),
+    ('public."grainline_email_outbox_safe_error"(text)', false),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)', true),
+    ('public."grainline_email_outbox_claim_batch"(integer)', true),
+    ('public."grainline_email_outbox_claim_one"(text)', true),
+    ('public."grainline_email_outbox_complete"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_defer"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_fail"(text, bigint, uuid, text, text)', true),
+    ('public."grainline_email_outbox_skip"(text, bigint, uuid, text)', true)
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM email_delivery_ledger_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH email_delivery_ledger_service(function_signature, runtime_access) AS (
+  VALUES
+    ('public."grainline_email_delivery_is_hard_suppressed"(text)', false),
+    ('public."grainline_email_outbox_claim_core"(text, integer)', false),
+    ('public."grainline_email_outbox_effective_lane"(text, text)', false),
+    ('public."grainline_email_outbox_recipient_state"(text, text, text, text)', false),
+    ('public."grainline_email_outbox_safe_error"(text)', false),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)', true),
+    ('public."grainline_email_outbox_claim_batch"(integer)', true),
+    ('public."grainline_email_outbox_claim_one"(text)', true),
+    ('public."grainline_email_outbox_complete"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_defer"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_fail"(text, bigint, uuid, text, text)', true),
+    ('public."grainline_email_outbox_skip"(text, bigint, uuid, text)', true)
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM email_delivery_ledger_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH email_delivery_ledger_service(function_signature, runtime_access) AS (
+  VALUES
+    ('public."grainline_email_delivery_is_hard_suppressed"(text)', false),
+    ('public."grainline_email_outbox_claim_core"(text, integer)', false),
+    ('public."grainline_email_outbox_effective_lane"(text, text)', false),
+    ('public."grainline_email_outbox_recipient_state"(text, text, text, text)', false),
+    ('public."grainline_email_outbox_safe_error"(text)', false),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)', true),
+    ('public."grainline_email_outbox_claim_batch"(integer)', true),
+    ('public."grainline_email_outbox_claim_one"(text)', true),
+    ('public."grainline_email_outbox_complete"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_defer"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_fail"(text, bigint, uuid, text, text)', true),
+    ('public."grainline_email_outbox_skip"(text, bigint, uuid, text)', true)
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM email_delivery_ledger_service
+ WHERE runtime_access
+   AND to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- SellerPayoutEvent compatible authority is optional until its additive
 -- migration lands. When present, converge only the three reviewed service
 -- functions without changing predecessor table CRUD or RLS posture.

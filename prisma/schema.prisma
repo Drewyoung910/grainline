@@ -1472,6 +1472,7 @@ model NewsletterSubscriber {
   confirmationTokenHash String?   @db.VarChar(64)
   confirmationExpiresAt DateTime?
   confirmationSentAt    DateTime?
+  deactivatedAt         DateTime?
 
   @@index([confirmationTokenHash])
   @@index([active, confirmedAt])
@@ -1501,9 +1502,16 @@ model EmailSuppression {
 model ResendWebhookEvent {
   svixId              String    @id @db.VarChar(255)
   type                String    @db.VarChar(100)
+  claimGeneration     BigInt    @default(0)
+  claimToken          String?   @db.Uuid
+  attempts            Int       @default(0)
   processingStartedAt DateTime?
+  nextAttemptAt       DateTime?
   processedAt         DateTime?
   lastError           String?   @db.VarChar(2000)
+  acknowledgedAt      DateTime?
+  acknowledgedById    String?   @db.VarChar(191)
+  acknowledgement     String?   @db.VarChar(1000)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -1620,26 +1628,39 @@ model EmailFailureCount {
 }
 
 model EmailOutbox {
-  id              String    @id @default(cuid())
-  recipientEmail  String    @db.VarChar(254)
-  userId          String?   @db.VarChar(191)
-  preferenceKey   String?   @db.VarChar(80)
-  templateName    String    @default("unknown") @db.VarChar(80)
-  templateVersion Int       @default(1)
-  sourceType      String?   @db.VarChar(80)
-  sourceId        String?   @db.VarChar(191)
-  subject         String    @db.VarChar(300)
-  html            String    @db.VarChar(200000)
-  dedupKey        String    @unique @db.VarChar(128)
+  id                        String    @id @default(cuid())
+  recipientEmail            String    @db.VarChar(254)
+  userId                    String?   @db.VarChar(191)
+  preferenceKey             String?   @db.VarChar(80)
+  templateName              String    @default("unknown") @db.VarChar(80)
+  templateVersion           Int       @default(1)
+  sourceType                String?   @db.VarChar(80)
+  sourceId                  String?   @db.VarChar(191)
+  subject                   String?   @db.VarChar(300)
+  html                      String?   @db.VarChar(200000)
+  payloadVersion            Int?
+  payload                   Json?
+  lane                      String?   @db.VarChar(20)
+  dedupKey                  String    @unique @db.VarChar(128)
   // Raw CHECK-constrained to PENDING/PROCESSING/SENT/FAILED/SKIPPED/DEAD by migration.
-  status          String    @default("PENDING") @db.VarChar(20)
-  attempts        Int       @default(0)
-  nextAttemptAt   DateTime? @default(now())
-  sentAt          DateTime?
-  lastError       String?   @db.VarChar(1000)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  status                    String    @default("PENDING") @db.VarChar(20)
+  attempts                  Int       @default(0)
+  claimGeneration           BigInt    @default(0)
+  claimToken                String?   @db.Uuid
+  processingStartedAt       DateTime?
+  firstProviderAttemptAt    DateTime?
+  providerAttemptGeneration BigInt?
+  providerMessageId         String?   @db.VarChar(255)
+  nextAttemptAt             DateTime? @default(now())
+  sentAt                    DateTime?
+  lastError                 String?   @db.VarChar(1000)
+  acknowledgedAt            DateTime?
+  acknowledgedById          String?   @db.VarChar(191)
+  acknowledgement           String?   @db.VarChar(1000)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
+  @@index([status, lane, nextAttemptAt, createdAt, id])
   @@index([status, nextAttemptAt])
   @@index([status, updatedAt])
   @@index([userId, preferenceKey])

@@ -96,6 +96,11 @@ const ownerTableCandidateTests = [
   "owner-table-rls-activation-production.test.mjs",
   "seller-profile-owner-saved-blog-post-authority-postgres.test.mjs",
 ];
+const emailDeliveryLedgerCandidateMigration =
+  "20261025010000_prepare_email_delivery_ledger";
+const emailDeliveryLedgerCandidateTests = [
+  "email-service-delivery-ledger-postgres-proof.test.mjs",
+];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -263,6 +268,36 @@ function ownerTableCandidateTestPath(file) {
   return stagedPath;
 }
 
+function emailDeliveryLedgerCandidateMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    emailDeliveryLedgerCandidateMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "email-delivery-ledger-candidate",
+    "migrations",
+    emailDeliveryLedgerCandidateMigration,
+  );
+  assert.ok(existsSync(stagedPath), "missing isolated email delivery-ledger migration");
+  return stagedPath;
+}
+
+function emailDeliveryLedgerCandidateTestPath(file) {
+  const livePath = path.join("tests", file);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "email-delivery-ledger-candidate",
+    "tests",
+    file,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated email delivery-ledger test ${file}`);
+  return stagedPath;
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -420,6 +455,22 @@ test("owner-table candidates are isolated before exact-latest historical release
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
+test("email delivery-ledger preparation is proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify email delivery-ledger preparation source package";
+  const isolateName = "Isolate email delivery-ledger preparation until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore email delivery-ledger preparation after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  assert.match(isolate, new RegExp(emailDeliveryLedgerCandidateMigration));
+  assert.match(isolate, /email-service-delivery-ledger-postgres-proof\.test\.mjs/u);
+  assert.match(restore, new RegExp(emailDeliveryLedgerCandidateMigration));
+  assert.match(restore, /email-service-delivery-ledger-postgres-proof\.test\.mjs/u);
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
 test("actual isolation and restoration scripts preserve source bytes while staging the follower catalog", () => {
   const temporary = mkdtempSync(path.join(tmpdir(), "grainline-user-ci-staging-"));
   const root = path.join(temporary, "checkout");
@@ -495,6 +546,25 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     for (const file of ownerTableCandidateTests) {
       cpSync(ownerTableCandidateTestPath(file), path.join(root, "tests", file));
     }
+    const emailDeliveryLedgerTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      emailDeliveryLedgerCandidateMigration,
+    );
+    if (!existsSync(emailDeliveryLedgerTarget)) {
+      cpSync(
+        emailDeliveryLedgerCandidateMigrationSourcePath(),
+        emailDeliveryLedgerTarget,
+        { recursive: true },
+      );
+    }
+    for (const file of emailDeliveryLedgerCandidateTests) {
+      cpSync(
+        emailDeliveryLedgerCandidateTestPath(file),
+        path.join(root, "tests", file),
+      );
+    }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
       (migration) => `prisma/migrations/${migration}/migration.sql`,
@@ -509,6 +579,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     const ownerTableCandidatePaths = ownerTableCandidateMigrations.map(
       (migration) => `prisma/migrations/${migration}/migration.sql`,
     );
+    const emailDeliveryLedgerCandidatePath =
+      `prisma/migrations/${emailDeliveryLedgerCandidateMigration}/migration.sql`;
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
@@ -518,6 +590,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       ...supportRequestCandidateTests.map((file) => `tests/${file}`),
       ...ownerTableCandidatePaths,
       ...ownerTableCandidateTests.map((file) => `tests/${file}`),
+      emailDeliveryLedgerCandidatePath,
+      ...emailDeliveryLedgerCandidateTests.map((file) => `tests/${file}`),
       "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
@@ -544,6 +618,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
     execFileSync("bash", ["-c", bashBody("Isolate SavedBlogPost RLS candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate email delivery-ledger preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SupportRequest candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
@@ -564,6 +639,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       (relative) => !existsSync(path.join(root, relative)),
     ));
     assert.ok(ownerTableCandidateTests.every(
+      (file) => !existsSync(path.join(root, "tests", file)),
+    ));
+    assert.equal(existsSync(path.join(root, emailDeliveryLedgerCandidatePath)), false);
+    assert.ok(emailDeliveryLedgerCandidateTests.every(
       (file) => !existsSync(path.join(root, "tests", file)),
     ));
     const historicalStaff = readFileSync(path.join(root, staffScript), "utf8");
@@ -620,6 +699,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore blocked-checkout refund witness after immutable refund repair")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SupportRequest candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

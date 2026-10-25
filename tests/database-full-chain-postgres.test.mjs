@@ -91,6 +91,8 @@ import {
   proveCartCartItemRlsAuthorities,
   seedCartCartItemPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/cart-cartitem-rls.mjs";
+import { proveEmailServiceDeliveryLedger } from
+  "../tools/database-full-chain/scenarios/email-service-delivery-ledger.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import {
@@ -639,6 +641,7 @@ test(
         fixture: cartCartItemFixture,
         connectionString: proofDatabaseUrl,
       });
+      await proveEmailServiceDeliveryLedger({ database: adapter });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),
         "utf8",

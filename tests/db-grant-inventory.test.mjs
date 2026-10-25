@@ -216,6 +216,28 @@ const CART_CART_ITEM_RUNTIME_FUNCTION_NAMES = [
   "grainline_cart_item_admin_listing_cleanup",
   "grainline_cart_item_seller_listing_cleanup",
 ];
+const EMAIL_DELIVERY_LEDGER_MIGRATION =
+  "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
+const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
+  "grainline_email_delivery_is_hard_suppressed",
+  "grainline_email_outbox_claim_core",
+  "grainline_email_outbox_effective_lane",
+  "grainline_email_outbox_recipient_state",
+  "grainline_email_outbox_safe_error",
+];
+const EMAIL_DELIVERY_LEDGER_RUNTIME_FUNCTION_NAMES = [
+  "grainline_email_outbox_begin_provider_attempt",
+  "grainline_email_outbox_claim_batch",
+  "grainline_email_outbox_claim_one",
+  "grainline_email_outbox_complete",
+  "grainline_email_outbox_defer",
+  "grainline_email_outbox_fail",
+  "grainline_email_outbox_skip",
+];
+const EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES = [
+  ...EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES,
+  ...EMAIL_DELIVERY_LEDGER_RUNTIME_FUNCTION_NAMES,
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3215,6 +3237,12 @@ describe("database grant inventory guardrails", () => {
       source(CART_CART_ITEM_RLS_MIGRATION).includes(
         `CREATE FUNCTION public.${functionName}(`,
       ));
+    const emailDeliveryLedgerPrepared = existsSync(
+      EMAIL_DELIVERY_LEDGER_MIGRATION,
+    ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_DELIVERY_LEDGER_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3395,6 +3423,9 @@ describe("database grant inventory guardrails", () => {
       ...(cartCartItemRlsActivationPresent
         ? CART_CART_ITEM_RUNTIME_FUNCTION_NAMES
         : []),
+      ...(emailDeliveryLedgerPrepared
+        ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3445,6 +3476,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (cartCartItemRlsActivationPresent
           ? 3 // table plus two cleanup functions
+          : 0)
+        + (emailDeliveryLedgerPrepared
+          ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
@@ -3537,6 +3571,9 @@ describe("database grant inventory guardrails", () => {
     for (const functionName of [
       ...(cartCartItemRlsActivationPresent
         ? CART_CART_ITEM_RUNTIME_FUNCTION_NAMES
+        : []),
+      ...(emailDeliveryLedgerPrepared
+        ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
