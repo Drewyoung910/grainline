@@ -5,7 +5,14 @@ type EmailOutboxAuthorityClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 const UUID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu;
 const OUTCOMES = new Set(["applied", "stale_claim", "already_terminal", "missing"] as const);
-const BEGIN_OUTCOMES = new Set(["ready", "expired", "stale_claim", "already_terminal", "missing"] as const);
+const BEGIN_OUTCOMES = new Set([
+  "ready",
+  "expired",
+  "ineligible",
+  "stale_claim",
+  "already_terminal",
+  "missing",
+] as const);
 
 export type EmailOutboxLane = "TRANSACTIONAL" | "OPTIONAL";
 
@@ -128,7 +135,7 @@ export async function claimEmailOutboxJob(
 }
 
 type EmailOutboxOutcome = "applied" | "stale_claim" | "already_terminal" | "missing";
-type ProviderAttemptOutcome = EmailOutboxOutcome | "ready" | "expired";
+type ProviderAttemptOutcome = EmailOutboxOutcome | "ready" | "expired" | "ineligible";
 
 function exactOutcome(value: unknown, allowed: ReadonlySet<string>, operation: string) {
   if (typeof value !== "string" || !allowed.has(value)) {

@@ -176,6 +176,39 @@ export async function proveEmailServiceDeliveryLedger({ database }) {
     assert.equal(gmailSuppressed.rows.length, 0);
 
     await insertLegacyJob(database, {
+      id: `${PREFIX}_suppressed_after_claim`,
+      templateName: "welcome",
+      recipientEmail: `${PREFIX}_late_suppression@example.test`,
+    });
+    const lateSuppressionClaim = await database.query(
+      "SELECT * FROM public.grainline_email_outbox_claim_one($1)",
+      [`${PREFIX}_suppressed_after_claim`],
+    );
+    assert.equal(lateSuppressionClaim.rows.length, 1);
+    await database.query(
+      `INSERT INTO public."EmailSuppression" (
+         id,email,reason,source,details,"createdAt","updatedAt"
+       ) VALUES ($1,$2,'COMPLAINT'::public."EmailSuppressionReason",'test','{}',now(),now())`,
+      [`${PREFIX}_late_suppression`, `${PREFIX}_late_suppression@example.test`],
+    );
+    const lateSuppressionBegin = await database.query(
+      "SELECT public.grainline_email_outbox_begin_provider_attempt($1,$2,$3::uuid) AS result",
+      [
+        `${PREFIX}_suppressed_after_claim`,
+        lateSuppressionClaim.rows[0].claimGeneration,
+        lateSuppressionClaim.rows[0].claimToken,
+      ],
+    );
+    assert.equal(lateSuppressionBegin.rows[0].result, "ineligible");
+    const lateSuppressionState = await database.query(
+      'SELECT status,"firstProviderAttemptAt","claimToken" FROM public."EmailOutbox" WHERE id=$1',
+      [`${PREFIX}_suppressed_after_claim`],
+    );
+    assert.equal(lateSuppressionState.rows[0].status, "SKIPPED");
+    assert.equal(lateSuppressionState.rows[0].firstProviderAttemptAt, null);
+    assert.equal(lateSuppressionState.rows[0].claimToken, null);
+
+    await insertLegacyJob(database, {
       id: `${PREFIX}_anonymous`,
       templateName: "welcome",
       recipientEmail: `${PREFIX}_no_account@example.test`,
@@ -276,6 +309,7 @@ export async function proveEmailServiceDeliveryLedger({ database }) {
       providerDeadline: true,
       suppressionBeforeBody: true,
       canonicalSuppression: true,
+      providerBoundaryEligibility: true,
       anonymousRecipient: true,
       providerAttemptOrdering: true,
       constraintsValidated: true,

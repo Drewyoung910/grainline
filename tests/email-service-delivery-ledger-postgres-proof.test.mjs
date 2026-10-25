@@ -478,6 +478,46 @@ test("email delivery preparation orders provider attempts before completion and 
   }
 });
 
+test("email delivery preparation rechecks eligibility at the provider boundary", async () => {
+  const database = await createDatabase();
+  try {
+    await database.query(...Object.values(insertLegacyJob({
+      id: "suppressed-after-claim",
+      recipientEmail: "late-suppression@example.test",
+    })));
+    const claim = await database.query(
+      "SELECT * FROM public.grainline_email_outbox_claim_one('suppressed-after-claim')",
+    );
+    assert.equal(claim.rows.length, 1);
+
+    await database.query(
+      `INSERT INTO public."EmailSuppression"
+        (id,email,reason,source,details,"createdAt","updatedAt")
+       VALUES ('late-suppression','late-suppression@example.test','COMPLAINT','test','{}',now(),now())`,
+    );
+    const begin = await database.query(
+      "SELECT public.grainline_email_outbox_begin_provider_attempt($1,$2,$3::uuid) AS result",
+      [
+        "suppressed-after-claim",
+        claim.rows[0].claimGeneration,
+        claim.rows[0].claimToken,
+      ],
+    );
+    assert.equal(begin.rows[0].result, "ineligible");
+    const state = await database.query(
+      'SELECT status,"sentAt","firstProviderAttemptAt","claimToken","lastError" FROM public."EmailOutbox" WHERE id=$1',
+      ["suppressed-after-claim"],
+    );
+    assert.equal(state.rows[0].status, "SKIPPED");
+    assert.ok(state.rows[0].sentAt);
+    assert.equal(state.rows[0].firstProviderAttemptAt, null);
+    assert.equal(state.rows[0].claimToken, null);
+    assert.match(state.rows[0].lastError, /hard-suppressed before provider attempt/iu);
+  } finally {
+    await database.close();
+  }
+});
+
 test("email delivery preparation constrains shapes and sanitizes stored errors", async () => {
   const database = await createDatabase();
   try {

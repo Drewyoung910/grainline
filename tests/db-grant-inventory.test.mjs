@@ -222,6 +222,7 @@ const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
   "grainline_email_delivery_is_hard_suppressed",
   "grainline_email_outbox_claim_core",
   "grainline_email_outbox_effective_lane",
+  "grainline_email_outbox_recipient_state",
   "grainline_email_outbox_safe_error",
 ];
 const EMAIL_DELIVERY_LEDGER_RUNTIME_FUNCTION_NAMES = [

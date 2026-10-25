@@ -305,6 +305,65 @@ $grainline_email_delivery_is_hard_suppressed$;
 
 REVOKE ALL ON FUNCTION public.grainline_email_delivery_is_hard_suppressed(text) FROM PUBLIC;
 
+CREATE OR REPLACE FUNCTION public.grainline_email_outbox_recipient_state(
+  p_user_id text,
+  p_recipient_email text,
+  p_preference_key text,
+  p_lane text
+)
+RETURNS text
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_email_outbox_recipient_state$
+DECLARE
+  account_state text := 'active';
+  recipient_count integer;
+BEGIN
+  IF p_lane IS NULL OR p_lane NOT IN ('TRANSACTIONAL', 'OPTIONAL') THEN
+    RETURN 'invalid_lane';
+  END IF;
+
+  IF p_user_id IS NOT NULL THEN
+    SELECT public.grainline_user_email_account_state_by_id(
+      p_user_id,
+      p_recipient_email
+    ) INTO account_state;
+    IF account_state = 'active'
+       AND p_lane = 'OPTIONAL'
+       AND p_preference_key IS NOT NULL THEN
+      SELECT pg_catalog.count(*)::integer
+        INTO recipient_count
+        FROM public.grainline_user_email_recipient(
+          p_user_id,
+          p_preference_key
+        );
+      IF recipient_count <> 1 THEN
+        account_state := 'optional_preference_disabled';
+      END IF;
+    END IF;
+  ELSE
+    SELECT public.grainline_user_email_account_state_by_email(
+      p_recipient_email
+    ) INTO account_state;
+    IF account_state = 'missing' THEN
+      account_state := 'active';
+    END IF;
+  END IF;
+
+  IF account_state = 'active'
+     AND public.grainline_email_delivery_is_hard_suppressed(p_recipient_email) THEN
+    account_state := 'hard_suppression';
+  END IF;
+  RETURN account_state;
+END
+$grainline_email_outbox_recipient_state$;
+
+REVOKE ALL ON FUNCTION public.grainline_email_outbox_recipient_state(text, text, text, text)
+  FROM PUBLIC;
+
 CREATE OR REPLACE FUNCTION public.grainline_email_outbox_claim_core(
   p_job_id text,
   p_limit integer
@@ -338,7 +397,6 @@ DECLARE
   candidate record;
   effective_lane text;
   account_state text;
-  recipient_count integer;
   returned_count integer := 0;
   scan_limit integer;
   new_generation bigint;
@@ -441,38 +499,14 @@ BEGIN
       CONTINUE;
     END IF;
 
-    account_state := 'active';
-    IF candidate."userId" IS NOT NULL THEN
-      SELECT public.grainline_user_email_account_state_by_id(
-        candidate."userId"::text,
-        candidate."recipientEmail"::text
-      ) INTO account_state;
-      IF account_state = 'active'
-         AND effective_lane = 'OPTIONAL'
-         AND candidate."preferenceKey" IS NOT NULL THEN
-        SELECT pg_catalog.count(*)::integer
-          INTO recipient_count
-          FROM public.grainline_user_email_recipient(
-            candidate."userId"::text,
-            candidate."preferenceKey"::text
-          );
-        IF recipient_count <> 1 THEN
-          account_state := 'optional_preference_disabled';
-        END IF;
-      END IF;
-    ELSE
-      SELECT public.grainline_user_email_account_state_by_email(
-        candidate."recipientEmail"::text
-      ) INTO account_state;
-      IF account_state = 'missing' THEN
-        account_state := 'active';
-      END IF;
-    END IF;
+    account_state := public.grainline_email_outbox_recipient_state(
+      candidate."userId"::text,
+      candidate."recipientEmail"::text,
+      candidate."preferenceKey"::text,
+      effective_lane
+    );
 
-    IF account_state <> 'active'
-       OR public.grainline_email_delivery_is_hard_suppressed(
-         candidate."recipientEmail"::text
-       ) THEN
+    IF account_state <> 'active' THEN
       UPDATE public."EmailOutbox"
          SET status = 'SKIPPED',
              "sentAt" = source_now,
@@ -480,10 +514,8 @@ BEGIN
              "claimToken" = NULL,
              "processingStartedAt" = NULL,
              "lastError" = public.grainline_email_outbox_safe_error(
-               CASE
-                 WHEN public.grainline_email_delivery_is_hard_suppressed(
-                   candidate."recipientEmail"::text
-                 ) THEN 'Recipient email is hard-suppressed'
+               CASE WHEN account_state = 'hard_suppression'
+                 THEN 'Recipient email is hard-suppressed'
                  ELSE 'Recipient is not eligible for email delivery: ' || account_state
                END
              ),
@@ -677,6 +709,8 @@ DECLARE
   source_now timestamp(3) without time zone :=
     (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
   locked_row record;
+  effective_lane text;
+  account_state text;
 BEGIN
   SELECT * INTO locked_row
     FROM public."EmailOutbox"
@@ -688,6 +722,33 @@ BEGIN
      OR locked_row."claimGeneration" <> p_claim_generation
      OR locked_row."claimToken" IS DISTINCT FROM p_claim_token THEN
     RETURN 'stale_claim';
+  END IF;
+  effective_lane := public.grainline_email_outbox_effective_lane(
+    locked_row."templateName"::text,
+    locked_row.lane::text
+  );
+  account_state := public.grainline_email_outbox_recipient_state(
+    locked_row."userId"::text,
+    locked_row."recipientEmail"::text,
+    locked_row."preferenceKey"::text,
+    effective_lane
+  );
+  IF account_state <> 'active' THEN
+    UPDATE public."EmailOutbox"
+       SET status = 'SKIPPED',
+           "sentAt" = source_now,
+           "nextAttemptAt" = NULL,
+           "claimToken" = NULL,
+           "processingStartedAt" = NULL,
+           "lastError" = public.grainline_email_outbox_safe_error(
+             CASE WHEN account_state = 'hard_suppression'
+               THEN 'Recipient email is hard-suppressed before provider attempt'
+               ELSE 'Recipient became ineligible before provider attempt: ' || account_state
+             END
+           ),
+           "updatedAt" = source_now
+     WHERE id = p_job_id;
+    RETURN 'ineligible';
   END IF;
   IF locked_row."firstProviderAttemptAt" IS NOT NULL
      AND locked_row."firstProviderAttemptAt" <= source_now - INTERVAL '23 hours' THEN
@@ -965,6 +1026,7 @@ BEGIN
 
   FOREACH function_identity IN ARRAY ARRAY[
     'grainline_email_delivery_is_hard_suppressed(text)',
+    'grainline_email_outbox_recipient_state(text,text,text,text)',
     'grainline_email_outbox_claim_core(text,integer)',
     'grainline_email_outbox_claim_batch(integer)',
     'grainline_email_outbox_claim_one(text)',
