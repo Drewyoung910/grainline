@@ -16,7 +16,9 @@ function sourceFiles(root) {
 }
 
 function functionBody(text, name) {
-  const start = text.indexOf(`export async function ${name}`);
+  const syncStart = text.indexOf(`export function ${name}`);
+  const asyncStart = text.indexOf(`export async function ${name}`);
+  const start = syncStart === -1 ? asyncStart : syncStart;
   assert.notEqual(start, -1, `${name} not found`);
   const next = text.indexOf("\nexport ", start + 1);
   return text.slice(start, next === -1 ? text.length : next);
@@ -88,8 +90,8 @@ describe("email delivery guardrails", () => {
   it("keeps privacy-sensitive user-authored previews out of notification emails", () => {
     const email = source("src/lib/email.ts");
     for (const name of [
-      "sendCaseOpened",
-      "sendCaseMessage",
+      "renderCaseOpenedEmail",
+      "renderCaseMessageEmail",
       "sendCustomOrderRequest",
       "sendNewMessageEmail",
       "sendNewReviewEmail",
@@ -98,7 +100,7 @@ describe("email delivery guardrails", () => {
       assert.doesNotMatch(body, /<blockquote/);
       assert.doesNotMatch(body, /truncateTextWithEllipsis/);
     }
-    assert.match(functionBody(email, "sendCaseOpened"), /order <strong>#\$\{esc\(shortId\(orderId\)\)\}<\/strong>/);
+    assert.match(functionBody(email, "renderCaseOpenedEmail"), /order <strong>#\$\{esc\(shortId\(orderId\)\)\}<\/strong>/);
     assert.match(functionBody(email, "sendNewMessageEmail"), /Open the conversation to read and reply/);
     assert.match(functionBody(email, "sendNewReviewEmail"), /Open Grainline to read the full review/);
   });

@@ -59,6 +59,14 @@ function harness(overrides = {}) {
       calls.push(["send", ...args]);
       return "provider-message-1";
     },
+    renderStructured: (...args) => {
+      calls.push(["renderStructured", ...args]);
+      return { subject: "Rendered subject", html: "<p>Rendered body</p>" };
+    },
+    sendStructured: async (...args) => {
+      calls.push(["sendStructured", ...args]);
+      return "provider-message-1";
+    },
     complete: async (...args) => {
       calls.push(["complete", ...args]);
       return "applied";
@@ -271,22 +279,63 @@ describe("email outbox worker", () => {
     assert.deepEqual(seenFailures, [[providerError, "provider_retryable", job]]);
   });
 
-  it("marks an unsupported structured payload invalid before quotas or provider work", async () => {
+  it("renders a supported structured payload before quota and sends it after the provider fence", async () => {
     const { calls, dependencies } = harness();
 
     const result = await processClaimedEmailOutboxJob(
       claim({
+        templateName: "case_message",
         legacySubject: null,
         legacyHtml: null,
         payloadVersion: 1,
-        payload: { template: "future" },
+        payload: {
+          recipientName: "Buyer",
+          senderDisplayName: "Maker",
+          caseId: "case-1",
+          orderId: "order-1",
+          recipientSide: "BUYER",
+        },
+      }),
+      dependencies,
+    );
+
+    assert.equal(result, "sent");
+    assert.deepEqual(callNames(calls), [
+      "renderStructured",
+      "reserveGlobal",
+      "begin",
+      "sendStructured",
+      "complete",
+    ]);
+    assert.deepEqual(calls[3][2], {
+      subject: "Rendered subject",
+      html: "<p>Rendered body</p>",
+    });
+  });
+
+  it("marks an invalid structured payload invalid before quotas or provider work", async () => {
+    const { calls, dependencies } = harness({
+      renderStructured: (...args) => {
+        calls.push(["renderStructured", ...args]);
+        throw new TypeError("invalid structured payload");
+      },
+    });
+
+    const result = await processClaimedEmailOutboxJob(
+      claim({
+        templateName: "case_message",
+        legacySubject: null,
+        legacyHtml: null,
+        payloadVersion: 1,
+        payload: { recipientSide: "ARBITRARY_URL" },
       }),
       dependencies,
     );
 
     assert.equal(result, "failed");
-    assert.deepEqual(callNames(calls), ["fail"]);
-    assert.equal(calls[0][2], "invalid_payload");
+    assert.deepEqual(callNames(calls), ["renderStructured", "fail"]);
+    assert.equal(calls[1][2], "invalid_payload");
+    assert.equal(calls[1][3], "Structured email payload is invalid");
   });
 
   it("defers before quota reservations when the provider is not configured", async () => {

@@ -574,12 +574,12 @@ export async function sendOrderDelivered(opts: {
   await send(buyer.email, `Your piece has been delivered${orderSubjectSuffix(order.id)}`, baseTemplate("Order Delivered", body));
 }
 
-export async function sendCaseOpened(opts: {
+export function renderCaseOpenedEmail(opts: {
   orderId: string;
   seller: { name?: string | null; email: string };
   buyer: { name?: string | null };
   caseDescription: string;
-}) {
+}): RenderedEmail {
   const { orderId, seller, buyer } = opts;
   const sellerName = seller.name || "there";
   const buyerName = buyer.name || "A buyer";
@@ -592,16 +592,24 @@ export async function sendCaseOpened(opts: {
     ${btn("Respond to case", orderUrl)}
   `;
 
-  await send(seller.email, `A buyer opened a case${orderSubjectSuffix(orderId)}`, baseTemplate("Case Opened", body));
+  return {
+    to: seller.email,
+    subject: `A buyer opened a case${orderSubjectSuffix(orderId)}`,
+    html: baseTemplate("Case Opened", body),
+  };
 }
 
-export async function sendCaseMessage(opts: {
+export async function sendCaseOpened(opts: Parameters<typeof renderCaseOpenedEmail>[0]) {
+  await sendRenderedEmail(renderCaseOpenedEmail(opts));
+}
+
+export function renderCaseMessageEmail(opts: {
   recipientName?: string | null;
   recipientEmail: string;
   senderName?: string | null;
   caseLink: string;
   messageSnippet: string;
-}) {
+}): RenderedEmail {
   const { recipientName, recipientEmail, senderName, caseLink } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
@@ -612,7 +620,15 @@ export async function sendCaseMessage(opts: {
     ${btn("View conversation", caseLink)}
   `;
 
-  await send(recipientEmail, `${safeSubject(sender)} sent a message in your case`, baseTemplate("New Case Message", body));
+  return {
+    to: recipientEmail,
+    subject: `${safeSubject(sender)} sent a message in your case`,
+    html: baseTemplate("New Case Message", body),
+  };
+}
+
+export async function sendCaseMessage(opts: Parameters<typeof renderCaseMessageEmail>[0]) {
+  await sendRenderedEmail(renderCaseMessageEmail(opts));
 }
 
 export function renderCaseResolvedEmail(opts: {

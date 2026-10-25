@@ -33,6 +33,7 @@ import {
   processClaimedEmailOutboxJob,
   type EmailOutboxFailureClass,
 } from "@/lib/emailOutboxWorker";
+import { renderStructuredEmailOutboxClaim } from "@/lib/emailOutboxStructuredRenderer";
 import { emailSendErrorStatus, isRetryableEmailSendError } from "@/lib/emailRetry";
 
 const DEFAULT_BATCH_SIZE = 50;
@@ -41,6 +42,8 @@ export const EMAIL_OUTBOX_HTML_MAX_CHARS = 200_000;
 export const EMAIL_OUTBOX_TEMPLATE_VERSION = 1;
 export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
   "back_in_stock",
+  "case_message",
+  "case_opened",
   "case_resolved",
   "first_listing_congrats",
   "first_sale_congrats",
@@ -250,6 +253,29 @@ async function processEmailOutboxClaim(claim: ClaimedEmailOutboxJob) {
           to: claimedJob.recipientEmail,
           subject: claimedJob.legacySubject,
           html: claimedJob.legacyHtml,
+        },
+        {
+          throwOnFailure: true,
+          idempotencyKey: claimedJob.dedupKey,
+          preferenceKey: isValidEmailPreferenceKey(claimedJob.preferenceKey)
+            ? claimedJob.preferenceKey
+            : undefined,
+          unsubscribeIssuedAt: claimedJob.createdAt,
+          deliveryEligibilityAlreadyVerified: true,
+        },
+      );
+      if (!providerMessageId) {
+        throw new TypeError("Email provider returned success without a message id");
+      }
+      return providerMessageId;
+    },
+    renderStructured: renderStructuredEmailOutboxClaim,
+    sendStructured: async (claimedJob, rendered) => {
+      const providerMessageId = await sendRenderedEmail(
+        {
+          to: claimedJob.recipientEmail,
+          subject: rendered.subject,
+          html: rendered.html,
         },
         {
           throwOnFailure: true,
