@@ -436,6 +436,24 @@ test("email delivery preparation orders provider attempts before completion and 
     assert.ok(transactionalGlobalState.rows[0].nextAttemptAt);
     assert.equal(transactionalGlobalState.rows[0].claimToken, null);
 
+    await database.query(...Object.values(insertLegacyJob({
+      id: "quota-unavailable-defer",
+      templateName: "refund_issued",
+    })));
+    const quotaUnavailableClaim = await database.query(
+      "SELECT * FROM public.grainline_email_outbox_claim_one('quota-unavailable-defer')",
+    );
+    const quotaUnavailableDeferred = await database.query(
+      "SELECT public.grainline_email_outbox_defer($1,$2,$3::uuid,$4) AS result",
+      [
+        "quota-unavailable-defer",
+        quotaUnavailableClaim.rows[0].claimGeneration,
+        quotaUnavailableClaim.rows[0].claimToken,
+        "quota_unavailable",
+      ],
+    );
+    assert.equal(quotaUnavailableDeferred.rows[0].result, "applied");
+
     const providerReady = await database.query(
       "SELECT public.grainline_email_outbox_begin_provider_attempt($1,$2,$3::uuid) AS result",
       [

@@ -152,6 +152,7 @@ export async function deferEmailOutboxClaim(
     | "recipient_optional_quota"
     | "optional_global_quota"
     | "transactional_global_quota"
+    | "quota_unavailable"
     | "provider_unavailable",
   client: EmailOutboxAuthorityClient = prisma,
 ) {

@@ -607,6 +607,7 @@ BEGIN
     'recipient_optional_quota',
     'optional_global_quota',
     'transactional_global_quota',
+    'quota_unavailable',
     'provider_unavailable'
   ) THEN
     RAISE EXCEPTION 'Email outbox defer reason is invalid' USING ERRCODE = '22023';
@@ -634,7 +635,7 @@ BEGIN
      AND "claimToken" = p_claim_token
      AND "firstProviderAttemptAt" IS NULL
      AND (
-       p_reason = 'provider_unavailable'
+       p_reason IN ('quota_unavailable', 'provider_unavailable')
        OR (
          p_reason IN ('recipient_optional_quota', 'optional_global_quota')
          AND public.grainline_email_outbox_effective_lane(
