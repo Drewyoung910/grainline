@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { EmailOutbox } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -26,6 +25,7 @@ import {
   claimEmailOutboxJob,
   completeEmailOutboxClaim,
   deferEmailOutboxClaim,
+  enqueueLegacyEmailOutbox,
   failEmailOutboxClaim,
   type ClaimedEmailOutboxJob,
 } from "@/lib/emailOutboxAccess";
@@ -77,11 +77,11 @@ export type QueuedEmail = {
 };
 
 export type EnqueueEmailOutboxResult = {
-  job: EmailOutbox | null;
+  job: { id: string } | null;
   created: boolean;
 };
 
-type EmailOutboxClient = Pick<typeof prisma, "emailOutbox">;
+type EmailOutboxClient = Parameters<typeof enqueueLegacyEmailOutbox>[1];
 
 function normalizeTemplateVersion(version: number | undefined) {
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
@@ -175,30 +175,23 @@ export async function enqueueEmailOutboxOnce(
   }
   const dedupKey = emailOutboxDedupKey(email.dedupKey);
 
-  // PostgreSQL marks a transaction failed after a uniqueness error. Use the
-  // provider's ON CONFLICT path so an exact replay can read the retained row
-  // without aborting a caller-owned transaction.
-  const inserted = await client.emailOutbox.createMany({
-    data: {
-      id: randomUUID(),
-      recipientEmail: recipient,
-      userId: email.userId,
-      preferenceKey: email.preferenceKey,
-      templateName: email.templateName,
-      templateVersion: normalizeTemplateVersion(email.templateVersion),
-      sourceType: email.sourceType ? truncateText(email.sourceType, 80) : undefined,
-      sourceId: email.sourceId ? truncateText(email.sourceId, 191) : undefined,
-      subject: email.subject.slice(0, 300),
-      html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
-      dedupKey,
-    },
-    skipDuplicates: true,
-  });
-  const job = await client.emailOutbox.findUnique({ where: { dedupKey } });
-  if (!job) {
-    throw new Error("Email outbox insert completed without a durable row");
-  }
-  return { job, created: inserted.count === 1 };
+  const result = await enqueueLegacyEmailOutbox({
+    id: randomUUID(),
+    recipientEmail: recipient,
+    userId: email.userId ?? null,
+    preferenceKey: email.preferenceKey ?? null,
+    templateName: email.templateName,
+    templateVersion: normalizeTemplateVersion(email.templateVersion),
+    sourceType: email.sourceType ? truncateText(email.sourceType, 80) : null,
+    sourceId: email.sourceId ? truncateText(email.sourceId, 191) : null,
+    subject: email.subject.slice(0, 300),
+    html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
+    dedupKey,
+  }, client);
+  return {
+    job: result.jobId ? { id: result.jobId } : null,
+    created: result.created,
+  };
 }
 
 export async function enqueueEmailOutbox(

@@ -154,6 +154,20 @@ jobs:
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/support-request-email-reuse-privacy-production-workflow.test.mjs
           tests/support-request-state.test.mjs
+      - name: Verify email provider/account-deletion fence source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/account-state-residue-followups.test.mjs
+          tests/db-grant-inventory.test.mjs
+      - name: Isolate email provider/account-deletion fence until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-deletion-fence"
+          migration=20261025020000_fence_email_provider_and_account_deletion
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Isolate SupportRequest candidate until historical release guards pass
         shell: bash
         run: |
@@ -6797,6 +6811,15 @@ jobs:
             "$holding/tests/email-service-delivery-ledger-postgres-proof.test.mjs" \
             tests/email-service-delivery-ledger-postgres-proof.test.mjs
           rmdir "$holding/migrations" "$holding/tests" "$holding"
+      - name: Restore email provider/account-deletion fence after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-deletion-fence"
+          migration=20261025020000_fence_email_provider_and_account_deletion
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build

@@ -36,6 +36,26 @@ export type ClaimedEmailOutboxJob = {
 
 type RawClaim = Record<string, unknown>;
 
+type EnqueueLegacyEmailOutboxInput = {
+  id: string;
+  recipientEmail: string;
+  userId: string | null;
+  preferenceKey: string | null;
+  templateName: string;
+  templateVersion: number;
+  sourceType: string | null;
+  sourceId: string | null;
+  subject: string;
+  html: string;
+  dedupKey: string;
+};
+
+export type EnqueueEmailOutboxAuthorityResult = {
+  jobId: string | null;
+  created: boolean;
+  outcome: string;
+};
+
 function date(value: unknown) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value !== "string" || !value) return null;
@@ -151,6 +171,61 @@ async function scalarOutcome(
 ) {
   if (rows.length !== 1) throw new Error(`${operation} returned an invalid result`);
   return exactOutcome(rows[0]?.result, allowed, operation);
+}
+
+export async function enqueueLegacyEmailOutbox(
+  input: EnqueueLegacyEmailOutboxInput,
+  client: EmailOutboxAuthorityClient = prisma,
+): Promise<EnqueueEmailOutboxAuthorityResult> {
+  const rows = await client.$queryRaw<EnqueueEmailOutboxAuthorityResult[]>`
+    SELECT * FROM public.grainline_email_outbox_enqueue_legacy(
+      ${input.id}::text,
+      ${input.recipientEmail}::text,
+      ${input.userId}::text,
+      ${input.preferenceKey}::text,
+      ${input.templateName}::text,
+      ${input.templateVersion}::integer,
+      ${input.sourceType}::text,
+      ${input.sourceId}::text,
+      ${input.subject}::text,
+      ${input.html}::text,
+      ${input.dedupKey}::text
+    )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || !row
+    || (row.jobId !== null && typeof row.jobId !== "string")
+    || typeof row.created !== "boolean"
+    || typeof row.outcome !== "string"
+    || (row.outcome === "ready") !== (row.jobId !== null)
+  ) {
+    throw new Error("Email outbox enqueue authority returned an invalid result");
+  }
+  return row;
+}
+
+export async function emailOutboxAccountDeletionPendingCount(
+  input: { userId: string; emailKeys: string[] },
+  client: EmailOutboxAuthorityClient,
+) {
+  const rows = await client.$queryRaw<Array<{ pendingCount: number }>>`
+    SELECT public.grainline_email_outbox_account_deletion_fence(
+      ${input.userId}::text,
+      ${input.emailKeys}::text[]
+    )::integer AS "pendingCount"
+  `;
+  const pendingCount = rows[0]?.pendingCount;
+  if (
+    rows.length !== 1
+    || typeof pendingCount !== "number"
+    || !Number.isSafeInteger(pendingCount)
+    || pendingCount < 0
+  ) {
+    throw new Error("Email outbox account-deletion fence returned an invalid result");
+  }
+  return pendingCount;
 }
 
 export async function deferEmailOutboxClaim(
