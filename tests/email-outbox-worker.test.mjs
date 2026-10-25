@@ -176,6 +176,31 @@ describe("email outbox worker", () => {
     assert.equal(calls.at(-1)[2], "quota_unavailable");
   });
 
+  it("does not release an optional recipient reservation twice when quota deferral fails", async () => {
+    let recipientReservations = 0;
+    const { dependencies } = harness({
+      reserveRecipient: async () => {
+        recipientReservations += 1;
+        return { allowed: 1, counterAvailable: true };
+      },
+      reserveGlobal: async () => ({ allowed: 0, counterAvailable: true }),
+      rollbackRecipient: async (_recipientEmail, requested) => {
+        recipientReservations -= requested;
+      },
+      defer: async () => {
+        throw new Error("deferral write failed");
+      },
+    });
+
+    const result = await processClaimedEmailOutboxJob(
+      claim({ lane: "OPTIONAL" }),
+      dependencies,
+    );
+
+    assert.equal(result, "failed");
+    assert.equal(recipientReservations, 0);
+  });
+
   it("rolls back both reservations when its generation-fenced provider start is stale", async () => {
     const { calls, dependencies } = harness({
       beginProviderAttempt: async (...args) => {

@@ -173,6 +173,11 @@ export async function processClaimedEmailOutboxJob(
         globalReserved,
         dependencies,
       });
+      // The rollback is best-effort and must be attempted at most once. If the
+      // following database deferral throws, the outer catch must not release
+      // the same shared quota again and undercount another delivery.
+      recipientReserved = 0;
+      globalReserved = 0;
       const reason = !global.counterAvailable
         ? "quota_unavailable"
         : claim.lane === "OPTIONAL"
