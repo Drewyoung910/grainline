@@ -23,6 +23,12 @@ const { renderStructuredEmailOutboxClaim } = await import(
   "../src/lib/emailOutboxStructuredRenderer.ts"
 );
 
+function viewConversationUrl(html) {
+  const match = html.match(/<a href="([^"]+)"[^>]*>View conversation<\/a>/);
+  assert.ok(match, "View conversation link");
+  return new URL(match[1]);
+}
+
 const optionalTemplates = new Set([
   "welcome",
   "first_listing_congrats",
@@ -168,13 +174,13 @@ describe("structured email outbox renderer", () => {
 
   it("derives the case-message destination from a closed recipient-side enum", () => {
     const buyer = renderStructuredEmailOutboxClaim(claim("case_message", payloads.case_message));
-    assert.match(buyer.html, /http:\/\/localhost:3000\/dashboard\/orders\/order-1/);
+    assert.equal(viewConversationUrl(buyer.html).pathname, "/dashboard/orders/order-1");
 
     const seller = renderStructuredEmailOutboxClaim(claim("case_message", {
       ...payloads.case_message,
       recipientSide: "SELLER",
     }));
-    assert.match(seller.html, /http:\/\/localhost:3000\/dashboard\/sales\/order-1/);
+    assert.equal(viewConversationUrl(seller.html).pathname, "/dashboard/sales/order-1");
 
     assert.throws(
       () => renderStructuredEmailOutboxClaim(claim("case_message", {
