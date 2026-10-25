@@ -43,6 +43,7 @@ describe("email normalization follow-ups", () => {
     const ensureUser = source("src/lib/ensureUser.ts");
     const identityAuthority = source(userClerkIdentityMigrationPath);
     const deletion = source("src/lib/accountDeletion.ts");
+    const outboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
     const newsletter = source("src/app/api/newsletter/route.ts");
     const unsubscribe = source("src/lib/unsubscribeToken.ts");
     const suppression = source("src/lib/emailSuppression.ts");
@@ -58,7 +59,14 @@ describe("email normalization follow-ups", () => {
     assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
     assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
     assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
-    assert.match(deletion, /recipientEmail: \{ in: suppressionEmailMatches \}/);
+    assert.match(
+      deletion,
+      /accountEmailOutboxWhere\(\s*user\.id,\s*suppressionEmailMatches,?\s*\)/,
+    );
+    assert.match(
+      outboxLifecycle,
+      /userId: null,[\s\S]*recipientEmail: \{ in: fallbackEmailKeys \}/,
+    );
     assert.match(newsletter, /parsed\.email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
     assert.match(unsubscribe, /email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
 
