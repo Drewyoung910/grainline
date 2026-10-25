@@ -336,6 +336,9 @@ async function processEmailOutboxJob(
       return "capped";
     }
 
+    if (job.subject === null || job.html === null) {
+      throw new Error("Structured email outbox payload requires the compatible renderer");
+    }
     await sendRenderedEmail(
       { to: job.recipientEmail, subject: job.subject, html: job.html },
       {
