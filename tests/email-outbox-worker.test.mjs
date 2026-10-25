@@ -199,6 +199,30 @@ describe("email outbox worker", () => {
     ]);
   });
 
+  it("rolls back quota when the provider boundary finds the recipient newly ineligible", async () => {
+    const { calls, dependencies } = harness({
+      beginProviderAttempt: async (...args) => {
+        calls.push(["begin", ...args]);
+        return "ineligible";
+      },
+    });
+
+    const result = await processClaimedEmailOutboxJob(
+      claim({ lane: "OPTIONAL" }),
+      dependencies,
+    );
+
+    assert.equal(result, "unclaimed");
+    assert.deepEqual(callNames(calls), [
+      "reserveRecipient",
+      "reserveGlobal",
+      "begin",
+      "rollbackRecipient",
+      "rollbackGlobal",
+    ]);
+    assert.equal(callNames(calls).includes("send"), false);
+  });
+
   it("records a retryable provider failure without releasing consumed quota", async () => {
     const providerError = Object.assign(new Error("provider unavailable"), { status: 503 });
     const seenFailures = [];

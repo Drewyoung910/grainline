@@ -16,7 +16,8 @@ export type EmailOutboxAuthorityOutcome =
 export type EmailOutboxProviderAttemptOutcome =
   | EmailOutboxAuthorityOutcome
   | "ready"
-  | "expired";
+  | "expired"
+  | "ineligible";
 
 export type EmailOutboxFailureClass =
   | "provider_retryable"
