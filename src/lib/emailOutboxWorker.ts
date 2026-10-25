@@ -31,6 +31,11 @@ export type EmailOutboxAllowance = {
   counterAvailable: boolean;
 };
 
+export type RenderedEmailOutboxPayload = {
+  subject: string;
+  html: string;
+};
+
 export type EmailOutboxWorkerDependencies = {
   providerConfigured: boolean;
   reserveRecipient: (
@@ -62,6 +67,13 @@ export type EmailOutboxWorkerDependencies = {
     claim: ClaimedEmailOutboxJob,
   ) => Promise<EmailOutboxProviderAttemptOutcome>;
   sendLegacy: (claim: ClaimedEmailOutboxJob) => Promise<string>;
+  renderStructured: (
+    claim: ClaimedEmailOutboxJob,
+  ) => RenderedEmailOutboxPayload;
+  sendStructured: (
+    claim: ClaimedEmailOutboxJob,
+    rendered: RenderedEmailOutboxPayload,
+  ) => Promise<string>;
   complete: (
     claim: ClaimedEmailOutboxJob,
     providerMessageId: string,
@@ -121,15 +133,20 @@ export async function processClaimedEmailOutboxJob(
   claim: ClaimedEmailOutboxJob,
   dependencies: EmailOutboxWorkerDependencies,
 ): Promise<EmailOutboxProcessResult> {
+  let structuredPayload: RenderedEmailOutboxPayload | null = null;
   if (claim.legacySubject === null || claim.legacyHtml === null) {
-    return appliedResult(
-      await dependencies.fail(
-        claim,
-        "invalid_payload",
-        "Structured email payload has no compatible renderer",
-      ),
-      "failed",
-    );
+    try {
+      structuredPayload = dependencies.renderStructured(claim);
+    } catch {
+      return appliedResult(
+        await dependencies.fail(
+          claim,
+          "invalid_payload",
+          "Structured email payload is invalid",
+        ),
+        "failed",
+      );
+    }
   }
 
   if (!dependencies.providerConfigured) {
@@ -202,7 +219,9 @@ export async function processClaimedEmailOutboxJob(
     }
     providerAttemptStarted = true;
 
-    const providerMessageId = await dependencies.sendLegacy(claim);
+    const providerMessageId = structuredPayload
+      ? await dependencies.sendStructured(claim, structuredPayload)
+      : await dependencies.sendLegacy(claim);
     if (!providerMessageId.trim()) {
       throw new TypeError("Email provider returned success without a message id");
     }

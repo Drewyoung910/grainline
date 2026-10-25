@@ -69,7 +69,12 @@ function orderSubjectSuffix(orderId: string) {
 }
 
 function escapeUrlAttribute(url: string) {
-  return url.replace(/"/g, "%22");
+  return url
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function emailPreferencesUrl() {
@@ -111,7 +116,7 @@ function injectEmailPreferenceLink(html: string, unsubscribeUrl: string | null) 
 /** Validate and escape a URL for use in img src attributes */
 function safeImgUrl(url: string | undefined | null): string | null {
   if (!url || !isFirstPartyMediaUrl(url)) return null;
-  return url.replace(/"/g, "%22");
+  return escapeUrlAttribute(url);
 }
 
 function fmtCents(cents: number, currency: string | null | undefined = DEFAULT_CURRENCY) {
@@ -142,7 +147,7 @@ function trackingUrl(carrier: string | null | undefined, trackingNumber: string)
 }
 
 function btn(label: string, url: string): string {
-  return `<p style="margin:20px 0 0;"><a href="${url}" style="display:inline-block;background:#1C1C1A;color:#FFFFFF;text-decoration:none;padding:12px 28px;font-size:14px;font-weight:600;">${esc(label)}</a></p>`;
+  return `<p style="margin:20px 0 0;"><a href="${escapeUrlAttribute(url)}" style="display:inline-block;background:#1C1C1A;color:#FFFFFF;text-decoration:none;padding:12px 28px;font-size:14px;font-weight:600;">${esc(label)}</a></p>`;
 }
 
 function baseTemplate(title: string, body: string): string {
@@ -574,12 +579,12 @@ export async function sendOrderDelivered(opts: {
   await send(buyer.email, `Your piece has been delivered${orderSubjectSuffix(order.id)}`, baseTemplate("Order Delivered", body));
 }
 
-export async function sendCaseOpened(opts: {
+export function renderCaseOpenedEmail(opts: {
   orderId: string;
   seller: { name?: string | null; email: string };
   buyer: { name?: string | null };
   caseDescription: string;
-}) {
+}): RenderedEmail {
   const { orderId, seller, buyer } = opts;
   const sellerName = seller.name || "there";
   const buyerName = buyer.name || "A buyer";
@@ -592,16 +597,24 @@ export async function sendCaseOpened(opts: {
     ${btn("Respond to case", orderUrl)}
   `;
 
-  await send(seller.email, `A buyer opened a case${orderSubjectSuffix(orderId)}`, baseTemplate("Case Opened", body));
+  return {
+    to: seller.email,
+    subject: `A buyer opened a case${orderSubjectSuffix(orderId)}`,
+    html: baseTemplate("Case Opened", body),
+  };
 }
 
-export async function sendCaseMessage(opts: {
+export async function sendCaseOpened(opts: Parameters<typeof renderCaseOpenedEmail>[0]) {
+  await sendRenderedEmail(renderCaseOpenedEmail(opts));
+}
+
+export function renderCaseMessageEmail(opts: {
   recipientName?: string | null;
   recipientEmail: string;
   senderName?: string | null;
   caseLink: string;
   messageSnippet: string;
-}) {
+}): RenderedEmail {
   const { recipientName, recipientEmail, senderName, caseLink } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
@@ -612,7 +625,15 @@ export async function sendCaseMessage(opts: {
     ${btn("View conversation", caseLink)}
   `;
 
-  await send(recipientEmail, `${safeSubject(sender)} sent a message in your case`, baseTemplate("New Case Message", body));
+  return {
+    to: recipientEmail,
+    subject: `${safeSubject(sender)} sent a message in your case`,
+    html: baseTemplate("New Case Message", body),
+  };
+}
+
+export async function sendCaseMessage(opts: Parameters<typeof renderCaseMessageEmail>[0]) {
+  await sendRenderedEmail(renderCaseMessageEmail(opts));
 }
 
 export function renderCaseResolvedEmail(opts: {
