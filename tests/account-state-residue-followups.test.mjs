@@ -217,9 +217,12 @@ describe("account-state residue hardening", () => {
     assert.match(access, /grainline_email_outbox_claim_batch/);
     assert.match(access, /grainline_email_outbox_claim_one/);
     assert.match(access, /grainline_email_outbox_begin_provider_attempt/);
+    const beginIndex = worker.indexOf("await dependencies.beginProviderAttempt(claim)");
+    const sendIndex = worker.indexOf("await dependencies.sendLegacy(claim)");
+    assert.ok(beginIndex >= 0, "the provider-boundary eligibility recheck must exist");
+    assert.ok(sendIndex >= 0, "provider delivery must exist");
     assert.ok(
-      worker.indexOf("await dependencies.beginProviderAttempt(claim)") <
-        worker.indexOf("await dependencies.sendLegacy(claim)"),
+      beginIndex < sendIndex,
       "the provider-boundary eligibility recheck must run before provider delivery",
     );
     assert.doesNotMatch(outbox, /prisma\.user\.(?:findUnique|findFirst|findMany)/);
