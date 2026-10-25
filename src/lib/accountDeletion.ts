@@ -79,6 +79,7 @@ import {
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
+import { redactEmailOutboxRepresentations } from "@/lib/emailOutboxContentLifecycle";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -344,12 +345,9 @@ async function redactEmailOutboxRowsForDeletedMaker(
         lastError: "Skipped because the source maker account was deleted.",
       },
     });
-    await tx.emailOutbox.updateMany({
-      where,
-      data: {
-        subject: "Email removed after maker deletion",
-        html: "[Email removed after maker deletion]",
-      },
+    await redactEmailOutboxRepresentations(tx, where, {
+      subject: "Email removed after maker deletion",
+      html: "[Email removed after maker deletion]",
     });
   }
 }
@@ -1212,22 +1210,21 @@ export async function anonymizeUserAccount(
       },
       data: {
         status: "SKIPPED",
-        subject: "Email skipped after account deletion",
-        html: "[Email removed after account deletion]",
         nextAttemptAt: null,
         sentAt: now,
         lastError: "Skipped because the recipient account was deleted.",
       },
     });
+    const accountEmailOutboxWhere = {
+      OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
+    } satisfies Prisma.EmailOutboxWhereInput;
+    await redactEmailOutboxRepresentations(tx, accountEmailOutboxWhere, {
+      subject: "Email removed after account deletion",
+      html: "[Email removed after account deletion]",
+    });
     await tx.emailOutbox.updateMany({
-      where: {
-        OR: [{ userId: user.id }, { recipientEmail: { in: suppressionEmailMatches } }],
-      },
-      data: {
-        recipientEmail: "deleted-account@deleted.thegrainline.local",
-        subject: "Email removed after account deletion",
-        html: "[Email removed after account deletion]",
-      },
+      where: accountEmailOutboxWhere,
+      data: { recipientEmail: "deleted-account@deleted.thegrainline.local" },
     });
     await tx.emailFailureCount.deleteMany({
       where: { email: { in: suppressionEmailMatches } },

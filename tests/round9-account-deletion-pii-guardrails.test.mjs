@@ -253,6 +253,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const emailOutboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
     const sellerDeletionAuthority = source(
       sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
     );
@@ -271,9 +272,12 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /sentAt: null/);
     assert.match(deletion, /status: \{ in: \["PENDING", "PROCESSING", "FAILED", "DEAD"\] \}/);
     assert.match(deletion, /status: "SKIPPED"/);
+    assert.match(deletion, /redactEmailOutboxRepresentations\(tx, accountEmailOutboxWhere/);
     assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
     assert.match(deletion, /recipientEmail: "deleted-account@deleted\.thegrainline\.local"/);
     assert.match(deletion, /subject: "Email removed after account deletion"/);
+    assert.match(emailOutboxLifecycle, /payloadVersion: \{ not: null \}/);
+    assert.match(emailOutboxLifecycle, /data: \{ payload: \{} \}/);
     assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
     assert.match(deletion, /tx\.newsletterSubscriber\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
     assert.match(deletion, /await deleteCurrentUserEmailAddressHistory\(tx\)/);

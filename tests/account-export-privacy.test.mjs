@@ -296,6 +296,7 @@ describe("account export privacy coverage", () => {
   it("exports local email outbox and transient failure records by account id or delivery email keys", () => {
     const route = source("src/app/api/account/export/route.ts");
     const notificationAccess = source("src/lib/notificationOwnerAccess.ts");
+    const outboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
     const payload = source("src/lib/accountExportPayload.ts");
 
     const notificationStart = route.indexOf("ownerNotificationExportRows(user.id)");
@@ -318,13 +319,16 @@ describe("account export privacy coverage", () => {
 
     assert.ok(outboxStart >= 0, "account export must query EmailOutbox");
     assert.match(outboxBlock, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: \{ in: accountEmailSuppressionKeys \} \}\]/);
-    assert.match(outboxBlock, /recipientEmail: true/);
-    assert.match(outboxBlock, /templateName: true/);
-    assert.match(outboxBlock, /sourceType: true/);
-    assert.match(outboxBlock, /sourceId: true/);
-    assert.match(outboxBlock, /subject: true/);
-    assert.match(outboxBlock, /lastError: true/);
-    assert.doesNotMatch(outboxBlock, /html: true/);
+    assert.match(outboxBlock, /select: EMAIL_OUTBOX_EXPORT_SELECT/);
+    assert.match(outboxLifecycle, /recipientEmail: true/);
+    assert.match(outboxLifecycle, /templateName: true/);
+    assert.match(outboxLifecycle, /sourceType: true/);
+    assert.match(outboxLifecycle, /sourceId: true/);
+    assert.match(outboxLifecycle, /subject: true/);
+    assert.match(outboxLifecycle, /payloadVersion: true/);
+    assert.match(outboxLifecycle, /payload: true/);
+    assert.match(outboxLifecycle, /lastError: true/);
+    assert.doesNotMatch(outboxLifecycle, /html: true/);
 
     assert.ok(failureStart >= 0, "account export must query EmailFailureCount");
     assert.match(failureBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
