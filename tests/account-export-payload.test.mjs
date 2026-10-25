@@ -169,4 +169,25 @@ describe("account export payload", () => {
     assert.deepEqual(payload.directUploads, []);
     assert.deepEqual(payload.checkoutStockReservations, []);
   });
+
+  it("keeps structured email payloads visible in the account export", () => {
+    const structuredEmail = {
+      id: "outbox_structured",
+      subject: null,
+      payloadVersion: 1,
+      payload: {
+        orderId: "order_1",
+        buyerName: "Buyer",
+        refundAmountCents: 2500,
+        currency: "usd",
+      },
+    };
+    const payload = buildAccountExportPayload(
+      user(),
+      collections({ emailOutboxRows: [structuredEmail] }),
+      new Date("2026-04-28T12:00:00.000Z"),
+    );
+
+    assert.deepEqual(payload.emailOutboxRows, [structuredEmail]);
+  });
 });

@@ -38,6 +38,7 @@ const REVIEWED_TARGET_PREDICATE_CALLS = new Set([
 
 const REVIEWED_NON_TARGET_QUERY_FACTORIES = new Set([
   "accountDeletionBlogPostMediaOwnerWhere",
+  "accountEmailOutboxWhere",
   "claimableAccountDeletionSideEffectWhere",
   "openCommissionMutationWhere",
   "openCommissionWhere",
@@ -48,6 +49,7 @@ const REVIEWED_NON_TARGET_QUERY_FACTORIES = new Set([
   "publicBlogPostWhere",
   "publicListingDetailWhere",
   "publicListingWhere",
+  "sellerBroadcastOutboxCancellationWhere",
   "timestampCursorWhere",
   "viewerBlogPostWhere",
   "visibleBlogCommentWhere",
@@ -148,13 +150,16 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 117
+      || reviewedNonTargetFactoryCalls.length !== 121
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
       // SavedBlogPost export adds one reviewed publicBlogPostWhere call so it
       // never reads private BlogPost target fields through a relation query.
-      || reviewedNonTargetResiduals.length !== 27) {
+      // The structured outbox lifecycle helper contributes two typed `where`
+      // arguments and one typed replacement-data argument. Its executed
+      // lifecycle tests pin those shapes and their behavior.
+      || reviewedNonTargetResiduals.length !== 29) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

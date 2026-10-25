@@ -154,6 +154,7 @@ describe("account-state residue hardening", () => {
 
   it("removes deleted seller-authored fanout residue through exact notification and outbox authority", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const emailOutboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
     const helperStart = deletion.indexOf("async function cleanupDeletedSellerFanoutRows");
     const helper = deletion.slice(
       helperStart,
@@ -185,6 +186,8 @@ describe("account-state residue hardening", () => {
     assert.match(deletion, /status: "SKIPPED"/);
     assert.match(deletion, /subject: "Email removed after maker deletion"/);
     assert.match(deletion, /html: "\[Email removed after maker deletion\]"/);
+    assert.match(emailOutboxLifecycle, /payloadVersion: \{ not: null \}/);
+    assert.match(emailOutboxLifecycle, /data: \{ payload: \{} \}/);
   });
 
   it("clears deleted staff closure links and redacts support closure evidence text", () => {

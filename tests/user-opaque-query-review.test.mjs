@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { auditUserIndirectAccess } from "../scripts/audit-user-indirect-access.mjs";
 
-const REVIEWED_FACTORY_CALL = /^(?:publicListingWhere|publicListingDetailWhere|activeSellerProfileWhere|visibleSellerProfileWhere|openCommissionWhere|openCommissionMutationWhere|publicBlogPostWhere|ownerCartWhere|ownerCartItemWhere|ownerSavedBlogPostWhere|visibleBlogCommentWhere)\(/;
+const REVIEWED_FACTORY_CALL = /^(?:publicListingWhere|publicListingDetailWhere|activeSellerProfileWhere|visibleSellerProfileWhere|openCommissionWhere|openCommissionMutationWhere|publicBlogPostWhere|ownerCartWhere|ownerCartItemWhere|ownerSavedBlogPostWhere|visibleBlogCommentWhere|accountEmailOutboxWhere|sellerBroadcastOutboxCancellationWhere)\(/;
 
 function canonicalShape(shape) {
   const query = shape.query ?? shape.definition ?? shape;
@@ -35,17 +35,17 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   const reviewedFactories = report.opaqueShapes.filter((shape) => REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
   const reviewedResidual = report.opaqueShapes.filter((shape) => !REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
 
-  assert.equal(report.opaqueShapes.length, 144);
-  assert.equal(reviewedFactories.length, 108);
-  assert.equal(reviewedResidual.length, 36);
+  assert.equal(report.opaqueShapes.length, 150);
+  assert.equal(reviewedFactories.length, 112);
+  assert.equal(reviewedResidual.length, 38);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 88,
-    sha256: "55d6af43383881ff7f64548fd467c37564e0db117b883cdb78d5ea01798733b9",
+    unique: 91,
+    sha256: "a8fa986de4e911ca478dd0cb2d63f259f5b40d62154573d6c9eafa019ccba329",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 28,
-    sha256: "b9ec29d95cfaaef4f49197307fd08bb435db1626cb8e7d229d47880a056acd39",
+    unique: 30,
+    sha256: "b03560da939c075b9d3302ad0b8aa3f12c18c4156c344d045fb9712ad123b672",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,

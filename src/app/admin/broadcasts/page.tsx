@@ -11,7 +11,6 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
-import { sellerBroadcastEmailSubject } from "@/lib/email";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
 import { withDbUserContext } from "@/lib/dbUserContext";
@@ -20,8 +19,8 @@ import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 import {
   sellerProfileStaffBroadcastTargets,
-  sellerProfileStaffReportTargets,
 } from "@/lib/sellerProfileStaffAccess";
+import { sellerBroadcastOutboxCancellationWhere } from "@/lib/emailOutboxContentLifecycle";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -40,27 +39,15 @@ async function deleteBroadcast(formData: FormData) {
         select: {
           id: true,
           sellerProfileId: true,
-          sentAt: true,
           recipientCount: true,
         },
       });
       if (!broadcast) return;
-      const [sellerTarget] = await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
-        actorId: user.id,
-        sellerProfileIds: [broadcast.sellerProfileId],
-      });
       const deleted = await tx.sellerBroadcast.deleteMany({ where: { id } });
       if (deleted.count !== 1) return;
-      const sellerName = sellerTarget?.displayName ?? "A maker you follow";
-      const staleNotificationWindowEnd = new Date(broadcast.sentAt.getTime() + 60 * 60 * 1000);
       await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
       await tx.emailOutbox.deleteMany({
-        where: {
-          preferenceKey: "EMAIL_SELLER_BROADCAST",
-          subject: sellerBroadcastEmailSubject(sellerName),
-          status: { in: ["PENDING", "FAILED"] },
-          createdAt: { gte: broadcast.sentAt, lte: staleNotificationWindowEnd },
-        },
+        where: sellerBroadcastOutboxCancellationWhere(broadcast.id),
       });
       await logAdminActionOrThrow({
         client: tx,
