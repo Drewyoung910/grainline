@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 function source(path) {
   return readFileSync(path, "utf8");
+}
+
+function sourceFiles(root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.(?:ts|tsx)$/u.test(entry.name) ? [path] : [];
+  });
 }
 
 function functionBody(text, name) {
@@ -56,6 +65,14 @@ describe("email delivery guardrails", () => {
     assert.match(email, /sendEmailProviderRequestWithRetry\([\s\S]*?\{ idempotencyKey \}[\s\S]*?idempotencyKey: opts\.idempotencyKey/);
     assert.match(outbox, /sendRenderedEmail\([\s\S]*?idempotencyKey: claimedJob\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: claimedJob\.createdAt/);
     assert.match(webhook, /sendRenderedEmail\(email, \{[\s\S]*?idempotencyKey: enqueued\.job\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: enqueued\.job\.createdAt/);
+  });
+
+  it("allows only the locked outbox provider boundary to bypass duplicate eligibility lookup", () => {
+    const bypassCallers = sourceFiles("src").filter((path) =>
+      source(path).includes("deliveryEligibilityAlreadyVerified: true"),
+    );
+
+    assert.deepEqual(bypassCallers, ["src/lib/emailOutbox.ts"]);
   });
 
   it("only injects email-preference destinations into the footer href placeholder", () => {
