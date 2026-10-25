@@ -268,6 +268,36 @@ function ownerTableCandidateTestPath(file) {
   return stagedPath;
 }
 
+function emailDeliveryLedgerCandidateMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    emailDeliveryLedgerCandidateMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "email-delivery-ledger-candidate",
+    "migrations",
+    emailDeliveryLedgerCandidateMigration,
+  );
+  assert.ok(existsSync(stagedPath), "missing isolated email delivery-ledger migration");
+  return stagedPath;
+}
+
+function emailDeliveryLedgerCandidateTestPath(file) {
+  const livePath = path.join("tests", file);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = path.join(
+    process.env.RUNNER_TEMP ?? "",
+    "email-delivery-ledger-candidate",
+    "tests",
+    file,
+  );
+  assert.ok(existsSync(stagedPath), `missing isolated email delivery-ledger test ${file}`);
+  return stagedPath;
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -516,8 +546,24 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     for (const file of ownerTableCandidateTests) {
       cpSync(ownerTableCandidateTestPath(file), path.join(root, "tests", file));
     }
+    const emailDeliveryLedgerTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      emailDeliveryLedgerCandidateMigration,
+    );
+    if (!existsSync(emailDeliveryLedgerTarget)) {
+      cpSync(
+        emailDeliveryLedgerCandidateMigrationSourcePath(),
+        emailDeliveryLedgerTarget,
+        { recursive: true },
+      );
+    }
     for (const file of emailDeliveryLedgerCandidateTests) {
-      cpSync(path.join("tests", file), path.join(root, "tests", file));
+      cpSync(
+        emailDeliveryLedgerCandidateTestPath(file),
+        path.join(root, "tests", file),
+      );
     }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
