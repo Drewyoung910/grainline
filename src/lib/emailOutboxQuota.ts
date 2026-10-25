@@ -1,5 +1,44 @@
 export const DEFAULT_EMAIL_OUTBOX_DAILY_SEND_LIMIT = 3000;
 export const DEFAULT_EMAIL_OUTBOX_DAILY_RECIPIENT_SEND_LIMIT = 20;
+export const DEFAULT_EMAIL_OUTBOX_TRANSACTIONAL_RESERVE = 1000;
+
+export type EmailOutboxQuotaLane = "TRANSACTIONAL" | "OPTIONAL";
+
+export const EMAIL_OUTBOX_GLOBAL_ALLOWANCE_SCRIPT = `
+local current = tonumber(redis.call("GET", KEYS[1]) or "0")
+local requested = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+local reserve = tonumber(ARGV[3])
+local lane = ARGV[4]
+local ttl = tonumber(ARGV[5])
+
+if requested <= 0 or limit <= 0 then
+  return 0
+end
+
+local ceiling = limit
+if lane == "OPTIONAL" then
+  ceiling = math.max(0, limit - reserve)
+elseif lane ~= "TRANSACTIONAL" then
+  return 0
+end
+
+if current >= ceiling then
+  if redis.call("TTL", KEYS[1]) < 0 then
+    redis.call("EXPIRE", KEYS[1], ttl)
+  end
+  return 0
+end
+
+local allowed = math.min(requested, ceiling - current)
+redis.call("INCRBY", KEYS[1], allowed)
+
+if redis.call("TTL", KEYS[1]) < 0 then
+  redis.call("EXPIRE", KEYS[1], ttl)
+end
+
+return allowed
+`;
 
 export const EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT = `
 local current = tonumber(redis.call("GET", KEYS[1]) or "0")
@@ -60,6 +99,15 @@ export type EmailOutboxQuotaRollbackCounter = (args: {
   requested: number;
 }) => Promise<number>;
 
+export type EmailOutboxGlobalQuotaCounter = (args: {
+  key: string;
+  requested: number;
+  limit: number;
+  reserve: number;
+  lane: EmailOutboxQuotaLane;
+  ttlSeconds: number;
+}) => Promise<number>;
+
 export type EmailOutboxDailyAllowance = {
   allowed: number;
   limit: number;
@@ -79,6 +127,17 @@ export function configuredEmailOutboxDailyRecipientSendLimit(
   const parsed = Number.parseInt(value ?? "", 10);
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
   return DEFAULT_EMAIL_OUTBOX_DAILY_RECIPIENT_SEND_LIMIT;
+}
+
+export function configuredEmailOutboxTransactionalReserve(
+  value = process.env.EMAIL_OUTBOX_TRANSACTIONAL_RESERVE,
+  limit = configuredEmailOutboxDailySendLimit(),
+) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  const reserve = Number.isFinite(parsed) && parsed >= 0
+    ? parsed
+    : DEFAULT_EMAIL_OUTBOX_TRANSACTIONAL_RESERVE;
+  return Math.min(Math.max(0, limit), reserve);
 }
 
 export function nextUtcMidnight(date: Date) {
@@ -120,6 +179,44 @@ export async function reserveEmailOutboxDailySendAllowance({
       key: emailOutboxDailyQuotaKey(now),
       requested: normalizedRequested,
       limit,
+      ttlSeconds: emailOutboxDailyQuotaTtlSeconds(now, resetAt),
+    });
+    const allowed = Math.max(0, Math.min(normalizedRequested, Math.floor(Number(reserved) || 0)));
+    return { allowed, limit, resetAt, counterAvailable: true };
+  } catch (error) {
+    onCounterError?.(error);
+    return { allowed: 0, limit, resetAt, counterAvailable: false };
+  }
+}
+
+export async function reserveEmailOutboxGlobalSendAllowance({
+  requested,
+  lane,
+  now,
+  counter,
+  limit = configuredEmailOutboxDailySendLimit(),
+  reserve = configuredEmailOutboxTransactionalReserve(undefined, limit),
+  onCounterError,
+}: {
+  requested: number;
+  lane: EmailOutboxQuotaLane;
+  now: Date;
+  counter: EmailOutboxGlobalQuotaCounter;
+  limit?: number;
+  reserve?: number;
+  onCounterError?: (error: unknown) => void;
+}): Promise<EmailOutboxDailyAllowance> {
+  const resetAt = nextUtcMidnight(now);
+  const normalizedRequested = Math.max(0, Math.floor(requested));
+  if (normalizedRequested === 0) return { allowed: 0, limit, resetAt, counterAvailable: true };
+
+  try {
+    const reserved = await counter({
+      key: emailOutboxDailyQuotaKey(now),
+      requested: normalizedRequested,
+      limit,
+      reserve: Math.min(Math.max(0, limit), Math.max(0, Math.floor(reserve))),
+      lane,
       ttlSeconds: emailOutboxDailyQuotaTtlSeconds(now, resetAt),
     });
     const allowed = Math.max(0, Math.min(normalizedRequested, Math.floor(Number(reserved) || 0)));
@@ -183,6 +280,32 @@ export async function rollbackEmailOutboxRecipientDailySendAllowance({
   try {
     await counter({
       key: emailOutboxRecipientDailyQuotaKey(recipientHash, now),
+      requested: normalizedRequested,
+    });
+    return { rolledBack: true, counterAvailable: true };
+  } catch (error) {
+    onCounterError?.(error);
+    return { rolledBack: false, counterAvailable: false };
+  }
+}
+
+export async function rollbackEmailOutboxDailySendAllowance({
+  requested,
+  now,
+  counter,
+  onCounterError,
+}: {
+  requested: number;
+  now: Date;
+  counter: EmailOutboxQuotaRollbackCounter;
+  onCounterError?: (error: unknown) => void;
+}): Promise<{ rolledBack: boolean; counterAvailable: boolean }> {
+  const normalizedRequested = Math.max(0, Math.floor(requested));
+  if (normalizedRequested === 0) return { rolledBack: false, counterAvailable: true };
+
+  try {
+    await counter({
+      key: emailOutboxDailyQuotaKey(now),
       requested: normalizedRequested,
     });
     return { rolledBack: true, counterAvailable: true };

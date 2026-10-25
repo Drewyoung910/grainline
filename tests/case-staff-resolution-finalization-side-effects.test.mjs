@@ -79,10 +79,7 @@ test("Case resolution email uses the versioned retryable outbox", () => {
   assert.match(outbox, /"case_resolved"/);
   assert.match(finalization, /templateName: "case_resolved"/);
   assert.match(finalization, /processEmailOutboxJobById/);
-  assert.match(
-    finalization,
-    /Committed Case-resolution email outbox row is missing/,
-  );
+  assert.doesNotMatch(finalization, /Committed Case-resolution email outbox row is missing/);
 });
 
 test("durable records keep the staff Case boundary and remaining gates explicit", () => {

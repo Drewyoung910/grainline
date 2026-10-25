@@ -20,7 +20,7 @@ describe("email delivery guardrails", () => {
     assert.match(email, /const EMAIL_REPLY_TO = normalizeEmailAddress\(process\.env\.EMAIL_REPLY_TO \|\| SUPPORT_EMAIL\)/);
     assert.match(email, /replyTo: EMAIL_REPLY_TO/);
     assert.match(email, /reason: "missing_one_click_unsubscribe"/);
-    assert.match(email, /if \(isOptionalEmailPreferenceKey\(opts\.preferenceKey\) && !unsubscribeUrl\) \{[\s\S]*?if \(opts\.throwOnFailure\) throw err;[\s\S]*?return;[\s\S]*?\}/);
+    assert.match(email, /if \(isOptionalEmailPreferenceKey\(opts\.preferenceKey\) && !unsubscribeUrl\) \{[\s\S]*?if \(opts\.throwOnFailure\) throw err;[\s\S]*?return null;[\s\S]*?\}/);
     assert.match(email, /headers: unsubscribeUrl\s*\? \{/);
     assert.match(email, /"List-Unsubscribe": `<\$\{unsubscribeUrl\}>`/);
     assert.match(email, /"List-Unsubscribe-Post": "List-Unsubscribe=One-Click"/);
@@ -39,14 +39,10 @@ describe("email delivery guardrails", () => {
     assert.match(sendBody, /accountState === "banned" \|\| accountState === "deleted"[\s\S]*?emailDeliverySkippedError\(`recipient \$\{accountState\}`\)/);
     assert.match(email, /userEmailAccountStateByEmail\(prisma, recipient\)/);
     const outbox = source("src/lib/emailOutbox.ts");
-    assert.match(outbox, /isEmailDeliverySuppressed\(job\.recipientEmail\)/);
-    assert.match(outbox, /Recipient email is suppressed after a bounce, complaint, or account deletion/);
-    assert.ok(
-      outbox.indexOf("isEmailDeliverySuppressed(job.recipientEmail)") <
-        outbox.indexOf("reserveRecipientDailySendAllowance(job.recipientEmail"),
-      "outbox should skip hard-suppressed recipients before reserving quota",
-    );
-    assert.match(outbox, /sendRenderedEmail\(\s*\{ to: job\.recipientEmail, subject: job\.subject, html: job\.html \},\s*\{\s*throwOnFailure: true/);
+    assert.match(outbox, /claimEmailOutboxBatch\(take\)/);
+    assert.match(outbox, /claimEmailOutboxJob\(id\)/);
+    assert.match(outbox, /deliveryEligibilityAlreadyVerified: true/);
+    assert.match(outbox, /idempotencyKey: claimedJob\.dedupKey/);
     assert.match(source("src/app/api/support/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
     assert.match(source("src/app/api/legal/data-request/route.ts"), /sendRenderedEmail\(\{[\s\S]*?\}, \{ throwOnFailure: true \}\)/);
   });
@@ -56,9 +52,9 @@ describe("email delivery guardrails", () => {
     const outbox = source("src/lib/emailOutbox.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
-    assert.match(email, /type EmailSendOptions = \{\s*throwOnFailure\?: boolean;\s*idempotencyKey\?: string;\s*preferenceKey\?: EmailNotificationPreferenceKey;\s*unsubscribeIssuedAt\?: Date;\s*\}/);
+    assert.match(email, /type EmailSendOptions = \{[\s\S]*?throwOnFailure\?: boolean;[\s\S]*?idempotencyKey\?: string;[\s\S]*?preferenceKey\?: EmailNotificationPreferenceKey;[\s\S]*?unsubscribeIssuedAt\?: Date;[\s\S]*?deliveryEligibilityAlreadyVerified\?: boolean;[\s\S]*?\}/);
     assert.match(email, /sendEmailProviderRequestWithRetry\([\s\S]*?\{ idempotencyKey \}[\s\S]*?idempotencyKey: opts\.idempotencyKey/);
-    assert.match(outbox, /sendRenderedEmail\([\s\S]*?idempotencyKey: job\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: job\.createdAt/);
+    assert.match(outbox, /sendRenderedEmail\([\s\S]*?idempotencyKey: claimedJob\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: claimedJob\.createdAt/);
     assert.match(webhook, /sendRenderedEmail\(email, \{[\s\S]*?idempotencyKey: enqueued\.job\.dedupKey,[\s\S]*?preferenceKey:[\s\S]*?unsubscribeIssuedAt: enqueued\.job\.createdAt/);
   });
 

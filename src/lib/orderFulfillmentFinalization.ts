@@ -105,10 +105,7 @@ export async function finalizeSellerOrderFulfillment(input: {
   });
 
   if (committed.emailOutboxId) {
-    const delivery = await processEmailOutboxJobById(committed.emailOutboxId);
-    if (delivery === "missing") {
-      throw new Error("Committed fulfillment email outbox row is missing");
-    }
+    await processEmailOutboxJobById(committed.emailOutboxId);
   }
   return committed.result;
 }

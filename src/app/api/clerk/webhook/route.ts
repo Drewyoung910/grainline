@@ -297,11 +297,12 @@ export async function POST(req: Request) {
               }]
             : []),
         ],
-        send: ({ email: renderedEmail, dedupKey }) =>
-          sendRenderedEmail(renderedEmail, {
+        send: async ({ email: renderedEmail, dedupKey }) => {
+          await sendRenderedEmail(renderedEmail, {
             throwOnFailure: true,
             idempotencyKey: dedupKey,
-          }),
+          });
+        },
         enqueue: ({ email: renderedEmail, dedupKey }) =>
           enqueueWelcomeFallbackEmail(renderedEmail, dedupKey, user.id),
         onSendError: (error, delivery) => {

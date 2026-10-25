@@ -100,12 +100,9 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
   });
 
   if (committed.emailOutboxId) {
-    const delivery = await processEmailOutboxJobById(
+    await processEmailOutboxJobById(
       committed.emailOutboxId,
     );
-    if (delivery === "missing") {
-      throw new Error("Committed Case-resolution email outbox row is missing");
-    }
   }
 
   return committed.result;

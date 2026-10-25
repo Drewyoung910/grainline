@@ -1,21 +1,19 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
   configuredEmailOutboxDailyRecipientSendLimit,
   configuredEmailOutboxDailySendLimit,
+  configuredEmailOutboxTransactionalReserve,
   emailOutboxDailyQuotaKey,
   emailOutboxDailyQuotaTtlSeconds,
   emailOutboxRecipientDailyQuotaKey,
   reserveEmailOutboxDailySendAllowance,
+  reserveEmailOutboxGlobalSendAllowance,
   reserveEmailOutboxRecipientDailySendAllowance,
+  rollbackEmailOutboxDailySendAllowance,
   rollbackEmailOutboxRecipientDailySendAllowance,
 } = await import("../src/lib/emailOutboxQuota.ts");
-
-function source(path) {
-  return readFileSync(path, "utf8");
-}
 
 describe("email outbox daily quota", () => {
   const now = new Date("2026-04-28T23:59:30.000Z");
@@ -32,6 +30,9 @@ describe("email outbox daily quota", () => {
     assert.equal(configuredEmailOutboxDailyRecipientSendLimit("25"), 25);
     assert.equal(configuredEmailOutboxDailyRecipientSendLimit("0"), 20);
     assert.equal(configuredEmailOutboxDailyRecipientSendLimit("not-a-number"), 20);
+    assert.equal(configuredEmailOutboxTransactionalReserve("1000", 3000), 1000);
+    assert.equal(configuredEmailOutboxTransactionalReserve("5000", 3000), 3000);
+    assert.equal(configuredEmailOutboxTransactionalReserve("-1", 3000), 1000);
   });
 
   it("does not call Redis when no allowance is requested", async () => {
@@ -176,22 +177,83 @@ describe("email outbox daily quota", () => {
     assert.match(seen[0], /redis down/);
   });
 
-  it("checks hashed recipient quota before the global outbox quota in the drain path", () => {
-    const outbox = source("src/lib/emailOutbox.ts");
+  it("passes lane and reserve to the shared global counter", async () => {
+    const seen = [];
+    const quota = await reserveEmailOutboxGlobalSendAllowance({
+      requested: 2,
+      lane: "OPTIONAL",
+      now,
+      limit: 100,
+      reserve: 25,
+      counter: async (args) => {
+        seen.push(args);
+        return 2;
+      },
+    });
 
-    assert.match(outbox, /recipientDailySendAllowanceScript/);
-    assert.match(outbox, /recipientDailySendAllowanceRollbackScript/);
-    assert.match(outbox, /hashEmailForTelemetry\(recipientEmail\) \?\? "unknown"/);
-    assert.match(
-      outbox,
-      /reserveRecipientDailySendAllowance\(\s*job\.recipientEmail,\s*1,\s*quotaCheckedAt,?\s*\)[\s\S]*reserveDailySendAllowance\(1, quotaCheckedAt\)/,
+    assert.equal(quota.allowed, 2);
+    assert.deepEqual(seen, [{
+      key: "email-outbox:sent:2026-04-28",
+      requested: 2,
+      limit: 100,
+      reserve: 25,
+      lane: "OPTIONAL",
+      ttlSeconds: 3630,
+    }]);
+  });
+
+  it("clamps the transactional reserve to the configured global limit", async () => {
+    let seenReserve = null;
+    await reserveEmailOutboxGlobalSendAllowance({
+      requested: 1,
+      lane: "TRANSACTIONAL",
+      now,
+      limit: 10,
+      reserve: 50,
+      counter: async ({ reserve }) => {
+        seenReserve = reserve;
+        return 1;
+      },
+    });
+    assert.equal(seenReserve, 10);
+  });
+
+  it("fails closed when the shared global quota is unavailable", async () => {
+    const seen = [];
+    const quota = await reserveEmailOutboxGlobalSendAllowance({
+      requested: 1,
+      lane: "TRANSACTIONAL",
+      now,
+      limit: 10,
+      reserve: 3,
+      counter: async () => {
+        throw new Error("redis down");
+      },
+      onCounterError: (error) => seen.push(String(error)),
+    });
+
+    assert.deepEqual(
+      { allowed: quota.allowed, counterAvailable: quota.counterAvailable },
+      { allowed: 0, counterAvailable: false },
     );
-    assert.match(
-      outbox,
-      /if \(quota\.allowed < 1\) \{\s*await rollbackRecipientDailySendAllowance\(\s*job\.recipientEmail,\s*recipientQuota\.allowed,\s*quotaCheckedAt,?\s*\)/,
-    );
-    assert.match(outbox, /email_outbox_recipient_quota/);
-    assert.match(outbox, /email_outbox_recipient_quota_rollback/);
-    assert.match(outbox, /Daily per-recipient email outbox send cap reached/);
+    assert.match(seen[0], /redis down/);
+  });
+
+  it("rolls back global allowance through the same UTC-day key", async () => {
+    const seen = [];
+    const rollback = await rollbackEmailOutboxDailySendAllowance({
+      requested: 1,
+      now,
+      counter: async (args) => {
+        seen.push(args);
+        return 0;
+      },
+    });
+
+    assert.deepEqual(seen, [{
+      key: "email-outbox:sent:2026-04-28",
+      requested: 1,
+    }]);
+    assert.deepEqual(rollback, { rolledBack: true, counterAvailable: true });
   });
 });

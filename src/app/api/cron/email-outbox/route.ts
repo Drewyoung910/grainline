@@ -25,6 +25,9 @@ export async function GET(request: NextRequest) {
 
     try {
       const result = await processEmailOutboxBatch({ take: 50, concurrency: 2 });
+      if (result.rejected > 0) {
+        throw new Error(`Email outbox worker rejected ${result.rejected} claimed job(s)`);
+      }
       await completeCronRun(cronRun, result);
       return NextResponse.json(result);
     } catch (error) {

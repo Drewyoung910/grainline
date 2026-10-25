@@ -116,7 +116,7 @@ test("notification and email-outbox helpers honor the transaction client", () =>
   assert.doesNotMatch(outbox, /P2002|isUniqueError/);
   assert.match(outbox, /"refund_issued"/);
   assert.match(outbox, /export async function processEmailOutboxJobById/);
-  assert.match(outbox, /idempotencyKey: job\.dedupKey/);
+  assert.match(outbox, /idempotencyKey: claimedJob\.dedupKey/);
 });
 
 test("refund email is rendered for deterministic outbox delivery", () => {

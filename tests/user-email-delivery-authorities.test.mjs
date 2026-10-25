@@ -162,17 +162,17 @@ describe("User email-delivery authorities", () => {
     }
   });
 
-  it("checks queued address continuity before preference, suppression, and quotas", () => {
+  it("delegates queued eligibility to the claim authority before quotas", () => {
     const outbox = source("src/lib/emailOutbox.ts");
-    assert.match(outbox, /expectedEmail: job\.recipientEmail/);
-    assert.match(outbox, /state === "email_changed"[\s\S]*Recipient account email changed after enqueue/);
-    const processStart = outbox.indexOf("async function processEmailOutboxJob(");
-    const inactive = outbox.indexOf("inactiveQueuedEmailRecipientReason(job)", processStart);
-    const preference = outbox.indexOf("shouldSendEmail(job.userId, job.preferenceKey)", processStart);
-    const suppression = outbox.indexOf("isEmailDeliverySuppressed(job.recipientEmail)", processStart);
-    const recipientQuota = outbox.indexOf("reserveRecipientDailySendAllowance", processStart);
-    assert.ok(processStart >= 0 && processStart < inactive);
-    assert.ok(inactive < preference && preference < suppression && suppression < recipientQuota);
+    const access = source("src/lib/emailOutboxAccess.ts");
+    const worker = source("src/lib/emailOutboxWorker.ts");
+    assert.match(outbox, /claimEmailOutboxBatch\(take\)/);
+    assert.match(outbox, /claimEmailOutboxJob\(id\)/);
+    assert.match(access, /grainline_email_outbox_claim_batch/);
+    assert.match(access, /grainline_email_outbox_claim_one/);
+    assert.match(worker, /Runs one generation-fenced claim/);
+    assert.match(worker, /await dependencies\.reserveRecipient/);
+    assert.doesNotMatch(outbox, /inactiveQueuedEmailRecipientReason/);
   });
 
   it("isolates the additive migration before historical guards and restores it after signed unsubscribe", () => {
