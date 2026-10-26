@@ -238,16 +238,16 @@ const EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES = [
   ...EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES,
   ...EMAIL_DELIVERY_LEDGER_RUNTIME_FUNCTION_NAMES,
 ];
-const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION =
+const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH =
   "prisma/migrations/20261025020000_fence_email_provider_and_account_deletion/migration.sql";
-const EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES = [
+const EMAIL_PROVIDER_DELETION_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
   "grainline_email_outbox_account_deletion_fence",
   "grainline_email_outbox_enqueue_legacy",
   "grainline_email_outbox_lock_keys",
   "grainline_email_outbox_source_owner",
 ];
 const EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES = [
-  ...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+  ...EMAIL_PROVIDER_DELETION_FENCE_SOURCE_NEW_FUNCTION_NAMES,
   "grainline_email_outbox_begin_provider_attempt",
   "grainline_email_outbox_fail",
 ];
@@ -319,6 +319,13 @@ const {
   SELLER_PROFILE_PUBLIC_ENABLE_MIGRATION_SHA256,
   SELLER_PROFILE_PUBLIC_FORCE_MIGRATION,
   SELLER_PROFILE_PUBLIC_FORCE_MIGRATION_SHA256,
+  EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION,
+  EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_SHA256,
+  EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
+  EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256,
+  EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
+  EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+  EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES,
   SELLER_PROFILE_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
@@ -352,6 +359,7 @@ const {
   collectAccountDeletionMigrationOrderIssues,
   collectAccountDeletionWorkerBoundaryIssues,
   collectClerkWebhookEventMigrationOrderIssues,
+  collectEmailDeliveryMigrationOrderIssues,
   collectSellerProfilePrivateMigrationOrderIssues,
   collectSellerProfilePublicMigrationOrderIssues,
   clerkWebhookEventRlsActivationExpected,
@@ -395,6 +403,8 @@ const {
   readAccountDeletionSideEffectForceState,
   readClerkWebhookEventActivationState,
   readClerkWebhookEventForceState,
+  readEmailDeliveryLedgerPreparationState,
+  readEmailProviderDeletionFenceState,
   readSellerProfileDeauthorizeCompatState,
   readSellerProfilePrivatePreparationState,
   readSellerProfilePrivatePredecessorRetirementState,
@@ -409,6 +419,7 @@ const {
   resolveStaffReadAuditStage,
   resolveTemporarilyAbsentCiTables,
   withAppliedAccountDeletionAuthority,
+  withAppliedEmailDeliveryAuthority,
   withAppliedSellerProfileCallerAuthority,
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
@@ -1541,6 +1552,112 @@ describe("database grant inventory guardrails", () => {
     });
     assert.deepEqual(fullyPrepared.functions, sourceInventory.functions);
     assert.equal(accountDeletionMediaKeyPreparationExpected(fullyPrepared), true);
+  });
+
+  it("derives email authority expectations from the exact live migration stage", (context) => {
+    if (
+      typeof withAppliedEmailDeliveryAuthority !== "function"
+      || !Array.isArray(EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES)
+      || !Array.isArray(EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES)
+      || !Array.isArray(EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES)
+    ) {
+      context.skip("requires the staged email grant-audit generation");
+      return;
+    }
+    const sourceInventory = {
+      functions: [
+        "grainline_existing_function",
+        ...EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
+        ...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+      ],
+    };
+    const predecessor = withAppliedEmailDeliveryAuthority(sourceInventory, {
+      preparationApplied: false,
+      fenceApplied: false,
+    });
+    assert.deepEqual(predecessor.functions, ["grainline_existing_function"]);
+
+    const prepared = withAppliedEmailDeliveryAuthority(sourceInventory, {
+      preparationApplied: true,
+      fenceApplied: false,
+    });
+    assert.deepEqual(prepared.functions, [
+      "grainline_existing_function",
+      ...EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
+    ].sort((left, right) => left.localeCompare(right)));
+    for (const functionName of EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES) {
+      assert.equal(prepared.functions.includes(functionName), false);
+    }
+    for (const functionName of EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES) {
+      assert.equal(
+        runtimePrivateFunctionNames(prepared).includes(functionName),
+        true,
+      );
+    }
+
+    const fenced = withAppliedEmailDeliveryAuthority(sourceInventory, {
+      preparationApplied: true,
+      fenceApplied: true,
+    });
+    assert.deepEqual(
+      fenced.functions,
+      [...new Set(sourceInventory.functions)].sort((left, right) =>
+        left.localeCompare(right)),
+    );
+    assert.deepEqual(collectEmailDeliveryMigrationOrderIssues({
+      preparationApplied: true,
+      fenceApplied: false,
+    }), []);
+    assert.deepEqual(collectEmailDeliveryMigrationOrderIssues({
+      preparationApplied: false,
+      fenceApplied: true,
+    }), [
+      "email provider/account-deletion fence is applied without its exact delivery-ledger prerequisite",
+    ]);
+  });
+
+  it("reads exact email migration ledger states including manual resolution rows", async (context) => {
+    if (
+      typeof readEmailDeliveryLedgerPreparationState !== "function"
+      || typeof readEmailProviderDeletionFenceState !== "function"
+    ) {
+      context.skip("requires the staged email migration-ledger readers");
+      return;
+    }
+    const exactClient = (expectedMigration, expectedChecksum) => ({
+      queryCount: 0,
+      async query(sql, parameters) {
+        this.queryCount += 1;
+        if (this.queryCount === 1) {
+          return { rows: [{ migration_table: "_prisma_migrations" }] };
+        }
+        assert.match(sql, /FROM public\._prisma_migrations/u);
+        assert.deepEqual(parameters, [expectedMigration]);
+        return {
+          rows: [{
+            migration_name: expectedMigration,
+            checksum: expectedChecksum,
+            finished_at: new Date("2026-10-26T00:00:00Z"),
+            rolled_back_at: null,
+            applied_steps_count: "0",
+          }],
+        };
+      },
+    });
+    assert.deepEqual(
+      await readEmailDeliveryLedgerPreparationState(exactClient(
+        EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION,
+        EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readEmailProviderDeletionFenceState(exactClient(
+        EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
+        EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
   });
 
   it("fails closed when account-deletion migration ledger order is impossible", () => {
@@ -3262,9 +3379,9 @@ describe("database grant inventory guardrails", () => {
         `FUNCTION public.${functionName}(`,
       ));
     const emailProviderDeletionFencePrepared = existsSync(
-      EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
+      EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH,
     ) && EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES.every((functionName) =>
-      source(EMAIL_PROVIDER_DELETION_FENCE_MIGRATION).includes(
+      source(EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH).includes(
         `FUNCTION public.${functionName}(`,
       ));
     const emailProviderEligibilityFencePrepared = existsSync(
@@ -4095,6 +4212,64 @@ describe("database grant inventory guardrails", () => {
     assert.ok(auditIndex < catalogIndex);
     assert.doesNotMatch(script, /console\.log\(.*connectionString/s);
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
+  });
+
+  it("runs the global grant audit at every reviewed email migration stage", (context) => {
+    if (!existsSync(".github/workflows/ci.yml")) {
+      context.skip("requires the current CI workflow source");
+      return;
+    }
+    const workflow = source(".github/workflows/ci.yml");
+    const start = workflow.indexOf(
+      "- name: Apply complete public SellerProfile chain for final Production build",
+    );
+    const end = workflow.indexOf("- name: Production build", start);
+    assert.ok(start >= 0 && end > start);
+    const stagedProof = workflow.slice(start, end);
+    const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
+    assert.equal(auditMatches.length, 3);
+    const combinedStaffStageMatches = stagedProof.match(
+      /--staff-read-stage=order-user-combined/g,
+    ) ?? [];
+    assert.equal(combinedStaffStageMatches.length, 3);
+    const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
+    const runtimeConvergence = stagedProof.indexOf(
+      "--file=scripts/provision-runtime-db-role.sql",
+    );
+    const staffConvergence = stagedProof.indexOf(
+      "--file=scripts/provision-order-staff-read-role.sql",
+    );
+    const restoreDeletionFence = stagedProof.indexOf(
+      '"$holding/migrations/$deletion_migration" \\\n            "prisma/migrations/$deletion_migration"',
+    );
+    const applyDeletionFence = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreDeletionFence,
+    );
+    const deletionFenceAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyDeletionFence,
+    );
+    const restoreEligibilityFence = stagedProof.indexOf(
+      '"$holding/migrations/$eligibility_migration" \\\n            "prisma/migrations/$eligibility_migration"',
+    );
+    const applyEligibilityFence = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreEligibilityFence,
+    );
+    const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
+    assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
+    assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
+    assert.ok(preparationAudit < restoreDeletionFence);
+    assert.ok(
+      restoreDeletionFence < applyDeletionFence
+      && applyDeletionFence < deletionFenceAudit,
+    );
+    assert.ok(deletionFenceAudit < restoreEligibilityFence);
+    assert.ok(
+      restoreEligibilityFence < applyEligibilityFence
+      && applyEligibilityFence < finalAudit,
+    );
   });
 
   it("formats one sanitized parseable SavedSearch catalog evidence line", () => {
