@@ -3273,6 +3273,9 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailProviderEligibilitySubstitutesUnsubscribeRevoke =
+      emailProviderEligibilityFencePrepared
+      && !userUnsubscribeOptionalPreferencesCorrectionPresent;
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3522,6 +3525,10 @@ describe("database grant inventory guardrails", () => {
         + (emailProviderEligibilityFencePrepared
           ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES.length
           : 0)
+        // CI proves the C-875 release before isolating this successor. While
+        // C-875 is held aside, the successor's redefinition still contributes
+        // the same unsubscribe-function PUBLIC revoke.
+        + (emailProviderEligibilitySubstitutesUnsubscribeRevoke ? 1 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
