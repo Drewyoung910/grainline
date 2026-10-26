@@ -191,6 +191,10 @@ export const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION =
   "20261025020000_fence_email_provider_and_account_deletion";
 export const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256 =
   "4d30904d8cb094b403ef9adc4d4268f979d408137aeb228b59a95bca7858cace";
+export const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION =
+  "20261025030000_fence_email_provider_and_eligibility_changes";
+export const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_SHA256 =
+  "969aff03c7d720067d8a2d39057fed5048c12b60d521666aff7bce12ffd762e4";
 export const EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_email_delivery_is_hard_suppressed",
   "grainline_email_outbox_begin_provider_attempt",
@@ -210,6 +214,9 @@ export const EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES = Object.freeze([
   "grainline_email_outbox_enqueue_legacy",
   "grainline_email_outbox_lock_keys",
   "grainline_email_outbox_source_owner",
+]);
+export const EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES = Object.freeze([
+  "grainline_email_hard_suppression_apply",
 ]);
 export const EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES = Object.freeze([
   "grainline_email_delivery_is_hard_suppressed",
@@ -764,11 +771,12 @@ export function withAppliedAccountDeletionAuthority(
 const EMAIL_DELIVERY_TRANSITION_FUNCTION_NAMES = new Set([
   ...EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
   ...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+  ...EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
 ]);
 
 export function withAppliedEmailDeliveryAuthority(
   inventory,
-  { preparationApplied, fenceApplied },
+  { preparationApplied, fenceApplied, eligibilityFenceApplied = false },
 ) {
   const functions = (inventory?.functions ?? []).filter(
     (name) => !EMAIL_DELIVERY_TRANSITION_FUNCTION_NAMES.has(name),
@@ -779,11 +787,15 @@ export function withAppliedEmailDeliveryAuthority(
   if (fenceApplied) {
     functions.push(...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES);
   }
+  if (eligibilityFenceApplied) {
+    functions.push(...EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES);
+  }
   return {
     ...inventory,
     functions: sortedUnique(functions),
     emailDeliveryLedgerPreparationApplied: preparationApplied,
     emailProviderDeletionFenceApplied: fenceApplied,
+    emailProviderEligibilityFenceApplied: eligibilityFenceApplied,
   };
 }
 
@@ -1811,15 +1823,31 @@ export async function readEmailProviderDeletionFenceState(client) {
   });
 }
 
+export async function readEmailProviderEligibilityFenceState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
+    checksum: EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_SHA256,
+    label: "email provider/eligibility fence",
+  });
+}
+
 export function collectEmailDeliveryMigrationOrderIssues({
   preparationApplied,
   fenceApplied,
+  eligibilityFenceApplied = false,
 }) {
-  return fenceApplied && !preparationApplied
-    ? [
+  const issues = [];
+  if (fenceApplied && !preparationApplied) {
+    issues.push(
       "email provider/account-deletion fence is applied without its exact delivery-ledger prerequisite",
-    ]
-    : [];
+    );
+  }
+  if (eligibilityFenceApplied && !fenceApplied) {
+    issues.push(
+      "email provider/eligibility fence is applied without its exact account-deletion-fence prerequisite",
+    );
+  }
+  return issues;
 }
 
 export function collectAccountDeletionMigrationOrderIssues({
@@ -3391,6 +3419,9 @@ export async function auditLiveDatabase({
   const emailProviderDeletionFence =
     await readEmailProviderDeletionFenceState(client);
   issues.push(...emailProviderDeletionFence.issues);
+  const emailProviderEligibilityFence =
+    await readEmailProviderEligibilityFenceState(client);
+  issues.push(...emailProviderEligibilityFence.issues);
   issues.push(...collectSellerProfilePrivateMigrationOrderIssues({
     preparationApplied: sellerProfilePrivatePreparation.applied,
     retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
@@ -3414,6 +3445,7 @@ export async function auditLiveDatabase({
   issues.push(...collectEmailDeliveryMigrationOrderIssues({
     preparationApplied: emailDeliveryLedgerPreparation.applied,
     fenceApplied: emailProviderDeletionFence.applied,
+    eligibilityFenceApplied: emailProviderEligibilityFence.applied,
   }));
   const liveAuthorityInventory = {
     ...withAppliedEmailDeliveryAuthority(
@@ -3439,6 +3471,7 @@ export async function auditLiveDatabase({
       {
         preparationApplied: emailDeliveryLedgerPreparation.applied,
         fenceApplied: emailProviderDeletionFence.applied,
+        eligibilityFenceApplied: emailProviderEligibilityFence.applied,
       },
     ),
     checkoutStockReservationSourceCutoverApplied:

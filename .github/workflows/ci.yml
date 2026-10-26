@@ -6893,6 +6893,15 @@ jobs:
           echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
           npx prisma migrate deploy
           npx prisma migrate status
+          # Restore the reviewed successor source before auditing the live
+          # predecessor stage. Production contains both files while only the
+          # deletion fence is recorded, so this is the state the ledger-gated
+          # grant inventory must prove.
+          mv \
+            "$holding/migrations/$eligibility_migration" \
+            "prisma/migrations/$eligibility_migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
             RUNTIME_DB_ROLE=grainline_app_runtime \
             MIGRATION_DB_ROLE=ci \
@@ -6900,11 +6909,6 @@ jobs:
               --allow-loopback-ci \
               --staff-read-stage=order-user-combined
 
-          mv \
-            "$holding/migrations/$eligibility_migration" \
-            "prisma/migrations/$eligibility_migration"
-          rmdir "$holding/migrations" "$holding"
-          echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
           npx prisma migrate deploy
           npx prisma migrate status
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
