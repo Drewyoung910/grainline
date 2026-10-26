@@ -251,6 +251,11 @@ const EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES = [
   "grainline_email_outbox_begin_provider_attempt",
   "grainline_email_outbox_fail",
 ];
+const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION =
+  "prisma/migrations/20261025030000_fence_email_provider_and_eligibility_changes/migration.sql";
+const EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES = [
+  "grainline_email_hard_suppression_apply",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3262,6 +3267,12 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_PROVIDER_DELETION_FENCE_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailProviderEligibilityFencePrepared = existsSync(
+      EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
+    ) && EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3448,6 +3459,9 @@ describe("database grant inventory guardrails", () => {
       ...(emailProviderDeletionFencePrepared
         ? EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES
         : []),
+      ...(emailProviderEligibilityFencePrepared
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3504,6 +3518,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (emailProviderDeletionFencePrepared
           ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES.length
+          : 0)
+        + (emailProviderEligibilityFencePrepared
+          ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES.length
           : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
@@ -3602,6 +3619,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(emailProviderDeletionFencePrepared
         ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES
+        : []),
+      ...(emailProviderEligibilityFencePrepared
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES
         : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",

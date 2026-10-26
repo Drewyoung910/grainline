@@ -159,6 +159,19 @@ jobs:
           node --test --test-concurrency=1
           tests/account-state-residue-followups.test.mjs
           tests/db-grant-inventory.test.mjs
+      - name: Verify email provider/eligibility fence source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/db-grant-inventory.test.mjs
+      - name: Isolate email provider/eligibility fence until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-eligibility-fence"
+          migration=20261025030000_fence_email_provider_and_eligibility_changes
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Isolate email provider/account-deletion fence until historical release guards pass
         shell: bash
         run: |
@@ -6820,6 +6833,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email provider/eligibility fence after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-eligibility-fence"
+          migration=20261025030000_fence_email_provider_and_eligibility_changes
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build

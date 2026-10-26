@@ -99,6 +99,8 @@ import {
   proveEmailProviderDeletionFence,
   seedHistoricalEmailProviderDeletionFenceRows,
 } from "../tools/database-full-chain/scenarios/email-provider-deletion-fence.mjs";
+import { proveEmailProviderEligibilityFence } from
+  "../tools/database-full-chain/scenarios/email-provider-eligibility-fence.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import {
@@ -667,6 +669,10 @@ test(
         connectionString: proofDatabaseUrl,
         seller: fixture,
         historical: historicalEmailProviderDeletionFenceRows,
+      });
+      await proveEmailProviderEligibilityFence({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
       });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),

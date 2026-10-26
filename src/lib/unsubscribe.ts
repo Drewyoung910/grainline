@@ -168,6 +168,14 @@ export async function unsubscribeEmail(
   let newsletterUpdated = 0;
 
   await prisma.$transaction(async (tx) => {
+    // Acquire the shared address fence before any unsubscribe mutation. The
+    // transaction holds it through newsletter and suppression updates.
+    const usersUpdated = await disableUserSignedUnsubscribeEmailPreferences(
+      tx,
+      emails,
+    );
+    userUpdated = usersUpdated > 0;
+
     const newsletterIds = (await newsletterIdsMatchingSuppressionLookup(tx, lookup)).map((row) => row.id);
     if (newsletterIds.length > 0) {
       const newsletter = await tx.newsletterSubscriber.updateMany({
@@ -181,12 +189,6 @@ export async function unsubscribeEmail(
       });
       newsletterUpdated = newsletter.count;
     }
-
-    const usersUpdated = await disableUserSignedUnsubscribeEmailPreferences(
-      tx,
-      emails,
-    );
-    userUpdated = usersUpdated > 0;
 
     await setOneClickEmailSuppression(tx, normalized);
   });
