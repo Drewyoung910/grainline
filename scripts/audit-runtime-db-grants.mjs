@@ -60,6 +60,9 @@ import {
 import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS,
 } from "./stage-order-zero-direct-compatible-prefix.mjs";
+import {
+  isReviewedSuccessfulMigration,
+} from "./reviewed-manually-applied-migrations.mjs";
 
 const { Client } = pg;
 
@@ -180,6 +183,43 @@ export const SELLER_PROFILE_PUBLIC_FORCE_MIGRATION =
   "20261020250000_force_seller_profile_rls";
 export const SELLER_PROFILE_PUBLIC_FORCE_MIGRATION_SHA256 =
   "7f1daf72f956f84e81dd591b33230e76059f8e6445683eeac0f4359b363e3dd2";
+export const EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION =
+  "20261025010000_prepare_email_delivery_ledger";
+export const EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_SHA256 =
+  "4d30e75337b9713bca643b4b4c5db1a247e913995448ea89e09929e4fba0405d";
+export const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION =
+  "20261025020000_fence_email_provider_and_account_deletion";
+export const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256 =
+  "4d30904d8cb094b403ef9adc4d4268f979d408137aeb228b59a95bca7858cace";
+export const EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES = Object.freeze([
+  "grainline_email_delivery_is_hard_suppressed",
+  "grainline_email_outbox_begin_provider_attempt",
+  "grainline_email_outbox_claim_batch",
+  "grainline_email_outbox_claim_core",
+  "grainline_email_outbox_claim_one",
+  "grainline_email_outbox_complete",
+  "grainline_email_outbox_defer",
+  "grainline_email_outbox_effective_lane",
+  "grainline_email_outbox_fail",
+  "grainline_email_outbox_recipient_state",
+  "grainline_email_outbox_safe_error",
+  "grainline_email_outbox_skip",
+]);
+export const EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES = Object.freeze([
+  "grainline_email_outbox_account_deletion_fence",
+  "grainline_email_outbox_enqueue_legacy",
+  "grainline_email_outbox_lock_keys",
+  "grainline_email_outbox_source_owner",
+]);
+export const EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES = Object.freeze([
+  "grainline_email_delivery_is_hard_suppressed",
+  "grainline_email_outbox_claim_core",
+  "grainline_email_outbox_effective_lane",
+  "grainline_email_outbox_lock_keys",
+  "grainline_email_outbox_recipient_state",
+  "grainline_email_outbox_safe_error",
+  "grainline_email_outbox_source_owner",
+]);
 export const SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_profile_private_mirror",
   "grainline_seller_profile_supported_snapshot",
@@ -550,6 +590,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
   ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
   ...ORDER_ZERO_DIRECT_COMPATIBLE_PRIVATE_FUNCTIONS.map(([name]) => name),
+  ...EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES,
   "grainline_order_refund_blocks_fulfillment",
   "grainline_order_blocked_checkout_refund_witness_immutable",
   // These projections belong only to the separately authenticated bounded
@@ -717,6 +758,32 @@ export function withAppliedAccountDeletionAuthority(
     functions,
     accountDeletionClaimFencePreparationApplied: claimFenceApplied,
     accountDeletionMediaKeyPreparationApplied: mediaKeyApplied,
+  };
+}
+
+const EMAIL_DELIVERY_TRANSITION_FUNCTION_NAMES = new Set([
+  ...EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
+  ...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+]);
+
+export function withAppliedEmailDeliveryAuthority(
+  inventory,
+  { preparationApplied, fenceApplied },
+) {
+  const functions = (inventory?.functions ?? []).filter(
+    (name) => !EMAIL_DELIVERY_TRANSITION_FUNCTION_NAMES.has(name),
+  );
+  if (preparationApplied) {
+    functions.push(...EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES);
+  }
+  if (fenceApplied) {
+    functions.push(...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES);
+  }
+  return {
+    ...inventory,
+    functions: sortedUnique(functions),
+    emailDeliveryLedgerPreparationApplied: preparationApplied,
+    emailProviderDeletionFenceApplied: fenceApplied,
   };
 }
 
@@ -1563,7 +1630,7 @@ async function readExactMigrationAppliedState(
     return Object.freeze({ applied: false, issues: Object.freeze([]) });
   }
   const result = await client.query(
-    `SELECT checksum, finished_at, rolled_back_at, applied_steps_count
+    `SELECT migration_name, checksum, finished_at, rolled_back_at, applied_steps_count
        FROM public._prisma_migrations
       WHERE migration_name = $1`,
     [migration],
@@ -1574,10 +1641,7 @@ async function readExactMigrationAppliedState(
   const row = result.rows[0];
   const exact = result.rows.length === 1
     && row.checksum === checksum
-    && row.finished_at !== null
-    && row.finished_at !== undefined
-    && row.rolled_back_at === null
-    && Number(row.applied_steps_count) === 1;
+    && isReviewedSuccessfulMigration(row);
   return Object.freeze({
     applied: exact,
     issues: Object.freeze(exact ? [] : [
@@ -1729,6 +1793,33 @@ export async function readSellerProfilePublicForceState(client) {
     checksum: SELLER_PROFILE_PUBLIC_FORCE_MIGRATION_SHA256,
     label: "SellerProfile public RLS FORCE",
   });
+}
+
+export async function readEmailDeliveryLedgerPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION,
+    checksum: EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_SHA256,
+    label: "email delivery-ledger preparation",
+  });
+}
+
+export async function readEmailProviderDeletionFenceState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
+    checksum: EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256,
+    label: "email provider/account-deletion fence",
+  });
+}
+
+export function collectEmailDeliveryMigrationOrderIssues({
+  preparationApplied,
+  fenceApplied,
+}) {
+  return fenceApplied && !preparationApplied
+    ? [
+      "email provider/account-deletion fence is applied without its exact delivery-ledger prerequisite",
+    ]
+    : [];
 }
 
 export function collectAccountDeletionMigrationOrderIssues({
@@ -3294,6 +3385,12 @@ export async function auditLiveDatabase({
   const sellerProfilePublicForce =
     await readSellerProfilePublicForceState(client);
   issues.push(...sellerProfilePublicForce.issues);
+  const emailDeliveryLedgerPreparation =
+    await readEmailDeliveryLedgerPreparationState(client);
+  issues.push(...emailDeliveryLedgerPreparation.issues);
+  const emailProviderDeletionFence =
+    await readEmailProviderDeletionFenceState(client);
+  issues.push(...emailProviderDeletionFence.issues);
   issues.push(...collectSellerProfilePrivateMigrationOrderIssues({
     preparationApplied: sellerProfilePrivatePreparation.applied,
     retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
@@ -3314,25 +3411,35 @@ export async function auditLiveDatabase({
     activationApplied: accountDeletionSideEffectActivation.applied,
     forceApplied: accountDeletionSideEffectForce.applied,
   }));
+  issues.push(...collectEmailDeliveryMigrationOrderIssues({
+    preparationApplied: emailDeliveryLedgerPreparation.applied,
+    fenceApplied: emailProviderDeletionFence.applied,
+  }));
   const liveAuthorityInventory = {
-    ...withAppliedSellerProfilePrivateInvariants(
-      withAppliedSellerProfilePredecessorRetirement(
-        withAppliedSellerProfileCallerAuthority(
-          withAppliedAccountDeletionAuthority(inventory, {
-            claimFenceApplied: accountDeletionClaimFencePreparation.applied,
-            mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
-          }),
+    ...withAppliedEmailDeliveryAuthority(
+      withAppliedSellerProfilePrivateInvariants(
+        withAppliedSellerProfilePredecessorRetirement(
+          withAppliedSellerProfileCallerAuthority(
+            withAppliedAccountDeletionAuthority(inventory, {
+              claimFenceApplied: accountDeletionClaimFencePreparation.applied,
+              mediaKeyApplied: accountDeletionMediaKeyPreparation.applied,
+            }),
+            {
+              deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
+              reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
+            },
+          ),
           {
-            deauthorizeCompatApplied: sellerProfileDeauthorizeCompat.applied,
-            reconciliationCompatApplied: sellerProfileReconciliationCompat.applied,
+            preparationApplied: sellerProfilePrivatePreparation.applied,
+            retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
           },
         ),
-        {
-          preparationApplied: sellerProfilePrivatePreparation.applied,
-          retirementApplied: sellerProfilePrivatePredecessorRetirement.applied,
-        },
+        sellerProfilePrivateInvariants.applied,
       ),
-      sellerProfilePrivateInvariants.applied,
+      {
+        preparationApplied: emailDeliveryLedgerPreparation.applied,
+        fenceApplied: emailProviderDeletionFence.applied,
+      },
     ),
     checkoutStockReservationSourceCutoverApplied:
       reservationSourceCutover.applied,
