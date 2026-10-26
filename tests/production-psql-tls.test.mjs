@@ -40,6 +40,7 @@ describe("protected production psql TLS roots", () => {
       "direct-upload-cleanup-role-provision.yml:Converge cleanup role to three-function authority",
       "email-delivery-ledger-preparation-production.yml:Apply reviewed preparation transaction outside Prisma's ledger",
       "email-provider-deletion-fence-production.yml:Apply reviewed fence transaction outside Prisma's ledger",
+      "email-provider-eligibility-fence-production.yml:Apply reviewed eligibility-fence transaction outside Prisma's ledger",
       "email-suppression-recovery-production.yml:Apply reviewed recovery transaction outside Prisma's ledger",
       "order-case-corrections-production.yml:Converge reviewed runtime function grants",
       "order-compatible-production.yml:Converge compatible runtime grants",
