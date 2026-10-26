@@ -10,6 +10,8 @@ on:
       - .github/workflows/private-table-force-production.yml
       - .github/workflows/email-suppression-recovery-production.yml
       - .github/workflows/user-unsubscribe-optional-preferences-production.yml
+      - .github/workflows/email-provider-deletion-fence-production.yml
+      - .github/workflows/email-provider-eligibility-fence-production.yml
       - docs/rls-drafts/**
       - package.json
       - package-lock.json
@@ -34,6 +36,8 @@ on:
       - .github/workflows/private-table-force-production.yml
       - .github/workflows/email-suppression-recovery-production.yml
       - .github/workflows/user-unsubscribe-optional-preferences-production.yml
+      - .github/workflows/email-provider-deletion-fence-production.yml
+      - .github/workflows/email-provider-eligibility-fence-production.yml
       - docs/rls-drafts/**
       - package.json
       - package-lock.json

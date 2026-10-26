@@ -4060,6 +4060,19 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   and separately approved; the eligibility-fence workflow may be retried only
   after that predecessor release succeeds.
 
+## 2026-10-26 — C-1173 exact-main Notification proof trigger gap
+
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED]** Exact-main CI run
+  `40354341485` passed at merge commit
+  `6fda9b4e4c916aac556f647cde3e09d81c32ee72`, but the required Notification
+  proof did not run because its path filters omitted both email-fence Production
+  workflow files. The predecessor Production binder would therefore reject the
+  commit before database access. The correction adds both files to the proof's
+  pull-request and main push filters and guards that contract in the Notification
+  workflow test. The corrected exact-main commit must produce a successful
+  Notification proof plus every other required push proof before the separately
+  approved predecessor migration run.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
