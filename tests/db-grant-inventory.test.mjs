@@ -251,9 +251,9 @@ const EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES = [
   "grainline_email_outbox_begin_provider_attempt",
   "grainline_email_outbox_fail",
 ];
-const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION =
+const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH =
   "prisma/migrations/20261025030000_fence_email_provider_and_eligibility_changes/migration.sql";
-const EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES = [
+const EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
   "grainline_email_hard_suppression_apply",
 ];
 
@@ -323,8 +323,11 @@ const {
   EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_SHA256,
   EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
   EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256,
+  EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
+  EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_SHA256,
   EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
   EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+  EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES,
   SELLER_PROFILE_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
@@ -405,6 +408,7 @@ const {
   readClerkWebhookEventForceState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
+  readEmailProviderEligibilityFenceState,
   readSellerProfileDeauthorizeCompatState,
   readSellerProfilePrivatePreparationState,
   readSellerProfilePrivatePredecessorRetirementState,
@@ -1555,10 +1559,21 @@ describe("database grant inventory guardrails", () => {
   });
 
   it("derives email authority expectations from the exact live migration stage", (context) => {
+    // The accumulated-User CI proof intentionally replays this test against an
+    // older grant-audit script after isolating the later email migrations. Keep
+    // that historical replay valid, while requiring the current source package
+    // to export the successor-only function inventory whenever its migration is
+    // present.
+    if (existsSync(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH)) {
+      assert.deepEqual(EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES, [
+        "grainline_email_hard_suppression_apply",
+      ]);
+    }
     if (
       typeof withAppliedEmailDeliveryAuthority !== "function"
       || !Array.isArray(EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES)
       || !Array.isArray(EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES)
+      || !Array.isArray(EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES)
       || !Array.isArray(EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES)
     ) {
       context.skip("requires the staged email grant-audit generation");
@@ -1569,17 +1584,20 @@ describe("database grant inventory guardrails", () => {
         "grainline_existing_function",
         ...EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES,
         ...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+        ...EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
       ],
     };
     const predecessor = withAppliedEmailDeliveryAuthority(sourceInventory, {
       preparationApplied: false,
       fenceApplied: false,
+      eligibilityFenceApplied: false,
     });
     assert.deepEqual(predecessor.functions, ["grainline_existing_function"]);
 
     const prepared = withAppliedEmailDeliveryAuthority(sourceInventory, {
       preparationApplied: true,
       fenceApplied: false,
+      eligibilityFenceApplied: false,
     });
     assert.deepEqual(prepared.functions, [
       "grainline_existing_function",
@@ -1598,21 +1616,40 @@ describe("database grant inventory guardrails", () => {
     const fenced = withAppliedEmailDeliveryAuthority(sourceInventory, {
       preparationApplied: true,
       fenceApplied: true,
+      eligibilityFenceApplied: false,
+    });
+    assert.equal(
+      fenced.functions.includes("grainline_email_hard_suppression_apply"),
+      false,
+    );
+    const eligibilityFenced = withAppliedEmailDeliveryAuthority(sourceInventory, {
+      preparationApplied: true,
+      fenceApplied: true,
+      eligibilityFenceApplied: true,
     });
     assert.deepEqual(
-      fenced.functions,
+      eligibilityFenced.functions,
       [...new Set(sourceInventory.functions)].sort((left, right) =>
         left.localeCompare(right)),
     );
     assert.deepEqual(collectEmailDeliveryMigrationOrderIssues({
       preparationApplied: true,
       fenceApplied: false,
+      eligibilityFenceApplied: false,
     }), []);
     assert.deepEqual(collectEmailDeliveryMigrationOrderIssues({
       preparationApplied: false,
       fenceApplied: true,
+      eligibilityFenceApplied: false,
     }), [
       "email provider/account-deletion fence is applied without its exact delivery-ledger prerequisite",
+    ]);
+    assert.deepEqual(collectEmailDeliveryMigrationOrderIssues({
+      preparationApplied: true,
+      fenceApplied: false,
+      eligibilityFenceApplied: true,
+    }), [
+      "email provider/eligibility fence is applied without its exact account-deletion-fence prerequisite",
     ]);
   });
 
@@ -1620,6 +1657,7 @@ describe("database grant inventory guardrails", () => {
     if (
       typeof readEmailDeliveryLedgerPreparationState !== "function"
       || typeof readEmailProviderDeletionFenceState !== "function"
+      || typeof readEmailProviderEligibilityFenceState !== "function"
     ) {
       context.skip("requires the staged email migration-ledger readers");
       return;
@@ -1655,6 +1693,13 @@ describe("database grant inventory guardrails", () => {
       await readEmailProviderDeletionFenceState(exactClient(
         EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
         EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readEmailProviderEligibilityFenceState(exactClient(
+        EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
+        EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_SHA256,
       )),
       { applied: true, issues: [] },
     );
@@ -3385,9 +3430,9 @@ describe("database grant inventory guardrails", () => {
         `FUNCTION public.${functionName}(`,
       ));
     const emailProviderEligibilityFencePrepared = existsSync(
-      EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
-    ) && EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES.every((functionName) =>
-      source(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION).includes(
+      EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH,
+    ) && EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH).includes(
         `FUNCTION public.${functionName}(`,
       ));
     const emailProviderEligibilitySubstitutesUnsubscribeRevoke =
@@ -3580,7 +3625,7 @@ describe("database grant inventory guardrails", () => {
         ? EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES
         : []),
       ...(emailProviderEligibilityFencePrepared
-        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
         : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
@@ -3640,7 +3685,7 @@ describe("database grant inventory guardrails", () => {
           ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES.length
           : 0)
         + (emailProviderEligibilityFencePrepared
-          ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES.length
+          ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES.length
           : 0)
         // CI proves the C-875 release before isolating this successor. While
         // C-875 is held aside, the successor's redefinition still contributes
@@ -3745,7 +3790,7 @@ describe("database grant inventory guardrails", () => {
         ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES
         : []),
       ...(emailProviderEligibilityFencePrepared
-        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
         : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
@@ -4265,9 +4310,9 @@ describe("database grant inventory guardrails", () => {
       restoreDeletionFence < applyDeletionFence
       && applyDeletionFence < deletionFenceAudit,
     );
-    assert.ok(deletionFenceAudit < restoreEligibilityFence);
+    assert.ok(restoreEligibilityFence < deletionFenceAudit);
     assert.ok(
-      restoreEligibilityFence < applyEligibilityFence
+      deletionFenceAudit < applyEligibilityFence
       && applyEligibilityFence < finalAudit,
     );
   });

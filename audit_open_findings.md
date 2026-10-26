@@ -4073,6 +4073,23 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   Notification proof plus every other required push proof before the separately
   approved predecessor migration run.
 
+## 2026-10-26 — C-1174 pending-successor grant-audit false failure
+
+- **[PRODUCTION MIGRATION APPLIED; AUDIT RESTART FIX PREPARED]** Protected run
+  `40381099751` committed and recorded
+  `20261025020000_fence_email_provider_and_account_deletion`, passed its exact
+  postflight, and proved that only
+  `20261025030000_fence_email_provider_and_eligibility_changes` remains pending.
+  Its final global runtime-grant audit then failed because the source-derived
+  inventory demanded `grainline_email_hard_suppression_apply`, even though that
+  function belongs to the still-pending successor. The audit now models the
+  eligibility fence as a third checksum-pinned ledger stage, excludes the new
+  function while that migration is pending, and fails closed on impossible
+  migration order. CI restores the successor source before its middle-stage
+  audit so the exact Production state is exercised. No migration transaction
+  may be replayed; only the protected applied-state restart path may complete
+  evidence after review, merge, exact-main CI, and separate approval.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
