@@ -4202,12 +4202,20 @@ describe("database grant inventory guardrails", () => {
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
     assert.equal(auditMatches.length, 2);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
+    const runtimeConvergence = stagedProof.indexOf(
+      "--file=scripts/provision-runtime-db-role.sql",
+    );
+    const staffConvergence = stagedProof.indexOf(
+      "--file=scripts/provision-order-staff-read-role.sql",
+    );
     const restoreFence = stagedProof.indexOf(
       'mv "$holding/migrations/$migration" "prisma/migrations/$migration"',
     );
     const applyFence = stagedProof.indexOf("npx prisma migrate deploy");
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
-    assert.ok(preparationAudit >= 0 && preparationAudit < restoreFence);
+    assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
+    assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
+    assert.ok(preparationAudit < restoreFence);
     assert.ok(restoreFence < applyFence && applyFence < finalAudit);
   });
 

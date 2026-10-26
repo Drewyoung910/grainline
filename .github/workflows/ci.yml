@@ -6845,6 +6845,15 @@ jobs:
           createdb --host=localhost --username=ci --owner=ci grainline_ci
           DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="$DIRECT_URL" \
             node tools/database-full-chain/apply-ci-chain.mjs
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=runtime_role=grainline_app_runtime \
+            --set=migration_role=ci \
+            --file=scripts/provision-runtime-db-role.sql
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --set=staff_role=grainline_staff_read_runtime \
+            --set=runtime_role=grainline_app_runtime \
+            --set=migration_role=ci \
+            --file=scripts/provision-order-staff-read-role.sql
           npx prisma migrate status
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
             RUNTIME_DB_ROLE=grainline_app_runtime \
