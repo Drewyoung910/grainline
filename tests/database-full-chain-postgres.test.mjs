@@ -109,6 +109,7 @@ import {
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
+import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
   SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -227,6 +228,7 @@ test(
       let historicalEmailProviderDeletionFenceRows;
       let stockNotificationFixture;
       let stockNotificationPredecessorEvidence;
+      let stockNotificationPreparationPreflightPath;
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -361,6 +363,23 @@ test(
           }
           if (artifact.name === STOCK_NOTIFICATION_PREPARATION_MIGRATION) {
             assert.ok(fixture, "seller fixture must exist before StockNotification proof");
+            stockNotificationPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "stock-notification-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "stock_notification_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  stockNotificationPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "d".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 1);
             stockNotificationFixture = await seedStockNotificationPredecessorFixture({
               database: adapter,
               seller: fixture,
@@ -392,6 +411,29 @@ test(
           "20260927090000_enable_order_rls",
         ],
       );
+
+      assert.ok(
+        stockNotificationPreparationPreflightPath,
+        "StockNotification Production preflight must run before its preparation",
+      );
+      const stockNotificationPreparationPostflight =
+        await inspectPrivateTablePreparationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "stock_notification_v1",
+            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              "stock-notification-preparation-postflight.json",
+            ),
+            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+              stockNotificationPreparationPreflightPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "d".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+      assert.equal(stockNotificationPreparationPostflight.state, "applied");
+      assert.equal(stockNotificationPreparationPostflight.catalog.functions.length, 9);
 
       await assertSellerProfilePrivateLayout(adapter);
       await proveSellerProfilePolicylessEnable({

@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - support_request_v1
+          - stock_notification_v1
       release_commit:
         description: Exact reviewed main commit
         required: true
@@ -130,11 +131,15 @@ jobs:
           set -euo pipefail
           migration="$(node scripts/private-table-preparation-catalog.mjs)"
           test -n "$migration"
+          mapfile -t release_tests < <(
+            node scripts/private-table-preparation-catalog.mjs --tests
+          )
+          test "${#release_tests[@]}" -gt 0
           node --test \
             tests/private-table-preparation-production.test.mjs \
             tests/reviewed-pending-migrations.test.mjs \
-            tests/support-request-state.test.mjs \
-            tests/support-request.test.mjs
+            tests/stock-notification-preparation-production.test.mjs \
+            "${release_tests[@]}"
       - name: Verify owner connection boundary
         run: node scripts/guard-production-migration-runner.mjs
         env:

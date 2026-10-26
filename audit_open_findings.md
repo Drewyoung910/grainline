@@ -4092,12 +4092,12 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 ## 2026-10-26 — StockNotification compatible RLS preparation
 
-- **C-759 [FIX PREPARED; NOT MERGED OR LIVE]:** ordinary public `SOLD_OUT`
+- **C-759 [MERGED; NOT YET LIVE]:** ordinary public `SOLD_OUT`
   in-stock listings now retain the back-in-stock control. A behavior-first test
   failed on the predecessor component contract and passes for `ACTIVE` zero
   stock and `SOLD_OUT` zero stock while rejecting private, non-public,
   made-to-order and positive-stock states.
-- **C-708 [FIX PREPARED; NOT MERGED OR LIVE]:** subscription creation, Block
+- **C-708 [MERGED; NOT YET LIVE]:** subscription creation, Block
   creation and final alert claim now share the sorted user-pair serialization
   protocol. Block creation co-commits two-direction subscription cleanup, and
   the final claim consumes blocked/self legacy rows without creating an alert.
@@ -4111,8 +4111,13 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   actor-bound projection. All application delegate access is centralized in
   `src/lib/stockNotificationAccess.ts`. Migration
   `20261026010000_prepare_stock_notification_authorities` is additive: it does
-  not enable RLS or change predecessor table grants. A later separately
-  reviewed activation and rollback proof remain required.
+  not enable RLS or change predecessor table grants. The preparation and
+  compatible app conversion merged in PR #657 as
+  `968315f775c86d84a547d0a6eb3abaeec4662f49`; neither the migration nor the app
+  deployment is live yet. A reusable `Private Table Preparation Production`
+  catalog entry and predecessor-function drift proof are being prepared in a
+  separate release-tooling change. A later separately reviewed activation and
+  rollback proof remain required.
 
 ## Recommended fix order for Codex
 

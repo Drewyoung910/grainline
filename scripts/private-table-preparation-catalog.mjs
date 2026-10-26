@@ -29,6 +29,10 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
     addedColumns: Object.freeze([
       Object.freeze({ name: "emailDeliveryToken", type: "uuid", nullable: true }),
     ]),
+    sourceTests: Object.freeze([
+      "tests/support-request-state.test.mjs",
+      "tests/support-request.test.mjs",
+    ]),
     functions: Object.freeze([
       Object.freeze({
         name: "grainline_support_request_submit",
@@ -59,6 +63,67 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_support_request_retention_delete_batch",
         arguments: "integer",
+      }),
+    ]),
+  }),
+  stock_notification_v1: Object.freeze({
+    migration: "20261026010000_prepare_stock_notification_authorities",
+    migrationSha256: "3c77aed31571f7e4adb942bea15611ee97d75e8183f76899cc634749ab2955ce",
+    table: "StockNotification",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/stock-notification-route.test.mjs",
+      "tests/stock-notification-state.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_stock_notification_owner_subscribe",
+        arguments: "text, text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_seller_counts",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_seller_range_count",
+        arguments: "timestamp without time zone, timestamp without time zone, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_restock_candidates",
+        arguments: "text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_seller_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_admin_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_block_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_notification_claim_back_in_stock",
+        arguments: "text, text, text",
+        predecessorSourceSha256:
+          "0447a37282d0d86c3b5caba3d8817d33eacec877ca745ab045bf1be18ca83a8f",
       }),
     ]),
   }),
@@ -114,6 +179,23 @@ export function verifyPrivateTablePreparationSource(releaseId, rootDir = process
   ) {
     throw stopped("compatible preparation contains activation or destructive SQL");
   }
+  if (
+    !Array.isArray(release.sourceTests)
+    || release.sourceTests.length < 1
+    || new Set(release.sourceTests).size !== release.sourceTests.length
+    || release.sourceTests.some((testPath) => (
+      typeof testPath !== "string"
+      || !/^tests\/[A-Za-z0-9._-]+\.test\.mjs$/u.test(testPath)
+    ))
+  ) {
+    throw stopped("source-test catalog is invalid");
+  }
+  if (release.functions.some((entry) => (
+    entry.predecessorSourceSha256 !== undefined
+    && !/^[0-9a-f]{64}$/u.test(entry.predecessorSourceSha256)
+  ))) {
+    throw stopped("predecessor function digest is invalid");
+  }
   const functionSources = new Map(release.functions.map((entry) => [
     entry.name,
     functionSourceFromMigration(sql, entry.name),
@@ -125,7 +207,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
     const releaseId = process.env.PRIVATE_TABLE_PREPARATION_RELEASE_ID ?? "";
     const verified = verifyPrivateTablePreparationSource(releaseId);
-    process.stdout.write(`${verified.release.migration}\n`);
+    if (process.argv[2] === "--tests") {
+      process.stdout.write(`${verified.release.sourceTests.join("\n")}\n`);
+    } else {
+      process.stdout.write(`${verified.release.migration}\n`);
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
