@@ -424,6 +424,16 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
       2,
       "the required Notification proof must run on both PR and main changes to its private-table FORCE binder",
     );
+    for (const productionWorkflow of [
+      "email-provider-deletion-fence-production.yml",
+      "email-provider-eligibility-fence-production.yml",
+    ]) {
+      assert.equal(
+        workflow.split(`- .github/workflows/${productionWorkflow}`).length - 1,
+        2,
+        `the required Notification proof must run on both PR and main changes to ${productionWorkflow}`,
+      );
+    }
     assert.match(workflow, /scripts\/assert-reviewed-pending-migrations\.mjs/);
     assert.match(workflow, /scripts\/reviewed-manually-applied-migrations\.mjs/);
     assert.match(workflow, /scripts\/notification-rls-ephemeral-proof\.mjs/);
