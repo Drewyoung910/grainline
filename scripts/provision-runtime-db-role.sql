@@ -2105,19 +2105,23 @@ SELECT format(
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
 -- When its functions exist, converge every helper away from PUBLIC/runtime
--- defaults and restore EXECUTE only for the seven reviewed worker operations.
+-- defaults and restore EXECUTE only for the nine reviewed runtime operations.
 WITH email_delivery_ledger_service(function_signature, runtime_access) AS (
   VALUES
     ('public."grainline_email_delivery_is_hard_suppressed"(text)', false),
     ('public."grainline_email_outbox_claim_core"(text, integer)', false),
     ('public."grainline_email_outbox_effective_lane"(text, text)', false),
+    ('public."grainline_email_outbox_lock_keys"(text[], text[])', false),
     ('public."grainline_email_outbox_recipient_state"(text, text, text, text)', false),
     ('public."grainline_email_outbox_safe_error"(text)', false),
+    ('public."grainline_email_outbox_source_owner"(text, text)', false),
+    ('public."grainline_email_outbox_account_deletion_fence"(text, text[])', true),
     ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)', true),
     ('public."grainline_email_outbox_claim_batch"(integer)', true),
     ('public."grainline_email_outbox_claim_one"(text)', true),
     ('public."grainline_email_outbox_complete"(text, bigint, uuid, text)', true),
     ('public."grainline_email_outbox_defer"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_enqueue_legacy"(text, text, text, text, text, integer, text, text, text, text, text)', true),
     ('public."grainline_email_outbox_fail"(text, bigint, uuid, text, text)', true),
     ('public."grainline_email_outbox_skip"(text, bigint, uuid, text)', true)
 )
@@ -2131,13 +2135,17 @@ WITH email_delivery_ledger_service(function_signature, runtime_access) AS (
     ('public."grainline_email_delivery_is_hard_suppressed"(text)', false),
     ('public."grainline_email_outbox_claim_core"(text, integer)', false),
     ('public."grainline_email_outbox_effective_lane"(text, text)', false),
+    ('public."grainline_email_outbox_lock_keys"(text[], text[])', false),
     ('public."grainline_email_outbox_recipient_state"(text, text, text, text)', false),
     ('public."grainline_email_outbox_safe_error"(text)', false),
+    ('public."grainline_email_outbox_source_owner"(text, text)', false),
+    ('public."grainline_email_outbox_account_deletion_fence"(text, text[])', true),
     ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)', true),
     ('public."grainline_email_outbox_claim_batch"(integer)', true),
     ('public."grainline_email_outbox_claim_one"(text)', true),
     ('public."grainline_email_outbox_complete"(text, bigint, uuid, text)', true),
     ('public."grainline_email_outbox_defer"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_enqueue_legacy"(text, text, text, text, text, integer, text, text, text, text, text)', true),
     ('public."grainline_email_outbox_fail"(text, bigint, uuid, text, text)', true),
     ('public."grainline_email_outbox_skip"(text, bigint, uuid, text)', true)
 )
@@ -2155,13 +2163,17 @@ WITH email_delivery_ledger_service(function_signature, runtime_access) AS (
     ('public."grainline_email_delivery_is_hard_suppressed"(text)', false),
     ('public."grainline_email_outbox_claim_core"(text, integer)', false),
     ('public."grainline_email_outbox_effective_lane"(text, text)', false),
+    ('public."grainline_email_outbox_lock_keys"(text[], text[])', false),
     ('public."grainline_email_outbox_recipient_state"(text, text, text, text)', false),
     ('public."grainline_email_outbox_safe_error"(text)', false),
+    ('public."grainline_email_outbox_source_owner"(text, text)', false),
+    ('public."grainline_email_outbox_account_deletion_fence"(text, text[])', true),
     ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)', true),
     ('public."grainline_email_outbox_claim_batch"(integer)', true),
     ('public."grainline_email_outbox_claim_one"(text)', true),
     ('public."grainline_email_outbox_complete"(text, bigint, uuid, text)', true),
     ('public."grainline_email_outbox_defer"(text, bigint, uuid, text)', true),
+    ('public."grainline_email_outbox_enqueue_legacy"(text, text, text, text, text, integer, text, text, text, text, text)', true),
     ('public."grainline_email_outbox_fail"(text, bigint, uuid, text, text)', true),
     ('public."grainline_email_outbox_skip"(text, bigint, uuid, text)', true)
 )

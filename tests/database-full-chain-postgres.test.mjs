@@ -93,6 +93,12 @@ import {
 } from "../tools/database-full-chain/scenarios/cart-cartitem-rls.mjs";
 import { proveEmailServiceDeliveryLedger } from
   "../tools/database-full-chain/scenarios/email-service-delivery-ledger.mjs";
+import {
+  EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
+  prepareHistoricalEmailProviderDeletionFenceUpgrade,
+  proveEmailProviderDeletionFence,
+  seedHistoricalEmailProviderDeletionFenceRows,
+} from "../tools/database-full-chain/scenarios/email-provider-deletion-fence.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import {
@@ -210,6 +216,7 @@ test(
       let cartCartItemFixture;
       let cartCartItemPredecessorEvidence;
       let cartCartItemReadyEvidencePath;
+      let historicalEmailProviderDeletionFenceRows;
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -328,6 +335,19 @@ test(
                 database: adapter,
                 fixture: cartCartItemFixture,
               });
+          }
+          if (artifact.name === EMAIL_PROVIDER_DELETION_FENCE_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before email fence upgrade proof");
+            historicalEmailProviderDeletionFenceRows =
+              await seedHistoricalEmailProviderDeletionFenceRows({
+                database: adapter,
+                seller: fixture,
+              });
+            await prepareHistoricalEmailProviderDeletionFenceUpgrade({
+              database: adapter,
+              migrationSql: artifact.sql,
+              historical: historicalEmailProviderDeletionFenceRows,
+            });
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -642,6 +662,12 @@ test(
         connectionString: proofDatabaseUrl,
       });
       await proveEmailServiceDeliveryLedger({ database: adapter });
+      await proveEmailProviderDeletionFence({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        seller: fixture,
+        historical: historicalEmailProviderDeletionFenceRows,
+      });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),
         "utf8",

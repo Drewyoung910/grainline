@@ -238,6 +238,19 @@ const EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES = [
   ...EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES,
   ...EMAIL_DELIVERY_LEDGER_RUNTIME_FUNCTION_NAMES,
 ];
+const EMAIL_PROVIDER_DELETION_FENCE_MIGRATION =
+  "prisma/migrations/20261025020000_fence_email_provider_and_account_deletion/migration.sql";
+const EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES = [
+  "grainline_email_outbox_account_deletion_fence",
+  "grainline_email_outbox_enqueue_legacy",
+  "grainline_email_outbox_lock_keys",
+  "grainline_email_outbox_source_owner",
+];
+const EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES = [
+  ...EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES,
+  "grainline_email_outbox_begin_provider_attempt",
+  "grainline_email_outbox_fail",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3243,6 +3256,12 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_DELIVERY_LEDGER_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailProviderDeletionFencePrepared = existsSync(
+      EMAIL_PROVIDER_DELETION_FENCE_MIGRATION,
+    ) && EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_PROVIDER_DELETION_FENCE_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3426,6 +3445,9 @@ describe("database grant inventory guardrails", () => {
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
+      ...(emailProviderDeletionFencePrepared
+        ? EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3479,6 +3501,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
+          : 0)
+        + (emailProviderDeletionFencePrepared
+          ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES.length
           : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
@@ -3574,6 +3599,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
+        : []),
+      ...(emailProviderDeletionFencePrepared
+        ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES
         : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",

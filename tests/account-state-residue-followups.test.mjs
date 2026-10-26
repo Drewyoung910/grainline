@@ -141,8 +141,8 @@ describe("account-state residue hardening", () => {
     assert.match(notifications, /sourceId: notificationSourceId/);
     assert.match(outbox, /sourceType\?: string/);
     assert.match(outbox, /sourceId\?: string/);
-    assert.match(outbox, /sourceType: email\.sourceType \? truncateText\(email\.sourceType, 80\) : undefined/);
-    assert.match(outbox, /sourceId: email\.sourceId \? truncateText\(email\.sourceId, 191\) : undefined/);
+    assert.match(outbox, /sourceType: email\.sourceType \? truncateText\(email\.sourceType, 80\) : null/);
+    assert.match(outbox, /sourceId: email\.sourceId \? truncateText\(email\.sourceId, 191\) : null/);
 
     assert.match(broadcastRoute, /sourceType: "seller_broadcast"/);
     assert.match(broadcastRoute, /sourceId: broadcast\.id/);

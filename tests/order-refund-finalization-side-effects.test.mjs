@@ -105,15 +105,28 @@ test("notification and email-outbox helpers honor the transaction client", () =>
   );
   const create = notification.slice(createStart, createEnd);
   const outbox = source("src/lib/emailOutbox.ts");
+  const outboxAccess = source("src/lib/emailOutboxAccess.ts");
+  const enqueueStart = outboxAccess.indexOf(
+    "export async function enqueueLegacyEmailOutbox",
+  );
+  const enqueueEnd = outboxAccess.indexOf(
+    "export async function emailOutboxAccountDeletionPendingCount",
+  );
+  const enqueue = outboxAccess.slice(enqueueStart, enqueueEnd);
 
   assert.match(create, /client: NotificationServiceClient = prisma/);
   assert.equal((create.match(/client\.\$queryRaw/g) ?? []).length, 10);
   assert.doesNotMatch(create, /prisma\.\$queryRaw/);
   assert.match(outbox, /client: EmailOutboxClient = prisma/);
-  assert.match(outbox, /client\.emailOutbox\.createMany/);
-  assert.match(outbox, /skipDuplicates: true/);
-  assert.match(outbox, /client\.emailOutbox\.findUnique/);
-  assert.doesNotMatch(outbox, /P2002|isUniqueError/);
+  assert.match(
+    outbox,
+    /const result = await enqueueLegacyEmailOutbox\(\{[\s\S]*\}, client\);/,
+  );
+  assert.doesNotMatch(outbox, /client\.emailOutbox\./);
+  assert.match(enqueue, /client: EmailOutboxAuthorityClient = prisma/);
+  assert.match(enqueue, /await client\.\$queryRaw/);
+  assert.match(enqueue, /grainline_email_outbox_enqueue_legacy/);
+  assert.doesNotMatch(enqueue, /prisma\.\$queryRaw/);
   assert.match(outbox, /"refund_issued"/);
   assert.match(outbox, /export async function processEmailOutboxJobById/);
   assert.match(outbox, /idempotencyKey: claimedJob\.dedupKey/);

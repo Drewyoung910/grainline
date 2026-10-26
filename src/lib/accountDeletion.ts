@@ -1,7 +1,10 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
-import { withDbUserContext } from "@/lib/dbUserContext";
+import {
+  withDbUserContext,
+  type DbUserContextTransactionClient,
+} from "@/lib/dbUserContext";
 import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
@@ -83,6 +86,7 @@ import {
   accountEmailOutboxWhere,
   redactEmailOutboxRepresentations,
 } from "@/lib/emailOutboxContentLifecycle";
+import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -106,7 +110,12 @@ export type AccountDeletionLock = {
 };
 
 export type AccountDeletionBlocker = {
-  code: "buyer_orders" | "seller_orders" | "open_cases" | "active_commissions";
+  code:
+    | "buyer_orders"
+    | "seller_orders"
+    | "open_cases"
+    | "active_commissions"
+    | "email_delivery_pending";
   count: number;
   message: string;
 };
@@ -473,7 +482,7 @@ async function archiveBlogPostsForDeletedAccount(
 }
 
 async function getAccountDeletionBlockersInTransaction(
-  tx: Prisma.TransactionClient,
+  tx: DbUserContextTransactionClient,
   userId: string,
 ): Promise<AccountDeletionBlocker[]> {
   // Keep these sequential: app.user_id is transaction-local on this one
@@ -489,6 +498,14 @@ async function getAccountDeletionBlockersInTransaction(
       status: { in: [...ACTIVE_COMMISSION_STATUSES] },
     },
   });
+  const accountEmails = await accountEmailFallbackEmailsForUser(tx);
+  const emailDeliveryPending = await emailOutboxAccountDeletionPendingCount(
+    {
+      userId,
+      emailKeys: accountEmailSuppressionKeysForEmails(accountEmails),
+    },
+    tx,
+  );
 
   const blockers: AccountDeletionBlocker[] = [];
   if (orderCounts.buyerOrders > 0) {
@@ -517,6 +534,13 @@ async function getAccountDeletionBlockersInTransaction(
       code: "active_commissions",
       count: activeCommissions,
       message: "You have active commission requests. Close them before deleting your account.",
+    });
+  }
+  if (emailDeliveryPending > 0) {
+    blockers.push({
+      code: "email_delivery_pending",
+      count: emailDeliveryPending,
+      message: "An email delivery is still being confirmed. Wait a few minutes and try deleting your account again.",
     });
   }
 
