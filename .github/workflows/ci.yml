@@ -159,6 +159,19 @@ jobs:
           node --test --test-concurrency=1
           tests/account-state-residue-followups.test.mjs
           tests/db-grant-inventory.test.mjs
+      - name: Verify email provider/eligibility fence source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/db-grant-inventory.test.mjs
+      - name: Isolate email provider/eligibility fence until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-eligibility-fence"
+          migration=20261025030000_fence_email_provider_and_eligibility_changes
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Isolate email provider/account-deletion fence until historical release guards pass
         shell: bash
         run: |
@@ -6823,6 +6836,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email provider/eligibility fence after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-eligibility-fence"
+          migration=20261025030000_fence_email_provider_and_eligibility_changes
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build
@@ -6831,15 +6853,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          holding="$RUNNER_TEMP/email-provider-deletion-fence-final-audit"
-          migration=20261025020000_fence_email_provider_and_account_deletion
+          holding="$RUNNER_TEMP/email-provider-fence-final-audit"
+          deletion_migration=20261025020000_fence_email_provider_and_account_deletion
+          eligibility_migration=20261025030000_fence_email_provider_and_eligibility_changes
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          mv "prisma/migrations/$deletion_migration" "$holding/migrations/$deletion_migration"
+          mv "prisma/migrations/$eligibility_migration" "$holding/migrations/$eligibility_migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
           # the repository's historical role convergence requirements. Keep the
-          # fence held back for the first grant audit so CI proves the same
+          # deletion and eligibility fences held back for the first grant audit
+          # so CI proves the same
           # preparation-only state used by its protected Production release.
           dropdb --host=localhost --username=ci --force grainline_ci
           createdb --host=localhost --username=ci --owner=ci grainline_ci
@@ -6862,9 +6887,24 @@ jobs:
               --allow-loopback-ci \
               --staff-read-stage=order-user-combined
 
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
-          rmdir "$holding/migrations" "$holding"
+          mv \
+            "$holding/migrations/$deletion_migration" \
+            "prisma/migrations/$deletion_migration"
           echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          npx prisma migrate deploy
+          npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
+
+          mv \
+            "$holding/migrations/$eligibility_migration" \
+            "prisma/migrations/$eligibility_migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
           npx prisma migrate deploy
           npx prisma migrate status
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \

@@ -159,7 +159,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // The structured outbox lifecycle helper contributes two typed `where`
       // arguments and one typed replacement-data argument. Its executed
       // lifecycle tests pin those shapes and their behavior.
-      || reviewedNonTargetResiduals.length !== 29) {
+      // The provider/eligibility fence replaces the three direct Prisma
+      // EmailSuppression write arguments with one fixed SQL authority. That
+      // deliberately removes three duplicate non-target residual shapes.
+      || reviewedNonTargetResiduals.length !== 26) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

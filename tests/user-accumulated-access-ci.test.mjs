@@ -103,6 +103,8 @@ const emailDeliveryLedgerCandidateTests = [
 ];
 const emailProviderDeletionFenceMigration =
   "20261025020000_fence_email_provider_and_account_deletion";
+const emailProviderEligibilityFenceMigration =
+  "20261025030000_fence_email_provider_and_eligibility_changes";
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -315,6 +317,21 @@ function emailProviderDeletionFenceMigrationSourcePath() {
   return stagedPath;
 }
 
+function emailProviderEligibilityFenceMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    emailProviderEligibilityFenceMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env.EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && existsSync(stagedPath),
+    "missing isolated email provider/eligibility fence migration",
+  );
+  return stagedPath;
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -502,6 +519,22 @@ test("email provider/account-deletion fence is proved, isolated, and restored ar
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
+test("email provider/eligibility fence is proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify email provider/eligibility fence source package";
+  const isolateName = "Isolate email provider/eligibility fence until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreDeletion = "Restore email provider/account-deletion fence after historical release guards";
+  const restoreName = "Restore email provider/eligibility fence after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  assert.match(isolate, new RegExp(emailProviderEligibilityFenceMigration));
+  assert.match(restore, new RegExp(emailProviderEligibilityFenceMigration));
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreDeletion));
+  assert.ok(workflow.indexOf(restoreDeletion) < workflow.indexOf(restoreName));
+});
+
 test("actual isolation and restoration scripts preserve source bytes while staging the follower catalog", () => {
   const temporary = mkdtempSync(path.join(tmpdir(), "grainline-user-ci-staging-"));
   const root = path.join(temporary, "checkout");
@@ -609,6 +642,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const emailProviderEligibilityFenceTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      emailProviderEligibilityFenceMigration,
+    );
+    if (!existsSync(emailProviderEligibilityFenceTarget)) {
+      cpSync(
+        emailProviderEligibilityFenceMigrationSourcePath(),
+        emailProviderEligibilityFenceTarget,
+        { recursive: true },
+      );
+    }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
       (migration) => `prisma/migrations/${migration}/migration.sql`,
@@ -627,6 +673,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${emailDeliveryLedgerCandidateMigration}/migration.sql`;
     const emailProviderDeletionFencePath =
       `prisma/migrations/${emailProviderDeletionFenceMigration}/migration.sql`;
+    const emailProviderEligibilityFencePath =
+      `prisma/migrations/${emailProviderEligibilityFenceMigration}/migration.sql`;
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
@@ -639,6 +687,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       emailDeliveryLedgerCandidatePath,
       ...emailDeliveryLedgerCandidateTests.map((file) => `tests/${file}`),
       emailProviderDeletionFencePath,
+      emailProviderEligibilityFencePath,
       "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
@@ -664,6 +713,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       path.join(sellerPublicTestHolding, "db-grant-inventory.test.mjs"),
     );
     rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
+    execFileSync("bash", ["-c", bashBody("Isolate email provider/eligibility fence until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email provider/account-deletion fence until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SavedBlogPost RLS candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email delivery-ledger preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
@@ -691,6 +741,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     ));
     assert.equal(existsSync(path.join(root, emailDeliveryLedgerCandidatePath)), false);
     assert.equal(existsSync(path.join(root, emailProviderDeletionFencePath)), false);
+    assert.equal(existsSync(path.join(root, emailProviderEligibilityFencePath)), false);
     assert.ok(emailDeliveryLedgerCandidateTests.every(
       (file) => !existsSync(path.join(root, "tests", file)),
     ));
@@ -750,6 +801,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/account-deletion fence after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore email provider/eligibility fence after historical release guards")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }

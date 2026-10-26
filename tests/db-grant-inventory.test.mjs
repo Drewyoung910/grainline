@@ -251,6 +251,11 @@ const EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES = [
   "grainline_email_outbox_begin_provider_attempt",
   "grainline_email_outbox_fail",
 ];
+const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION =
+  "prisma/migrations/20261025030000_fence_email_provider_and_eligibility_changes/migration.sql";
+const EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES = [
+  "grainline_email_hard_suppression_apply",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3379,6 +3384,15 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailProviderEligibilityFencePrepared = existsSync(
+      EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION,
+    ) && EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const emailProviderEligibilitySubstitutesUnsubscribeRevoke =
+      emailProviderEligibilityFencePrepared
+      && !userUnsubscribeOptionalPreferencesCorrectionPresent;
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3565,6 +3579,9 @@ describe("database grant inventory guardrails", () => {
       ...(emailProviderDeletionFencePrepared
         ? EMAIL_PROVIDER_DELETION_FENCE_FUNCTION_NAMES
         : []),
+      ...(emailProviderEligibilityFencePrepared
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3622,6 +3639,13 @@ describe("database grant inventory guardrails", () => {
         + (emailProviderDeletionFencePrepared
           ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES.length
           : 0)
+        + (emailProviderEligibilityFencePrepared
+          ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES.length
+          : 0)
+        // CI proves the C-875 release before isolating this successor. While
+        // C-875 is held aside, the successor's redefinition still contributes
+        // the same unsubscribe-function PUBLIC revoke.
+        + (emailProviderEligibilitySubstitutesUnsubscribeRevoke ? 1 : 0)
         + (orderItemRlsForceExpected(inventory) ? 1 : 0)
         + (orderQuoteRlsActivationExpected(inventory) ? 1 : 0)
         + (userRlsActivationExpected(inventory) ? 1 : 0)
@@ -3719,6 +3743,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(emailProviderDeletionFencePrepared
         ? EMAIL_PROVIDER_DELETION_FENCE_NEW_FUNCTION_NAMES
+        : []),
+      ...(emailProviderEligibilityFencePrepared
+        ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES
         : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
@@ -4187,7 +4214,7 @@ describe("database grant inventory guardrails", () => {
     assert.doesNotMatch(script, /process\.env\.DATABASE_URL/);
   });
 
-  it("runs the global grant audit at both reviewed email migration stages", (context) => {
+  it("runs the global grant audit at every reviewed email migration stage", (context) => {
     if (!existsSync(".github/workflows/ci.yml")) {
       context.skip("requires the current CI workflow source");
       return;
@@ -4200,11 +4227,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 2);
+    assert.equal(auditMatches.length, 3);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 2);
+    assert.equal(combinedStaffStageMatches.length, 3);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -4212,15 +4239,37 @@ describe("database grant inventory guardrails", () => {
     const staffConvergence = stagedProof.indexOf(
       "--file=scripts/provision-order-staff-read-role.sql",
     );
-    const restoreFence = stagedProof.indexOf(
-      'mv "$holding/migrations/$migration" "prisma/migrations/$migration"',
+    const restoreDeletionFence = stagedProof.indexOf(
+      '"$holding/migrations/$deletion_migration" \\\n            "prisma/migrations/$deletion_migration"',
     );
-    const applyFence = stagedProof.indexOf("npx prisma migrate deploy");
+    const applyDeletionFence = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreDeletionFence,
+    );
+    const deletionFenceAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyDeletionFence,
+    );
+    const restoreEligibilityFence = stagedProof.indexOf(
+      '"$holding/migrations/$eligibility_migration" \\\n            "prisma/migrations/$eligibility_migration"',
+    );
+    const applyEligibilityFence = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreEligibilityFence,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
-    assert.ok(preparationAudit < restoreFence);
-    assert.ok(restoreFence < applyFence && applyFence < finalAudit);
+    assert.ok(preparationAudit < restoreDeletionFence);
+    assert.ok(
+      restoreDeletionFence < applyDeletionFence
+      && applyDeletionFence < deletionFenceAudit,
+    );
+    assert.ok(deletionFenceAudit < restoreEligibilityFence);
+    assert.ok(
+      restoreEligibilityFence < applyEligibilityFence
+      && applyEligibilityFence < finalAudit,
+    );
   });
 
   it("formats one sanitized parseable SavedSearch catalog evidence line", () => {

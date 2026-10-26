@@ -3,17 +3,20 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import {
+  applyEmailHardSuppression,
+  type HardEmailSuppressionReason,
+  type HardEmailSuppressionSource,
+} from "./emailSuppressionAccess.ts";
+import {
   emailSuppressionAddressKeys,
   emailSuppressionLookupForEmails,
   normalizeEmailAddress,
   normalizeEmailSuppressionAddress,
 } from "./emailAddressNormalization.ts";
-import { storeProviderSuppressionWithoutWeakeningDirectEvidence } from "./emailSuppressionWriteState.ts";
 
 export { emailSuppressionAddressKeys, emailSuppressionLookupForEmails, normalizeEmailAddress, normalizeEmailSuppressionAddress };
 
 type EmailSuppressionLookup = ReturnType<typeof emailSuppressionLookupForEmails>;
-const RESEND_PROVIDER_SUPPRESSED_SOURCE = "resend_provider_suppressed";
 
 function emailSuppressionMatchWhereSql(
   lookup: EmailSuppressionLookup,
@@ -92,56 +95,22 @@ export async function clearOneClickEmailSuppression(
 
 export async function suppressEmail(opts: {
   email: string;
-  reason: EmailSuppressionReason;
-  source?: string;
+  reason: HardEmailSuppressionReason;
+  source: HardEmailSuppressionSource;
   eventId?: string;
   details?: Prisma.InputJsonValue;
 }) {
   const email = normalizeEmailSuppressionAddress(opts.email);
   if (!email) return null;
-  const emailKeys = emailSuppressionAddressKeys(opts.email);
 
   try {
-    const suppression = opts.source === RESEND_PROVIDER_SUPPRESSED_SOURCE
-      ? await storeProviderSuppressionWithoutWeakeningDirectEvidence({
-        updateMany: (args) => prisma.emailSuppression.updateMany(args),
-        findUnique: (args) => prisma.emailSuppression.findUnique(args),
-        create: (args) => prisma.emailSuppression.create(args),
-      }, {
-        email,
-        reason: opts.reason,
-        source: RESEND_PROVIDER_SUPPRESSED_SOURCE,
-        eventId: opts.eventId,
-        details: opts.details,
-      })
-      : await prisma.emailSuppression.upsert({
-        where: { email },
-        create: {
-          email,
-          reason: opts.reason,
-          source: opts.source,
-          eventId: opts.eventId,
-          details: opts.details ?? {},
-        },
-        update: {
-          reason: opts.reason,
-          source: opts.source,
-          eventId: opts.eventId,
-          details: opts.details ?? {},
-        },
-      });
-
-    await prisma.newsletterSubscriber.updateMany({
-      where: { email: { in: emailKeys.length > 0 ? emailKeys : [email] } },
-      data: {
-        active: false,
-        confirmationTokenHash: null,
-        confirmationExpiresAt: null,
-        confirmationSentAt: null,
-      },
+    return await applyEmailHardSuppression(prisma, {
+      email,
+      reason: opts.reason,
+      source: opts.source,
+      eventId: opts.eventId,
+      details: opts.details,
     });
-
-    return suppression;
   } catch (err) {
     Sentry.captureException(err, {
       tags: { source: "email_suppression" },
