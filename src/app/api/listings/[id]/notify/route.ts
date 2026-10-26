@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
+import { stockNotificationAvailable } from "@/lib/stockNotificationState";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
@@ -36,10 +37,10 @@ export async function POST(
 
   const listing = await prisma.listing.findFirst({
     where: publicListingDetailWhere({ id: listingId }),
-    select: { id: true, listingType: true, stockQuantity: true },
+    select: { id: true, status: true, isPrivate: true, listingType: true, stockQuantity: true },
   });
   if (!listing) return privateJson({ error: "Listing not found" }, { status: 404 });
-  if (listing.listingType !== "IN_STOCK" || (listing.stockQuantity ?? 0) > 0) {
+  if (!stockNotificationAvailable({ ...listing, publicListingDetail: true })) {
     return privateJson({ error: "Notifications are only available for out-of-stock items." }, { status: 400 });
   }
 
