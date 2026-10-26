@@ -13,6 +13,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteCartItemsForAdminListing } from "@/lib/cartServiceAccess";
+import { deleteStockNotificationsForAdminListing } from "@/lib/stockNotificationAccess";
 
 export async function DELETE(
   _request: Request,
@@ -41,7 +42,7 @@ export async function DELETE(
   // at a removed listing.
   await withDbUserContext(admin.id, async (tx) => {
     await tx.favorite.deleteMany({ where: { listingId: id } });
-    await tx.stockNotification.deleteMany({ where: { listingId: id } });
+    await deleteStockNotificationsForAdminListing(tx, id);
     await deleteCartItemsForAdminListing(tx, id);
     await tx.listing.update({
       where: { id },

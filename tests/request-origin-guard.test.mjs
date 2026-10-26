@@ -282,13 +282,13 @@ describe("request origin guard", () => {
       "await auth()",
       "await params",
       "safeRateLimit(",
-      "prisma.stockNotification.upsert",
+      "subscribeOwnerStockNotification(",
     ]);
     assertHandlerGuardBefore("src/app/api/listings/[id]/notify/route.ts", "export async function DELETE(", [
       "await auth()",
       "await params",
       "safeRateLimit(",
-      "prisma.stockNotification.deleteMany",
+      "deleteOwnerStockNotification(",
     ]);
     assertHandlerGuardBefore("src/app/api/users/[id]/block/route.ts", "export async function POST(", [
       "await auth()",

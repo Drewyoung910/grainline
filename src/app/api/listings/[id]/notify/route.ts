@@ -1,11 +1,13 @@
 // src/app/api/listings/[id]/notify/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import {
+  deleteOwnerStockNotification,
+  subscribeOwnerStockNotification,
+} from "@/lib/stockNotificationAccess";
 
 export async function POST(
   req: Request,
@@ -34,22 +36,17 @@ export async function POST(
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
   if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
-  const listing = await prisma.listing.findFirst({
-    where: publicListingDetailWhere({ id: listingId }),
-    select: { id: true, listingType: true, stockQuantity: true },
-  });
-  if (!listing) return privateJson({ error: "Listing not found" }, { status: 404 });
-  if (listing.listingType !== "IN_STOCK" || (listing.stockQuantity ?? 0) > 0) {
+  const result = await subscribeOwnerStockNotification(user.id, listingId);
+  if (result.resultStatus === "SELF") {
+    return privateJson({ error: "You cannot subscribe to your own listing." }, { status: 400 });
+  }
+  if (result.resultStatus === "BLOCKED") {
+    return privateJson({ error: "This listing is unavailable." }, { status: 404 });
+  }
+  if (result.resultStatus === "UNAVAILABLE") {
     return privateJson({ error: "Notifications are only available for out-of-stock items." }, { status: 400 });
   }
-
-  await prisma.stockNotification.upsert({
-    where: { listingId_userId: { listingId, userId: user.id } },
-    create: { listingId, userId: user.id },
-    update: {},
-  });
-
-  return privateJson({ subscribed: true });
+  return privateJson({ subscribed: result.subscribed });
 }
 
 export async function DELETE(
@@ -79,9 +76,7 @@ export async function DELETE(
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
   if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
-  await prisma.stockNotification.deleteMany({
-    where: { listingId, userId: user.id },
-  });
+  await deleteOwnerStockNotification(user.id, listingId);
 
   return privateJson({ subscribed: false });
 }

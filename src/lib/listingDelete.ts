@@ -14,6 +14,7 @@ import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
 import { withSerializableDbUserContext } from "@/lib/dbUserContext";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { deleteCartItemsForSellerListing } from "@/lib/cartServiceAccess";
+import { deleteStockNotificationsForSellerListing } from "@/lib/stockNotificationAccess";
 
 export const LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 
@@ -139,7 +140,7 @@ export async function deleteListingWithCleanup(
         }
 
         await tx.favorite.deleteMany({ where: { listingId: normalizedListingId } });
-        await tx.stockNotification.deleteMany({ where: { listingId: normalizedListingId } });
+        await deleteStockNotificationsForSellerListing(tx, normalizedListingId);
         await deleteCartItemsForSellerListing(tx, normalizedListingId);
         return "archived";
       }

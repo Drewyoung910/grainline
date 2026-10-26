@@ -155,8 +155,9 @@ describe("stock mutation state", () => {
   it("uses subscription-scoped email dedup keys for repeat back-in-stock subscriptions", () => {
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
 
-    assert.match(stockRoute, /stock_notification\."userId"/);
-    assert.match(stockRoute, /stock_notification\.id AS "stockNotificationId"/);
+    assert.match(stockRoute, /stockNotificationRestockCandidates\(/);
+    assert.doesNotMatch(stockRoute, /stock_notification\."userId"/);
+    assert.doesNotMatch(stockRoute, /FROM public\."StockNotification"/);
     assert.match(stockRoute, /claimBackInStockNotification\(\{[\s\S]{0,180}stockNotificationId/);
     assert.match(stockRoute, /claim\.claimed && claim\.userId/);
     assert.match(stockRoute, /const stockNotificationIdByUserId = new Map/);

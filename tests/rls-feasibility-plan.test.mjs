@@ -1146,6 +1146,48 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, allowedDirectCalls);
   });
 
+  it("centralizes StockNotification access before its hybrid owner-policy activation", () => {
+    const access = source("src/lib/stockNotificationAccess.ts");
+    const notifyRoute = source("src/app/api/listings/[id]/notify/route.ts");
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+    const accountExport = source("src/app/api/account/export/route.ts");
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(access, /export async function subscribeOwnerStockNotification/);
+    assert.match(access, /grainline_stock_notification_owner_subscribe/);
+    assert.match(access, /export function findOwnerStockNotification/);
+    assert.match(access, /export function deleteOwnerStockNotification/);
+    assert.match(access, /export async function sellerStockNotificationCounts/);
+    assert.match(access, /grainline_stock_notification_seller_counts/);
+    assert.match(access, /grainline_stock_notification_seller_range_count/);
+    assert.match(access, /grainline_stock_notification_restock_candidates/);
+    assert.match(access, /grainline_stock_notification_seller_listing_cleanup/);
+    assert.match(access, /grainline_stock_notification_admin_listing_cleanup/);
+    assert.match(access, /grainline_stock_notification_block_cleanup/);
+    assert.match(access, /grainline_stock_notification_owner_export/);
+    assert.doesNotMatch(access, /\$queryRawUnsafe|Prisma\.raw/);
+
+    assert.match(notifyRoute, /subscribeOwnerStockNotification\(user\.id, listingId\)/);
+    assert.match(notifyRoute, /deleteOwnerStockNotification\(user\.id, listingId\)/);
+    assert.match(stockRoute, /stockNotificationRestockCandidates\(/);
+    assert.match(accountExport, /ownerStockNotificationExportRows\(user\.id\)/);
+    assert.match(accountDeletion, /deleteAllOwnerStockNotifications\(user\.id, tx\)/);
+  });
+
+  it("blocks new direct StockNotification access outside the reviewed helper", () => {
+    const directAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.stockNotification\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      if (file === "src/lib/stockNotificationAccess.ts") continue;
+      const matches = [...source(file).matchAll(directAccessPattern)].map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, {});
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 
