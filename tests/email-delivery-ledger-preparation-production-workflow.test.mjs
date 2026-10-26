@@ -27,12 +27,18 @@ const workflowPath =
   ".github/workflows/email-delivery-ledger-preparation-production.yml";
 const workflow = readFileSync(workflowPath, "utf8");
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
+const migrationPath =
+  process.env.EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_PATH?.trim() ||
+  `prisma/migrations/${MIGRATION}/migration.sql`;
+const nextMigrationDirectory =
+  process.env.EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH?.trim() ||
+  `prisma/migrations/${NEXT_MIGRATION}`;
 const migrationSql = readFileSync(
-  `prisma/migrations/${MIGRATION}/migration.sql`,
+  migrationPath,
   "utf8",
 );
 const nextMigrationSql = readFileSync(
-  `prisma/migrations/${NEXT_MIGRATION}/migration.sql`,
+  `${nextMigrationDirectory}/migration.sql`,
   "utf8",
 );
 const bindingScript = parsed.jobs.apply.steps.find(
