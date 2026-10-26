@@ -6814,32 +6814,42 @@ jobs:
             tests/email-service-delivery-ledger-postgres-proof.test.mjs
           rmdir "$holding/migrations" "$holding/tests" "$holding"
           echo "EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore email provider/account-deletion fence after historical release guards
-        shell: bash
-        run: |
-          set -euo pipefail
-          holding="$RUNNER_TEMP/email-provider-deletion-fence"
-          migration=20261025020000_fence_email_provider_and_account_deletion
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
-          rmdir "$holding/migrations" "$holding"
-          echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
-      - name: Apply complete public SellerProfile chain for final Production build
+      - name: Apply and audit staged email chain for final Production build
         env:
           PGPASSWORD: ci
         shell: bash
         run: |
           set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-deletion-fence"
+          migration=20261025020000_fence_email_provider_and_account_deletion
+          test -f "$holding/migrations/$migration/migration.sql"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
-          # the repository's historical role convergence requirements.
+          # the repository's historical role convergence requirements. Keep the
+          # fence held back for the first grant audit so CI proves the same
+          # preparation-only state used by its protected Production release.
           dropdb --host=localhost --username=ci --force grainline_ci
           createdb --host=localhost --username=ci --owner=ci grainline_ci
           DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="$DIRECT_URL" \
             node tools/database-full-chain/apply-ci-chain.mjs
           npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- --allow-loopback-ci
+
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          npx prisma migrate deploy
+          npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- --allow-loopback-ci
       - name: Production build
         run: npm run build
 

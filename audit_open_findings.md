@@ -4008,6 +4008,28 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 154. **[HARDENED 2026-05-13] Checkout stock reservation now repeats live listing eligibility atomically** — checkout preflight already rejected inactive/private/unorderable listings, but the final in-stock reservation SQL only checked listing id plus quantity. A seller could hide/sell a listing in the read-to-reserve gap and still let checkout create a Stripe session, relying on the webhook refund backstop later. Single-listing and seller-cart checkout reservations now require seller id, `status = ACTIVE`, `listingType = IN_STOCK`, and sufficient stock in the atomic decrement; best-effort restore paths also carry seller id. Source guardrail: `tests/order-state-followups.test.mjs`.
 
+## 2026-10-26 — C-1163/C-1169 staged email grant-audit recovery
+
+- **[FIX PREPARED; PRODUCTION RECOVERY RERUN REQUIRED]** Protected Production
+  run `40286648864` applied and recorded
+  `20261025010000_prepare_email_delivery_ledger`, passed its exact postflight,
+  and confirmed that only
+  `20261025020000_fence_email_provider_and_account_deletion` remains pending.
+  It then failed only in the global runtime-grant audit because that audit
+  derived email function expectations from source migrations rather than the
+  exact live migration ledger. It therefore required four fence-only functions
+  too early and incorrectly expected runtime EXECUTE on five private helpers.
+- The prepared correction derives the email authority surface from both exact,
+  checksum-pinned ledger rows, honors only the reviewed manual-resolution
+  allowlist for zero-step rows, classifies the helper functions as private, and
+  makes full-chain CI run the real grant audit once with the fence held out and
+  again after the fence is applied. Focused grant-audit and both protected
+  email-workflow test suites pass locally. Production remains in the intended
+  preparation-only state; no provider call, Redis mutation, application deploy,
+  RLS activation, or fence migration occurred. Close this item only after the
+  preparation workflow succeeds through its applied-state restart path on the
+  repaired exact-main commit.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
