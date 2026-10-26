@@ -79,7 +79,6 @@ describe("account export privacy coverage", () => {
       "emailSuppression",
       "emailOutbox",
       "emailFailureCount",
-      "stockNotification",
       "makerVerification",
       "sellerFaq",
       "newsletterSubscriber",
@@ -108,6 +107,12 @@ describe("account export privacy coverage", () => {
       /exportOwnedDirectUploads\(user\.id\)/,
       "account export must query DirectUpload through its sanitized fixed operation",
     );
+    assert.match(
+      route,
+      /ownerStockNotificationExportRows\(user\.id\)/,
+      "account export must query stock notifications through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.stockNotification\./);
 
     for (const key of [
       "blocks",
@@ -279,7 +284,10 @@ describe("account export privacy coverage", () => {
   it("exports email suppressions by the same exact and canonical keys used for delivery checks", () => {
     const route = source("src/app/api/account/export/route.ts");
     const suppressionStart = route.indexOf("prisma.emailSuppression.findMany");
-    const suppressionBlock = route.slice(suppressionStart, route.indexOf("prisma.stockNotification.findMany", suppressionStart));
+    const suppressionBlock = route.slice(
+      suppressionStart,
+      route.indexOf("ownerStockNotificationExportRows(user.id)", suppressionStart),
+    );
 
     assert.match(route, /ownerAccountEmailFallbackEmails/);
     assert.match(route, /accountEmailSuppressionKeysForEmails/);
@@ -303,7 +311,10 @@ describe("account export privacy coverage", () => {
     const outboxStart = route.indexOf("prisma.emailOutbox.findMany");
     const failureStart = route.indexOf("prisma.emailFailureCount.findMany");
     const outboxBlock = route.slice(outboxStart, failureStart);
-    const failureBlock = route.slice(failureStart, route.indexOf("prisma.stockNotification.findMany", failureStart));
+    const failureBlock = route.slice(
+      failureStart,
+      route.indexOf("ownerStockNotificationExportRows(user.id)", failureStart),
+    );
     const notificationSelectStart = notificationAccess.indexOf("export const NOTIFICATION_EXPORT_SELECT");
     const notificationSelectBlock = notificationAccess.slice(
       notificationSelectStart,

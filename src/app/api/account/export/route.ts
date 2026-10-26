@@ -47,6 +47,7 @@ import {
 } from "@/lib/orderParticipantExportAuthority";
 import { sellerOwnerExportProfile } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAccess";
+import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 
 export const runtime = "nodejs";
 
@@ -297,11 +298,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           select: { email: true, count: true, firstFailedAt: true, lastFailedAt: true, lastEventId: true },
         })
       : [],
-    prisma.stockNotification.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
-    }),
+    ownerStockNotificationExportRows(user.id),
     exportCheckoutStockReservations(user.id),
     sellerProfile
       ? prisma.makerVerification.findUnique({

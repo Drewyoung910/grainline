@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import InventoryRow from "./InventoryRow";
 import type { Metadata } from "next";
+import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -12,17 +13,28 @@ export default async function InventoryPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/inventory");
 
-  const { seller } = await ensureSeller();
+  const { me, seller } = await ensureSeller();
 
-  const listings = await prisma.listing.findMany({
+  const listingRows = await prisma.listing.findMany({
     where: { sellerId: seller.id, listingType: "IN_STOCK" },
     include: {
       photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-      _count: { select: { favorites: true, stockNotifications: true } },
+      _count: { select: { favorites: true } },
     },
     orderBy: { updatedAt: "desc" },
     take: 100,
   });
+  const stockNotificationCounts = await sellerStockNotificationCounts(
+    me.id,
+    listingRows.map((listing) => listing.id),
+  );
+  const listings = listingRows.map((listing) => ({
+    ...listing,
+    _count: {
+      ...listing._count,
+      stockNotifications: stockNotificationCounts.get(listing.id) ?? 0,
+    },
+  }));
 
   const active = listings.filter((l) => l.status !== "SOLD_OUT" && l.status !== "SOLD");
   const outOfStock = listings.filter((l) => l.status === "SOLD_OUT");

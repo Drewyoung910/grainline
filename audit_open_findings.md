@@ -4090,6 +4090,30 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   may be replayed; only the protected applied-state restart path may complete
   evidence after review, merge, exact-main CI, and separate approval.
 
+## 2026-10-26 — StockNotification compatible RLS preparation
+
+- **C-759 [FIX PREPARED; NOT MERGED OR LIVE]:** ordinary public `SOLD_OUT`
+  in-stock listings now retain the back-in-stock control. A behavior-first test
+  failed on the predecessor component contract and passes for `ACTIVE` zero
+  stock and `SOLD_OUT` zero stock while rejecting private, non-public,
+  made-to-order and positive-stock states.
+- **C-708 [FIX PREPARED; NOT MERGED OR LIVE]:** subscription creation, Block
+  creation and final alert claim now share the sorted user-pair serialization
+  protocol. Block creation co-commits two-direction subscription cleanup, and
+  the final claim consumes blocked/self legacy rows without creating an alert.
+  The complete PostgreSQL 16 migration-chain proof reproduces the predecessor
+  blocked-alert leak and passes both winner orders for subscribe-versus-block
+  and claim-versus-block.
+- **Related preparation [NOT RLS ACTIVATION]:** the candidate rejects direct
+  API self-subscription, gives sellers only bounded owned-listing aggregates,
+  returns only opaque restock candidate ids, moves seller/admin listing cleanup
+  behind fixed actor-checked operations and moves owner export behind an
+  actor-bound projection. All application delegate access is centralized in
+  `src/lib/stockNotificationAccess.ts`. Migration
+  `20261026010000_prepare_stock_notification_authorities` is additive: it does
+  not enable RLS or change predecessor table grants. A later separately
+  reviewed activation and rollback proof remain required.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

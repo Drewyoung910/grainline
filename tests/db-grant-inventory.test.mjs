@@ -216,6 +216,18 @@ const CART_CART_ITEM_RUNTIME_FUNCTION_NAMES = [
   "grainline_cart_item_admin_listing_cleanup",
   "grainline_cart_item_seller_listing_cleanup",
 ];
+const STOCK_NOTIFICATION_PREPARATION_MIGRATION =
+  "prisma/migrations/20261026010000_prepare_stock_notification_authorities/migration.sql";
+const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
+  "grainline_stock_notification_owner_subscribe",
+  "grainline_stock_notification_seller_counts",
+  "grainline_stock_notification_seller_range_count",
+  "grainline_stock_notification_restock_candidates",
+  "grainline_stock_notification_seller_listing_cleanup",
+  "grainline_stock_notification_admin_listing_cleanup",
+  "grainline_stock_notification_block_cleanup",
+  "grainline_stock_notification_owner_export",
+];
 const EMAIL_DELIVERY_LEDGER_MIGRATION =
   "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
 const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
@@ -3417,6 +3429,12 @@ describe("database grant inventory guardrails", () => {
       source(CART_CART_ITEM_RLS_MIGRATION).includes(
         `CREATE FUNCTION public.${functionName}(`,
       ));
+    const stockNotificationAuthorityPrepared = existsSync(
+      STOCK_NOTIFICATION_PREPARATION_MIGRATION,
+    ) && STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(STOCK_NOTIFICATION_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3618,6 +3636,9 @@ describe("database grant inventory guardrails", () => {
       ...(cartCartItemRlsActivationPresent
         ? CART_CART_ITEM_RUNTIME_FUNCTION_NAMES
         : []),
+      ...(stockNotificationAuthorityPrepared
+        ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
@@ -3677,6 +3698,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (cartCartItemRlsActivationPresent
           ? 3 // table plus two cleanup functions
+          : 0)
+        + (stockNotificationAuthorityPrepared
+          ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
@@ -3782,6 +3806,9 @@ describe("database grant inventory guardrails", () => {
     for (const functionName of [
       ...(cartCartItemRlsActivationPresent
         ? CART_CART_ITEM_RUNTIME_FUNCTION_NAMES
+        : []),
+      ...(stockNotificationAuthorityPrepared
+        ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES

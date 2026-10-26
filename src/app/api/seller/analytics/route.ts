@@ -21,6 +21,7 @@ import {
 import type { SellerOrderAnalyticsBucket } from "@/lib/orderSellerAnalyticsState";
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { sellerStockNotificationRangeCount } from "@/lib/stockNotificationAccess";
 
 export const runtime = "nodejs";
 
@@ -212,9 +213,12 @@ export async function GET(req: Request) {
     const favoritesCountPromise = prisma.favorite.count({
       where: { listing: { sellerId }, createdAt: analyticsDateRange },
     });
-    const stockNotificationSubsPromise = prisma.stockNotification.count({
-      where: { listing: { sellerId }, createdAt: analyticsDateRange },
-    });
+    const stockNotificationSubsPromise = sellerStockNotificationRangeCount(
+      me.id,
+      startDate,
+      endDate,
+      endExclusive,
+    );
     const dailyViewDataPromise = prisma.listingViewDaily.findMany({
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
       select: { date: true, views: true, clicks: true },

@@ -34,6 +34,7 @@ import {
 } from "@/lib/listingStockMutation";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { stockNotificationRestockCandidates } from "@/lib/stockNotificationAccess";
 
 const StockPatchSchema = z.object({
   quantity: z.number().int().min(0).max(MAX_MANUAL_STOCK_QUANTITY),
@@ -274,18 +275,10 @@ export async function PATCH(
             // Candidate discovery makes no availability decision. The claim
             // authority below binds the exact restock audit and atomically
             // rechecks the listing, seller, account, and recipient state.
-            const candidateSubscribers = await prisma.$queryRaw<{
-              userId: string;
-              stockNotificationId: string;
-            }[]>`
-              SELECT
-                stock_notification."userId",
-                stock_notification.id AS "stockNotificationId"
-              FROM public."StockNotification" AS stock_notification
-              WHERE stock_notification."listingId" = ${id}
-              ORDER BY stock_notification."createdAt" ASC, stock_notification.id ASC
-              LIMIT ${BACK_IN_STOCK_CLAIM_BATCH_SIZE}
-            `;
+            const candidateSubscribers = await stockNotificationRestockCandidates(
+              backInStockAuthoritySourceId,
+              BACK_IN_STOCK_CLAIM_BATCH_SIZE,
+            );
             if (candidateSubscribers.length === 0) return;
             const claimSettlements = await mapWithConcurrency(
               candidateSubscribers,

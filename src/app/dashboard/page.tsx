@@ -28,6 +28,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { WorkshopSkeleton } from "@/components/RouteSkeletons";
 import { sellerOwnerCore, sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
+import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -281,7 +282,7 @@ async function DashboardPageContent({
   const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
   const forceSetupBanner = params.setup === "required";
 
-  const [listings, savedSearches, verification, notifUnreadCount, dashboardSeller] = await Promise.all([
+  const [listingRows, savedSearches, verification, notifUnreadCount, dashboardSeller] = await Promise.all([
     prisma.listing.findMany({
       where: { sellerId: seller.id, archivedAt: null },
       select: {
@@ -298,7 +299,7 @@ async function DashboardPageContent({
         createdAt: true,
         updatedAt: true,
         photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-        _count: { select: { favorites: true, stockNotifications: true } },
+        _count: { select: { favorites: true } },
       },
       orderBy: { updatedAt: "desc" },
       take: 6,
@@ -311,6 +312,17 @@ async function DashboardPageContent({
     countUnreadOwnerNotifications(me.id),
     sellerOwnerDashboardState(me.id),
   ]);
+  const stockNotificationCounts = await sellerStockNotificationCounts(
+    me.id,
+    listingRows.map((listing) => listing.id),
+  );
+  const listings = listingRows.map((listing) => ({
+    ...listing,
+    _count: {
+      ...listing._count,
+      stockNotifications: stockNotificationCounts.get(listing.id) ?? 0,
+    },
+  }));
   if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
     throw new Error("Seller dashboard authority returned an unexpected owner");
   }

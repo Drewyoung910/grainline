@@ -2102,6 +2102,66 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- StockNotification preparation is additive and keeps predecessor table CRUD
+-- available until activation. When present, converge only the reviewed fixed
+-- operations; the existing back-in-stock claim is provisioned with the other
+-- Notification authorities below.
+WITH stock_notification_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stock_notification_owner_subscribe"(text, text)'),
+    ('public."grainline_stock_notification_seller_counts"(text[])'),
+    ('public."grainline_stock_notification_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_stock_notification_restock_candidates"(text, integer)'),
+    ('public."grainline_stock_notification_seller_listing_cleanup"(text)'),
+    ('public."grainline_stock_notification_admin_listing_cleanup"(text)'),
+    ('public."grainline_stock_notification_block_cleanup"(text)'),
+    ('public."grainline_stock_notification_owner_export"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM stock_notification_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH stock_notification_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stock_notification_owner_subscribe"(text, text)'),
+    ('public."grainline_stock_notification_seller_counts"(text[])'),
+    ('public."grainline_stock_notification_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_stock_notification_restock_candidates"(text, integer)'),
+    ('public."grainline_stock_notification_seller_listing_cleanup"(text)'),
+    ('public."grainline_stock_notification_admin_listing_cleanup"(text)'),
+    ('public."grainline_stock_notification_block_cleanup"(text)'),
+    ('public."grainline_stock_notification_owner_export"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM stock_notification_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH stock_notification_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stock_notification_owner_subscribe"(text, text)'),
+    ('public."grainline_stock_notification_seller_counts"(text[])'),
+    ('public."grainline_stock_notification_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_stock_notification_restock_candidates"(text, integer)'),
+    ('public."grainline_stock_notification_seller_listing_cleanup"(text)'),
+    ('public."grainline_stock_notification_admin_listing_cleanup"(text)'),
+    ('public."grainline_stock_notification_block_cleanup"(text)'),
+    ('public."grainline_stock_notification_owner_export"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM stock_notification_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
 -- When its functions exist, converge every helper away from PUBLIC/runtime

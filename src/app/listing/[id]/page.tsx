@@ -39,6 +39,8 @@ import {
   sellerStaffListingDetailProfile,
 } from "@/lib/sellerProfileListingDetailAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { stockNotificationAvailable } from "@/lib/stockNotificationState";
+import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -260,7 +262,10 @@ export default async function ListingPage({
   const isOutOfStock =
     listing.status === "SOLD_OUT" ||
     (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
-  const canSubscribeForStockNotification = listing.listingType === "IN_STOCK" && isOutOfStock;
+  const canSubscribeForStockNotification = stockNotificationAvailable({
+    ...listing,
+    publicListingDetail: isPublicListingDetail(listing),
+  });
   const blockedReviewerFilter =
     blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {};
   const visibleListingReviewWhere = {
@@ -333,10 +338,7 @@ export default async function ListingPage({
           .then((r) => r !== null)
       : Promise.resolve(false),
     meId && canSubscribeForStockNotification
-      ? prisma.stockNotification.findUnique({
-          where: { listingId_userId: { listingId, userId: meId } },
-          select: { id: true },
-        })
+      ? findOwnerStockNotification(meId, listingId)
       : Promise.resolve(null),
   ]);
 
@@ -581,9 +583,9 @@ export default async function ListingPage({
             userId={userId}
             canBuy={canBuy}
             sellerAcceptingNewOrders={listing.seller.acceptingNewOrders !== false}
-            isActive={isActive}
             isOwnListing={isOwnListing}
-            isOutOfStock={canSubscribeForStockNotification}
+            isOutOfStock={isOutOfStock}
+            canSubscribeForStockNotification={canSubscribeForStockNotification}
             isNotified={isNotified}
             listingType={listing.listingType}
             stockQuantity={listing.stockQuantity}

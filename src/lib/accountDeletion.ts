@@ -87,6 +87,7 @@ import {
   redactEmailOutboxRepresentations,
 } from "@/lib/emailOutboxContentLifecycle";
 import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess";
+import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -1159,7 +1160,7 @@ export async function anonymizeUserAccount(
     await tx.cart.deleteMany({ where: { userId: user.id } });
     await tx.favorite.deleteMany({ where: { userId: user.id } });
     await deleteAllOwnerSavedSearches(user.id, tx);
-    await tx.stockNotification.deleteMany({ where: { userId: user.id } });
+    await deleteAllOwnerStockNotifications(user.id, tx);
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id);
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
