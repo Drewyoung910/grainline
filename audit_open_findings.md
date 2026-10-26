@@ -4038,6 +4038,28 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   now supplies that explicit stage at both the preparation-only and fenced
   audit boundaries; no grant expectation or Production authority was changed.
 
+## 2026-10-26 — C-1172 historical email-fence release-order retry
+
+- **[FIX PREPARED; TWO SEPARATELY APPROVED PRODUCTION RUNS REQUIRED]** Protected
+  eligibility-fence run `40346613000` stopped in its read-only preflight before
+  `psql` because Production does not yet contain
+  `20261025020000_fence_email_provider_and_account_deletion`. The earlier fence
+  run `40273784977` had stopped before mutation because its preparation
+  predecessor was not live at that time; preparation later completed through
+  run `40310613596`, but the fence was never retried. No database mutation,
+  provider call, or application deployment occurred in run `40346613000`.
+- The predecessor workflow could not be retried from current main because it
+  required `20261025020000` to be the newest repository migration and required
+  zero migrations pending afterward, even though the separately reviewed
+  `20261025030000` successor is now present and must remain pending. The narrow
+  correction accepts only the exact checksum-pinned two-migration suffix,
+  excludes the pending successor from peer-ledger success checks, requires both
+  migrations pending before applying only `20261025020000`, and requires only
+  `20261025030000` pending after postflight. Production remains unchanged until
+  the corrected predecessor workflow is reviewed, merged, green on exact main,
+  and separately approved; the eligibility-fence workflow may be retried only
+  after that predecessor release succeeds.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

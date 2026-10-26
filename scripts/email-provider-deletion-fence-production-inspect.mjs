@@ -23,6 +23,10 @@ export const MIGRATION =
   "20261025020000_fence_email_provider_and_account_deletion";
 export const MIGRATION_SHA256 =
   "4d30904d8cb094b403ef9adc4d4268f979d408137aeb228b59a95bca7858cace";
+export const SUCCESSOR_MIGRATION =
+  "20261025030000_fence_email_provider_and_eligibility_changes";
+export const SUCCESSOR_MIGRATION_SHA256 =
+  "969aff03c7d720067d8a2d39057fed5048c12b60d521666aff7bce12ffd762e4";
 export const REQUIRED_PREDECESSORS = Object.freeze(
   new Map([
     [
@@ -119,6 +123,15 @@ function migrationDirectories() {
     )
     .map((entry) => entry.name)
     .sort();
+}
+
+export function assertFenceReleaseDirectorySuffix(directories) {
+  assert.ok(Array.isArray(directories), "release directories are invalid");
+  assert.deepEqual(
+    directories.slice(-2),
+    [MIGRATION, SUCCESSOR_MIGRATION],
+    "email fence release suffix drifted",
+  );
 }
 
 function immutableFunctionRows(rows) {
@@ -425,8 +438,13 @@ export function fenceMigrationLedgerState(candidateRows) {
 
 async function inspectLedger(client) {
   const directories = migrationDirectories();
-  assert.equal(directories.at(-1), MIGRATION, "candidate is not the latest migration");
+  assertFenceReleaseDirectorySuffix(directories);
   assert.equal(repositoryChecksum(MIGRATION), MIGRATION_SHA256);
+  assert.equal(
+    repositoryChecksum(SUCCESSOR_MIGRATION),
+    SUCCESSOR_MIGRATION_SHA256,
+    `${SUCCESSOR_MIGRATION} bytes drifted`,
+  );
   const ledger = await client.query(`
     SELECT migration_name, checksum, finished_at, rolled_back_at,
            applied_steps_count
@@ -440,7 +458,14 @@ async function inspectLedger(client) {
     rows.push(row);
     byName.set(row.migration_name, rows);
   }
-  for (const peer of directories.filter((name) => name !== MIGRATION)) {
+  assert.equal(
+    (byName.get(SUCCESSOR_MIGRATION) ?? []).length,
+    0,
+    "eligibility-fence successor already has ledger rows",
+  );
+  for (const peer of directories.filter(
+    (name) => name !== MIGRATION && name !== SUCCESSOR_MIGRATION,
+  )) {
     assertReviewedPeerMigrationLedger({
       migrationName: peer,
       repositoryChecksum: repositoryChecksum(peer),

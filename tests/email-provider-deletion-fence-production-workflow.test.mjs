@@ -10,6 +10,9 @@ import {
   MIGRATION,
   MIGRATION_SHA256,
   REQUIRED_PREDECESSORS,
+  SUCCESSOR_MIGRATION,
+  SUCCESSOR_MIGRATION_SHA256,
+  assertFenceReleaseDirectorySuffix,
   fenceMigrationLedgerState,
   fenceSourceFamily,
   verifyFenceCatalog,
@@ -211,7 +214,7 @@ test("production workflow is exact-main, serialized, fail-closed, and preserves 
   );
 });
 
-test("release applies only the immutable latest fence and handles commit-before-ledger restart", () => {
+test("release applies only the immutable fence while its exact successor remains pending", () => {
   assert.equal(
     createHash("sha256").update(migrationSql).digest("hex"),
     MIGRATION_SHA256,
@@ -220,12 +223,50 @@ test("release applies only the immutable latest fence and handles commit-before-
     "20261025010000_prepare_email_delivery_ledger",
     "4d30e75337b9713bca643b4b4c5db1a247e913995448ea89e09929e4fba0405d",
   ]]);
+  assert.equal(
+    SUCCESSOR_MIGRATION,
+    "20261025030000_fence_email_provider_and_eligibility_changes",
+  );
+  assert.equal(
+    SUCCESSOR_MIGRATION_SHA256,
+    "969aff03c7d720067d8a2d39057fed5048c12b60d521666aff7bce12ffd762e4",
+  );
+  assert.doesNotThrow(() => assertFenceReleaseDirectorySuffix([
+    "20261025010000_prepare_email_delivery_ledger",
+    MIGRATION,
+    SUCCESSOR_MIGRATION,
+  ]));
+  assert.throws(
+    () => assertFenceReleaseDirectorySuffix([
+      "20261025010000_prepare_email_delivery_ledger",
+      MIGRATION,
+    ]),
+    /release suffix drifted/u,
+  );
+  assert.throws(
+    () => assertFenceReleaseDirectorySuffix([
+      MIGRATION,
+      SUCCESSOR_MIGRATION,
+      "20261025040000_unreviewed_later_migration",
+    ]),
+    /release suffix drifted/u,
+  );
   for (const [identity, expected] of FUNCTION_EXPECTATIONS) {
     const name = identity.slice("public.".length, identity.indexOf("("));
     assert.equal(extractedFunctionMd5(name), expected.successorMd5);
   }
   assert.match(workflow, new RegExp(MIGRATION_SHA256, "u"));
+  assert.match(workflow, new RegExp(SUCCESSOR_MIGRATION_SHA256, "u"));
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
+  assert.match(
+    workflow,
+    /REVIEWED_PENDING_MIGRATIONS="\$migration,\$successor"/u,
+  );
+  assert.match(
+    workflow,
+    /REVIEWED_PENDING_MIGRATIONS: 20261025030000_fence_email_provider_and_eligibility_changes/u,
+  );
+  assert.doesNotMatch(workflow, /Require no migrations pending after the fence/u);
   assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
   const apply = workflow.indexOf(
     "name: Apply reviewed fence transaction outside Prisma's ledger",
