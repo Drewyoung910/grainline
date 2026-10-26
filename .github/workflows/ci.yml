@@ -6858,7 +6858,9 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
             RUNTIME_DB_ROLE=grainline_app_runtime \
             MIGRATION_DB_ROLE=ci \
-            npm run audit:db-grants -- --allow-loopback-ci
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
 
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
@@ -6868,7 +6870,9 @@ jobs:
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
             RUNTIME_DB_ROLE=grainline_app_runtime \
             MIGRATION_DB_ROLE=ci \
-            npm run audit:db-grants -- --allow-loopback-ci
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
       - name: Production build
         run: npm run build
 

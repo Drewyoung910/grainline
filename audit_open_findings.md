@@ -4029,6 +4029,14 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   RLS activation, or fence migration occurred. Close this item only after the
   preparation workflow succeeds through its applied-state restart path on the
   repaired exact-main commit.
+- Exact-head CI run `40294353639` passed the PostgreSQL 17 full chain, all six
+  auxiliary proofs, lint, the consolidated behavior suite, and every restored
+  successor proof. Its final disposable-database audit then proved one more CI
+  fixture requirement: the synthetic staff role is intentionally unmarked, so
+  both final global audits must name the established
+  `order-user-combined` staff stage after current role convergence. The workflow
+  now supplies that explicit stage at both the preparation-only and fenced
+  audit boundaries; no grant expectation or Production authority was changed.
 
 ## Recommended fix order for Codex
 

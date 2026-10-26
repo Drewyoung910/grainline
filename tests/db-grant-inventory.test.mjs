@@ -4201,6 +4201,10 @@ describe("database grant inventory guardrails", () => {
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
     assert.equal(auditMatches.length, 2);
+    const combinedStaffStageMatches = stagedProof.match(
+      /--staff-read-stage=order-user-combined/g,
+    ) ?? [];
+    assert.equal(combinedStaffStageMatches.length, 2);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
