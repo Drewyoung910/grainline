@@ -1559,9 +1559,16 @@ describe("database grant inventory guardrails", () => {
   });
 
   it("derives email authority expectations from the exact live migration stage", (context) => {
-    assert.deepEqual(EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES, [
-      "grainline_email_hard_suppression_apply",
-    ]);
+    // The accumulated-User CI proof intentionally replays this test against an
+    // older grant-audit script after isolating the later email migrations. Keep
+    // that historical replay valid, while requiring the current source package
+    // to export the successor-only function inventory whenever its migration is
+    // present.
+    if (existsSync(EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH)) {
+      assert.deepEqual(EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES, [
+        "grainline_email_hard_suppression_apply",
+      ]);
+    }
     if (
       typeof withAppliedEmailDeliveryAuthority !== "function"
       || !Array.isArray(EMAIL_DELIVERY_LEDGER_PREPARATION_FUNCTION_NAMES)
