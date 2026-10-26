@@ -6814,17 +6814,27 @@ jobs:
             tests/email-service-delivery-ledger-postgres-proof.test.mjs
           rmdir "$holding/migrations" "$holding/tests" "$holding"
           echo "EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      # Recreate the disposable database and prove the final application build
-      # against the complete reviewed candidate chain.
-      - name: Apply and audit staged email chain for final Production build
-        env:
-          PGPASSWORD: ci
+      - name: Restore email provider/account-deletion fence after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/email-provider-deletion-fence"
           migration=20261025020000_fence_email_provider_and_account_deletion
-          test -f "$holding/migrations/$migration/migration.sql"
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      # Recreate the disposable database and prove the final application build
+      # against the complete reviewed candidate chain.
+      - name: Apply complete public SellerProfile chain for final Production build
+        env:
+          PGPASSWORD: ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-provider-deletion-fence-final-audit"
+          migration=20261025020000_fence_email_provider_and_account_deletion
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
