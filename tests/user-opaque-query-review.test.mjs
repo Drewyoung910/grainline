@@ -36,14 +36,16 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   const reviewedResidual = report.opaqueShapes.filter((shape) => !REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
 
   // The provider/eligibility fence replaces three direct Prisma
-  // EmailSuppression write arguments with one fixed SQL authority.
-  assert.equal(report.opaqueShapes.length, 147);
-  assert.equal(reviewedFactories.length, 112);
+  // EmailSuppression write arguments with one fixed SQL authority. The
+  // StockNotification subscribe authority also removes one reviewed
+  // publicListingDetailWhere call from the application frontier.
+  assert.equal(report.opaqueShapes.length, 146);
+  assert.equal(reviewedFactories.length, 111);
   assert.equal(reviewedResidual.length, 35);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 91,
-    sha256: "a8fa986de4e911ca478dd0cb2d63f259f5b40d62154573d6c9eafa019ccba329",
+    unique: 90,
+    sha256: "b6292589e8c18026b1b6ac0f7403e56b0439546ea9849958cb05f591eecae845",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 29,
