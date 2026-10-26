@@ -20,8 +20,11 @@ const workflowPath =
   ".github/workflows/email-provider-deletion-fence-production.yml";
 const workflow = readFileSync(workflowPath, "utf8");
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
+const migrationDirectory =
+  process.env.EMAIL_PROVIDER_DELETION_FENCE_MIGRATION_PATH?.trim() ||
+  `prisma/migrations/${MIGRATION}`;
 const migrationSql = readFileSync(
-  `prisma/migrations/${MIGRATION}/migration.sql`,
+  `${migrationDirectory}/migration.sql`,
   "utf8",
 );
 const bindingScript = parsed.jobs.apply.steps.find(
