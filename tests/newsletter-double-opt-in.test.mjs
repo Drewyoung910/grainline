@@ -65,12 +65,20 @@ describe("newsletter double opt-in guardrails", () => {
     const suppression = source("src/lib/emailSuppression.ts");
     const exportRoute = source("src/app/api/account/export/route.ts");
 
-    for (const text of [unsubscribe, suppression]) {
-      assert.match(text, /active: false/);
-      assert.match(text, /confirmationTokenHash: null/);
-      assert.match(text, /confirmationExpiresAt: null/);
-      assert.match(text, /confirmationSentAt: null/);
+    for (const field of [
+      /active: false/,
+      /confirmationTokenHash: null/,
+      /confirmationExpiresAt: null/,
+      /confirmationSentAt: null/,
+    ]) {
+      assert.match(unsubscribe, field);
     }
+    // Hard provider suppression now clears equivalent newsletter rows inside
+    // the fixed SQL authority. The full-chain PostgreSQL scenario executes and
+    // verifies that behavior; this source guard only keeps the app on that
+    // boundary and rejects a second direct Prisma mutation path.
+    assert.match(suppression, /applyEmailHardSuppression\(prisma,/);
+    assert.doesNotMatch(suppression, /newsletterSubscriber\./);
 
     assert.match(exportRoute, /confirmedAt: true/);
     assert.match(exportRoute, /confirmationSentAt: true/);
