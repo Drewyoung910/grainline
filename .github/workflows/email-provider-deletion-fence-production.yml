@@ -120,9 +120,12 @@ jobs:
         run: |
           set -euo pipefail
           migration=20261025020000_fence_email_provider_and_account_deletion
-          latest="$(ls -1d prisma/migrations/*/ | sed 's#/$##; s#.*/##' | LC_ALL=C sort | tail -n 1)"
-          test "$latest" = "$migration"
+          successor=20261025030000_fence_email_provider_and_eligibility_changes
+          latest_two="$(ls -1d prisma/migrations/*/ | sed 's#/$##; s#.*/##' | LC_ALL=C sort | tail -n 2 | paste -sd, -)"
+          test "$latest_two" = "$migration,$successor"
           echo "4d30904d8cb094b403ef9adc4d4268f979d408137aeb228b59a95bca7858cace  prisma/migrations/$migration/migration.sql" \
+            | sha256sum --check --status
+          echo "969aff03c7d720067d8a2d39057fed5048c12b60d521666aff7bce12ffd762e4  prisma/migrations/$successor/migration.sql" \
             | sha256sum --check --status
           node --check scripts/email-provider-deletion-fence-production-inspect.mjs
           node --test --test-concurrency=1 \
@@ -146,13 +149,13 @@ jobs:
         run: |
           set -euo pipefail
           migration=20261025020000_fence_email_provider_and_account_deletion
+          successor=20261025030000_fence_email_provider_and_eligibility_changes
           case "$MIGRATION_STATE" in
             pending|applied_unrecorded)
-              REVIEWED_PENDING_MIGRATIONS="$migration" node scripts/assert-reviewed-pending-migrations.mjs
+              REVIEWED_PENDING_MIGRATIONS="$migration,$successor" node scripts/assert-reviewed-pending-migrations.mjs
               ;;
             applied)
-              REVIEWED_PENDING_MIGRATIONS="" node scripts/assert-reviewed-pending-migrations.mjs
-              npx prisma migrate status
+              REVIEWED_PENDING_MIGRATIONS="$successor" node scripts/assert-reviewed-pending-migrations.mjs
               ;;
             *)
               echo "Unexpected email provider/deletion fence state" >&2
@@ -186,13 +189,11 @@ jobs:
         run: node scripts/email-provider-deletion-fence-production-inspect.mjs postflight
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Require no migrations pending after the fence
+      - name: Require only the reviewed eligibility fence pending afterward
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          REVIEWED_PENDING_MIGRATIONS: ""
-        run: |
-          node scripts/assert-reviewed-pending-migrations.mjs
-          npx prisma migrate status
+          REVIEWED_PENDING_MIGRATIONS: 20261025030000_fence_email_provider_and_eligibility_changes
+        run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Audit global runtime grants after the fence
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
