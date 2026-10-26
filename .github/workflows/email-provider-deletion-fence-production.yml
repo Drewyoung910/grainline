@@ -198,6 +198,14 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: npm run audit:db-grants -- --require-direct-url
+      - name: Ensure sanitized fence evidence exists
+        if: always()
+        run: >-
+          node scripts/ensure-production-release-evidence.mjs
+          email-provider-deletion-fence
+          20261025020000_fence_email_provider_and_account_deletion
+        env:
+          RELEASE_JOB_STATUS: ${{ job.status }}
       - name: Preserve sanitized fence evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -194,6 +194,7 @@ test("production workflow is exact-main, serialized, fail-closed, and preserves 
     workflow,
     /uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\s+# v7\.0\.1/u,
   );
+  assert.match(workflow, /name: Ensure sanitized fence evidence exists\n\s+if: always\(\)/u);
   assert.match(workflow, /name: Preserve sanitized fence evidence\n\s+if: always\(\)/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(

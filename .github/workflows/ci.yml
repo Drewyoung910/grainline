@@ -217,6 +217,7 @@ jobs:
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
           --experimental-strip-types --test --test-concurrency=1
+          tests/email-delivery-ledger-preparation-production-workflow.test.mjs
           tests/email-service-delivery-ledger-postgres-proof.test.mjs
           tests/db-grant-inventory.test.mjs
       - name: Isolate email delivery-ledger preparation until historical release guards pass
@@ -230,6 +231,7 @@ jobs:
           mv \
             tests/email-service-delivery-ledger-postgres-proof.test.mjs \
             "$holding/tests/email-service-delivery-ledger-postgres-proof.test.mjs"
+          echo "EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify public SellerProfile candidate source package
         shell: bash
         run: |
@@ -6811,6 +6813,7 @@ jobs:
             "$holding/tests/email-service-delivery-ledger-postgres-proof.test.mjs" \
             tests/email-service-delivery-ledger-postgres-proof.test.mjs
           rmdir "$holding/migrations" "$holding/tests" "$holding"
+          echo "EMAIL_DELIVERY_LEDGER_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore email provider/account-deletion fence after historical release guards
         shell: bash
         run: |
