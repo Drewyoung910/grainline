@@ -109,6 +109,19 @@ jobs:
           cp -R prisma/migrations "$RUNNER_TEMP/database-full-chain-source/migrations"
       - name: Generate Prisma client for candidate behavior tests
         run: npx prisma generate
+      - name: Verify C-1180 Resend webhook receipt recovery source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/resend-webhook-receipt-recovery-production-workflow.test.mjs
+      - name: Isolate C-1180 recovery until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/resend-webhook-receipt-recovery"
+          migration=20261027010000_restore_resend_webhook_receipts
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Verify C-875 unsubscribe correction source package
         run: >-
           node --test --test-concurrency=1
@@ -6877,6 +6890,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore C-1180 recovery after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/resend-webhook-receipt-recovery"
+          migration=20261027010000_restore_resend_webhook_receipts
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build

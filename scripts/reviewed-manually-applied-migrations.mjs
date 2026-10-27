@@ -25,6 +25,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261025030000_fence_email_provider_and_eligibility_changes",
     "969aff03c7d720067d8a2d39057fed5048c12b60d521666aff7bce12ffd762e4",
   ],
+  [
+    "20261027010000_restore_resend_webhook_receipts",
+    "a765482bfdeca66a82aaa912c5bfc2c6f7bc44b033fea4ace2e5bc40243ad2ba",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {
