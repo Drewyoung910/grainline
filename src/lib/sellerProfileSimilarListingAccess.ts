@@ -3,6 +3,10 @@ import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 import { prisma } from "@/lib/db";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import {
+  isSimilarListingCategoryMatch,
+  normalizeSimilarListingCategoryMatch,
+} from "./sellerSimilarListingCategory.ts";
 
 export type SellerSimilarListingCandidate = Readonly<{
   sourceTitle: string;
@@ -107,7 +111,7 @@ async function readCandidates(client: SimilarListingClient, listingId: string) {
       || typeof row.sellerAcceptingNewOrders !== "boolean"
       || !(row.createdAt instanceof Date) || Number.isNaN(row.createdAt.getTime())
       || typeof row.tagOverlap !== "bigint" || row.tagOverlap < 0n
-      || typeof row.categoryMatch !== "boolean"
+      || !isSimilarListingCategoryMatch(row.categoryMatch)
     ))
   ) {
     throw new Error("Seller similar-listing authority returned an invalid result");
@@ -135,7 +139,9 @@ async function readCandidates(client: SimilarListingClient, listingId: string) {
     sellerAcceptingNewOrders: row.sellerAcceptingNewOrders as boolean,
     createdAt: row.createdAt as Date,
     tagOverlap: row.tagOverlap as bigint,
-    categoryMatch: row.categoryMatch as boolean,
+    categoryMatch: normalizeSimilarListingCategoryMatch(
+      row.categoryMatch as boolean | null,
+    ),
   })));
 }
 
