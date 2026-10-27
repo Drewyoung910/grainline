@@ -141,6 +141,26 @@ export function checkoutShippingPackageMetadata(value: {
   };
 }
 
+/**
+ * Builds the immutable Stripe product metadata consumed by paid Buy Now
+ * checkout processing. The order authority compares variantKey with the
+ * retained stock reservation before it creates the Order.
+ */
+export function buyNowListingProductMetadata(value: {
+  listingId: string;
+  variantKey: string;
+  shippingWeightGrams?: unknown;
+  shippingLengthCm?: unknown;
+  shippingWidthCm?: unknown;
+  shippingHeightCm?: unknown;
+}): Record<string, string> {
+  return {
+    listingId: value.listingId,
+    variantKey: value.variantKey,
+    ...checkoutShippingPackageMetadata(value),
+  };
+}
+
 /** Reads only a complete, bounded package witness returned by Stripe. */
 export function readCheckoutShippingPackageMetadata(
   metadata: Record<string, string> | null | undefined,
