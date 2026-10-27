@@ -4118,6 +4118,30 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   the earlier exact-pending-set release is blocked. C-1177 lock-order repair and
   C-1184 compatible-app release binding remain separate open blockers.
 
+## 2026-10-27 — C-1177, C-1181 email eligibility lock order
+
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1177:** current main takes
+  email account/address advisory locks before `User ... FOR UPDATE` in Clerk
+  identity sync, notification preference changes, signed unsubscribe and staff
+  ban. The account-deletion transaction takes the same `User` row first and
+  then enters the email deletion fence. A two-session PostgreSQL 17 regression
+  using the exact runtime snapshot and staff-ban authorities fails on main with
+  SQLSTATE `40P01`: deletion owns the `User` row while ban owns two advisory
+  locks. The forward correction makes all four paths row-first.
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1181:** the same functions
+  fence an email captured by an unlocked read, so a concurrent email change can
+  make the keyed address stale before the row is locked. The correction derives
+  keys from the locked row; signed unsubscribe locks every currently matching
+  account in deterministic id order, and new-account identity creation locks
+  any current exact address owners before taking address keys.
+- Migration `20261027030000_correct_email_eligibility_lock_order` replaces only
+  those four functions, pins exact predecessor/postflight bodies, and preserves
+  owner, `SECURITY DEFINER`, `search_path` and ACL contracts. The full PostgreSQL
+  17 chain passes all 438 migrations and executes deletion-first and
+  mutation-first schedules for ban, identity, preference and unsubscribe. This
+  stacked draft must not merge or release until C-1180 and migration
+  `20261027020000_correct_email_outbox_contracts` are both merged and live.
+
 ## 2026-10-26 — StockNotification compatible RLS preparation
 
 - **C-759 [MERGED; NOT YET LIVE]:** ordinary public `SOLD_OUT`

@@ -16,6 +16,9 @@ on:
       - .github/workflows/user-unsubscribe-optional-preferences-production.yml
       - .github/workflows/email-provider-deletion-fence-production.yml
       - .github/workflows/email-provider-eligibility-fence-production.yml
+      - .github/workflows/resend-webhook-receipt-recovery-production.yml
+      - .github/workflows/email-outbox-contract-correction-production.yml
+      - .github/workflows/email-eligibility-lock-order-correction-production.yml
       - docs/rls-drafts/**
       - package.json
       - package-lock.json
