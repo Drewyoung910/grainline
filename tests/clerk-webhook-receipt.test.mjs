@@ -20,6 +20,8 @@ new Function("require", "module", "exports", ts.transpileModule(readFileSync("sr
 }, bodyModule, bodyModule.exports);
 function route(controls = {}) {
   const counts = { reserve: 0, mark: 0, anonymize: 0, unexpected: 0 };
+  const failedEvents = [];
+  const securityMessages = [];
   let incomingHeaders;
   const unexpected = () => { counts.unexpected++; throw new Error("Unexpected business side effect"); };
   const prisma = {};
@@ -42,8 +44,9 @@ function route(controls = {}) {
         if (controls.markFailure) throw new Error("mark unavailable");
         return "completed";
       },
-      markClerkWebhookFailed: async (_svixId, claimGeneration) => {
+      markClerkWebhookFailed: async (_svixId, claimGeneration, error) => {
         assert.equal(claimGeneration, 1n);
+        failedEvents.push(error);
         return "failed";
       },
     },
@@ -62,11 +65,41 @@ function route(controls = {}) {
       sellerWelcomeDisplayName: unexpected,
     },
     "@/lib/httpStatus": { HTTP_STATUS: { BAD_REQUEST: 400, INTERNAL_SERVER_ERROR: 500, SERVICE_UNAVAILABLE: 503, PAYLOAD_TOO_LARGE: 413 } },
-    "@sentry/nextjs": { captureException() {}, captureMessage() {} },
+    "@sentry/nextjs": {
+      captureException() {},
+      captureMessage(message, context) { securityMessages.push({ message, context }); },
+    },
     "@/lib/webhookFailureSpike": { recordWebhookFailureSpike: async () => {} },
     "@/lib/emailOutboxSanitize": { sanitizeEmailOutboxError: () => "sanitized" },
   };
-  for (const name of ["ensureUser", "email", "emailOutbox", "clerkWebhookEmail", "clerkSessionSecurity", "clerkUserLifecycle", "emailSuppression", "sanitize"]) {
+  dependencies["@/lib/clerkUserLifecycle"] = {
+    getCurrentClerkUserIdentity: async id => {
+      assert.equal(id, controls.proofUserId ?? (controls.ordinary ? "user_ordinary" : SENTINEL));
+      if (controls.clerkLookupError) throw controls.clerkLookupError;
+      if (controls.clerkUserExists) {
+        return {
+          clerkId: id,
+          firstName: null,
+          lastName: null,
+          imageUrl: null,
+          primaryEmail: null,
+          emailResolution: "missing_primary_email_id",
+        };
+      }
+      throw Object.assign(new Error("Clerk user not found"), {
+        clerkError: true,
+        status: 404,
+      });
+    },
+    isClerkUserNotFoundError: error => Boolean(
+      error && typeof error === "object" && error.clerkError === true && error.status === 404
+    ),
+    revokeClerkUserSessions: unexpected,
+  };
+  dependencies["@/lib/privacyTelemetry"] = {
+    hashIdentifierForTelemetry: value => `sha256:${sha(value.trim()).slice(0, 24)}`,
+  };
+  for (const name of ["ensureUser", "email", "emailOutbox", "clerkWebhookEmail", "clerkSessionSecurity", "emailSuppression", "sanitize"]) {
     dependencies[`@/lib/${name}`] = new Proxy({}, { get: () => unexpected });
   }
   const compiled = ts.transpileModule(readFileSync("src/app/api/clerk/webhook/route.ts", "utf8"),
@@ -75,7 +108,7 @@ function route(controls = {}) {
   new Function("require", "module", "exports", "process", compiled.outputText)(name => {
     assert.ok(Object.hasOwn(dependencies, name), name); return dependencies[name];
   }, mod, mod.exports, { env: { CLERK_WEBHOOK_SECRET: controls.noSecret ? undefined : SECRET } });
-  return { counts, async run(body = JSON.stringify(payload())) {
+  return { counts, failedEvents, securityMessages, async run(body = JSON.stringify(payload())) {
     const at = new Date(), signingTime = controls.stale ? new Date(at.getTime() - 600_000) : at;
     incomingHeaders = new Headers({ "svix-id": ID, "svix-timestamp": String(Math.floor(signingTime.getTime() / 1000)),
       "svix-signature": new Webhook(controls.wrongKey ? OTHER : SECRET).sign(ID, signingTime,
@@ -121,6 +154,27 @@ test("ordinary signed deletion keeps its original response shape", async () => {
   const event = payload(); event.data.id = "user_ordinary";
   const f = route({ ordinary: true }), result = await f.run(JSON.stringify(event));
   assert.equal(result.status, 200); assert.deepEqual(result.body, { ok: true }); assert.equal(f.counts.anonymize, 1);
+});
+test("a signed deletion cannot anonymize an account that still exists in Clerk", async () => {
+  const f = route({ clerkUserExists: true });
+  const result = await f.run();
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { ok: true });
+  assert.equal(f.counts.anonymize, 0);
+  assert.equal(f.counts.mark, 1);
+  assert.equal(f.failedEvents.length, 0);
+  assert.equal(f.securityMessages.length, 1);
+  assert.equal(f.securityMessages[0].message, "Clerk user.deleted contradicted by current provider state");
+  assert.match(f.securityMessages[0].context.extra.clerkUserIdHash, /^sha256:[0-9a-f]{24}$/u);
+  assert.equal(JSON.stringify(f.securityMessages).includes(SENTINEL), false);
+});
+test("a Clerk lookup outage leaves signed deletion retryable without anonymizing", async () => {
+  const outage = new Error("Clerk unavailable");
+  const f = route({ clerkLookupError: outage });
+  await assert.rejects(f.run(), /Clerk unavailable/u);
+  assert.equal(f.counts.anonymize, 0);
+  assert.equal(f.counts.mark, 0);
+  assert.deepEqual(f.failedEvents, [outage]);
 });
 test("strict webhook decoding preserves signed bytes and rejects invalid UTF-8 without changing ordinary text reads", async () => {
   const { readBoundedWebhookText, readBoundedText } = bodyModule.exports;

@@ -165,6 +165,17 @@ The production route at `/api/clerk/webhook`:
   verification, where the request has crossed the provider-authentication
   boundary.
 
+The C-1309 application hardening additionally treats a signed `user.deleted`
+payload as a deletion notification, not deletion authority. Before any local
+anonymization it re-reads the exact user through Clerk's Backend API. Only a
+definitive provider not-found result permits anonymization; a user that still
+exists becomes a processed no-op with a hashed identifier in telemetry, and
+every other lookup failure remains retryable. Once deployed, this removes the
+account-deletion impact of a leaked predecessor signing secret. It does not
+rotate or rehabilitate that secret: the parallel-endpoint cutover, genuine
+provider-signed delivery/replay proof, predecessor drain, and removal of the
+shared Vercel, GitHub, and local copies below remain required.
+
 Two medium findings were validated by scoped Codex Security scan
 `84a86800-beb0-4737-8a44-4565483645e3` against main
 `9f1f0600045c672111801da984c8eb9ab993982d`:
