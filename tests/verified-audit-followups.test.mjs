@@ -187,7 +187,11 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(wizard, /Connect Stripe Payouts/);
     assert.match(wizard, /onClick=\{handleConnectStripe\}/);
     assert.match(wizard, /body: JSON\.stringify\(\{ returnUrl: "\/dashboard\/onboarding\?stripe_return=1" \}\)/);
-    assert.match(wizard, /disabled=\{loading \|\| !stripeReady \|\| listingCount < 1\}/);
+    assert.match(
+      wizard,
+      /disabled=\{loading \|\| !stripeReady \|\| !shippingReady \|\| listingCount < 1\}/,
+    );
+    assert.match(wizard, /Shipping or local pickup configured/);
     assert.doesNotMatch(wizard, /bg-stone-50/);
     assert.match(wizard, /className="card-section p-8/);
     assert.match(wizard, /font-display/);
