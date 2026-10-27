@@ -306,6 +306,7 @@ test("Production workflow is exact-bound, deployment-bound, and sole-pending", (
   assert.deepEqual(parsed.on.workflow_dispatch.inputs.release_id.options, [
     "saved_blog_post_v1",
     "cart_cart_item_v1",
+    "stock_notification_v1",
   ]);
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.ok(parsed.on.workflow_dispatch.inputs.superseded_app_deployment_id.required);
