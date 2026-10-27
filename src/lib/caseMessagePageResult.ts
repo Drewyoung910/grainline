@@ -1,3 +1,5 @@
+import { isStoredCaseMessageBody } from "./caseMessageBody.ts";
+
 export type CaseMessagePageAttachment = {
   id: string;
   contentType: "image/jpeg" | "image/png" | "image/webp";
@@ -127,8 +129,7 @@ function validateAttachment(value: unknown): CaseMessagePageAttachment {
 function validateMessage(value: unknown): CaseMessagePageRow {
   const row = requireExactRecord(value, MESSAGE_KEYS, "message");
   if (
-    typeof row.body !== "string"
-    || row.body.length > 5000
+    !isStoredCaseMessageBody(row.body)
     || (
       row.authorKind !== null
       && row.authorKind !== "BUYER"
