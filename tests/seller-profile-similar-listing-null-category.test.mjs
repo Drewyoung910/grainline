@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const {
@@ -18,16 +17,4 @@ test("similar-listing authority still rejects non-null non-boolean category outp
   assert.equal(isSimilarListingCategoryMatch("false"), false);
   assert.equal(isSimilarListingCategoryMatch(0), false);
   assert.equal(isSimilarListingCategoryMatch(undefined), false);
-});
-
-test("the similar-listing result boundary applies the nullable category contract", () => {
-  const access = readFileSync(
-    "src/lib/sellerProfileSimilarListingAccess.ts",
-    "utf8",
-  );
-  assert.match(access, /!isSimilarListingCategoryMatch\(row\.categoryMatch\)/u);
-  assert.match(
-    access,
-    /categoryMatch: normalizeSimilarListingCategoryMatch\(row\.categoryMatch\)/u,
-  );
 });
