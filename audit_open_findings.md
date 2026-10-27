@@ -4384,6 +4384,16 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   The prepared app-only correction returns the old/new price witness without
   mutating the cart. The existing cart update action remains the sole path that
   accepts the new price after the buyer reviews it.
+## 2026-10-27 — C-1251 Unicode order snapshot bounds break retained order views
+
+- **[VERIFIED; FIX PREPARED]** Order list, detail, export, staff, analytics,
+  receipt, label and historical-snapshot readers compared database character
+  limits with JavaScript UTF-16 length. A valid 100-character maker name or
+  50-character variant label containing an astral character could therefore
+  hide retained facts or fail whole order surfaces. The prepared correction
+  shares the existing code-point validator across the affected readers and
+  executes boundary behavior tests for summary rows, immutable snapshots, and
+  participant, export and staff variant projections.
 
 ## Recommended fix order for Codex
 
