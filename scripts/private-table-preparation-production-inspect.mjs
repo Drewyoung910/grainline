@@ -77,26 +77,9 @@ function functionEvidence(row) {
   });
 }
 
-async function readInstalledCatalog(client, verified, tableOwner) {
-  const { release } = verified;
-  const columnRows = (await client.query(`
-    SELECT attribute.attname AS name,
-           pg_catalog.format_type(attribute.atttypid, attribute.atttypmod) AS type,
-           NOT attribute.attnotnull AS nullable
-      FROM pg_catalog.pg_attribute AS attribute
-     WHERE attribute.attrelid = $1::pg_catalog.regclass
-       AND attribute.attname = ANY($2::text[])
-       AND attribute.attnum > 0
-       AND NOT attribute.attisdropped
-     ORDER BY attribute.attname
-  `, [`public."${release.table}"`, release.addedColumns.map((entry) => entry.name)])).rows;
-  assert.deepEqual(
-    columnRows,
-    [...release.addedColumns].sort((left, right) => left.name.localeCompare(right.name)),
-    "reviewed column catalog drifted",
-  );
-
-  const functionRows = (await client.query(`
+async function readFunctionRows(client, functions) {
+  if (functions.length === 0) return [];
+  return (await client.query(`
     SELECT procedure.proname AS function_name,
            pg_catalog.oidvectortypes(procedure.proargtypes)::text AS identity_arguments,
            owner.rolname AS owner_name,
@@ -119,7 +102,42 @@ async function readInstalledCatalog(client, verified, tableOwner) {
      WHERE namespace.nspname = 'public'
        AND procedure.proname = ANY($1::text[])
      ORDER BY procedure.proname, identity_arguments
-  `, [release.functions.map((entry) => entry.name)])).rows;
+  `, [functions.map((entry) => entry.name)])).rows;
+}
+
+function assertFunctionPosture(row, expected, tableOwner) {
+  const identity = `${row.function_name}(${row.identity_arguments})`;
+  assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
+  assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
+  assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
+  assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
+  assert.equal(row.runtime_execute, true, `${identity} runtime EXECUTE is absent`);
+  assert.equal(row.staff_execute, false, `${identity} staff EXECUTE is present`);
+  assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
+  assert.equal(identity, `${expected.name}(${expected.arguments})`);
+  return identity;
+}
+
+async function readInstalledCatalog(client, verified, tableOwner) {
+  const { release } = verified;
+  const columnRows = (await client.query(`
+    SELECT attribute.attname AS name,
+           pg_catalog.format_type(attribute.atttypid, attribute.atttypmod) AS type,
+           NOT attribute.attnotnull AS nullable
+      FROM pg_catalog.pg_attribute AS attribute
+     WHERE attribute.attrelid = $1::pg_catalog.regclass
+       AND attribute.attname = ANY($2::text[])
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+     ORDER BY attribute.attname
+  `, [`public."${release.table}"`, release.addedColumns.map((entry) => entry.name)])).rows;
+  assert.deepEqual(
+    columnRows,
+    [...release.addedColumns].sort((left, right) => left.name.localeCompare(right.name)),
+    "reviewed column catalog drifted",
+  );
+
+  const functionRows = await readFunctionRows(client, release.functions);
   assert.equal(functionRows.length, release.functions.length, "reviewed function count drifted");
 
   const expectedByIdentity = new Map(release.functions.map((entry) => [
@@ -130,13 +148,7 @@ async function readInstalledCatalog(client, verified, tableOwner) {
     const identity = `${row.function_name}(${row.identity_arguments})`;
     const expected = expectedByIdentity.get(identity);
     assert.ok(expected, `unexpected function overload ${identity}`);
-    assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
-    assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
-    assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
-    assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
-    assert.equal(row.runtime_execute, true, `${identity} runtime EXECUTE is absent`);
-    assert.equal(row.staff_execute, false, `${identity} staff EXECUTE is present`);
-    assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
+    assertFunctionPosture(row, expected, tableOwner);
     assert.equal(
       row.source,
       verified.functionSources.get(row.function_name),
@@ -151,9 +163,71 @@ async function readInstalledCatalog(client, verified, tableOwner) {
   });
 }
 
+async function readPendingCatalog(client, verified, tableOwner) {
+  const { release } = verified;
+  const newFunctions = release.functions.filter(
+    (entry) => entry.predecessorSourceSha256 === undefined,
+  );
+  const predecessorFunctions = release.functions.filter(
+    (entry) => entry.predecessorSourceSha256 !== undefined,
+  );
+  const collisions = (await client.query(`
+    SELECT
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_attribute AS attribute
+        WHERE attribute.attrelid = $1::pg_catalog.regclass
+          AND attribute.attname = ANY($2::text[])
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped) AS columns,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_proc AS procedure
+         JOIN pg_catalog.pg_namespace AS namespace
+           ON namespace.oid = procedure.pronamespace
+        WHERE namespace.nspname = 'public'
+          AND procedure.proname = ANY($3::text[])) AS functions
+  `, [
+    `public."${release.table}"`,
+    release.addedColumns.map((entry) => entry.name),
+    newFunctions.map((entry) => entry.name),
+  ])).rows[0];
+  assert.deepEqual(collisions, { columns: 0, functions: 0 }, "preparation catalog collides");
+
+  const functionRows = await readFunctionRows(client, predecessorFunctions);
+  assert.equal(
+    functionRows.length,
+    predecessorFunctions.length,
+    "predecessor function count drifted",
+  );
+  const expectedByIdentity = new Map(predecessorFunctions.map((entry) => [
+    `${entry.name}(${entry.arguments})`,
+    entry,
+  ]));
+  for (const row of functionRows) {
+    const identity = `${row.function_name}(${row.identity_arguments})`;
+    const expected = expectedByIdentity.get(identity);
+    assert.ok(expected, `unexpected predecessor function overload ${identity}`);
+    assertFunctionPosture(row, expected, tableOwner);
+    assert.equal(
+      createHash("sha256").update(row.source, "utf8").digest("hex"),
+      expected.predecessorSourceSha256,
+      `${identity} predecessor body drifted`,
+    );
+    expectedByIdentity.delete(identity);
+  }
+  assert.equal(expectedByIdentity.size, 0, "reviewed predecessor function is absent");
+  return Object.freeze({
+    columns: [],
+    functions: functionRows.map(functionEvidence),
+  });
+}
+
 export async function inspectPrivateTablePreparationProduction(
   env = process.env,
-  { Client = pg.Client, rootDir = process.cwd() } = {},
+  {
+    Client = pg.Client,
+    rootDir = process.cwd(),
+    migrationPath,
+  } = {},
 ) {
   const directUrl = required(env, "DIRECT_URL");
   const releaseId = required(env, "PRIVATE_TABLE_PREPARATION_RELEASE_ID");
@@ -162,7 +236,11 @@ export async function inspectPrivateTablePreparationProduction(
   const releaseCommit = required(env, "PRODUCTION_MIGRATION_RELEASE_COMMIT");
   if (!PHASES.has(phase)) throw new Error("preparation phase is invalid");
   if (!COMMIT.test(releaseCommit)) throw new Error("release commit is invalid");
-  const verified = verifyPrivateTablePreparationSource(releaseId, rootDir);
+  const verified = verifyPrivateTablePreparationSource(
+    releaseId,
+    rootDir,
+    migrationPath,
+  );
   const release = privateTablePreparation(releaseId);
   const parsed = new URL(directUrl);
   const client = new Client({
@@ -232,27 +310,7 @@ export async function inspectPrivateTablePreparationProduction(
     if (applied) {
       catalog = await readInstalledCatalog(client, verified, postureRow.table_owner_name);
     } else {
-      const collisions = (await client.query(`
-        SELECT
-          (SELECT pg_catalog.count(*)::integer
-             FROM pg_catalog.pg_attribute AS attribute
-            WHERE attribute.attrelid = $1::pg_catalog.regclass
-              AND attribute.attname = ANY($2::text[])
-              AND attribute.attnum > 0
-              AND NOT attribute.attisdropped) AS columns,
-          (SELECT pg_catalog.count(*)::integer
-             FROM pg_catalog.pg_proc AS procedure
-             JOIN pg_catalog.pg_namespace AS namespace
-               ON namespace.oid = procedure.pronamespace
-            WHERE namespace.nspname = 'public'
-              AND procedure.proname = ANY($3::text[])) AS functions
-      `, [
-        `public."${release.table}"`,
-        release.addedColumns.map((entry) => entry.name),
-        release.functions.map((entry) => entry.name),
-      ])).rows[0];
-      assert.deepEqual(collisions, { columns: 0, functions: 0 }, "preparation catalog collides");
-      catalog = Object.freeze({ columns: [], functions: [] });
+      catalog = await readPendingCatalog(client, verified, postureRow.table_owner_name);
     }
     await client.query("COMMIT");
 

@@ -165,6 +165,14 @@ function environment(directory, phase, previousPath) {
 test("catalog admits only byte-sealed, additive reviewed preparations", () => {
   assert.equal(verified.digest, release.migrationSha256);
   assert.equal(verified.functionSources.size, 9);
+  assert.equal(
+    verifyPrivateTablePreparationSource(
+      releaseId,
+      process.cwd(),
+      verified.migrationPath,
+    ).digest,
+    release.migrationSha256,
+  );
   assert.throws(
     () => verifyPrivateTablePreparationSource("unreviewed_release"),
     /release id is not reviewed/u,
@@ -216,8 +224,14 @@ test("inspector proves pending and applied states without recording row data", a
 
 test("Production workflow is exact-main bound and fails on another red push workflow", async () => {
   assert.ok(parsed.on.workflow_dispatch);
+  assert.deepEqual(
+    parsed.on.workflow_dispatch.inputs.release_id.options,
+    ["support_request_v1", "stock_notification_v1"],
+  );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(PRIVATE_TABLE_PREPARATION_CONFIRMATION, "u"));
+  assert.match(workflow, /private-table-preparation-catalog\.mjs --tests/u);
+  assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(runBinding("failure"), /push workflows are not all green/u);
 });

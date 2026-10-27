@@ -8,6 +8,13 @@ activation blocked until the findings and proofs below are closed.**
 Source baseline:
 `ab927b134dc3e77af4477a59972331423a0118b7`.
 
+Preparation status: the compatible application and additive preparation
+migration merged in PR #657 as
+`968315f775c86d84a547d0a6eb3abaeec4662f49`. They are not yet live. Production
+application of `20261026010000_prepare_stock_notification_authorities` remains
+subject to the exact-main protected preparation workflow; application deploy
+and RLS activation remain later, separately gated steps.
+
 This document is a product, authority, concurrency, privacy, scalability,
 recovery, and rollback audit. It is not a Production authorization. See
 `docs/stock-notification-rls-options.md` for the design comparison.
