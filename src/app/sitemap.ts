@@ -13,6 +13,7 @@ import {
   SITEMAP_ENTRY_LIMIT,
   sitemapChunkCount,
   sitemapChunkForId,
+  sitemapRequestId,
 } from "@/lib/sitemapIndex";
 import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 import {
@@ -52,9 +53,14 @@ export async function generateSitemaps() {
   return Array.from({ length: chunkCount }, (_, id) => ({ id }));
 }
 
-export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise<MetadataRoute.Sitemap> {
-  if (id > 0) {
-    const chunk = sitemapChunkForId(id, await sitemapSourceCounts());
+export default async function sitemap(
+  { id }: { id: Promise<string | undefined> },
+): Promise<MetadataRoute.Sitemap> {
+  const requestedId = await sitemapRequestId(id);
+  if (requestedId === null) return [];
+
+  if (requestedId > 0) {
+    const chunk = sitemapChunkForId(requestedId, await sitemapSourceCounts());
     if (!chunk || chunk.kind === "base") return [];
 
     if (chunk.kind === "sellers") {
