@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "@/lib/maplibreClient";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
+import { createMapPinElement, MAP_PIN_HEIGHT } from "@/lib/mapPinElement";
 
 type Props = {
   /** Coordinates already reduced to their public precision by the server. */
@@ -96,10 +97,10 @@ export default function MapCard({
       }
 
       if (!hasPrivacyRadius || showPinWithRadius) {
-        const marker = new maplibregl.Marker({ color: "#1C1C1A" })
+        const marker = new maplibregl.Marker({ element: createMapPinElement(), anchor: "bottom" })
           .setLngLat([displayLng, displayLat]);
         if (label) {
-          marker.setPopup(new maplibregl.Popup({ offset: 25 }).setText(label));
+          marker.setPopup(new maplibregl.Popup({ offset: MAP_PIN_HEIGHT }).setText(label));
         }
         marker.addTo(map);
       }

@@ -6,6 +6,7 @@ import * as maplibregl from "@/lib/maplibreClient";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
+import { createMapPinElement } from "@/lib/mapPinElement";
 import MakerMapCard, { type MakerMapCardCache } from "@/components/MakerMapCard";
 
 type Point = {
@@ -99,8 +100,10 @@ export default function AllSellersMap({
         source: "sellers",
         filter: ["has", "point_count"],
         paint: {
-          "circle-color": "#1C1C1A",
+          "circle-color": "#2C1F1A",
           "circle-radius": ["step", ["get", "point_count"], 20, 10, 30, 30, 40],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#F7F5F0",
         },
       });
 
@@ -163,7 +166,7 @@ export default function AllSellersMap({
         // No maplibre popup — pin click opens the MakerMapCard overlay,
         // which lives outside the map canvas and can't be clipped by it.
         const selectPin = () => setSelectedPin({ id, name: nameText, city: cityText, state: stateText });
-        const marker = new maplibregl.Marker({ color: "#1C1C1A" })
+        const marker = new maplibregl.Marker({ element: createMapPinElement(), anchor: "bottom" })
           .setLngLat(coords)
           .addTo(map);
         const markerEl = marker.getElement();

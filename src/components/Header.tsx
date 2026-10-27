@@ -31,6 +31,16 @@ export default function Header() {
   const { isSignedIn } = useUser();
 
   const [cartCount, setCartCount] = React.useState<number | null>(null);
+  // Bumps the cart badge only when the count goes up, not on first load.
+  const [cartBumpCount, setCartBumpCount] = React.useState(0);
+  const previousCartCountRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    const previous = previousCartCountRef.current;
+    previousCartCountRef.current = cartCount;
+    if (previous !== null && cartCount !== null && cartCount > previous) {
+      setCartBumpCount((count) => count + 1);
+    }
+  }, [cartCount]);
   const [role, setRole] = React.useState<string | null>(null);
   const [hasSeller, setHasSeller] = React.useState(false);
   const [name, setName] = React.useState<string | null>(null);
@@ -427,7 +437,7 @@ export default function Header() {
             <ShoppingBag size={22} />
             <IconHoverTip label="Cart" />
             {cartCount != null && cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
+              <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                 {cartCount}
               </span>
             )}
@@ -505,7 +515,7 @@ export default function Header() {
             <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors">
               <ShoppingBag size={20} />
               {cartCount != null && cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
+                <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                   {cartCount}
                 </span>
               )}

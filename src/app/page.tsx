@@ -1,6 +1,7 @@
 // src/app/page.tsx
 import Link from "next/link";
 import Image from "next/image";
+import type { CSSProperties } from "react";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Prisma } from "@prisma/client";
@@ -168,6 +169,11 @@ const CATEGORIES = [
   { key: "OUTDOOR",   label: "Outdoor",       Icon: TreePine  },
   { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
+
+// Staggers the hero load sequence (see .hero-rise in globals.css).
+function heroRiseDelay(ms: number): CSSProperties {
+  return { "--hero-rise-delay": `${ms}ms` } as CSSProperties;
+}
 
 export default async function HomePage() {
   const { userId } = await auth();
@@ -442,7 +448,7 @@ export default async function HomePage() {
           preload
           quality={88}
           sizes="(max-width: 639px) 150vw, 100vw"
-          className="object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+          className="hero-photo-settle object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
         />
         <div
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%)] lg:bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.60)_28%,rgba(44,31,26,0.18)_48%,rgba(44,31,26,0)_66%)]"
@@ -455,15 +461,15 @@ export default async function HomePage() {
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
           <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
-            <h1 className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
+            <h1 className="hero-lines font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
               <span className="block whitespace-nowrap">Buy handmade.</span>
               <span className="block whitespace-nowrap">Buy local.</span>
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-            <p className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
+            <p className="hero-rise relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg" style={heroRiseDelay(450)}>
               More than what&apos;s made for everyone.
             </p>
-            <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
+            <div className="hero-rise mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row" style={heroRiseDelay(550)}>
               <Link
                 href="/browse"
                 data-home-primary-cta
@@ -492,7 +498,7 @@ export default async function HomePage() {
       >
         <dl
           data-home-stats-surface
-          className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+          className="hero-stats-rise mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
         >
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
             <dt className="order-2 mt-1 text-[9px] leading-tight text-[#2C1F1A]/65 sm:text-xs">pieces listed</dt>
@@ -599,17 +605,17 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-[background-color,scale] duration-300 ease-out motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
                 >
-                  <c.Icon size={28} className="text-neutral-900" />
+                  <c.Icon size={28} className="text-neutral-900 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-110" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-[background-color,scale] duration-300 ease-out motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
               >
-                <span className="text-2xl text-neutral-900">→</span>
+                <span className="text-2xl text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
               </Link>
             </div>

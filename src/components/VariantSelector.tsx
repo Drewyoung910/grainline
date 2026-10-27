@@ -119,11 +119,11 @@ export default function VariantSelector({
                       moveSelection(group, selectedOptionId, "last");
                     }
                   }}
-                  className={`max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-colors ${
+                  className={`max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-[color,background-color,border-color,scale] duration-200 ease-out ${
                     isSelected
-                      ? "border-neutral-900 bg-neutral-900 text-white"
+                      ? "border-neutral-900 bg-neutral-900 text-white motion-safe:active:scale-[0.97]"
                       : opt.inStock
-                        ? "border-neutral-200 bg-[#F7F5F0] text-neutral-700 hover:border-neutral-400 hover:bg-white"
+                        ? "border-neutral-200 bg-[#F7F5F0] text-neutral-700 hover:border-neutral-400 hover:bg-white motion-safe:active:scale-[0.97]"
                         : "border-neutral-100 bg-[#F7F5F0] text-neutral-300 cursor-not-allowed line-through"
                   }`}
                 >
