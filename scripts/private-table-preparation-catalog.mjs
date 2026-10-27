@@ -159,12 +159,15 @@ export function functionSourceFromMigration(sql, name) {
   return sql.slice(bodyStart, end);
 }
 
-export function verifyPrivateTablePreparationSource(releaseId, rootDir = process.cwd()) {
+export function verifyPrivateTablePreparationSource(
+  releaseId,
+  rootDir = process.cwd(),
+  migrationPathOverride,
+) {
   const release = privateTablePreparation(releaseId);
-  const migrationPath = path.join(
-    rootDir,
-    privateTablePreparationMigrationPath(release),
-  );
+  const migrationPath = migrationPathOverride
+    ? path.resolve(rootDir, migrationPathOverride)
+    : path.join(rootDir, privateTablePreparationMigrationPath(release));
   const bytes = readFileSync(migrationPath);
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== release.migrationSha256) {

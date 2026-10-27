@@ -223,7 +223,11 @@ async function readPendingCatalog(client, verified, tableOwner) {
 
 export async function inspectPrivateTablePreparationProduction(
   env = process.env,
-  { Client = pg.Client, rootDir = process.cwd() } = {},
+  {
+    Client = pg.Client,
+    rootDir = process.cwd(),
+    migrationPath,
+  } = {},
 ) {
   const directUrl = required(env, "DIRECT_URL");
   const releaseId = required(env, "PRIVATE_TABLE_PREPARATION_RELEASE_ID");
@@ -232,7 +236,11 @@ export async function inspectPrivateTablePreparationProduction(
   const releaseCommit = required(env, "PRODUCTION_MIGRATION_RELEASE_COMMIT");
   if (!PHASES.has(phase)) throw new Error("preparation phase is invalid");
   if (!COMMIT.test(releaseCommit)) throw new Error("release commit is invalid");
-  const verified = verifyPrivateTablePreparationSource(releaseId, rootDir);
+  const verified = verifyPrivateTablePreparationSource(
+    releaseId,
+    rootDir,
+    migrationPath,
+  );
   const release = privateTablePreparation(releaseId);
   const parsed = new URL(directUrl);
   const client = new Client({

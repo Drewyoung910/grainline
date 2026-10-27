@@ -165,6 +165,14 @@ function environment(directory, phase, previousPath) {
 test("catalog admits only byte-sealed, additive reviewed preparations", () => {
   assert.equal(verified.digest, release.migrationSha256);
   assert.equal(verified.functionSources.size, 9);
+  assert.equal(
+    verifyPrivateTablePreparationSource(
+      releaseId,
+      process.cwd(),
+      verified.migrationPath,
+    ).digest,
+    release.migrationSha256,
+  );
   assert.throws(
     () => verifyPrivateTablePreparationSource("unreviewed_release"),
     /release id is not reviewed/u,

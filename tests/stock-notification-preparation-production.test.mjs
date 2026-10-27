@@ -16,7 +16,15 @@ import {
 
 const releaseId = "stock_notification_v1";
 const release = privateTablePreparation(releaseId);
-const verified = verifyPrivateTablePreparationSource(releaseId);
+const isolatedMigrationDirectory =
+  process.env.STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH?.trim();
+const verified = verifyPrivateTablePreparationSource(
+  releaseId,
+  process.cwd(),
+  isolatedMigrationDirectory
+    ? join(isolatedMigrationDirectory, "migration.sql")
+    : undefined,
+);
 const predecessorEntry = release.functions.find(
   (entry) => entry.predecessorSourceSha256 !== undefined,
 );
@@ -135,7 +143,10 @@ test("StockNotification preflight admits only the reviewed predecessor claim", a
     const env = environment(directory, "preflight");
     const evidence = await inspectPrivateTablePreparationProduction(
       env,
-      { Client: fakeClientClass({ applied: false }) },
+      {
+        Client: fakeClientClass({ applied: false }),
+        migrationPath: verified.migrationPath,
+      },
     );
     assert.equal(evidence.state, "pending");
     assert.deepEqual(evidence.catalog.columns, []);
@@ -153,7 +164,10 @@ test("StockNotification preflight admits only the reviewed predecessor claim", a
     await assert.rejects(
       inspectPrivateTablePreparationProduction(
         driftEnv,
-        { Client: fakeClientClass({ applied: false, predecessorBody: "drifted" }) },
+        {
+          Client: fakeClientClass({ applied: false, predecessorBody: "drifted" }),
+          migrationPath: verified.migrationPath,
+        },
       ),
       /predecessor body drifted/u,
     );
@@ -168,7 +182,10 @@ test("StockNotification postflight reads back every reviewed function", async ()
     const preEnv = environment(directory, "preflight");
     const pre = await inspectPrivateTablePreparationProduction(
       preEnv,
-      { Client: fakeClientClass({ applied: true }) },
+      {
+        Client: fakeClientClass({ applied: true }),
+        migrationPath: verified.migrationPath,
+      },
     );
     assert.equal(pre.state, "applied");
     assert.equal(pre.catalog.functions.length, release.functions.length);
@@ -180,7 +197,10 @@ test("StockNotification postflight reads back every reviewed function", async ()
     );
     const post = await inspectPrivateTablePreparationProduction(
       postEnv,
-      { Client: fakeClientClass({ applied: true }) },
+      {
+        Client: fakeClientClass({ applied: true }),
+        migrationPath: verified.migrationPath,
+      },
     );
     assert.equal(post.state, "applied");
     assert.deepEqual(post.posture, pre.posture);
