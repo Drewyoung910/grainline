@@ -43,6 +43,7 @@ import { releaseBlockedCheckoutLegacyRefundLock } from "@/lib/orderLegacyRefundL
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import { createOrderFromPaidCheckout } from "@/lib/orderPaidCheckoutAuthority";
+import { paidCheckoutLineItemIdentity } from "@/lib/stripeWebhookMetadata";
 import { readCheckoutPostpaymentProjection } from "@/lib/orderCheckoutPostpaymentAuthority";
 import { firstSaleCongratsDedupKey } from "@/lib/orderCheckoutPostpaymentState";
 import { readExistingCheckoutOrder } from "@/lib/orderCheckoutExistingAuthority";
@@ -927,26 +928,22 @@ export async function POST(req: Request) {
         const product = typeof lineItem.price?.product === "object"
           ? lineItem.price.product
           : null;
-        const paidListingId = product?.metadata?.listingId;
-        if (!paidListingId) return [];
-        const sourceKey = checkoutMode === "cart"
-          ? product?.metadata?.cartItemId
-          : paidListingId === listingId
-            ? `single:${paidListingId}`
-            : null;
+        const identity = paidCheckoutLineItemIdentity(
+          product?.metadata,
+          checkoutMode,
+          listingId,
+        );
+        if (!identity) return [];
         const quantity = lineItem.quantity;
         const unitAmountCents = lineItem.price?.unit_amount;
         if (
-          !sourceKey
-          || !Number.isSafeInteger(quantity)
+          !Number.isSafeInteger(quantity)
           || !Number.isSafeInteger(unitAmountCents)
         ) {
           throw new Error("Paid checkout line item authority is incomplete");
         }
         return [{
-          sourceKey,
-          listingId: paidListingId,
-          variantKey: product?.metadata?.variantKey ?? "",
+          ...identity,
           quantity: quantity as number,
           unitAmountCents: unitAmountCents as number,
         }];

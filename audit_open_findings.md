@@ -4119,6 +4119,24 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   separate release-tooling change. A later separately reviewed activation and
   rollback proof remain required.
 
+## 2026-10-27 — C-1218 Buy Now variant payments cannot create orders
+
+- **[VERIFIED; FIX PREPARED; NOT YET DEPLOYED]** The Buy Now route resolves and
+  reserves the selected variant key but omitted it from Stripe product
+  metadata. The signed checkout webhook therefore projected every Buy Now
+  variant purchase with an empty `variantKey`, while the fixed paid-order
+  authority compares that value to the non-empty key retained in the stock
+  reservation. Stripe can capture the payment, but every order-creation retry
+  is rejected before an Order is created.
+- The candidate centralizes the Stripe product-metadata producer and webhook
+  consumer contract, includes the resolved key for Buy Now, and keeps the
+  already-correct cart path on the same helper. Executed behavior tests carry a
+  two-group variant selection through both checkout modes and fail closed on
+  incomplete listing identity. Existing non-variant metadata remains the empty
+  string. No database, provider, pricing, transfer, stock or refund behavior is
+  changed. A production app deployment and Stripe test-mode variant checkout
+  remain required before this finding is closed.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

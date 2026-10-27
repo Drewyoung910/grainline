@@ -141,6 +141,29 @@ export function checkoutShippingPackageMetadata(value: {
   };
 }
 
+/**
+ * Builds the immutable Stripe product metadata consumed by the paid-checkout
+ * webhook. Keep the variant key beside the listing identity for both cart and
+ * Buy Now checkouts: the order authority compares it to the retained stock
+ * reservation before creating an Order.
+ */
+export function checkoutListingProductMetadata(value: {
+  listingId: string;
+  cartItemId?: string;
+  variantKey: string;
+  shippingWeightGrams?: unknown;
+  shippingLengthCm?: unknown;
+  shippingWidthCm?: unknown;
+  shippingHeightCm?: unknown;
+}): Record<string, string> {
+  return {
+    listingId: value.listingId,
+    ...(value.cartItemId ? { cartItemId: value.cartItemId } : {}),
+    variantKey: value.variantKey,
+    ...checkoutShippingPackageMetadata(value),
+  };
+}
+
 /** Reads only a complete, bounded package witness returned by Stripe. */
 export function readCheckoutShippingPackageMetadata(
   metadata: Record<string, string> | null | undefined,

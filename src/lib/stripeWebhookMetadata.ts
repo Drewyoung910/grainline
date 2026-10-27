@@ -10,6 +10,39 @@ export type SelectedVariantsMetadataResult =
   | { ok: true; selectedVariants: SelectedVariantSnapshot[] | undefined }
   | { ok: false; error: "invalid_json" | "not_array" | "invalid_shape"; metadataLength: number };
 
+export type PaidCheckoutLineItemIdentity = Readonly<{
+  sourceKey: string;
+  listingId: string;
+  variantKey: string;
+}>;
+
+/**
+ * Reads the immutable identity written into a Stripe checkout line item.
+ * Product rows without a listing id (for example gift wrapping) are ignored;
+ * listing rows with incomplete mode-specific identity fail closed.
+ */
+export function paidCheckoutLineItemIdentity(
+  metadata: Record<string, string> | null | undefined,
+  checkoutMode: "cart" | "single",
+  singleListingId: string | null | undefined,
+): PaidCheckoutLineItemIdentity | null {
+  const listingId = metadata?.listingId;
+  if (!listingId) return null;
+  const sourceKey = checkoutMode === "cart"
+    ? metadata?.cartItemId
+    : listingId === singleListingId
+      ? `single:${listingId}`
+      : null;
+  if (!sourceKey) {
+    throw new Error("Paid checkout line item authority is incomplete");
+  }
+  return Object.freeze({
+    sourceKey,
+    listingId,
+    variantKey: metadata?.variantKey ?? "",
+  });
+}
+
 export function parseSelectedVariantsMetadata(raw: string | undefined): SelectedVariantsMetadataResult {
   if (typeof raw !== "string" || raw.trim().length === 0) {
     return { ok: true, selectedVariants: undefined };
