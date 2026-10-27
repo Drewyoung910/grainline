@@ -122,6 +122,19 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Verify email outbox contract correction source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/email-outbox-contract-correction-production-workflow.test.mjs
+      - name: Isolate email outbox contract correction until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-outbox-contract-correction"
+          migration=20261027020000_correct_email_outbox_contracts
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Verify C-875 unsubscribe correction source package
         run: >-
           node --test --test-concurrency=1
@@ -6899,6 +6912,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email outbox contract correction after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-outbox-contract-correction"
+          migration=20261027020000_correct_email_outbox_contracts
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build

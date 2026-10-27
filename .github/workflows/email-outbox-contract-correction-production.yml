@@ -1,0 +1,185 @@
+name: Email Outbox Contract Correction Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit containing the correction
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-email-outbox-contract-correction
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed C-1174 C-1178 C-1185 correction
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-email-outbox-contract-correction'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind correction to exact live main and completed push workflows
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Email outbox correction release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.path !== '.github/workflows/ci.yml' || run.event !== 'push' ||
+                run.head_branch !== 'main' || run.head_sha !== sha ||
+                run.status !== 'completed' || run.conclusion !== 'success') {
+              throw new Error('Email outbox correction main/CI readback drifted');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {...context.repo, branch: 'main', event: 'push', head_sha: sha, per_page: 100},
+            );
+            const latestByWorkflow = new Map();
+            for (const exactRun of exactPushRuns) {
+              if (exactRun.head_sha !== sha || exactRun.head_branch !== 'main' ||
+                  exactRun.event !== 'push') continue;
+              const key = exactRun.path || exactRun.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(exactRun.id) > Number(previous.id)) {
+                latestByWorkflow.set(key, exactRun);
+              }
+            }
+            const requiredPushWorkflowPaths = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missing = [...requiredPushWorkflowPaths]
+              .filter((workflowPath) => !latestByWorkflow.has(workflowPath));
+            if (missing.length !== 0) {
+              throw new Error(`Required exact-main push workflows are absent: ${missing.join(', ')}`);
+            }
+            const unacceptable = [...latestByWorkflow.values()]
+              .filter((exactRun) => exactRun.status !== 'completed' ||
+                exactRun.conclusion !== 'success');
+            if (unacceptable.length !== 0) {
+              throw new Error(`Exact-main push workflows are not all green: ${unacceptable
+                .map((exactRun) => `${exactRun.name}:${exactRun.status}/${exactRun.conclusion}`)
+                .join(', ')}`);
+            }
+      - name: Verify exact correction bytes and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261027020000_correct_email_outbox_contracts
+          echo "b4b036b2a405be02706bf3506efdd29798851abe02a87d72ff3e78d1e4cc24d1  prisma/migrations/$migration/migration.sql" \
+            | sha256sum --check --status
+          node --check scripts/email-outbox-contract-correction-production-inspect.mjs
+          node --test --test-concurrency=1 \
+            tests/email-outbox-contract-correction-production-workflow.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect exact predecessor and pending migrations read-only
+        id: preflight
+        run: node scripts/email-outbox-contract-correction-production-inspect.mjs preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Require only reviewed StockNotification and email correction migrations pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.expected_pending }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Apply reviewed correction transaction outside Prisma's ledger
+        if: steps.preflight.outputs.state == 'pending'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+        run: |
+          set -euo pipefail
+          migration=20261027020000_correct_email_outbox_contracts
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+      - name: Record the committed correction in Prisma's ledger
+        if: steps.preflight.outputs.state == 'pending'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: >-
+          npx prisma migrate resolve --applied
+          20261027020000_correct_email_outbox_contracts
+      - name: Read back functions, runtime behavior, and ledger
+        run: node scripts/email-outbox-contract-correction-production-inspect.mjs postflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Require no unreviewed migrations after correction
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.expected_after }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Audit runtime grants after correction
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Upload sanitized email outbox correction evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: email-outbox-contract-correction-${{ github.run_id }}
+          path: ${{ runner.temp }}/email-outbox-contract-correction-*.json
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
