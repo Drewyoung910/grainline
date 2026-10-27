@@ -19,11 +19,10 @@ export default function ListingGallery({
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
-  const mainImgRef = useRef<HTMLImageElement>(null);
-  // The first load of each <img> is the initial render; every later load is a
-  // photo change and gets a short cross-fade.
-  const mainImgLoadedRef = useRef(false);
-  const lightboxImgLoadedRef = useRef(false);
+  // Set when the viewer moves to another photo, so only that photo's load gets
+  // the short cross-fade (never the first photo shown).
+  const mainSwapRef = useRef(false);
+  const lightboxSwapRef = useRef(false);
   // Lightbox swipe
   const touchStartX = useRef<number>(0);
   const touchStartY = useRef<number>(0);
@@ -39,19 +38,16 @@ export default function ListingGallery({
   useBodyScrollLock(lightboxOpen);
 
   useEffect(() => {
-    // A photo that finished loading before hydration never fires onLoad.
-    if (mainImgRef.current?.complete) mainImgLoadedRef.current = true;
-  }, []);
-
-  useEffect(() => {
-    if (lightboxOpen) lightboxImgLoadedRef.current = false;
-  }, [lightboxOpen]);
-
-  useEffect(() => {
     if (!lightboxOpen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "ArrowRight") setLightboxIndex((i) => (i + 1) % photos.length);
-      if (e.key === "ArrowLeft") setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+      if (e.key === "ArrowRight") {
+        lightboxSwapRef.current = true;
+        setLightboxIndex((i) => (i + 1) % photos.length);
+      }
+      if (e.key === "ArrowLeft") {
+        lightboxSwapRef.current = true;
+        setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -84,16 +80,35 @@ export default function ListingGallery({
   const activeUrl = photos[activeIndex]?.url ?? "";
 
   function openLightbox(i: number) {
+    lightboxSwapRef.current = false;
     setLightboxIndex(i);
     setLightboxOpen(true);
   }
 
+  function showPhoto(i: number) {
+    if (i === activeIndex) return;
+    mainSwapRef.current = true;
+    setActiveIndex(i);
+  }
+
   function showPreviousPhoto() {
+    mainSwapRef.current = true;
     setActiveIndex((i) => (i - 1 + photos.length) % photos.length);
   }
 
   function showNextPhoto() {
+    mainSwapRef.current = true;
     setActiveIndex((i) => (i + 1) % photos.length);
+  }
+
+  function showPreviousLightboxPhoto() {
+    lightboxSwapRef.current = true;
+    setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+  }
+
+  function showNextLightboxPhoto() {
+    lightboxSwapRef.current = true;
+    setLightboxIndex((i) => (i + 1) % photos.length);
   }
 
   // Lightbox swipe handlers
@@ -106,8 +121,8 @@ export default function ListingGallery({
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 50) {
-      if (diff > 0) setLightboxIndex((i) => (i + 1) % photos.length);
-      else setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+      if (diff > 0) showNextLightboxPhoto();
+      else showPreviousLightboxPhoto();
     }
     lightboxHorizontalLocked.current = false;
   }
@@ -123,8 +138,8 @@ export default function ListingGallery({
     const diff = mainTouchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) >= 50) {
       mainSwiped.current = true;
-      if (diff > 0) setActiveIndex((i) => (i + 1) % photos.length);
-      else setActiveIndex((i) => (i - 1 + photos.length) % photos.length);
+      if (diff > 0) showNextPhoto();
+      else showPreviousPhoto();
     }
     mainHorizontalLocked.current = false;
   }
@@ -153,14 +168,14 @@ export default function ListingGallery({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          ref={mainImgRef}
           src={activeUrl}
           alt={photos[activeIndex]?.altText ?? title}
           fetchPriority="high"
           className="w-full h-full object-cover"
           onLoad={(e) => {
-            if (mainImgLoadedRef.current) playPhotoSwap(e.currentTarget);
-            mainImgLoadedRef.current = true;
+            if (!mainSwapRef.current) return;
+            mainSwapRef.current = false;
+            playPhotoSwap(e.currentTarget);
           }}
         />
         {photos.length > 1 && (
@@ -230,7 +245,7 @@ export default function ListingGallery({
           {photos.map((p, i) => (
             <button
               key={p.id}
-              onClick={() => setActiveIndex(i)}
+              onClick={() => showPhoto(i)}
               className={`shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
                 i === activeIndex
                   ? "border-neutral-900"
@@ -271,7 +286,7 @@ export default function ListingGallery({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+                  showPreviousLightboxPhoto();
                 }}
                 className="absolute left-[calc(1rem+env(safe-area-inset-left))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-white hover:text-neutral-300"
                 aria-label="Previous image"
@@ -281,7 +296,7 @@ export default function ListingGallery({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxIndex((i) => (i + 1) % photos.length);
+                  showNextLightboxPhoto();
                 }}
                 className="absolute right-[calc(1rem+env(safe-area-inset-right))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-white hover:text-neutral-300"
                 aria-label="Next image"
@@ -298,8 +313,9 @@ export default function ListingGallery({
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
               onLoad={(e) => {
-                if (lightboxImgLoadedRef.current) playPhotoSwap(e.currentTarget);
-                lightboxImgLoadedRef.current = true;
+                if (!lightboxSwapRef.current) return;
+                lightboxSwapRef.current = false;
+                playPhotoSwap(e.currentTarget);
               }}
             />
             {photos.length > 1 && (

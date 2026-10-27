@@ -31,20 +31,21 @@ export default function Header() {
   const { isSignedIn } = useUser();
 
   const [cartCount, setCartCount] = React.useState<number | null>(null);
-  // Bumps the cart badge only when the count goes up, not on first load.
+  // Bumps the cart badge when a cart change raises the count. Page loads and
+  // signing in or out reload the count without a bump.
   const [cartBumpCount, setCartBumpCount] = React.useState(0);
-  const previousCartCountRef = React.useRef<number | null>(null);
+  const cartCountRef = React.useRef<number | null>(null);
+  const cartCountBeforeChangeRef = React.useRef<number | null>(null);
   React.useEffect(() => {
-    // Signing in or out swaps which cart is counted; that isn't an add.
-    previousCartCountRef.current = null;
-  }, [isSignedIn]);
-  React.useEffect(() => {
-    const previous = previousCartCountRef.current;
-    previousCartCountRef.current = cartCount;
-    if (previous !== null && cartCount !== null && cartCount > previous) {
-      setCartBumpCount((count) => count + 1);
-    }
+    cartCountRef.current = cartCount;
+    const before = cartCountBeforeChangeRef.current;
+    if (before === null || cartCount === null || cartCount === before) return;
+    cartCountBeforeChangeRef.current = null;
+    if (cartCount > before) setCartBumpCount((count) => count + 1);
   }, [cartCount]);
+  React.useEffect(() => {
+    cartCountBeforeChangeRef.current = null;
+  }, [isSignedIn]);
   const [role, setRole] = React.useState<string | null>(null);
   const [hasSeller, setHasSeller] = React.useState(false);
   const [name, setName] = React.useState<string | null>(null);
@@ -334,6 +335,7 @@ export default function Header() {
 
   React.useEffect(() => {
     const onUpdated = () => {
+      cartCountBeforeChangeRef.current = cartCountRef.current;
       if (isLoggedIn) loadCartCount();
       else loadAnonymousCartCount();
     };

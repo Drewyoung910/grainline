@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 export type VariantGroupForSelector = {
@@ -19,8 +20,8 @@ export type VariantGroupForSelector = {
 // sliding in from the corner.
 type SelectionInk = { x: number; y: number; width: number; height: number; settled: boolean };
 
-function sameInk(a: SelectionInk | undefined, b: SelectionInk) {
-  return Boolean(a) && a!.x === b.x && a!.y === b.y && a!.width === b.width && a!.height === b.height && a!.settled === b.settled;
+function samePlace(a: SelectionInk | undefined, b: Omit<SelectionInk, "settled">) {
+  return Boolean(a) && a!.x === b.x && a!.y === b.y && a!.width === b.width && a!.height === b.height;
 }
 
 export default function VariantSelector({
@@ -48,10 +49,21 @@ export default function VariantSelector({
     return next;
   });
 
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [inks, setInks] = useState<Record<string, SelectionInk>>({});
+  // Groups whose last pick moved the highlight from an earlier choice. Those
+  // options wait for it to arrive before turning see-through; a first pick
+  // fills in place instead.
+  const [sliding, setSliding] = useState<Record<string, boolean>>({});
+
   const selectOption = useCallback(
     (groupId: string, optionId: string) => {
       const next = { ...selected, [groupId]: optionId };
       setSelected(next);
+      const previousOptionId = selected[groupId];
+      if (previousOptionId !== optionId) {
+        setSliding((current) => ({ ...current, [groupId]: Boolean(previousOptionId && inks[groupId]) }));
+      }
 
       const ids = Object.values(next);
       const adjust = ids.reduce((sum, oid) => {
@@ -63,7 +75,7 @@ export default function VariantSelector({
       }, 0);
       onSelectionChange(ids, basePriceCents + adjust);
     },
-    [selected, groups, basePriceCents, onSelectionChange]
+    [selected, inks, groups, basePriceCents, onSelectionChange]
   );
 
   const moveSelection = useCallback(
@@ -84,11 +96,10 @@ export default function VariantSelector({
     [selectOption],
   );
 
-  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [inks, setInks] = useState<Record<string, SelectionInk>>({});
-
   useLayoutEffect(() => {
-    const measure = () => {
+    // A selection change slides the highlight; a resize (wrapping, rotation)
+    // moves it straight to the new spot.
+    const measure = (fromResize: boolean) => {
       setInks((previous) => {
         const next: Record<string, SelectionInk> = {};
         let changed = false;
@@ -98,23 +109,25 @@ export default function VariantSelector({
           if (!optionId || !container) continue;
           const button = container.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(optionId)}"]`);
           if (!button) continue;
-          const ink: SelectionInk = {
+          const place = {
             x: button.offsetLeft,
             y: button.offsetTop,
             width: button.offsetWidth,
             height: button.offsetHeight,
-            settled: Boolean(previous[group.id]),
           };
-          next[group.id] = sameInk(previous[group.id], ink) ? previous[group.id] : ink;
+          next[group.id] = samePlace(previous[group.id], place)
+            ? previous[group.id]
+            : { ...place, settled: Boolean(previous[group.id]) && !fromResize };
           if (next[group.id] !== previous[group.id]) changed = true;
         }
         if (Object.keys(previous).length !== Object.keys(next).length) changed = true;
         return changed ? next : previous;
       });
     };
-    measure();
+    measure(false);
     if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
+    // Applied before the next paint so the highlight never shows in its old spot.
+    const observer = new ResizeObserver(() => flushSync(() => measure(true)));
     for (const container of Object.values(groupRefs.current)) {
       if (container) observer.observe(container);
     }
@@ -144,7 +157,7 @@ export default function VariantSelector({
             {inks[group.id] && (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute left-0 top-0 z-[1] rounded-md bg-neutral-900 transition-[translate,width,height] duration-[360ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                className="pointer-events-none absolute left-0 top-0 z-[1] rounded-md bg-neutral-900 transition-[translate,width,height] duration-[260ms] ease-[cubic-bezier(0.2,0.7,0.2,1)]"
                 style={{
                   width: inks[group.id].width,
                   height: inks[group.id].height,
@@ -155,6 +168,7 @@ export default function VariantSelector({
             )}
             {group.options.map((opt) => {
               const isSelected = selected[group.id] === opt.id;
+              const showsInk = isSelected && sliding[group.id] && Boolean(inks[group.id]);
               const selectedOptionId = selected[group.id];
               const firstAvailableId = group.options.find((option) => option.inStock)?.id;
               return (
@@ -183,14 +197,14 @@ export default function VariantSelector({
                       moveSelection(group, selectedOptionId, "last");
                     }
                   }}
-                  className={`relative max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-[color,background-color,border-color,scale] duration-200 ease-out ${
-                    isSelected
-                      ? inks[group.id]
-                        ? "z-[2] border-transparent bg-transparent text-white delay-100 motion-safe:active:scale-[0.97]"
-                        : "border-neutral-900 bg-neutral-900 text-white motion-safe:active:scale-[0.97]"
-                      : opt.inStock
-                        ? "border-neutral-200 bg-[#F7F5F0] text-neutral-700 hover:border-neutral-400 hover:bg-white motion-safe:active:scale-[0.97]"
-                        : "border-neutral-100 bg-[#F7F5F0] text-neutral-300 cursor-not-allowed line-through"
+                  className={`relative max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-[color,background-color,border-color,scale] ease-out ${
+                    showsInk
+                      ? "z-[2] border-transparent bg-transparent text-white duration-150 motion-safe:delay-[130ms] motion-safe:active:scale-[0.97]"
+                      : isSelected
+                        ? "z-[2] border-neutral-900 bg-neutral-900 text-white duration-200 motion-safe:active:scale-[0.97]"
+                        : opt.inStock
+                          ? "border-neutral-200 bg-[#F7F5F0] text-neutral-700 duration-200 hover:border-neutral-400 hover:bg-white motion-safe:active:scale-[0.97]"
+                          : "border-neutral-100 bg-[#F7F5F0] text-neutral-300 duration-200 cursor-not-allowed line-through"
                   }`}
                 >
                   {opt.label}

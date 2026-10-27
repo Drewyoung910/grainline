@@ -525,19 +525,22 @@ input, textarea, select {
   .reveal-stagger > :nth-child(6) { animation-delay: 300ms; }
   .reveal-stagger > :nth-child(n + 7) { animation-delay: 360ms; }
 
-  /* Policy and FAQ accordions open and close smoothly where supported;
-     other browsers keep the instant toggle. */
-  .smooth-details {
-    interpolate-size: allow-keywords;
-  }
-  .smooth-details details::details-content {
-    block-size: 0;
-    overflow: clip;
-    transition: block-size 0.35s var(--motion-ease-out), content-visibility 0.35s;
-    transition-behavior: allow-discrete;
-  }
-  .smooth-details details[open]::details-content {
-    block-size: auto;
+  /* Policy and FAQ accordions open and close smoothly where height can
+     animate to "auto"; other browsers keep the instant toggle. */
+  @supports (interpolate-size: allow-keywords) {
+    .smooth-details {
+      interpolate-size: allow-keywords;
+    }
+    .smooth-details details::details-content {
+      block-size: 0;
+      overflow: clip;
+      transition:
+        block-size 0.35s var(--motion-ease-out),
+        content-visibility 0.35s allow-discrete;
+    }
+    .smooth-details details[open]::details-content {
+      block-size: auto;
+    }
   }
 }
 

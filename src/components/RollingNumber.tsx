@@ -7,9 +7,13 @@ import { useState } from "react";
 export default function RollingNumber({
   value,
   className = "",
+  grouped = true,
 }: {
   value: number;
   className?: string;
+  // Thousands separators ("1,000"). Off keeps the plain digits a caller
+  // already showed before it animated.
+  grouped?: boolean;
 }) {
   const [shown, setShown] = useState(value);
   const [changeCount, setChangeCount] = useState(0);
@@ -23,7 +27,7 @@ export default function RollingNumber({
       key={changeCount}
       className={`inline-block${changeCount > 0 ? " count-roll-in" : ""}${className ? ` ${className}` : ""}`}
     >
-      {value.toLocaleString("en-US")}
+      {grouped ? value.toLocaleString("en-US") : value}
     </span>
   );
 }
