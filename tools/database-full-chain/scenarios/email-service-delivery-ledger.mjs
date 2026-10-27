@@ -58,6 +58,21 @@ export async function proveEmailServiceDeliveryLedger({ database }) {
         WHERE "svixId" = $1`,
       [`${PREFIX}_resend_route`],
     );
+    await database.query("SAVEPOINT resend_claim_pair_guard");
+    await assert.rejects(
+      database.query(
+        `INSERT INTO public."ResendWebhookEvent" (
+           "svixId", type, "claimToken", "createdAt", "updatedAt"
+         ) VALUES ($1, $2, $3::uuid, now(), now())`,
+        [
+          `${PREFIX}_invalid_worker_claim`,
+          "email.bounced",
+          "00000000-0000-4000-8000-000000000001",
+        ],
+      ),
+      /ResendWebhookEvent_claim_pair_chk/u,
+    );
+    await database.query("ROLLBACK TO SAVEPOINT resend_claim_pair_guard");
     await database.query("RESET ROLE");
 
     await insertLegacyJob(database, {

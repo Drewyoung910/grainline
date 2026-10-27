@@ -18,6 +18,10 @@ const workflow = readFileSync(
   ".github/workflows/resend-webhook-receipt-recovery-production.yml",
   "utf8",
 );
+const inspectorSource = readFileSync(
+  "scripts/resend-webhook-receipt-recovery-production-inspect.mjs",
+  "utf8",
+);
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const migrationDirectory =
   process.env.RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH
@@ -91,7 +95,7 @@ async function runBinding(options = {}) {
   );
 }
 
-function catalog({ incompatible = true, readOnly = true } = {}) {
+function catalog({ schemaState = "predecessor", readOnly = true } = {}) {
   const constraints = [
     {
       name: "ResendWebhookEvent_acknowledgement_pair_chk",
@@ -109,10 +113,12 @@ function catalog({ incompatible = true, readOnly = true } = {}) {
       definition: 'CHECK ("claimGeneration" >= 0)',
     },
   ];
-  if (incompatible) constraints.push({
+  constraints.push({
     name: "ResendWebhookEvent_claim_pair_chk",
     validated: true,
-    definition: 'CHECK (("claimToken" IS NULL) = ("processingStartedAt" IS NULL))',
+    definition: schemaState === "predecessor"
+      ? 'CHECK (("claimToken" IS NULL) = ("processingStartedAt" IS NULL))'
+      : 'CHECK ("claimToken" IS NULL OR "processingStartedAt" IS NOT NULL)',
   });
   return {
     identity: {
@@ -186,7 +192,7 @@ test("C-1180 recovery applies only its exact migration while preserving the Stoc
     "name: Record the committed recovery in Prisma's ledger",
   );
   const postflight = workflow.indexOf(
-    "name: Read back constraint removal, route write compatibility, and ledger",
+    "name: Read back compatible constraint, route write compatibility, and ledger",
   );
   assert.ok(apply >= 0);
   assert.ok(resolve > apply);
@@ -229,23 +235,34 @@ test("C-1180 source is proved and isolated from exact-latest historical release 
   );
 });
 
-test("C-1180 catalog requires the exact predecessor before recovery and its absence afterward", () => {
+test("C-1180 catalog accepts a resumable recovered schema before ledger repair", () => {
   assert.equal(verifyCatalog(catalog(), {
     candidateState: "pending",
     stockState: "pending",
-  }).incompatibleConstraintPresent, true);
-  assert.equal(verifyCatalog(catalog({ incompatible: false }), {
+  }).schemaState, "predecessor");
+  assert.equal(verifyCatalog(catalog({ schemaState: "recovered" }), {
+    candidateState: "pending",
+    stockState: "pending",
+  }).schemaState, "recovered");
+  assert.equal(verifyCatalog(catalog({ schemaState: "recovered" }), {
     candidateState: "applied",
     stockState: "pending",
   }, {
     readOnly: true,
-  }).incompatibleConstraintPresent, false);
-  assert.equal(verifyCatalog(catalog({ incompatible: false, readOnly: false }), {
+  }).recoveredConstraintPresent, true);
+  assert.equal(verifyCatalog(catalog({
+    schemaState: "recovered",
+    readOnly: false,
+  }), {
     candidateState: "applied",
     stockState: "pending",
   }, {
     readOnly: false,
   }).runtimeReceiptAuthority, true);
+  assert.throws(() => verifyCatalog(catalog(), {
+    candidateState: "applied",
+    stockState: "pending",
+  }), /applied recovery ledger requires the recovered constraint/u);
   const drifted = catalog();
   drifted.constraints[0] = {
     ...drifted.constraints[0],
@@ -273,10 +290,36 @@ test("C-1180 migration is atomic, serialized, narrow, and self-verifying", () =>
     migrationSql,
     /DROP CONSTRAINT "ResendWebhookEvent_claim_pair_chk"/u,
   );
+  assert.match(
+    migrationSql,
+    /CHECK \("claimToken" IS NULL OR "processingStartedAt" IS NOT NULL\) NOT VALID/u,
+  );
+  assert.match(
+    migrationSql,
+    /VALIDATE CONSTRAINT "ResendWebhookEvent_claim_pair_chk"/u,
+  );
   assert.match(migrationSql, /resend_webhook_receipt_preflight/u);
   assert.match(migrationSql, /resend_webhook_receipt_postflight/u);
   assert.match(migrationSql, /COMMIT;\s*$/u);
   assert.doesNotMatch(migrationSql, /DROP TABLE|DELETE FROM|UPDATE public/u);
+});
+
+test("C-1180 workflow resumes after committed DDL without executing it twice", () => {
+  const applyStep = parsed.jobs.apply.steps.find((step) =>
+    step.name === "Apply reviewed recovery transaction outside Prisma's ledger"
+  );
+  const resolveStep = parsed.jobs.apply.steps.find((step) =>
+    step.name === "Record the committed recovery in Prisma's ledger"
+  );
+  assert.equal(
+    applyStep.if,
+    "steps.preflight.outputs.state == 'pending' && steps.preflight.outputs.schema_state == 'predecessor'",
+  );
+  assert.equal(resolveStep.if, "steps.preflight.outputs.state == 'pending'");
+  assert.match(
+    inspectorSource,
+    /appendFileSync\(process\.env\.GITHUB_OUTPUT, `schema_state=\$\{result\.schemaState\}\\n`\)/u,
+  );
 });
 
 test("C-1180 evidence is always uploaded and never deploys app/provider changes", () => {

@@ -15,7 +15,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const MIGRATION = "20261027010000_restore_resend_webhook_receipts";
 export const MIGRATION_SHA256 =
-  "c4ccc1d97c42a586e824adbbc575f0c0112fbb3896f169d29a184dfde0eed567";
+  "a765482bfdeca66a82aaa912c5bfc2c6f7bc44b033fea4ace2e5bc40243ad2ba";
 export const STOCK_NOTIFICATION_MIGRATION =
   "20261026010000_prepare_stock_notification_authorities";
 export const STOCK_NOTIFICATION_SHA256 =
@@ -43,9 +43,11 @@ const RETAINED_CONSTRAINTS = Object.freeze(new Map([
     'CHECK ("acknowledgedAt" IS NULL AND "acknowledgedById" IS NULL AND acknowledgement IS NULL OR "acknowledgedAt" IS NOT NULL AND "acknowledgedById" IS NOT NULL AND acknowledgement IS NOT NULL)',
   ],
 ]));
-const INCOMPATIBLE_CONSTRAINT = "ResendWebhookEvent_claim_pair_chk";
-const INCOMPATIBLE_DEFINITION =
+const CLAIM_PAIR_CONSTRAINT = "ResendWebhookEvent_claim_pair_chk";
+const PREDECESSOR_CLAIM_PAIR_DEFINITION =
   'CHECK (("claimToken" IS NULL) = ("processingStartedAt" IS NULL))';
+const RECOVERED_CLAIM_PAIR_DEFINITION =
+  'CHECK ("claimToken" IS NULL OR "processingStartedAt" IS NOT NULL)';
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -109,9 +111,7 @@ export function verifyCatalog(
   const constraints = new Map(
     catalog.constraints.map((row) => [row.name, row]),
   );
-  assert.equal(constraints.size, RETAINED_CONSTRAINTS.size + (
-    candidateState === "pending" ? 1 : 0
-  ));
+  assert.equal(constraints.size, RETAINED_CONSTRAINTS.size + 1);
   for (const [name, definition] of RETAINED_CONSTRAINTS) {
     assert.deepEqual(constraints.get(name), {
       name,
@@ -119,20 +119,30 @@ export function verifyCatalog(
       definition,
     });
   }
-  if (candidateState === "pending") {
-    assert.deepEqual(constraints.get(INCOMPATIBLE_CONSTRAINT), {
-      name: INCOMPATIBLE_CONSTRAINT,
-      validated: true,
-      definition: INCOMPATIBLE_DEFINITION,
-    });
-  } else {
-    assert.equal(constraints.has(INCOMPATIBLE_CONSTRAINT), false);
+  const claimPair = constraints.get(CLAIM_PAIR_CONSTRAINT);
+  assert.equal(claimPair?.name, CLAIM_PAIR_CONSTRAINT);
+  assert.equal(claimPair?.validated, true);
+  const schemaState = claimPair.definition === PREDECESSOR_CLAIM_PAIR_DEFINITION
+    ? "predecessor"
+    : claimPair.definition === RECOVERED_CLAIM_PAIR_DEFINITION
+      ? "recovered"
+      : assert.fail(
+        `Resend webhook claim-pair constraint drifted: ${claimPair.definition}`,
+      );
+  if (candidateState === "applied") {
+    assert.equal(
+      schemaState,
+      "recovered",
+      "applied recovery ledger requires the recovered constraint",
+    );
   }
   assert.ok(stockState === "pending" || stockState === "applied");
   return Object.freeze({
     candidateState,
     stockState,
-    incompatibleConstraintPresent: candidateState === "pending",
+    schemaState,
+    predecessorConstraintPresent: schemaState === "predecessor",
+    recoveredConstraintPresent: schemaState === "recovered",
     retainedConstraintCount: RETAINED_CONSTRAINTS.size,
     runtimeReceiptAuthority: true,
     containsRowData: false,
@@ -198,7 +208,7 @@ async function readCatalog(client) {
              'public."ResendWebhookEvent"'::pg_catalog.regclass
        AND constraint_row.conname = ANY($1::text[])
      ORDER BY constraint_row.conname
-  `, [[...RETAINED_CONSTRAINTS.keys(), INCOMPATIBLE_CONSTRAINT]]);
+  `, [[...RETAINED_CONSTRAINTS.keys(), CLAIM_PAIR_CONSTRAINT]]);
   return Object.freeze({
     identity: Object.freeze(identity.rows[0]),
     table: Object.freeze(table.rows[0]),
@@ -320,6 +330,7 @@ async function main() {
       });
       assert.ok(process.env.GITHUB_OUTPUT, "GITHUB_OUTPUT is missing");
       appendFileSync(process.env.GITHUB_OUTPUT, `state=${states.candidateState}\n`);
+      appendFileSync(process.env.GITHUB_OUTPUT, `schema_state=${result.schemaState}\n`);
       appendFileSync(
         process.env.GITHUB_OUTPUT,
         `expected_pending=${expectedPendingMigrations(states)}\n`,
@@ -332,7 +343,7 @@ async function main() {
       );
     } else {
       assert.equal(states.candidateState, "applied");
-      assert.equal(result.incompatibleConstraintPresent, false);
+      assert.equal(result.schemaState, "recovered");
       const routeWriteProof = await proveRuntimeReceiptStatements(client);
       const before = JSON.parse(readFileSync(snapshotPath, "utf8"));
       assert.ok(before.states.candidateState === "pending" ||

@@ -4132,8 +4132,11 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 - The failure was reproduced with the unchanged route-shaped insert on the
   complete 435-migration schema in PostgreSQL 17. The same full-chain scenario
   passes after forward migration
-  `20261027010000_restore_resend_webhook_receipts`, which drops only the
-  incompatible check and retains the other three validated receipt checks.
+  `20261027010000_restore_resend_webhook_receipts`, which replaces the
+  incompatible equality with a validated one-way claim check and retains the
+  other three validated receipt checks. The one-way check allows the signed
+  webhook's timestamp-only lease but still refuses a delivery-worker claim
+  token without its processing timestamp.
   The protected release workflow is exact-main/exact-CI bound, accepts the
   separately reviewed pending StockNotification preparation without applying
   it, and proves the runtime insert/update inside a rolled-back postflight
