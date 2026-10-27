@@ -53,7 +53,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
-import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
+import { buyNowListingProductMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
 import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
 import { sellerSingleCheckoutSource } from "@/lib/sellerTransactionAccess";
@@ -498,19 +498,18 @@ export async function POST(req: Request) {
           product_data: {
             name: `${listing.title}${variantDesc}`,
             images: listing.photos.length ? [listing.photos[0].url] : undefined,
-            metadata: {
+            metadata: buyNowListingProductMetadata({
               listingId: listing.id,
-              ...checkoutShippingPackageMetadata({
-                shippingWeightGrams:
-                  listing.packagedWeightGrams ?? checkoutPrivateState.defaultPkgWeightGrams,
-                shippingLengthCm:
-                  listing.packagedLengthCm ?? checkoutPrivateState.defaultPkgLengthCm,
-                shippingWidthCm:
-                  listing.packagedWidthCm ?? checkoutPrivateState.defaultPkgWidthCm,
-                shippingHeightCm:
-                  listing.packagedHeightCm ?? checkoutPrivateState.defaultPkgHeightCm,
-              }),
-            },
+              variantKey: variantResolution.variantKey,
+              shippingWeightGrams:
+                listing.packagedWeightGrams ?? checkoutPrivateState.defaultPkgWeightGrams,
+              shippingLengthCm:
+                listing.packagedLengthCm ?? checkoutPrivateState.defaultPkgLengthCm,
+              shippingWidthCm:
+                listing.packagedWidthCm ?? checkoutPrivateState.defaultPkgWidthCm,
+              shippingHeightCm:
+                listing.packagedHeightCm ?? checkoutPrivateState.defaultPkgHeightCm,
+            }),
             tax_code: "txcd_99999999", // General - Tangible Personal Property
           },
         },
