@@ -57,6 +57,10 @@ import { buyNowListingProductMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
 import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
 import { sellerSingleCheckoutSource } from "@/lib/sellerTransactionAccess";
+import {
+  resolveGiftWrappingCharge,
+  withExclusiveTaxBehavior,
+} from "@/lib/checkoutLineItemContract";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
@@ -217,9 +221,14 @@ export async function POST(req: Request) {
     }
 
     // Gift wrapping: reject if buyer requested it but seller does not offer it.
-    if (body.giftWrapping && !listing.seller.offersGiftWrapping) {
+    const giftWrappingCharge = resolveGiftWrappingCharge({
+      requested: body.giftWrapping,
+      offered: listing.seller.offersGiftWrapping,
+      configuredPriceCents: listing.seller.giftWrappingPriceCents,
+    });
+    if (!giftWrappingCharge.ok) {
       return privateJson(
-        { error: "This seller does not offer gift wrapping." },
+        { error: giftWrappingCharge.error },
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
@@ -306,10 +315,7 @@ export async function POST(req: Request) {
     const isFallback = isFallbackRate(body.selectedRate);
     const shippingAmountCents = body.selectedRate.amountCents;
 
-    // Gift wrap price is sourced server-side from the seller's profile
-    const giftWrapCents = body.giftWrapping
-      ? (listing.seller.giftWrappingPriceCents ?? 0)
-      : 0;
+    const giftWrapCents = giftWrappingCharge.amountCents;
 
     const itemsSubtotalCents = unitPriceCents * body.quantity;
     const checkoutAmounts = calculateCheckoutAmounts({
@@ -487,12 +493,13 @@ export async function POST(req: Request) {
       price_data: {
         currency: string;
         unit_amount: number;
+        tax_behavior: "exclusive";
         product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string };
       };
     }[] = [
       {
         quantity: body.quantity,
-        price_data: {
+        price_data: withExclusiveTaxBehavior({
           currency,
           unit_amount: unitPriceCents,
           product_data: {
@@ -512,18 +519,18 @@ export async function POST(req: Request) {
             }),
             tax_code: "txcd_99999999", // General - Tangible Personal Property
           },
-        },
+        }),
       },
     ];
 
     if (body.giftWrapping && giftWrapCents > 0) {
       line_items.push({
         quantity: 1,
-        price_data: {
+        price_data: withExclusiveTaxBehavior({
           currency,
           unit_amount: giftWrapCents,
           product_data: { name: "Gift Wrapping", tax_code: "txcd_99999999" },
-        },
+        }),
       });
     }
 

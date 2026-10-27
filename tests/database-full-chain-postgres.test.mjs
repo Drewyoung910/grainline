@@ -25,6 +25,11 @@ import {
   proveOrderRefund648Inventory,
 } from "../tools/database-full-chain/scenarios/order-refund-immutable-event.mjs";
 import { proveBlockedPairPaidCheckoutCompletion } from "../tools/database-full-chain/scenarios/paid-checkout-block-race.mjs";
+import {
+  GIFT_WRAPPING_CHECKOUT_CONTRACT_MIGRATION,
+  proveGiftWrappingCheckoutContract,
+  proveGiftWrappingCheckoutPredecessorFailure,
+} from "../tools/database-full-chain/scenarios/gift-wrapping-checkout-contract.mjs";
 import { proveBlockedCheckoutRefundRecovery } from "../tools/database-full-chain/scenarios/blocked-checkout-refund-recovery.mjs";
 import {
   proveCaseRefundRecoveryFindings,
@@ -290,6 +295,16 @@ test(
                 seller: fixture,
                 scenarioNamespace: "migration_chain",
               });
+          }
+          if (artifact.name === GIFT_WRAPPING_CHECKOUT_CONTRACT_MIGRATION) {
+            assert.ok(
+              fixture,
+              "seller fixture must exist before the gift-wrapping predecessor proof",
+            );
+            await proveGiftWrappingCheckoutPredecessorFailure({
+              database: adapter,
+              seller: fixture,
+            });
           }
           if (artifact.name === EMAIL_SUPPRESSION_RECOVERY_MIGRATION) {
             historicalResendFailureSuppressions =
@@ -689,6 +704,10 @@ test(
         repositoryRoot,
       });
       await proveBlockedPairPaidCheckoutCompletion({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveGiftWrappingCheckoutContract({
         database: adapter,
         seller: fixture,
       });

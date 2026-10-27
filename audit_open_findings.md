@@ -1,6 +1,36 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-10-18
+Last updated: 2026-10-27
+
+## 2026-10-27 — Paid-checkout gift-wrap and tax contract
+
+- **[C-340 VERIFIED/FIX PREPARED; NOT MERGED OR PRODUCTION]** Enabling gift
+  wrapping with a blank price stored `offersGiftWrapping=true` with a null
+  retained price. Both Checkout routes silently charged that request as zero,
+  but the signed post-payment order authority rejected the null retained
+  snapshot on every replay. The buyer could therefore be charged and the maker
+  paid without a durable Order. The candidate normalizes an enabled blank price
+  to explicit zero in the form and fixed SQL authority, backfills retained
+  enabled/null rows, adds a validated table constraint, hides the checkbox for
+  any pre-migration enabled/null row, and makes both Checkout routes fail closed
+  instead of silently coalescing an invalid retained price.
+- **[C-1307 VERIFIED/FIX PREPARED; NOT MERGED OR PRODUCTION]** Product and
+  gift-wrap Stripe line prices inherited the dashboard's default tax behavior,
+  while the signed order authority requires product subtotal plus separately
+  added tax to equal the captured total. Both Checkout routes now pin every
+  generated product and gift-wrap price to `tax_behavior: "exclusive"`, matching
+  the already-explicit shipping line contract.
+- **Evidence:** the focused executable contract suite fails on the predecessor
+  wiring and passes 8/8 with the candidate. The complete 437-migration chain
+  passes on PostgreSQL 17 and PostgreSQL 16. In each clean run, the hook before
+  `20261027050000_correct_gift_wrapping_checkout_contract` first proves the real
+  predecessor stores the enabled/null profile and the signed order writer
+  raises after the simulated paid session. After the migration, the same real
+  profile authority stores zero, a direct invariant violation receives `23514`,
+  and the real signed order writer creates exactly one gift-wrapped Order.
+- **Still open:** C-1308's full route-to-Stripe-to-webhook matrix, MONEY-10/#820
+  pickup identity, and C-1219 paid-session-without-order monitoring are separate
+  follow-ups; this scoped candidate does not claim to close them.
 
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 

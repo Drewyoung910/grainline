@@ -43,8 +43,10 @@ describe("checkout payment method guardrails", () => {
     assert.doesNotMatch(singleSchema, /giftWrappingPriceCents/);
     assert.doesNotMatch(sellerCheckout, /body\.giftWrappingPriceCents/);
     assert.doesNotMatch(singleCheckout, /body\.giftWrappingPriceCents/);
-    assert.match(sellerCheckout, /sellerItems\[0\]\.listing\.seller\.giftWrappingPriceCents \?\? 0/);
-    assert.match(singleCheckout, /listing\.seller\.giftWrappingPriceCents \?\? 0/);
+    assert.match(sellerCheckout, /resolveGiftWrappingCharge\(\{/);
+    assert.match(singleCheckout, /resolveGiftWrappingCharge\(\{/);
+    assert.doesNotMatch(sellerCheckout, /giftWrappingPriceCents \?\? 0/);
+    assert.doesNotMatch(singleCheckout, /giftWrappingPriceCents \?\? 0/);
   });
 
   it("sends server-computed item subtotal metadata for webhook refund totals", () => {

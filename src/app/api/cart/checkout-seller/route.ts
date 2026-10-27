@@ -57,6 +57,10 @@ import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 import { normalizeUsState } from "@/lib/usStates";
 import { CHECKOUT_PAIR_UNAVAILABLE_MESSAGE, checkoutPairIsBlocked } from "@/lib/checkoutBlockState";
 import { sellerCheckoutPrivateState } from "@/lib/sellerCheckoutPrivateAccess";
+import {
+  resolveGiftWrappingCharge,
+  withExclusiveTaxBehavior,
+} from "@/lib/checkoutLineItemContract";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
@@ -273,19 +277,18 @@ export async function POST(req: Request) {
     }
     const destination = checkoutPrivateState.stripeAccountId;
 
-    // Gift wrapping: reject if buyer requested it but seller does not offer it.
-    if (giftWrapping && !sellerItems[0].listing.seller.offersGiftWrapping) {
+    const giftWrappingCharge = resolveGiftWrappingCharge({
+      requested: giftWrapping,
+      offered: sellerItems[0].listing.seller.offersGiftWrapping,
+      configuredPriceCents: sellerItems[0].listing.seller.giftWrappingPriceCents,
+    });
+    if (!giftWrappingCharge.ok) {
       return privateJson(
-        { error: "This seller does not offer gift wrapping." },
+        { error: giftWrappingCharge.error },
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
-
-    // Gift wrap price: sourced server-side from the seller's profile.
-    // Client input for this amount is ignored to prevent price manipulation.
-    const giftWrappingPriceCents: number = giftWrapping
-      ? (sellerItems[0].listing.seller.giftWrappingPriceCents ?? 0)
-      : 0;
+    const giftWrappingPriceCents = giftWrappingCharge.amountCents;
 
     const resolvedSellerItems: Array<(typeof sellerItems)[number] & {
       unitPriceCents: number;
@@ -411,12 +414,12 @@ export async function POST(req: Request) {
     // Stripe line items
     const line_items: {
       quantity: number;
-      price_data: { currency: string; unit_amount: number; product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string } };
+      price_data: { currency: string; unit_amount: number; tax_behavior: "exclusive"; product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string } };
     }[] = resolvedSellerItems.map((i) => {
       const variantSuffix = i.selectedVariantLabels.length > 0 ? ` (${i.selectedVariantLabels.join(", ")})` : "";
       return {
         quantity: i.quantity,
-        price_data: {
+        price_data: withExclusiveTaxBehavior({
           currency,
           unit_amount: i.unitPriceCents,
           product_data: {
@@ -439,18 +442,18 @@ export async function POST(req: Request) {
             },
             tax_code: "txcd_99999999", // General - Tangible Personal Property
           },
-        },
+        }),
       };
     });
 
     if (giftWrapping && giftWrappingPriceCents > 0) {
       line_items.push({
         quantity: 1,
-        price_data: {
+        price_data: withExclusiveTaxBehavior({
           currency,
           unit_amount: giftWrappingPriceCents,
           product_data: { name: "Gift Wrapping", tax_code: "txcd_99999999" },
-        },
+        }),
       });
     }
 
