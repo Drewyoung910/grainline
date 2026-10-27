@@ -19,7 +19,7 @@ describe("user text normalization followups", () => {
     const customOrder = source("src/app/api/messages/custom-order-request/route.ts");
 
     assert.match(messages, /const body = truncateText\(sanitizeText/);
-    assert.match(caseCreate, /const description = sanitizeRichText\(parsed\.description\.trim\(\)\)/);
+    assert.match(caseCreate, /const normalizedDescription = normalizeCaseDescriptionBody\(parsed\.description\)/);
     assert.match(caseMessages, /const normalizedMessageBody = normalizeCaseMessageBody\(parsed\.body\)/);
     assert.match(customOrder, /const cleanedDescription = truncateText\(sanitizeText/);
     assert.match(customOrder, /description: cleanedDescription/);
