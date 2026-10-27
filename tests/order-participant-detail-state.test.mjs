@@ -170,4 +170,23 @@ describe("Order participant detail state", () => {
     );
     assert.equal(sellerRefundDisplayState("re_private_provider_id"), "RECORDED");
   });
+
+  it("keeps database-valid variant labels at Unicode code-point limits", () => {
+    const label = `${"v".repeat(49)}😀`;
+    const buyer = buyerOrderDetailFromRows([{
+      ...baseRow(),
+      seller_user_id: "seller-user-1",
+      items: [{
+        ...baseRow().items[0],
+        selectedVariants: [{
+          groupName: label,
+          optionLabel: label,
+          priceAdjustCents: 0,
+        }],
+      }],
+    }]);
+
+    assert.equal(buyer?.items[0].selectedVariants?.[0].groupName, label);
+    assert.equal(buyer?.items[0].selectedVariants?.[0].optionLabel, label);
+  });
 });

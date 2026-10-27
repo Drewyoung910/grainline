@@ -135,4 +135,22 @@ describe("Order participant export state", () => {
       /page size is invalid/,
     );
   });
+
+  it("keeps database-valid variant labels at Unicode code-point limits", () => {
+    const label = `${"v".repeat(49)}😀`;
+    const exported = sellerOrderExportPageFromRows([row({
+      ...base(),
+      items: [{
+        ...item(),
+        selectedVariants: [{
+          groupName: label,
+          optionLabel: label,
+          priceAdjustCents: 0,
+        }],
+      }],
+    })], 25);
+
+    assert.equal(exported.values[0].items[0].selectedVariants?.[0].groupName, label);
+    assert.equal(exported.values[0].items[0].selectedVariants?.[0].optionLabel, label);
+  });
 });

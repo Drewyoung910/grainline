@@ -1,3 +1,5 @@
+import { isTextWithinCodePointRange } from "./textLength.ts";
+
 const ORDER_ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/;
 const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
 const MAX_EPOCH_MILLIS = 253402300799999;
@@ -69,7 +71,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function requiredText(value: unknown, label: string, maxLength: number) {
-  if (typeof value !== "string" || value.length < 1 || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 1, maxLength)) {
     throw new TypeError(`Order list ${label} is invalid`);
   }
   return value;
@@ -77,7 +79,7 @@ function requiredText(value: unknown, label: string, maxLength: number) {
 
 function optionalText(value: unknown, label: string, maxLength: number) {
   if (value == null) return null;
-  if (typeof value !== "string" || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 0, maxLength)) {
     throw new TypeError(`Order list ${label} is invalid`);
   }
   return value;
