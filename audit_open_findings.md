@@ -4144,6 +4144,18 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-1223 stale cart gift-wrap selection blocks checkout
+
+- **[VERIFIED; FIX PREPARED]** The cart retained a per-seller
+  `giftWrapping: true` selection after a refreshed cart response reported that
+  the seller no longer offered gift wrapping. The checkbox disappeared, but
+  the hidden value still contributed to the displayed total and was sent to
+  `/api/cart/checkout-seller`, whose server-side availability check correctly
+  rejected every attempt. The prepared app-only correction derives one
+  effective gift selection from the current seller capability for rendering,
+  totals and the request payload. It clears only the unavailable wrapping
+  choice and preserves the buyer's gift note.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
