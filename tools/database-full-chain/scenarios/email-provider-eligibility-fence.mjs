@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 
 import pg from "pg";
 
@@ -86,6 +87,217 @@ async function waitForAdvisoryLockWait(database, pid, label) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   assert.fail(`${label} never waited for the shared advisory fence`);
+}
+
+async function waitForLockWait(database, pid, label) {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    const result = await database.query(
+      `SELECT activity.wait_event_type AS "waitEventType",
+              activity.wait_event AS "waitEvent",
+              pg_catalog.count(lock.*) FILTER (
+                WHERE lock.locktype = 'advisory' AND lock.granted
+              )::integer AS "grantedAdvisoryLocks"
+         FROM pg_catalog.pg_stat_activity AS activity
+         LEFT JOIN pg_catalog.pg_locks AS lock
+           ON lock.pid = activity.pid
+        WHERE activity.pid = $1
+        GROUP BY activity.wait_event_type, activity.wait_event`,
+      [pid],
+    );
+    const row = result.rows[0];
+    if (row?.waitEventType === "Lock") {
+      return Object.freeze({
+        waitEvent: row.waitEvent,
+        grantedAdvisoryLocks: Number(row.grantedAdvisoryLocks ?? 0),
+      });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail(`${label} never reached a database lock wait`);
+}
+
+async function seedDeletionSource(database, suffix, fixture) {
+  const sideEffectId = id(`deletion_${suffix}`);
+  const claimToken = randomUUID();
+  await database.query(
+    `INSERT INTO public."AccountDeletionSideEffect" (
+       id, "userId", kind, "dedupKey", payload, status,
+       "claimGeneration", "claimToken", "processingStartedAt",
+       "createdAt", "updatedAt"
+     ) VALUES (
+       $1, $2, 'LOCAL_ANONYMIZE', $3, '{}'::jsonb, 'PROCESSING',
+       1, $4::uuid, now(), now(), now()
+     )`,
+    [
+      sideEffectId,
+      fixture.userId,
+      `account-delete:local:${fixture.userId}`,
+      claimToken,
+    ],
+  );
+  return Object.freeze({ sideEffectId, claimGeneration: 1, claimToken });
+}
+
+async function startDeletionSnapshot(client, fixture, source) {
+  await client.query("BEGIN");
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  await client.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+    [fixture.userId],
+  );
+  const result = await client.query(
+    `SELECT "userId", email
+       FROM public.grainline_user_account_deletion_snapshot(
+         $1, $2::bigint, $3::uuid
+       )`,
+    [source.sideEffectId, source.claimGeneration, source.claimToken],
+  );
+  assert.deepEqual(result.rows, [{ userId: fixture.userId, email: fixture.email }]);
+  return result.rows[0];
+}
+
+async function runDeletionFirstLockOrder({
+  database,
+  connectionString,
+  suffix,
+  fixture,
+  mutate,
+  assertMutation,
+}) {
+  const source = await seedDeletionSource(database, suffix, fixture);
+  const deletionClient = await connect(connectionString);
+  const mutationClient = await connect(connectionString);
+  let mutationSettled = false;
+  let deletionCommitted = false;
+  let mutationCommitted = false;
+  try {
+    const snapshot = await startDeletionSnapshot(
+      deletionClient,
+      fixture,
+      source,
+    );
+
+    await mutationClient.query("BEGIN");
+    await mutationClient.query("SET LOCAL ROLE grainline_app_runtime");
+    await mutationClient.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [fixture.userId],
+    );
+    const mutationPid = Number((await mutationClient.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0].pid);
+    const mutation = mutate(mutationClient);
+    mutation.finally(() => { mutationSettled = true; }).catch(() => {});
+    assert.ok(Number.isInteger(mutationPid), `${suffix} mutation PID is required`);
+    const wait = await waitForLockWait(database, mutationPid, `${suffix} mutation`);
+    assert.equal(mutationSettled, false);
+
+    let deletionError = null;
+    try {
+      await deletionClient.query(
+        `SELECT public.grainline_email_outbox_account_deletion_fence(
+           $1, ARRAY[$2]::text[]
+         )`,
+        [fixture.userId, snapshot.email],
+      );
+      await deletionClient.query("COMMIT");
+      deletionCommitted = true;
+    } catch (error) {
+      deletionError = error;
+      await deletionClient.query("ROLLBACK").catch(() => {});
+    }
+
+    let mutationError = null;
+    try {
+      await mutation;
+      await mutationClient.query("COMMIT");
+      mutationCommitted = true;
+    } catch (error) {
+      mutationError = error;
+      await mutationClient.query("ROLLBACK").catch(() => {});
+    }
+
+    const deadlockError = [deletionError, mutationError]
+      .find((error) => error?.code === "40P01");
+    assert.equal(
+      deadlockError,
+      undefined,
+      `${suffix} deadlocked when account deletion held the User row first; `
+        + `the waiting mutation held ${wait.grantedAdvisoryLocks} advisory locks`,
+    );
+    if (deletionError) throw deletionError;
+    if (mutationError) throw mutationError;
+    assert.equal(deletionCommitted, true);
+    assert.equal(mutationCommitted, true);
+    await assertMutation?.(database);
+  } finally {
+    if (!mutationCommitted) await mutationClient.query("ROLLBACK").catch(() => {});
+    if (!deletionCommitted) await deletionClient.query("ROLLBACK").catch(() => {});
+    await mutationClient.end().catch(() => {});
+    await deletionClient.end().catch(() => {});
+  }
+}
+
+async function runMutationFirstLockOrder({
+  database,
+  connectionString,
+  suffix,
+  fixture,
+  mutate,
+  assertMutation,
+}) {
+  const source = await seedDeletionSource(database, suffix, fixture);
+  const deletionClient = await connect(connectionString);
+  const mutationClient = await connect(connectionString);
+  let deletionSettled = false;
+  try {
+    await mutationClient.query("BEGIN");
+    await mutationClient.query("SET LOCAL ROLE grainline_app_runtime");
+    await mutationClient.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [fixture.userId],
+    );
+    await mutate(mutationClient);
+
+    await deletionClient.query("BEGIN");
+    await deletionClient.query("SET LOCAL ROLE grainline_app_runtime");
+    await deletionClient.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [fixture.userId],
+    );
+    const deletionPid = Number((await deletionClient.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0].pid);
+    const deletionSnapshot = deletionClient.query(
+      `SELECT "userId", email
+         FROM public.grainline_user_account_deletion_snapshot(
+           $1, $2::bigint, $3::uuid
+         )`,
+      [source.sideEffectId, source.claimGeneration, source.claimToken],
+    );
+    deletionSnapshot.finally(() => { deletionSettled = true; }).catch(() => {});
+    assert.ok(Number.isInteger(deletionPid), `${suffix} deletion PID is required`);
+    await waitForLockWait(database, deletionPid, `${suffix} deletion snapshot`);
+    assert.equal(deletionSettled, false);
+
+    await mutationClient.query("COMMIT");
+    const snapshot = (await deletionSnapshot).rows[0];
+    await deletionClient.query(
+      `SELECT public.grainline_email_outbox_account_deletion_fence(
+         $1, ARRAY[$2]::text[]
+       )`,
+      [fixture.userId, snapshot.email],
+    );
+    await deletionClient.query("COMMIT");
+    await assertMutation?.(database);
+  } catch (error) {
+    await mutationClient.query("ROLLBACK").catch(() => {});
+    await deletionClient.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    await mutationClient.end().catch(() => {});
+    await deletionClient.end().catch(() => {});
+  }
 }
 
 async function proveEligibilityFirst({
@@ -307,6 +519,49 @@ const MUTATIONS = Object.freeze([
   ["hard_suppression", hardSuppressionMutation, false],
 ]);
 
+const USER_ROW_MUTATIONS = Object.freeze(
+  MUTATIONS.filter(([name]) => name !== "hard_suppression"),
+);
+
+export async function proveEmailEligibilityAccountDeletionLockOrder({
+  database,
+  connectionString,
+  scenarioNamespace = "full_chain",
+}) {
+  for (const [name, factory] of USER_ROW_MUTATIONS) {
+    const deletionFirst = await factory(
+      database,
+      `${scenarioNamespace}_${name}_deletion_first`,
+    );
+    await runDeletionFirstLockOrder({
+      database,
+      connectionString,
+      suffix: `${scenarioNamespace}_${name}_deletion_first`,
+      ...deletionFirst,
+    });
+
+    const mutationFirst = await factory(
+      database,
+      `${scenarioNamespace}_${name}_mutation_first`,
+    );
+    await runMutationFirstLockOrder({
+      database,
+      connectionString,
+      suffix: `${scenarioNamespace}_${name}_mutation_first`,
+      ...mutationFirst,
+    });
+  }
+
+  return Object.freeze({
+    ban: true,
+    currentEmailChange: true,
+    optionalPreferenceDisable: true,
+    signedUnsubscribe: true,
+    deletionFirst: true,
+    mutationFirst: true,
+  });
+}
+
 async function proveHardSuppressionSemantics(database) {
   const canonicalEmail = `${PREFIX}.provider.precedence@gmail.com`;
   const aliasEmail = `${PREFIX}.provider.precedence+newsletter@googlemail.com`;
@@ -381,6 +636,10 @@ export async function proveEmailProviderEligibilityFence({
     });
   }
   await proveHardSuppressionSemantics(database);
+  await proveEmailEligibilityAccountDeletionLockOrder({
+    database,
+    connectionString,
+  });
 
   return Object.freeze({
     ban: true,
@@ -392,5 +651,6 @@ export async function proveEmailProviderEligibilityFence({
     providerFirst: true,
     directSuppressionPrecedence: true,
     gmailNewsletterDeactivation: true,
+    accountDeletionLockOrder: true,
   });
 }
