@@ -17,6 +17,7 @@ const workflow = readFileSync(
   ".github/workflows/resend-webhook-receipt-recovery-production.yml",
   "utf8",
 );
+const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const migrationSql = readFileSync(
   `prisma/migrations/${MIGRATION}/migration.sql`,
   "utf8",
@@ -202,6 +203,29 @@ test("C-1180 recovery applies only its exact migration while preserving the Stoc
     candidateState: "applied",
     stockState: "pending",
   }), STOCK_NOTIFICATION_MIGRATION);
+});
+
+test("C-1180 source is proved and isolated from exact-latest historical release guards", () => {
+  const verify = ciWorkflow.indexOf(
+    "name: Verify C-1180 Resend webhook receipt recovery source package",
+  );
+  const isolate = ciWorkflow.indexOf(
+    "name: Isolate C-1180 recovery until historical release guards pass",
+  );
+  const historical = ciWorkflow.indexOf(
+    "name: Verify OrderPaymentEvent activation migration tree",
+  );
+  const restore = ciWorkflow.indexOf(
+    "name: Restore C-1180 recovery after historical release guards",
+  );
+  assert.ok(verify >= 0);
+  assert.ok(isolate > verify);
+  assert.ok(historical > isolate);
+  assert.ok(restore > historical);
+  assert.match(
+    ciWorkflow.slice(isolate, restore),
+    /20261027010000_restore_resend_webhook_receipts/u,
+  );
 });
 
 test("C-1180 catalog requires the exact predecessor before recovery and its absence afterward", () => {
