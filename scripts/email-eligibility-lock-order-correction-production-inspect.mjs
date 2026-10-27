@@ -103,7 +103,11 @@ export function expectedPendingMigrations({ candidateState, stockState }) {
   ].join(",");
 }
 
-export function verifyCatalog(catalog, candidateState, { readOnly = true } = {}) {
+export function verifyCatalog(
+  catalog,
+  { candidateState, stockState },
+  { readOnly = true } = {},
+) {
   assert.deepEqual(catalog.identity, {
     current_user: "neondb_owner",
     session_user: "neondb_owner",
@@ -119,22 +123,47 @@ export function verifyCatalog(catalog, candidateState, { readOnly = true } = {})
   assert.equal(catalog.routines.length, ROUTINES.size);
   const routines = new Map(catalog.routines.map((routine) => [routine.name, routine]));
   for (const [name, expectation] of ROUTINES) {
-    assert.deepEqual(routines.get(name), {
+    const routine = routines.get(name);
+    assert.deepEqual(routine && { ...routine, source_hash: undefined }, {
       name,
       owner_name: "neondb_owner",
       security_definer: true,
       volatility: "v",
       parallel: "u",
       config: ["search_path=pg_catalog"],
-      source_hash: candidateState === "applied"
-        ? expectation.after
-        : expectation.before,
+      source_hash: undefined,
       runtime_execute: true,
       public_execute: false,
     });
+    assert.ok(
+      routine.source_hash === expectation.before ||
+        routine.source_hash === expectation.after,
+      `${name} source drifted`,
+    );
   }
+  const predecessor = [...ROUTINES].every(([name, expectation]) =>
+    routines.get(name).source_hash === expectation.before
+  );
+  const corrected = [...ROUTINES].every(([name, expectation]) =>
+    routines.get(name).source_hash === expectation.after
+  );
+  assert.ok(
+    predecessor || corrected,
+    "email eligibility lock-order schema is partially applied",
+  );
+  const schemaState = predecessor ? "predecessor" : "corrected";
+  if (candidateState === "applied") {
+    assert.equal(
+      schemaState,
+      "corrected",
+      "applied correction ledger requires the corrected schema",
+    );
+  }
+  assert.ok(stockState === "pending" || stockState === "applied");
   return Object.freeze({
     candidateState,
+    stockState,
+    schemaState,
     routineCount: ROUTINES.size,
     containsRowData: false,
     productionChanged: false,
@@ -246,7 +275,7 @@ export async function inspect(mode, connectionString) {
     return Object.freeze({
       mode,
       ...ledger,
-      ...verifyCatalog(catalog, ledger.candidateState),
+      ...verifyCatalog(catalog, ledger),
       runtimeProof: "full-chain PostgreSQL 17 CI",
     });
   } finally {
@@ -267,6 +296,7 @@ async function main() {
   });
   if (process.env.GITHUB_OUTPUT) {
     appendFileSync(process.env.GITHUB_OUTPUT, `state=${result.candidateState}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `schema_state=${result.schemaState}\n`);
     appendFileSync(process.env.GITHUB_OUTPUT, `expected_pending=${expectedPending}\n`);
     appendFileSync(process.env.GITHUB_OUTPUT, `expected_after=${expectedAfter}\n`);
   }

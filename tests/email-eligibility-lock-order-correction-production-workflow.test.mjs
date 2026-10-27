@@ -100,7 +100,7 @@ async function runBinding(options = {}) {
   );
 }
 
-function catalog(candidateState = "pending") {
+function catalog(schemaState = "predecessor") {
   const before = {
     grainline_user_clerk_identity_ensure: "980b4708924b99ce799e776ba5ae53e4",
     grainline_user_owner_notification_preference_update:
@@ -117,7 +117,7 @@ function catalog(candidateState = "pending") {
     grainline_user_unsubscribe_preferences_disable:
       "0d7f3956b5171f1008edd01b45002dc3",
   };
-  const hashes = candidateState === "applied" ? after : before;
+  const hashes = schemaState === "corrected" ? after : before;
   return {
     identity: {
       current_user: "neondb_owner",
@@ -207,11 +207,53 @@ test("lock-order source is proved then isolated from historical release guards",
 });
 
 test("catalog proof pins predecessor and corrected function bodies, owners and ACLs", () => {
-  assert.equal(verifyCatalog(catalog("pending"), "pending").routineCount, 4);
-  assert.equal(verifyCatalog(catalog("applied"), "applied").routineCount, 4);
-  const drifted = catalog("applied");
+  assert.equal(verifyCatalog(catalog(), {
+    candidateState: "pending",
+    stockState: "pending",
+  }).schemaState, "predecessor");
+  assert.equal(verifyCatalog(catalog("corrected"), {
+    candidateState: "pending",
+    stockState: "pending",
+  }).schemaState, "corrected");
+  assert.equal(verifyCatalog(catalog("corrected"), {
+    candidateState: "applied",
+    stockState: "pending",
+  }).routineCount, 4);
+  assert.throws(() => verifyCatalog(catalog(), {
+    candidateState: "applied",
+    stockState: "pending",
+  }), /applied correction ledger requires the corrected schema/u);
+  const partiallyApplied = catalog();
+  const corrected = catalog("corrected");
+  partiallyApplied.routines[0] = corrected.routines[0];
+  assert.throws(() => verifyCatalog(partiallyApplied, {
+    candidateState: "pending",
+    stockState: "pending",
+  }), /partially applied/u);
+  const drifted = catalog("corrected");
   drifted.routines[0] = { ...drifted.routines[0], owner_name: "other" };
-  assert.throws(() => verifyCatalog(drifted, "applied"));
+  assert.throws(() => verifyCatalog(drifted, {
+    candidateState: "applied",
+    stockState: "pending",
+  }));
+});
+
+test("production workflow resumes after committed SQL without executing it twice", () => {
+  const applyStep = parsed.jobs.apply.steps.find((step) =>
+    step.name === "Apply reviewed correction transaction outside Prisma's ledger"
+  );
+  const resolveStep = parsed.jobs.apply.steps.find((step) =>
+    step.name === "Record the committed correction in Prisma's ledger"
+  );
+  assert.equal(
+    applyStep.if,
+    "steps.preflight.outputs.state == 'pending' && steps.preflight.outputs.schema_state == 'predecessor'",
+  );
+  assert.equal(resolveStep.if, "steps.preflight.outputs.state == 'pending'");
+  assert.match(
+    inspectorSource,
+    /appendFileSync\(process\.env\.GITHUB_OUTPUT, `schema_state=\$\{result\.schemaState\}\\n`\)/u,
+  );
 });
 
 test("migration is atomic and the full-chain behavior proof exercises both lock orders", () => {
