@@ -551,15 +551,19 @@ describe("account and privacy route observability guardrails", () => {
       route.indexOf('if (event.type !== "user.created"', userDeletedStart),
     );
 
-    assert.match(userDeletedBlock, /const anonymized = await anonymizeUserAccountByClerkId\(event\.data\.id\)/);
+    assert.match(userDeletedBlock, /await getCurrentClerkUserIdentity\(clerkId\)/);
+    assert.match(userDeletedBlock, /if \(!isClerkUserNotFoundError\(error\)\) throw error/);
+    assert.match(userDeletedBlock, /const anonymized = await anonymizeUserAccountByClerkId\(clerkId\)/);
     assert.match(userDeletedBlock, /"inProgress" in anonymized && anonymized\.inProgress/);
     assert.match(userDeletedBlock, /markClerkWebhookFailed\(svixId, claimGeneration, retryError\)/);
     assert.match(userDeletedBlock, /source: "clerk_webhook_user_deleted_in_progress"/);
     assert.match(userDeletedBlock, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(userDeletedBlock, /"Retry-After": String\(CLERK_WEBHOOK_RETRY_AFTER_SECONDS\)/);
+    const inProgressStart = userDeletedBlock.indexOf('"inProgress" in anonymized');
+    const inProgressBlock = userDeletedBlock.slice(inProgressStart);
     assert.ok(
-      userDeletedBlock.indexOf("markClerkWebhookFailed(svixId, claimGeneration, retryError)") <
-        userDeletedBlock.indexOf("return NextResponse.json"),
+      inProgressBlock.indexOf("markClerkWebhookFailed(svixId, claimGeneration, retryError)") <
+        inProgressBlock.indexOf("return NextResponse.json"),
       "in-progress local anonymization should leave the Clerk event retryable before returning 503",
     );
     assert.doesNotMatch(userDeletedBlock, /await markClerkWebhookProcessed\(svixId\);\s*return NextResponse\.json\(\s*\{ ok: true \}\s*\);[\s\S]*inProgress/);
