@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import yaml from "js-yaml";
@@ -18,10 +19,10 @@ const workflow = readFileSync(
   "utf8",
 );
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
-const migrationSql = readFileSync(
-  `prisma/migrations/${MIGRATION}/migration.sql`,
-  "utf8",
-);
+const migrationDirectory =
+  process.env.RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH
+  ?? `prisma/migrations/${MIGRATION}`;
+const migrationSql = readFileSync(path.join(migrationDirectory, "migration.sql"), "utf8");
 const parsed = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
 const bindingScript = parsed.jobs.apply.steps.find((step) =>
   step.name === "Bind recovery to exact live main and completed push workflows"
