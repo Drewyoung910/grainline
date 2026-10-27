@@ -96,7 +96,7 @@ async function runBinding(options = {}) {
   );
 }
 
-function catalog(candidateState = "pending") {
+function catalog(schemaState = "predecessor") {
   const before = {
     grainline_email_outbox_enqueue_legacy: "c175b462cf5427e2f15dddbcc9a4ec1a",
     grainline_email_outbox_account_deletion_fence: "508a22265993fde9d14c062a76630d76",
@@ -107,7 +107,7 @@ function catalog(candidateState = "pending") {
     grainline_email_outbox_account_deletion_fence: "2f40c6c4dacfca2f786dff06424d717e",
     grainline_email_outbox_fail: "ab04f794d057ed823ffe1e47ffb9e25e",
   };
-  const hashes = candidateState === "applied" ? after : before;
+  const hashes = schemaState === "corrected" ? after : before;
   return {
     identity: {
       current_user: "neondb_owner",
@@ -197,11 +197,53 @@ test("email correction source is proved then isolated from historical release gu
 });
 
 test("catalog proof pins predecessor and corrected function bodies, owners and ACLs", () => {
-  assert.equal(verifyCatalog(catalog("pending"), "pending").routineCount, 3);
-  assert.equal(verifyCatalog(catalog("applied"), "applied").routineCount, 3);
-  const drifted = catalog("applied");
+  assert.equal(verifyCatalog(catalog(), {
+    candidateState: "pending",
+    stockState: "pending",
+  }).schemaState, "predecessor");
+  assert.equal(verifyCatalog(catalog("corrected"), {
+    candidateState: "pending",
+    stockState: "pending",
+  }).schemaState, "corrected");
+  assert.equal(verifyCatalog(catalog("corrected"), {
+    candidateState: "applied",
+    stockState: "pending",
+  }).routineCount, 3);
+  assert.throws(() => verifyCatalog(catalog(), {
+    candidateState: "applied",
+    stockState: "pending",
+  }), /applied correction ledger requires the corrected schema/u);
+  const partiallyApplied = catalog();
+  const corrected = catalog("corrected");
+  partiallyApplied.routines[0] = corrected.routines[0];
+  assert.throws(() => verifyCatalog(partiallyApplied, {
+    candidateState: "pending",
+    stockState: "pending",
+  }), /partially applied/u);
+  const drifted = catalog("corrected");
   drifted.routines[0] = { ...drifted.routines[0], runtime_execute: false };
-  assert.throws(() => verifyCatalog(drifted, "applied"));
+  assert.throws(() => verifyCatalog(drifted, {
+    candidateState: "applied",
+    stockState: "pending",
+  }));
+});
+
+test("production workflow resumes after committed SQL without executing it twice", () => {
+  const applyStep = parsed.jobs.apply.steps.find((step) =>
+    step.name === "Apply reviewed correction transaction outside Prisma's ledger"
+  );
+  const resolveStep = parsed.jobs.apply.steps.find((step) =>
+    step.name === "Record the committed correction in Prisma's ledger"
+  );
+  assert.equal(
+    applyStep.if,
+    "steps.preflight.outputs.state == 'pending' && steps.preflight.outputs.schema_state == 'predecessor'",
+  );
+  assert.equal(resolveStep.if, "steps.preflight.outputs.state == 'pending'");
+  assert.match(
+    inspectorSource,
+    /appendFileSync\(outputPath, `schema_state=\$\{result\.schemaState\}\\n`\)/u,
+  );
 });
 
 test("migration is atomic, exact-body guarded and restores all three contracts", () => {
