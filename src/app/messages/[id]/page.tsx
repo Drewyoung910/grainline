@@ -601,6 +601,20 @@ export default async function ThreadPage({
             refreshEventFormId={messageComposerFormId}
             liveUpdates={!isStaffReviewMode}
             canCreateCustomListings={isParticipant && !otherUnavailableReason}
+            reviewParticipants={isStaffReviewMode ? [
+              {
+                id: convo.userA.id,
+                authorLabel: `${convo.userA.name || "User"} · Participant A`,
+                imageUrl: convo.userA.imageUrl,
+                align: "left",
+              },
+              {
+                id: convo.userB.id,
+                authorLabel: `${convo.userB.name || "User"} · Participant B`,
+                imageUrl: convo.userB.imageUrl,
+                align: "right",
+              },
+            ] : undefined}
           />
         </div>
 
