@@ -124,7 +124,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       </div>
 
       {/* Metadata area */}
-      <div className="min-w-0 space-y-1 pt-3">
+      <div className="@container min-w-0 space-y-1 pt-3">
         {listingHref ? (
           <Link href={listingHref} className="block space-y-0.5">
             <ListingCardTitlePrice
@@ -145,19 +145,25 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           </div>
         )}
 
-        {/* Maker · location — separate row, no nested Links */}
-        <div className="flex min-w-0 items-center gap-1.5 text-[13px] leading-snug text-stone-600">
-          <Link
-            href={publicSellerPath(l.seller.id, sellerName)}
-            className="min-w-0 truncate font-medium text-stone-700 transition-colors hover:text-neutral-900 hover:underline"
-          >
-            {sellerName}
-          </Link>
-          {hasGuildBadge && (
-            <span className="inline-flex flex-none">
-              <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={20} />
-            </span>
-          )}
+        {/* Maker · location — separate row, no nested Links. On narrow cards
+            the location moves under the maker so the name stays readable;
+            on wider cards it shares the row, and the grid gives the name its
+            full width before the location gets any. */}
+        <div className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug text-stone-600 @max-[15rem]:grid-cols-1">
+          <span className="flex min-w-0 max-w-full items-center gap-1.5">
+            <Link
+              href={publicSellerPath(l.seller.id, sellerName)}
+              className="min-w-0 truncate font-medium text-stone-700 transition-colors hover:text-neutral-900 hover:underline"
+            >
+              {sellerName}
+            </Link>
+            {hasGuildBadge && (
+              // Invisible 36 px tap area around the 20 px badge; layout unchanged.
+              <span className="inline-flex flex-none [&>button]:relative [&>button]:before:absolute [&>button]:before:-inset-2">
+                <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={20} />
+              </span>
+            )}
+          </span>
           {location && (
             <MetaSeparatorText>{location}</MetaSeparatorText>
           )}
@@ -175,10 +181,10 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
 
 function MetaSeparatorText({ children }: { children: ReactNode }) {
   return (
-    <>
-      <span aria-hidden="true" className="flex-none text-stone-400">·</span>
-      <span className="min-w-0 truncate">{children}</span>
-    </>
+    <span className="min-w-0 truncate">
+      <span aria-hidden="true" className="text-stone-400 @max-[15rem]:hidden">· </span>
+      {children}
+    </span>
   );
 }
 
