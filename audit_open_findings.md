@@ -4394,6 +4394,18 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   shares the existing code-point validator across the affected readers and
   executes boundary behavior tests for summary rows, immutable snapshots, and
   participant, export and staff variant projections.
+## 2026-10-27 — C-288 incomplete listing variants accepted by purchase controls
+
+- **[FIX PREPARED; APPLICATION DEPLOYMENT REQUIRED]** The listing panel knew
+  whether every variant group had a selected in-stock option, but its Add to
+  Cart and signed-in Buy Now controls only rejected a completely empty
+  selection. A buyer could therefore choose one of several required groups and
+  receive an Add to Cart success state for an invalid line. A failing-first
+  behavior test now proves that one valid in-stock option from every group is
+  required. Both purchase controls consume that shared result; server-side
+  checkout validation remains unchanged. Previously saved anonymous browser
+  lines are not rewritten because they are client-local and the account-cart
+  authority already rejects incomplete selections when they are merged.
 
 ## Recommended fix order for Codex
 
