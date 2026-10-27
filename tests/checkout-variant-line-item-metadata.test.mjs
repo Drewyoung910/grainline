@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 const {
   checkoutListingProductMetadata,
+  readCheckoutShippingPackageMetadata,
 } = await import("../src/lib/orderItemSnapshot.ts");
 const {
   paidCheckoutLineItemIdentity,
@@ -43,6 +44,14 @@ describe("checkout variant line-item metadata", () => {
       shippingHeightCm: 4,
     });
 
+    assert.deepEqual(readCheckoutShippingPackageMetadata(productMetadata), {
+      shippingWeightGrams: 100,
+      shippingLengthCm: 10,
+      shippingWidthCm: 8,
+      shippingHeightCm: 4,
+      shippingPackageComplete: true,
+    });
+
     assert.deepEqual(
       paidCheckoutLineItemIdentity(productMetadata, "single", "listing-variant"),
       {
@@ -58,6 +67,14 @@ describe("checkout variant line-item metadata", () => {
       listingId: "listing-cart-variant",
       cartItemId: "cart-item-variant",
       variantKey: "large,raw",
+    });
+
+    assert.deepEqual(readCheckoutShippingPackageMetadata(productMetadata), {
+      shippingWeightGrams: null,
+      shippingLengthCm: null,
+      shippingWidthCm: null,
+      shippingHeightCm: null,
+      shippingPackageComplete: false,
     });
 
     assert.deepEqual(

@@ -109,8 +109,11 @@ describe("Order label fixed-authority release", () => {
     ]) {
       assert.ok((snapshotHelper.match(new RegExp(field, "g")) ?? []).length >= 2, field);
     }
-    assert.match(cartCheckout, /checkoutShippingPackageMetadata/);
-    assert.match(singleCheckout, /checkoutShippingPackageMetadata/);
+    // Route wiring is only a guardrail. The executable metadata behavior,
+    // including package facts and variant identity, is covered by
+    // checkout-variant-line-item-metadata.test.mjs.
+    assert.match(cartCheckout, /checkoutListingProductMetadata/);
+    assert.match(singleCheckout, /checkoutListingProductMetadata/);
     assert.doesNotMatch(webhook, /readCheckoutShippingPackageMetadata/);
     assert.match(paidCheckoutAuthority, /source_item#>>'\{listing,packagedWeightGrams\}'/);
     assert.match(paidCheckoutAuthority, /source_snapshot#>>'\{seller,defaultPkgWeightGrams\}'/);
