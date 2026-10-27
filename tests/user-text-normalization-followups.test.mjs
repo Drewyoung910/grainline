@@ -20,7 +20,7 @@ describe("user text normalization followups", () => {
 
     assert.match(messages, /const body = truncateText\(sanitizeText/);
     assert.match(caseCreate, /const description = sanitizeRichText\(parsed\.description\.trim\(\)\)/);
-    assert.match(caseMessages, /const messageBody = sanitizeRichText\(parsed\.body\.trim\(\)\)/);
+    assert.match(caseMessages, /const normalizedMessageBody = normalizeCaseMessageBody\(parsed\.body\)/);
     assert.match(customOrder, /const cleanedDescription = truncateText\(sanitizeText/);
     assert.match(customOrder, /description: cleanedDescription/);
   });
