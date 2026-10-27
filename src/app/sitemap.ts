@@ -52,9 +52,7 @@ export async function generateSitemaps() {
   return Array.from({ length: chunkCount }, (_, id) => ({ id }));
 }
 
-export default async function sitemap(props: { id: Promise<string> }): Promise<MetadataRoute.Sitemap> {
-  // Next 16 passes the generateSitemaps() id as a Promise<string>.
-  const id = Number(await props.id);
+export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise<MetadataRoute.Sitemap> {
   if (id > 0) {
     const chunk = sitemapChunkForId(id, await sitemapSourceCounts());
     if (!chunk || chunk.kind === "base") return [];
