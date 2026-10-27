@@ -229,7 +229,11 @@ test("C-715 release accepts its exact compatible live app ancestor for readback"
 test("C-715 workflow changes trigger the exact-main Notification proof required by its binder", () => {
   const workflowPath =
     ".github/workflows/email-suppression-recovery-production.yml";
-  assert.ok(parsedNotificationProofWorkflow.on.push.paths.includes(workflowPath));
+  assert.equal(
+    parsedNotificationProofWorkflow.on.push.paths,
+    undefined,
+    "every main commit must trigger the exact-main Notification proof",
+  );
   assert.ok(
     parsedNotificationProofWorkflow.on.pull_request.paths.includes(workflowPath),
   );

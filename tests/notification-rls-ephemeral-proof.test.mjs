@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import yaml from "js-yaml";
 
 const ORDER_RELEASE_SUCCESSORS = Object.freeze([
   [
@@ -72,6 +73,7 @@ const ORDER_RELEASE_SUCCESSORS = Object.freeze([
 describe("Notification RLS ephemeral PostgreSQL proof", () => {
   const proof = fs.readFileSync("scripts/notification-rls-ephemeral-proof.mjs", "utf8");
   const workflow = fs.readFileSync(".github/workflows/notification-rls-ephemeral-proof.yml", "utf8");
+  const parsedWorkflow = yaml.load(workflow, { schema: yaml.JSON_SCHEMA });
   const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const recipientSql = fs.readFileSync("docs/rls-drafts/notification-recipient-access.sql", "utf8");
   const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
@@ -419,10 +421,31 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /pull_request:[\s\S]*branches:[\s\S]*- main/);
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
+    assert.ok(parsedWorkflow.on.push.branches.includes("main"));
+    assert.equal(
+      parsedWorkflow.on.push.paths,
+      undefined,
+      "the exact-main Production binder requires this proof on every main commit",
+    );
+    assert.ok(
+      parsedWorkflow.on.pull_request.paths.includes(
+        ".github/workflows/private-table-preparation-production.yml",
+      ),
+    );
+    assert.ok(
+      parsedWorkflow.on.pull_request.paths.includes(
+        "scripts/private-table-preparation-catalog.mjs",
+      ),
+    );
+    assert.ok(
+      parsedWorkflow.on.pull_request.paths.includes(
+        "scripts/private-table-preparation-production-inspect.mjs",
+      ),
+    );
     assert.equal(
       workflow.split("- .github/workflows/private-table-force-production.yml").length - 1,
-      2,
-      "the required Notification proof must run on both PR and main changes to its private-table FORCE binder",
+      1,
+      "the required Notification proof must run on PR changes to its private-table FORCE binder",
     );
     for (const productionWorkflow of [
       "email-provider-deletion-fence-production.yml",
@@ -430,8 +453,8 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     ]) {
       assert.equal(
         workflow.split(`- .github/workflows/${productionWorkflow}`).length - 1,
-        2,
-        `the required Notification proof must run on both PR and main changes to ${productionWorkflow}`,
+        1,
+        `the required Notification proof must run on PR changes to ${productionWorkflow}`,
       );
     }
     assert.match(workflow, /scripts\/assert-reviewed-pending-migrations\.mjs/);

@@ -155,8 +155,13 @@ test("C-875 production release uses a resolvable immutable checkout pin", () => 
 });
 
 test("C-875 workflow changes trigger the exact-main Notification proof required by its binder", () => {
+  assert.equal(
+    parsedNotificationProofWorkflow.on.push.paths,
+    undefined,
+    "every main commit must trigger the exact-main Notification proof",
+  );
   assert.ok(
-    parsedNotificationProofWorkflow.on.push.paths.includes(
+    parsedNotificationProofWorkflow.on.pull_request.paths.includes(
       ".github/workflows/user-unsubscribe-optional-preferences-production.yml",
     ),
   );
