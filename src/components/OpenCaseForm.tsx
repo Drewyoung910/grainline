@@ -2,6 +2,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { codePointLength } from "@/lib/textLength";
 
 const REASON_LABELS: Record<string, string> = {
   NOT_RECEIVED: "Item not received",
@@ -31,11 +32,16 @@ export default function OpenCaseForm({
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const descriptionLength = codePointLength(description.trim());
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (description.trim().length < 20) {
+    if (descriptionLength < 20) {
       setError("Description must be at least 20 characters.");
+      return;
+    }
+    if (descriptionLength > 2_000) {
+      setError("Description must be at most 2,000 characters.");
       return;
     }
     setLoading(true);
@@ -112,7 +118,7 @@ export default function OpenCaseForm({
           disabled={loading}
         />
         <p id={descriptionHelpId} className="text-xs text-neutral-500">
-          {description.trim().length} / 20 min
+          {descriptionLength.toLocaleString()} / 2,000 characters (20 minimum)
         </p>
       </div>
 
