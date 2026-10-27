@@ -7,8 +7,12 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 export const MAP_PIN_WIDTH = 30;
 export const MAP_PIN_HEIGHT = 38;
 
-export function createMapPinElement(): HTMLDivElement {
+// MapLibre only labels its own default markers, so the pin names itself.
+// Interactive maps override role and label with their own.
+export function createMapPinElement(label = "Map marker"): HTMLDivElement {
   const el = document.createElement("div");
+  el.setAttribute("role", "img");
+  el.setAttribute("aria-label", label);
   el.style.width = `${MAP_PIN_WIDTH}px`;
   el.style.height = `${MAP_PIN_HEIGHT}px`;
   el.style.filter = "drop-shadow(0 3px 4px rgba(28, 25, 23, 0.3))";

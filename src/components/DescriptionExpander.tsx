@@ -18,7 +18,10 @@ export default function DescriptionExpander({ text }: { text: string }) {
       </p>
       {/* Mobile: truncated with expand */}
       <div className="sm:hidden">
-        <p className="text-sm text-neutral-700 whitespace-pre-line leading-relaxed">
+        <p
+          key={expanded ? "full" : "short"}
+          className={`text-sm text-neutral-700 whitespace-pre-line leading-relaxed${expanded ? " text-reveal-in" : ""}`}
+        >
           {needsTruncation && !expanded ? text.slice(0, MOBILE_LIMIT) + "…" : text}
         </p>
         {needsTruncation && (

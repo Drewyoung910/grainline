@@ -107,8 +107,9 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       <div
         ref={photoRef}
         className="relative isolate rounded-2xl overflow-hidden bg-[#EFEAE0]"
-        onMouseEnter={() => {
-          if (altSrc && !altRequested) setAltRequested(true);
+        onPointerEnter={(event) => {
+          // Touch devices never show the hover photo, so don't download it.
+          if (event.pointerType === "mouse" && altSrc && !altRequested) setAltRequested(true);
         }}
       >
         {listingHref ? (

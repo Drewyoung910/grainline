@@ -453,6 +453,8 @@ export default function SearchBar({
                 id={`${searchListboxId}-${index}`}
                 role="option"
                 aria-selected={activeIndex === index}
+                className="search-option-in"
+                style={{ "--search-option-index": Math.min(index, 8) } as React.CSSProperties}
               >
                 <button
                   type="button"

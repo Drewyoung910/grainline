@@ -483,3 +483,89 @@ input, textarea, select {
   35%  { transform: scale(1.35); }
   100% { transform: scale(1); }
 }
+
+/* Second motion batch: entrances and small feedback, same rules as above. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Search suggestions drop in with a short stagger */
+  .search-option-in {
+    animation: search-option-in 0.28s var(--motion-ease-out) both;
+    animation-delay: calc(var(--search-option-index, 0) * 25ms);
+  }
+
+  /* Listing photo viewer opens with a fade and a slight grow */
+  .lightbox-backdrop-in {
+    animation: lightbox-backdrop-in 0.22s ease-out both;
+  }
+  .lightbox-photo-in {
+    animation: lightbox-photo-in 0.38s var(--motion-ease-spring) both;
+  }
+
+  /* Mobile "Read more" text, rolling counts, badge popovers */
+  .text-reveal-in {
+    animation: text-reveal-in 0.4s var(--motion-ease-out) both;
+  }
+  .count-roll-in {
+    animation: count-roll-in 0.36s var(--motion-ease-out) both;
+  }
+  .popover-spring-in {
+    animation: popover-spring-in 0.32s var(--motion-ease-spring) both;
+    transform-origin: top center;
+  }
+
+  /* Homepage product rows: cards fade and settle in as their section
+     reveals (ScrollSection sets data-revealed). Scale, not translate, so
+     the clipping scroll row never cuts a card off mid-animation. */
+  [data-revealed="true"] .reveal-stagger > * {
+    animation: reveal-card-in 0.6s var(--motion-ease-out) both;
+  }
+  .reveal-stagger > :nth-child(2) { animation-delay: 60ms; }
+  .reveal-stagger > :nth-child(3) { animation-delay: 120ms; }
+  .reveal-stagger > :nth-child(4) { animation-delay: 180ms; }
+  .reveal-stagger > :nth-child(5) { animation-delay: 240ms; }
+  .reveal-stagger > :nth-child(6) { animation-delay: 300ms; }
+  .reveal-stagger > :nth-child(n + 7) { animation-delay: 360ms; }
+
+  /* Policy and FAQ accordions open and close smoothly where supported;
+     other browsers keep the instant toggle. */
+  .smooth-details {
+    interpolate-size: allow-keywords;
+  }
+  .smooth-details details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size 0.35s var(--motion-ease-out), content-visibility 0.35s;
+    transition-behavior: allow-discrete;
+  }
+  .smooth-details details[open]::details-content {
+    block-size: auto;
+  }
+}
+
+@keyframes search-option-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes lightbox-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes lightbox-photo-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes text-reveal-in {
+  from { opacity: 0.2; }
+  to   { opacity: 1; }
+}
+@keyframes count-roll-in {
+  from { opacity: 0; transform: translateY(60%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes popover-spring-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes reveal-card-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}

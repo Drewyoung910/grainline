@@ -80,10 +80,10 @@ export default function FavoriteButton({
           hover circle so it has breathing room against the photo edges. */}
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full scale-90 transition-[background-color,scale] duration-200 ease-out group-hover:scale-100 group-hover:bg-black/10"
+        className="absolute h-9 w-9 rounded-full motion-safe:scale-90 transition-[background-color,scale] duration-200 ease-out motion-safe:group-hover:scale-100 group-hover:bg-black/10"
       />
       {popCount > 0 && (
-        <span key={popCount} aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <span key={`burst-${popCount}`} aria-hidden="true" className="pointer-events-none absolute inset-0">
           {HEART_BURST_OFFSETS.map(([x, y]) => (
             <span
               key={`${x},${y}`}
@@ -97,7 +97,7 @@ export default function FavoriteButton({
           Heart shape is top-heavy (wide bumps, narrow point) so we shift it
           down 1px to make it look visually centered inside the hover circle. */}
       <svg
-        key={popCount}
+        key={`heart-${popCount}`}
         width={size}
         height={size}
         viewBox="0 0 24 24"

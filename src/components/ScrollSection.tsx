@@ -16,7 +16,8 @@ export function ScrollSection({
   return (
     <div
       ref={ref}
-      className={`transition-[opacity,transform] duration-700 ease-out ${
+      data-revealed={shouldReveal ? "true" : "false"}
+      className={`transition-[opacity,transform,translate] duration-700 ease-out ${
         shouldReveal ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
       } ${className ?? ""}`}
     >

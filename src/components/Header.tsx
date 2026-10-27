@@ -35,6 +35,10 @@ export default function Header() {
   const [cartBumpCount, setCartBumpCount] = React.useState(0);
   const previousCartCountRef = React.useRef<number | null>(null);
   React.useEffect(() => {
+    // Signing in or out swaps which cart is counted; that isn't an add.
+    previousCartCountRef.current = null;
+  }, [isSignedIn]);
+  React.useEffect(() => {
     const previous = previousCartCountRef.current;
     previousCartCountRef.current = cartCount;
     if (previous !== null && cartCount !== null && cartCount > previous) {

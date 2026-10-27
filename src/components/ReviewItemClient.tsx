@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { useToast } from "@/components/Toast";
+import RollingNumber from "@/components/RollingNumber";
 
 export function HelpfulButton({
   reviewId,
@@ -84,7 +85,7 @@ export function HelpfulButton({
       >
         <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
       </svg>
-      <span className="tabular-nums">{count}</span>
+      <RollingNumber value={count} className="tabular-nums" />
       <span className="sr-only">Helpful</span>
     </button>
   );

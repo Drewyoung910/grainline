@@ -19,6 +19,11 @@ export default function ListingGallery({
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
+  const mainImgRef = useRef<HTMLImageElement>(null);
+  // The first load of each <img> is the initial render; every later load is a
+  // photo change and gets a short cross-fade.
+  const mainImgLoadedRef = useRef(false);
+  const lightboxImgLoadedRef = useRef(false);
   // Lightbox swipe
   const touchStartX = useRef<number>(0);
   const touchStartY = useRef<number>(0);
@@ -32,6 +37,15 @@ export default function ListingGallery({
 
   useDialogFocus(lightboxOpen, dialogRef, () => setLightboxOpen(false));
   useBodyScrollLock(lightboxOpen);
+
+  useEffect(() => {
+    // A photo that finished loading before hydration never fires onLoad.
+    if (mainImgRef.current?.complete) mainImgLoadedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (lightboxOpen) lightboxImgLoadedRef.current = false;
+  }, [lightboxOpen]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -139,10 +153,15 @@ export default function ListingGallery({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          ref={mainImgRef}
           src={activeUrl}
           alt={photos[activeIndex]?.altText ?? title}
           fetchPriority="high"
           className="w-full h-full object-cover"
+          onLoad={(e) => {
+            if (mainImgLoadedRef.current) playPhotoSwap(e.currentTarget);
+            mainImgLoadedRef.current = true;
+          }}
         />
         {photos.length > 1 && (
           <div className="absolute bottom-3 right-3 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full pointer-events-none">
@@ -234,7 +253,7 @@ export default function ListingGallery({
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black bg-opacity-90"
+          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black bg-opacity-90"
           onClick={() => setLightboxOpen(false)}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -272,12 +291,16 @@ export default function ListingGallery({
             </>
           )}
 
-          <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85vh] mx-4">
+          <div onClick={(e) => e.stopPropagation()} className="lightbox-photo-in max-w-4xl max-h-[85vh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
+              onLoad={(e) => {
+                if (lightboxImgLoadedRef.current) playPhotoSwap(e.currentTarget);
+                lightboxImgLoadedRef.current = true;
+              }}
             />
             {photos.length > 1 && (
               <p className="text-center text-white text-sm mt-2 opacity-60">
@@ -288,6 +311,20 @@ export default function ListingGallery({
         </div>
       )}
     </>
+  );
+}
+
+// Short cross-fade when the shown photo changes. Runs after the new photo has
+// loaded, so the old one stays on screen until then (no blank flash).
+function playPhotoSwap(img: HTMLImageElement) {
+  if (typeof img.animate !== "function") return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  img.animate(
+    [
+      { opacity: 0.35, transform: "scale(1.015)" },
+      { opacity: 1, transform: "scale(1)" },
+    ],
+    { duration: 420, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
   );
 }
 

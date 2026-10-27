@@ -864,7 +864,7 @@ async function SellerPublicContent({
 
           {/* Policies + FAQ two-column */}
           {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy || seller.faqs.length > 0) && (
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section className="smooth-details grid grid-cols-1 lg:grid-cols-2 gap-6">
               {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
                 <div className="overflow-hidden rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm">
                   <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-stone-200/60">Shop Policies</h2>

@@ -97,9 +97,11 @@ export default function MapCard({
       }
 
       if (!hasPrivacyRadius || showPinWithRadius) {
-        const marker = new maplibregl.Marker({ element: createMapPinElement(), anchor: "bottom" })
+        const marker = new maplibregl.Marker({ element: createMapPinElement(label || undefined), anchor: "bottom" })
           .setLngLat([displayLng, displayLat]);
         if (label) {
+          // The popup makes the pin focusable, so expose it as a button.
+          marker.getElement().setAttribute("role", "button");
           marker.setPopup(new maplibregl.Popup({ offset: MAP_PIN_HEIGHT }).setText(label));
         }
         marker.addTo(map);

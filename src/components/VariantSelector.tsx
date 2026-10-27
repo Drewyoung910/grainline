@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useCallback } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 export type VariantGroupForSelector = {
@@ -13,6 +13,15 @@ export type VariantGroupForSelector = {
     inStock: boolean;
   }[];
 };
+
+// Position of the sliding highlight behind a group's selected option.
+// `settled` is false on its first placement so it appears in place instead of
+// sliding in from the corner.
+type SelectionInk = { x: number; y: number; width: number; height: number; settled: boolean };
+
+function sameInk(a: SelectionInk | undefined, b: SelectionInk) {
+  return Boolean(a) && a!.x === b.x && a!.y === b.y && a!.width === b.width && a!.height === b.height && a!.settled === b.settled;
+}
 
 export default function VariantSelector({
   groups,
@@ -75,6 +84,43 @@ export default function VariantSelector({
     [selectOption],
   );
 
+  const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [inks, setInks] = useState<Record<string, SelectionInk>>({});
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      setInks((previous) => {
+        const next: Record<string, SelectionInk> = {};
+        let changed = false;
+        for (const group of groups) {
+          const optionId = selected[group.id];
+          const container = groupRefs.current[group.id];
+          if (!optionId || !container) continue;
+          const button = container.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(optionId)}"]`);
+          if (!button) continue;
+          const ink: SelectionInk = {
+            x: button.offsetLeft,
+            y: button.offsetTop,
+            width: button.offsetWidth,
+            height: button.offsetHeight,
+            settled: Boolean(previous[group.id]),
+          };
+          next[group.id] = sameInk(previous[group.id], ink) ? previous[group.id] : ink;
+          if (next[group.id] !== previous[group.id]) changed = true;
+        }
+        if (Object.keys(previous).length !== Object.keys(next).length) changed = true;
+        return changed ? next : previous;
+      });
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    for (const container of Object.values(groupRefs.current)) {
+      if (container) observer.observe(container);
+    }
+    return () => observer.disconnect();
+  }, [groups, selected]);
+
   // All required groups must have a selection for "complete"
   const allSelected = groups.every((g) => selected[g.id]);
 
@@ -86,10 +132,27 @@ export default function VariantSelector({
             {group.name}
           </p>
           <div
+            ref={(node) => {
+              groupRefs.current[group.id] = node;
+            }}
             role="radiogroup"
             aria-labelledby={`${baseId}-${group.id}-label`}
-            className="flex min-w-0 flex-wrap gap-2"
+            className="relative flex min-w-0 flex-wrap gap-2"
           >
+            {/* Highlight sits above unselected options and below the selected
+                one, so its slide between choices stays visible. */}
+            {inks[group.id] && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute left-0 top-0 z-[1] rounded-md bg-neutral-900 transition-[translate,width,height] duration-[360ms] ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                style={{
+                  width: inks[group.id].width,
+                  height: inks[group.id].height,
+                  translate: `${inks[group.id].x}px ${inks[group.id].y}px`,
+                  transition: inks[group.id].settled ? undefined : "none",
+                }}
+              />
+            )}
             {group.options.map((opt) => {
               const isSelected = selected[group.id] === opt.id;
               const selectedOptionId = selected[group.id];
@@ -98,6 +161,7 @@ export default function VariantSelector({
                 <button
                   key={opt.id}
                   type="button"
+                  data-option-id={opt.id}
                   role="radio"
                   aria-checked={isSelected}
                   aria-disabled={!opt.inStock}
@@ -119,9 +183,11 @@ export default function VariantSelector({
                       moveSelection(group, selectedOptionId, "last");
                     }
                   }}
-                  className={`max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-[color,background-color,border-color,scale] duration-200 ease-out ${
+                  className={`relative max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-[color,background-color,border-color,scale] duration-200 ease-out ${
                     isSelected
-                      ? "border-neutral-900 bg-neutral-900 text-white motion-safe:active:scale-[0.97]"
+                      ? inks[group.id]
+                        ? "z-[2] border-transparent bg-transparent text-white delay-100 motion-safe:active:scale-[0.97]"
+                        : "border-neutral-900 bg-neutral-900 text-white motion-safe:active:scale-[0.97]"
                       : opt.inStock
                         ? "border-neutral-200 bg-[#F7F5F0] text-neutral-700 hover:border-neutral-400 hover:bg-white motion-safe:active:scale-[0.97]"
                         : "border-neutral-100 bg-[#F7F5F0] text-neutral-300 cursor-not-allowed line-through"

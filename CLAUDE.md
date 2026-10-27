@@ -630,13 +630,13 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 
 ### Badge placement with props
 
-Status badges (Made to order / Ready to ship / Out of stock) removed from listing cards — redundant noise. Only visible on listing detail page. Guild badge: 40px, right-aligned in metadata area via two-column flex layout (`flex-1 min-w-0` for text, `flex-none` for badge), vertically centered against metadata block. No photo overlay. FavoriteButton heart wrapped in `bg-black/30 rounded-full p-1.5 backdrop-blur-sm` for visibility on all photo backgrounds. SimilarItems no longer shows a badge (too cluttered). Browse list-view ListCard keeps an inline 22px badge next to seller name.
+Status badges (Made to order / Ready to ship / Out of stock) removed from listing cards — redundant noise. Only visible on listing detail page. Guild badge: 20px, inline after the maker name in the card's maker row (changed 2026-10-27 from a 40px right column; see Motion Polish Pass). No photo overlay. FavoriteButton heart wrapped in `bg-black/30 rounded-full p-1.5 backdrop-blur-sm` for visibility on all photo backgrounds. SimilarItems no longer shows a badge (too cluttered). Browse list-view ListCard keeps an inline 22px badge next to seller name.
 
 LaurelWreathIcon and HammerChiselIcon default sizes both bumped to 32.
 
 | Surface | `showLabel` | `size` |
 |---|---|---|
-| ListingCard metadata right column | `false` | `40` |
+| ListingCard maker row (inline) | `false` | `20` |
 | Browse ListCard inline (list view only) | `false` | `22` |
 | Commission interested makers | `false` | `22` |
 | Makers metro directory | `false` | `22` |
@@ -2249,7 +2249,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - City/state location line below price
 - Status badges (Made to order / Ready to ship) removed from cards — only on listing detail page
 - Seller name as plain text link (no avatar chip)
-- GuildBadge: 40px right-aligned in metadata area via two-column flex layout
+- GuildBadge: 40px right-aligned in metadata area via two-column flex layout (superseded 2026-10-27: 20px inline in the maker row)
 - FavoriteButton: no background circle — grey heart shape behind white outline for visibility, `drop-shadow` for depth on all photo backgrounds
 - Browse grid gap: `gap-x-4 gap-y-8`
 - scroll ul bg-white removed from homepage Fresh + Favorites containers (already absent)
@@ -2273,7 +2273,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - The former multi-tile homepage media width fix from this pass is obsolete; that component was removed. The current homepage media contract is the single-photo hero documented below, and the old tiled layout must not be restored from this history note.
 - Browse gradient: softened to from-amber-50/30 via-amber-50/10 to match header seamlessly
 - ListingCard: badge moved to photo overlay bottom-left (bg-black/70 solid, green/amber text)
-- ListingCard: metadata collapsed to 3 lines — title / price+rating inline / location·seller
+- ListingCard: metadata collapsed to 3 lines — title / price+rating inline / location·seller (superseded 2026-10-27: maker · Guild badge · location)
 - ListingCard: fixed nested Link bug — location+seller row is a sibling div not inside listing Link
 
 ## Message + Mobile Fixes (2026-04-10)
