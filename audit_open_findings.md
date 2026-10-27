@@ -4144,6 +4144,18 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-463 generated sitemap chunk selection
+
+- **[VERIFIED; FIX PREPARED; NOT YET DEPLOYED]** Next 16's metadata-route
+  loader passes each generated sitemap id to `src/app/sitemap.ts` as a
+  `Promise<string | undefined>`. The predecessor compared that Promise with
+  `0`, so every `/sitemap/N.xml` request fell through to the static base chunk
+  and the sitemap index exposed no listing, maker, customer-photo, blog or
+  commission rows. The candidate resolves and validates the promised segment
+  before calling `sitemapChunkForId()`. Behavior coverage proves chunk `0`, a
+  nonzero chunk, the base-route fallback, malformed ids and unsafe integers;
+  the existing entry-limit and public-visibility guardrails remain green.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

@@ -97,6 +97,22 @@ export function sitemapChunkForId(id: number, input: SitemapSourceCounts): Sitem
   return null;
 }
 
+/**
+ * Next 16 passes generated sitemap ids to the metadata handler as a Promise of
+ * the URL segment. Resolve and validate that segment before choosing a chunk;
+ * treating the Promise itself as a number makes every request fall back to the
+ * base sitemap.
+ */
+export async function sitemapRequestId(
+  id: Promise<string | undefined>,
+): Promise<number | null> {
+  const value = await id;
+  if (value === undefined) return 0;
+  if (!/^(?:0|[1-9]\d*)$/u.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 export function sitemapIndexXml(baseUrl: string, chunkCount: number, lastmod: string): string {
   const entries: string[] = [];
   for (let i = 0; i < chunkCount; i++) {

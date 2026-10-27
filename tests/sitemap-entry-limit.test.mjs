@@ -32,12 +32,13 @@ describe("sitemap entry limit guardrails", () => {
 
   it("keeps every large dynamic source on first-class sitemap chunks", () => {
     assert.match(source, /sitemapChunkCount\(await sitemapSourceCounts\(\)\)/);
-    assert.match(source, /sitemapChunkForId\(id, await sitemapSourceCounts\(\)\)/);
+    assert.match(source, /const requestedId = await sitemapRequestId\(id\)/);
+    assert.match(source, /sitemapChunkForId\(requestedId, await sitemapSourceCounts\(\)\)/);
     assert.match(source, /chunk\.kind === "sellers"/);
     assert.match(source, /chunk\.kind === "customerPhotos"/);
     assert.match(source, /chunk\.kind === "blogPosts"/);
     assert.match(source, /chunk\.kind === "commissions"/);
-    assert.match(source, /if \(id > 0\) \{/);
+    assert.match(source, /if \(requestedId > 0\) \{/);
     assert.match(source, /skip: chunk\.rowSkip/);
     assert.match(source, /take: chunk\.rowTake/);
   });
