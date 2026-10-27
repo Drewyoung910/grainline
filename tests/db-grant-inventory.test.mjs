@@ -3316,6 +3316,13 @@ describe("database grant inventory guardrails", () => {
     ) && source(listingHideDeleteMigrationPath).includes(
       "CREATE FUNCTION public.grainline_listing_delete_reference_state(",
     );
+    const listingShippingReadinessMigrationPath =
+      "prisma/migrations/20261027060000_enforce_listing_shipping_readiness/migration.sql";
+    const listingShippingReadinessMigrationPresent = existsSync(
+      listingShippingReadinessMigrationPath,
+    ) && source(listingShippingReadinessMigrationPath).includes(
+      "CREATE OR REPLACE FUNCTION public.grainline_listing_shipping_ready(",
+    );
     const supportRequestAuthorityMigrationPath =
       "prisma/migrations/20261023010000_prepare_support_request_authorities/migration.sql";
     const supportRequestAuthorityFunctionNames = [
@@ -3607,6 +3614,9 @@ describe("database grant inventory guardrails", () => {
       ...(listingHideDeleteMigrationPresent
         ? ["grainline_listing_delete_reference_state"]
         : []),
+      ...(listingShippingReadinessMigrationPresent
+        ? ["grainline_listing_shipping_ready"]
+        : []),
       ...(supportRequestAuthorityPrepared
         ? supportRequestAuthorityFunctionNames
         : []),
@@ -3689,6 +3699,7 @@ describe("database grant inventory guardrails", () => {
         + (accountDeletionClaimFencePrepared ? 13 : 0)
         + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
         + (listingHideDeleteMigrationPresent ? 1 : 0)
+        + (listingShippingReadinessMigrationPresent ? 1 : 0)
         + (supportRequestAuthorityPrepared
           ? supportRequestAuthorityFunctionNames.length
           : 0)
