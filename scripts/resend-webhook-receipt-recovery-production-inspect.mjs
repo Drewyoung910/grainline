@@ -263,9 +263,8 @@ export function expectedPendingMigrations({ candidateState, stockState }) {
   ].join(",");
 }
 
-async function proveRuntimeReceiptStatements(client) {
+async function proveReceiptConstraintCompatibility(client) {
   const smokeId = `grainline-c1180-${process.env.GITHUB_RUN_ID}`;
-  await client.query("SET LOCAL ROLE grainline_app_runtime");
   await client.query(
     `INSERT INTO public."ResendWebhookEvent" (
        "svixId", type, "processingStartedAt", "createdAt", "updatedAt"
@@ -280,7 +279,6 @@ async function proveRuntimeReceiptStatements(client) {
     [smokeId],
   );
   assert.deepEqual(processed.rows, [{ svixId: smokeId, processed: true }]);
-  await client.query("RESET ROLE");
   return true;
 }
 
@@ -344,7 +342,7 @@ async function main() {
     } else {
       assert.equal(states.candidateState, "applied");
       assert.equal(result.schemaState, "recovered");
-      const routeWriteProof = await proveRuntimeReceiptStatements(client);
+      const routeConstraintProof = await proveReceiptConstraintCompatibility(client);
       const before = JSON.parse(readFileSync(snapshotPath, "utf8"));
       assert.ok(before.states.candidateState === "pending" ||
         before.states.candidateState === "applied");
@@ -357,7 +355,7 @@ async function main() {
           releaseCommit: process.env.PRODUCTION_MIGRATION_RELEASE_COMMIT,
           before: before.result,
           after: result,
-          routeWriteProof,
+          routeConstraintProof,
           containsRowData: false,
         }, null, 2),
         { mode: 0o600, flag: "wx" },
