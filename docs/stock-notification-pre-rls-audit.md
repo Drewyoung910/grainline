@@ -151,6 +151,40 @@ execute owner-policy cross-user/no-context denial, no-INSERT/no-UPDATE grants,
 User/Listing cascade behavior under FORCE, provisioning replay, and predecessor
 rollback on the complete schema.
 
+## Isolated activation-candidate evidence
+
+On 2026-10-27, the separate activation candidate passed the complete
+437-migration history on disposable PostgreSQL 17. The candidate combines
+`ENABLE` and `FORCE` in one transaction, creates exactly two permissive runtime
+policies (owner `SELECT` and owner `DELETE`), revokes direct `INSERT` and
+`UPDATE`, and retains the nine byte-pinned prepared functions.
+
+The executed proof covers:
+
+- exact table columns, primary key, four-index shape, both cascading foreign
+  keys, function owners, security mode, search path, ACLs and source bodies;
+- exact policy commands, runtime role, and deparsed owner predicate;
+- owner read/delete and fixed-function subscribe success;
+- cross-owner and missing-context read/delete denial;
+- direct runtime `INSERT` and `UPDATE` denial;
+- User and Listing cascade behavior while FORCE is active;
+- runtime-role provisioning replay without restoring broad table authority;
+- database-first rollback, followed by successful predecessor direct
+  `SELECT`/`INSERT`/`UPDATE`/`DELETE`; and
+- reapplication of the exact activation followed by the same RLS behavior
+  proof.
+
+The first PostgreSQL 17 attempt failed closed because the draft preflight
+mistook Prisma's unique index for a unique constraint. The corrected candidate
+checks catalog structure rather than deparsed constraint text, and the complete
+chain then passed. This is retained as evidence that the full migrated schema,
+not a miniature hand-built table, is the acceptance authority.
+
+This candidate evidence is not Production authorization. Activation remains
+blocked until the additive preparation is applied, its compatible application
+is live and predecessor traffic is drained, the exact activation source is
+reviewed and merged, and Drew approves the exact protected Production run.
+
 ## Concurrency and lock order
 
 The required order is:

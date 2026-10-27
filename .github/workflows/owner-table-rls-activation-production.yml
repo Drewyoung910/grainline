@@ -10,6 +10,7 @@ on:
         options:
           - saved_blog_post_v1
           - cart_cart_item_v1
+          - stock_notification_v1
       release_commit:
         description: Exact reviewed main commit
         required: true
@@ -190,6 +191,11 @@ jobs:
                 tests/anonymous-cart-merge.test.mjs \
                 tests/cart-add-mutation.test.mjs \
                 tests/listing-delete.test.mjs
+              ;;
+            stock_notification_v1)
+              node --test \
+                tests/stock-notification-route.test.mjs \
+                tests/stock-notification-state.test.mjs
               ;;
             *) exit 1 ;;
           esac
