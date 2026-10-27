@@ -8,8 +8,8 @@ import { getBlockedIdsFor } from "@/lib/blocks";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
-import { truncateText } from "@/lib/sanitize";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { normalizeSearchQueryParameter } from "@/lib/searchQueryState";
 
 export const runtime = "nodejs";
 
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const type = searchParams.get("type");
-  const tag = truncateText(searchParams.get("tag")?.trim() ?? "", 64);
+  const tag = normalizeSearchQueryParameter(searchParams.get("tag"), 64);
   const page = parseBoundedPositiveIntParam(searchParams.get("page"), 1, 1000);
   const pageSize = 12;
   const orderBy: Prisma.BlogPostOrderByWithRelationInput[] = [{ publishedAt: "desc" }, { id: "desc" }];

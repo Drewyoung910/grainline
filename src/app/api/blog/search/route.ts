@@ -4,13 +4,13 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { BlogPostType, Prisma } from "@prisma/client";
 import { getIP, rateLimitResponse, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { truncateText } from "@/lib/sanitize";
 import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { normalizeTags } from "@/lib/tags";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { normalizeSearchQueryParameter } from "@/lib/searchQueryState";
 
 const POST_SELECT = {
   id: true,
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
   if (!rl.success) return rateLimitResponse(rl.reset, "Too many blog searches.");
 
   const url = new URL(req.url);
-  const q = truncateText(url.searchParams.get("bq")?.trim() ?? "", 200);
+  const q = normalizeSearchQueryParameter(url.searchParams.get("bq"), 200);
   const type = url.searchParams.get("type")?.trim() ?? "";
   const tagsParam = url.searchParams.get("tags") ?? "";
   const tags = tagsParam ? normalizeTags(tagsParam.split(","), 20) : [];

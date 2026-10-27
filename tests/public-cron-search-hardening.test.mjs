@@ -145,7 +145,7 @@ describe("cron and public route hardening", () => {
     assert.match(blog, /rateLimitResponse\(reset, "Too many blog requests\."\)/);
     assert.match(blog, /ensureUserByClerkId\(userId\)/);
     assert.match(blog, /getBlockedIdsFor\(meDbId\)/);
-    assert.match(blog, /truncateText\(searchParams\.get\("tag"\)\?\.trim\(\) \?\? "", 64\)/);
+    assert.match(blog, /normalizeSearchQueryParameter\(searchParams\.get\("tag"\), 64\)/);
     assert.match(blog, /publicBlogPostWhere/);
     assert.match(blog, /authorId: \{ notIn: blockedUserIdList \}/);
     assert.match(blog, /sellerProfileId: \{ notIn: blockedSellerIds \}/);
