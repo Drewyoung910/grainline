@@ -50,6 +50,7 @@ import {
   sellerActorConversationContextListing,
   sellerParticipantConversationListingTarget,
 } from "@/lib/sellerProfilePublicAccess";
+import { messageRouteId } from "@/lib/messageInputState";
 
 export default async function ThreadPage({
   params,
@@ -103,8 +104,8 @@ export default async function ThreadPage({
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
   const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
 
-  const requestedListingId = requestedListingParam?.trim();
-  const composerContextListing = other && requestedListingId && requestedListingId.length <= 191
+  const requestedListingId = messageRouteId(requestedListingParam?.trim());
+  const composerContextListing = other && requestedListingId
     ? await sellerParticipantConversationListingTarget(
         me.id,
         other.id,

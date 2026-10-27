@@ -10,6 +10,7 @@ import { startConversationForUser } from "@/lib/conversationStartAccess";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
 import { sellerParticipantConversationListingTarget } from "@/lib/sellerProfilePublicAccess";
 import { userRelationshipTargetState } from "@/lib/userRelationshipAccess";
+import { messageRouteId } from "@/lib/messageInputState";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -27,12 +28,19 @@ export default async function NewConversationPage({
   if (!userId) redirect(`/sign-in?redirect_url=${encodeURIComponent(requestedPath)}`);
 
   const me = await userClerkGate(prisma, userId);
-  if (!me || me.banned || me.deletedAt || !to) redirect("/messages");
-  const targetUserId = to;
+  const targetUserId = messageRouteId(to);
+  if (
+    !me
+    || me.banned
+    || me.deletedAt
+    || !targetUserId
+    || targetUserId === me.id
+  ) redirect("/messages");
+  const conversationTargetUserId = targetUserId;
 
   const other = await userRelationshipTargetState(prisma, {
     actorId: me.id,
-    targetId: targetUserId,
+    targetId: conversationTargetUserId,
   });
   if (!other) redirect("/messages");
 
@@ -49,11 +57,12 @@ export default async function NewConversationPage({
 
   let validListingId: string | null = null;
   let listingTitle: string | null = null;
-  if (listing) {
+  const requestedListingId = messageRouteId(listing);
+  if (requestedListingId) {
     const contextListing = await sellerParticipantConversationListingTarget(
       me.id,
       other.id,
-      listing,
+      requestedListingId,
     );
     if (contextListing) {
       validListingId = contextListing.id;
@@ -85,7 +94,7 @@ export default async function NewConversationPage({
 
     const result = await startConversationForUser(
       currentUser.id,
-      targetUserId,
+      conversationTargetUserId,
       validListingId,
     );
     if (!result.ok) {

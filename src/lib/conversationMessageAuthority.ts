@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import type { MessageCursor } from "@/lib/messageCursor";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
+import { messageSearchQueryIsWithinBounds } from "@/lib/messageInputState";
 
 export type ConversationMessageAuthorityClient = Pick<
   Prisma.TransactionClient,
@@ -548,7 +549,7 @@ export async function listActorConversationInbox(
   if (
     typeof archived !== "boolean"
     || typeof query !== "string"
-    || query.length > 200
+    || !messageSearchQueryIsWithinBounds(query)
     || !Number.isSafeInteger(limit)
     || limit < 1
     || limit > 51

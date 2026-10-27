@@ -35,6 +35,10 @@ function nullableDate(value: unknown): value is Date | null {
   return value === null || value instanceof Date;
 }
 
+function validId(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,191}$/u.test(value);
+}
+
 function validTarget(row: UserRelationshipTargetState | undefined) {
   return Boolean(
     row
@@ -49,6 +53,11 @@ export async function userRelationshipTargetState(
   client: UserRelationshipClient,
   input: { actorId: string; targetId: string },
 ) {
+  if (
+    !validId(input.actorId)
+    || !validId(input.targetId)
+    || input.actorId === input.targetId
+  ) return null;
   const rows = await client.$queryRaw<UserRelationshipTargetState[]>`
     SELECT * FROM public.grainline_user_relationship_target_state(
       ${input.actorId}::text,

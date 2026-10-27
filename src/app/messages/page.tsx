@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { formatSnippet } from "@/lib/messageSnippet";
-import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
 import { MessageCircle } from "@/components/icons";
 import { Suspense } from "react";
@@ -14,6 +13,7 @@ import { parseMessageCursor } from "@/lib/messageCursor";
 import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
 import MessageInboxControls, { type MessageInboxTab } from "@/components/MessageInboxControls";
+import { messageSearchQuery } from "@/lib/messageInputState";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -77,7 +77,7 @@ async function MessagesInbox({
   const tab: MessageInboxTab = rawTab === "unread" || rawTab === "sent" || rawTab === "archived"
     ? rawTab
     : "inbox";
-  const q = truncateText(qParam.trim(), 200);
+  const q = messageSearchQuery(qParam);
   const pageCursor = parseMessageCursor(before, beforeId, { requireId: true });
 
   const { userId } = await auth();
