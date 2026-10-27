@@ -4144,6 +4144,28 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-1309 forged Clerk deletion boundary
+
+- **[VERIFIED; FIX PREPARED; NOT YET DEPLOYED]** The signed Clerk
+  `user.deleted` handler proceeded directly from Svix verification to
+  irreversible local anonymization. A still-valid predecessor signing secret
+  could therefore forge deletion for any known Clerk user id. The candidate
+  re-reads the exact user from Clerk after event reservation: a current user is
+  a processed no-op with only a hashed id in security telemetry, definitive
+  Clerk not-found continues the existing anonymization path, and every other
+  provider failure leaves the event failed/retryable. Behavior tests exercise
+  all three states plus the existing replay, in-progress, blocker, and
+  absent-local-user behavior.
+- **[FOLLOW-UP; OPEN]** New public media object keys must stop embedding raw
+  Clerk user ids. Use the stable local user id or a keyed pseudonymous segment
+  for new uploads. Existing keys remain unchanged and require a separately
+  reviewed migration/redirect plan before any rename.
+- **[CREDENTIAL RECOVERY; STILL OPEN]** This application boundary reduces the
+  deletion impact of the exposed webhook secret but does not rotate it. The
+  documented parallel Clerk endpoint, genuine provider-signed delivery and
+  replay proof, predecessor drain, and removal of shared Vercel, GitHub, and
+  local copies remain required as a separately approved production operation.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

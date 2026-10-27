@@ -62,7 +62,19 @@ describe("account deletion blocker refund state", () => {
       "Clerk provider deletion must check Grainline blockers before anonymization",
     );
 
-    assert.match(webhook, /if \(event\.type === "user\.deleted"\) \{\s*const anonymized = await anonymizeUserAccountByClerkId\(event\.data\.id\);/s);
+    const userDeletedStart = webhook.indexOf('event.type === "user.deleted"');
+    const userDeletedBlock = webhook.slice(
+      userDeletedStart,
+      webhook.indexOf('if (event.type !== "user.created"', userDeletedStart),
+    );
+    assert.match(userDeletedBlock, /await getCurrentClerkUserIdentity\(clerkId\)/);
+    assert.match(userDeletedBlock, /if \(!isClerkUserNotFoundError\(error\)\) throw error/);
+    assert.match(userDeletedBlock, /const anonymized = await anonymizeUserAccountByClerkId\(clerkId\)/);
+    assert.ok(
+      userDeletedBlock.indexOf("await getCurrentClerkUserIdentity(clerkId)") <
+        userDeletedBlock.indexOf("await anonymizeUserAccountByClerkId(clerkId)"),
+      "Clerk provider absence must be confirmed before local blocker handling or anonymization",
+    );
     assert.match(webhook, /"inProgress" in anonymized && anonymized\.inProgress/);
   });
 });
