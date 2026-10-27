@@ -31,6 +31,7 @@ import {
 import { z } from "zod";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { sellerActorReviewListingTarget } from "@/lib/sellerProfilePublicAccess";
+import { reviewPhotoSelectionIsComplete } from "@/lib/reviewPhotoState";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
   (u) => isFirstPartyMediaUrl(u),
@@ -134,6 +135,12 @@ export async function POST(req: NextRequest) {
     accountUserId: me.id,
     allowedEndpoints: ["reviewPhoto"],
   });
+  if (!reviewPhotoSelectionIsComplete(photoUrls, urls)) {
+    return privateJson(
+      { error: "Use uploaded Grainline images only." },
+      { status: 400 },
+    );
+  }
 
   let created;
   try {
