@@ -13,6 +13,9 @@ import {
 import {
   inspectPrivateTablePreparationProduction,
 } from "../scripts/private-table-preparation-production-inspect.mjs";
+import {
+  sellerProfilePrivateMigrationPath,
+} from "./helpers/seller-profile-private-migration-path.mjs";
 
 const releaseId = "stock_notification_v1";
 const release = privateTablePreparation(releaseId);
@@ -29,7 +32,9 @@ const predecessorEntry = release.functions.find(
   (entry) => entry.predecessorSourceSha256 !== undefined,
 );
 const predecessorSql = readFileSync(
-  "prisma/migrations/20261013130000_move_seller_supported_snapshot_sql_callers/migration.sql",
+  sellerProfilePrivateMigrationPath(
+    "20261013130000_move_seller_supported_snapshot_sql_callers",
+  ),
   "utf8",
 );
 const predecessorSource = functionSourceFromMigration(
