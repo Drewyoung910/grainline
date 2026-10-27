@@ -4119,6 +4119,28 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   separate release-tooling change. A later separately reviewed activation and
   rollback proof remain required.
 
+## 2026-10-27 — C-1180 Resend webhook receipts rejected by the delivery-ledger constraint
+
+- **[VERIFIED; FORWARD FIX PREPARED; PRODUCTION RELEASE REQUIRED]** Migration
+  `20261025010000_prepare_email_delivery_ledger` added
+  `ResendWebhookEvent_claim_pair_chk`, which requires `claimToken` and
+  `processingStartedAt` to be null or non-null together. The signed Resend
+  webhook route deliberately reserves its receipt with `processingStartedAt`
+  and no delivery-worker `claimToken`, so a new signed bounce, complaint or
+  delivery event fails at the initial insert with SQLSTATE `23514` before its
+  recipient work can run.
+- The failure was reproduced with the unchanged route-shaped insert on the
+  complete 435-migration schema in PostgreSQL 17. The same full-chain scenario
+  passes after forward migration
+  `20261027010000_restore_resend_webhook_receipts`, which drops only the
+  incompatible check and retains the other three validated receipt checks.
+  The protected release workflow is exact-main/exact-CI bound, accepts the
+  separately reviewed pending StockNotification preparation without applying
+  it, and proves the runtime insert/update inside a rolled-back postflight
+  transaction. Production remains broken until that migration is reviewed,
+  merged, green on exact main and separately approved and applied. Replaying
+  rejected provider events is a later, separate operation.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

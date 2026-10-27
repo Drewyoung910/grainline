@@ -40,6 +40,26 @@ async function insertLegacyJob(database, {
 export async function proveEmailServiceDeliveryLedger({ database }) {
   await database.query("BEGIN");
   try {
+    // Exercise the exact write shape used by the live Resend webhook route.
+    // That route owns its five-minute replay lease directly and therefore has
+    // a processing timestamp without one of the future delivery-worker claim
+    // tokens. A table constraint must not reject the receipt before the route
+    // can record or process it.
+    await database.query("SET LOCAL ROLE grainline_app_runtime");
+    await database.query(
+      `INSERT INTO public."ResendWebhookEvent" (
+         "svixId", type, "processingStartedAt", "createdAt", "updatedAt"
+       ) VALUES ($1, $2, now(), now(), now())`,
+      [`${PREFIX}_resend_route`, "email.bounced"],
+    );
+    await database.query(
+      `UPDATE public."ResendWebhookEvent"
+          SET "processedAt" = now(), "lastError" = NULL, "updatedAt" = now()
+        WHERE "svixId" = $1`,
+      [`${PREFIX}_resend_route`],
+    );
+    await database.query("RESET ROLE");
+
     await insertLegacyJob(database, {
       id: `${PREFIX}_optional`,
       templateName: "seller_broadcast",
@@ -312,6 +332,7 @@ export async function proveEmailServiceDeliveryLedger({ database }) {
       providerBoundaryEligibility: true,
       anonymousRecipient: true,
       providerAttemptOrdering: true,
+      resendRouteWriteCompatible: true,
       constraintsValidated: true,
     });
   } finally {
