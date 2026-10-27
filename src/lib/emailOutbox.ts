@@ -56,12 +56,20 @@ export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
   "seller_broadcast",
   "welcome",
 ] as const;
+export const EMAIL_OUTBOX_SOURCE_TYPES = [
+  "seller_broadcast",
+  "followed_maker_new_listing",
+  "order_payment",
+  "order_fulfillment",
+  "case",
+] as const;
 const globalDailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_GLOBAL_ALLOWANCE_SCRIPT);
 const globalDailySendAllowanceRollbackScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_ROLLBACK_SCRIPT);
 const recipientDailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 const recipientDailySendAllowanceRollbackScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_ROLLBACK_SCRIPT);
 
 export type EmailOutboxTemplateName = typeof EMAIL_OUTBOX_TEMPLATE_NAMES[number];
+export type EmailOutboxSourceType = typeof EMAIL_OUTBOX_SOURCE_TYPES[number];
 
 export type QueuedEmail = {
   to: string;
@@ -72,7 +80,7 @@ export type QueuedEmail = {
   templateVersion?: number;
   userId?: string;
   preferenceKey?: string;
-  sourceType?: string;
+  sourceType?: EmailOutboxSourceType;
   sourceId?: string;
 };
 

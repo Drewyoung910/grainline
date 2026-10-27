@@ -4073,7 +4073,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   Notification proof plus every other required push proof before the separately
   approved predecessor migration run.
 
-## 2026-10-26 — C-1174 pending-successor grant-audit false failure
+## 2026-10-26 — C-1183 pending-successor grant-audit false failure
 
 - **[PRODUCTION MIGRATION APPLIED; AUDIT RESTART FIX PREPARED]** Protected run
   `40381099751` committed and recorded
@@ -4089,6 +4089,34 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   audit so the exact Production state is exercised. No migration transaction
   may be replayed; only the protected applied-state restart path may complete
   evidence after review, merge, exact-main CI, and separate approval.
+
+## 2026-10-27 — C-1174, C-1178, C-1185 email outbox contract regressions
+
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1174:** the already-applied
+  enqueue authority accepts only seller fanout source identities, while the
+  refund, fulfillment/label and staff-Case finalizers atomically enqueue
+  `order_payment`, `order_fulfillment` and `case`. Current-main PostgreSQL 17
+  proof fails with SQLSTATE `22023`; the forward correction accepts the exact
+  five application source types, and `QueuedEmail.sourceType` is now a closed
+  TypeScript union so a new producer cannot silently outrun the SQL contract.
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1178:** the deletion fence
+  rejects more than 20 normalized historical-address keys even though account
+  history is unbounded. Current-main proof with 24 valid keys fails with
+  SQLSTATE `42501`; the forward correction validates every supplied key but
+  removes the arbitrary cardinality cap.
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1185:** retry attempt nine
+  currently schedules only 16 minutes after failure, reducing the predecessor
+  retry window from about 8.5 hours to about 2 hours. The correction restores
+  the 1, 2, 4, 8, 16, 32, 64, 128 and 256 minute sequence with the existing
+  360-minute defensive cap. The full PostgreSQL 17 chain executes all three
+  corrected behaviors as the runtime role.
+- Migration `20261027020000_correct_email_outbox_contracts` is a forward-only
+  successor with exact predecessor/postflight function hashes and unchanged
+  owner, `SECURITY DEFINER`, `search_path` and ACL contracts. It must remain
+  draft and must not merge or release until the earlier C-1180 migration
+  `20261027010000_restore_resend_webhook_receipts` is merged and live; otherwise
+  the earlier exact-pending-set release is blocked. C-1177 lock-order repair and
+  C-1184 compatible-app release binding remain separate open blockers.
 
 ## 2026-10-26 — StockNotification compatible RLS preparation
 
