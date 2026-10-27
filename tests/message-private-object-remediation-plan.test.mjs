@@ -39,7 +39,7 @@ describe("ordinary Message private-object remediation plan", () => {
       /isFirstPartyMediaUrlForUser\(url, userId, \["messageAny"\]\)/,
     );
     assert.match(threadPage, /JSON\.stringify\(\{[\s\S]*url: a\.url/);
-    assert.match(thread, /parseFileMessageBody\(body\)/);
+    assert.match(thread, /parseStoredFileMessageBody\(body, m\.kind\)/);
   });
 
   it("requires source-derived private authority and keeps object keys out of reads", () => {

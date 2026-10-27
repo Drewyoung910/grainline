@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-10-18
+Last updated: 2026-10-27
 
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 
@@ -4180,3 +4180,25 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 - **#659, #660, #676–#680, #655, #657, #665, #710–#714 VERIFIED/FIXED/PRODUCTION LIVE:** protected run `39113321452` applied `20261016010000_correct_case_refund_recovery_core` and `20261016011000_correct_case_refund_followup_deadends` on exact main `30f13665fb156a0639fdae3685fc04d714232d89`. The postflight verified all 15 reviewed functions, both exact migration checksums, zero repairable claims, zero unrepairable claims, and `issueCount=0`. The release performed no app deployment or Stripe operation.
 - **Still open and deliberately outside those migrations:** #338, #428, #662, #703–#705, and #715. #662 now has its own behavior-first source candidate above. No RLS expansion resumes until that named launch-blocking money correction is merged and live.
+
+## 2026-10-27 — C-1188 message attachment authenticity
+
+- **[VERIFIED/FIX PREPARED; NOT YET MERGED OR PRODUCTION]** An authenticated
+  conversation participant could send ordinary text with durable
+  `Message.kind = NULL` whose body resembled file-message JSON or a bare URL on
+  a legacy shared UploadThing host. Thread rendering inferred attachment
+  authority from that untrusted body and presented the attacker-controlled URL
+  as a Grainline image, PDF, or download bubble; inbox snippets similarly
+  promoted bare image/PDF URLs without requiring a file row. The candidate adds
+  a shared stored-file parser that requires durable `Message.kind = 'file'`
+  before parsing either the current structured body or a legacy raw attachment
+  URL. Thread history, polling, SSE, staff-reported-thread rendering, and inbox
+  snippets all pass the persisted kind into that boundary. Invalid file rows
+  render as `Attachment unavailable`; historical null-kind bodies remain
+  visible as ordinary text, with no inferred attachment trust and no data
+  deletion. The global legacy-media allowlist is deliberately unchanged so
+  unrelated compatible media paths do not regress. A failing-first executed
+  test rejected the missing boundary on the predecessor; the focused behavior
+  and rendering guardrail suite passes 51/51, followed by TypeScript, focused
+  lint, disk-headroom, and diff-integrity checks. Merge and deployment remain
+  separate later actions.
