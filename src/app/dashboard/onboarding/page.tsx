@@ -6,6 +6,9 @@ import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
 import { sellerOwnerOnboardingState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerShopSettingsState } from "@/lib/sellerOwnerPrivateAccess";
+import { evaluateSellerListingShippingReadiness } from "@/lib/sellerShippingReadiness";
+import { prisma } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "Set Up Your Shop",
@@ -25,6 +28,26 @@ export default async function OnboardingPage({
   if (!sp || sp.onboardingComplete) {
     redirect("/dashboard");
   }
+  const [shippingState, listingPackages] = await Promise.all([
+    sellerOwnerShopSettingsState(seller.id, seller.userId),
+    prisma.listing.findMany({
+      where: { sellerId: seller.id, archivedAt: null },
+      select: {
+        packagedWeightGrams: true,
+        packagedLengthCm: true,
+        packagedWidthCm: true,
+        packagedHeightCm: true,
+      },
+    }),
+  ]);
+  const shippingReady = Boolean(
+    shippingState
+    && listingPackages.some((listingPackage) =>
+      evaluateSellerListingShippingReadiness(
+        shippingState,
+        listingPackage,
+      ).ready),
+  );
 
   // Check actual Stripe account status (charges_enabled), not just whether an account ID exists
   let chargesEnabled = false;
@@ -65,6 +88,7 @@ export default async function OnboardingPage({
       acceptsCustomOrders={sp.acceptsCustomOrders}
       hasStripeAccount={hasStripeAccount}
       chargesEnabled={chargesEnabled}
+      shippingReady={shippingReady}
       stripeReturn={params.stripe_return != null}
       listingCount={sp._count.listings}
       latestListing={sp.listings[0] ?? null}

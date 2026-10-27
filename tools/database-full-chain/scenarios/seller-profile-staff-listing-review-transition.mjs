@@ -73,6 +73,7 @@ export async function proveSellerProfileStaffListingReviewTransition({ database,
         SET "ownerAccountActive" = true,
             "chargesEnabled" = true,
             "vacationMode" = false,
+            "shippingFlatRateCents" = 1200,
             "updatedAt" = $2
       WHERE id = $1`,
     [seller.sellerProfileId, now],

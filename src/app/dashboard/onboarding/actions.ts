@@ -16,10 +16,12 @@ import {
   advanceSellerOwnerOnboardingStep,
   completeSellerOwnerOnboarding,
   sellerOwnerOnboardingMutationState,
+  sellerOwnerShopSettingsState,
   updateSellerOwnerOnboardingStepOne,
   updateSellerOwnerOnboardingStepTwo,
 } from "@/lib/sellerOwnerPrivateAccess";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import { evaluateSellerListingShippingReadiness } from "@/lib/sellerShippingReadiness";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -39,6 +41,7 @@ async function getSeller(): Promise<{
   onboardingStep: number;
   chargesEnabled: boolean;
   listingCount: number;
+  shippingReady: boolean;
   clerkUserId: string;
 }> {
   const { userId } = await auth();
@@ -53,12 +56,32 @@ async function getSeller(): Promise<{
 
   const seller = await sellerOwnerOnboardingMutationState(me.id);
   if (!seller) throw new Error("No seller profile");
+  const [shippingState, listingPackages] = await Promise.all([
+    sellerOwnerShopSettingsState(seller.id, seller.userId),
+    prisma.listing.findMany({
+      where: { sellerId: seller.id, archivedAt: null },
+      select: {
+        packagedWeightGrams: true,
+        packagedLengthCm: true,
+        packagedWidthCm: true,
+        packagedHeightCm: true,
+      },
+    }),
+  ]);
   return {
     id: seller.id,
     userId: seller.userId,
     onboardingStep: seller.onboardingStep,
     chargesEnabled: seller.chargesEnabled,
     listingCount: seller._count.listings,
+    shippingReady: Boolean(
+      shippingState
+      && listingPackages.some((listingPackage) =>
+        evaluateSellerListingShippingReadiness(
+          shippingState,
+          listingPackage,
+        ).ready),
+    ),
     clerkUserId: userId,
   };
 }
@@ -179,6 +202,9 @@ export async function completeOnboarding(): Promise<ActionResult> {
     }
     if (seller.listingCount < 1) {
       return { ok: false, error: "Create your first listing before completing onboarding." };
+    }
+    if (!seller.shippingReady) {
+      return { ok: false, error: "Set up shipping or local pickup before completing onboarding." };
     }
     await completeSellerOwnerOnboarding(prisma, {
       sellerProfileId: seller.id,

@@ -24,6 +24,7 @@ interface Props {
   hasStripeAccount: boolean;
   /** Stripe account is fully onboarded and charges_enabled = true */
   chargesEnabled: boolean;
+  shippingReady: boolean;
   stripeReturn?: boolean;
   listingCount: number;
   latestListing: { id: string; title: string; status: string } | null;
@@ -45,6 +46,7 @@ export default function OnboardingWizard({
   acceptsCustomOrders,
   hasStripeAccount,
   chargesEnabled,
+  shippingReady,
   stripeReturn = false,
   listingCount,
   latestListing,
@@ -67,7 +69,7 @@ export default function OnboardingWizard({
   const progressPct = Math.round((step / TOTAL_STEPS) * 100);
   const hasListing = listingCount > 0 || completed.step4;
   const stripeReady = chargesEnabled || completed.step3;
-  const canComplete = stripeReady && listingCount > 0;
+  const canComplete = stripeReady && shippingReady && listingCount > 0;
   const latestListingTitle = latestListing?.title?.trim() || "Your latest listing";
 
   useEffect(() => {
@@ -657,6 +659,18 @@ export default function OnboardingWizard({
                 </button>
               </div>
               <div className="flex items-center gap-3 px-4 py-3">
+                <span className={shippingReady ? "font-medium text-green-600" : "font-medium text-neutral-300"}>
+                  {shippingReady ? "✓" : "○"}
+                </span>
+                <span className="flex-1 text-sm">Shipping or local pickup configured</span>
+                <Link
+                  href="/dashboard/seller"
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  {shippingReady ? "View" : "Finish"}
+                </Link>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-3">
                 <span className={completed.step2 ? "text-green-600 font-medium" : "text-neutral-300 font-medium"}>
                   {completed.step2 ? "✓" : "○"}
                 </span>
@@ -745,9 +759,15 @@ export default function OnboardingWizard({
               </>
             )}
 
+            {!shippingReady && (
+              <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                Set up a flat shipping rate, local pickup, or calculated shipping in Shop Settings before completing onboarding.
+              </div>
+            )}
+
             <button
               onClick={handleComplete}
-              disabled={loading || !stripeReady || listingCount < 1}
+              disabled={loading || !stripeReady || !shippingReady || listingCount < 1}
               className="w-full rounded-md bg-neutral-900 px-8 py-3 font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
             >
               {loading ? "Loading…" : "Go to My Dashboard →"}

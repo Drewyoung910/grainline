@@ -107,6 +107,11 @@ import {
   proveStockNotificationPreparedAuthorities,
   seedStockNotificationPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
+import {
+  LISTING_SHIPPING_READINESS_MIGRATION,
+  proveListingShippingReadinessCorrection,
+  seedListingShippingReadinessPredecessorGap,
+} from "../tools/database-full-chain/scenarios/listing-shipping-readiness.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -229,6 +234,7 @@ test(
       let stockNotificationFixture;
       let stockNotificationPredecessorEvidence;
       let stockNotificationPreparationPreflightPath;
+      let listingShippingReadinessFixture;
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -388,6 +394,14 @@ test(
               await proveStockNotificationPredecessorBlockGap({
                 database: adapter,
                 fixture: stockNotificationFixture,
+              });
+          }
+          if (artifact.name === LISTING_SHIPPING_READINESS_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before C-264 predecessor proof");
+            listingShippingReadinessFixture =
+              await seedListingShippingReadinessPredecessorGap({
+                database: adapter,
+                seller: fixture,
               });
           }
         },
@@ -747,6 +761,15 @@ test(
         database: adapter,
         connectionString: proofDatabaseUrl,
         fixture: stockNotificationFixture,
+      });
+      assert.ok(
+        listingShippingReadinessFixture,
+        "C-264 predecessor fixture must be seeded before the correction",
+      );
+      await proveListingShippingReadinessCorrection({
+        database: adapter,
+        seller: fixture,
+        fixture: listingShippingReadinessFixture,
       });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),

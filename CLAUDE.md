@@ -3805,6 +3805,22 @@ Cart checkout supports multi-seller orders (splits into separate Stripe sessions
 
 Shippo integration (`src/lib/shippo.ts`) provides live rate quotes and label generation. Sellers can configure flat-rate or calculated shipping. Package dimensions are stored per listing and per seller profile (defaults). Packing logic is in `src/lib/packing.ts`.
 
+**Listing shipping-readiness boundary (C-264 candidate, not live):** a listing may
+enter a buyable state only when its maker has at least one usable fulfillment
+path: a configured flat rate (including free shipping), local pickup, or a
+complete ship-from address plus positive effective package weight and three
+dimensions. Effective package values use the listing value first and the
+seller default only when the listing value is absent, matching the quote
+route. `src/lib/sellerShippingReadiness.ts` is the application projection;
+`public.grainline_listing_shipping_ready(...)` is the database backstop for
+onboarding completion and staff approval. Drafts remain allowed. Publish,
+republish, custom-listing activation, active-listing edits, onboarding and
+staff approval must retain this check. If legacy state still reaches checkout,
+the quote route must identify the maker's incomplete setup rather than blame
+the buyer's address. Migration
+`20261027060000_enforce_listing_shipping_readiness` is candidate source only;
+it is not applied in Production.
+
 `shippoRatesMultiPiece` returns `{ shipmentId, rates[] }`. Each rate includes `objectId` (the Shippo rate object ID). Buyer-facing quote responses prefix Shippo rate IDs with `quote-only:` before HMAC signing and checkout metadata storage, because those rates were produced from a minimized destination payload. The Stripe webhook preserves that `shippoRateObjectId` on the `Order`, and `POST /api/orders/[id]/label` must reject the prefix as non-purchasable so seller label purchase re-quotes with the full saved order recipient address.
 
 When Shippo returns no usable rates, `checkout/single` falls back to `SiteConfig.fallbackShippingCents` (default $15.00). The `checkout-seller` route falls back to the seller's flat-rate / pickup options.

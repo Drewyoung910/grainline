@@ -43,6 +43,11 @@ import {
   sellerOwnerListingMetroSource,
   sellerOwnerListingReview,
 } from "@/lib/sellerProfileOwnerAccess";
+import { sellerOwnerShopSettingsState } from "@/lib/sellerOwnerPrivateAccess";
+import {
+  evaluateSellerListingShippingReadiness,
+  OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE,
+} from "@/lib/sellerShippingReadiness";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -245,6 +250,18 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
   const processingWindowError = listingProcessingWindowError(processingTimeMinDays, processingTimeMaxDays);
   if (processingWindowError) return { ok: false, error: processingWindowError };
+
+  if (!saveAsDraft) {
+    const shippingState = await sellerOwnerShopSettingsState(seller.id, seller.userId);
+    if (!shippingState || !evaluateSellerListingShippingReadiness(shippingState, {
+      packagedWeightGrams,
+      packagedLengthCm,
+      packagedWidthCm,
+      packagedHeightCm,
+    }).ready) {
+      return { ok: false, error: OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE };
+    }
+  }
 
   // 3. Create listing with status based on saveAsDraft
   const created = await prisma.$transaction(async (tx) => {
@@ -495,11 +512,22 @@ export default async function NewListingPage({
   const { seller } = await ensureSeller();
   const chargesEnabled = seller.chargesEnabled;
   const vacationMode = seller.vacationMode;
+  const shippingState = await sellerOwnerShopSettingsState(seller.id, seller.userId);
+  const shippingReadiness = shippingState
+    ? evaluateSellerListingShippingReadiness(shippingState, null)
+    : null;
+  const shippingMethodConfigured = Boolean(
+    shippingReadiness?.hasFlatRate
+    || shippingReadiness?.allowsLocalPickup
+    || shippingReadiness?.hasCompleteShipFrom,
+  );
   const publishBlockedMessage = !chargesEnabled
     ? PUBLISH_REQUIRES_STRIPE_MESSAGE
     : vacationMode
       ? PUBLISH_REQUIRES_ACTIVE_SHOP_MESSAGE
-      : undefined;
+      : !shippingMethodConfigured
+        ? OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE
+        : undefined;
 
   const sp = await searchParams;
   const errorMessage = sp.error === "stripe"
@@ -520,6 +548,13 @@ export default async function NewListingPage({
           Turn off vacation mode in{" "}
           <Link href="/dashboard/seller" className="underline font-medium">Shop Settings</Link>{" "}
           before publishing. You can still save drafts.
+        </div>
+      )}
+      {!shippingMethodConfigured && (
+        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Set up shipping in{" "}
+          <Link href="/dashboard/seller" className="font-medium underline">Shop Settings</Link>{" "}
+          before publishing. Drafts remain available.
         </div>
       )}
 

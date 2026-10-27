@@ -34,6 +34,11 @@ import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
+import { sellerOwnerShopSettingsState } from "@/lib/sellerOwnerPrivateAccess";
+import {
+  evaluateSellerListingShippingReadiness,
+  OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE,
+} from "@/lib/sellerShippingReadiness";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -195,6 +200,16 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   const processingTimeMaxDays = processingTimeMaxDaysResult.value;
   const processingWindowError = listingProcessingWindowError(processingTimeMinDays, processingTimeMaxDays);
   if (processingWindowError) return { ok: false, error: processingWindowError };
+
+  const shippingState = await sellerOwnerShopSettingsState(seller.id, seller.userId);
+  if (!shippingState || !evaluateSellerListingShippingReadiness(shippingState, {
+    packagedWeightGrams,
+    packagedLengthCm,
+    packagedWidthCm,
+    packagedHeightCm,
+  }).ready) {
+    return { ok: false, error: OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE };
+  }
 
   const created = await prisma.$transaction(async (tx) => {
     const listing = await tx.listing.create({
