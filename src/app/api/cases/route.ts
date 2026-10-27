@@ -11,7 +11,8 @@ import {
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import { sanitizeRichText, truncateText } from "@/lib/sanitize";
+import { truncateText } from "@/lib/sanitize";
+import { normalizeCaseDescriptionBody } from "@/lib/caseMessageBody";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -36,7 +37,7 @@ const CaseCreateSchema = z.object({
     "WRONG_ITEM",
     "OTHER",
   ]),
-  description: z.string().min(1).max(2000),
+  description: z.string(),
 });
 const CASE_CREATE_BODY_MAX_BYTES = 24 * 1024;
 
@@ -113,13 +114,18 @@ export async function POST(req: Request) {
       throw e;
     }
     const { orderId, reason } = parsed;
-    const description = sanitizeRichText(parsed.description.trim());
-    if (description.length < 20) {
+    const normalizedDescription = normalizeCaseDescriptionBody(parsed.description);
+    if (!normalizedDescription.ok) {
       return privateJson(
-        { error: "Description must be at least 20 characters." },
+        {
+          error: normalizedDescription.reason === "too_long"
+            ? "Description must be at most 2,000 characters."
+            : "Description must be at least 20 characters.",
+        },
         { status: 400 },
       );
     }
+    const description = normalizedDescription.body;
 
     let result;
     try {

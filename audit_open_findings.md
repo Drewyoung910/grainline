@@ -4157,6 +4157,15 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   write, and applies those same bounds to page/export results. The behavior
   regression fails on current `main` and passes with the correction; no schema,
   grant, RLS, email, or provider behavior changes.
+- **[FOLLOW-UP FIX PREPARED; STACKED ON THE REPLY FIX]** Case opening had the
+  same boundary mismatch at its 20-to-2,000-character description: Zod and the
+  client counted UTF-16 units before sanitization, while the fixed database
+  authority counts the sanitized value in Unicode code points and rejects more
+  than 8,000 UTF-8 bytes. The follow-up uses the shared Case text boundary to
+  return a specific 400 before the authority, and makes the form's minimum and
+  maximum counter use code points. A failing-first behavior test covers a
+  19-emoji minimum, ampersand expansion, and the exact 2,000-emoji/8,000-byte
+  boundary. It remains a separate app-only draft until the reply fix lands.
 
 ## Recommended fix order for Codex
 
