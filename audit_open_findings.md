@@ -4375,6 +4375,15 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   effective gift selection from the current seller capability for rendering,
   totals and the request payload. It clears only the unavailable wrapping
   choice and preserves the buyer's gift note.
+## 2026-10-27 — C-1220 checkout silently accepts a changed cart price
+
+- **[VERIFIED; FIX PREPARED]** Cart checkout detected a changed listing price
+  but wrote the new price and version into `CartItem` before returning its
+  `PRICE_CHANGED` response. The cart reload therefore found no remaining
+  difference and bypassed the existing explicit “Accept updated prices” step.
+  The prepared app-only correction returns the old/new price witness without
+  mutating the cart. The existing cart update action remains the sole path that
+  accepts the new price after the buyer reviews it.
 
 ## Recommended fix order for Codex
 
