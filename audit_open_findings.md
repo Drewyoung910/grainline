@@ -4144,6 +4144,22 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-1193 uncategorized candidate breaks similar listings
+
+- **[VERIFIED; HOTFIX PREPARED; NOT YET DEPLOYED]** The bounded
+  similar-listing database operation returns SQL NULL for `categoryMatch` when
+  a candidate listing has no category. Category is optional, but the TypeScript
+  result boundary required a boolean for every row and rejected the complete
+  candidate set, so `/api/listings/[id]/similar` returned 500 for affected
+  public listing pages.
+- The app hotfix accepts only boolean-or-null at that one display-ranking
+  field and normalizes NULL to `false`; malformed non-null values and every
+  security, identity, visibility, money and bounded-text field remain
+  fail-closed. Executed tests cover the nullable value, malformed values, the
+  database authority, reciprocal blocks and deterministic ranking. The later
+  reviewed database rewrite should coalesce the SQL comparison itself, but it
+  is not required to stop the live page failure.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
