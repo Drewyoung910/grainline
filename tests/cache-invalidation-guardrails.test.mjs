@@ -90,12 +90,14 @@ describe("public cache invalidation guardrails", () => {
   it("invalidates featured-maker caches when review ratings change", () => {
     const reviewCreate = source("src/app/api/reviews/route.ts");
     const reviewUpdateDelete = source("src/app/api/reviews/[id]/route.ts");
+    const adminReviewDelete = source("src/app/api/admin/reviews/[id]/route.ts");
 
     assert.match(reviewCreate, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(reviewUpdateDelete, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(reviewCreate, /refreshSellerRatingSummary\(eligibleOrderItem\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{r\.listingId\}`\)/);
     assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{review\.listingId\}`\)/);
+    assert.match(adminReviewDelete, /refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{review\.listingId\}`\)/);
   });
 
   it("avoids double caching public tag APIs and keeps why-grainline counts fresh", () => {
