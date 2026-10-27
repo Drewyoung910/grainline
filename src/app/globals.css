@@ -419,23 +419,23 @@ input, textarea, select {
 @media (prefers-reduced-motion: no-preference) {
   /* Homepage hero load sequence */
   .hero-photo-settle {
-    animation: hero-photo-settle 1.6s var(--motion-ease-out) both;
+    animation: hero-photo-settle 1.6s var(--motion-ease-out) backwards;
   }
   .hero-rise,
   .hero-lines > span {
-    animation: hero-rise 0.8s var(--motion-ease-out) both;
+    animation: hero-rise 0.8s var(--motion-ease-out) backwards;
     animation-delay: var(--hero-rise-delay, 0ms);
   }
   .hero-lines > span:nth-child(1) { --hero-rise-delay: 100ms; }
   .hero-lines > span:nth-child(2) { --hero-rise-delay: 200ms; }
   .hero-lines > span:nth-child(3) { --hero-rise-delay: 300ms; }
   .hero-stats-rise {
-    animation: hero-stats-rise 0.9s var(--motion-ease-out) 0.55s both;
+    animation: hero-stats-rise 0.9s var(--motion-ease-out) 0.55s backwards;
   }
 
   /* Listing card photo: fades and sharpens in once it has loaded */
   .listing-photo[data-photo-state="revealed"] {
-    animation: photo-soft-in 0.6s var(--motion-ease-out) both;
+    animation: photo-soft-in 0.6s var(--motion-ease-out) backwards;
   }
 
   /* Favorite heart */
@@ -488,27 +488,27 @@ input, textarea, select {
 @media (prefers-reduced-motion: no-preference) {
   /* Search suggestions drop in with a short stagger */
   .search-option-in {
-    animation: search-option-in 0.28s var(--motion-ease-out) both;
+    animation: search-option-in 0.28s var(--motion-ease-out) backwards;
     animation-delay: calc(var(--search-option-index, 0) * 25ms);
   }
 
   /* Listing photo viewer opens with a fade and a slight grow */
   .lightbox-backdrop-in {
-    animation: lightbox-backdrop-in 0.22s ease-out both;
+    animation: lightbox-backdrop-in 0.22s ease-out backwards;
   }
   .lightbox-photo-in {
-    animation: lightbox-photo-in 0.38s var(--motion-ease-spring) both;
+    animation: lightbox-photo-in 0.38s var(--motion-ease-spring) backwards;
   }
 
   /* Mobile "Read more" text, rolling counts, badge popovers */
   .text-reveal-in {
-    animation: text-reveal-in 0.4s var(--motion-ease-out) both;
+    animation: text-reveal-in 0.4s var(--motion-ease-out) backwards;
   }
   .count-roll-in {
-    animation: count-roll-in 0.36s var(--motion-ease-out) both;
+    animation: count-roll-in 0.36s var(--motion-ease-out) backwards;
   }
   .popover-spring-in {
-    animation: popover-spring-in 0.32s var(--motion-ease-spring) both;
+    animation: popover-spring-in 0.32s var(--motion-ease-spring) backwards;
     transform-origin: top center;
   }
 
@@ -516,7 +516,7 @@ input, textarea, select {
      reveals (ScrollSection sets data-revealed). Scale, not translate, so
      the clipping scroll row never cuts a card off mid-animation. */
   [data-revealed="true"] .reveal-stagger > * {
-    animation: reveal-card-in 0.6s var(--motion-ease-out) both;
+    animation: reveal-card-in 0.6s var(--motion-ease-out) backwards;
   }
   .reveal-stagger > :nth-child(2) { animation-delay: 60ms; }
   .reveal-stagger > :nth-child(3) { animation-delay: 120ms; }
