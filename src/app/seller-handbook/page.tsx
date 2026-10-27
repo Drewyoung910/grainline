@@ -8,7 +8,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Seller Handbook | Grainline",
+  title: "Seller Handbook",
   description:
     "Everything you need to sell handmade woodworking on Grainline. Fees, photos, pricing, shipping, custom orders, Guild verification, and how disputes are handled.",
   alternates: { canonical: "https://thegrainline.com/seller-handbook" },

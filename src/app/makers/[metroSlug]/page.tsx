@@ -48,7 +48,7 @@ export async function generateMetadata({
   const description = `Meet local woodworkers and furniture makers in ${cityName}. Browse their handcrafted work, read reviews, and commission custom pieces directly.`;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/makers/${metroSlug}` },
     openGraph: { title, description, url: `${BASE_URL}/makers/${metroSlug}` },

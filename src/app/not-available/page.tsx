@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Not Available in Your Region — Grainline',
+  title: 'Not Available in Your Region',
   robots: { index: false },
 }
 

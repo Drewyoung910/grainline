@@ -12,7 +12,7 @@ import {
 } from "@/lib/sellerProfilePublicAccess";
 
 export const metadata: Metadata = {
-  title: "Find Local Woodworkers Near You | Grainline Makers Map",
+  title: { absolute: "Find Local Woodworkers Near You | Grainline Makers Map" },
   description: "Discover handmade woodworking makers in your area. Browse makers by city and find someone local to commission custom furniture, home decor, and more.",
   alternates: { canonical: "https://thegrainline.com/map" },
   openGraph: {

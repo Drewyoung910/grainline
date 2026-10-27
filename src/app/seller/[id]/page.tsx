@@ -614,22 +614,18 @@ async function SellerPublicContent({
                   </div>
                   {/* Mobile: horizontal scroll with fade. Desktop: asymmetric 3-col grid. */}
                   <ScrollFadeRow hideAtBreakpoint="lg" className="overflow-x-auto -mx-4 px-4 lg:-mx-0 lg:px-0 lg:overflow-visible">
+                    {/* ClickTracker renders the <li>; never wrap it in another <li>
+                        (li-in-li breaks hydration with React error #418). */}
                     <ul className="flex gap-4 snap-x snap-mandatory pb-4 lg:grid lg:grid-cols-3 lg:grid-rows-2 lg:gap-5 lg:pb-0">
-                      <li className="w-[220px] flex-none snap-start lg:w-auto lg:col-span-2 lg:row-span-2 transition-transform hover:-translate-y-1 duration-200">
-                        <ClickTracker listingId={hero.id}>
-                          <ListingCard listing={wrap(hero)} initialSaved={savedSet.has(hero.id)} variant="grid" />
-                        </ClickTracker>
-                      </li>
-                      <li className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
-                        <ClickTracker listingId={second.id}>
-                          <ListingCard listing={wrap(second)} initialSaved={savedSet.has(second.id)} variant="grid" />
-                        </ClickTracker>
-                      </li>
-                      <li className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
-                        <ClickTracker listingId={third.id}>
-                          <ListingCard listing={wrap(third)} initialSaved={savedSet.has(third.id)} variant="grid" />
-                        </ClickTracker>
-                      </li>
+                      <ClickTracker listingId={hero.id} className="w-[220px] flex-none snap-start lg:w-auto lg:col-span-2 lg:row-span-2 transition-transform hover:-translate-y-1 duration-200">
+                        <ListingCard listing={wrap(hero)} initialSaved={savedSet.has(hero.id)} variant="grid" />
+                      </ClickTracker>
+                      <ClickTracker listingId={second.id} className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
+                        <ListingCard listing={wrap(second)} initialSaved={savedSet.has(second.id)} variant="grid" />
+                      </ClickTracker>
+                      <ClickTracker listingId={third.id} className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
+                        <ListingCard listing={wrap(third)} initialSaved={savedSet.has(third.id)} variant="grid" />
+                      </ClickTracker>
                     </ul>
                   </ScrollFadeRow>
                 </section>
@@ -642,11 +638,9 @@ async function SellerPublicContent({
                   <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
                     <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:gap-5 sm:pb-0">
                       {fallbackFeatured.map((l) => (
-                        <li key={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
-                          <ClickTracker listingId={l.id}>
-                            <ListingCard listing={wrap(l)} initialSaved={savedSet.has(l.id)} variant="grid" />
-                          </ClickTracker>
-                        </li>
+                        <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
+                          <ListingCard listing={wrap(l)} initialSaved={savedSet.has(l.id)} variant="grid" />
+                        </ClickTracker>
                       ))}
                     </ul>
                   </ScrollFadeRow>
@@ -657,33 +651,25 @@ async function SellerPublicContent({
             return (
               <section>
                 <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
-                <div className="w-[240px] sm:w-[280px] transition-transform hover:-translate-y-1 duration-200">
+                <ul className="w-[240px] sm:w-[280px] transition-transform hover:-translate-y-1 duration-200">
                   <ClickTracker listingId={fallbackFeatured[0].id}>
                     <ListingCard listing={wrap(fallbackFeatured[0])} initialSaved={savedSet.has(fallbackFeatured[0].id)} variant="grid" />
                   </ClickTracker>
-                </div>
+                </ul>
               </section>
             );
           })()}
 
-          {/* Story | Workshop two-column */}
-          {(seller.storyTitle || seller.storyBody || seller.bio || seller.workshopImageUrl) && (
+          {/* Story | Workshop two-column. The bio renders once, in the header above. */}
+          {(seller.storyTitle || seller.storyBody || seller.workshopImageUrl) && (
             <section className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-10 items-start">
-              {(seller.storyTitle || seller.storyBody || seller.bio) && (
+              {(seller.storyTitle || seller.storyBody) && (
                 <div>
                   <h2 className="text-xl sm:text-2xl font-display font-semibold mb-3">
                     {seller.storyTitle || "About"}
                   </h2>
                   {seller.storyBody && (
                     <p className="text-neutral-700 whitespace-pre-line leading-relaxed">{seller.storyBody}</p>
-                  )}
-                  {seller.bio && !seller.storyBody && (
-                    <p className="text-neutral-700 whitespace-pre-line leading-relaxed">{seller.bio}</p>
-                  )}
-                  {seller.bio && seller.storyBody && seller.bio !== seller.storyBody && (
-                    <p className="text-neutral-700 whitespace-pre-line leading-relaxed mt-4 pt-4 border-t border-neutral-100">
-                      {seller.bio}
-                    </p>
                   )}
                 </div>
               )}

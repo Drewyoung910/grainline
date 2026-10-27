@@ -14,7 +14,7 @@ import {
 } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "Why Sell on Grainline | 5% fee, no mandatory ads, no shipping skim",
+  title: { absolute: "Why Sell on Grainline | 5% fee, no mandatory ads, no shipping skim" },
   description:
     "A US marketplace for handmade woodworking. 5% platform fee on item price only, never on shipping. No listing fees, no mandatory advertising, no surprise rate changes. Founding Maker status for the first 250 sellers.",
   alternates: { canonical: "https://thegrainline.com/why-sell-on-grainline" },

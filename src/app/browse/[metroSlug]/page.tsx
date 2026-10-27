@@ -84,7 +84,7 @@ export async function generateMetadata({
     : `Custom woodworking in ${cityName} — browse handmade furniture, decor, and more from local artisans on Grainline.`;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/browse/${metroSlug}` },
     openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}` },

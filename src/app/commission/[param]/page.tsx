@@ -83,7 +83,7 @@ export async function generateMetadata({
     const title = `Custom Woodworking Commissions in ${metro.name}, ${metro.state} | Grainline`;
     const description = `Browse open custom woodworking commission requests in ${metro.name}, ${metro.state}. Connect with local buyers looking for handmade furniture, decor, and more.`;
     return {
-      title,
+      title: { absolute: title },
       description,
       alternates: { canonical: `https://thegrainline.com/commission/${param}` },
       openGraph: { title, description, url: `https://thegrainline.com/commission/${param}` },
@@ -305,14 +305,17 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
         </ul>
       )}
 
-      <div className="mb-10">
-        <Link
-          href="/commission/new"
-          className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors"
-        >
-          Post a Commission Request
-        </Link>
-      </div>
+      {/* The empty state above already carries this CTA. */}
+      {count > 0 && (
+        <div className="mb-10">
+          <Link
+            href="/commission/new"
+            className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors"
+          >
+            Post a Commission Request
+          </Link>
+        </div>
+      )}
 
       {/* Nearby areas */}
       {nearbyFiltered.length > 0 && (

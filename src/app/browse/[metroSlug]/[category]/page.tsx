@@ -91,7 +91,7 @@ export async function generateMetadata({
   const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans in ${cityName}. Custom made to order or ready to ship.`;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
     openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
