@@ -110,7 +110,11 @@ describe("Order label fixed-authority release", () => {
       assert.ok((snapshotHelper.match(new RegExp(field, "g")) ?? []).length >= 2, field);
     }
     assert.match(cartCheckout, /checkoutShippingPackageMetadata/);
-    assert.match(singleCheckout, /checkoutShippingPackageMetadata/);
+    assert.match(singleCheckout, /buyNowListingProductMetadata/);
+    assert.match(
+      snapshotHelper,
+      /buyNowListingProductMetadata[\s\S]{0,800}checkoutShippingPackageMetadata/,
+    );
     assert.doesNotMatch(webhook, /readCheckoutShippingPackageMetadata/);
     assert.match(paidCheckoutAuthority, /source_item#>>'\{listing,packagedWeightGrams\}'/);
     assert.match(paidCheckoutAuthority, /source_snapshot#>>'\{seller,defaultPkgWeightGrams\}'/);
