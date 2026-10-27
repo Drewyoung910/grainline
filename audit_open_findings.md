@@ -4407,6 +4407,16 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   checkout validation remains unchanged. Previously saved anonymous browser
   lines are not rewritten because they are client-local and the account-cart
   authority already rejects incomplete selections when they are merged.
+## 2026-10-27 — C-1238 NUL bytes crash public search and blog filters
+
+- **[FIX PREPARED; APPLICATION DEPLOYMENT REQUIRED]** A percent-encoded NUL in
+  public browse, blog, author, tag or suggestion query parameters reached
+  PostgreSQL-bound predicates, which PostgreSQL rejects. A failing-first
+  behavior test now covers decoded NULs in both query names and values. The
+  prepared app correction returns HTTP 400 from middleware before routing any
+  NUL-bearing query and also normalizes every affected database-bound search
+  parameter through one code-point-bounded helper. Ordinary Unicode queries,
+  pagination, visibility rules and database schema remain unchanged.
 
 ## Recommended fix order for Codex
 
