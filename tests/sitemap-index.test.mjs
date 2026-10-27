@@ -8,11 +8,24 @@ const {
   sitemapChunkCount,
   sitemapChunkForId,
   sitemapIndexXml,
+  sitemapRequestId,
 } = await import(
   "../src/lib/sitemapIndex.ts"
 );
 
 describe("sitemap chunk count", () => {
+  it("resolves the promised Next 16 metadata id before selecting a chunk", async () => {
+    assert.equal(await sitemapRequestId(Promise.resolve("0")), 0);
+    assert.equal(await sitemapRequestId(Promise.resolve("7")), 7);
+    assert.equal(await sitemapRequestId(Promise.resolve(undefined)), 0);
+    assert.equal(await sitemapRequestId(Promise.resolve("01")), null);
+    assert.equal(await sitemapRequestId(Promise.resolve("[object Promise]")), null);
+    assert.equal(
+      await sitemapRequestId(Promise.resolve(String(Number.MAX_SAFE_INTEGER + 1))),
+      null,
+    );
+  });
+
   it("returns 1 for empty catalog so the static chunk is still indexed", () => {
     assert.equal(sitemapChunkCount(0), 1);
   });
