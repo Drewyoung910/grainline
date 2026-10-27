@@ -109,6 +109,46 @@ describe("quality score penalties", () => {
     assert.ok(sparse < mature, "one lucky view should not outrank sustained engagement");
   });
 
+  it("treats a zero-review summary as unrated instead of as a zero-star rating", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const missingSummary = scoreQualityRow(qualityRow({
+      sellerAvgRating: null,
+      sellerReviewCount: 0n,
+    }), globalMeans, now);
+    const retainedEmptySummary = scoreQualityRow(qualityRow({
+      sellerAvgRating: 0,
+      sellerReviewCount: 0n,
+    }), globalMeans, now);
+
+    assert.equal(
+      retainedEmptySummary,
+      missingSummary,
+      "removing a seller's last review must not turn an unrated seller into a zero-star seller",
+    );
+  });
+
+  it("caps click-through rate at one before dampening", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const completeCtr = scoreQualityRow(qualityRow({
+      viewCount: 50,
+      clickCount: 50,
+      orderCount: 0n,
+      favCount: 0n,
+    }), globalMeans, now);
+    const impossibleCtr = scoreQualityRow(qualityRow({
+      viewCount: 50,
+      clickCount: 1_000,
+      orderCount: 0n,
+      favCount: 0n,
+    }), globalMeans, now);
+
+    assert.equal(
+      impossibleCtr,
+      completeCtr,
+      "click-only traffic above the view count must not add ranking weight",
+    );
+  });
+
   it("limits ranking damage from excess view-only traffic", () => {
     const now = Date.parse("2026-05-23T12:00:00.000Z");
     const baseline = scoreQualityRow(qualityRow({ viewCount: 100, clickCount: 10, orderCount: 5n }), globalMeans, now);
@@ -164,11 +204,21 @@ describe("quality score penalties", () => {
       sellerCreatedAt: new Date(now - 31 * DAY_MS),
       sellerReviewCount: 0n,
     }), globalMeans, now);
+    const agedUnratedSeller = scoreQualityRow(qualityRow({
+      createdAt: new Date(now - 40 * DAY_MS),
+      sellerCreatedAt: new Date(now - 31 * DAY_MS),
+      sellerAvgRating: null,
+      sellerReviewCount: 0n,
+    }), globalMeans, now);
 
     assert.ok(guildMember > baseline, "Guild Member should add a smaller trust boost");
     assert.ok(guildMaster > guildMember, "Guild Master should outrank Guild Member when other signals match");
     assert.ok(newSeller > baseline, "new zero-review sellers should receive the documented starter bump");
-    assert.equal(agedZeroReviewSeller, baseline, "zero-review sellers should age out of the starter bump after day 30");
+    assert.equal(
+      agedZeroReviewSeller,
+      agedUnratedSeller,
+      "zero-review sellers should use the unrated baseline after the starter bump ends",
+    );
   });
 
   it("bounds quality scores to finite values", () => {
