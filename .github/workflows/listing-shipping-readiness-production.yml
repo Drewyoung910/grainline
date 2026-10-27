@@ -1,0 +1,200 @@
+name: Listing Shipping Readiness Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-listing-shipping-readiness
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed C-264 listing shipping readiness
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-listing-shipping-readiness'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - name: Bind release to exact main and completed push workflows
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('C-264 release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: run}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || run.name !== 'CI' ||
+                run.path !== '.github/workflows/ci.yml' || run.event !== 'push' ||
+                run.head_branch !== 'main' || run.head_sha !== sha ||
+                run.status !== 'completed' || run.conclusion !== 'success') {
+              throw new Error('C-264 main/CI readback drifted');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {...context.repo, branch: 'main', event: 'push', head_sha: sha, per_page: 100},
+            );
+            const latestByWorkflow = new Map();
+            for (const exactRun of exactPushRuns) {
+              if (exactRun.head_sha !== sha || exactRun.head_branch !== 'main' ||
+                  exactRun.event !== 'push') continue;
+              const key = exactRun.path || exactRun.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(exactRun.id) > Number(previous.id)) {
+                latestByWorkflow.set(key, exactRun);
+              }
+            }
+            const requiredPushWorkflowPaths = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missing = [...requiredPushWorkflowPaths]
+              .filter((workflowPath) => !latestByWorkflow.has(workflowPath));
+            if (missing.length !== 0) {
+              throw new Error(`Required exact-main push workflows are absent: ${missing.join(', ')}`);
+            }
+            const unacceptable = [...latestByWorkflow.values()]
+              .filter((exactRun) => exactRun.status !== 'completed' ||
+                exactRun.conclusion !== 'success');
+            if (unacceptable.length !== 0) {
+              throw new Error(`Exact-main push workflows are not all green: ${unacceptable
+                .map((exactRun) => `${exactRun.name}:${exactRun.status}/${exactRun.conclusion}`)
+                .join(', ')}`);
+            }
+      - name: Verify exact candidate bytes and focused behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration=20261027060000_enforce_listing_shipping_readiness
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "$migration"
+          echo "e654d44d00410d29d79505b6a6445d40d3d3fb85b5c51d5e3b85104fd15714da  prisma/migrations/$migration/migration.sql" \
+            | sha256sum --check --status
+          node --check scripts/listing-shipping-readiness-production-inspect.mjs
+          node --test --test-concurrency=1 \
+            tests/seller-shipping-readiness.test.mjs \
+            tests/listing-shipping-readiness-production-workflow.test.mjs \
+            tests/reviewed-pending-migrations.test.mjs
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect exact predecessor or recovered state read-only
+        id: preflight
+        run: node scripts/listing-shipping-readiness-production-inspect.mjs preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Require every predecessor applied and no unrelated migration pending
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          MIGRATION_STATE: ${{ steps.preflight.outputs.state }}
+        run: |
+          set -euo pipefail
+          migration=20261027060000_enforce_listing_shipping_readiness
+          if [[ "$MIGRATION_STATE" == "pending" || "$MIGRATION_STATE" == "applied-unrecorded" ]]; then
+            REVIEWED_PENDING_MIGRATIONS="$migration" node scripts/assert-reviewed-pending-migrations.mjs
+          elif [[ "$MIGRATION_STATE" == "applied" ]]; then
+            REVIEWED_PENDING_MIGRATIONS="" node scripts/assert-reviewed-pending-migrations.mjs
+            npx prisma migrate status
+          else
+            echo "Unexpected C-264 migration state" >&2
+            exit 1
+          fi
+      - name: Apply reviewed C-264 transaction outside Prisma ledger
+        if: steps.preflight.outputs.state == 'pending'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+        run: |
+          set -euo pipefail
+          migration=20261027060000_enforce_listing_shipping_readiness
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+      - name: Record applied or forward-recovered C-264 migration
+        if: steps.preflight.outputs.state != 'applied'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate resolve --applied 20261027060000_enforce_listing_shipping_readiness
+      - name: Read back exact functions, owners, ACLs, and ledger
+        run: node scripts/listing-shipping-readiness-production-inspect.mjs postflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Require no pending migrations after apply
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ""
+        run: |
+          node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
+      - name: Audit global runtime grants after C-264
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized C-264 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: listing-shipping-readiness-${{ github.run_id }}
+          path: ${{ runner.temp }}/listing-shipping-readiness-*.json
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
