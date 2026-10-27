@@ -107,6 +107,11 @@ import {
   proveStockNotificationPreparedAuthorities,
   seedStockNotificationPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
+import {
+  MESSAGE_ATTACHMENT_KIND_BACKFILL_FIXTURE_ANCHOR,
+  proveMessageAttachmentKindBackfill,
+  seedMessageAttachmentKindBackfillFixture,
+} from "../tools/database-full-chain/scenarios/message-attachment-kind-backfill.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -229,6 +234,7 @@ test(
       let stockNotificationFixture;
       let stockNotificationPredecessorEvidence;
       let stockNotificationPreparationPreflightPath;
+      let messageAttachmentKindBackfillFixture;
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -390,6 +396,10 @@ test(
                 fixture: stockNotificationFixture,
               });
           }
+          if (artifact.name === MESSAGE_ATTACHMENT_KIND_BACKFILL_FIXTURE_ANCHOR) {
+            messageAttachmentKindBackfillFixture =
+              await seedMessageAttachmentKindBackfillFixture(adapter);
+          }
         },
         onProgress: ({ index, total, name, retried }) => {
           if (index === total || index % 50 === 0 || retried) {
@@ -404,6 +414,14 @@ test(
       assert.equal(summary.applied.length, artifacts.length);
       assert.deepEqual(summary.applied, artifacts.map(({ name }) => name));
       assert.equal(summary.applied.at(-1), artifacts.at(-1).name);
+      assert.ok(
+        messageAttachmentKindBackfillFixture,
+        "legacy message attachment fixture must be seeded before its repair",
+      );
+      await proveMessageAttachmentKindBackfill({
+        database: adapter,
+        fixture: messageAttachmentKindBackfillFixture,
+      });
       assert.deepEqual(
         summary.roleConvergenceRetries.map(({ migration }) => migration),
         [
