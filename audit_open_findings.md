@@ -4144,6 +4144,16 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-1191 malformed messaging parameters return 500
+
+- **[VERIFIED; FIX PREPARED]** Messaging pages passed malformed listing and
+  recipient query parameters into strict database authorities, and the inbox
+  truncated searches by Unicode code points before an authority rejected the
+  same string by UTF-16 length. The prepared app-only correction validates
+  route ids before authority calls, redirects self-message attempts, rejects
+  malformed/self relationship targets without querying, and applies the same
+  code-point limit at both the inbox and authority boundaries.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
