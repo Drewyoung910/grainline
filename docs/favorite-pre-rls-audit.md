@@ -274,10 +274,12 @@ User/Listing cascades under FORCE, the database-first rollback, and exact
 reactivation after rollback.
 
 The activation preflight also pins the exact table columns, primary/index and
-two cascading-FK identities, all three trigger identities, all eleven reviewed
+two cascading-FK identities, all three trigger identities, all sixteen reviewed
 function bodies and their owner/SECURITY DEFINER/search-path/volatility shape,
-the predecessor grants, and zero projection drift. It takes only the Favorite
-ACCESS EXCLUSIVE table lock: holding Listing while waiting for Favorite would
+their exact runtime/PUBLIC execute posture, the absence of any additional
+direct Favorite reader, the predecessor grants, and zero projection drift. It
+takes only the Favorite ACCESS EXCLUSIVE table lock: holding Listing while
+waiting for Favorite would
 invert the order used by the count trigger, while holding Favorite before
 Listing would invert the order used by Listing cascades. Freezing Favorite
 alone waits for each in-flight trigger transaction to finish and prevents both
