@@ -8,8 +8,8 @@ database functions and columns that compatible application code needs. It does
 not deploy the application, enable or force RLS, revoke table access, delete a
 column, or change row data.
 
-The first catalogued release is `support_request_v1`, which applies only
-`20261023010000_prepare_support_request_authorities`.
+Each catalogued release names one byte-sealed migration. The current catalog
+covers SupportRequest, StockNotification and Favorite preparations.
 
 ## Required order
 
@@ -31,10 +31,15 @@ expected effect. Drew's one-word approval authorizes that named operation.
 
 The workflow admits only a release in
 `scripts/private-table-preparation-catalog.mjs`. It verifies the migration hash
-before opening the owner connection, requires its migration to be the entire
-pending set, applies with Prisma, then compares preflight and postflight table
-posture. If the migration was already applied, it skips the write and repeats
-the exact catalog and global-grant checks.
+before opening the owner connection and requires its migration to be the entire
+pending set. It executes the migration transaction directly with `psql`, then
+records those exact reviewed bytes with Prisma's documented
+`migrate resolve --applied` path. If the SQL transaction committed but the
+ledger write did not, a rerun recognizes only the complete byte-matched catalog,
+skips SQL replay and finishes the ledger record. Partial catalog state, an
+unreviewed zero-step row, or any byte mismatch fails closed. If the migration
+was already applied and recorded, it skips both writes and repeats the exact
+catalog and global-grant checks.
 
 Adding a new release requires a new immutable catalog entry and focused tests.
 Do not loosen an existing entry to fit changed SQL. Create a new migration and

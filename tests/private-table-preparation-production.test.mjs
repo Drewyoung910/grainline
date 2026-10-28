@@ -11,6 +11,10 @@ import {
   verifyPrivateTablePreparationSource,
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
+  REVIEWED_MANUALLY_APPLIED_MIGRATIONS,
+  isReviewedSuccessfulMigration,
+} from "../scripts/reviewed-manually-applied-migrations.mjs";
+import {
   inspectPrivateTablePreparationProduction,
 } from "../scripts/private-table-preparation-production-inspect.mjs";
 
@@ -91,7 +95,7 @@ function acceptedMigration() {
   };
 }
 
-function fakeClientClass({ applied }) {
+function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
   return class FakeClient {
     async connect() {}
     async end() {}
@@ -119,10 +123,15 @@ function fakeClientClass({ applied }) {
         }] };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
-        return { rows: applied ? [acceptedMigration()] : [] };
+        return { rows: ledgerApplied ? [acceptedMigration()] : [] };
       }
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
-        return { rows: [{ columns: 0, functions: 0 }] };
+        return { rows: [{
+          columns: schemaApplied ? release.addedColumns.length : 0,
+          functions: schemaApplied
+            ? release.functions.length - (partial ? 1 : 0)
+            : 0,
+        }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
         return { rows: [{ name: "emailDeliveryToken", type: "uuid", nullable: true }] };
@@ -208,7 +217,7 @@ test("inspector proves pending and applied states without recording row data", a
     const pendingEnv = environment(directory, "preflight");
     const pending = await inspectPrivateTablePreparationProduction(
       pendingEnv,
-      { Client: fakeClientClass({ applied: false }) },
+      { Client: fakeClientClass({ ledgerApplied: false, schemaApplied: false }) },
     );
     assert.equal(pending.state, "pending");
     assert.equal(pending.containsRowData, false);
@@ -220,7 +229,7 @@ test("inspector proves pending and applied states without recording row data", a
     };
     const preApplied = await inspectPrivateTablePreparationProduction(
       preAppliedEnv,
-      { Client: fakeClientClass({ applied: true }) },
+      { Client: fakeClientClass({ ledgerApplied: true, schemaApplied: true }) },
     );
     assert.equal(preApplied.state, "applied");
     assert.equal(preApplied.catalog.functions.length, 9);
@@ -232,12 +241,65 @@ test("inspector proves pending and applied states without recording row data", a
     );
     const post = await inspectPrivateTablePreparationProduction(
       postEnv,
-      { Client: fakeClientClass({ applied: true }) },
+      { Client: fakeClientClass({ ledgerApplied: true, schemaApplied: true }) },
     );
     assert.equal(post.state, "applied");
     assert.deepEqual(post.posture, preApplied.posture);
   } finally {
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector admits only an exact applied-but-unrecorded preparation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-restart-"));
+  try {
+    const restartEnv = environment(directory, "preflight");
+    const restart = await inspectPrivateTablePreparationProduction(
+      restartEnv,
+      { Client: fakeClientClass({ ledgerApplied: false, schemaApplied: true }) },
+    );
+    assert.equal(restart.state, "applied_unrecorded");
+    assert.equal(restart.catalog.functions.length, release.functions.length);
+
+    await assert.rejects(
+      inspectPrivateTablePreparationProduction(
+        {
+          ...environment(directory, "preflight"),
+          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(directory, "partial.json"),
+        },
+        {
+          Client: fakeClientClass({
+            ledgerApplied: false,
+            schemaApplied: true,
+            partial: true,
+          }),
+        },
+      ),
+      /partially applied/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("all generic preparation releases admit only their exact manual ledger row", () => {
+  for (const releaseId of [
+    "support_request_v1",
+    "stock_notification_v1",
+    "favorite_v1",
+  ]) {
+    const candidate = privateTablePreparation(releaseId);
+    assert.equal(
+      REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(candidate.migration),
+      candidate.migrationSha256,
+    );
+    assert.equal(isReviewedSuccessfulMigration({
+      migration_name: candidate.migration,
+      checksum: candidate.migrationSha256,
+      finished_at: new Date("2026-10-28T00:00:00Z"),
+      rolled_back_at: null,
+      applied_steps_count: 0,
+    }), true);
   }
 });
 
@@ -258,16 +320,20 @@ test("Production workflow is exact-main bound and fails on another red push work
 test("Production workflow keeps preparation additive, restart-safe, and sole-pending", () => {
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
-  assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
+  assert.match(workflow, /psql "\$DIRECT_URL"/u);
+  assert.match(workflow, /npx prisma migrate resolve --applied "\$migration"/u);
   assert.match(workflow, /steps\.preflight\.outputs\.state == 'pending'/u);
+  assert.match(workflow, /steps\.preflight\.outputs\.state == 'applied_unrecorded'/u);
   assert.match(workflow, /PRIVATE_TABLE_PREPARATION_PHASE: postflight/u);
   assert.match(workflow, /audit:db-grants -- --require-direct-url/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   const sourceCheck = workflow.indexOf("Verify reviewed preparation source before owner access");
   const boundary = workflow.indexOf("Verify owner connection boundary");
   const preflight = workflow.indexOf("Inspect restart-safe preparation state");
-  const apply = workflow.indexOf("Apply only the reviewed private-table preparation");
+  const apply = workflow.indexOf("Apply reviewed preparation transaction outside Prisma's ledger");
+  const record = workflow.indexOf("Record the committed preparation in Prisma's ledger");
   const postflight = workflow.indexOf("Read back exact compatible preparation catalog");
   assert.ok(sourceCheck >= 0 && sourceCheck < boundary && boundary < preflight);
-  assert.ok(preflight < apply && apply < postflight);
+  assert.ok(preflight < apply && apply < record && record < postflight);
 });
