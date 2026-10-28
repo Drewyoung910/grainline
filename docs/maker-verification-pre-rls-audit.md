@@ -143,6 +143,11 @@ The supported applicant/reviewer progression is:
    named predecessor states; and
 6. account deletion redacts the row and leaves a non-active `REJECTED` sentinel.
 
+A Guild Member application also carries the seller's explicit confirmation
+that the items they list are handmade by them. The rendered dashboard requires
+that attestation, but the separately live JSON application endpoint currently
+does not accept or verify it.
+
 Every transition that changes a badge must preserve the matching public
 `SellerProfile.guildLevel`, private lifecycle timestamps, and audit evidence in
 one transaction. Notification and email are post-commit side effects derived
@@ -212,6 +217,16 @@ decision.
    BYPASSRLS/superuser role, fixed-search-path, PUBLIC-revoked, and granted only
    to its reviewed role. This includes notification and cron functions, not
    only the new MakerVerification helpers.
+10. **The two Guild Member submission paths do not enforce the same input
+    contract.** The dashboard server action requires `confirmHandmade`, rejects
+    a craft description that becomes empty after sanitization, and then writes.
+    `POST /api/verification/apply` has no attestation field and checks only the
+    pre-sanitized description, so a direct caller can bypass the handmade
+    confirmation or persist an empty sanitized description. Consolidation must
+    not choose the weaker path. Remove the unused duplicate endpoint or require
+    an explicit true attestation and reject empty post-sanitization evidence in
+    the single actor-derived operation. Prove both former entry points cannot
+    bypass the contract.
 
 ### `BEHAVIOR_DECISIONS_OR_DEFERRED_PRODUCT_WORK`
 
@@ -315,7 +330,8 @@ job for:
 
 - owner create, rejection cooldown, eligible reapply, duplicate submission,
   inactive/deleted/banned denial, and cross-owner/no-context denial;
-- exact input bounds for narrative, experience, and portfolio URL;
+- handmade attestation, non-empty post-sanitization evidence, and exact input
+  bounds for narrative, experience, and portfolio URL;
 - atomic Guild Master application and all seven staff transitions;
 - system Member revocation and Master warning/downgrade;
 - owner reapply versus staff reinstate in both winner orders;
