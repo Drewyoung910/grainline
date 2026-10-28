@@ -369,12 +369,13 @@ async function proveSubscribeBanSerialization({ connectionString, database, fixt
       "subscription must wait behind a concurrent account ban",
     );
 
-    await banFirst.query("COMMIT");
-    await assert.rejects(
+    const rejectedSubscribe = assert.rejects(
       subscribeResult,
       (error) => error?.code === "42501",
       "subscription must recheck actor activity after the user lock is acquired",
     );
+    await banFirst.query("COMMIT");
+    await rejectedSubscribe;
     await subscribeSecond.query("ROLLBACK");
     assert.equal(Number(rowsOf(await database.query(
       `SELECT pg_catalog.count(*)::integer AS count

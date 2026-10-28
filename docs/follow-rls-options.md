@@ -134,3 +134,15 @@ preparation may add the five bounded operations and convert callers, but it
 does not authorize RLS activation, grant revocation, merge order changes or any
 Production action. Favorite preparation releases first; Follow activation
 still requires its own exact approval and evidence.
+
+The isolated activation candidate is now prepared in
+`20261028060000_activate_follow_rls`. It implements Option B as policyless
+ENABLE plus FORCE with zero direct ordinary-runtime or PUBLIC table authority.
+The PostgreSQL 17 full-chain proof applies all 439 migrations and exercises
+activation, runtime denials, the retained fixed operations, deletion cleanup,
+both foreign-key cascades, database-first rollback and reactivation. The
+canonical grant audit, runtime-role provisioning replay and historical CI
+isolation now understand both predecessor and activated states. This does not
+change the sequencing decision: preparation and the compatible app must be
+released first, old app deployments must be drained, and Production activation
+needs exact-head review plus explicit approval.
