@@ -50,6 +50,7 @@ import { sellerOwnerExportProfile } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAccess";
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
 
 export const runtime = "nodejs";
 
@@ -298,25 +299,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       : [],
     ownerStockNotificationExportRows(user.id),
     exportCheckoutStockReservations(user.id),
-    sellerProfile
-      ? prisma.makerVerification.findUnique({
-          where: { sellerProfileId: sellerProfile.id },
-          select: {
-            id: true,
-            sellerProfileId: true,
-            craftDescription: true,
-            guildMasterCraftBusiness: true,
-            yearsExperience: true,
-            portfolioUrl: true,
-            status: true,
-            reviewNotes: true,
-            appliedAt: true,
-            reviewedAt: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        })
-      : null,
+    sellerProfile ? exportOwnerMakerVerification(user.id) : null,
     sellerProfile
       ? prisma.sellerFaq.findMany({
           where: { sellerProfileId: sellerProfile.id },

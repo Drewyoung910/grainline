@@ -3,8 +3,10 @@
 Date: 2026-10-28
 
 Status: **Option B selected for isolated compatible preparation.** This
-decision authorizes audit-backed candidate work only. It does not authorize a
-Production migration, grant change, deployment, or RLS activation.
+decision authorizes audit-backed candidate work only. The compatible candidate
+is now implemented and proven on the complete PostgreSQL 17 chain without an
+RLS or predecessor table-grant change. It does not authorize a Production
+migration, grant change, deployment, or RLS activation.
 
 Reviewed source baseline:
 `857bc94706913a4d5c4368afa99de0a55bb2437c`.
@@ -113,6 +115,19 @@ No generic row lookup or generic status update should be granted.
 4. Inspect Production read-only and drain incompatible deployments.
 5. Run one separately approved activation that revokes direct authority and
    applies ENABLE plus FORCE.
+
+## Candidate status
+
+The current compatible candidate converts all eight direct application
+operations, installs the owner/export/deletion/staff functions, and serializes
+the three retained Guild transition families through a canonical lock order.
+Its complete-schema proof covers the primary owner/staff lifecycle, exact ACLs,
+deletion, cross-owner denial, and both owner/staff and owner/cron winner orders.
+
+Activation remains blocked on the remaining staff/service transition matrix,
+Master and roster pagination beyond 50 rows, full input/inactive-user cases,
+direct-table denial after ENABLE+FORCE, and tested predecessor rollback. The
+candidate is additive preparation only.
 
 ## Decision record
 

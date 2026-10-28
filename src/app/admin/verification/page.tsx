@@ -52,6 +52,7 @@ import {
   sellerProfileStaffReportTargets,
   sellerProfileStaffVerificationTarget,
 } from "@/lib/sellerProfileStaffAccess";
+import { makerVerificationStaffPendingPage } from "@/lib/makerVerificationAccess";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -646,18 +647,9 @@ export default async function AdminVerificationPage() {
   if (!staff) return <AdminPinGate />;
   const staffClient = getOrderStaffReadClient();
   const [memberPendingSource, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
-    prisma.makerVerification.findMany({
-      where: { status: "PENDING" },
-      orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
+    makerVerificationStaffPendingPage(staffClient, {
+      actorId: staff.id,
       take: 50,
-      select: {
-        id: true,
-        craftDescription: true,
-        yearsExperience: true,
-        portfolioUrl: true,
-        appliedAt: true,
-        sellerProfileId: true,
-      },
     }),
     sellerGuildStaffMasterPendingList(staffClient, staff.id),
     sellerGuildStaffMemberList(staffClient, staff.id),

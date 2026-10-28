@@ -5,6 +5,7 @@ import {
   withDbUserContext,
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
+import { redactOwnerMakerVerificationForDeletion } from "@/lib/makerVerificationAccess";
 import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
@@ -1357,20 +1358,7 @@ export async function anonymizeUserAccount(
           rejectionReason: "Seller account deleted",
         },
       });
-      await tx.makerVerification.updateMany({
-        where: { sellerProfileId: user.sellerProfile.id },
-        data: {
-          craftDescription: "[Deleted]",
-          guildMasterCraftBusiness: null,
-          yearsExperience: 0,
-          portfolioUrl: null,
-          status: "REJECTED",
-          reviewedById: null,
-          reviewNotes: null,
-          appliedAt: now,
-          reviewedAt: null,
-        },
-      });
+      await redactOwnerMakerVerificationForDeletion(tx, now);
       await cleanupFollowsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,
         expectedUserId: user.id,

@@ -300,6 +300,8 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_seller_guild_staff_roster(text,text)",
   "grainline_seller_guild_staff_master_pending(text)",
   "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+  "grainline_maker_verification_staff_pending_count(text)",
+  "grainline_maker_verification_staff_pending_page(text,timestamp without time zone,text,integer)",
   "grainline_seller_staff_feature_transition(text,text,text)",
   "grainline_seller_staff_listing_review_transition(text,text,text,text)",
   "grainline_seller_staff_listing_detail_profile(text,text)",
@@ -322,6 +324,8 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_seller_guild_staff_roster(text,text)",
     "grainline_seller_guild_staff_master_pending(text)",
     "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+    "grainline_maker_verification_staff_pending_count(text)",
+    "grainline_maker_verification_staff_pending_page(text,timestamp without time zone,text,integer)",
     "grainline_seller_staff_feature_transition(text,text,text)",
     "grainline_seller_staff_listing_review_transition(text,text,text,text)",
     "grainline_seller_staff_listing_detail_profile(text,text)",
@@ -581,6 +585,11 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_guild_staff_roster",
   "grainline_seller_guild_staff_master_pending",
   "grainline_seller_guild_staff_transition",
+  "grainline_maker_verification_staff_pending_count",
+  "grainline_maker_verification_staff_pending_page",
+  "grainline_seller_guild_staff_transition_prepared_impl",
+  "grainline_seller_guild_member_revoke_prepared_impl",
+  "grainline_seller_guild_metrics_apply_prepared_impl",
   "grainline_seller_staff_feature_transition",
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_detail_profile",
@@ -2771,9 +2780,18 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
   // internal helper; a later CREATE/CREATE OR REPLACE restores the name.
   const functionLifecycle = new Map();
   for (const match of migrationSql.matchAll(
-    /\b(CREATE\s+(?:OR\s+REPLACE\s+)?|DROP\s+(?:IF\s+EXISTS\s+)?)FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi,
+    /\b(?:(CREATE\s+(?:OR\s+REPLACE\s+)?|DROP\s+(?:IF\s+EXISTS\s+)?)FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(|ALTER\s+FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\([^;]*?\)\s+RENAME\s+TO\s+"?([A-Za-z_][A-Za-z0-9_]*)"?)/gi,
   )) {
-    const [, operation, name] = match;
+    const [, operation, name, renamedFrom, renamedTo] = match;
+    if (renamedFrom && renamedTo) {
+      if (renamedFrom.startsWith("grainline_")) {
+        functionLifecycle.set(renamedFrom, false);
+      }
+      if (renamedTo.startsWith("grainline_")) {
+        functionLifecycle.set(renamedTo, true);
+      }
+      continue;
+    }
     if (!name.startsWith("grainline_")) continue;
     functionLifecycle.set(name, /^CREATE\b/i.test(operation));
   }

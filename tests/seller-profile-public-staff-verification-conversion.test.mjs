@@ -29,7 +29,9 @@ test("pending Guild Member cards resolve public seller labels through the bounde
     page,
     /const \[memberPendingSource, masterPending, memberActive, masterActive, revokedMembers\] = await Promise\.all/u,
   );
-  assert.match(page, /sellerProfileId: true/u);
+  assert.match(page, /makerVerificationStaffPendingPage\(staffClient, \{/u);
+  assert.match(page, /actorId: staff\.id,[\s\S]{0,80}take: 50/u);
+  assert.doesNotMatch(page, /prisma\.makerVerification\./u);
   assert.doesNotMatch(
     page,
     /where: \{ status: "PENDING" \}[\s\S]{0,400}(?:include|select): \{[\s\S]{0,250}sellerProfile:/u,

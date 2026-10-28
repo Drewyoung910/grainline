@@ -2,9 +2,9 @@
 
 Date: 2026-10-28
 
-Decision: **GO for isolated compatible preparation under Option B, with RLS
-activation blocked until the conversion, behavior-parity, and full-chain gates
-in this document are closed.**
+Decision: **The Option B compatible preparation candidate is implemented and
+proven on the complete PostgreSQL 17 chain; NO-GO remains for RLS or grant
+activation.**
 
 Reviewed source baseline:
 `857bc94706913a4d5c4368afa99de0a55bb2437c`.
@@ -153,6 +153,39 @@ Every transition that changes a badge must preserve the matching public
 one transaction. Notification and email are post-commit side effects derived
 from the committed transition evidence; failure must not roll back the badge
 decision.
+
+## Compatible preparation evidence
+
+The isolated candidate now:
+
+- replaces all eight direct application operations with actor-bound owner,
+  deletion/export, and isolated-staff operations while leaving RLS off and the
+  predecessor table grants unchanged;
+- requires explicit handmade/standards attestations, non-empty sanitized
+  evidence, bounded inputs, an active owner, the exact Guild predecessor state,
+  and the 30-day reapplication cooldown inside the database transition;
+- keeps Guild Master application changes to `MakerVerification` and
+  `SellerProfilePrivate` in one fixed operation;
+- adds a true Member-pending count plus stable `(appliedAt,id)` cursor page;
+- wraps staff transition, Member revocation, and Guild metrics application in
+  the shared SellerProfile -> MakerVerification -> SellerProfilePrivate lock
+  order while leaving the predecessor implementation private;
+- pins owners, security mode, search path, PUBLIC/runtime/staff ACLs and the
+  retained wrapper/private-implementation catalog in migration postflight and
+  the global grant audit; and
+- passes the full migrated PostgreSQL 17 behavior proof for Member apply,
+  duplicate conflict, cross-owner export denial, staff count/page and approval,
+  Guild Master apply, account-deletion redaction, plus owner/staff and
+  owner/cron contention in both winner orders without deadlock.
+
+Status: `COMPATIBLE_CANDIDATE`. The conversion closes gates 1, 2, 4, 7, 9 and
+10 for preparation. Gate 3 retains the documented split: the app computes the
+eligibility snapshot and the database rechecks actor/account/Guild state under
+lock; staff approval remains the final eligibility authority. Activation still
+requires executed coverage of all seven staff transitions and both service
+transition families, pagination/true totals for the Master and roster views,
+the complete inactive/bounds matrix, direct-table denial after ENABLE+FORCE,
+and predecessor rollback proof. No Production authorization is implied.
 
 ## Findings and activation gates
 

@@ -3530,3 +3530,15 @@ general cascade-maintenance trigger must wait for activation so the predecessor
 route cannot double-update the scalar. Activation remains separately blocked
 on policy/grant denial, hard User-delete cascade, cross-owner/race coverage,
 rollback, and explicit release authorization.
+
+### MakerVerification compatible RLS preparation (2026-10-28)
+
+MakerVerification uses policyless Option B because applicant evidence, staff
+attribution, badge state, export/deletion, cron and notification lifecycles
+cannot be represented safely by a simple owner row policy. Its isolated
+compatible candidate converts every direct caller and puts owner, staff and
+cron transitions behind actor/source-bound operations with a shared lock
+order. The complete PostgreSQL 17 proof covers primary Member/Master behavior,
+ACLs, deletion and two-session owner/staff plus owner/cron races. Activation
+remains separate and blocked on the full transition/queue/denial matrix and
+tested predecessor rollback; no current candidate changes RLS or table grants.

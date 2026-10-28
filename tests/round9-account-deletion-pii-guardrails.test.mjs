@@ -328,7 +328,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
     const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({");
-    const listingUpdateEnd = deletion.indexOf("await tx.makerVerification.updateMany", listingUpdateStart);
+    const listingUpdateEnd = deletion.indexOf("await redactOwnerMakerVerificationForDeletion", listingUpdateStart);
     const listingUpdate = deletion.slice(listingUpdateStart, listingUpdateEnd);
 
     assert.ok(listingUpdateStart > -1, "account deletion must update seller listings");
@@ -359,20 +359,26 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs maker verification personal details and reviewer linkage", () => {
     const deletion = source("src/lib/accountDeletion.ts");
 
-    const verificationUpdateStart = deletion.indexOf("await tx.makerVerification.updateMany({");
+    const verificationUpdateStart = deletion.indexOf("await redactOwnerMakerVerificationForDeletion(tx, now);");
     const verificationUpdateEnd = deletion.indexOf("await tx.follow.deleteMany", verificationUpdateStart);
     const verificationUpdate = deletion.slice(verificationUpdateStart, verificationUpdateEnd);
 
-    assert.ok(verificationUpdateStart > -1, "account deletion must update maker verification rows");
-    assert.match(verificationUpdate, /craftDescription: "\[Deleted\]"/);
-    assert.match(verificationUpdate, /guildMasterCraftBusiness: null/);
-    assert.match(verificationUpdate, /yearsExperience: 0/);
-    assert.match(verificationUpdate, /portfolioUrl: null/);
-    assert.match(verificationUpdate, /status: "REJECTED"/);
-    assert.match(verificationUpdate, /reviewedById: null/);
-    assert.match(verificationUpdate, /reviewNotes: null/);
-    assert.match(verificationUpdate, /appliedAt: now/);
-    assert.match(verificationUpdate, /reviewedAt: null/);
+    assert.ok(verificationUpdateStart > -1, "account deletion must invoke maker verification redaction");
+    assert.match(verificationUpdate, /redactOwnerMakerVerificationForDeletion\(tx, now\)/);
+    const authority = source(
+      "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+    );
+    for (const pattern of [
+      /"craftDescription" = '\[Deleted\]'/,
+      /"guildMasterCraftBusiness" = NULL/,
+      /"yearsExperience" = 0/,
+      /"portfolioUrl" = NULL/,
+      /status = 'REJECTED'/,
+      /"reviewedById" = NULL/,
+      /"reviewNotes" = NULL/,
+      /"appliedAt" = p_applied_at/,
+      /"reviewedAt" = NULL/,
+    ]) assert.match(authority, pattern);
   });
 
   it("redacts account identifiers from admin audit reasons as well as metadata", () => {

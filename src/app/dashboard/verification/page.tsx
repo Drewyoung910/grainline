@@ -16,21 +16,19 @@ import {
   guildMasterApplicationBlockReason,
   guildMemberApplicationBlockReason,
 } from "@/lib/guildApplicationState";
-import {
-  GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES,
-  assertGuildVerificationTransition,
-  isGuildVerificationTransitionConflict,
-} from "@/lib/guildVerificationState";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
 import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
 import { getSellerVerificationOrderSales } from "@/lib/orderEligibilityAuthority";
 import {
-  recordSellerOwnerGuildMasterApplication,
   sellerOwnerGuildApplicationState,
   sellerOwnerGuildDashboardState,
 } from "@/lib/sellerOwnerPrivateAccess";
+import {
+  applyOwnerGuildMasterVerification,
+  applyOwnerGuildMemberVerification,
+} from "@/lib/makerVerificationAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -210,26 +208,13 @@ export default async function VerificationPage() {
       redirect("/dashboard/verification");
     }
 
-    await prisma.makerVerification.upsert({
-      where: { sellerProfileId: s.id },
-      create: {
-        sellerProfileId: s.id,
-        craftDescription,
-        yearsExperience,
-        portfolioUrl,
-        status: "PENDING",
-      },
-      update: {
-        craftDescription,
-        yearsExperience,
-        portfolioUrl,
-        status: "PENDING",
-        reviewedById: null,
-        reviewNotes: null,
-        reviewedAt: null,
-        appliedAt: new Date(),
-      },
+    const result = await applyOwnerGuildMemberVerification(actor.id, {
+      craftDescription,
+      yearsExperience,
+      portfolioUrl,
+      confirmedHandmade: confirmHandmade,
     });
+    if (!result.applied) redirect("/dashboard/verification");
 
     redirect("/dashboard/verification");
   }
@@ -263,37 +248,12 @@ export default async function VerificationPage() {
     const criteria = meetsGuildMasterRequirements(metrics);
     if (!criteria.allMet) redirect("/dashboard/verification");
 
-    const appliedAt = new Date();
-    let applied = false;
-    try {
-      applied = await prisma.$transaction(async (tx) => {
-        const verificationUpdated = await tx.makerVerification.updateMany({
-          where: {
-            sellerProfileId: s.id,
-            status: { in: [...GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES] },
-          },
-          data: {
-            status: "GUILD_MASTER_PENDING",
-            guildMasterCraftBusiness: craftBusiness,
-            portfolioUrl: portfolioUrl ?? undefined,
-            appliedAt,
-          },
-        });
-        if (verificationUpdated.count === 0) return false;
-
-        const sellerUpdated = await recordSellerOwnerGuildMasterApplication(tx, {
-          sellerProfileId: s.id,
-          userId: s.userId,
-          appliedAt,
-        });
-        assertGuildVerificationTransition(sellerUpdated.count, "apply for Guild Master");
-        return true;
-      });
-    } catch (error) {
-      if (!isGuildVerificationTransitionConflict(error)) throw error;
-    }
-
-    if (!applied) redirect("/dashboard/verification");
+    const result = await applyOwnerGuildMasterVerification(s.userId, {
+      craftBusiness,
+      portfolioUrl,
+      confirmedStandards: confirmStandards,
+    });
+    if (!result.applied) redirect("/dashboard/verification");
 
     redirect("/dashboard/verification");
   }
