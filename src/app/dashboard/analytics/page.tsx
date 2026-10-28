@@ -325,8 +325,10 @@ function LineChartSection({
           {metrics.map((m) => (
             <button
               key={m.key}
+              type="button"
+              aria-pressed={metric === m.key}
               onClick={() => onMetricChange(m.key)}
-              className={`text-xs px-3 py-1.5 border font-medium transition-colors ${
+              className={`text-xs px-3 py-1.5 border font-medium transition-colors pointer-coarse:min-h-11 ${
                 metric === m.key
                   ? "bg-neutral-900 text-white border-neutral-900"
                   : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
@@ -656,8 +658,10 @@ export default function AnalyticsPage() {
           {RANGE_OPTIONS.map((r) => (
             <button
               key={r.key}
+              type="button"
+              aria-pressed={range === r.key}
               onClick={() => setRange(r.key)}
-              className={`shrink-0 text-sm px-3 py-1.5 border font-medium transition-colors ${
+              className={`shrink-0 text-sm px-3 py-1.5 border font-medium transition-colors pointer-coarse:min-h-11 ${
                 range === r.key
                   ? "bg-neutral-900 text-white border-neutral-900"
                   : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
@@ -705,6 +709,7 @@ export default function AnalyticsPage() {
       {/* ── Section A: Overview ── */}
       <section>
         <h2 className="font-display text-xl font-semibold mb-4">Overview</h2>
+        {/* min-w-0 + phone-sized values keep six-figure totals inside the two-up cards at 375px. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {loading ? (
             <>
@@ -715,22 +720,22 @@ export default function AnalyticsPage() {
             </>
           ) : data ? (
             <>
-              <div className="card-section p-5">
-                <p className="text-2xl font-bold">{fmt(data.overview.totalRevenueCents)}</p>
+              <div className="card-section min-w-0 p-4 sm:p-5">
+                <p className="text-xl font-bold tabular-nums wrap-anywhere sm:text-2xl">{fmt(data.overview.totalRevenueCents)}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Sales</p>
                 <p className="text-[10px] text-neutral-500">before fees, excluding refunded orders</p>
               </div>
-              <div className="card-section p-5">
-                <p className="text-2xl font-bold">{data.overview.totalOrders.toLocaleString("en-US")}</p>
+              <div className="card-section min-w-0 p-4 sm:p-5">
+                <p className="text-xl font-bold tabular-nums wrap-anywhere sm:text-2xl">{data.overview.totalOrders.toLocaleString("en-US")}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Paid Orders</p>
                 <p className="text-[10px] text-neutral-500">excluding refunded orders</p>
               </div>
-              <div className="card-section p-5">
-                <p className="text-2xl font-bold">{fmt(data.overview.avgOrderValueCents)}</p>
+              <div className="card-section min-w-0 p-4 sm:p-5">
+                <p className="text-xl font-bold tabular-nums wrap-anywhere sm:text-2xl">{fmt(data.overview.avgOrderValueCents)}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Avg. Order Value</p>
               </div>
-              <div className="card-section p-5">
-                <p className="text-2xl font-bold">{data.overview.activeListings}</p>
+              <div className="card-section min-w-0 p-4 sm:p-5">
+                <p className="text-xl font-bold tabular-nums wrap-anywhere sm:text-2xl">{data.overview.activeListings}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Active Listings</p>
               </div>
             </>
@@ -916,7 +921,7 @@ export default function AnalyticsPage() {
                   label: "Average Rating",
                   value:
                     data.guildMetrics.reviewCount > 0
-                      ? `${data.guildMetrics.averageRating.toFixed(1)} ★ (${data.guildMetrics.reviewCount} reviews)`
+                      ? `${data.guildMetrics.averageRating.toFixed(1)} ★ (${data.guildMetrics.reviewCount} review${data.guildMetrics.reviewCount === 1 ? "" : "s"})`
                       : "No reviews yet",
                   className: "",
                 },

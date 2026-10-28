@@ -17,6 +17,10 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
+import {
+  buildSearchSuggestionItems,
+  sellerNameSuggestionInputSupported,
+} from "@/lib/searchSuggestionResults";
 
 async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[]) {
   return prisma.$transaction(async (tx) => {
@@ -142,8 +146,12 @@ export async function GET(req: NextRequest) {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
 
-    // Seller name matches
-    sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, true, 2),
+    // Seller name matches. Input outside the lookup's supported range (an
+    // emoji-heavy query whose normalized form is too long) has no maker
+    // suggestions instead of failing the whole request.
+    sellerNameSuggestionInputSupported(q, normalizedDisplayNameQuery)
+      ? sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, true, 2)
+      : Promise.resolve([]),
 
     // Fuzzy title suggestions via pg_trgm. Keep threshold conservative to avoid
     // surfacing weak visual/homograph matches as marketplace suggestions.
@@ -182,8 +190,18 @@ export async function GET(req: NextRequest) {
     blogs.push({ slug: b.slug, title: b.title });
   }
 
+  // Typed items open their own target (maker page, tag page); categories
+  // stay in `categories` only so the dropdown does not list them twice.
+  const items = buildSearchSuggestionItems({
+    listingTitles: listings,
+    tags: tagRows.map((row) => row.tag),
+    makers: sellers,
+    fuzzyListingTitles: fuzzyRows,
+  });
+
   return privateJson({
     suggestions: suggestions.slice(0, 8),
+    items,
     blogs,
     categories: matchingCategoryValues.map((v) => ({
       value: v,

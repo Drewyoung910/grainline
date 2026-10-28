@@ -180,11 +180,23 @@ export default async function AdminReportsPage() {
                 )}
                 {r.targetType && r.targetId && (
                   <div>
+                    {/* Listing links use the staff preview so hidden, held or rejected
+                        listings still open; targets known to be gone render as text. */}
                     {r.targetType === "LISTING" && (
-                      <Link href={listingPathMap.get(r.targetId) ?? `/listing/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View listing →</Link>
+                      listingPathMap.has(r.targetId) ? (
+                        <Link href={`${listingPathMap.get(r.targetId)}?preview=admin`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View listing →</Link>
+                      ) : (
+                        <span className="text-xs text-neutral-500">Listing no longer exists</span>
+                      )
                     )}
                     {isSellerProfileReportTarget(r.targetType) && (
-                      <Link href={sellerPathMap.get(r.targetId) ?? `/seller/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View seller →</Link>
+                      reportUserById.get(r.reportedId)?.deletedAt ? (
+                        <span className="text-xs text-neutral-500">Seller account deleted</span>
+                      ) : sellerPathMap.has(r.targetId) ? (
+                        <Link href={sellerPathMap.get(r.targetId)!} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View seller →</Link>
+                      ) : (
+                        <span className="text-xs text-neutral-500">Seller profile no longer exists</span>
+                      )
                     )}
                     {r.targetType === "MESSAGE_THREAD" && (
                       <Link href={`/messages/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View thread →</Link>
@@ -193,7 +205,7 @@ export default async function AdminReportsPage() {
                       <Link href={`/blog/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View post →</Link>
                     )}
                     {r.targetType === "REVIEW" && reviewListingMap.has(r.targetId) && (
-                      <Link href={`${publicListingPath(reviewListingMap.get(r.targetId)!.id, reviewListingMap.get(r.targetId)!.title)}#reviews`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View review →</Link>
+                      <Link href={`${publicListingPath(reviewListingMap.get(r.targetId)!.id, reviewListingMap.get(r.targetId)!.title)}?preview=admin#reviews`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View review →</Link>
                     )}
                     {r.targetType === "BLOG_COMMENT" && blogCommentSlugMap.has(r.targetId) && (
                       <Link href={`/blog/${blogCommentSlugMap.get(r.targetId)}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View blog post →</Link>

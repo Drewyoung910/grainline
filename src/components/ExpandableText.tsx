@@ -6,6 +6,8 @@ type Props = {
   /** Max number of lines to clamp to when collapsed. */
   clampLines?: number;
   className?: string;
+  /** Classes for the Read more / Show less toggle. */
+  toggleClassName?: string;
 };
 
 /**
@@ -13,7 +15,7 @@ type Props = {
  * The toggle only renders if the text is actually clamped — short blurbs
  * just show inline with no button.
  */
-export default function ExpandableText({ text, clampLines = 3, className = "" }: Props) {
+export default function ExpandableText({ text, clampLines = 3, className = "", toggleClassName }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const ref = useRef<HTMLParagraphElement>(null);
@@ -64,7 +66,7 @@ export default function ExpandableText({ text, clampLines = 3, className = "" }:
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           aria-controls={textId}
-          className="mt-1 text-xs font-medium text-neutral-900 underline underline-offset-2 hover:text-neutral-600"
+          className={toggleClassName ?? "mt-1 text-xs font-medium text-neutral-900 underline underline-offset-2 hover:text-neutral-600"}
         >
           {expanded ? "Show less" : "Read more"}
         </button>

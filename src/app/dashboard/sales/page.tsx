@@ -320,24 +320,24 @@ async function SalesContent({
               {previousHref ? (
                 <Link
                   href={previousHref}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                  className="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 pointer-coarse:min-h-11"
                 >
                   Previous
                 </Link>
               ) : (
-                <span className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-300 cursor-not-allowed">
+                <span className="inline-flex items-center rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-300 cursor-not-allowed pointer-coarse:min-h-11">
                   Previous
                 </span>
               )}
               {nextHref ? (
                 <Link
                   href={nextHref}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                  className="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 pointer-coarse:min-h-11"
                 >
                   Next
                 </Link>
               ) : (
-                <span className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-300 cursor-not-allowed">
+                <span className="inline-flex items-center rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-300 cursor-not-allowed pointer-coarse:min-h-11">
                   Next
                 </span>
               )}
