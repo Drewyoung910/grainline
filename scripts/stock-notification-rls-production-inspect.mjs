@@ -55,7 +55,11 @@ function functionEvidence(row) {
 }
 
 async function readFunctions(client, verified, tableOwner) {
-  const expected = new Map(verified.release.retainedFunctions.map((entry) => [
+  const reviewedFunctions = [
+    ...verified.release.retainedFunctions,
+    ...verified.release.sharedFunctions,
+  ];
+  const expected = new Map(reviewedFunctions.map((entry) => [
     `${entry.name}(${entry.arguments})`,
     entry,
   ]));
@@ -79,7 +83,7 @@ async function readFunctions(client, verified, tableOwner) {
      WHERE namespace.nspname = 'public'
        AND procedure.proname = ANY($1::text[])
      ORDER BY procedure.proname, identity_arguments
-  `, [verified.release.retainedFunctions.map((entry) => entry.name)])).rows;
+  `, [reviewedFunctions.map((entry) => entry.name)])).rows;
   assert.equal(rows.length, expected.size, "retained function count drifted");
   for (const row of rows) {
     const identity = `${row.function_name}(${row.identity_arguments})`;

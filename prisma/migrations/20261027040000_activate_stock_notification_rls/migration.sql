@@ -12,6 +12,9 @@ DECLARE
   owner_super boolean;
   owner_bypass boolean;
   reviewed_function text;
+  expected_source_md5 text;
+  expected_volatility "char";
+  expected_parallel "char";
   existing_privileges text[];
 BEGIN
   SELECT oid INTO runtime_oid
@@ -239,17 +242,23 @@ BEGIN
     RAISE EXCEPTION 'StockNotification unexpected ACL drifted';
   END IF;
 
-  FOREACH reviewed_function IN ARRAY ARRAY[
-    'public.grainline_stock_notification_owner_subscribe(text,text)',
-    'public.grainline_stock_notification_seller_counts(text[])',
-    'public.grainline_stock_notification_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)',
-    'public.grainline_stock_notification_restock_candidates(text,integer)',
-    'public.grainline_stock_notification_seller_listing_cleanup(text)',
-    'public.grainline_stock_notification_admin_listing_cleanup(text)',
-    'public.grainline_stock_notification_block_cleanup(text)',
-    'public.grainline_stock_notification_owner_export()',
-    'public.grainline_notification_claim_back_in_stock(text,text,text)'
-  ] LOOP
+  FOR reviewed_function, expected_source_md5, expected_volatility,
+      expected_parallel IN
+    SELECT expected.identity, expected.source_md5, expected.volatility,
+           expected.parallel_mode
+      FROM (VALUES
+        ('public.grainline_notification_claim_back_in_stock(text,text,text)', 'ba5972690e19a1751c4585df44461543', 'v'::"char", 'u'::"char"),
+        ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char"),
+        ('public.grainline_stock_notification_admin_listing_cleanup(text)', '09df28fac4c95e536bfee55236c9fe2e', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_block_cleanup(text)', 'bfdc1e2a015a2969ac8ab96a30703173', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_owner_export()', '5fb67f2095a3a0ad79dc96c121f5fd5c', 's'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_owner_subscribe(text,text)', 'ce51f509de689322f39e13c65a7b7d0c', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_restock_candidates(text,integer)', '5b0110a18292abaf5c3e409eaf4f2b56', 's'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_seller_counts(text[])', '14b29ee449feef3ce11b1e01ffe0c1f0', 's'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_seller_listing_cleanup(text)', '101860e7ea09f616c277a7c725f81b00', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '561251a60189ed9eb8abc47c41cfaa3d', 's'::"char", 'u'::"char")
+      ) AS expected(identity, source_md5, volatility, parallel_mode)
+  LOOP
     IF pg_catalog.to_regprocedure(reviewed_function) IS NULL THEN
       RAISE EXCEPTION 'StockNotification reviewed function is missing: %', reviewed_function;
     END IF;
@@ -260,7 +269,11 @@ BEGIN
        WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
          AND procedure.proowner = table_owner
          AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = expected_volatility
+         AND procedure.proparallel = expected_parallel
          AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
          AND (owner.rolsuper OR owner.rolbypassrls)
     ) OR NOT pg_catalog.has_function_privilege(
       'grainline_app_runtime',
@@ -274,6 +287,29 @@ BEGIN
       RAISE EXCEPTION 'StockNotification reviewed function posture drifted: %', reviewed_function;
     END IF;
   END LOOP;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND procedure.prosrc LIKE '%public."StockNotification"%'
+       AND procedure.oid <> ALL (ARRAY[
+         pg_catalog.to_regprocedure('public.grainline_notification_claim_back_in_stock(text,text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_admin_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_block_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_owner_export()'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_owner_subscribe(text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_restock_candidates(text,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_seller_counts(text[])'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_seller_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)')
+       ]::oid[])
+  ) THEN
+    RAISE EXCEPTION 'StockNotification has an unreviewed function reader';
+  END IF;
 END
 $grainline_stock_notification_rls_preflight$;
 
@@ -309,6 +345,9 @@ DECLARE
   table_oid oid;
   table_owner oid;
   reviewed_function text;
+  expected_source_md5 text;
+  expected_volatility "char";
+  expected_parallel "char";
 BEGIN
   SELECT oid INTO runtime_oid
     FROM pg_catalog.pg_roles
@@ -371,17 +410,23 @@ BEGIN
     RAISE EXCEPTION 'StockNotification owner policy catalog drifted';
   END IF;
 
-  FOREACH reviewed_function IN ARRAY ARRAY[
-    'public.grainline_stock_notification_owner_subscribe(text,text)',
-    'public.grainline_stock_notification_seller_counts(text[])',
-    'public.grainline_stock_notification_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)',
-    'public.grainline_stock_notification_restock_candidates(text,integer)',
-    'public.grainline_stock_notification_seller_listing_cleanup(text)',
-    'public.grainline_stock_notification_admin_listing_cleanup(text)',
-    'public.grainline_stock_notification_block_cleanup(text)',
-    'public.grainline_stock_notification_owner_export()',
-    'public.grainline_notification_claim_back_in_stock(text,text,text)'
-  ] LOOP
+  FOR reviewed_function, expected_source_md5, expected_volatility,
+      expected_parallel IN
+    SELECT expected.identity, expected.source_md5, expected.volatility,
+           expected.parallel_mode
+      FROM (VALUES
+        ('public.grainline_notification_claim_back_in_stock(text,text,text)', 'ba5972690e19a1751c4585df44461543', 'v'::"char", 'u'::"char"),
+        ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char"),
+        ('public.grainline_stock_notification_admin_listing_cleanup(text)', '09df28fac4c95e536bfee55236c9fe2e', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_block_cleanup(text)', 'bfdc1e2a015a2969ac8ab96a30703173', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_owner_export()', '5fb67f2095a3a0ad79dc96c121f5fd5c', 's'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_owner_subscribe(text,text)', 'ce51f509de689322f39e13c65a7b7d0c', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_restock_candidates(text,integer)', '5b0110a18292abaf5c3e409eaf4f2b56', 's'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_seller_counts(text[])', '14b29ee449feef3ce11b1e01ffe0c1f0', 's'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_seller_listing_cleanup(text)', '101860e7ea09f616c277a7c725f81b00', 'v'::"char", 'u'::"char"),
+        ('public.grainline_stock_notification_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '561251a60189ed9eb8abc47c41cfaa3d', 's'::"char", 'u'::"char")
+      ) AS expected(identity, source_md5, volatility, parallel_mode)
+  LOOP
     IF NOT EXISTS (
       SELECT 1
         FROM pg_catalog.pg_proc AS procedure
@@ -389,7 +434,11 @@ BEGIN
        WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
          AND procedure.proowner = table_owner
          AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = expected_volatility
+         AND procedure.proparallel = expected_parallel
          AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
          AND (owner.rolsuper OR owner.rolbypassrls)
     ) OR NOT pg_catalog.has_function_privilege(
       'grainline_app_runtime',
@@ -403,6 +452,29 @@ BEGIN
       RAISE EXCEPTION 'StockNotification function posture drifted: %', reviewed_function;
     END IF;
   END LOOP;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND procedure.prosrc LIKE '%public."StockNotification"%'
+       AND procedure.oid <> ALL (ARRAY[
+         pg_catalog.to_regprocedure('public.grainline_notification_claim_back_in_stock(text,text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_admin_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_block_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_owner_export()'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_owner_subscribe(text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_restock_candidates(text,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_seller_counts(text[])'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_seller_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_stock_notification_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)')
+       ]::oid[])
+  ) THEN
+    RAISE EXCEPTION 'StockNotification has an unreviewed function reader after activation';
+  END IF;
 END
 $grainline_stock_notification_rls_postflight$;
 

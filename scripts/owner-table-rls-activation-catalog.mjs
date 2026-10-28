@@ -109,7 +109,7 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
     predecessorSourceCommit: "113f176c362bc136bf55fbc0d32fbc9b5b39a0a5",
     shape: "stock_notification",
     migration: "20261027040000_activate_stock_notification_rls",
-    migrationSha256: "e32566d4fa62880598de4ecdc088eebd56d4e97544de2178d51963c21091fcfb",
+    migrationSha256: "c771b5c6caed905ce00515969e461a5f9de7c65b626d1eaa6c80916d4b6d7942",
     table: "StockNotification",
     policies: Object.freeze([
       Object.freeze({
@@ -129,6 +129,10 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "20261026010000_prepare_stock_notification_authorities",
     retainedFunctionMigrationSha256:
       "3c77aed31571f7e4adb942bea15611ee97d75e8183f76899cc634749ab2955ce",
+    sharedFunctionMigration:
+      "20260905170000_correct_order_authority_composition",
+    sharedFunctionMigrationSha256:
+      "00e13c339320584780164cdf0b234f2005d698e8df0fd567480f53d2f8b23cff",
     retainedFunctions: Object.freeze([
       Object.freeze({
         name: "grainline_stock_notification_owner_subscribe",
@@ -166,6 +170,12 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_notification_claim_back_in_stock",
         arguments: "text, text, text",
+      }),
+    ]),
+    sharedFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_order_seller_analytics_top_listings",
+        arguments: "text, bigint, bigint, boolean, boolean",
       }),
     ]),
   }),
@@ -279,6 +289,11 @@ export function verifyOwnerTableRlsActivationSource(
       release.retainedFunctionMigration,
       release.retainedFunctionMigrationSha256,
     );
+    const shared = migrationArtifact(
+      rootDir,
+      release.sharedFunctionMigration,
+      release.sharedFunctionMigrationSha256,
+    );
     const tablePattern = 'public\\."StockNotification"';
     if (
       !new RegExp(
@@ -328,10 +343,16 @@ export function verifyOwnerTableRlsActivationSource(
       throw stopped("StockNotification owner context boundary drifted");
     }
     const retainedFunctionSources = new Map(
-      release.retainedFunctions.map((entry) => [
-        entry.name,
-        functionSourceFromMigration(retained.sql, entry.name),
-      ]),
+      [
+        ...release.retainedFunctions.map((entry) => [
+          entry.name,
+          functionSourceFromMigration(retained.sql, entry.name),
+        ]),
+        ...release.sharedFunctions.map((entry) => [
+          entry.name,
+          functionSourceFromMigration(shared.sql, entry.name),
+        ]),
+      ],
     );
     return Object.freeze({
       releaseId,
@@ -340,6 +361,8 @@ export function verifyOwnerTableRlsActivationSource(
       digest: activation.digest,
       retainedMigrationPath: retained.migrationPath,
       retainedDigest: retained.digest,
+      sharedMigrationPath: shared.migrationPath,
+      sharedDigest: shared.digest,
       retainedFunctionSources,
     });
   }

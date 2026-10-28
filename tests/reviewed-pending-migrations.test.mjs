@@ -21,7 +21,7 @@ const C1150_CHECKSUM =
 const STOCK_NOTIFICATION_RLS =
   "20261027040000_activate_stock_notification_rls";
 const STOCK_NOTIFICATION_RLS_CHECKSUM =
-  "e32566d4fa62880598de4ecdc088eebd56d4e97544de2178d51963c21091fcfb";
+  "c771b5c6caed905ce00515969e461a5f9de7c65b626d1eaa6c80916d4b6d7942";
 
 test("accepts only the exact reviewed pending migration set", () => {
   const directories = ["20261001000000_first", "20261002000000_second"];
