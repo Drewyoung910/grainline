@@ -241,7 +241,7 @@ jobs:
           set -euo pipefail
           state="$(node scripts/owner-table-rls-activation-production-inspect.mjs)"
           case "$state" in
-            ready)
+            ready|record)
               migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
               echo "pending=$migration" >> "$GITHUB_OUTPUT"
               ;;
@@ -254,11 +254,39 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
-      - name: Apply only the reviewed owner-table activation
-        if: steps.preflight.outputs.state == 'ready'
+      - name: Apply the reviewed existing owner-table activation
+        if: >-
+          steps.preflight.outputs.state == 'ready' &&
+          inputs.release_id != 'stock_notification_v1'
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: npx prisma migrate deploy
+      - name: Apply only the reviewed StockNotification activation transaction
+        if: >-
+          steps.preflight.outputs.state == 'ready' &&
+          inputs.release_id == 'stock_notification_v1'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+      - name: Record the committed StockNotification activation in Prisma's ledger
+        if: >-
+          inputs.release_id == 'stock_notification_v1' &&
+          (steps.preflight.outputs.state == 'ready' ||
+           steps.preflight.outputs.state == 'record')
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
+          npx prisma migrate resolve --applied "$migration"
       - name: Read back exact owner-table RLS catalog
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

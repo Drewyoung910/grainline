@@ -331,6 +331,11 @@ test("Production workflow is exact-bound, deployment-bound, and sole-pending", (
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.equal(
+    (workflow.match(/npx prisma migrate resolve --applied/gu) ?? []).length,
+    1,
+  );
+  assert.match(workflow, /psql "\$DIRECT_URL"/u);
   assert.match(workflow, /steps\.preflight\.outputs\.state == 'ready'/u);
   assert.match(workflow, /OWNER_TABLE_RLS_PHASE: postflight/u);
   assert.match(workflow, /audit:db-grants -- --require-direct-url/u);

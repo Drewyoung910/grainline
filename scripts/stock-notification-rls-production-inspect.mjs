@@ -11,6 +11,9 @@ import {
   verifyOwnerTableRlsActivationSource,
 } from "./owner-table-rls-activation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
+import {
+  isReviewedSuccessfulMigration,
+} from "./reviewed-manually-applied-migrations.mjs";
 
 const PHASES = new Set(["preflight", "postflight"]);
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -28,11 +31,7 @@ function successfulMigration(rows, release) {
   for (const row of attempts) {
     assert.equal(row.checksum, release.migrationSha256, "migration checksum drifted");
   }
-  const successes = attempts.filter((row) => (
-    row.finished_at !== null
-    && row.rolled_back_at === null
-    && Number(row.applied_steps_count) === 1
-  ));
+  const successes = attempts.filter(isReviewedSuccessfulMigration);
   assert.ok(successes.length <= 1, "migration has duplicate successful rows");
   for (const row of attempts) {
     if (!successes.includes(row)) {
@@ -430,25 +429,36 @@ export async function inspectStockNotificationRlsActivationProduction(
        ORDER BY started_at
     `, [release.migration])).rows;
     const applied = successfulMigration(ledger, release);
-    const state = applied ? "active" : "ready";
-    if (phase === "postflight") assert.equal(state, "active", "activation is not applied");
-    if (state === "ready") {
-      assert.equal(row.rls_enabled, false);
-      assert.equal(row.rls_forced, false);
-      assert.equal(row.policy_count, 0);
-      assert.equal(row.runtime_select, true);
-      assert.equal(row.runtime_insert, true);
-      assert.equal(row.runtime_update, true);
-      assert.equal(row.runtime_delete, true);
+    const predecessorPosture = (
+      row.rls_enabled === false
+      && row.rls_forced === false
+      && row.policy_count === 0
+      && row.runtime_select === true
+      && row.runtime_insert === true
+      && row.runtime_update === true
+      && row.runtime_delete === true
+    );
+    const activePosture = (
+      row.rls_enabled === true
+      && row.rls_forced === true
+      && row.policy_count === 2
+      && row.runtime_select === true
+      && row.runtime_insert === false
+      && row.runtime_update === false
+      && row.runtime_delete === true
+    );
+    let state;
+    if (applied) {
+      assert.equal(activePosture, true, "applied activation posture drifted");
+      state = "active";
+    } else if (predecessorPosture) {
+      state = "ready";
+    } else if (activePosture) {
+      state = "record";
     } else {
-      assert.equal(row.rls_enabled, true);
-      assert.equal(row.rls_forced, true);
-      assert.equal(row.policy_count, 2);
-      assert.equal(row.runtime_select, true);
-      assert.equal(row.runtime_insert, false);
-      assert.equal(row.runtime_update, false);
-      assert.equal(row.runtime_delete, true);
+      assert.fail("StockNotification activation posture is partial or unknown");
     }
+    if (phase === "postflight") assert.equal(state, "active", "activation is not applied");
 
     const structure = await readStructure(client);
     const retainedFunctions = await readFunctions(
@@ -456,7 +466,7 @@ export async function inspectStockNotificationRlsActivationProduction(
       verified,
       row.table_owner_name,
     );
-    const policies = state === "active"
+    const policies = state === "active" || state === "record"
       ? await readPolicies(client, release, row.runtime_oid)
       : [];
     const inventory = (await client.query(`

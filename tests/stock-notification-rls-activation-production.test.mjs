@@ -43,6 +43,8 @@ const retainedRows = release.retainedFunctions.map((entry) => ({
 
 function fakeClientClass({
   active,
+  ledgerApplied = active,
+  appliedStepsCount = 1,
   policyExpression = release.policies[0].usingExpression,
   unexpectedTableAclCount = 0,
 }) {
@@ -87,12 +89,12 @@ function fakeClientClass({
         }] };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
-        return { rows: active ? [{
+        return { rows: ledgerApplied ? [{
           migration_name: release.migration,
           checksum: release.migrationSha256,
           finished_at: "2026-10-27T12:00:00.000Z",
           rolled_back_at: null,
-          applied_steps_count: 1,
+          applied_steps_count: appliedStepsCount,
         }] : [] };
       }
       if (sql.includes("pg_catalog.format_type(attribute.atttypid")) {
@@ -245,6 +247,10 @@ test("StockNotification rollback restores the exact predecessor before disabling
     rollback,
     /migrate resolve --rolled-back 20261027040000_activate_stock_notification_rls/u,
   );
+  assert.match(
+    rollback,
+    /Run this database rollback before restoring any predecessor application/u,
+  );
   assert.doesNotMatch(rollback, /DROP (?:TABLE|COLUMN)/iu);
 });
 
@@ -256,10 +262,20 @@ test("generic release path includes StockNotification and remains exact-bound", 
   assert.match(workflow, /stock-notification-route\.test\.mjs/u);
   assert.match(workflow, /stock-notification-state\.test\.mjs/u);
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
-  assert.doesNotMatch(
+  assert.equal((workflow.match(/npx prisma migrate resolve --applied/gu) ?? []).length, 1);
+  assert.match(workflow, /psql "\$DIRECT_URL"/u);
+  assert.match(workflow, /ready\|record/u);
+  assert.match(
     release.predecessorDeploymentId,
     /^dpl_[A-Za-z0-9]{20,64}$/u,
-    "candidate must remain production-inadmissible until the predecessor is bound",
+  );
+  assert.equal(
+    release.predecessorDeploymentId,
+    "dpl_9WW7bJdjnmawMGt89i3SRJXrARPb",
+  );
+  assert.equal(
+    release.predecessorSourceCommit,
+    "113f176c362bc136bf55fbc0d32fbc9b5b39a0a5",
   );
   assert.equal(
     verifyOwnerTableRlsPredecessor(
@@ -310,12 +326,37 @@ test("StockNotification inspector proves ready and active states without row dat
     );
     const active = await inspectStockNotificationRlsActivationProduction(
       postEnv,
-      { Client: fakeClientClass({ active: true }) },
+      {
+        Client: fakeClientClass({
+          active: true,
+          appliedStepsCount: 0,
+        }),
+      },
     );
     assert.equal(active.state, "active");
     assert.equal(active.posture.rlsEnabled, true);
     assert.equal(active.posture.runtimeInsert, false);
     assert.equal(active.policies.length, 2);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("StockNotification inspector resumes an activated-but-unrecorded transaction", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "stock-notification-rls-record-"));
+  try {
+    const record = await inspectStockNotificationRlsActivationProduction(
+      environment(directory, "preflight"),
+      {
+        Client: fakeClientClass({
+          active: true,
+          ledgerApplied: false,
+        }),
+      },
+    );
+    assert.equal(record.state, "record");
+    assert.equal(record.posture.rlsEnabled, true);
+    assert.equal(record.policies.length, 2);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
