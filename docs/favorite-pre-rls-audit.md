@@ -2,7 +2,7 @@
 
 Date: 2026-10-28  
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`  
-Status: design gate open; no Favorite RLS or grant change is authorized by this audit
+Status: compatible preparation proved; no Favorite RLS or table-grant change is authorized yet
 
 ## Intended Product Behavior
 
@@ -223,7 +223,29 @@ schema and prove at least:
 
 ## Audit Decision
 
-`NO-GO` for policy or grant activation today. The direct/indirect consumer
-inventory is complete enough to compare designs, but FAV-RLS-1 through
-FAV-RLS-3 must be resolved in source and PostgreSQL behavior proofs first.
-See `docs/favorite-rls-options.md` for the recommended boundary.
+The compatible preparation selects Option B's maintained raw-current-row count
+projection without activating its final policy/grant posture. Migration
+`20261028010000_prepare_favorite_authorities` adds the non-negative
+`Listing.favoriteCount` projection, exact backfill and insert/delete
+maintenance, forbids Favorite UPDATE, and installs nine bounded operations.
+All application consumers now use those operations or the scalar projection;
+no source caller directly reads, writes, counts or orders by Favorite.
+
+The full 437-migration chain passes on disposable PostgreSQL 16 and 17. Its
+executed scenario first reproduces the predecessor add-after-block gap, then
+proves predecessor direct insert/replay/delete compatibility, atomic guarded
+add/replay, no-context and self/inactive/blocked denial,
+cross-user read/remove denial, owner state, export, seller range analytics,
+seller/admin cleanup authorization, User and Listing cascades, exact count
+reconciliation, a concurrent actor-ban recheck, and both winner orders of
+add-versus-block and add-versus-archive races. The Prisma schema pins the same
+descending three-column index order as the SQL migration, and both mutation
+routes reject malformed listing ids before database access.
+
+`GO` for independent review and the additive preparation release only. The
+preparation migration must run before the compatible application deploys,
+because the converted app calls its new functions and reads `favoriteCount`.
+`NO-GO` remains for Favorite RLS/table-grant activation until a separate
+activation migration proves runtime/no-context/cross-user denial, final policy
+and ACL posture, rollback to the compatible predecessor, skew drain and an
+exact-head release review. No column deletion belongs in that activation.

@@ -19,6 +19,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { sellerActorAccountFeedCards } from "@/lib/sellerProfileParticipantAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -201,16 +202,10 @@ export async function GET(req: NextRequest) {
   // and blog post ids in this feed page — cheap, indexed lookups.
   const listingIds = visibleListings.map((l) => l.id);
   const blogPostIds = visibleBlogPosts.map((b) => b.id);
-  const [favorites, savedBlogPosts] = await Promise.all([
-    listingIds.length > 0
-      ? prisma.favorite.findMany({
-          where: { userId: me.id, listingId: { in: listingIds } },
-          select: { listingId: true },
-        })
-      : Promise.resolve([] as { listingId: string }[]),
+  const [favoritedListingIds, savedBlogPosts] = await Promise.all([
+    ownerFavoriteListingIds(me.id, listingIds),
     ownerSavedBlogPostIdRows(me.id, blogPostIds),
   ]);
-  const favoritedListingIds = new Set(favorites.map((f) => f.listingId));
   const savedBlogPostIds = new Set(savedBlogPosts.map((s) => s.blogPostId));
 
   const merged: FeedItem[] = [

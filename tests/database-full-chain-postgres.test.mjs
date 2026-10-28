@@ -107,6 +107,12 @@ import {
   proveStockNotificationPreparedAuthorities,
   seedStockNotificationPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
+import {
+  FAVORITE_PREPARATION_MIGRATION,
+  proveFavoritePredecessorGap,
+  proveFavoritePreparedAuthorities,
+  seedFavoritePredecessorFixture,
+} from "../tools/database-full-chain/scenarios/favorite-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -229,6 +235,8 @@ test(
       let stockNotificationFixture;
       let stockNotificationPredecessorEvidence;
       let stockNotificationPreparationPreflightPath;
+      let favoriteFixture;
+      let favoritePredecessorEvidence;
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -389,6 +397,17 @@ test(
                 database: adapter,
                 fixture: stockNotificationFixture,
               });
+          }
+          if (artifact.name === FAVORITE_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before Favorite proof");
+            favoriteFixture = await seedFavoritePredecessorFixture({
+              database: adapter,
+              seller: fixture,
+            });
+            favoritePredecessorEvidence = await proveFavoritePredecessorGap({
+              database: adapter,
+              fixture: favoriteFixture,
+            });
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -747,6 +766,18 @@ test(
         database: adapter,
         connectionString: proofDatabaseUrl,
         fixture: stockNotificationFixture,
+      });
+      assert.deepEqual(favoritePredecessorEvidence, {
+        blockedFavoriteInserted: true,
+      });
+      assert.ok(
+        favoriteFixture,
+        "Favorite predecessor fixture must be seeded before preparation",
+      );
+      await proveFavoritePreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        fixture: favoriteFixture,
       });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),

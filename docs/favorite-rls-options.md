@@ -7,6 +7,20 @@ This comparison follows the audit in `docs/favorite-pre-rls-audit.md`. Favorite
 is mixed private/aggregate data: the row identifies a user's private save, but
 the marketplace intentionally consumes cross-user counts.
 
+## Selected Compatible Boundary
+
+The isolated candidate selects Option B's maintained Listing projection for
+the raw public count and popular ordering. It goes one step narrower during
+preparation by converting every current Favorite caller to nine bounded
+operations; this leaves the final activation free to choose owner policies or
+zero direct runtime table authority without another application rewrite.
+Quality-score eligibility remains on its stricter existing authority, while
+the new scalar deliberately preserves raw current-row counter semantics.
+
+This selection authorizes compatible preparation only. It does not authorize
+ENABLE, FORCE, table-grant revocation, application deployment before the
+preparation migration, or a Production run.
+
 ## Option A: Owner Policies Plus Dynamic Aggregate Functions
 
 Use owner SELECT/INSERT/DELETE policies on Favorite. Convert every owner caller

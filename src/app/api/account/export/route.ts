@@ -29,6 +29,7 @@ import { ownerNotificationExportRows } from "@/lib/notificationOwnerAccess";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { ownerSavedBlogPostExportRows } from "@/lib/savedBlogPostOwnerAccess";
 import { ownerCartExportRows } from "@/lib/cartOwnerAccess";
+import { ownerFavoriteExportRows } from "@/lib/favoriteAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { exportOwnedDirectUploads } from "@/lib/directUploadLifecycle";
 import { exportParticipantCases } from "@/lib/caseAccountExportAuthority";
@@ -203,11 +204,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       select: { id: true, postId: true, body: true, approved: true, parentId: true, createdAt: true },
     }),
     ownerCartExportRows(user.id),
-    prisma.favorite.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
-    }),
+    ownerFavoriteExportRows(user.id),
     listOwnerSavedSearches(user.id, prisma),
     sellerOwnerFollowExportRows(user.id),
     ownerSavedBlogPostExportRows(user.id),

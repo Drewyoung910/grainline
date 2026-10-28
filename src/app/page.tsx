@@ -30,6 +30,7 @@ import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 import { formatCurrencyCents } from "@/lib/money";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 import {
@@ -278,11 +279,8 @@ export default async function HomePage() {
   if (meDbId) {
     const ids = [...fresh.map((f) => f.id), ...topSaved.map((t) => t.id)];
     const blogPostIds = recentBlogPosts.map((p) => p.id);
-    const [favs, follows, savedBlogRows] = await Promise.all([
-      prisma.favorite.findMany({
-        where: { userId: meDbId, listingId: { in: ids } },
-        select: { listingId: true },
-      }),
+    const [savedListingIds, follows, savedBlogRows] = await Promise.all([
+      ownerFavoriteListingIds(meDbId, ids),
       prisma.follow.findMany({
         where: { followerId: meDbId },
         select: { sellerProfileId: true },
@@ -291,7 +289,7 @@ export default async function HomePage() {
       }),
       ownerSavedBlogPostIdRows(meDbId, blogPostIds),
     ]);
-    saved = new Set(favs.map((f) => f.listingId));
+    saved = savedListingIds;
     const savedBlogIdSet = new Set(savedBlogRows.map((s) => s.blogPostId));
     savedBlogSlugs = new Set(
       recentBlogPosts.filter((p) => savedBlogIdSet.has(p.id)).map((p) => p.slug)

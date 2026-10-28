@@ -1188,6 +1188,49 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, {});
   });
 
+  it("centralizes Favorite access before its separate RLS activation", () => {
+    const access = source("src/lib/favoriteAccess.ts");
+    const addRoute = source("src/app/api/favorites/route.ts");
+    const removeRoute = source("src/app/api/favorites/[listingId]/route.ts");
+    const accountExport = source("src/app/api/account/export/route.ts");
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const blockMutation = source("src/lib/blockMutationAccess.ts");
+
+    for (const functionName of [
+      "grainline_favorite_owner_listing_ids",
+      "grainline_favorite_owner_add",
+      "grainline_favorite_owner_remove",
+      "grainline_favorite_owner_delete_all",
+      "grainline_favorite_owner_export",
+      "grainline_favorite_seller_range_count",
+      "grainline_favorite_seller_listing_cleanup",
+      "grainline_favorite_admin_listing_cleanup",
+      "grainline_favorite_block_cleanup",
+    ]) {
+      assert.match(access, new RegExp(functionName, "u"));
+    }
+    assert.doesNotMatch(access, /\$queryRawUnsafe|Prisma\.raw/u);
+    assert.match(addRoute, /addOwnerFavorite\(me\.id, listingId\)/u);
+    assert.match(removeRoute, /removeOwnerFavorite\(me\.id, listingId\)/u);
+    assert.match(accountExport, /ownerFavoriteExportRows\(user\.id\)/u);
+    assert.match(accountDeletion, /deleteAllOwnerFavorites\(user\.id, tx\)/u);
+    assert.match(blockMutation, /deleteFavoritesForBlockedPair\(tx, blockedId\)/u);
+  });
+
+  it("blocks direct Favorite delegate access after compatible conversion", () => {
+    const directFavoriteAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.favorite\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      const matches = [...source(file).matchAll(directFavoriteAccessPattern)]
+        .map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, {});
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 

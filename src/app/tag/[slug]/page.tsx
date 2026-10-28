@@ -14,6 +14,7 @@ import { normalizeTag } from "@/lib/tags";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { publicTagPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import {
   sellerPublicListingCards,
   type SellerPublicListingCard,
@@ -146,11 +147,10 @@ export default async function TagLandingPage({
 
   let savedSet = new Set<string>();
   if (meDbId && listings.length > 0) {
-    const favorites = await prisma.favorite.findMany({
-      where: { userId: meDbId, listingId: { in: listings.map((listing) => listing.id) } },
-      select: { listingId: true },
-    });
-    savedSet = new Set(favorites.map((favorite) => favorite.listingId));
+    savedSet = await ownerFavoriteListingIds(
+      meDbId,
+      listings.map((listing) => listing.id),
+    );
   }
 
   const sellerRatings = await getSellerRatingMap(Array.from(new Set(listings.map((listing) => listing.sellerId))));

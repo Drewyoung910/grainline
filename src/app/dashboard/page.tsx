@@ -294,12 +294,12 @@ async function DashboardPageContent({
         isPrivate: true,
         viewCount: true,
         clickCount: true,
+        favoriteCount: true,
         aiReviewFlags: true,
         reviewedByAdmin: true,
         createdAt: true,
         updatedAt: true,
         photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-        _count: { select: { favorites: true } },
       },
       orderBy: { updatedAt: "desc" },
       take: 6,
@@ -319,7 +319,7 @@ async function DashboardPageContent({
   const listings = listingRows.map((listing) => ({
     ...listing,
     _count: {
-      ...listing._count,
+      favorites: listing.favoriteCount,
       stockNotifications: stockNotificationCounts.get(listing.id) ?? 0,
     },
   }));

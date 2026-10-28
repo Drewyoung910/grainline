@@ -127,6 +127,67 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  favorite_v1: Object.freeze({
+    migration: "20261028010000_prepare_favorite_authorities",
+    migrationSha256: "7bd680570bf59ec9ea980cc25e9532825895df482a336ea7c392380756b2e6e5",
+    table: "Favorite",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    // Listing.favoriteCount is sealed and verified by the migration itself;
+    // this table-scoped catalog intentionally records only Favorite additions.
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-profile-favorite-target-route.test.mjs",
+      "tests/public-visibility-followups.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_favorite_owner_listing_ids",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_add",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_delete_all",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_range_count",
+        arguments: "timestamp without time zone, timestamp without time zone, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_admin_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_block_cleanup",
+        arguments: "text",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {
