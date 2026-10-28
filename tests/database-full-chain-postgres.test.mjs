@@ -436,7 +436,7 @@ test(
             );
             assert.equal(activationReady.state, "ready");
             assert.equal(activationReady.policies.length, 0);
-            assert.equal(activationReady.retainedFunctions.length, 9);
+            assert.equal(activationReady.retainedFunctions.length, 10);
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -811,7 +811,7 @@ test(
       assert.equal(stockNotificationActivationPostflight.policies.length, 2);
       assert.equal(
         stockNotificationActivationPostflight.retainedFunctions.length,
-        9,
+        10,
       );
       await client.query(readFileSync(
         join(

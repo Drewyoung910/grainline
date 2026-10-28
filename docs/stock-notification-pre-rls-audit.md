@@ -164,7 +164,11 @@ On 2026-10-27, the separate activation candidate passed the complete
 437-migration history on disposable PostgreSQL 17. The candidate combines
 `ENABLE` and `FORCE` in one transaction, creates exactly two permissive runtime
 policies (owner `SELECT` and owner `DELETE`), revokes direct `INSERT` and
-`UPDATE`, and retains the nine byte-pinned prepared functions.
+`UPDATE`, and pins all ten direct table readers by identity, body hash,
+volatility, parallel mode, owner, security mode, search path and ACL. Nine are
+from the StockNotification preparation; the tenth is the retained seller-order
+analytics authority. The activation also refuses any additional function body
+that directly references `public."StockNotification"`.
 
 The executed proof covers:
 
