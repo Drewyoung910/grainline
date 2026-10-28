@@ -17,7 +17,10 @@ import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { countUnreadOwnerNotifications } from "@/lib/notificationOwnerAccess";
-import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import {
+  sellerOwnerGuildApplicationState,
+  sellerOwnerPrivateState,
+} from "@/lib/sellerOwnerPrivateAccess";
 import { deleteOwnerSavedSearch, listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
@@ -305,10 +308,7 @@ async function DashboardPageContent({
       take: 6,
     }),
     listOwnerSavedSearches(me.id, prisma, { take: 20 }),
-    prisma.makerVerification.findUnique({
-      where: { sellerProfileId: seller.id },
-      select: { status: true },
-    }),
+    sellerOwnerGuildApplicationState(seller.id, me.id),
     countUnreadOwnerNotifications(me.id),
     sellerOwnerDashboardState(me.id),
   ]);
@@ -326,6 +326,7 @@ async function DashboardPageContent({
   if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
     throw new Error("Seller dashboard authority returned an unexpected owner");
   }
+  const verificationStatus = verification?.makerVerification?.status ?? null;
   const guildLevel = dashboardSeller.guildLevel;
   const vacationMode = dashboardSeller.vacationMode;
   const vacationReturnDate = dashboardSeller.vacationReturnDate;
@@ -463,7 +464,7 @@ async function DashboardPageContent({
               >
                 <Shield size={20} className="sm:hidden shrink-0" />
                 <Shield size={16} className="hidden sm:block shrink-0" />
-                {verification?.status === "PENDING" ? "Guild Badge Pending" : "Apply for Guild Badge"}
+                {verificationStatus === "PENDING" ? "Guild Badge Pending" : "Apply for Guild Badge"}
               </Link>
             )}
           </div>

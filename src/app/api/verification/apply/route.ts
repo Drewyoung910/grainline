@@ -18,6 +18,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
 import { getSellerVerificationOrderSales } from "@/lib/orderEligibilityAuthority";
 import { sellerOwnerGuildApplicationState } from "@/lib/sellerOwnerPrivateAccess";
+import { applyOwnerGuildMemberVerification } from "@/lib/makerVerificationAccess";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ const VerificationApplySchema = z.object({
   craftDescription: z.string().min(1).max(500),
   yearsExperience: z.number().int().min(0).max(100),
   portfolioUrl: z.string().max(500).optional().nullable(),
+  confirmHandmade: z.literal(true),
 });
 
 export async function POST(req: Request) {
@@ -57,6 +59,9 @@ export async function POST(req: Request) {
     const craftDescription = truncateText(sanitizeText(verParsed.craftDescription), 500);
     const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
     const portfolioUrl = normalizePublicHttpsUrl(verParsed.portfolioUrl);
+    if (!craftDescription) {
+      return privateJson({ error: "Tell us about your craft." }, { status: 400 });
+    }
     if (verParsed.portfolioUrl?.trim() && !portfolioUrl) {
       return privateJson({ error: "Portfolio URL must be a valid https:// URL." }, { status: 400 });
     }
@@ -129,26 +134,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const record = await prisma.makerVerification.upsert({
-      where: { sellerProfileId: seller.id },
-      create: {
-        sellerProfileId: seller.id,
-        craftDescription,
-        yearsExperience,
-        portfolioUrl,
-        status: "PENDING",
-      },
-      update: {
-        craftDescription,
-        yearsExperience,
-        portfolioUrl,
-        status: "PENDING",
-        reviewedById: null,
-        reviewNotes: null,
-        reviewedAt: null,
-        appliedAt: new Date(),
-      },
+    const record = await applyOwnerGuildMemberVerification(me.id, {
+      craftDescription,
+      yearsExperience,
+      portfolioUrl,
+      confirmedHandmade: verParsed.confirmHandmade,
     });
+
+    if (!record.applied) {
+      return privateJson(
+        { error: "Your verification state changed. Refresh and try again." },
+        { status: 409 },
+      );
+    }
 
     return privateJson(record, { status: 201 });
   } catch (err) {

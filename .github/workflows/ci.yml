@@ -260,6 +260,18 @@ jobs:
           tests/stock-mutation-state.test.mjs
           tests/stock-notification-route.test.mjs
           tests/stock-notification-state.test.mjs
+      - name: Verify MakerVerification preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/account-export-privacy.test.mjs
+          tests/admin-action-guardrails.test.mjs
+          tests/admin-page-pin-boundary.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/maker-verification-preparation.test.mjs
+          tests/round10-state-machine-guardrails.test.mjs
+          tests/round9-account-deletion-pii-guardrails.test.mjs
+          tests/seller-profile-private-boundary-preparation.test.mjs
       - name: Isolate email delivery-ledger preparation until historical release guards pass
         shell: bash
         run: |
@@ -337,6 +349,15 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Isolate MakerVerification preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/maker-verification-preparation"
+          migration=20261028040000_prepare_maker_verification_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6806,6 +6827,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore MakerVerification preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/maker-verification-preparation"
+          migration=20261028040000_prepare_maker_verification_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |

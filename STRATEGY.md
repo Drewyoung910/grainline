@@ -3477,3 +3477,15 @@ required boundary.
 zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
+
+### MakerVerification compatible RLS preparation (2026-10-28)
+
+MakerVerification uses policyless Option B because applicant evidence, staff
+attribution, badge state, export/deletion, cron and notification lifecycles
+cannot be represented safely by a simple owner row policy. Its isolated
+compatible candidate converts every direct caller and puts owner, staff and
+cron transitions behind actor/source-bound operations with a shared lock
+order. The complete PostgreSQL 17 proof covers primary Member/Master behavior,
+ACLs, deletion and two-session owner/staff plus owner/cron races. Activation
+remains separate and blocked on the full transition/queue/denial matrix and
+tested predecessor rollback; no current candidate changes RLS or table grants.
