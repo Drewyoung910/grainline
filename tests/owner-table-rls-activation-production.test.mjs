@@ -196,6 +196,10 @@ function environment(directory, phase, previousPath) {
 }
 
 test("catalog admits only the byte-sealed combined owner-policy activation", () => {
+  assert.equal(
+    release.minimumCompatibleAppCommit,
+    "e77792ff3bd3a5c540c64db7a6996b75790cb64e",
+  );
   assert.equal(verified.digest, release.migrationSha256);
   assert.equal(verified.retainedDigest, release.retainedFunctionMigrationSha256);
   assert.throws(
@@ -226,6 +230,10 @@ test("catalog admits only the byte-sealed combined owner-policy activation", () 
 });
 
 test("catalog admits the byte-sealed Cart and CartItem owner-policy group", () => {
+  assert.equal(
+    cartRelease.minimumCompatibleAppCommit,
+    "b29e41a5287b5d5f43f54ff29da23210f18001e9",
+  );
   assert.equal(cartVerified.digest, cartRelease.migrationSha256);
   assert.deepEqual(cartRelease.tables, ["Cart", "CartItem"]);
   assert.equal(cartRelease.policies.length, 8);
@@ -306,6 +314,7 @@ test("Production workflow is exact-bound, deployment-bound, and sole-pending", (
   assert.deepEqual(parsed.on.workflow_dispatch.inputs.release_id.options, [
     "saved_blog_post_v1",
     "cart_cart_item_v1",
+    "stock_notification_v1",
   ]);
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.ok(parsed.on.workflow_dispatch.inputs.superseded_app_deployment_id.required);
@@ -316,9 +325,17 @@ test("Production workflow is exact-bound, deployment-bound, and sole-pending", (
   assert.match(workflow, /predecessorComparison\.status !== 'ahead'/u);
   assert.match(workflow, /OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_DEPLOYMENT_ID/u);
   assert.match(workflow, /compareCommits/u);
+  assert.match(workflow, /--minimum-compatible-app-commit/u);
+  assert.match(workflow, /REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT/u);
+  assert.match(workflow, /Compatible app predates the reviewed release minimum/u);
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.equal(
+    (workflow.match(/npx prisma migrate resolve --applied/gu) ?? []).length,
+    1,
+  );
+  assert.match(workflow, /psql "\$DIRECT_URL"/u);
   assert.match(workflow, /steps\.preflight\.outputs\.state == 'ready'/u);
   assert.match(workflow, /OWNER_TABLE_RLS_PHASE: postflight/u);
   assert.match(workflow, /audit:db-grants -- --require-direct-url/u);

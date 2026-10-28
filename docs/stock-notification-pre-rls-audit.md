@@ -10,10 +10,17 @@ Source baseline:
 
 Preparation status: the compatible application and additive preparation
 migration merged in PR #657 as
-`968315f775c86d84a547d0a6eb3abaeec4662f49`. They are not yet live. Production
-application of `20261026010000_prepare_stock_notification_authorities` remains
-subject to the exact-main protected preparation workflow; application deploy
-and RLS activation remain later, separately gated steps.
+`968315f775c86d84a547d0a6eb3abaeec4662f49`. Protected run `40546465682`
+applied `20261026010000_prepare_stock_notification_authorities` in Production
+from exact main `857bc94706913a4d5c4368afa99de0a55bb2437c`; RLS remains off and predecessor
+table grants remain. Production deployment
+`dpl_9WW7bJdjnmawMGt89i3SRJXrARPb` serves hotfix commit
+`113f176c362bc136bf55fbc0d32fbc9b5b39a0a5`, which diverges from the
+preparation lineage at `af1ee330f661c4604bf939085b175d00060d2dd0` and is
+therefore not compatible with activation. The activation branch explicitly
+joins that live hotfix lineage to current main, but a joined compatible commit
+must still be deployed and the exact predecessor drained before activation.
+Application deploy and RLS activation remain later, separately gated steps.
 
 This document is a product, authority, concurrency, privacy, scalability,
 recovery, and rollback audit. It is not a Production authorization. See
@@ -151,6 +158,49 @@ execute owner-policy cross-user/no-context denial, no-INSERT/no-UPDATE grants,
 User/Listing cascade behavior under FORCE, provisioning replay, and predecessor
 rollback on the complete schema.
 
+## Isolated activation-candidate evidence
+
+On 2026-10-27, the separate activation candidate passed the complete
+437-migration history on disposable PostgreSQL 17. The candidate combines
+`ENABLE` and `FORCE` in one transaction, creates exactly two permissive runtime
+policies (owner `SELECT` and owner `DELETE`), revokes direct `INSERT` and
+`UPDATE`, and pins all ten direct table readers by identity, body hash,
+volatility, parallel mode, owner, security mode, search path and ACL. Nine are
+from the StockNotification preparation; the tenth is the retained seller-order
+analytics authority. The activation also refuses any additional function body
+that directly references `public."StockNotification"`.
+
+The executed proof covers:
+
+- exact table columns, primary key, four-index shape, both cascading foreign
+  keys, function owners, security mode, search path, ACLs and source bodies;
+- exact policy commands, runtime role, and deparsed owner predicate;
+- owner read/delete and fixed-function subscribe success;
+- cross-owner and missing-context read/delete denial;
+- direct runtime `INSERT` and `UPDATE` denial;
+- User and Listing cascade behavior while FORCE is active;
+- runtime-role provisioning replay without restoring broad table authority;
+- database-first rollback, followed by successful predecessor direct
+  `SELECT`/`INSERT`/`UPDATE`/`DELETE`; and
+- reapplication of the exact activation followed by the same RLS behavior
+  proof.
+
+The first PostgreSQL 17 attempt failed closed because the draft preflight
+mistook Prisma's unique index for a unique constraint. The corrected candidate
+checks catalog structure rather than deparsed constraint text, and the complete
+chain then passed. This is retained as evidence that the full migrated schema,
+not a miniature hand-built table, is the acceptance authority.
+
+This candidate evidence is not Production authorization. Activation remains
+blocked until an application containing at least compatible authority commit
+`e57362b515f41f0f72d7d483dc79a651de6bb711` is live, the exact superseded
+deployment and source commit are bound, predecessor traffic is drained, the
+exact activation source is reviewed and merged, and Drew approves the exact
+protected Production run. The production application currently descends from
+the emergency Buy Now hotfix line rather than current main, so that lineage
+must be reconciled without losing the hotfix before the ancestry gate can pass;
+the gate must not be weakened or supplied a non-exact predecessor commit.
+
 ## Concurrency and lock order
 
 The required order is:
@@ -229,3 +279,10 @@ rollback restores the exact reviewed predecessor table grants and disables
 FORCE/RLS before any predecessor application is restored. Preparation functions
 are additive and can remain during rollback. No rollback deletes subscription
 data or drops a column.
+
+The generic activation catalog pins a per-release minimum compatible
+application commit. The protected workflow must prove that minimum is an
+ancestor of the live compatible application and that the compatible application
+is an ancestor of the exact release commit. A production hotfix on a divergent
+Git lineage must be reconciled into main; content similarity is not a substitute
+for the exact ancestry and deployment bindings.

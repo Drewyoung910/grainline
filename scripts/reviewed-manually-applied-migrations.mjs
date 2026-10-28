@@ -29,6 +29,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261027010000_restore_resend_webhook_receipts",
     "a765482bfdeca66a82aaa912c5bfc2c6f7bc44b033fea4ace2e5bc40243ad2ba",
   ],
+  [
+    "20261027040000_activate_stock_notification_rls",
+    "c771b5c6caed905ce00515969e461a5f9de7c65b626d1eaa6c80916d4b6d7942",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {

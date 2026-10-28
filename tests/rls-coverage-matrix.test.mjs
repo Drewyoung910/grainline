@@ -104,6 +104,7 @@ describe("site-wide RLS coverage matrix", () => {
       "SupportRequest",
       "StripeWebhookEvent",
       "Notification",
+      "SavedBlogPost",
     ]);
     assert.deepEqual(
       liveRows.map((row) => [row.model, row.status]),
@@ -144,11 +145,12 @@ describe("site-wide RLS coverage matrix", () => {
         ["SupportRequest", "RLS_LIVE_FORCE"],
         ["StripeWebhookEvent", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
+        ["SavedBlogPost", "RLS_LIVE_FORCE"],
       ],
     );
     assert.match(
       matrix,
-      /Current candidate source contains 70 Prisma models\.[\s\S]*thirty-three with retained Production FORCE evidence[\s\S]*thirty-seven without a\s+live RLS activation/,
+      /Current candidate source contains 70 Prisma models\.[\s\S]*thirty-four with retained Production FORCE evidence[\s\S]*thirty-six without a\s+live RLS activation/,
     );
     assert.match(
       matrix,
@@ -170,7 +172,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /All thirty-three tables have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*User` is policyless[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
+      /All thirty-four tables have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*User` is policyless[\s\S]*37747980060[\s\S]*85934f600f46c3e4b08046888d008970eaf8f171[\s\S]*37763700848[\s\S]*37766247341[\s\S]*37136042748[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(
