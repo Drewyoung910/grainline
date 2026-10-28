@@ -19,7 +19,6 @@ export default async function InventoryPage() {
     where: { sellerId: seller.id, listingType: "IN_STOCK" },
     include: {
       photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-      _count: { select: { favorites: true } },
     },
     orderBy: { updatedAt: "desc" },
     take: 100,
@@ -31,7 +30,7 @@ export default async function InventoryPage() {
   const listings = listingRows.map((listing) => ({
     ...listing,
     _count: {
-      ...listing._count,
+      favorites: listing.favoriteCount,
       stockNotifications: stockNotificationCounts.get(listing.id) ?? 0,
     },
   }));

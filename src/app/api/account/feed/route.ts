@@ -19,6 +19,8 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { sellerActorAccountFeedCards } from "@/lib/sellerProfileParticipantAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { ownerFollowedSellerIds } from "@/lib/sellerFollowAccess";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -72,13 +74,11 @@ export async function GET(req: NextRequest) {
   const parsedCursor = parseAccountFeedCursor(cursor);
 
   // Get followed seller profile IDs
-  const follows = await prisma.follow.findMany({
-    where: { followerId: me.id },
-    select: { sellerProfileId: true },
-    orderBy: { createdAt: "desc" },
-    take: MAX_FOLLOWED_SELLERS_FOR_FEED,
-  });
-  const rawSellerIds = follows.map((f) => f.sellerProfileId);
+  const followedSellerIds = await ownerFollowedSellerIds(
+    me.id,
+    MAX_FOLLOWED_SELLERS_FOR_FEED,
+  );
+  const rawSellerIds = [...followedSellerIds];
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
   const blockedSellerIdSet = new Set(blockedSellerIds);
   const sellerIds = blockedSellerIds.length > 0
@@ -201,16 +201,10 @@ export async function GET(req: NextRequest) {
   // and blog post ids in this feed page — cheap, indexed lookups.
   const listingIds = visibleListings.map((l) => l.id);
   const blogPostIds = visibleBlogPosts.map((b) => b.id);
-  const [favorites, savedBlogPosts] = await Promise.all([
-    listingIds.length > 0
-      ? prisma.favorite.findMany({
-          where: { userId: me.id, listingId: { in: listingIds } },
-          select: { listingId: true },
-        })
-      : Promise.resolve([] as { listingId: string }[]),
+  const [favoritedListingIds, savedBlogPosts] = await Promise.all([
+    ownerFavoriteListingIds(me.id, listingIds),
     ownerSavedBlogPostIdRows(me.id, blogPostIds),
   ]);
-  const favoritedListingIds = new Set(favorites.map((f) => f.listingId));
   const savedBlogPostIds = new Set(savedBlogPosts.map((s) => s.blogPostId));
 
   const merged: FeedItem[] = [

@@ -88,6 +88,8 @@ import {
 } from "@/lib/emailOutboxContentLifecycle";
 import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess";
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
+import { deleteAllOwnerFavorites } from "@/lib/favoriteAccess";
+import { cleanupFollowsForAccountDeletion } from "@/lib/sellerFollowAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -1158,7 +1160,7 @@ export async function anonymizeUserAccount(
     });
 
     await tx.cart.deleteMany({ where: { userId: user.id } });
-    await tx.favorite.deleteMany({ where: { userId: user.id } });
+    await deleteAllOwnerFavorites(user.id, tx);
     await deleteAllOwnerSavedSearches(user.id, tx);
     await deleteAllOwnerStockNotifications(user.id, tx);
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id);
@@ -1368,13 +1370,11 @@ export async function anonymizeUserAccount(
           reviewedAt: null,
         },
       });
-      await tx.follow.deleteMany({
-        where: {
-          OR: [
-            { followerId: user.id },
-            { sellerProfileId: user.sellerProfile.id },
-          ],
-        },
+      await cleanupFollowsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await tx.sellerBroadcast.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
@@ -1394,7 +1394,12 @@ export async function anonymizeUserAccount(
         claimToken: localClaimToken,
       });
     } else {
-      await tx.follow.deleteMany({ where: { followerId: user.id } });
+      await cleanupFollowsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      });
     }
 
     await archiveBlogPostsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);

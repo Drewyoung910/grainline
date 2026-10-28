@@ -1,12 +1,12 @@
 // src/app/api/listings/recently-viewed/route.ts
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { sellerPublicRecentlyViewedListings } from "@/lib/sellerProfilePublicAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimit(searchRatelimit, `recently-viewed:${getIP(req)}`);
@@ -44,17 +44,9 @@ export async function GET(req: NextRequest) {
     .map((id) => byId.get(id))
     .filter((r): r is NonNullable<typeof r> => r != null);
   const orderedIds = ordered.map((r) => r.id);
-  const savedListingIds =
-    meId && orderedIds.length > 0
-      ? new Set(
-          (
-            await prisma.favorite.findMany({
-              where: { userId: meId, listingId: { in: orderedIds } },
-              select: { listingId: true },
-            })
-          ).map((favorite) => favorite.listingId),
-        )
-      : new Set<string>();
+  const savedListingIds = meId && orderedIds.length > 0
+    ? await ownerFavoriteListingIds(meId, orderedIds)
+    : new Set<string>();
 
   const listings = ordered.map((r) => ({
     id: r.id,
