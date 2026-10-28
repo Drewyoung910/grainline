@@ -381,9 +381,13 @@ model Listing {
   stockQuantity Int?
 
   // Category & analytics
-  category   Category?
-  viewCount  Int       @default(0)
-  clickCount Int       @default(0)
+  category      Category?
+  viewCount     Int       @default(0)
+  clickCount    Int       @default(0)
+  // Raw current Favorite rows. A database trigger keeps this public-safe
+  // projection in sync; eligible quality-score counts intentionally remain a
+  // separate, stricter calculation.
+  favoriteCount Int       @default(0)
 
   // SEO/browse tags
   tags String[] @default([])
@@ -454,6 +458,7 @@ model Listing {
   @@index([category, status])
   @@index([viewCount])
   @@index([clickCount])
+  @@index([favoriteCount(sort: Desc), createdAt(sort: Desc), id(sort: Desc)])
   @@index([status, createdAt, id])
   @@index([status, isPrivate, qualityScore])
   @@index([sellerPubliclyOrderable, status, isPrivate, archivedAt])

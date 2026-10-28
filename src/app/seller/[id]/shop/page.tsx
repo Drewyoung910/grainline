@@ -22,6 +22,7 @@ import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPa
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { sellerPublicProfile } from "@/lib/sellerProfilePublicAccess";
 import { normalizeTag } from "@/lib/tags";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 const PAGE_SIZE = 20;
 
@@ -142,7 +143,7 @@ export default async function SellerShopPage({
   const orderBy: Prisma.ListingOrderByWithRelationInput[] =
     sort === "price_asc" ? [{ priceCents: "asc" }, { createdAt: "desc" }, { id: "desc" }]
     : sort === "price_desc" ? [{ priceCents: "desc" }, { createdAt: "desc" }, { id: "desc" }]
-    : sort === "popular" ? [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }]
+    : sort === "popular" ? [{ favoriteCount: "desc" }, { createdAt: "desc" }, { id: "desc" }]
     : [{ createdAt: "desc" }, { id: "desc" }];
 
   const [
@@ -198,15 +199,9 @@ export default async function SellerShopPage({
   });
 
   // Favorites for current viewer
-  const savedSet = new Set<string>();
-  if (meId && listings.length > 0) {
-    const listingIds = listings.map((l) => l.id);
-    const favs = await prisma.favorite.findMany({
-      where: { userId: meId, listingId: { in: listingIds } },
-      select: { listingId: true },
-    });
-    for (const f of favs) savedSet.add(f.listingId);
-  }
+  const savedSet = meId && listings.length > 0
+    ? await ownerFavoriteListingIds(meId, listings.map((listing) => listing.id))
+    : new Set<string>();
 
   // URL helpers
   function shopUrl(overrides: { category?: string | null; sort?: string; page?: number; status?: string | null; tag?: string | null }) {

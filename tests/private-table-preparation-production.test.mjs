@@ -183,6 +183,25 @@ test("catalog admits only byte-sealed, additive reviewed preparations", () => {
   assert.doesNotMatch(sql, /DROP\s+COLUMN/iu);
 });
 
+test("Favorite preparation is byte-sealed and remains compatible", () => {
+  const favorite = verifyPrivateTablePreparationSource("favorite_v1");
+  assert.equal(favorite.release.table, "Favorite");
+  assert.equal(favorite.functionSources.size, 9);
+  assert.deepEqual(favorite.release.addedColumns, []);
+  const sql = readFileSync(favorite.migrationPath, "utf8");
+  assert.match(sql, /ADD COLUMN "favoriteCount" integer NOT NULL DEFAULT 0/u);
+  assert.match(sql, /Favorite_count_after_insert/u);
+  assert.match(sql, /Favorite_update_forbidden/u);
+  assert.ok(
+    sql.indexOf('LOCK TABLE public."Listing" IN SHARE ROW EXCLUSIVE MODE')
+      < sql.indexOf('LOCK TABLE public."Favorite" IN SHARE ROW EXCLUSIVE MODE'),
+    "Favorite preparation must follow the predecessor listing-delete lock order",
+  );
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -226,7 +245,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.ok(parsed.on.workflow_dispatch);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    ["support_request_v1", "stock_notification_v1"],
+    ["support_request_v1", "stock_notification_v1", "favorite_v1"],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(PRIVATE_TABLE_PREPARATION_CONFIRMATION, "u"));

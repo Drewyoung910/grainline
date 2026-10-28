@@ -230,6 +230,27 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_block_cleanup",
   "grainline_stock_notification_owner_export",
 ];
+const FAVORITE_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
+const FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES = [
+  "grainline_favorite_owner_listing_ids",
+  "grainline_favorite_owner_add",
+  "grainline_favorite_owner_remove",
+  "grainline_favorite_owner_delete_all",
+  "grainline_favorite_owner_export",
+  "grainline_favorite_seller_range_count",
+  "grainline_favorite_seller_listing_cleanup",
+  "grainline_favorite_admin_listing_cleanup",
+  "grainline_favorite_block_cleanup",
+];
+const FAVORITE_PREPARATION_PRIVATE_FUNCTION_NAMES = [
+  "grainline_favorite_count_maintain",
+  "grainline_favorite_update_forbidden",
+];
+const FAVORITE_PREPARATION_FUNCTION_NAMES = [
+  ...FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES,
+  ...FAVORITE_PREPARATION_PRIVATE_FUNCTION_NAMES,
+];
 const EMAIL_DELIVERY_LEDGER_MIGRATION =
   "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
 const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
@@ -3496,6 +3517,12 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
+    const favoriteAuthorityPrepared = existsSync(
+      FAVORITE_PREPARATION_MIGRATION,
+    ) && FAVORITE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(FAVORITE_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3700,6 +3727,9 @@ describe("database grant inventory guardrails", () => {
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(favoriteAuthorityPrepared
+        ? FAVORITE_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
@@ -3764,6 +3794,9 @@ describe("database grant inventory guardrails", () => {
           ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (stockNotificationRlsActivationPresent ? 1 : 0)
+        + (favoriteAuthorityPrepared
+          ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
+          : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
@@ -3871,6 +3904,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(favoriteAuthorityPrepared
+        ? FAVORITE_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES

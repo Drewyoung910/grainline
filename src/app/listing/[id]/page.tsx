@@ -41,6 +41,7 @@ import {
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { stockNotificationAvailable } from "@/lib/stockNotificationState";
 import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -279,7 +280,7 @@ export default async function ListingPage({
     sellerRatingMap,
     moreFromSeller,
     topReviews,
-    favoriteRow,
+    favoriteRows,
     sellerFollowerCount,
     isFollowingSeller,
     stockNotificationRow,
@@ -318,11 +319,8 @@ export default async function ListingPage({
       },
     }),
     meId
-      ? prisma.favorite.findFirst({
-          where: { userId: meId, listingId },
-          select: { userId: true },
-        })
-      : Promise.resolve(null),
+      ? ownerFavoriteListingIds(meId, [listingId])
+      : Promise.resolve(new Set<string>()),
     prisma.follow.count({ where: { sellerProfileId: listing.sellerId } }),
     meId
       ? prisma.follow
@@ -351,21 +349,14 @@ export default async function ListingPage({
   const sellerReviewCount = sellerRating?.count ?? 0;
   const sellerStars = sellerAvgRaw != null ? quarterRoundStars(sellerAvgRaw) : null;
 
-  const isFavorited = favoriteRow !== null;
+  const isFavorited = favoriteRows.has(listingId);
   const isNotified = stockNotificationRow !== null;
 
   // Saved state for the "More from this maker" cards so their hearts render
   // filled correctly for signed-in viewers (bounded: ≤4 ids, indexed lookup).
   const moreFromSavedIds =
     meId && moreFromSeller.length > 0
-      ? new Set(
-          (
-            await prisma.favorite.findMany({
-              where: { userId: meId, listingId: { in: moreFromSeller.map((ml) => ml.id) } },
-              select: { listingId: true },
-            })
-          ).map((f) => f.listingId),
-        )
+      ? await ownerFavoriteListingIds(meId, moreFromSeller.map((listing) => listing.id))
       : new Set<string>();
 
   const sellerName = listing.seller.displayName ?? "Maker";
