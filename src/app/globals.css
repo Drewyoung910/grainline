@@ -531,6 +531,17 @@ input, textarea, select {
     animation: popover-spring-in 0.32s var(--motion-ease-spring) backwards;
     transform-origin: top center;
   }
+  .guild-popup-motion {
+    transition:
+      opacity 0.18s ease-out,
+      transform 0.32s var(--motion-ease-spring);
+  }
+  .guild-popup-motion[data-positioned="false"] {
+    transform: translateY(-4px) scale(0.96);
+  }
+  .guild-popup-motion[data-positioned="true"] {
+    transform: none;
+  }
 
   /* Homepage product rows: cards fade and settle in as their section
      reveals (ScrollSection sets data-revealed). Scale, not translate, so

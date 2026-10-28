@@ -43,6 +43,7 @@ const heldTests = [
   "account-deletion-blocker-refund-state.test.mjs",
   "account-deletion-timeout-fix.test.mjs",
   "round9-account-deletion-pii-guardrails.test.mjs",
+  "admin-moderation-screen-ui.test.mjs",
   "conversation-message-pre-rls-audit.test.mjs",
   "conversation-message-recipient-rls.test.mjs",
 ];

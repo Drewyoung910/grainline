@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Shows a count that rises into place whenever it changes. The first render
 // never animates, so counts don't move on page load.
@@ -15,12 +15,17 @@ export default function RollingNumber({
   // already showed before it animated.
   grouped?: boolean;
 }) {
-  const [shown, setShown] = useState(value);
+  const previousValueRef = useRef(value);
   const [changeCount, setChangeCount] = useState(0);
-  if (value !== shown) {
-    setShown(value);
+
+  // Restart after a committed prop change instead of scheduling state during
+  // render. Object.is also treats NaN as stable, so an unexpected bad count
+  // cannot cause an infinite render loop.
+  useEffect(() => {
+    if (Object.is(value, previousValueRef.current)) return;
+    previousValueRef.current = value;
     setChangeCount((count) => count + 1);
-  }
+  }, [value]);
 
   return (
     <span

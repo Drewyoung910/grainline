@@ -28,7 +28,10 @@ export function userStaffDirectoryAccountState(row: {
   banReason: string | null;
 }): UserStaffDirectoryAccountState {
   if (!row.banned) return "active";
-  if (row.email === `deleted+${row.id.toLowerCase()}${DELETED_ACCOUNT_EMAIL_DOMAIN}`) return "deleted";
+  // The deletion authority preserves the provider id byte-for-byte in the
+  // placeholder email. Clerk ids can contain uppercase characters, so do not
+  // normalize either side of this identity marker.
+  if (row.email === `deleted+${row.id}${DELETED_ACCOUNT_EMAIL_DOMAIN}`) return "deleted";
   if (row.banReason === PROVIDER_DELETED_PENDING_BAN_REASON) return "deletion_pending";
   return "banned";
 }

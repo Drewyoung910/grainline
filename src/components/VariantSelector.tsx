@@ -160,7 +160,7 @@ export default function VariantSelector({
             {inks[group.id] && (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute left-0 top-0 z-[1] rounded-md bg-neutral-900 transition-[translate,width,height] duration-[260ms] ease-[cubic-bezier(0.2,0.7,0.2,1)]"
+                className="pointer-events-none absolute left-0 top-0 z-[1] rounded-md bg-neutral-900 motion-safe:transition-[translate,width,height] motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.2,0.7,0.2,1)]"
                 style={{
                   width: inks[group.id].width,
                   height: inks[group.id].height,

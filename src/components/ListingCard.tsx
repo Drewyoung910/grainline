@@ -95,7 +95,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           src={altSrc}
           data-ready={altReady ? "true" : "false"}
           onLoad={() => setAltReady(true)}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden transition duration-700 ease-out motion-safe:group-hover:scale-[1.04] group-hover:data-[ready=true]:opacity-100"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden motion-safe:transition motion-safe:duration-700 motion-safe:ease-out motion-safe:group-hover:scale-[1.04] group-hover:data-[ready=true]:opacity-100"
           fallbackClassName="hidden"
         />
       )}

@@ -14,7 +14,9 @@ function source(path) {
 }
 
 test("admin Users list recognises deleted accounts from the database's deletion markers", () => {
-  const id = "cmabc123def456ghi789jkl0";
+  // Provider ids are case-sensitive and commonly include uppercase
+  // characters. The database stores the original id in the placeholder.
+  const id = "user_2NNEqL2nrIRdJ194ndJqAHwEfxC";
   assert.equal(
     userStaffDirectoryAccountState({
       id,

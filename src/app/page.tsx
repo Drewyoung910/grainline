@@ -695,7 +695,7 @@ export default async function HomePage() {
             <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
+                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg motion-safe:hover:-translate-y-1 motion-safe:transition-all motion-safe:duration-200">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
                       <div className="aspect-[4/5] bg-neutral-100 overflow-hidden">
                         <MediaImage
@@ -716,7 +716,7 @@ export default async function HomePage() {
                     </Link>
                   </ClickTracker>
                 ) : (
-                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
+                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg motion-safe:hover:-translate-y-1 motion-safe:transition-all motion-safe:duration-200">
                     <Link href={`/blog/${item.slug}`} className="block">
                       <div className="aspect-square bg-neutral-100 overflow-hidden">
                         <MediaImage
