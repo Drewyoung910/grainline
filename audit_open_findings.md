@@ -4090,6 +4090,20 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   may be replayed; only the protected applied-state restart path may complete
   evidence after review, merge, exact-main CI, and separate approval.
 
+## 2026-10-27 — C-1210 stale listing-creation AI verdict
+
+- **[FIX PREPARED; NOT YET MERGED OR DEPLOYED]** The listing-creation action
+  previously applied an AI approval to any row that was still
+  `PENDING_REVIEW`. A seller could withdraw, edit and resubmit the listing while
+  the first review was in flight, allowing that stale approval to publish the
+  newer content and clear its flags. The candidate reads the exact review
+  snapshot, binds the verdict to its `updatedAt` revision plus listing and
+  seller identity, and discards stale status, score, flag and generated-alt-text
+  writes. A behavior test proves that a verdict cannot mutate a newer revision
+  while the exact reviewed revision still activates normally. Focused behavior
+  and guardrail tests, TypeScript, lint and whitespace validation pass. Exact
+  CI, review, merge and deployment remain separate gates.
+
 ## 2026-10-26 — StockNotification compatible RLS preparation
 
 - **C-759 [MERGED; NOT YET LIVE]:** ordinary public `SOLD_OUT`
