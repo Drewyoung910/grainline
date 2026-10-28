@@ -5021,6 +5021,55 @@ SELECT format(
 \endif
 \unset order_payment_event_rls_active
 
+-- ReviewVote compatible preparation keeps predecessor table grants in place,
+-- but its new owner operations must survive role convergence while trigger
+-- helpers remain private. The existence guards keep this script valid before
+-- the preparation migration is installed and fail closed on every present
+-- function.
+WITH review_vote_private(function_signature) AS (
+  VALUES
+    ('public."grainline_review_vote_insert_guard"()'),
+    ('public."grainline_review_vote_update_forbidden"()')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM review_vote_private
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH review_vote_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_review_vote_owner_toggle"(text)'),
+    ('public."grainline_review_vote_owner_export"()'),
+    ('public."grainline_review_vote_owner_delete_all"()')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM review_vote_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH review_vote_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_review_vote_owner_toggle"(text)'),
+    ('public."grainline_review_vote_owner_export"()'),
+    ('public."grainline_review_vote_owner_delete_all"()')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM review_vote_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH failure AS (
   SELECT 'required extension pg_trgm is not installed' AS message
   WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')
