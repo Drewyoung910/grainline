@@ -3,6 +3,8 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
+const SAVED_NOTICE_MS = 3000;
+
 export function SubmitButton({
   children,
   className = "rounded px-4 py-2 bg-black text-white",
@@ -22,8 +24,14 @@ export function SubmitButton({
   value?: string;
   "aria-describedby"?: string;
 }) {
-  const { pending } = useFormStatus();
+  const { pending, data } = useFormStatus();
+  // Every submit button stays disabled while the form is pending, but only
+  // the button that submitted it shows its pending label. React adds the
+  // submitter's name/value to the pending FormData; a submission without a
+  // recorded submitter (for example requestSubmit()) falls back to all buttons.
   const isDisabled = disabled || pending;
+  const showPending =
+    pending && (!name || !data?.has(name) || data.getAll(name).includes(value ?? ""));
   return (
     <button
       type="submit"
@@ -34,7 +42,7 @@ export function SubmitButton({
       aria-describedby={ariaDescribedBy}
       className={className}
     >
-      {pending ? pendingLabel : children}
+      {showPending ? pendingLabel : children}
     </button>
   );
 }
@@ -55,8 +63,11 @@ export default function ActionForm({
   preserveOnError?: boolean;
 }) {
   const [state, formAction] = useActionState(action, { ok: false });
-  const [show, setShow] = useState(false);
+  // 0 hides the saved notice; each success bumps it so a repeat save remounts
+  // (and re-announces) the notice instead of silently extending it.
+  const [savedNotice, setSavedNotice] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
   const lastSubmissionRef = useRef<Array<[string, FormDataEntryValue]> | null>(null);
 
   useEffect(() => {
@@ -66,11 +77,25 @@ export default function ActionForm({
         detail: { formId },
       }));
 
-      setShow(true);
-      const t = setTimeout(() => setShow(false), 1800);
+      setSavedNotice((current) => current + 1);
+      const t = setTimeout(() => setSavedNotice(0), SAVED_NOTICE_MS);
       return () => clearTimeout(t);
     }
   }, [id, state]);
+
+  // Server errors render beside the submit buttons at the end of the form.
+  // Bring each new error into view, and give it focus when the disabled
+  // submit button dropped focus to the page, without stealing focus from a
+  // field the user is still typing in.
+  useEffect(() => {
+    const errorElement = errorRef.current;
+    if (!state?.error || !errorElement) return;
+    errorElement.scrollIntoView({ block: "nearest" });
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      errorElement.focus({ preventScroll: true });
+    }
+  }, [state]);
 
   useEffect(() => {
     if (!preserveOnError || !state?.error || !lastSubmissionRef.current || !formRef.current) return;
@@ -97,16 +122,22 @@ export default function ActionForm({
 
   return (
     <>
-      {show && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded bg-green-600 text-white px-3 py-2 shadow">
-          Saved
-        </div>
-      )}
-      {state?.error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {state.error}
-        </div>
-      )}
+      {/* Always mounted so screen readers announce the notice when it appears;
+          matches the site toast placement (top on mobile, bottom-right on desktop). */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[9999] sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-4 sm:top-auto"
+      >
+        {savedNotice > 0 && (
+          <div
+            key={savedNotice}
+            className="animate-slide-down rounded-md bg-green-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg sm:min-w-72"
+          >
+            Saved
+          </div>
+        )}
+      </div>
       <form
         ref={formRef}
         action={formAction}
@@ -116,6 +147,16 @@ export default function ActionForm({
         onKeyDown={handleKeyDown}
       >
         {children}
+        {state?.error && (
+          <div
+            ref={errorRef}
+            role="alert"
+            tabIndex={-1}
+            className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          >
+            {state.error}
+          </div>
+        )}
       </form>
     </>
   );

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 type Props = {
   text: string;
@@ -17,6 +17,7 @@ export default function ExpandableText({ text, clampLines = 3, className = "" }:
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const ref = useRef<HTMLParagraphElement>(null);
+  const textId = useId();
 
   useEffect(() => {
     function check() {
@@ -50,6 +51,7 @@ export default function ExpandableText({ text, clampLines = 3, className = "" }:
   return (
     <div className={className}>
       <p
+        id={textId}
         ref={ref}
         style={lineClampStyle}
         className="text-sm text-neutral-700 leading-relaxed whitespace-pre-line"
@@ -60,7 +62,9 @@ export default function ExpandableText({ text, clampLines = 3, className = "" }:
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-1 text-xs font-medium text-amber-700 hover:underline"
+          aria-expanded={expanded}
+          aria-controls={textId}
+          className="mt-1 text-xs font-medium text-neutral-900 underline underline-offset-2 hover:text-neutral-600"
         >
           {expanded ? "Show less" : "Read more"}
         </button>

@@ -6,6 +6,11 @@ import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 import { publicListingPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { sellerOwnerSavedListingPage } from "@/lib/sellerSavedListingAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
@@ -123,12 +128,12 @@ async function AccountPageContent() {
           <img
             src={me.imageUrl}
             alt={me.name ?? ""}
-            className="h-14 w-14 rounded-full object-cover border"
+            className="h-14 w-14 shrink-0 rounded-full object-cover border"
           />
         )}
-        <div>
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold font-display">My Account</h1>
-          <p className="text-neutral-500 text-sm mt-0.5">{me.email}</p>
+          <p className="text-neutral-500 text-sm mt-0.5 break-all">{me.email}</p>
         </div>
       </header>
 
@@ -154,6 +159,18 @@ async function AccountPageContent() {
               const firstItem = order.items[0];
               const thumb = firstItem?.imageUrl;
               const total = orderTotalCents(order);
+              // Same refund-aware label as /account/orders, from the summary's
+              // locally recorded refund (no provider-outcome read on this page).
+              const paymentState = orderPaymentPresentationState({
+                paid: order.paidAt != null,
+                orderTotalCents: total,
+                refundAmountCents: order.sellerRefundAmountCents,
+                refundRecorded: order.sellerRefundAmountCents != null,
+              });
+              const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+                paymentState,
+                order.fulfillmentStatus,
+              );
 
               return (
                 <li key={order.id}>
@@ -177,8 +194,14 @@ async function AccountPageContent() {
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(order.fulfillmentStatus)}`}>
-                        {formatStatus(order.fulfillmentStatus)}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        suppressActiveFulfillment
+                          ? "bg-green-100 text-green-800"
+                          : statusColor(order.fulfillmentStatus)
+                      }`}>
+                        {suppressActiveFulfillment
+                          ? orderPaymentPresentationLabel(paymentState)
+                          : formatStatus(order.fulfillmentStatus)}
                       </span>
                     </div>
                   </Link>
@@ -330,7 +353,7 @@ async function AccountPageContent() {
         <div className="card-section p-5 space-y-3">
           <div className="text-sm space-y-1">
             <p className="font-medium">{me.name ?? "—"}</p>
-            <p className="text-neutral-500">{me.email}</p>
+            <p className="text-neutral-500 break-all">{me.email}</p>
           </div>
           <p className="text-xs text-neutral-500">
             Update your name, email, and password through your account settings.
