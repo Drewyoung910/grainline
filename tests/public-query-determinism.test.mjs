@@ -300,7 +300,9 @@ describe("public query determinism", () => {
   it("bounds and tie-breaks remaining public capped query surfaces", () => {
     const home = source("src/app/page.tsx");
     const followPreparation = source(
-      "prisma/migrations/20261028020000_prepare_follow_authorities/migration.sql",
+      process.env.FOLLOW_PREPARATION_MIGRATION_PATH
+        ? `${process.env.FOLLOW_PREPARATION_MIGRATION_PATH}/migration.sql`
+        : "prisma/migrations/20261028020000_prepare_follow_authorities/migration.sql",
     );
     const tagPage = source("src/app/tag/[slug]/page.tsx");
     const authorPage = source("src/app/blog/author/[slug]/page.tsx");
