@@ -3477,3 +3477,15 @@ required boundary.
 zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
+
+### Favorite RLS aggregate boundary (2026-10-28)
+
+Use a transactionally maintained raw-current-row favorite count on `Listing`
+for public counters and popular ordering. Keep the stricter eligible favorite
+aggregate for quality scoring; changing product ranking is not part of the
+security release. Convert Favorite owner state, add/remove, export, analytics
+and cleanup to bounded operations so the private `(userId, listingId)` pairs
+never need to support public reads. Compatible preparation runs before its app
+deployment. RLS activation, direct-grant revocation and Production execution
+remain separate reviewed gates; no security release drops the additive count
+column.

@@ -30,6 +30,7 @@ import {
   sellerPublicListingCards,
   type SellerPublicListingCard,
 } from "@/lib/sellerProfilePublicAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -68,7 +69,7 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
-async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[], take: number, skip: number, withFavCount: boolean) {
+async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[], take: number, skip: number) {
   return prisma.listing.findMany({
     where,
     orderBy,
@@ -90,8 +91,8 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
       sellerId: true,
       tags: true,
       qualityScore: true,
+      favoriteCount: true,
       photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-      ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
     },
   });
 }
@@ -379,7 +380,7 @@ async function BrowseContent({
   const orderBy: Prisma.ListingOrderByWithRelationInput[] =
     sort === "price_asc" ? [{ priceCents: "asc" }, { createdAt: "desc" }, { id: "desc" }]
     : sort === "price_desc" ? [{ priceCents: "desc" }, { createdAt: "desc" }, { id: "desc" }]
-    : sort === "popular" ? [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }]
+    : sort === "popular" ? [{ favoriteCount: "desc" }, { createdAt: "desc" }, { id: "desc" }]
     : sort === "relevant" ? [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }]
     : [{ createdAt: "desc" }, { id: "desc" }];
 
@@ -389,7 +390,7 @@ async function BrowseContent({
 
   if (sort === "relevant" && q) {
     // Search relevance: fetch up to 200, re-score with text-match bonus, paginate
-    const all = await fetchListings(where, [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }], 200, 0, true);
+    const all = await fetchListings(where, [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }], 200, 0);
     const scored = scoreListings(all, q);
     total = scored.length;
     const relevantTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -407,7 +408,6 @@ async function BrowseContent({
       orderBy,
       PAGE_SIZE,
       (standardPage - 1) * PAGE_SIZE,
-      false,
     );
     listings = await hydrateSellerCards(meDbId, listingRows);
   }
@@ -417,11 +417,7 @@ async function BrowseContent({
   // Saved set for current user
   let savedSet = new Set<string>();
   if (meDbId && listings.length) {
-    const favs = await prisma.favorite.findMany({
-      where: { userId: meDbId, listingId: { in: listings.map((l) => l.id) } },
-      select: { listingId: true },
-    });
-    savedSet = new Set(favs.map((f) => f.listingId));
+    savedSet = await ownerFavoriteListingIds(meDbId, listings.map((listing) => listing.id));
   }
 
   // Seller ratings for display
@@ -478,22 +474,18 @@ async function BrowseContent({
       publicListingWhere(
         blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
       ),
-      [{ favorites: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }],
+      [{ favoriteCount: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       4,
       0,
-      false,
     );
     const featured = await hydrateSellerCards(meDbId, featuredRows);
     const [featuredFavorites, featuredRatings] = await Promise.all([
       meDbId && featured.length > 0
-        ? prisma.favorite.findMany({
-            where: { userId: meDbId, listingId: { in: featured.map((listing) => listing.id) } },
-            select: { listingId: true },
-          })
-        : Promise.resolve([]),
+        ? ownerFavoriteListingIds(meDbId, featured.map((listing) => listing.id))
+        : Promise.resolve(new Set<string>()),
       getSellerRatingMap(Array.from(new Set(featured.map((listing) => listing.sellerId)))),
     ]);
-    savedSet = new Set(featuredFavorites.map((favorite) => favorite.listingId));
+    savedSet = featuredFavorites;
     sellerRatings = featuredRatings;
 
     return (

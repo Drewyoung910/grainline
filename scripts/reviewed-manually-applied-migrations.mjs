@@ -6,6 +6,10 @@
 
 export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   [
+    "20261023010000_prepare_support_request_authorities",
+    "c65e259df2bd476e2d265c8973fabbcf018b5f989b4b01a2ca923bb1013dc384",
+  ],
+  [
     "20261023040000_repair_resend_failed_event_suppressions",
     "7f438ca723b05cf2e91a581f48223c0a577fc58715e22ff7176de4206ad8a2c8",
   ],
@@ -26,8 +30,16 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "969aff03c7d720067d8a2d39057fed5048c12b60d521666aff7bce12ffd762e4",
   ],
   [
+    "20261026010000_prepare_stock_notification_authorities",
+    "3c77aed31571f7e4adb942bea15611ee97d75e8183f76899cc634749ab2955ce",
+  ],
+  [
     "20261027010000_restore_resend_webhook_receipts",
     "a765482bfdeca66a82aaa912c5bfc2c6f7bc44b033fea4ace2e5bc40243ad2ba",
+  ],
+  [
+    "20261028010000_prepare_favorite_authorities",
+    "7bd680570bf59ec9ea980cc25e9532825895df482a336ea7c392380756b2e6e5",
   ],
 ]);
 

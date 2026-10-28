@@ -11,6 +11,7 @@ import {
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
+import { isReviewedSuccessfulMigration } from "./reviewed-manually-applied-migrations.mjs";
 
 const PHASES = new Set(["preflight", "postflight"]);
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -28,11 +29,7 @@ function successfulMigration(rows, release) {
   for (const row of attempts) {
     assert.equal(row.checksum, release.migrationSha256, "migration checksum drifted");
   }
-  const successes = attempts.filter((row) => (
-    row.finished_at !== null
-    && row.rolled_back_at === null
-    && Number(row.applied_steps_count) === 1
-  ));
+  const successes = attempts.filter(isReviewedSuccessfulMigration);
   assert.ok(successes.length <= 1, "migration has duplicate successful rows");
   for (const row of attempts) {
     if (!successes.includes(row)) {
@@ -40,6 +37,31 @@ function successfulMigration(rows, release) {
     }
   }
   return successes.length === 1;
+}
+
+async function readPreparationMarkers(client, release) {
+  const newFunctions = release.functions.filter(
+    (entry) => entry.predecessorSourceSha256 === undefined,
+  );
+  return (await client.query(`
+    SELECT
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_attribute AS attribute
+        WHERE attribute.attrelid = $1::pg_catalog.regclass
+          AND attribute.attname = ANY($2::text[])
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped) AS columns,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.pg_proc AS procedure
+         JOIN pg_catalog.pg_namespace AS namespace
+           ON namespace.oid = procedure.pronamespace
+        WHERE namespace.nspname = 'public'
+          AND procedure.proname = ANY($3::text[])) AS functions
+  `, [
+    `public."${release.table}"`,
+    release.addedColumns.map((entry) => entry.name),
+    newFunctions.map((entry) => entry.name),
+  ])).rows[0];
 }
 
 function evidencePosture(row) {
@@ -165,31 +187,10 @@ async function readInstalledCatalog(client, verified, tableOwner) {
 
 async function readPendingCatalog(client, verified, tableOwner) {
   const { release } = verified;
-  const newFunctions = release.functions.filter(
-    (entry) => entry.predecessorSourceSha256 === undefined,
-  );
   const predecessorFunctions = release.functions.filter(
     (entry) => entry.predecessorSourceSha256 !== undefined,
   );
-  const collisions = (await client.query(`
-    SELECT
-      (SELECT pg_catalog.count(*)::integer
-         FROM pg_catalog.pg_attribute AS attribute
-        WHERE attribute.attrelid = $1::pg_catalog.regclass
-          AND attribute.attname = ANY($2::text[])
-          AND attribute.attnum > 0
-          AND NOT attribute.attisdropped) AS columns,
-      (SELECT pg_catalog.count(*)::integer
-         FROM pg_catalog.pg_proc AS procedure
-         JOIN pg_catalog.pg_namespace AS namespace
-           ON namespace.oid = procedure.pronamespace
-        WHERE namespace.nspname = 'public'
-          AND procedure.proname = ANY($3::text[])) AS functions
-  `, [
-    `public."${release.table}"`,
-    release.addedColumns.map((entry) => entry.name),
-    newFunctions.map((entry) => entry.name),
-  ])).rows[0];
+  const collisions = await readPreparationMarkers(client, release);
   assert.deepEqual(collisions, { columns: 0, functions: 0 }, "preparation catalog collides");
 
   const functionRows = await readFunctionRows(client, predecessorFunctions);
@@ -303,11 +304,31 @@ export async function inspectPrivateTablePreparationProduction(
        ORDER BY started_at
     `, [release.migration])).rows;
     const applied = successfulMigration(ledger, release);
-    const state = applied ? "applied" : "pending";
+    const markers = await readPreparationMarkers(client, release);
+    const expectedMarkers = {
+      columns: release.addedColumns.length,
+      functions: release.functions.filter(
+        (entry) => entry.predecessorSourceSha256 === undefined,
+      ).length,
+    };
+    const hasNoMarkers = markers.columns === 0 && markers.functions === 0;
+    const hasAllMarkers = (
+      markers.columns === expectedMarkers.columns
+      && markers.functions === expectedMarkers.functions
+    );
+    assert.ok(hasNoMarkers || hasAllMarkers, "preparation catalog is partially applied");
+    if (applied) {
+      assert.equal(hasAllMarkers, true, "applied preparation catalog is absent");
+    }
+    const state = applied
+      ? "applied"
+      : hasAllMarkers
+        ? "applied_unrecorded"
+        : "pending";
     if (phase === "postflight") assert.equal(state, "applied", "preparation is not applied");
 
     let catalog;
-    if (applied) {
+    if (state === "applied" || state === "applied_unrecorded") {
       catalog = await readInstalledCatalog(client, verified, postureRow.table_owner_name);
     } else {
       catalog = await readPendingCatalog(client, verified, postureRow.table_owner_name);

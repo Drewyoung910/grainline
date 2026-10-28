@@ -2162,6 +2162,92 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Favorite preparation is additive and keeps predecessor table CRUD available
+-- until activation. When present, converge only the reviewed fixed operations;
+-- trigger functions remain private to the table owner.
+WITH favorite_private(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_count_maintain"()'),
+    ('public."grainline_favorite_update_forbidden"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM favorite_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_private(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_count_maintain"()'),
+    ('public."grainline_favorite_update_forbidden"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM favorite_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_service(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_owner_listing_ids"(text[])'),
+    ('public."grainline_favorite_owner_add"(text)'),
+    ('public."grainline_favorite_owner_remove"(text)'),
+    ('public."grainline_favorite_owner_delete_all"(text)'),
+    ('public."grainline_favorite_owner_export"()'),
+    ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_favorite_seller_listing_cleanup"(text)'),
+    ('public."grainline_favorite_admin_listing_cleanup"(text)'),
+    ('public."grainline_favorite_block_cleanup"(text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM favorite_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_service(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_owner_listing_ids"(text[])'),
+    ('public."grainline_favorite_owner_add"(text)'),
+    ('public."grainline_favorite_owner_remove"(text)'),
+    ('public."grainline_favorite_owner_delete_all"(text)'),
+    ('public."grainline_favorite_owner_export"()'),
+    ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_favorite_seller_listing_cleanup"(text)'),
+    ('public."grainline_favorite_admin_listing_cleanup"(text)'),
+    ('public."grainline_favorite_block_cleanup"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM favorite_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_service(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_owner_listing_ids"(text[])'),
+    ('public."grainline_favorite_owner_add"(text)'),
+    ('public."grainline_favorite_owner_remove"(text)'),
+    ('public."grainline_favorite_owner_delete_all"(text)'),
+    ('public."grainline_favorite_owner_export"()'),
+    ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_favorite_seller_listing_cleanup"(text)'),
+    ('public."grainline_favorite_admin_listing_cleanup"(text)'),
+    ('public."grainline_favorite_block_cleanup"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM favorite_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
 -- When its functions exist, converge every helper away from PUBLIC/runtime

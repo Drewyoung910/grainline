@@ -13,47 +13,21 @@ const routePath = "src/app/api/favorites/route.ts";
 
 function fixture(options = {}) {
   const actor = options.actor ?? { id: "buyer", name: "Buyer" };
-  const target = options.target === undefined
-    ? { listingId: "listing", title: "Walnut bench", ownerUserId: "seller" }
-    : options.target;
+  const addResult = options.addResult ?? {
+    resultStatus: "OK",
+    title: "Walnut bench",
+    ownerUserId: "seller",
+    created: true,
+  };
   const state = {
-    targetCalls: 0,
-    blockReads: 0,
-    favoriteWrites: 0,
+    addCalls: 0,
     notifications: [],
     errors: [],
-  };
-  const prisma = {
-    block: {
-      findFirst: async ({ where }) => {
-        state.blockReads += 1;
-        assert.equal(JSON.stringify(where.OR), JSON.stringify([
-          { blockerId: actor.id, blockedId: target.ownerUserId },
-          { blockerId: target.ownerUserId, blockedId: actor.id },
-        ]));
-        return options.blocked ? { id: "block" } : null;
-      },
-    },
-    favorite: {
-      upsert: async ({ where, update, create }) => {
-        state.favoriteWrites += 1;
-        assert.equal(JSON.stringify(where), JSON.stringify({
-          userId_listingId: { userId: actor.id, listingId: "listing" },
-        }));
-        assert.equal(JSON.stringify(update), "{}");
-        assert.equal(
-          JSON.stringify(create),
-          JSON.stringify({ userId: actor.id, listingId: "listing" }),
-        );
-        if (options.favoriteError) throw new Error("favorite failed");
-      },
-    },
   };
   const dependencies = {
     "@clerk/nextjs/server": {
       auth: async () => ({ userId: options.signedOut ? null : "clerk-buyer" }),
     },
-    "@/lib/db": { prisma },
     "@/lib/ensureUser": { ensureUser: async () => actor },
     "@/lib/apiAccountAccess": { accountAccessErrorResponse: () => null },
     "@/lib/notifications": {
@@ -68,11 +42,14 @@ function fixture(options = {}) {
       rateLimitResponse: () => new Response(null, { status: 429 }),
     },
     "@/lib/privateResponse": { privateJson, privateResponse },
-    "@/lib/sellerProfilePublicAccess": {
-      sellerPublicFavoriteTarget: async (listingId) => {
-        state.targetCalls += 1;
+    "@/lib/favoriteAccess": {
+      FAVORITE_LISTING_ID_PATTERN: /^[A-Za-z0-9._:-]{1,191}$/u,
+      addOwnerFavorite: async (userId, listingId) => {
+        state.addCalls += 1;
+        assert.equal(userId, actor.id);
         assert.equal(listingId, "listing");
-        return target;
+        if (options.favoriteError) throw new Error("favorite failed");
+        return addResult;
       },
     },
     "@/lib/publicPaths": {
@@ -108,24 +85,30 @@ function fixture(options = {}) {
   }, { filename: routePath });
   return {
     state,
-    post: () => exports.POST(new Request("https://example.test/api/favorites", {
+    post: (listingId = "listing") => exports.POST(new Request("https://example.test/api/favorites", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ listingId: "listing" }),
+      body: JSON.stringify({ listingId }),
     })),
   };
 }
 
+test("favorite creation rejects malformed listing ids before database access", async () => {
+  const subject = fixture();
+  assert.equal((await subject.post("bad/listing")).status, 400);
+  assert.equal(subject.state.addCalls, 0);
+});
+
 test("favorite creation denies missing, self-owned and blocked targets before writing", async () => {
   for (const [options, status] of [
-    [{ target: null }, 404],
-    [{ target: { listingId: "listing", title: "Walnut bench", ownerUserId: "buyer" } }, 400],
-    [{ blocked: true }, 403],
+    [{ addResult: { resultStatus: "NOT_FOUND", title: null, ownerUserId: null, created: false } }, 404],
+    [{ addResult: { resultStatus: "SELF", title: null, ownerUserId: null, created: false } }, 400],
+    [{ addResult: { resultStatus: "BLOCKED", title: null, ownerUserId: null, created: false } }, 403],
   ]) {
     const subject = fixture(options);
     assert.equal((await subject.post()).status, status);
-    assert.equal(subject.state.targetCalls, 1);
-    assert.equal(subject.state.favoriteWrites, 0);
+    assert.equal(subject.state.addCalls, 1);
+    assert.equal(subject.state.notifications.length, 0);
   }
 });
 
@@ -134,9 +117,7 @@ test("favorite creation writes once and notifies the bounded target owner", asyn
   const response = await subject.post();
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
-  assert.equal(subject.state.targetCalls, 1);
-  assert.equal(subject.state.blockReads, 1);
-  assert.equal(subject.state.favoriteWrites, 1);
+  assert.equal(subject.state.addCalls, 1);
   assert.equal(subject.state.notifications.length, 1);
   assert.equal(subject.state.notifications[0].userId, "seller");
   assert.equal(subject.state.notifications[0].body, "Walnut bench");
@@ -145,7 +126,7 @@ test("favorite creation writes once and notifies the bounded target owner", asyn
 test("favorite notification failure remains non-fatal after the write", async () => {
   const subject = fixture({ notificationError: true });
   assert.equal((await subject.post()).status, 200);
-  assert.equal(subject.state.favoriteWrites, 1);
+  assert.equal(subject.state.addCalls, 1);
   assert.equal(subject.state.notifications.length, 1);
   assert.equal(subject.state.errors[0]?.context?.source, "favorite_notification");
 });

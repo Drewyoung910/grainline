@@ -64,7 +64,7 @@ describe("review/report/favorite observability hardening", () => {
     assert.match(reportRoute, /source: "user_report_listing_notification"/);
     assert.doesNotMatch(reportRoute, /\.catch\(\(\) => \{\}\)/);
     assert.match(favoriteRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
-    assert.match(favoriteRoute, /source: "favorite_upsert"/);
+    assert.match(favoriteRoute, /source: "favorite_add"/);
     assert.match(favoriteRoute, /source: "favorite_notification"/);
     assert.doesNotMatch(favoriteRoute, /console\.error\("POST \/api\/favorites/);
     assert.match(favoriteDeleteRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);

@@ -280,7 +280,11 @@ describe("seller operational route hardening", () => {
     );
     assert.doesNotMatch(analytics, /listingIds = listings\.map/);
     assert.doesNotMatch(analytics, /listingId: \{ in: listingIds \}/);
-    assert.match(analytics, /prisma\.favorite\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
+    assert.match(
+      analytics,
+      /sellerFavoriteRangeCount\(\s*me\.id,\s*startDate,\s*endDate,\s*endExclusive,?\s*\)/s,
+    );
+    assert.doesNotMatch(analytics, /prisma\.favorite\./);
     assert.match(
       analytics,
       /sellerStockNotificationRangeCount\(\s*me\.id,\s*startDate,\s*endDate,\s*endExclusive,?\s*\)/s,
