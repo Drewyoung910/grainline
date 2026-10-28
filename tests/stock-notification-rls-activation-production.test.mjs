@@ -29,7 +29,11 @@ const workflow = readFileSync(
 );
 const provisioning = readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
 
-const retainedRows = release.retainedFunctions.map((entry) => ({
+const reviewedFunctions = [
+  ...release.retainedFunctions,
+  ...release.sharedFunctions,
+];
+const retainedRows = reviewedFunctions.map((entry) => ({
   function_name: entry.name,
   identity_arguments: entry.arguments,
   owner_name: "neondb_owner",
@@ -183,7 +187,13 @@ test("StockNotification activation is the byte-sealed owner SELECT/DELETE shape"
   );
   assert.equal(verified.digest, release.migrationSha256);
   assert.equal(verified.retainedDigest, release.retainedFunctionMigrationSha256);
-  assert.equal(verified.retainedFunctionSources.size, 9);
+  assert.equal(verified.sharedDigest, release.sharedFunctionMigrationSha256);
+  assert.equal(verified.retainedFunctionSources.size, 10);
+  assert.match(
+    migration,
+    /grainline_order_seller_analytics_top_listings\(text,bigint,bigint,boolean,boolean\)/u,
+  );
+  assert.match(migration, /StockNotification has an unreviewed function reader/u);
   assert.deepEqual(release.policies, [
     {
       name: "stock_notification_owner_delete",
@@ -316,7 +326,7 @@ test("StockNotification inspector proves ready and active states without row dat
     );
     assert.equal(ready.state, "ready");
     assert.equal(ready.containsRowData, false);
-    assert.equal(ready.retainedFunctions.length, 9);
+    assert.equal(ready.retainedFunctions.length, 10);
     assert.equal(statSync(preEnv.OWNER_TABLE_RLS_EVIDENCE_PATH).mode & 0o777, 0o600);
 
     const postEnv = environment(
