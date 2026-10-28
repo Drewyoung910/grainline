@@ -660,10 +660,11 @@ async function SellerPublicContent({
             );
           })()}
 
-          {/* Story | Workshop two-column. The bio renders once, in the header above. */}
-          {(seller.storyTitle || seller.storyBody || seller.workshopImageUrl) && (
+          {/* Story | Workshop two-column. The bio renders once, in the header above;
+              a story title with no body has nothing to show. */}
+          {(seller.storyBody || seller.workshopImageUrl) && (
             <section className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-10 items-start">
-              {(seller.storyTitle || seller.storyBody) && (
+              {seller.storyBody && (
                 <div>
                   <h2 className="text-xl sm:text-2xl font-display font-semibold mb-3">
                     {seller.storyTitle || "About"}
