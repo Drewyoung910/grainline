@@ -852,11 +852,11 @@ Notification and Cart helpers require branded transaction-local user context,
 and their cross-user or service paths target fixed-purpose functions. The Cart
 candidate also removes the mutable CartItem fallback from legacy stock restore;
 durable CheckoutStockReservation state remains the recovery authority.
-SavedBlogPost still remains an unapplied candidate. Notification prelaunch inspection and the
-atomic activation purge,
-recipient RPC real-table/provider proof, policy/grant activation, and every later group's
-service paths remain explicit work. Centralization and draft wiring are
-preparation, not active RLS or staging proof.
+SavedBlogPost is live with owner policies and the insert guard. Notification
+prelaunch inspection and the atomic activation purge, recipient RPC
+real-table/provider proof, policy/grant activation, and every later group's
+service paths remain explicit work. Centralization and draft wiring for an
+unactivated group are preparation, not active RLS or staging proof.
 
 ## Future Saved-Search Match Alerts
 
