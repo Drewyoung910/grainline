@@ -45,6 +45,7 @@ import {
 } from "@/lib/sellerShopSettingsInput";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import { sellerOwnerFollowerCount } from "@/lib/sellerFollowAccess";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -237,7 +238,7 @@ export default async function SellerSettingsPage({
 
   const [row, followerCount, draftCount, userRow, latestPayoutFailure] = await Promise.all([
     sellerOwnerShopSettingsState(seller.id, seller.userId),
-    prisma.follow.count({ where: { sellerProfileId: seller.id } }),
+    sellerOwnerFollowerCount(me.id),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
     userOwnerNotificationPreferences(prisma, me.id),
     latestSellerPayoutFailure(me.id),

@@ -31,6 +31,7 @@ import { sellerPublicRecentlyViewedListings } from "@/lib/sellerProfilePublicAcc
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { extractBlogVideoEmbed } from "@/lib/blogVideo";
 import { formatCurrencyCents } from "@/lib/money";
+import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 
 function visibleBlogCommentWhere(blockedUserIds: string[]) {
   return {
@@ -170,21 +171,12 @@ export default async function BlogPostPage({
   let authorFollowerCount = 0;
   let isFollowingAuthor = false;
   if (isMakerPost && post.sellerProfileId && !viewerIsAuthor) {
-    authorFollowerCount = await prisma.follow.count({
-      where: { sellerProfileId: post.sellerProfileId },
-    });
-    if (meId) {
-      const followRow = await prisma.follow.findUnique({
-        where: {
-          followerId_sellerProfileId: {
-            followerId: meId,
-            sellerProfileId: post.sellerProfileId,
-          },
-        },
-        select: { id: true },
-      });
-      isFollowingAuthor = !!followRow;
-    }
+    const followState = await sellerPublicFollowState(
+      post.sellerProfileId,
+      meId ?? undefined,
+    );
+    authorFollowerCount = followState?.followerCount ?? 0;
+    isFollowingAuthor = followState?.following ?? false;
   }
 
   const htmlBody = renderBlogMarkdown(post.body);

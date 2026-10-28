@@ -43,6 +43,7 @@ fanout, broadcast and block-cleanup operations. Add only:
 
 - a bounded public state batch for homepage counts/viewer state;
 - a bounded actor follow-ID page for homepage/feed selection;
+- an actor-bound raw outgoing count for the account overview;
 - a seller-owner incoming follower count;
 - a target-context account-deletion cleanup.
 
@@ -57,7 +58,7 @@ Advantages:
 
 Costs and risks:
 
-- four purpose-bound operations must be added and maintained;
+- five purpose-bound operations must be added and maintained;
 - function ownership, fixed search paths and ACLs are security-critical;
 - a new product query needs a reviewed operation instead of arbitrary Prisma;
 - indexed `COUNT(*)` work grows with a maker's follower count.
@@ -121,13 +122,15 @@ does not need.
 Required safeguards:
 
 - preserve the shared Block/follow lock order and atomic create predicate;
-- add only the four bounded operations listed above;
+- add only the five bounded operations listed above;
 - exact function-owner, SECURITY DEFINER, search-path and ACL checks;
 - full-chain PostgreSQL 17 behavior, race, cascade and rollback proofs;
 - a source inventory that rejects any remaining direct runtime Follow access;
 - an emergency rollback that restores predecessor CRUD first;
 - no counter, column drop or count-semantics change in the security release.
 
-Do not implement the migration or caller conversion until this option is
-accepted. Preparation may proceed in an isolated branch after acceptance;
-production activation still requires its own exact approval.
+Option B was accepted for isolated compatible preparation on 2026-10-28. The
+preparation may add the five bounded operations and convert callers, but it
+does not authorize RLS activation, grant revocation, merge order changes or any
+Production action. Favorite preparation releases first; Follow activation
+still requires its own exact approval and evidence.

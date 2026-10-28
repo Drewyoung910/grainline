@@ -133,7 +133,8 @@ runtime role.
 | Read bounded public counts/states | anonymous or active viewer | requested visible seller IDs only | bounded batch projection |
 | Follow | active owner | one eligible non-owned seller, no reciprocal block | retain atomic actor-bound create |
 | Unfollow | active owner | own exact relationship | retain actor-bound delete |
-| Read following count/page | active owner | own visible relationships | retain actor-bound operations |
+| Read account overview count | active owner | own raw relationships | actor-bound raw aggregate |
+| Read following page count/page | active owner | own visible relationships | retain actor-bound operations |
 | Read feed target IDs | active owner | own latest 1,000 relationships | bounded actor operation |
 | Export | active owner | complete own history plus display name | retain actor-bound export |
 | Read seller follower count | verified seller | own incoming raw count | seller-owner aggregate operation |

@@ -22,7 +22,8 @@ describe("seller public page query guardrails", () => {
   it("keeps independent seller-page queries grouped in one parallel batch", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
 
-    assert.match(sellerPage, /const \[\s*\[followerCount, isFollowing\],[\s\S]*customerPhotoRows,\s*\] = await Promise\.all\(\[/);
+    assert.match(sellerPage, /const \[\s*followState,[\s\S]*customerPhotoRows,\s*\] = await Promise\.all\(\[/);
+    assert.match(sellerPage, /sellerPublicFollowState\(seller\.id, meId \?\? undefined\)/);
     assert.match(sellerPage, /prisma\.sellerBroadcast\.findFirst/);
     assert.match(sellerPage, /prisma\.blogPost\.findMany/);
     assert.match(sellerPage, /prisma\.listing\.findMany/);
@@ -156,8 +157,9 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerShopPage, /const seller = await getSellerProfileForShopPage\(meId, sellerId\)/);
     assert.match(
       sellerShopPage,
-      /const \[\s*\[followerCount, isFollowing\],\s*categoryGroups,\s*total,\s*\] = await Promise\.all\(\[/,
+      /const \[\s*followState,\s*categoryGroups,\s*total,\s*\] = await Promise\.all\(\[/,
     );
+    assert.match(sellerShopPage, /sellerPublicFollowState\(sellerId, meId \?\? undefined\)/);
     assert.ok(
       sellerShopPage.indexOf("prisma.listing.groupBy({") < sellerShopPage.indexOf("const totalPages ="),
       "seller shop category groups should be fetched in the shared pre-pagination batch",

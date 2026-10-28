@@ -2337,6 +2337,57 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Follow preparation keeps predecessor table CRUD available until activation.
+-- Converge only the five new purpose-bound operations; the older follow,
+-- fanout, export and block-cleanup functions are provisioned in their existing
+-- authority families above and below.
+WITH follow_service(function_signature) AS (
+  VALUES
+    ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_owner_target_ids"(integer)'),
+    ('public."grainline_follow_owner_outgoing_count"()'),
+    ('public."grainline_follow_seller_owner_incoming_count"()'),
+    ('public."grainline_follow_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM follow_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH follow_service(function_signature) AS (
+  VALUES
+    ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_owner_target_ids"(integer)'),
+    ('public."grainline_follow_owner_outgoing_count"()'),
+    ('public."grainline_follow_seller_owner_incoming_count"()'),
+    ('public."grainline_follow_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM follow_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH follow_service(function_signature) AS (
+  VALUES
+    ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_owner_target_ids"(integer)'),
+    ('public."grainline_follow_owner_outgoing_count"()'),
+    ('public."grainline_follow_seller_owner_incoming_count"()'),
+    ('public."grainline_follow_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM follow_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
 -- When its functions exist, converge every helper away from PUBLIC/runtime
