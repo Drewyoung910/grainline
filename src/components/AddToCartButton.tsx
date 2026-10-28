@@ -14,7 +14,7 @@ export default function AddToCartButton({
   className = "",
   redirectToCart = false,
   selectedVariantOptionIds = [],
-  variantRequired = false,
+  variantSelectionComplete = true,
   anonymousSnapshot,
 }: {
   listingId: string;
@@ -23,7 +23,7 @@ export default function AddToCartButton({
   className?: string;
   redirectToCart?: boolean;
   selectedVariantOptionIds?: string[];
-  variantRequired?: boolean;
+  variantSelectionComplete?: boolean;
   anonymousSnapshot?: AnonymousCartSnapshot;
 }) {
   const [loading, setLoading] = React.useState(false);
@@ -31,7 +31,7 @@ export default function AddToCartButton({
   const listingPath = publicListingPath(listingId, listingTitle);
 
   async function add() {
-    if (variantRequired && selectedVariantOptionIds.length === 0) {
+    if (!variantSelectionComplete) {
       toast("Please select all variant options first.", "error");
       return;
     }

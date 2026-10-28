@@ -11,6 +11,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
 import { useToast } from "@/components/Toast";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { isListingVariantSelectionComplete } from "@/lib/listingVariantSelection";
 
 function selectedOptionIdsFromIntent(groups: VariantGroupForSelector[], rawValue: string | null) {
   if (!rawValue) return [];
@@ -92,8 +93,7 @@ export default function ListingPurchasePanel({
   );
   const [totalPriceCents, setTotalPriceCents] = useState(initialPriceCents);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
-  const variantRequired = hasVariants;
-  const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
+  const variantSelectionComplete = isListingVariantSelectionComplete(variantGroups, selectedOptionIds);
   const canPurchase = canBuy && sellerAcceptingNewOrders;
   const displayCurrency = currency ?? DEFAULT_CURRENCY;
   const selectedVariantLabels = useMemo(() => {
@@ -200,7 +200,7 @@ export default function ListingPurchasePanel({
               offersGiftWrapping={offersGiftWrapping}
               giftWrappingPriceCents={giftWrappingPriceCents}
               selectedVariantOptionIds={selectedOptionIds}
-              variantRequired={variantRequired}
+              variantSelectionComplete={variantSelectionComplete}
               autoOpen={shouldAutoOpenBuyNow}
               className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
             >
@@ -226,7 +226,7 @@ export default function ListingPurchasePanel({
             listingTitle={listingTitle}
             signedIn={!!userId}
             selectedVariantOptionIds={selectedOptionIds}
-            variantRequired={variantRequired}
+            variantSelectionComplete={variantSelectionComplete}
             anonymousSnapshot={{
               title: listingTitle,
               sellerId,
