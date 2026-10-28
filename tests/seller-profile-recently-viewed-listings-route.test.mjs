@@ -11,7 +11,7 @@ const routePath = "src/app/api/listings/recently-viewed/route.ts";
 function fixture({ signedOut = false, ids = "listing-b,listing-a,listing-b" } = {}) {
   const state = {
     authorityCalls: [],
-    favoriteReads: 0,
+    favoriteAuthorityCalls: [],
   };
   const authorityRows = [
     {
@@ -40,14 +40,8 @@ function fixture({ signedOut = false, ids = "listing-b,listing-a,listing-b" } = 
       },
     },
     favorite: {
-      findMany: async ({ where, select }) => {
-        state.favoriteReads += 1;
-        assert.equal(JSON.stringify(where), JSON.stringify({
-          userId: "buyer",
-          listingId: { in: ["listing-b", "listing-a", "listing-b"] },
-        }));
-        assert.equal(JSON.stringify(select), JSON.stringify({ listingId: true }));
-        return [{ listingId: "listing-a" }];
+      findMany: async () => {
+        throw new Error("direct recently-viewed favorite relation read reached");
       },
     },
   };
@@ -67,6 +61,12 @@ function fixture({ signedOut = false, ids = "listing-b,listing-a,listing-b" } = 
     "@/lib/apiAccountAccess": { accountAccessErrorResponse: () => null },
     "@/lib/ensureUser": {
       ensureUserByClerkId: async () => ({ id: "buyer" }),
+    },
+    "@/lib/favoriteAccess": {
+      ownerFavoriteListingIds: async (userId, listingIds) => {
+        state.favoriteAuthorityCalls.push({ userId, listingIds });
+        return new Set(["listing-a"]);
+      },
     },
     "@/lib/privateResponse": { privateJson, privateResponse },
     "@/lib/sellerProfilePublicAccess": {
@@ -107,7 +107,10 @@ test("recently viewed uses the viewer-aware bounded listing-card authority", asy
     viewerUserId: "buyer",
     listingIds: ["listing-b", "listing-a", "listing-b"],
   }]));
-  assert.equal(subject.state.favoriteReads, 1);
+  assert.equal(JSON.stringify(subject.state.favoriteAuthorityCalls), JSON.stringify([{
+    userId: "buyer",
+    listingIds: ["listing-b", "listing-a", "listing-b"],
+  }]));
   assert.deepEqual(await response.json(), {
     listings: [
       {
@@ -153,7 +156,7 @@ test("signed-out recently viewed uses the same authority without actor context",
     viewerUserId: null,
     listingIds: ["listing-b", "listing-a", "listing-b"],
   }]));
-  assert.equal(subject.state.favoriteReads, 0);
+  assert.equal(subject.state.favoriteAuthorityCalls.length, 0);
   assert.equal((await response.json()).listings.length, 3);
 });
 
@@ -163,5 +166,5 @@ test("malformed recently-viewed ids fail closed as an empty result", async () =>
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { listings: [] });
   assert.equal(subject.state.authorityCalls.length, 0);
-  assert.equal(subject.state.favoriteReads, 0);
+  assert.equal(subject.state.favoriteAuthorityCalls.length, 0);
 });

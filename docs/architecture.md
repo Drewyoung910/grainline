@@ -42,7 +42,7 @@ Grainline uses database-level Row Level Security for `User`, `UserEmailAddress`,
 `CaseSellerRefundApplication`, `CaseOpenApplication`, `CaseMessage`,
 `CaseMessageAttachment`, `SavedSearch`, `ClerkWebhookEvent`, `DirectUpload`,
 `DirectUploadReference`, `AccountDeletionSideEffect`, `SupportRequest`, `Cart`,
-`CartItem`, `StripeWebhookEvent`, and `Notification`. All thirty-three tables have
+`CartItem`, `StripeWebhookEvent`, `Notification`, and `SavedBlogPost`. All thirty-four tables have
 complete retained `FORCE ROW LEVEL SECURITY` acceptance. `User` is policyless
 and FORCE-hardened with zero policies and zero runtime/staff/`PUBLIC` direct
 table or column authority. Its Phase-A release is bound to guarded ENABLE run
