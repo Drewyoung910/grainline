@@ -10,10 +10,11 @@ Source baseline:
 
 Preparation status: the compatible application and additive preparation
 migration merged in PR #657 as
-`968315f775c86d84a547d0a6eb3abaeec4662f49`. They are not yet live. Production
-application of `20261026010000_prepare_stock_notification_authorities` remains
-subject to the exact-main protected preparation workflow; application deploy
-and RLS activation remain later, separately gated steps.
+`968315f775c86d84a547d0a6eb3abaeec4662f49`. Protected run `40546465682`
+applied `20261026010000_prepare_stock_notification_authorities` in Production
+from exact main `857bc94706913a4d5c4368afa99de0a55bb2437c`; RLS remains off and predecessor
+table grants remain. The compatible application is not yet live. Application
+deploy and RLS activation remain later, separately gated steps.
 
 This document is a product, authority, concurrency, privacy, scalability,
 recovery, and rollback audit. It is not a Production authorization. See
@@ -181,9 +182,14 @@ chain then passed. This is retained as evidence that the full migrated schema,
 not a miniature hand-built table, is the acceptance authority.
 
 This candidate evidence is not Production authorization. Activation remains
-blocked until the additive preparation is applied, its compatible application
-is live and predecessor traffic is drained, the exact activation source is
-reviewed and merged, and Drew approves the exact protected Production run.
+blocked until an application containing at least compatible authority commit
+`e57362b515f41f0f72d7d483dc79a651de6bb711` is live, the exact superseded
+deployment and source commit are bound, predecessor traffic is drained, the
+exact activation source is reviewed and merged, and Drew approves the exact
+protected Production run. The production application currently descends from
+the emergency Buy Now hotfix line rather than current main, so that lineage
+must be reconciled without losing the hotfix before the ancestry gate can pass;
+the gate must not be weakened or supplied a non-exact predecessor commit.
 
 ## Concurrency and lock order
 
@@ -263,3 +269,10 @@ rollback restores the exact reviewed predecessor table grants and disables
 FORCE/RLS before any predecessor application is restored. Preparation functions
 are additive and can remain during rollback. No rollback deletes subscription
 data or drops a column.
+
+The generic activation catalog pins a per-release minimum compatible
+application commit. The protected workflow must prove that minimum is an
+ancestor of the live compatible application and that the compatible application
+is an ancestor of the exact release commit. A production hotfix on a divergent
+Git lineage must be reconciled into main; content similarity is not a substitute
+for the exact ancestry and deployment bindings.
