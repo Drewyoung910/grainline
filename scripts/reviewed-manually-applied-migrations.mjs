@@ -37,6 +37,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261027030000_correct_email_eligibility_lock_order",
     "1c813a247b869b69f02b234e61c4177a4c15a18c941b123a94cf75324e3881aa",
   ],
+  [
+    "20261027040000_activate_stock_notification_rls",
+    "e32566d4fa62880598de4ecdc088eebd56d4e97544de2178d51963c21091fcfb",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {

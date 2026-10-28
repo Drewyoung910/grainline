@@ -105,10 +105,8 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
   }),
   stock_notification_v1: Object.freeze({
     minimumCompatibleAppCommit: "e57362b515f41f0f72d7d483dc79a651de6bb711",
-    // Replace the placeholder deployment id with the exact reviewed
-    // predecessor immediately before this candidate becomes mergeable.
-    predecessorDeploymentId: "dpl_REPLACE_BEFORE_MERGE",
-    predecessorSourceCommit: "af1ee330f661c4604bf939085b175d00060d2dd0",
+    predecessorDeploymentId: "dpl_9WW7bJdjnmawMGt89i3SRJXrARPb",
+    predecessorSourceCommit: "113f176c362bc136bf55fbc0d32fbc9b5b39a0a5",
     shape: "stock_notification",
     migration: "20261027040000_activate_stock_notification_rls",
     migrationSha256: "e32566d4fa62880598de4ecdc088eebd56d4e97544de2178d51963c21091fcfb",

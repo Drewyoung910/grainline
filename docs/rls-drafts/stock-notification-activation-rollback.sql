@@ -1,8 +1,9 @@
 -- Database-first emergency rollback for
 -- 20261027040000_activate_stock_notification_rls.
--- Run only after the predecessor application is live. This restores the
--- predecessor CRUD grants before disabling RLS and removes only the two
--- activation policies. Preparation functions and subscription data remain.
+-- Run this database rollback before restoring any predecessor application.
+-- It restores the predecessor CRUD grants before disabling RLS and removes
+-- only the two activation policies. Preparation functions and subscription
+-- data remain.
 -- After a successful rollback, reconcile the Prisma ledger with:
 --   npx prisma migrate resolve --rolled-back 20261027040000_activate_stock_notification_rls
 
