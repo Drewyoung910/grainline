@@ -38,6 +38,7 @@ import { proveSellerProfilePublicMapAuthority } from "../tools/database-full-cha
 import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-profile.mjs";
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
 import { proveSellerProfilePublicReviewVoteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-review-vote-target.mjs";
+import { proveReviewVoteAuthorities } from "../tools/database-full-chain/scenarios/review-vote-authorities.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -475,6 +476,11 @@ test(
         seller: fixture,
       });
       await proveSellerProfilePublicReviewVoteTarget({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveReviewVoteAuthorities({
+        connectionString: proofDatabaseUrl,
         database: adapter,
         seller: fixture,
       });
