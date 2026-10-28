@@ -42,6 +42,7 @@ import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { stockNotificationAvailable } from "@/lib/stockNotificationState";
 import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -281,8 +282,7 @@ export default async function ListingPage({
     moreFromSeller,
     topReviews,
     favoriteRows,
-    sellerFollowerCount,
-    isFollowingSeller,
+    sellerFollowState,
     stockNotificationRow,
   ] = await Promise.all([
     prisma.review.aggregate({
@@ -321,20 +321,7 @@ export default async function ListingPage({
     meId
       ? ownerFavoriteListingIds(meId, [listingId])
       : Promise.resolve(new Set<string>()),
-    prisma.follow.count({ where: { sellerProfileId: listing.sellerId } }),
-    meId
-      ? prisma.follow
-          .findUnique({
-            where: {
-              followerId_sellerProfileId: {
-                followerId: meId,
-                sellerProfileId: listing.sellerId,
-              },
-            },
-            select: { id: true },
-          })
-          .then((r) => r !== null)
-      : Promise.resolve(false),
+    sellerPublicFollowState(listing.sellerId, meId ?? undefined),
     meId && canSubscribeForStockNotification
       ? findOwnerStockNotification(meId, listingId)
       : Promise.resolve(null),
@@ -351,6 +338,8 @@ export default async function ListingPage({
 
   const isFavorited = favoriteRows.has(listingId);
   const isNotified = stockNotificationRow !== null;
+  const sellerFollowerCount = sellerFollowState?.followerCount ?? 0;
+  const isFollowingSeller = sellerFollowState?.following ?? false;
 
   // Saved state for the "More from this maker" cards so their hearts render
   // filled correctly for signed-in viewers (bounded: ≤4 ids, indexed lookup).

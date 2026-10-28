@@ -249,6 +249,15 @@ const FAVORITE_PREPARATION_FUNCTION_NAMES = [
   ...FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES,
   ...FAVORITE_PREPARATION_PRIVATE_FUNCTION_NAMES,
 ];
+const FOLLOW_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028020000_prepare_follow_authorities/migration.sql";
+const FOLLOW_PREPARATION_FUNCTION_NAMES = [
+  "grainline_follow_public_state_batch",
+  "grainline_follow_owner_target_ids",
+  "grainline_follow_owner_outgoing_count",
+  "grainline_follow_seller_owner_incoming_count",
+  "grainline_follow_account_deletion_cleanup",
+];
 const EMAIL_DELIVERY_LEDGER_MIGRATION =
   "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
 const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
@@ -3462,6 +3471,12 @@ describe("database grant inventory guardrails", () => {
       source(FAVORITE_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const followAuthorityPrepared = existsSync(
+      FOLLOW_PREPARATION_MIGRATION,
+    ) && FOLLOW_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(FOLLOW_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3669,6 +3684,9 @@ describe("database grant inventory guardrails", () => {
       ...(favoriteAuthorityPrepared
         ? FAVORITE_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(followAuthorityPrepared
+        ? FOLLOW_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
@@ -3734,6 +3752,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (favoriteAuthorityPrepared
           ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (followAuthorityPrepared
+          ? FOLLOW_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
@@ -3845,6 +3866,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(favoriteAuthorityPrepared
         ? FAVORITE_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(followAuthorityPrepared
+        ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES

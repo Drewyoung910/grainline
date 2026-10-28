@@ -23,6 +23,7 @@ import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { sellerPublicProfile } from "@/lib/sellerProfilePublicAccess";
 import { normalizeTag } from "@/lib/tags";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 
 const PAGE_SIZE = 20;
 
@@ -147,19 +148,11 @@ export default async function SellerShopPage({
     : [{ createdAt: "desc" }, { id: "desc" }];
 
   const [
-    [followerCount, isFollowing],
+    followState,
     categoryGroups,
     total,
   ] = await Promise.all([
-    Promise.all([
-      prisma.follow.count({ where: { sellerProfileId: sellerId } }),
-      meId
-        ? prisma.follow.findUnique({
-            where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: sellerId } },
-            select: { id: true },
-          }).then((r) => r !== null)
-        : Promise.resolve(false),
-    ]),
+    sellerPublicFollowState(sellerId, meId ?? undefined),
     prisma.listing.groupBy({
       by: ["category"],
       where: categoryGroupWhere,
@@ -167,6 +160,8 @@ export default async function SellerShopPage({
     }),
     prisma.listing.count({ where }),
   ]);
+  const followerCount = followState?.followerCount ?? 0;
+  const isFollowing = followState?.following ?? false;
 
   const availableCategories = categoryGroups
     .filter((g) => g.category != null)

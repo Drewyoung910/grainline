@@ -11,6 +11,7 @@ on:
           - support_request_v1
           - stock_notification_v1
           - favorite_v1
+          - follow_v1
       release_commit:
         description: Exact reviewed main commit
         required: true

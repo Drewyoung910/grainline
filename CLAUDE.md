@@ -89,6 +89,17 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 ### Security posture
 
+- Follow rows remain private relationship data even though raw follower counts
+  are public. All application access is centralized in
+  `sellerFollowAccess.ts`; do not add a Prisma `follow` delegate call or a raw
+  Follow-table query. Preserve the distinction between raw public/owner counts
+  and the stricter eligible fanout audience. The compatible preparation adds
+  five bounded operations but intentionally leaves Follow RLS off and retains
+  predecessor CRUD. Favorite preparation must release first. A later Follow
+  activation is a separate reviewed release and may revoke direct table access
+  only after full-chain runtime-denial, race, cascade, rollback and skew-drain
+  proofs pass.
+
 - Case lifecycle corrections are tracked in `docs/case-lifecycle-correction.md`.
   Completed buyer handoff satisfies the Case-opening prerequisite, not a waiver
   of its closing deadline. Pending-close participants with unavailable

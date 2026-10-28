@@ -4,6 +4,26 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Owner-relation RLS compatible sequence (2026-10-28)
+
+Favorite and Follow are being prepared as two distinct, ordered releases rather
+than one coupled activation. Favorite's isolated compatible candidate is draft
+PR #694. It adds the reviewed raw-count projection and bounded Favorite
+operations while keeping Favorite RLS off and retaining predecessor table
+authority. Follow's selected long-term boundary is Option B: zero ordinary
+runtime table authority after activation, with existing operation-specific
+functions plus five missing bounded operations for public batch state, owner
+target IDs, the raw account-overview count, seller-owner incoming count, and
+claim-bound account-deletion cleanup.
+
+The Follow candidate is deliberately based on Favorite so the full-chain proof
+includes both preparations. Release order is strict: Favorite preparation must
+merge and be applied by itself before Follow can merge or be applied. Follow
+preparation is additive and compatible only; it does not enable or force RLS,
+revoke predecessor table grants, or authorize Production. Its separate
+activation still requires direct runtime/no-context/cross-user denial, cascade,
+race, rollback, deployment-skew and exact-head release evidence.
+
 ### Marketplace operating decisions (Drew, 2026-10-19)
 
 These are product and policy decisions, not claims that the behavior is live.

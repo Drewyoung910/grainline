@@ -202,6 +202,20 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("Follow preparation is byte-sealed and remains compatible", () => {
+  const follow = verifyPrivateTablePreparationSource("follow_v1");
+  assert.equal(follow.release.table, "Follow");
+  assert.equal(follow.functionSources.size, 5);
+  assert.deepEqual(follow.release.addedColumns, []);
+  const sql = readFileSync(follow.migrationPath, "utf8");
+  assert.match(sql, /grainline_follow_account_deletion_cleanup/u);
+  assert.match(sql, /effect\."claimGeneration" = p_claim_generation/u);
+  assert.match(sql, /relationship\."createdAt" DESC, relationship\.id DESC/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -245,7 +259,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.ok(parsed.on.workflow_dispatch);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    ["support_request_v1", "stock_notification_v1", "favorite_v1"],
+    ["support_request_v1", "stock_notification_v1", "favorite_v1", "follow_v1"],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(PRIVATE_TABLE_PREPARATION_CONFIRMATION, "u"));

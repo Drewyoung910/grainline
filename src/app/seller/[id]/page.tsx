@@ -42,6 +42,7 @@ import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import { getCachedPublicSellerTopTags } from "@/lib/popularTags";
 import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -188,7 +189,7 @@ async function SellerPublicContent({
   const nowMs = Date.now();
 
   const [
-    [followerCount, isFollowing],
+    followState,
     latestBroadcast,
     sellerBlogPosts,
     listings,
@@ -199,15 +200,7 @@ async function SellerPublicContent({
     topTags,
     customerPhotoRows,
   ] = await Promise.all([
-    Promise.all([
-      prisma.follow.count({ where: { sellerProfileId: seller.id } }),
-      meId
-        ? prisma.follow.findUnique({
-            where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: seller.id } },
-            select: { id: true },
-          }).then((r) => r !== null)
-        : Promise.resolve(false),
-    ]),
+    sellerPublicFollowState(seller.id, meId ?? undefined),
     prisma.sellerBroadcast.findFirst({
       where: { sellerProfileId: seller.id },
       orderBy: [{ sentAt: "desc" }, { id: "desc" }],
@@ -248,6 +241,8 @@ async function SellerPublicContent({
       },
     }),
   ]);
+  const followerCount = followState?.followerCount ?? 0;
+  const isFollowing = followState?.following ?? false;
 
   const broadcastAgeDays = latestBroadcast
     ? (nowMs - latestBroadcast.sentAt.getTime()) / MS_PER_DAY

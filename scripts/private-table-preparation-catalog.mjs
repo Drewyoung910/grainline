@@ -188,6 +188,49 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  follow_v1: Object.freeze({
+    migration: "20261028020000_prepare_follow_authorities",
+    migrationSha256: "98fb050499398e2acc32160d7a8c69f9c77a74319ae26bf2daa387967e076344",
+    table: "Follow",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-profile-follow-authority-conversion.test.mjs",
+      "tests/user-follower-authorities-source.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_follow_public_state_batch",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_follow_owner_target_ids",
+        arguments: "integer",
+      }),
+      Object.freeze({
+        name: "grainline_follow_owner_outgoing_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_follow_seller_owner_incoming_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_follow_account_deletion_cleanup",
+        arguments: "text, text, bigint, uuid",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {
