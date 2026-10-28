@@ -300,6 +300,15 @@ const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH =
 const EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
   "grainline_email_hard_suppression_apply",
 ];
+const REVIEW_VOTE_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql";
+const REVIEW_VOTE_PREPARATION_FUNCTION_NAMES = [
+  "grainline_review_vote_insert_guard",
+  "grainline_review_vote_update_forbidden",
+  "grainline_review_vote_owner_toggle",
+  "grainline_review_vote_owner_export",
+  "grainline_review_vote_owner_delete_all",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3538,6 +3547,12 @@ describe("database grant inventory guardrails", () => {
       source(FOLLOW_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const reviewVoteAuthorityPrepared = existsSync(
+      REVIEW_VOTE_PREPARATION_MIGRATION,
+    ) && REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(REVIEW_VOTE_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3748,6 +3763,9 @@ describe("database grant inventory guardrails", () => {
       ...(followAuthorityPrepared
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(reviewVoteAuthorityPrepared
+        ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
@@ -3817,6 +3835,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (followAuthorityPrepared
           ? FOLLOW_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (reviewVoteAuthorityPrepared
+          ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
