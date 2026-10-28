@@ -112,7 +112,9 @@ export default function AllSellersMap({
         type: "symbol",
         source: "sellers",
         filter: ["has", "point_count"],
-        layout: { "text-field": "{point_count_abbreviated}", "text-size": 12 },
+        // OpenFreeMap's "liberty" style only serves Noto Sans glyphs; without
+        // an explicit font MapLibre requests its Open Sans default and 404s.
+        layout: { "text-field": "{point_count_abbreviated}", "text-font": ["Noto Sans Regular"], "text-size": 12 },
         paint: { "text-color": "#ffffff" },
       });
 

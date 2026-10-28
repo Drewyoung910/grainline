@@ -26,6 +26,19 @@
     background: #F7F5F0;
     color: #111827; /* neutral-900 */
   }
+
+  /* Tailwind v4 draws a bare `border`/`divide-*` in currentColor (the text
+     color), which reads as a harsh dark outline. Default every border to the
+     design-system light neutral instead (Tailwind's documented v3
+     compatibility rule). It lives in @layer base, so any border-color
+     utility, including border-current, still wins. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-neutral-200, currentColor);
+  }
 }
 
 /* minimal helpers (optional) */
@@ -44,6 +57,10 @@
   line-height: 1.1;
 }
 
+/* The card classes live in @layer components so Tailwind utilities on the
+   same element (bg-*, border-*, rounded-*, overflow-*, shadow-*, ring-*)
+   override them. Unlayered, they silently beat every utility. */
+@layer components {
 /* Listing/product cards — uses the darker cream accent so the card
    info section stands apart from the cream page bg. Don't switch
    back to #ffffff; the ListingCard component intentionally relies on
@@ -84,9 +101,12 @@
   background: #E5DFD2;
   box-shadow: 0 4px 14px rgba(28, 25, 23, 0.08);
 }
+}
 
-/* Serif display font for hero + section headings */
-.font-display {
+/* Serif display font for hero + section headings. Registered as a Tailwind
+   utility so variants work (e.g. `prose-headings:font-display` on the Help
+   and Seller Handbook pages); a plain class can't take a variant. */
+@utility font-display {
   font-family: Georgia, 'Times New Roman', serif;
   letter-spacing: -0.025em;
 }

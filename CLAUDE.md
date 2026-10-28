@@ -179,13 +179,13 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 - **Page background**: `bg-[#F7F5F0]` (warm cream `#F7F5F0`) — creates contrast against `#ffffff` card surfaces
 - **Section-card surface**: `bg-white` (`#ffffff`) — use for `.card-section` content/info panels, never `bg-stone-50` or a grey tint
 - **Warm contained-card surface**: `#EFEAE0` via `.card-listing` — used by editorial, maker, and other contained cards that need separation from the page. This is not the current product-listing treatment.
-- **Borders**: `border-stone-200/60` on cards; `border-neutral-200` on inputs and buttons
+- **Borders**: `border-stone-200/60` on cards; `border-neutral-200` on inputs and buttons. A base rule in `globals.css` defaults every border color to neutral-200 (Tailwind v4 would otherwise draw a bare `border` in the dark text color); any border-color utility still wins.
 - **Text primary**: `text-neutral-900`; secondary: `text-neutral-500`; muted: `text-neutral-400`
 - **Accent**: amber — `bg-amber-50`, `border-amber-200`, `text-amber-700` for highlights/badges
 
 ### Card Classes (defined in `src/app/globals.css`)
 
-- **`.card-listing`** — contained editorial/maker cards: `background: #EFEAE0`, `border: 1px solid rgba(231,229,228,0.6)`, warm box-shadow, `border-radius: 0.5rem` (8px), `overflow: hidden`, and a subtle hover shadow. Do not use it to wrap the shared floating product `ListingCard`.
+- **`.card-listing`** — contained editorial/maker cards: `background: #EFEAE0`, `border: 1px solid rgba(231,229,228,0.6)`, warm box-shadow, `border-radius: 0.5rem` (8px), `overflow: hidden`, and a subtle hover shadow. Do not use it to wrap the shared floating product `ListingCard`. All three card classes (`.card-listing`, `.card-section`, `.card-warm`) live in `@layer components`, so Tailwind utilities on the same element (bg, border, rounded, overflow, shadow, ring) override them. A plain class still can't take a variant (`md:card-section` does nothing).
 - **`.card-section`** — content/info blocks: same border + shadow, no hover effect, no overflow:hidden
 - **Shared product `ListingCard`** — intentionally borderless with metadata floating directly on the cream page. Its photo is `aspect-[4/5]`, `rounded-2xl`, and `object-cover`. This current marketplace-card design supersedes the older white/4:3 `.card-listing` product-card notes below.
 
@@ -198,7 +198,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ### Typography
 
-- **`.font-display`** — `font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.025em` — applies ONLY to `<h1>` page titles and `<h2>` section headings. Never on card text, prices, nav links, buttons, or metadata.
+- **`.font-display`** — `font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.025em` — applies ONLY to `<h1>` page titles and `<h2>` section headings. Never on card text, prices, nav links, buttons, or metadata. Registered with `@utility`, so variants such as `prose-h2:font-display` work.
 - **Section headings with `.font-display`**: Browse h1, Commission Room h1, My Account h1/h2s, Your Feed h1, Workshop h1, Messages h1, Listing detail "About this piece" / "Details" / "You might also like" h2s, Dashboard h2s
 
 ### Card Image Standards
@@ -977,7 +977,7 @@ All optional email sends are wrapped with `shouldSendEmail`. Order/new-sale, shi
 - Accepts `popularTags: string[]` prop; duplicates all form state from `FilterSidebar`
 - `md:hidden` on the sticky bar; sheet also has `md:hidden` — desktop unaffected
 - **Sort button** added next to Filter button — opens separate small sort-only sheet via `createPortal`; label shows current sort (e.g. "Sort: Newest"); options navigate to `/browse?sort=...` preserving all other params; sort still present inside main Filters sheet too
-- **Sheet sizing reverted to max-h-[85vh] (main filters) and max-h-[50vh] (sort)** — sheets auto-size to content; short sheets look short, long sheets scroll. iOS safe-area inset for home indicator is correct behavior; no pb override needed.
+- **Sheets** (updated 2026-10-27): `max-h-[85dvh]` (filters) and `max-h-[50dvh]` (sort) auto-size to content. Backdrops are `z-[60]` and sheets `z-[61]`, above the site header (`z-[50]`), so the header is dimmed and can't be tapped while a sheet is open. There is no drag handle. Apply/Reset sit in a footer pinned below the scroll area, padded for the iPhone home indicator; Apply submits through `form={filterFormId}`.
 - **Sticky wrapper uses `top-[2px]` + `pt-3`** to prevent button outline clip — pulls bar 2px below viewport top; buttons have `mt-[2px]` for additional inset
 - **Header stacking context raised to `z-[50]`** (was `z-30`) — the `<header>` element itself creates a CSS stacking context; because the drawer backdrop and panel are children of that context, raising the header's z-index is the only way to make them paint above sticky elements (which are z-30 in the root context). Backdrop raised to `z-[1000]`, panel to `z-[1001]` within the header's stacking context.
 
@@ -1400,7 +1400,7 @@ UptimeRobot configured to ping `https://thegrainline.com/api/health` every 10 mi
 - **X close button** — added `relative z-[60]` so it sits above the backdrop overlay
 - **Messages row** — replaced the complex div/MessageIconLink combo with a single `<Link href="/messages">` wrapping a `MessageCircle` icon + "Messages" text. The unread badge is still available on the desktop `MessageIconLink` icon
 - **Drawer styling** (2026-04-02) — `rounded-l-2xl overflow-hidden` on drawer panel; `pb-[calc(1rem+env(safe-area-inset-bottom))]` on bottom avatar container for iPhone home indicator clearance
-- **Signed-out fetch cleanup** (2026-04-02) — `loadMe` replaced with unified `loadAll`; cart and notification fetches only fire when signed in (gates on `/api/me` success) — eliminates 401/404 console noise for signed-out users
+- **Signed-out fetch cleanup** (2026-04-02, tightened 2026-10-27) — `loadAll` waits for Clerk `isLoaded`, shows the guest state (anonymous cart count) without any API call when `isSignedIn` is false, and also treats an `/api/me` 200 with a null `role` as signed out. `/api/me` answers 200 for guests, so its status alone cannot gate the signed-in-only `/api/cart` and `/api/notifications` requests. Closing the mobile menu returns focus to the hamburger when focus was inside the menu or had dropped to `<body>`.
 
 ### Blog now public
 - `/blog` and `/blog/(.*)` added to `isPublic` in `src/middleware.ts`

@@ -136,6 +136,9 @@ export default function VariantSelector({
 
   // All required groups must have a selection for "complete"
   const allSelected = groups.every((g) => selected[g.id]);
+  // The reminder only appears once the buyer has started choosing; on first
+  // load nothing is wrong yet, and the buy buttons validate on click.
+  const anySelected = groups.some((g) => selected[g.id]);
 
   return (
     <div className="min-w-0 space-y-4">
@@ -220,7 +223,7 @@ export default function VariantSelector({
           </div>
         </div>
       ))}
-      {groups.length > 0 && !allSelected && (
+      {groups.length > 0 && anySelected && !allSelected && (
         <p className="text-xs text-amber-700">Please select all options to continue</p>
       )}
     </div>
