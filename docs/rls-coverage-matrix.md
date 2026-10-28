@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-10-24
+Last updated: 2026-10-28
 
 ## Purpose And Scope
 
@@ -8,13 +8,15 @@ This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Candidate-source snapshot scope: 70 Prisma models.
 
 Current candidate source contains 70 Prisma models. The matrix records
-thirty-three with retained Production FORCE evidence and thirty-seven without a
+thirty-four with retained Production FORCE evidence and thirty-six without a
 live RLS activation. Both the public
 `SellerProfile` table and its private companion are policyless FORCE in
 Production with zero direct runtime, staff or `PUBLIC` authority.
 `SupportRequest` is policyless FORCE in Production with zero direct runtime,
 staff or `PUBLIC` authority. `Cart` and `CartItem` are FORCE-hardened with
-owner policies and narrow column-level update grants. The earlier
+owner policies and narrow column-level update grants. `SavedBlogPost` is
+FORCE-hardened with three owner policies, an owner-bound insert guard and no
+ordinary update authority. The earlier
 protected-table inventory is in
 `docs/remaining-rls-table-prioritization-audit-20261012.md`.
 
@@ -312,7 +314,7 @@ completed alternative.
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
-| `SavedBlogPost` | `ACTIVATION_CANDIDATE` | Saved blog post | Owner-only saved state, with public-blog eligibility checked atomically when a save is created | The full domain audit selected simple owner policies. Candidate source centralizes all owner reads/writes/export/deletion, sets transaction-local `app.user_id`, preserves bounded public projections, and adds an owner-bound insert guard for active users and currently public/orderable posts. One combined ENABLE plus FORCE migration retains SELECT/INSERT/DELETE only, removes UPDATE, adds three owner policies, and is covered by current-schema PostgreSQL behavior, concurrency, rollback, source-seal, catalog and protected-release checks. The release also requires Vercel's skew threshold at the compatible deployment and proves a request pinned to the exact predecessor can no longer reach predecessor code. Production remains unchanged until exact-head review, merge and the generic owner-table activation workflow succeed. |
+| `SavedBlogPost` | `RLS_LIVE_FORCE` | Saved blog post | Owner-only saved state, with public-blog eligibility checked atomically when a save is created | Combined ENABLE plus FORCE is live from exact main `5b48f9dc5f67ec002e16929f40b09be7055f9be6` through protected run `40087080209`, which applied only `20261023070000_activate_saved_blog_post_rls`. The retained postflight records three owner policies (`saved_blog_post_owner_select`, `saved_blog_post_owner_insert`, and `saved_blog_post_owner_delete`), the security-definer `grainline_saved_blog_post_insert_guard` trigger, SELECT/INSERT/DELETE but no UPDATE for ordinary runtime, zero staff or `PUBLIC` table access, zero unexpected or column ACLs, and two owner projections. The sanitized evidence records `productionChanged=false` and `containsRowData=false`. |
 | `SellerBroadcast` | `BLOCKED_DESIGN` | Aggregate and fanout | Seller-authored broadcast and recipient fanout metadata | Seller ownership, follower fanout service path and recipient visibility decision |
 | `CommissionRequest` | `BLOCKED_DESIGN` | Commission | Buyer request and location or reference media mixed with seller discovery | Public discovery projection, buyer ownership, location privacy and lifecycle states |
 | `CommissionInterest` | `BLOCKED_DESIGN` | Commission | Seller interest connected to buyer request and optional conversation | Buyer and interested-seller participant rules plus conversation and fanout side effects |
