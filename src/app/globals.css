@@ -433,7 +433,7 @@ input, textarea, select {
     animation: hero-stats-rise 0.9s var(--motion-ease-out) 0.55s backwards;
   }
 
-  /* Listing card photo: fades and sharpens in once it has loaded */
+  /* Listing card photo: fades and settles in once it has loaded */
   .listing-photo[data-photo-state="revealed"] {
     animation: photo-soft-in 0.6s var(--motion-ease-out) backwards;
   }
@@ -465,8 +465,8 @@ input, textarea, select {
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes photo-soft-in {
-  from { opacity: 0; filter: blur(10px); transform: scale(1.05); }
-  to   { opacity: 1; filter: blur(0); transform: scale(1); }
+  from { opacity: 0; transform: scale(1.05); }
+  to   { opacity: 1; transform: scale(1); }
 }
 @keyframes heart-pop {
   0%   { transform: scale(1); }
