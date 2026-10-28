@@ -13,12 +13,13 @@ import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { safeJsonLd } from "@/lib/json-ld";
-import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { Suspense } from "react";
 import { BlogIndexSkeleton } from "@/components/RouteSkeletons";
+import { normalizeSearchQueryParameter } from "@/lib/searchQueryState";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Spotlights, gift guides, build stories, and woodworking education from the Grainline community.";
@@ -58,16 +59,16 @@ async function BlogIndexPageContent({
   searchParams,
 }: BlogIndexPageProps) {
   const sp = await searchParams;
-  const q = truncateText((sp.bq ?? "").trim(), BLOG_SEARCH_QUERY_MAX_CHARS);
+  const q = normalizeSearchQueryParameter(sp.bq, BLOG_SEARCH_QUERY_MAX_CHARS);
   const typeFilter = sp.type ?? "";
   const tagsFilter = sp.tags
     ? sp.tags
         .split(",")
-        .map((tag) => truncateText(tag.trim(), BLOG_TAG_MAX_CHARS))
+        .map((tag) => normalizeSearchQueryParameter(tag, BLOG_TAG_MAX_CHARS))
         .filter(Boolean)
         .slice(0, BLOG_TAG_FILTER_MAX_COUNT)
     : [];
-  const authorFilter = truncateText((sp.author ?? "").trim(), BLOG_AUTHOR_FILTER_MAX_CHARS);
+  const authorFilter = normalizeSearchQueryParameter(sp.author, BLOG_AUTHOR_FILTER_MAX_CHARS);
   const sort = sp.sort ?? (q ? "relevant" : "newest");
   const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const pageSize = 12;

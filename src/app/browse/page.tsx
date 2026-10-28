@@ -20,7 +20,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
+import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
@@ -30,6 +30,7 @@ import {
   sellerPublicListingCards,
   type SellerPublicListingCard,
 } from "@/lib/sellerProfilePublicAccess";
+import { normalizeSearchQueryParameter } from "@/lib/searchQueryState";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -163,7 +164,7 @@ export async function generateMetadata({
   searchParams: Promise<Search>;
 }): Promise<Metadata> {
   const sp = await searchParams;
-  const q = sp.q?.trim() ?? "";
+  const q = normalizeSearchQueryParameter(sp.q, 200);
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
   const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
@@ -241,7 +242,7 @@ async function BrowseContent({
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const q = truncateText(sp.q ?? "", 200);
+  const q = normalizeSearchQueryParameter(sp.q, 200);
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
   const min = sp.min ?? "";
   const max = sp.max ?? "";

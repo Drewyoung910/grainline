@@ -20,6 +20,10 @@ describe("search suggestion state", () => {
     );
   });
 
+  it("removes NUL bytes before database-backed suggestions", () => {
+    assert.equal(normalizeSearchSuggestionQuery("wal\u0000nut"), "walnut");
+  });
+
   it("keeps fuzzy thresholds conservative enough to avoid very weak matches", () => {
     assert.equal(LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY >= 0.35, true);
     assert.equal(BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY >= 0.25, true);
