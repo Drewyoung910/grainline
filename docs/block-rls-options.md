@@ -112,6 +112,8 @@ Required safeguards:
 
 - make block creation plus Follow/StockNotification cleanup one locked atomic
   transition;
+- preserve the current principal rule: the blocker must be active, while a
+  distinct non-deleted target may still be blocked even if suspended;
 - preserve outgoing-only account management and outgoing-only deletion;
 - keep general pair enforcement boolean/undirected;
 - preserve the current export until separate legal review;

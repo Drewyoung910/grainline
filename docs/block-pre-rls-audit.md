@@ -9,7 +9,9 @@ Status: design gate open; no Block RLS or grant change is authorized by this aud
 ## Intended Product Behavior
 
 `Block` is a private, asymmetric safety relationship. An active user may block
-another active user and later remove only the block they created. Either
+another non-deleted user and later remove only the block they created. The
+current product deliberately still permits blocking a suspended target, so a
+security release must not silently change that behavior. Either
 direction makes the pair unavailable to each other across discovery,
 messaging, commissions, favorites, follows, stock notifications, notifications
 and checkout.
@@ -136,7 +138,7 @@ This matches the prior verified deletion-policy decision.
 | Pair unavailable check | active actor | actor plus one target, boolean only | actor-bound fixed operation |
 | Discovery filter targets | active actor | both directions, counterpart IDs only | retain actor-bound target operation |
 | Blocked-account page | active blocker | outgoing newest 50 plus safe card fields | retain actor-bound page |
-| Create block | active blocker | one distinct active target | atomic actor-bound transition |
+| Create block | active blocker | one distinct non-deleted target, including a suspended target | atomic actor-bound transition |
 | Unblock | active blocker | exact actor-created direction | actor-bound delete transition |
 | Notification/fanout filter | source-bound service | exact recipient/related pair | retain source-bound fixed functions |
 | Checkout/order filter | current buyer or signed source event | exact buyer/seller pair | actor-bound preflight plus retained signed final authorities |
@@ -232,7 +234,9 @@ schema and prove at least:
 
 1. ordinary runtime and no-context direct SELECT/INSERT/UPDATE/DELETE fail;
 2. active actor create, duplicate create, unblock and duplicate unblock;
-3. self-block, missing target, deleted target and forged blocker rejection;
+3. self-block, missing target, deleted target, suspended actor and forged
+   blocker rejection, while preserving the current ability to block a
+   suspended non-deleted target;
 4. outgoing account page never returns incoming rows and enforces its reviewed
    bound;
 5. general target filtering returns both directions without revealing
