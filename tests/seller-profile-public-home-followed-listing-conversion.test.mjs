@@ -9,7 +9,7 @@ test("homepage followed-maker listings use the exact listing and seller authorit
   assert.match(home, /sellerPublicFollowerListingTarget\(listing\.id, listing\.sellerId\)/u);
 
   const followedFeed = home.slice(
-    home.indexOf("if (follows.length >= 3)"),
+    home.indexOf("if (followedSellerIds.length >= 3)"),
     home.indexOf("const merged: FromYourMakersItem[]"),
   );
   assert.doesNotMatch(followedFeed, /seller:\s*\{\s*select:/u);
