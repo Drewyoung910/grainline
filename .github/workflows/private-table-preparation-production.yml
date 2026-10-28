@@ -157,7 +157,7 @@ jobs:
           set -euo pipefail
           state="$(node scripts/private-table-preparation-production-inspect.mjs)"
           case "$state" in
-            pending)
+            pending|applied_unrecorded)
               migration="$(node scripts/private-table-preparation-catalog.mjs)"
               echo "pending=$migration" >> "$GITHUB_OUTPUT"
               ;;
@@ -170,11 +170,29 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
-      - name: Apply only the reviewed private-table preparation
+      - name: Apply reviewed preparation transaction outside Prisma's ledger
         if: steps.preflight.outputs.state == 'pending'
+        shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-        run: npx prisma migrate deploy
+          PGSSLROOTCERT: system
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/private-table-preparation-catalog.mjs)"
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+      - name: Record the committed preparation in Prisma's ledger
+        if: >-
+          steps.preflight.outputs.state == 'pending' ||
+          steps.preflight.outputs.state == 'applied_unrecorded'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/private-table-preparation-catalog.mjs)"
+          npx prisma migrate resolve --applied "$migration"
       - name: Read back exact compatible preparation catalog
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

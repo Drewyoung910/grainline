@@ -98,7 +98,14 @@ function fakeClientClass({ applied, predecessorBody = predecessorSource }) {
         return { rows: applied ? [acceptedMigration()] : [] };
       }
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
-        return { rows: [{ columns: 0, functions: 0 }] };
+        return { rows: [{
+          columns: 0,
+          functions: applied
+            ? release.functions.filter(
+                (entry) => entry.predecessorSourceSha256 === undefined,
+              ).length
+            : 0,
+        }] };
       }
       if (sql.includes("pg_catalog.format_type")) return { rows: [] };
       if (sql.includes("procedure.prosrc AS source")) {
