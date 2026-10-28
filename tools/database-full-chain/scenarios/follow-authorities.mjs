@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 
 export const FOLLOW_PREPARATION_MIGRATION =
   "20261028020000_prepare_follow_authorities";
+export const FOLLOW_RLS_MIGRATION =
+  "20261028060000_activate_follow_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -433,4 +435,239 @@ export async function proveFollowPreparedAuthorities({ database, fixture }) {
       WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
     [fixture.unrelated, fixture.otherSellerProfile],
   )).length, 1);
+}
+
+export async function proveFollowRlsAuthorities({ database, fixture }) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'Follow'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: true,
+    rls_forced: true,
+    runtime_select: false,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: false,
+    policy_count: 0,
+  });
+
+  for (const statement of [
+    'SELECT 1 FROM public."Follow" LIMIT 1',
+    `INSERT INTO public."Follow"
+       (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ('follow_direct_denied', '${fixture.directBuyer}',
+             '${fixture.otherSellerProfile}', pg_catalog.clock_timestamp())`,
+    `UPDATE public."Follow" SET "createdAt" = pg_catalog.clock_timestamp()
+      WHERE "followerId" = '${fixture.followerA}'`,
+    `DELETE FROM public."Follow"
+      WHERE "followerId" = '${fixture.followerA}'`,
+  ]) {
+    await assert.rejects(
+      runtimeQuery(database, fixture.directBuyer, statement),
+      (error) => error?.code === "42501",
+      `runtime direct Follow statement must be denied: ${statement}`,
+    );
+  }
+
+  const followId = `${fixture.sideEffectId}_activation_follow`;
+  const created = rowsOf(await runtimeQuery(
+    database,
+    fixture.directBuyer,
+    "SELECT * FROM public.grainline_seller_public_follow_create($1,$2)",
+    [fixture.otherSellerProfile, followId],
+  ));
+  assert.equal(created.length, 1);
+  assert.equal(created[0].resultStatus, "OK");
+  assert.equal(created[0].ownerUserId, fixture.otherSellerUser);
+  assert.equal(created[0].created, true);
+
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(
+      database,
+      fixture.directBuyer,
+      "SELECT * FROM public.grainline_follow_owner_target_ids(1000)",
+    )),
+    [{ sellerProfileId: fixture.otherSellerProfile }],
+  );
+  const publicState = rowsOf(await runtimeQuery(
+    database,
+    fixture.directBuyer,
+    "SELECT * FROM public.grainline_follow_public_state_batch($1::text[])",
+    [[fixture.otherSellerProfile]],
+  ));
+  assert.equal(publicState.length, 1);
+  assert.equal(publicState[0].sellerProfileId, fixture.otherSellerProfile);
+  assert.equal(publicState[0].following, true);
+  assert.equal(Number(publicState[0].followerCount) >= 3, true);
+
+  const replayedDeletionCleanup = rowsOf(await runtimeQuery(
+    database,
+    fixture.deletingSellerUser,
+    "SELECT public.grainline_follow_account_deletion_cleanup($1,$2,1,$3::uuid) AS value",
+    [fixture.sideEffectId, fixture.deletingSellerUser, fixture.claimToken],
+  ));
+  assert.equal(Number(replayedDeletionCleanup[0]?.value ?? -1), 0);
+
+  const removed = rowsOf(await runtimeQuery(
+    database,
+    fixture.directBuyer,
+    "SELECT * FROM public.grainline_seller_public_follow_delete($1)",
+    [fixture.otherSellerProfile],
+  ));
+  assert.equal(removed.length, 1);
+  assert.equal(removed[0].resultStatus, "OK");
+
+  const cascadeFollower = `${fixture.sideEffectId}_cascade_follower`;
+  await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, role, banned, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, 'Follow cascade follower', 'USER', false, $4, $4)`,
+    [
+      cascadeFollower,
+      `clerk_${cascadeFollower}`,
+      `${cascadeFollower}@example.test`,
+      fixture.now,
+    ],
+  );
+  await insertFollow(
+    database,
+    `${fixture.sideEffectId}_cascade_user_follow`,
+    cascadeFollower,
+    fixture.otherSellerProfile,
+    fixture.now,
+  );
+  await database.query('DELETE FROM public."User" WHERE id = $1', [cascadeFollower]);
+  assert.equal(rowsOf(await database.query(
+    'SELECT 1 FROM public."Follow" WHERE "followerId" = $1',
+    [cascadeFollower],
+  )).length, 0, "User deletion must cascade Follow rows under FORCE");
+
+  const cascadeSellerUser = `${fixture.sideEffectId}_cascade_seller_user`;
+  const cascadeSellerProfile = `${fixture.sideEffectId}_cascade_seller_profile`;
+  await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, role, banned, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, 'Follow cascade seller', 'USER', false, $4, $4)`,
+    [
+      cascadeSellerUser,
+      `clerk_${cascadeSellerUser}`,
+      `${cascadeSellerUser}@example.test`,
+      fixture.now,
+    ],
+  );
+  await database.query(
+    `INSERT INTO public."SellerProfile"
+       (id, "userId", "ownerAccountActive", "displayName",
+        "displayNameNormalized", "createdAt", "updatedAt", "chargesEnabled",
+        "stripeAccountSupported")
+     VALUES ($1, $2, true, 'Follow cascade maker', 'follow cascade maker',
+             $3, $3, true, true)`,
+    [cascadeSellerProfile, cascadeSellerUser, fixture.now],
+  );
+  await insertFollow(
+    database,
+    `${fixture.sideEffectId}_cascade_seller_follow`,
+    fixture.followerA,
+    cascadeSellerProfile,
+    fixture.now,
+  );
+  await database.query(
+    'DELETE FROM public."SellerProfile" WHERE id = $1',
+    [cascadeSellerProfile],
+  );
+  assert.equal(rowsOf(await database.query(
+    'SELECT 1 FROM public."Follow" WHERE "sellerProfileId" = $1',
+    [cascadeSellerProfile],
+  )).length, 0, "SellerProfile deletion must cascade Follow rows under FORCE");
+  await database.query('DELETE FROM public."User" WHERE id = $1', [cascadeSellerUser]);
+}
+
+export async function proveFollowRlsRollback({ database, fixture }) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'Follow'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+    policy_count: 0,
+  });
+
+  const rollbackId = `${fixture.sideEffectId}_rollback_direct`;
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.followerA,
+    `INSERT INTO public."Follow"
+       (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ($1, $2, $3, $4)
+     RETURNING id`,
+    [rollbackId, fixture.directBuyer, fixture.otherSellerProfile, fixture.now],
+  )), [{ id: rollbackId }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.followerA,
+    'SELECT id FROM public."Follow" WHERE id = $1',
+    [rollbackId],
+  )), [{ id: rollbackId }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.followerA,
+    `UPDATE public."Follow"
+        SET "createdAt" = '2026-10-28 13:00:00'
+      WHERE id = $1 RETURNING id`,
+    [rollbackId],
+  )), [{ id: rollbackId }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.followerA,
+    'DELETE FROM public."Follow" WHERE id = $1 RETURNING id',
+    [rollbackId],
+  )), [{ id: rollbackId }]);
 }

@@ -115,6 +115,7 @@ export const USER_TABLE = "User";
 export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 export const SUPPORT_REQUEST_TABLE = "SupportRequest";
 export const MAKER_VERIFICATION_TABLE = "MakerVerification";
+export const FOLLOW_TABLE = "Follow";
 export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
 export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
@@ -1508,6 +1509,17 @@ export function makerVerificationRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(MAKER_VERIFICATION_TABLE);
 }
 
+export function followRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(FOLLOW_TABLE) && !policies.has(FOLLOW_TABLE);
+}
+
+export function followRlsForceExpected(inventory) {
+  return followRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -1954,6 +1966,7 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(supportRequestRlsActivationExpected(inventory)
       ? [SUPPORT_REQUEST_TABLE]
       : []),
+    ...(followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
     ...(makerVerificationRlsActivationExpected(inventory)
       ? [MAKER_VERIFICATION_TABLE]
       : []),
@@ -2981,6 +2994,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && supportRequestRlsActivationExpected(inventory)
     )
     || (
+      tableName === FOLLOW_TABLE
+      && followRlsActivationExpected(inventory)
+    )
+    || (
       tableName === MAKER_VERIFICATION_TABLE
       && makerVerificationRlsActivationExpected(inventory)
     )
@@ -3079,6 +3096,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? userRlsForceExpected(inventory)
         : tableName === SUPPORT_REQUEST_TABLE
           ? supportRequestRlsForceExpected(inventory)
+        : tableName === FOLLOW_TABLE
+          ? followRlsForceExpected(inventory)
         : tableName === MAKER_VERIFICATION_TABLE
           ? makerVerificationRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"

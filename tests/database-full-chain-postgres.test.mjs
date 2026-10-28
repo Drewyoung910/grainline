@@ -124,8 +124,11 @@ import {
 } from "../tools/database-full-chain/scenarios/favorite-authorities.mjs";
 import {
   FOLLOW_PREPARATION_MIGRATION,
+  FOLLOW_RLS_MIGRATION,
   proveFollowPredecessorCompatibility,
   proveFollowPreparedAuthorities,
+  proveFollowRlsAuthorities,
+  proveFollowRlsRollback,
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
@@ -526,6 +529,38 @@ test(
               database: adapter,
               connectionString: proofDatabaseUrl,
               fixture: favoriteFixture,
+            });
+          }
+          if (artifact.name === FOLLOW_RLS_MIGRATION) {
+            assert.ok(
+              followFixture,
+              "Follow fixture must exist before its activation proof",
+            );
+            assert.ok(
+              followPreparationPreflightPath,
+              "Follow Production preflight must run before its preparation",
+            );
+            const followPreparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "follow_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "follow-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    followPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(followPreparationPostflight.state, "applied");
+            assert.equal(followPreparationPostflight.catalog.functions.length, 6);
+            await proveFollowPreparedAuthorities({
+              database: adapter,
+              fixture: followFixture,
             });
           }
         },
@@ -1067,7 +1102,26 @@ test(
         followFixture,
         "Follow predecessor fixture must be seeded before preparation",
       );
-      await proveFollowPreparedAuthorities({
+      await proveFollowRlsAuthorities({
+        database: adapter,
+        fixture: followFixture,
+      });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/follow-activation-rollback.sql"),
+        "utf8",
+      ));
+      await proveFollowRlsRollback({
+        database: adapter,
+        fixture: followFixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${FOLLOW_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveFollowRlsAuthorities({
         database: adapter,
         fixture: followFixture,
       });

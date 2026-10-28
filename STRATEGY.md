@@ -3566,3 +3566,16 @@ order. The complete PostgreSQL 17 proof covers primary Member/Master behavior,
 ACLs, deletion and two-session owner/staff plus owner/cron races. Activation
 remains separate and blocked on the full transition/queue/denial matrix and
 tested predecessor rollback; no current candidate changes RLS or table grants.
+
+### Follow RLS fixed-operation boundary (2026-10-28)
+
+Use zero ordinary runtime table authority for `Follow`, rather than generic
+owner policies or a maintained public counter. Preserve raw current-row counts
+as a distinct contract from eligible notification/broadcast audiences, retain
+the shared Block/follow pair-lock order, and expose only bounded public, owner,
+seller-owner, fanout, broadcast, cleanup and export operations. Compatible
+preparation releases before the application. The isolated activation combines
+policyless ENABLE plus FORCE and must preserve database-first rollback,
+account-deletion cleanup and User/SellerProfile cascades. Preparation,
+compatible deployment, skew drain and Production activation remain separate
+reviewed gates; this decision is not standing Production authorization.
