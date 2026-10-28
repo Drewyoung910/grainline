@@ -10,10 +10,12 @@ the marketplace intentionally consumes cross-user counts.
 ## Selected Compatible Boundary
 
 The isolated candidate selects Option B's maintained Listing projection for
-the raw public count and popular ordering. It goes one step narrower during
-preparation by converting every current Favorite caller to eight bounded
-operations; this leaves the final activation free to choose owner policies or
-zero direct runtime table authority without another application rewrite.
+the raw public count and popular ordering. Preparation converts every current
+Favorite caller to eight bounded operations. The activation candidate keeps
+direct owner SELECT and DELETE,
+but deliberately withholds INSERT and UPDATE. New rows continue through the
+atomic guarded add function so a direct table insert cannot bypass the active
+actor, public-target, self-favorite, reciprocal-block and lock-order checks.
 Quality-score eligibility remains on its stricter existing authority, while
 the new scalar deliberately preserves raw current-row counter semantics.
 
@@ -23,7 +25,7 @@ preparation migration, or a Production run.
 
 ## Option A: Owner Policies Plus Dynamic Aggregate Functions
 
-Use owner SELECT/INSERT/DELETE policies on Favorite. Convert every owner caller
+Use owner SELECT/DELETE policies on Favorite. Convert every owner caller
 to transaction-local context. Keep raw rows private and replace public/seller
 counts with fixed security-definer aggregate functions.
 
@@ -48,7 +50,8 @@ aggregate queries.
 
 ## Option B: Owner Policies Plus A Maintained Public Count Projection
 
-Use owner SELECT/INSERT/DELETE policies for private Favorite rows. Add a
+Use owner SELECT/DELETE policies for private Favorite rows, while retaining a
+fixed guarded add operation as the sole ordinary-runtime insert boundary. Add a
 non-negative raw current-favorite count to the public Listing projection,
 backfill it, and maintain it transactionally on Favorite insert/delete. Convert
 owner state, export and cleanup to bounded operations. Keep the existing
@@ -128,7 +131,7 @@ Option C and avoids moving the entire browse query into SQL as Option A would.
 The required safeguards are:
 
 - one atomic guarded add/remove boundary;
-- owner-only SELECT/INSERT/DELETE, no UPDATE;
+- owner-only SELECT/DELETE, no direct INSERT or UPDATE;
 - a non-negative count invariant;
 - deny ordinary runtime writes to `Listing.favoriteCount` and prove that only
   the reviewed Favorite maintenance trigger can change the projection;
@@ -138,6 +141,10 @@ The required safeguards are:
 - a bounded drift detector and documented rebuild procedure;
 - full-chain PostgreSQL race and rollback tests before activation.
 
-Do not implement the migration or authority conversion until this option is
-accepted. Preparation and activation should remain one tightly reviewed group,
-but production activation still requires its own exact approval.
+The compatible preparation and isolated activation candidate now implement
+this shape. The activation candidate passes the complete 438-migration
+PostgreSQL 17 chain, final runtime/no-context/cross-user denial, both FK
+cascades, rollback to the compatible predecessor, and reactivation. That is
+source and disposable-database evidence only; production activation still
+requires a compatible deployed predecessor, skew drain, exact-head review and
+its own explicit approval.
