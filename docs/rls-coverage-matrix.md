@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-10-24
+Last updated: 2026-10-28
 
 ## Purpose And Scope
 
@@ -8,13 +8,14 @@ This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Candidate-source snapshot scope: 70 Prisma models.
 
 Current candidate source contains 70 Prisma models. The matrix records
-thirty-three with retained Production FORCE evidence and thirty-seven without a
+thirty-four with retained Production FORCE evidence and thirty-six without a
 live RLS activation. Both the public
 `SellerProfile` table and its private companion are policyless FORCE in
 Production with zero direct runtime, staff or `PUBLIC` authority.
 `SupportRequest` is policyless FORCE in Production with zero direct runtime,
-staff or `PUBLIC` authority. `Cart` and `CartItem` are FORCE-hardened with
-owner policies and narrow column-level update grants. The earlier
+staff or `PUBLIC` authority. `Cart`, `CartItem`, and `SavedBlogPost` are
+FORCE-hardened with owner policies and deliberately narrow mutation grants.
+The earlier
 protected-table inventory is in
 `docs/remaining-rls-table-prioritization-audit-20261012.md`.
 
@@ -312,7 +313,7 @@ completed alternative.
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
 | `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
-| `SavedBlogPost` | `ACTIVATION_CANDIDATE` | Saved blog post | Owner-only saved state, with public-blog eligibility checked atomically when a save is created | The full domain audit selected simple owner policies. Candidate source centralizes all owner reads/writes/export/deletion, sets transaction-local `app.user_id`, preserves bounded public projections, and adds an owner-bound insert guard for active users and currently public/orderable posts. One combined ENABLE plus FORCE migration retains SELECT/INSERT/DELETE only, removes UPDATE, adds three owner policies, and is covered by current-schema PostgreSQL behavior, concurrency, rollback, source-seal, catalog and protected-release checks. The release also requires Vercel's skew threshold at the compatible deployment and proves a request pinned to the exact predecessor can no longer reach predecessor code. Production remains unchanged until exact-head review, merge and the generic owner-table activation workflow succeed. |
+| `SavedBlogPost` | `RLS_LIVE_FORCE` | Saved blog post | Owner-only saved state, with public-blog eligibility checked atomically when a save is created | Combined ENABLE plus FORCE migration `20261023070000_activate_saved_blog_post_rls` is live from exact main `5b48f9dc5f67ec002e16929f40b09be7055f9be6` through protected run `40087080209`. Production retains owner SELECT, INSERT and DELETE only, no UPDATE authority, exactly three owner policies, and the runtime-private insert guard for active owners and currently public/orderable posts. The release completed its exact-deployment, predecessor-drain, current-schema PostgreSQL behavior, concurrency, rollback, source-seal, catalog and postflight checks. |
 | `SellerBroadcast` | `BLOCKED_DESIGN` | Aggregate and fanout | Seller-authored broadcast and recipient fanout metadata | Seller ownership, follower fanout service path and recipient visibility decision |
 | `CommissionRequest` | `BLOCKED_DESIGN` | Commission | Buyer request and location or reference media mixed with seller discovery | Public discovery projection, buyer ownership, location privacy and lifecycle states |
 | `CommissionInterest` | `BLOCKED_DESIGN` | Commission | Seller interest connected to buyer request and optional conversation | Buyer and interested-seller participant rules plus conversation and fanout side effects |
@@ -834,8 +835,7 @@ preparation evidence, not a live-status change.
 
 ## Verified Source Preparation
 
-The current source already centralizes ordinary owner operations for three
-future groups:
+The current source centralizes ordinary owner operations for three groups:
 
 - `Notification` owner reads and mark-read updates use
   `src/lib/notificationOwnerAccess.ts`.
@@ -850,11 +850,11 @@ Notification and Cart helpers require branded transaction-local user context,
 and their cross-user or service paths target fixed-purpose functions. The Cart
 candidate also removes the mutable CartItem fallback from legacy stock restore;
 durable CheckoutStockReservation state remains the recovery authority.
-SavedBlogPost still remains an unapplied candidate. Notification prelaunch inspection and the
-atomic activation purge,
-recipient RPC real-table/provider proof, policy/grant activation, and every later group's
-service paths remain explicit work. Centralization and draft wiring are
-preparation, not active RLS or staging proof.
+SavedBlogPost's combined ENABLE plus FORCE activation is live. Notification's
+prelaunch inspection, atomic activation purge, recipient RPC real-table/provider
+proof, policy/grant activation, and every later group's service paths remain
+explicit work. For groups that are not yet live, centralization and draft wiring
+are preparation, not active RLS or staging proof.
 
 ## Future Saved-Search Match Alerts
 
@@ -1001,7 +1001,6 @@ preclude a later reviewed policy or grant migration.
    deployment and smoke plus conversion of every remaining direct consumer
    precede predecessor drain and separate ENABLE/FORCE releases.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
-   retains high sensitive-data priority; Cart/CartItem,
-   SavedBlogPost, aggregate/fanout, public/private split and service-ledger
+   retains high sensitive-data priority; aggregate/fanout, public/private split and service-ledger
    groups remain required and must not be silently dropped or bundled into the
    messaging activation.
