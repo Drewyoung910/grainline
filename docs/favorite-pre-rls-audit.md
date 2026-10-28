@@ -2,7 +2,7 @@
 
 Date: 2026-10-28  
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`  
-Status: compatible preparation proved; no Favorite RLS or table-grant change is authorized yet
+Status: compatible preparation proved; isolated combined ENABLE/FORCE activation candidate proved; no Production activation is authorized
 
 ## Intended Product Behavior
 
@@ -250,7 +250,29 @@ routes reject malformed listing ids before database access.
 `GO` for independent review and the additive preparation release only. The
 preparation migration must run before the compatible application deploys,
 because the converted app calls its new functions and reads `favoriteCount`.
-`NO-GO` remains for Favorite RLS/table-grant activation until a separate
-activation migration proves runtime/no-context/cross-user denial, final policy
-and ACL posture, rollback to the compatible predecessor, skew drain and an
-exact-head release review. No column deletion belongs in that activation.
+
+The separate migration `20261028050000_activate_favorite_rls` is now an
+isolated activation candidate. It creates exact owner SELECT and DELETE
+policies, withholds direct INSERT and UPDATE, keeps guarded add as the only
+ordinary-runtime insert path, revokes predecessor broad grants, and combines
+ENABLE plus FORCE. The complete 438-migration PostgreSQL 17 proof demonstrates
+final runtime/no-context/cross-user isolation, guarded add without direct
+INSERT, direct UPDATE denial, owner delete, maintained projection counts,
+User/Listing cascades under FORCE, the database-first rollback, and exact
+reactivation after rollback.
+
+The activation preflight also pins the exact table columns, primary/index and
+two cascading-FK identities, all three trigger identities, all eleven reviewed
+function bodies and their owner/SECURITY DEFINER/search-path/volatility shape,
+the predecessor grants, and zero projection drift. It takes only the Favorite
+ACCESS EXCLUSIVE table lock: holding Listing while waiting for Favorite would
+invert the order used by the count trigger, while holding Favorite before
+Listing would invert the order used by Listing cascades. Freezing Favorite
+alone waits for each in-flight trigger transaction to finish and prevents both
+deadlock shapes while the projection is checked.
+
+`NO-GO` remains for Production activation until the preparation migration and
+compatible application are live, predecessor traffic is drained, the shared
+activation catalog/workflow is extended from current main, exact-head CI and
+independent review pass, and Drew explicitly approves the named Production
+workflow/commit/migration/effect. No column deletion belongs in that release.
