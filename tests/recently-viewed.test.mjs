@@ -56,7 +56,8 @@ describe("recently viewed cookie helpers", () => {
   });
 
   it("returns and renders saved state for recently viewed favorite buttons", () => {
-    assert.match(recentlyViewedRoute, /prisma\.favorite\.findMany/);
+    assert.match(recentlyViewedRoute, /ownerFavoriteListingIds\(meId, orderedIds\)/);
+    assert.doesNotMatch(recentlyViewedRoute, /prisma\.favorite/);
     assert.match(recentlyViewedRoute, /saved: savedListingIds\.has\(r\.id\)/);
     assert.match(recentlyViewedComponent, /<FavoriteButton listingId=\{l\.id\} initialSaved=\{l\.saved\} \/>/);
   });

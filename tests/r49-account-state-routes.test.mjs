@@ -162,7 +162,12 @@ describe("R49 account-state route guardrails", () => {
 
   it("prevents blocked users from creating favorite notifications", () => {
     const text = source("src/app/api/favorites/route.ts");
-    const migration = source("prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql");
+    const migrationRoot = process.env.FAVORITE_PREPARATION_MIGRATION_PATH;
+    const migration = source(
+      migrationRoot
+        ? `${migrationRoot}/migration.sql`
+        : "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql",
+    );
 
     assert.match(text, /addOwnerFavorite\(me\.id, listingId\)/);
     assert.match(text, /favorite\.resultStatus === "BLOCKED"/);
