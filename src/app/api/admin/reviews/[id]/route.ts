@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { logAdminActionOrThrow } from "@/lib/audit";
@@ -6,6 +7,7 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 
 export async function DELETE(
   _request: Request,
@@ -45,5 +47,7 @@ export async function DELETE(
       metadata: { listingId: review.listingId, reviewerId: review.reviewerId },
     });
   });
+  revalidateFeaturedMakerCaches();
+  revalidatePath(`/listing/${review.listingId}`);
   return privateJson({ ok: true });
 }

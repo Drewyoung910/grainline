@@ -4144,6 +4144,31 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-1194/C-1195/C-1197/C-1198 review and discovery integrity
+
+- **[FIX PREPARED; NOT YET MERGED OR DEPLOYED]** A retained rating-summary row
+  with `reviewCount = 0` previously supplied its stored zero as a real zero-star
+  rating, so removing a seller's last review ranked them below a seller who
+  retained a one-star review. The candidate treats every zero-review seller as
+  unrated and uses the marketplace rating baseline, matching the already-used
+  behavior when no summary row exists. Bayesian weighting of small nonzero
+  review samples remains a separate product-ranking decision.
+- Click-through rate previously accepted values above 100 percent, allowing
+  click-only traffic to consume the formula's maximum CTR weight and drive the
+  total score to its cap. The candidate bounds raw CTR to `[0, 1]` before its
+  existing dampening step. Failing-first behavior tests reproduce both defects
+  on the predecessor and pass after the two formula corrections. The complete
+  quality-score behavior suite, TypeScript, focused lint and whitespace checks
+  pass. Exact CI, review, merge and deployment remain separate gates.
+- **C-1197:** deleting a review through the admin moderation route now
+  invalidates the featured-maker cache and affected listing page after the
+  transaction commits, matching buyer-owned review update and deletion paths.
+- **C-1198:** review creation now rejects the request when upload-persistence
+  verification removes any requested photo instead of silently publishing the
+  review with fewer photos. Review editing already enforced this contract. A
+  behavior test covers complete and incomplete verification results; the
+  existing cache-invalidation guardrail now includes staff review deletion.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

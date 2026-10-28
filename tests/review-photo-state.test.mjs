@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { appendReviewPhotoUrl, normalizeReviewPhotoUrls } = await import("../src/lib/reviewPhotoState.ts");
+const {
+  appendReviewPhotoUrl,
+  normalizeReviewPhotoUrls,
+  reviewPhotoSelectionIsComplete,
+} = await import("../src/lib/reviewPhotoState.ts");
 
 describe("review photo client state", () => {
   it("dedupes and caps submitted review photos", () => {
@@ -24,5 +28,10 @@ describe("review photo client state", () => {
       appendReviewPhotoUrl(["a"], "b", 2),
       { urls: ["a", "b"], status: "added" },
     );
+  });
+
+  it("rejects review creation when persistence verification drops a requested photo", () => {
+    assert.equal(reviewPhotoSelectionIsComplete(["a", "b"], ["a", "b"]), true);
+    assert.equal(reviewPhotoSelectionIsComplete(["a", "b"], ["a"]), false);
   });
 });

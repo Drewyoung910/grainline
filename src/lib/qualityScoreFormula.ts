@@ -62,11 +62,16 @@ export function scoreQualityRow(
     (engagementViews * rawConversion + DAMPENING_C * globals.avgConversion) /
     (engagementViews + DAMPENING_C);
 
-  const rawCtr = engagementViews > 0 ? clicks / engagementViews : 0;
+  const rawCtr = engagementViews > 0
+    ? Math.min(1, Math.max(0, clicks / engagementViews))
+    : 0;
   const dampenedCtr =
     (engagementViews * rawCtr + DAMPENING_C * globals.avgCtr) / (engagementViews + DAMPENING_C);
 
-  const rating = row.sellerAvgRating ?? globals.avgRating;
+  const sellerReviews = Number(row.sellerReviewCount ?? 0);
+  const rating = sellerReviews > 0
+    ? row.sellerAvgRating ?? globals.avgRating
+    : globals.avgRating;
   const sellerRating = Math.min(1, Math.max(0, rating / 5));
   const favNorm = favoriteSignal(favs, clicks, orders);
 
@@ -91,7 +96,6 @@ export function scoreQualityRow(
         ? 0.15 * (1.0 - (ageInDays - 14) / 16)
         : 0;
 
-  const sellerReviews = Number(row.sellerReviewCount ?? 0);
   const sellerAgeDays = Math.max(
     0,
     (now - new Date(row.sellerCreatedAt).getTime()) / (1000 * 60 * 60 * 24),
