@@ -91,7 +91,7 @@ test("review queue explains an approve or reject that the server skipped", () =>
 test("admin blog queue states when it shows fewer pending comments than the badge", () => {
   const page = source("src/app/admin/blog/page.tsx");
   assert.match(page, /const PENDING_COMMENT_LIMIT = 30;/);
-  assert.match(page, /take: PENDING_COMMENT_LIMIT/);
+  assert.match(page, /take: PENDING_COMMENT_LIMIT \+ 1/);
   assert.match(page, /pendingCommentQueueFull \? `\$\{PENDING_COMMENT_LIMIT\}\+` : pendingComments\.length/);
   assert.doesNotMatch(page, /\{pendingComments\.length\}\s*<\/span>/);
   // The View link renders only through the public-visibility check.

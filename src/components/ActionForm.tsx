@@ -2,8 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-
-const SAVED_NOTICE_MS = 3000;
+import { emitToast } from "@/components/Toast";
 
 export function SubmitButton({
   children,
@@ -63,9 +62,6 @@ export default function ActionForm({
   preserveOnError?: boolean;
 }) {
   const [state, formAction] = useActionState(action, { ok: false });
-  // 0 hides the saved notice; each success bumps it so a repeat save remounts
-  // (and re-announces) the notice instead of silently extending it.
-  const [savedNotice, setSavedNotice] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const lastSubmissionRef = useRef<Array<[string, FormDataEntryValue]> | null>(null);
@@ -77,9 +73,8 @@ export default function ActionForm({
         detail: { formId },
       }));
 
-      setSavedNotice((current) => current + 1);
-      const t = setTimeout(() => setSavedNotice(0), SAVED_NOTICE_MS);
-      return () => clearTimeout(t);
+      // The site toast announces it and stacks with any other toast.
+      emitToast("Saved", "success");
     }
   }, [id, state]);
 
@@ -122,22 +117,6 @@ export default function ActionForm({
 
   return (
     <>
-      {/* Always mounted so screen readers announce the notice when it appears;
-          matches the site toast placement (top on mobile, bottom-right on desktop). */}
-      <div
-        role="status"
-        aria-live="polite"
-        className="pointer-events-none fixed left-4 right-4 top-[calc(1rem+env(safe-area-inset-top))] z-[9999] sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-4 sm:top-auto"
-      >
-        {savedNotice > 0 && (
-          <div
-            key={savedNotice}
-            className="animate-slide-down rounded-md bg-green-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg sm:min-w-72"
-          >
-            Saved
-          </div>
-        )}
-      </div>
       <form
         ref={formRef}
         action={formAction}

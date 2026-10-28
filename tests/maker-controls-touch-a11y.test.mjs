@@ -57,7 +57,7 @@ describe("maker dashboard control sizing and state announcements (#1245, #1247, 
     assert.doesNotMatch(statusTabs, /py-0\.5/);
 
     assert.match(tags, /aria-label=\{`Remove \$\{t\}`\}/);
-    assert.match(tags, /h-6 w-6[^"]*pointer-coarse:h-11 pointer-coarse:w-11/);
+    assert.match(tags, /h-6 w-6[^"]*pointer-coarse:after:absolute pointer-coarse:after:-inset-2\.5/);
     assert.doesNotMatch(tags, /className="rounded-full px-1 hover:bg-neutral-200"/);
 
     assert.equal(blog.match(/min-h-\[30px\][^"]*pointer-coarse:min-h-11"/g)?.length, 4);

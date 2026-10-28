@@ -4216,7 +4216,7 @@ All three order list pages (buyer dashboard, seller sales, account orders) now s
   and staged in `photoManifestJson`; it is saved only when the parent listing
   edit form submits to `updateListing`. There is no separate "Save alt texts"
   server action on the edit page.
-- **ActionForm** — `id` prop support added for form-attribute linking. Since 2026-10-27, only the submit button that sent the form shows its pending label (matched by the button's name/value in `useFormStatus().data`); all stay disabled. Server errors render at the end of the form beside the submit buttons with `role="alert"`, scroll into view, and take focus only when focus had dropped to `<body>`. The "Saved" notice is an always-mounted `role="status"` region shown for 3s.
+- **ActionForm** — `id` prop support added for form-attribute linking. Since 2026-10-27, the pending label follows the submitter recorded in `useFormStatus().data`: when a form's submit buttons share one `name` with different `value`s, only the clicked one shows its pending label; an unnamed button, or buttons with different names, all show it. All stay disabled. Give a form's submit buttons one shared name when they need distinct pending labels. Server errors render at the end of the form beside the submit buttons with `role="alert"`, scroll into view, and take focus only when focus had dropped to `<body>`. Success shows "Saved" through the site toast (`emitToast("Saved", "success")`).
 
 ## Site-Wide Border Audit + Final Fixes (2026-04-22)
 

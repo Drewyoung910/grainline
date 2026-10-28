@@ -896,7 +896,7 @@ async function SellerPublicContent({
               <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Stories from the Workshop</h2>
               <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
                 {sellerBlogPosts.map((p) => (
-                  <li key={p.slug} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0 transition-transform hover:-translate-y-1 duration-200">
+                  <li key={p.slug} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0 transition-[transform,box-shadow] hover:-translate-y-1 duration-200">
                     <Link href={`/blog/${p.slug}`} className="block">
                       <div className="aspect-[16/9] bg-neutral-100 overflow-hidden">
                         {p.coverImageUrl ? (

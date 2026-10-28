@@ -44,7 +44,9 @@ describe("header signed-out requests and anonymous cart badge (UI-01 / #287)", (
     const signedOutState = between(loadAll, "const showSignedOutState = () => {", "};");
     assert.match(signedOutState, /loadAnonymousCartCount\(\);/);
     assert.match(signedOutState, /setIsLoggedIn\(false\);/);
-    assert.match(header, /if \(isLoggedIn\) loadCartCount\(\);\s*else loadAnonymousCartCount\(\);/);
+    // After a cart change Clerk decides which cart to count, so a signed-in
+    // user can't get stuck on the guest count.
+    assert.match(header, /if \(isSignedIn\) loadCartCount\(\);\s*else loadAnonymousCartCount\(\);/);
   });
 });
 
@@ -194,8 +196,8 @@ describe("branded root error page (UI-09)", () => {
     assert.match(page, /<meta name="robots" content="noindex, nofollow" \/>/);
     assert.match(page, /background: "#F7F5F0"/);
     assert.match(page, /fontFamily: "Georgia, 'Times New Roman', serif"/);
-    assert.match(page, /reset,\s*\}: \{/);
-    assert.match(page, /onClick=\{reset\}[\s\S]*?Try again/);
+    assert.match(page, /reset,\s*retry,\s*\}: \{/);
+    assert.match(page, /onClick=\{\(\) => \(retry \? retry\(\) : reset\(\)\)\}[\s\S]*?Try again/);
     assert.match(page, /<a\s+href="\/"[\s\S]*?background: "#2C1F1A"[\s\S]*?Go home/);
     assert.match(page, /Sentry\.captureException\(error\)/);
   });

@@ -23,6 +23,7 @@ function loadTsx(path) {
     if (specifier === "react/jsx-runtime") return require("react/jsx-runtime");
     if (specifier === "react-dom") return require("react-dom");
     if (specifier === "@/components/icons") return loadTsx("src/components/icons/index.tsx");
+    if (specifier === "@/components/Toast") return { emitToast: () => {} };
     if (specifier === "next/link") {
       return { __esModule: true, default: ({ href, children, ...rest }) => React.createElement("a", { href, ...rest }, children) };
     }
@@ -68,7 +69,7 @@ test("DismissibleBanner keeps dismissible banners out of server HTML and uses a 
   assert.match(forced, /<svg/);
 });
 
-test("ActionForm mounts a polite status region and renders errors as an alert after the submit buttons", () => {
+test("ActionForm announces saves through the site toast and renders errors as an alert after the submit buttons", () => {
   const { default: ActionForm, SubmitButton } = loadTsx("src/components/ActionForm.tsx");
   const html = renderToString(
     React.createElement(
@@ -78,11 +79,11 @@ test("ActionForm mounts a polite status region and renders errors as an alert af
       React.createElement(SubmitButton, { name: "saveAsDraft", value: "true", pendingLabel: "Saving draft…" }, "Save as Draft"),
     ),
   );
-  assert.match(html, /<div role="status" aria-live="polite"/);
   assert.doesNotMatch(html, /Saving draft…|Publishing…/);
 
   // The error banner belongs inside the form, after the caller's buttons.
   const source = readFileSync("src/components/ActionForm.tsx", "utf8");
+  assert.match(source, /emitToast\("Saved", "success"\)/);
   assert.match(source, /\{children\}\s*\{state\?\.error && \(\s*<div\s+ref=\{errorRef\}\s+role="alert"\s+tabIndex=\{-1\}/);
   assert.match(source, /const \{ pending, data \} = useFormStatus\(\)/);
   assert.match(source, /data\.getAll\(name\)\.includes\(value \?\? ""\)/);

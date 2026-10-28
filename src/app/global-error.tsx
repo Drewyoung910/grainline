@@ -9,9 +9,13 @@ import { useEffect } from "react";
 export default function GlobalError({
   error,
   reset,
+  retry,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
+  // Next 16.4 passes retry(), which re-fetches before re-rendering; reset()
+  // alone re-renders the same failed server payload.
+  retry?: () => void;
 }) {
   useEffect(() => {
     Sentry.captureException(error);
@@ -57,7 +61,7 @@ export default function GlobalError({
           <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
             <button
               type="button"
-              onClick={reset}
+              onClick={() => (retry ? retry() : reset())}
               style={{
                 minHeight: 44,
                 padding: "0.5rem 1rem",

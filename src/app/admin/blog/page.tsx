@@ -155,16 +155,18 @@ export default async function AdminBlogPage() {
     },
   });
 
-  const pendingComments = await prisma.blogComment.findMany({
+  const pendingCommentRows = await prisma.blogComment.findMany({
     where: { approved: false },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: PENDING_COMMENT_LIMIT,
+    take: PENDING_COMMENT_LIMIT + 1,
     select: {
       id: true, body: true, createdAt: true,
       authorId: true,
       post: { select: { title: true, slug: true } },
     },
   });
+  const pendingCommentQueueFull = pendingCommentRows.length > PENDING_COMMENT_LIMIT;
+  const pendingComments = pendingCommentRows.slice(0, PENDING_COMMENT_LIMIT);
   const commentAuthorLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
     actorId: staff.id,
     userIds: [
@@ -174,7 +176,6 @@ export default async function AdminBlogPage() {
   });
   const commentAuthorById = new Map(commentAuthorLabels.map((label) => [label.id, label]));
 
-  const pendingCommentQueueFull = pendingComments.length >= PENDING_COMMENT_LIMIT;
   const now = new Date();
 
   // A PUBLISHED post still 404s publicly while it is scheduled or its author

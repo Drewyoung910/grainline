@@ -377,7 +377,7 @@ export default function Header() {
   React.useEffect(() => {
     const onUpdated = () => {
       cartCountBeforeChangeRef.current = cartCountRef.current;
-      if (isLoggedIn) loadCartCount();
+      if (isSignedIn) loadCartCount();
       else loadAnonymousCartCount();
     };
     return subscribeCartUpdated(onUpdated);
