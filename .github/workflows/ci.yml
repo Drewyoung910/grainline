@@ -300,6 +300,14 @@ jobs:
           tests/request-origin-guard.test.mjs
           tests/rls-feasibility-plan.test.mjs
           tests/seller-profile-favorite-target-route.test.mjs
+      - name: Verify Follow preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/rls-feasibility-plan.test.mjs
+          tests/seller-page-performance.test.mjs
       - name: Isolate Favorite preparation until historical release guards pass
         shell: bash
         run: |
@@ -309,6 +317,15 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "FAVORITE_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Isolate Follow preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/follow-preparation"
+          migration=20261028020000_prepare_follow_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "FOLLOW_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Isolate email delivery-ledger preparation until historical release guards pass
         shell: bash
         run: |
@@ -6864,6 +6881,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "FAVORITE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Follow preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/follow-preparation"
+          migration=20261028020000_prepare_follow_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "FOLLOW_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
