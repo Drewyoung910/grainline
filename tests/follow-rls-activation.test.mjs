@@ -49,6 +49,14 @@ test("Follow activation pins every installed cross-domain reader", () => {
     assert.match(migration, new RegExp(`public\\.${identity}\\(`, "u"));
   }
   assert.match(migration, /Follow has an unreviewed function reader/u);
+  assert.match(
+    migration,
+    /Follow has an unreviewed function reader after activation/u,
+  );
+  assert.equal(
+    (migration.match(/pg_catalog\.md5\(procedure\.prosrc\)/gu) ?? []).length,
+    2,
+  );
 });
 
 test("Follow rollback restores compatible CRUD before disabling RLS", () => {

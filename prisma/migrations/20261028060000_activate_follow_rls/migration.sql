@@ -308,6 +308,9 @@ DECLARE
   table_oid oid;
   table_owner oid;
   reviewed_function text;
+  expected_source_md5 text;
+  expected_volatility "char";
+  expected_runtime_execute boolean;
 BEGIN
   SELECT oid INTO runtime_oid
     FROM pg_catalog.pg_roles
@@ -370,25 +373,31 @@ BEGIN
     RAISE EXCEPTION 'Follow table ACL drifted';
   END IF;
 
-  FOREACH reviewed_function IN ARRAY ARRAY[
-    'public.grainline_follow_account_deletion_cleanup(text,text,bigint,uuid)',
-    'public.grainline_follow_owner_outgoing_count()',
-    'public.grainline_follow_owner_target_ids(integer)',
-    'public.grainline_follow_public_state_batch(text[])',
-    'public.grainline_follow_seller_owner_incoming_count()',
-    'public.grainline_seller_actor_account_feed_cards(text[])',
-    'public.grainline_seller_owner_follow_export()',
-    'public.grainline_seller_owner_following_count()',
-    'public.grainline_seller_owner_following_page(integer,integer)',
-    'public.grainline_seller_public_follow_create(text,text)',
-    'public.grainline_seller_public_follow_delete(text)',
-    'public.grainline_seller_public_follow_state(text)',
-    'public.grainline_seller_public_metro_makers(text,boolean,integer)',
-    'public.grainline_seller_public_similar_makers(text,integer)',
-    'public.grainline_user_block_follow_cleanup(text)',
-    'public.grainline_user_follower_notification_page(text,text,integer)',
-    'public.grainline_user_owner_broadcast_follower_page(text,text,integer,boolean)'
-  ] LOOP
+  FOR reviewed_function, expected_source_md5, expected_volatility,
+      expected_runtime_execute IN
+    SELECT expected.identity, expected.source_md5, expected.volatility,
+           expected.runtime_execute
+      FROM (VALUES
+        ('public.grainline_follow_account_deletion_cleanup(text,text,bigint,uuid)', '20d0a97a9c79ea5f071b9401182624a0', 'v'::"char", true),
+        ('public.grainline_follow_owner_outgoing_count()', 'a4e8d1fc10a4593b544b897ea8bc8443', 's'::"char", true),
+        ('public.grainline_follow_owner_target_ids(integer)', '01a14940a6dd29f877828737b8f7635a', 's'::"char", true),
+        ('public.grainline_follow_public_state_batch(text[])', '356fba4afac454f4d2bace4a02fadca7', 's'::"char", true),
+        ('public.grainline_follow_seller_owner_incoming_count()', 'a413e9faf1a31784b151973b69a6a38d', 's'::"char", true),
+        ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", false),
+        ('public.grainline_seller_actor_account_feed_cards(text[])', '566d9d330a5be2c09833f3a71c5b686d', 's'::"char", true),
+        ('public.grainline_seller_owner_follow_export()', '7c86080194edaf57ee2dabbd5bc5278d', 's'::"char", true),
+        ('public.grainline_seller_owner_following_count()', 'a3fe8257c06914f261184c52f506aa2a', 's'::"char", true),
+        ('public.grainline_seller_owner_following_page(integer,integer)', '8bb4451e9188141401efb97fd1ec0d7b', 's'::"char", true),
+        ('public.grainline_seller_public_follow_create(text,text)', 'd0693e5b81d867cd5673504522fcdf66', 'v'::"char", true),
+        ('public.grainline_seller_public_follow_delete(text)', '5fc1ec6be1a21e574fb5f341be5f4fda', 'v'::"char", true),
+        ('public.grainline_seller_public_follow_state(text)', 'a5ad09ee4c473aae420121567baec62e', 's'::"char", true),
+        ('public.grainline_seller_public_metro_makers(text,boolean,integer)', 'b71ce80b7fc475ebcf58d284ddb0a617', 's'::"char", true),
+        ('public.grainline_seller_public_similar_makers(text,integer)', 'befb22f0f5371a03804d884db7de40b6', 's'::"char", true),
+        ('public.grainline_user_block_follow_cleanup(text)', '3a7518030c42294660ce9a8be79f24ee', 'v'::"char", true),
+        ('public.grainline_user_follower_notification_page(text,text,integer)', '471b1caf9907d6d370ec1cb8ea5aa718', 's'::"char", true),
+        ('public.grainline_user_owner_broadcast_follower_page(text,text,integer,boolean)', '0986f9362622c2c1e4caaf27ca083308', 's'::"char", true)
+      ) AS expected(identity, source_md5, volatility, runtime_execute)
+  LOOP
     IF NOT EXISTS (
       SELECT 1
         FROM pg_catalog.pg_proc AS procedure
@@ -396,26 +405,52 @@ BEGIN
        WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
          AND procedure.proowner = table_owner
          AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = expected_volatility
+         AND procedure.proparallel = 'u'
          AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
          AND (owner.rolsuper OR owner.rolbypassrls)
-    ) OR NOT pg_catalog.has_function_privilege(
-      'grainline_app_runtime', pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
     ) OR pg_catalog.has_function_privilege(
       0, pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
-    ) THEN
+    ) OR pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      pg_catalog.to_regprocedure(reviewed_function),
+      'EXECUTE'
+    ) IS DISTINCT FROM expected_runtime_execute THEN
       RAISE EXCEPTION 'Follow function posture drifted: %', reviewed_function;
     END IF;
   END LOOP;
-  IF pg_catalog.has_function_privilege(
-    'grainline_app_runtime',
-    'public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)',
-    'EXECUTE'
-  ) OR pg_catalog.has_function_privilege(
-    0,
-    'public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)',
-    'EXECUTE'
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND procedure.prosrc LIKE '%public."Follow"%'
+       AND procedure.oid <> ALL (ARRAY[
+         pg_catalog.to_regprocedure('public.grainline_follow_account_deletion_cleanup(text,text,bigint,uuid)'),
+         pg_catalog.to_regprocedure('public.grainline_follow_owner_outgoing_count()'),
+         pg_catalog.to_regprocedure('public.grainline_follow_owner_target_ids(integer)'),
+         pg_catalog.to_regprocedure('public.grainline_follow_public_state_batch(text[])'),
+         pg_catalog.to_regprocedure('public.grainline_follow_seller_owner_incoming_count()'),
+         pg_catalog.to_regprocedure('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_actor_account_feed_cards(text[])'),
+         pg_catalog.to_regprocedure('public.grainline_seller_owner_follow_export()'),
+         pg_catalog.to_regprocedure('public.grainline_seller_owner_following_count()'),
+         pg_catalog.to_regprocedure('public.grainline_seller_owner_following_page(integer,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_public_follow_create(text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_public_follow_delete(text)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_public_follow_state(text)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_public_metro_makers(text,boolean,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_public_similar_makers(text,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_user_block_follow_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_user_follower_notification_page(text,text,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_user_owner_broadcast_follower_page(text,text,integer,boolean)')
+       ]::oid[])
   ) THEN
-    RAISE EXCEPTION 'Follow notification core became directly executable';
+    RAISE EXCEPTION 'Follow has an unreviewed function reader after activation';
   END IF;
 END
 $grainline_follow_rls_postflight$;
