@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 
 import yaml from "js-yaml";
@@ -19,8 +20,11 @@ const workflow = readFileSync(
   "utf8",
 );
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
+const migrationDirectory =
+  process.env.EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH
+  ?? `prisma/migrations/${MIGRATION}`;
 const migrationSql = readFileSync(
-  `prisma/migrations/${MIGRATION}/migration.sql`,
+  path.join(migrationDirectory, "migration.sql"),
   "utf8",
 );
 const emailOutboxSource = readFileSync("src/lib/emailOutbox.ts", "utf8");
