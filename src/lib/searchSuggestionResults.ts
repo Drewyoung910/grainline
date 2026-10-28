@@ -12,7 +12,7 @@ export type SearchSuggestionItem = {
   href: string;
 };
 
-type SuggestionListingTitle = { id?: string | null; title: string };
+type SuggestionListingTitle = { id: string; title: string };
 type SuggestionMaker = { id: string; displayName: string };
 
 export const SEARCH_SUGGESTION_ITEM_LIMIT = 8;
@@ -39,17 +39,10 @@ export function humanizeSearchTag(raw: string): string {
   return raw.replace(/[-_]+/g, " ").trim();
 }
 
-function browseSearchPath(query: string): string {
-  return `/browse?q=${encodeURIComponent(query)}`;
-}
-
 function listingTitleItem(row: SuggestionListingTitle): SearchSuggestionItem | null {
   const label = row.title.trim();
   if (!label) return null;
-  // A listing id links straight to the piece; a bare title stays a search.
-  return row.id
-    ? { type: "listing", label, href: publicListingPath(row.id, label) }
-    : { type: "search", label, href: browseSearchPath(label) };
+  return { type: "listing", label, href: publicListingPath(row.id, label) };
 }
 
 export function buildSearchSuggestionItems(input: {

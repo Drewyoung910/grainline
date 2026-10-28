@@ -58,7 +58,6 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [searchClosing, setSearchClosing] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   // Set when the menu closes while focus was inside it (or already dropped
@@ -314,7 +313,6 @@ export default function Header() {
       setAvatarImageUrl(null);
       loadAnonymousCartCount();
       setUnreadNotifCount(0);
-      setIsLoggedIn(false);
     };
     // Wait for Clerk before choosing which cart to count, and never call
     // the signed-in-only /api/cart and /api/notifications for guests.
@@ -345,7 +343,6 @@ export default function Header() {
       setName(data?.name ?? null);
       setImageUrl(data?.imageUrl ?? null);
       setAvatarImageUrl(data?.avatarImageUrl ?? null);
-      setIsLoggedIn(true);
       // Only fetch cart and notifications when signed in
       loadCartCount();
       loadNotifCount();
@@ -354,7 +351,6 @@ export default function Header() {
       if (requestId !== loadAllRequestRef.current) return;
       setRole(null);
       setHasSeller(false);
-      setIsLoggedIn(false);
     } finally {
       if (loadAllAbortRef.current === controller) {
         loadAllAbortRef.current = null;
@@ -381,7 +377,7 @@ export default function Header() {
       else loadAnonymousCartCount();
     };
     return subscribeCartUpdated(onUpdated);
-  }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
+  }, [isSignedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
     <header

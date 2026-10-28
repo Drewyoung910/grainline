@@ -60,9 +60,9 @@ describe("search suggestion seller-name input bounds (#1264)", () => {
 });
 
 describe("typed header search suggestions (UI-19)", () => {
-  it("links makers and tags to their pages and keeps titles without ids as searches", () => {
+  it("links pieces, makers, and tags directly to their pages", () => {
     const items = buildSearchSuggestionItems({
-      listingTitles: [{ title: "Custom DJ Table with large base" }],
+      listingTitles: [{ id: "cmlisting000000000000002", title: "Custom DJ Table with large base" }],
       tags: ["custom-dj-table", "dj-table"],
       makers: [{ id: "cmoxk16o4000004jp08936xtp", displayName: "Custom-DJ" }],
       fuzzyListingTitles: [],
@@ -70,9 +70,9 @@ describe("typed header search suggestions (UI-19)", () => {
 
     assert.deepEqual(items, [
       {
-        type: "search",
+        type: "listing",
         label: "Custom DJ Table with large base",
-        href: "/browse?q=Custom%20DJ%20Table%20with%20large%20base",
+        href: "/listing/cmlisting000000000000002--custom-dj-table-with-large-base",
       },
       { type: "tag", label: "custom dj table", href: "/tag/custom-dj-table" },
       { type: "tag", label: "dj table", href: "/tag/dj-table" },
@@ -94,22 +94,28 @@ describe("typed header search suggestions (UI-19)", () => {
     });
   });
 
-  it("dedupes searches by label but keeps a maker and piece that share a name", () => {
+  it("keeps distinct piece destinations and a maker that share a name", () => {
     const items = buildSearchSuggestionItems({
-      listingTitles: [{ title: "Walnut Works" }, { title: "walnut works " }],
+      listingTitles: [
+        { id: "cmlisting000000000000003", title: "Walnut Works" },
+        { id: "cmlisting000000000000004", title: "walnut works " },
+      ],
       tags: [],
       makers: [{ id: "cmseller00000000000001", displayName: "Walnut Works" }],
-      fuzzyListingTitles: [{ title: "WALNUT WORKS" }],
+      fuzzyListingTitles: [{ id: "cmlisting000000000000003", title: "WALNUT WORKS" }],
     });
-    assert.deepEqual(items.map((item) => item.type), ["search", "maker"]);
+    assert.deepEqual(items.map((item) => item.type), ["listing", "listing", "maker"]);
   });
 
   it("caps the list at the item limit", () => {
     const items = buildSearchSuggestionItems({
-      listingTitles: Array.from({ length: 6 }, (_, i) => ({ title: `Furniture piece ${i}` })),
+      listingTitles: Array.from({ length: 6 }, (_, i) => ({
+        id: `cmlisting0000000000001${i}`,
+        title: `Furniture piece ${i}`,
+      })),
       tags: ["furniture", "furniture-set"],
       makers: [{ id: "cmseller00000000000002", displayName: "Furniture Co" }],
-      fuzzyListingTitles: [{ title: "Furnture bench" }],
+      fuzzyListingTitles: [{ id: "cmlisting000000000000020", title: "Furnture bench" }],
     });
     assert.equal(items.length, SEARCH_SUGGESTION_ITEM_LIMIT);
     assert.ok(items.every((item) => ["listing", "search", "maker", "tag"].includes(item.type)));
@@ -122,6 +128,8 @@ describe("typed header search suggestions (UI-19)", () => {
 
   it("returns typed items alongside the backward-compatible flat list", () => {
     const route = source("src/app/api/search/suggestions/route.ts");
+    assert.match(route, /select: \{ id: true, title: true \}/);
+    assert.match(route, /Array<\{ id: string; title: string; sim: number \}>/);
     assert.match(route, /suggestions: suggestions\.slice\(0, 8\),\s*items,\s*blogs,/);
     assert.match(route, /categories: matchingCategoryValues\.map/);
   });

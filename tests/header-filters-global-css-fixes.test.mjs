@@ -43,7 +43,7 @@ describe("header signed-out requests and anonymous cart badge (UI-01 / #287)", (
   it("shows the anonymous cart count for guests", () => {
     const signedOutState = between(loadAll, "const showSignedOutState = () => {", "};");
     assert.match(signedOutState, /loadAnonymousCartCount\(\);/);
-    assert.match(signedOutState, /setIsLoggedIn\(false\);/);
+    assert.match(signedOutState, /setUnreadNotifCount\(0\);/);
     // After a cart change Clerk decides which cart to count, so a signed-in
     // user can't get stuck on the guest count.
     assert.match(header, /if \(isSignedIn\) loadCartCount\(\);\s*else loadAnonymousCartCount\(\);/);

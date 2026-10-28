@@ -27,44 +27,36 @@ async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[])
     await tx.$queryRaw`
       SELECT set_config('pg_trgm.similarity_threshold', ${String(LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY)}, true)
     `;
-    return blockedSellerIds.length > 0
-      ? tx.$queryRaw<Array<{ title: string; sim: number }>>`
-          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
-          FROM "Listing" l
-          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND EXISTS (
-              SELECT 1
-                FROM public.grainline_seller_public_follower_listing_target(
-                  l.id,
-                  l."sellerId"
-                )
-            )
-            AND l.title % ${q}
-            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
-            AND l.title NOT ILIKE ${`%${q}%`}
-            AND l."sellerId" != ALL(${blockedSellerIds})
-          GROUP BY l.title
-          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
-          LIMIT 2
-        `
-      : tx.$queryRaw<Array<{ title: string; sim: number }>>`
-          SELECT l.title, similarity(l.title, ${q}) as sim, MAX(l."createdAt") as latest_created_at, MAX(l.id) as latest_id
-          FROM "Listing" l
-          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-            AND EXISTS (
-              SELECT 1
-                FROM public.grainline_seller_public_follower_listing_target(
-                  l.id,
-                  l."sellerId"
-                )
-            )
-            AND l.title % ${q}
-            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
-            AND l.title NOT ILIKE ${`%${q}%`}
-          GROUP BY l.title
-          ORDER BY sim DESC, latest_created_at DESC, latest_id DESC
-          LIMIT 2
-        `;
+    const blockedSellerPredicate = blockedSellerIds.length > 0
+      ? Prisma.sql`AND l."sellerId" != ALL(${blockedSellerIds})`
+      : Prisma.empty;
+
+    return tx.$queryRaw<Array<{ id: string; title: string; sim: number }>>(Prisma.sql`
+      SELECT ranked.id, ranked.title, ranked.sim
+      FROM (
+        SELECT DISTINCT ON (l.title)
+          l.id,
+          l.title,
+          similarity(l.title, ${q}) AS sim,
+          l."createdAt" AS created_at
+        FROM "Listing" l
+        WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+          AND EXISTS (
+            SELECT 1
+              FROM public.grainline_seller_public_follower_listing_target(
+                l.id,
+                l."sellerId"
+              )
+          )
+          AND l.title % ${q}
+          AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
+          AND l.title NOT ILIKE ${`%${q}%`}
+          ${blockedSellerPredicate}
+        ORDER BY l.title, l."createdAt" DESC, l.id DESC
+      ) ranked
+      ORDER BY ranked.sim DESC, ranked.created_at DESC, ranked.id DESC
+      LIMIT 2
+    `);
   });
 }
 
@@ -141,7 +133,7 @@ export async function GET(req: NextRequest) {
         title: { contains: q, mode: "insensitive" },
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       }),
-      select: { title: true },
+      select: { id: true, title: true },
       take: 4,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
