@@ -130,6 +130,8 @@ The required safeguards are:
 - one atomic guarded add/remove boundary;
 - owner-only SELECT/INSERT/DELETE, no UPDATE;
 - a non-negative count invariant;
+- deny ordinary runtime writes to `Listing.favoriteCount` and prove that only
+  the reviewed Favorite maintenance trigger can change the projection;
 - exact backfill and postflight reconciliation;
 - mutation coverage for route, archive, staff removal, account deletion and
   both FK cascades;

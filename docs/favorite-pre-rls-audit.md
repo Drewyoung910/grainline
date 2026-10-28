@@ -192,6 +192,9 @@ before any account approaches the ceiling.
 - Listing cleanup must be all-or-nothing with the visibility transition.
 - Counter maintenance, if selected, must cover single deletes, bulk deletes,
   foreign-key cascades and transaction rollback.
+- The final activation must prevent ordinary runtime writes to
+  `Listing.favoriteCount`; a non-negative check and reconciliation proof do not
+  stop an otherwise-authorized Listing update from forging the projection.
 - A repair/reconciliation query must compare projected counts with Favorite
   rows and fail closed on drift before activation and after rollback.
 - Rollback must restore predecessor grants and direct application behavior
@@ -217,9 +220,11 @@ schema and prove at least:
    semantics;
 10. account feed, recently viewed, listing pages, search/browse pages, seller
     pages, saved page and export still render the correct owner state;
-11. no UPDATE authority, no cross-user row disclosure and no direct runtime
-    path outside the reviewed boundary;
-12. rollback restores predecessor application statements.
+11. no Favorite UPDATE authority, no cross-user row disclosure and no direct
+    runtime path outside the reviewed boundary;
+12. ordinary runtime cannot update `Listing.favoriteCount` directly, while
+    reviewed Favorite insert/delete and both FK cascades still maintain it;
+13. rollback restores predecessor application statements.
 
 ## Audit Decision
 
