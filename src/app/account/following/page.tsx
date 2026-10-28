@@ -9,6 +9,7 @@ import FollowButton from "@/components/FollowButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { formatCurrencyCents } from "@/lib/money";
+import { formatCityState } from "@/lib/locationDisplay";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import {
   sellerOwnerFollowingCount,
@@ -71,7 +72,7 @@ export default async function FollowingPage({
         <ul className="space-y-3">
           {follows.map(({ sellerProfile: s, createdAt }) => {
             const avatar = s.avatarImageUrl ?? s.ownerImageUrl ?? null;
-            const location = [s.city, s.state].filter(Boolean).join(", ");
+            const location = formatCityState(s.city, s.state);
             return (
               <li key={s.id} className="card-section flex flex-col gap-4 p-4 sm:flex-row sm:items-start">
                 <div className="flex min-w-0 flex-1 gap-3">
@@ -103,8 +104,7 @@ export default async function FollowingPage({
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
                       {location && <span>{location}</span>}
                       {location && <span>·</span>}
-                      <span>{s.followerCount} follower{s.followerCount !== 1 ? "s" : ""}</span>
-                      <span>·</span>
+                      {/* The follower count lives on the FollowButton, which keeps it live. */}
                       <span>{s.listingCount} listing{s.listingCount !== 1 ? "s" : ""}</span>
                       <span>·</span>
                       <span>Since {new Date(createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>

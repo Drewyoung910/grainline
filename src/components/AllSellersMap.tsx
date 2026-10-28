@@ -8,6 +8,7 @@ import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
 import { createMapPinElement } from "@/lib/mapPinElement";
 import MakerMapCard, { type MakerMapCardCache } from "@/components/MakerMapCard";
+import { formatCityState } from "@/lib/locationDisplay";
 
 type Point = {
   id: string;
@@ -142,11 +143,16 @@ export default function AllSellersMap({
 
     const markers: maplibregl.Marker[] = [];
 
+    // map.resize() can fire moveend before the load handler adds the source;
+    // isSourceLoaded() on a missing source logs "There is no tile manager".
+    const sellersSourceReady = () =>
+      Boolean(map.getSource("sellers")) && map.isSourceLoaded("sellers");
+
     function updateMarkers() {
       markers.forEach(m => m.remove());
       markers.length = 0;
 
-      if (!map.isSourceLoaded("sellers")) return;
+      if (!sellersSourceReady()) return;
 
       const features = map.querySourceFeatures("sellers", {
         filter: ["!", ["has", "point_count"]],
@@ -193,7 +199,7 @@ export default function AllSellersMap({
 
     // Update markers when source data loads or viewport changes
     map.on("sourcedata", (e) => {
-      if (e.sourceId === "sellers" && map.isSourceLoaded("sellers")) {
+      if (e.sourceId === "sellers" && sellersSourceReady()) {
         updateMarkers();
       }
     });
@@ -268,14 +274,15 @@ export default function AllSellersMap({
         )}
       </div>
       <ul id={summaryId} className="sr-only">
-        {points.slice(0, 12).map((point) => (
-          <li key={point.id}>
-            {point.name}
-            {[point.city, point.state].filter(Boolean).length > 0
-              ? ` in ${[point.city, point.state].filter(Boolean).join(", ")}`
-              : ""}
-          </li>
-        ))}
+        {points.slice(0, 12).map((point) => {
+          const location = formatCityState(point.city, point.state);
+          return (
+            <li key={point.id}>
+              {point.name}
+              {location ? ` in ${location}` : ""}
+            </li>
+          );
+        })}
       </ul>
     </>
   );

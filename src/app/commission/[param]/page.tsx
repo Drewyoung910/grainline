@@ -28,6 +28,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
+import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { Suspense } from "react";
 import {
   CommissionDetailSkeleton,
@@ -80,8 +81,9 @@ export async function generateMetadata({
       select: { name: true, state: true },
     });
     if (!metro) notFound();
-    const title = `Custom Woodworking Commissions in ${metro.name}, ${metro.state} | Grainline`;
-    const description = `Browse open custom woodworking commission requests in ${metro.name}, ${metro.state}. Connect with local buyers looking for handmade furniture, decor, and more.`;
+    const cityName = formatCityState(metro.name, metro.state);
+    const title = `Custom Woodworking Commissions in ${cityName} | Grainline`;
+    const description = `Browse open custom woodworking commission requests in ${cityName}. Connect with local buyers looking for handmade furniture, decor, and more.`;
     return {
       title: { absolute: title },
       description,
@@ -107,7 +109,7 @@ export async function generateMetadata({
 
   const location = req.isNational
     ? "Ships Anywhere"
-    : [req.buyerSellerCity, req.buyerSellerState].filter(Boolean).join(", ") || "Local";
+    : formatCityState(req.buyerSellerCity, req.buyerSellerState) || "Local";
 
   const title = `${req.title} — ${location} | Custom Woodworking Commission`;
 
@@ -190,7 +192,8 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
   }));
 
   const count = commissions.length;
-  const cityName = `${metro.name}, ${metro.state}`;
+  const cityName = formatCityState(metro.name, metro.state);
+  const stateLabel = displayUsState(metro.state);
 
   // Nearby areas: siblings + parent (child) or children (major)
   const nearbyMetroIds = isMajorMetro
@@ -224,7 +227,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://thegrainline.com" },
       { "@type": "ListItem", "position": 2, "name": "Commission Room", "item": "https://thegrainline.com/commission" },
-      { "@type": "ListItem", "position": 3, "name": metro.state },
+      { "@type": "ListItem", "position": 3, "name": stateLabel },
       { "@type": "ListItem", "position": 4, "name": metro.name, "item": `https://thegrainline.com/commission/${metroSlug}` },
     ],
   };
@@ -240,7 +243,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
         <span className="mx-2">›</span>
         <Link href="/commission" className="hover:underline">Commission Room</Link>
         <span className="mx-2">›</span>
-        <span className="text-neutral-500">{metro.state}</span>
+        <span className="text-neutral-500">{stateLabel}</span>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
@@ -417,7 +420,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
   const locationName = request.isNational
     ? "United States"
-    : [request.buyerSellerCity, request.buyerSellerState].filter(Boolean).join(", ") || "United States";
+    : formatCityState(request.buyerSellerCity, request.buyerSellerState) || "United States";
 
   const jsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -518,7 +521,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
           return (
             <div className="mt-3">
               <Link href={`/commission/${m.slug}`} className="text-xs text-neutral-500 hover:underline">
-                More commissions in {m.name}, {m.state} →
+                More commissions in {formatCityState(m.name, m.state)} →
               </Link>
             </div>
           );

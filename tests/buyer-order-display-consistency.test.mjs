@@ -165,7 +165,8 @@ describe("My Account long email wrapping (#1260)", () => {
       ts.forEachChild(node, visit);
     };
     visit(sf);
-    assert.equal(emailElements.length, 2);
+    // #1263: the email renders once, in the header (not again under Account Settings).
+    assert.equal(emailElements.length, 1);
     for (const element of emailElements) {
       assert.match(element.openingElement.getText(sf), /className="[^"]*\bbreak-all\b/);
     }

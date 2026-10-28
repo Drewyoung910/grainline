@@ -40,6 +40,7 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { isFirstPartyMediaUrl, normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import { getCachedPublicSellerTopTags } from "@/lib/popularTags";
+import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
@@ -183,7 +184,7 @@ async function SellerPublicContent({
     ? await sellerPublicLocation(meId, seller.id, null)
     : null;
 
-  const cityState = [seller.city, seller.state].filter(Boolean).join(", ");
+  const cityState = formatCityState(seller.city, seller.state);
   const nowMs = Date.now();
 
   const [
@@ -301,7 +302,7 @@ async function SellerPublicContent({
           address: {
             "@type": "PostalAddress",
             addressLocality: seller.city ?? undefined,
-            addressRegion: seller.state ?? undefined,
+            addressRegion: displayUsState(seller.state) || undefined,
           },
         }
       : {}),
@@ -938,7 +939,7 @@ async function SellerPublicContent({
             return (
               <section className="pt-6 mt-2 border-t border-neutral-200/60">
                 <div className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mb-2">
-                  More from {candidate.name}, {candidate.state}
+                  More from {formatCityState(candidate.name, candidate.state)}
                 </div>
                 <div className="flex flex-col gap-1 text-sm">
                   <Link href={`/makers/${candidate.slug}`} className="text-amber-700 hover:underline">

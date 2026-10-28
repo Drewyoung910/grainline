@@ -13,6 +13,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { sellerPublicSimilarMakers } from "@/lib/sellerProfilePublicAccess";
 import { US_STATES, normalizeUsState } from "@/lib/usStates";
+import { formatCityState } from "@/lib/locationDisplay";
 
 const MAX_SIMILAR_MAKERS = 4;
 
@@ -105,7 +106,7 @@ export default async function SimilarMakers({
                     )}
                     {(maker.city || maker.state) && (
                       <span className="truncate">
-                        {[maker.city, maker.state].filter(Boolean).join(", ")}
+                        {formatCityState(maker.city, maker.state)}
                       </span>
                     )}
                   </div>

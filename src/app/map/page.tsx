@@ -6,6 +6,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { formatCityState } from "@/lib/locationDisplay";
 import {
   sellerPublicMapMetros,
   sellerPublicMapPoints,
@@ -117,7 +118,7 @@ export default async function AllSellersMapPage({
                     href={`/makers/${major.slug}`}
                     className="text-sm font-medium text-neutral-800 hover:underline"
                   >
-                    {major.name}, {major.state}
+                    {formatCityState(major.name, major.state)}
                   </Link>
                   {children.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-1.5">

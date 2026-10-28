@@ -16,6 +16,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
+import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { sellerPublicListingCards } from "@/lib/sellerProfilePublicAccess";
 
 const BASE_URL = "https://thegrainline.com";
@@ -86,7 +87,7 @@ export async function generateMetadata({
   if (!metro) return {};
 
   const label = CATEGORY_LABELS[categoryKey] ?? categoryKey;
-  const cityName = `${metro.name}, ${metro.state}`;
+  const cityName = formatCityState(metro.name, metro.state);
   const title = `Handmade ${label} in ${cityName} | Grainline`;
   const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans in ${cityName}. Custom made to order or ready to ship.`;
 
@@ -118,7 +119,7 @@ export default async function BrowseMetroCategoryPage({
   if (!metro) return notFound();
 
   const isMajorMetro = !metro.parentMetroId;
-  const cityName = `${metro.name}, ${metro.state}`;
+  const cityName = formatCityState(metro.name, metro.state);
   const categoryLabel = CATEGORY_LABELS[categoryKey] ?? categoryKey;
 
   // Auth for favorites + block filter
@@ -196,7 +197,7 @@ export default async function BrowseMetroCategoryPage({
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
       { "@type": "ListItem", "position": 2, "name": "Browse", "item": `${BASE_URL}/browse` },
-      { "@type": "ListItem", "position": 3, "name": metro.state },
+      { "@type": "ListItem", "position": 3, "name": displayUsState(metro.state) },
       { "@type": "ListItem", "position": 4, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
       { "@type": "ListItem", "position": 5, "name": categoryLabel, "item": `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
     ],

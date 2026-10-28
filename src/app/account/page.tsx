@@ -351,9 +351,9 @@ async function AccountPageContent() {
       <section>
         <h2 className="text-xl font-semibold font-display mb-4">Account Settings</h2>
         <div className="card-section p-5 space-y-3">
-          <div className="text-sm space-y-1">
+          {/* The account email is shown once, in the page header. */}
+          <div className="text-sm">
             <p className="font-medium">{me.name ?? "—"}</p>
-            <p className="text-neutral-500 break-all">{me.email}</p>
           </div>
           <p className="text-xs text-neutral-500">
             Update your name, email, and password through your account settings.

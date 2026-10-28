@@ -22,6 +22,7 @@ import {
   sellerPublicMetroStaticSlugs,
 } from "@/lib/sellerProfilePublicAccess";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
+import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { Suspense } from "react";
 import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
 
@@ -68,7 +69,7 @@ export async function generateMetadata({
   if (!metro) return {};
 
   const isMajor = !metro.parentMetroId;
-  const cityName = `${metro.name}, ${metro.state}`;
+  const cityName = formatCityState(metro.name, metro.state);
 
   // Count listings and sellers for description
   const [listingCount, sellerCount] = await Promise.all([
@@ -127,7 +128,8 @@ async function BrowseMetroContent({
   if (!metro || !metro) return notFound();
 
   const isMajorMetro = !metro.parentMetroId;
-  const cityName = `${metro.name}, ${metro.state}`;
+  const cityName = formatCityState(metro.name, metro.state);
+  const stateLabel = displayUsState(metro.state);
 
   // Auth for favorites + block filter
   const { userId } = await auth();
@@ -239,7 +241,7 @@ async function BrowseMetroContent({
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
       { "@type": "ListItem", "position": 2, "name": "Browse", "item": `${BASE_URL}/browse` },
-      { "@type": "ListItem", "position": 3, "name": metro.state },
+      { "@type": "ListItem", "position": 3, "name": stateLabel },
       { "@type": "ListItem", "position": 4, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
     ],
   };
@@ -255,7 +257,7 @@ async function BrowseMetroContent({
         <span className="mx-2">›</span>
         <Link href="/browse" className="hover:underline">Browse</Link>
         <span className="mx-2">›</span>
-        <span className="text-neutral-500">{metro.state}</span>
+        <span className="text-neutral-500">{stateLabel}</span>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
@@ -266,7 +268,7 @@ async function BrowseMetroContent({
 
       {listingCount > 0 ? (
         <p className="text-neutral-600 text-sm mb-6">
-          Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area. Every piece is crafted by hand in {metro.state}.
+          Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area. Every piece is crafted by hand in {stateLabel}.
         </p>
       ) : (
         <p className="text-neutral-600 text-sm mb-6">

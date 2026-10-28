@@ -30,6 +30,7 @@ import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 import { formatCurrencyCents } from "@/lib/money";
+import { formatCityState } from "@/lib/locationDisplay";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
@@ -854,7 +855,7 @@ export default async function HomePage() {
                     {(spotlight.city || spotlight.state) && (
                       <span className="flex items-center gap-1 text-neutral-600">
                         <MapPin size={13} className="shrink-0" />
-                        {[spotlight.city, spotlight.state].filter(Boolean).join(", ")}
+                        {formatCityState(spotlight.city, spotlight.state)}
                       </span>
                     )}
                   </div>
@@ -950,7 +951,7 @@ export default async function HomePage() {
                           </span>
                         )}
                         {(also.city || also.state) && (
-                          <span>{[also.city, also.state].filter(Boolean).join(", ")}</span>
+                          <span>{formatCityState(also.city, also.state)}</span>
                         )}
                       </div>
                     </div>

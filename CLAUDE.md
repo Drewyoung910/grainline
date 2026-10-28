@@ -3852,6 +3852,9 @@ Maplibre automatically shows © OpenStreetMap contributors bottom-right. Legally
 - `LocationPicker` `drawCircle`: takes map as explicit parameter to avoid TypeScript closure narrowing
 - `LocationPicker` radius circle: `map.once("idle", () => drawCircle(map))` fallback if style not yet loaded
 - `LocationPicker`: accepts `onMilesChange?: (miles: number) => void` — fires on range slider change
+- `LocationPicker`: `cooperativeGestures` is on only for touch-primary devices (`(hover: none), (pointer: coarse)`), so a one-finger swipe scrolls the page instead of panning the map; the pin sets `touchAction: none` so dragging it still works. Tap-to-place is unchanged.
+- `AllSellersMap`: handlers that touch the `sellers` source check `map.getSource("sellers")` first (`sellersSourceReady()`), because `isSourceLoaded()` on a missing source fires an error event before `load` adds it.
+- City/state display goes through `formatCityState()` / `displayUsState()` in `src/lib/locationDisplay.ts`: 2-letter codes are uppercased and full state names map to codes, so "Austin, Tx" and "DeWitt County, Texas" render as "Austin, TX" and "DeWitt County, TX". Display only; stored values, slugs and canonical URLs are unchanged.
 - `LocationPicker`: marker hidden (`display: none`) when `meters > 0` — circle replaces pin for privacy
 - `MapCard`: `scrollZoom.disable()` + `NavigationControl` — pannable/zoomable, no scroll hijack
 - `MapCard`: `className` prop with default `"h-48 w-full rounded-xl border overflow-hidden"`

@@ -41,6 +41,7 @@ import {
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { stockNotificationAvailable } from "@/lib/stockNotificationState";
 import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
+import { formatCityState } from "@/lib/locationDisplay";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -376,7 +377,7 @@ export default async function ListingPage({
 
   const initials = avatarInitials(sellerName, "S");
 
-  const cityState = [listing.seller.city, listing.seller.state].filter(Boolean).join(", ");
+  const cityState = formatCityState(listing.seller.city, listing.seller.state);
   const showPickupMap = listing.seller.allowLocalPickup && pickupMapPoint != null;
 
   const signedInMessageHref =
@@ -834,7 +835,7 @@ export default async function ListingPage({
               href={`/browse/${m.slug}`}
               className="text-sm text-neutral-600 hover:underline"
             >
-              More handmade pieces in {m.name}, {m.state} →
+              More handmade pieces in {formatCityState(m.name, m.state)} →
             </Link>
           </div>
         );

@@ -7,6 +7,7 @@ import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
 import MediaImage from "@/components/MediaImage";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
+import { formatCityState } from "@/lib/locationDisplay";
 
 export type ListingCardData = {
   id: string;
@@ -52,7 +53,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
   const listingHref = href === null ? null : href ?? publicListingPath(l.id, l.title);
   const sellerName = l.seller.displayName ?? "Maker";
   const shop = l.rating;
-  const location = [l.seller.city, l.seller.state].filter(Boolean).join(", ");
+  const location = formatCityState(l.seller.city, l.seller.state);
   const hasGuildBadge = Boolean(l.seller.guildLevel && l.seller.guildLevel !== "NONE");
 
   // Only a photo that has not started rendering yet is hidden; it fades in
