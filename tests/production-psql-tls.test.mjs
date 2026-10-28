@@ -48,6 +48,7 @@ describe("protected production psql TLS roots", () => {
       "order-payment-event-compatible-production.yml:Converge compatible runtime grants",
       "order-payment-event-read-authority-production.yml:Converge OrderPaymentEvent read-authority runtime grants",
       "order-payment-event-transition-authority-production.yml:Converge reviewed runtime grants",
+      "owner-table-rls-activation-production.yml:Apply only the reviewed StockNotification activation transaction",
       "resend-webhook-receipt-recovery-production.yml:Apply reviewed recovery transaction outside Prisma's ledger",
       "support-request-email-reuse-production.yml:Apply reviewed correction transaction outside Prisma's ledger",
       "user-rls-enable-production.yml:Re-converge runtime grants after User ENABLE",
