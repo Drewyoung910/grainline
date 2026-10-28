@@ -24,6 +24,8 @@ DECLARE
   reviewed_function text;
   expected_source_md5 text;
   expected_volatility "char";
+  expected_parallel "char";
+  expected_runtime_execute boolean;
   existing_privileges text[];
   drift_count bigint;
 BEGIN
@@ -288,21 +290,28 @@ BEGIN
     RAISE EXCEPTION 'Favorite preparation triggers drifted';
   END IF;
 
-  FOR reviewed_function, expected_source_md5, expected_volatility IN
-    SELECT expected.identity, expected.source_md5, expected.volatility
+  FOR reviewed_function, expected_source_md5, expected_volatility,
+      expected_parallel, expected_runtime_execute IN
+    SELECT expected.identity, expected.source_md5, expected.volatility,
+           expected.parallel_mode, expected.runtime_execute
       FROM (VALUES
-        ('public.grainline_favorite_count_maintain()', '33d336428d410e5d45ec4864d9d983cb', 'v'::"char"),
-        ('public.grainline_favorite_update_forbidden()', '954c359579963c28fb3be2aee2dfb484', 'v'::"char"),
-        ('public.grainline_favorite_owner_listing_ids(text[])', 'c3c4ff9a7c848f960d7b7b79356b19da', 's'::"char"),
-        ('public.grainline_favorite_owner_add(text)', '7b7ed210b7cf94f79ce55c6fbbddf73b', 'v'::"char"),
-        ('public.grainline_favorite_owner_remove(text)', '7e4ca58a60cbf6b93bc260e4051331da', 'v'::"char"),
-        ('public.grainline_favorite_owner_delete_all(text)', '684284c4482d67e87ab1f52fa1256890', 'v'::"char"),
-        ('public.grainline_favorite_owner_export()', 'ca792d781eef9e3818bd3b9ee7a98286', 's'::"char"),
-        ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '2cafa9f5961bde65ff0894db12e1412c', 's'::"char"),
-        ('public.grainline_favorite_seller_listing_cleanup(text)', '7b82d4570b291fd2f255a68eb1fe8491', 'v'::"char"),
-        ('public.grainline_favorite_admin_listing_cleanup(text)', '07c9daa3c05502d4cb4594e55c9eb183', 'v'::"char"),
-        ('public.grainline_favorite_block_cleanup(text)', '07c0b8e2f04721ee973a3e0a529c5be0', 'v'::"char")
-      ) AS expected(identity, source_md5, volatility)
+        ('public.grainline_favorite_count_maintain()', '33d336428d410e5d45ec4864d9d983cb', 'v'::"char", 'u'::"char", false),
+        ('public.grainline_favorite_update_forbidden()', '954c359579963c28fb3be2aee2dfb484', 'v'::"char", 'u'::"char", false),
+        ('public.grainline_favorite_owner_listing_ids(text[])', 'c3c4ff9a7c848f960d7b7b79356b19da', 's'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_add(text)', '7b7ed210b7cf94f79ce55c6fbbddf73b', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_remove(text)', '7e4ca58a60cbf6b93bc260e4051331da', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_delete_all(text)', '684284c4482d67e87ab1f52fa1256890', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_export()', 'ca792d781eef9e3818bd3b9ee7a98286', 's'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '2cafa9f5961bde65ff0894db12e1412c', 's'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_seller_listing_cleanup(text)', '7b82d4570b291fd2f255a68eb1fe8491', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_admin_listing_cleanup(text)', '07c9daa3c05502d4cb4594e55c9eb183', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_block_cleanup(text)', '07c0b8e2f04721ee973a3e0a529c5be0', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", 'u'::"char", false),
+        ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char", true),
+        ('public.grainline_seller_owner_saved_listing_count()', 'af665497cf9f8402f7aee00c18eec77e', 's'::"char", 'u'::"char", true),
+        ('public.grainline_seller_owner_saved_listing_page(integer,integer)', '5a8199b4902de8c27b6e39d92bfc3a27', 's'::"char", 'u'::"char", true),
+        ('public.grainline_user_public_listing_favorite_counts(text[])', 'a4559ed4be797615616c41d4bd733014', 's'::"char", 'u'::"char", true)
+      ) AS expected(identity, source_md5, volatility, parallel_mode, runtime_execute)
   LOOP
     IF pg_catalog.to_regprocedure(reviewed_function) IS NULL THEN
       RAISE EXCEPTION 'Favorite reviewed function is missing: %', reviewed_function;
@@ -316,44 +325,47 @@ BEGIN
          AND procedure.prosecdef
          AND procedure.prokind = 'f'
          AND procedure.provolatile = expected_volatility
-         AND procedure.proparallel = 'u'
+         AND procedure.proparallel = expected_parallel
          AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
          AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
          AND (owner.rolsuper OR owner.rolbypassrls)
     ) OR pg_catalog.has_function_privilege(
       0, pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
-    ) THEN
+    ) OR pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      pg_catalog.to_regprocedure(reviewed_function),
+      'EXECUTE'
+    ) IS DISTINCT FROM expected_runtime_execute THEN
       RAISE EXCEPTION 'Favorite reviewed function posture drifted: %', reviewed_function;
     END IF;
   END LOOP;
-  IF pg_catalog.has_function_privilege(
-       'grainline_app_runtime',
-       'public.grainline_favorite_count_maintain()',
-       'EXECUTE'
-     ) OR pg_catalog.has_function_privilege(
-       'grainline_app_runtime',
-       'public.grainline_favorite_update_forbidden()',
-       'EXECUTE'
-     ) THEN
-    RAISE EXCEPTION 'Favorite trigger helper is runtime executable';
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND procedure.prosrc LIKE '%public."Favorite"%'
+       AND procedure.oid <> ALL (ARRAY[
+         pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_block_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_add(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_delete_all(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_export()'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_listing_ids(text[])'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_remove(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_seller_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)'),
+         pg_catalog.to_regprocedure('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_owner_saved_listing_count()'),
+         pg_catalog.to_regprocedure('public.grainline_seller_owner_saved_listing_page(integer,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_user_public_listing_favorite_counts(text[])')
+       ]::oid[])
+  ) THEN
+    RAISE EXCEPTION 'Favorite has an unreviewed function reader';
   END IF;
-  FOREACH reviewed_function IN ARRAY ARRAY[
-    'public.grainline_favorite_owner_listing_ids(text[])',
-    'public.grainline_favorite_owner_add(text)',
-    'public.grainline_favorite_owner_remove(text)',
-    'public.grainline_favorite_owner_delete_all(text)',
-    'public.grainline_favorite_owner_export()',
-    'public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)',
-    'public.grainline_favorite_seller_listing_cleanup(text)',
-    'public.grainline_favorite_admin_listing_cleanup(text)',
-    'public.grainline_favorite_block_cleanup(text)'
-  ] LOOP
-    IF NOT pg_catalog.has_function_privilege(
-      'grainline_app_runtime', pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
-    ) THEN
-      RAISE EXCEPTION 'Favorite reviewed function is not runtime executable: %', reviewed_function;
-    END IF;
-  END LOOP;
 
   SELECT COALESCE(
            pg_catalog.array_agg(
@@ -428,6 +440,10 @@ DECLARE
   table_oid oid;
   table_owner oid;
   reviewed_function text;
+  expected_source_md5 text;
+  expected_volatility "char";
+  expected_parallel "char";
+  expected_runtime_execute boolean;
   drift_count bigint;
 BEGIN
   SELECT oid INTO runtime_oid
@@ -515,17 +531,29 @@ BEGIN
     RAISE EXCEPTION 'Favorite table ACL drifted';
   END IF;
 
-  FOREACH reviewed_function IN ARRAY ARRAY[
-    'public.grainline_favorite_owner_listing_ids(text[])',
-    'public.grainline_favorite_owner_add(text)',
-    'public.grainline_favorite_owner_remove(text)',
-    'public.grainline_favorite_owner_delete_all(text)',
-    'public.grainline_favorite_owner_export()',
-    'public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)',
-    'public.grainline_favorite_seller_listing_cleanup(text)',
-    'public.grainline_favorite_admin_listing_cleanup(text)',
-    'public.grainline_favorite_block_cleanup(text)'
-  ] LOOP
+  FOR reviewed_function, expected_source_md5, expected_volatility,
+      expected_parallel, expected_runtime_execute IN
+    SELECT expected.identity, expected.source_md5, expected.volatility,
+           expected.parallel_mode, expected.runtime_execute
+      FROM (VALUES
+        ('public.grainline_favorite_count_maintain()', '33d336428d410e5d45ec4864d9d983cb', 'v'::"char", 'u'::"char", false),
+        ('public.grainline_favorite_update_forbidden()', '954c359579963c28fb3be2aee2dfb484', 'v'::"char", 'u'::"char", false),
+        ('public.grainline_favorite_owner_listing_ids(text[])', 'c3c4ff9a7c848f960d7b7b79356b19da', 's'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_add(text)', '7b7ed210b7cf94f79ce55c6fbbddf73b', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_remove(text)', '7e4ca58a60cbf6b93bc260e4051331da', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_delete_all(text)', '684284c4482d67e87ab1f52fa1256890', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_export()', 'ca792d781eef9e3818bd3b9ee7a98286', 's'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '2cafa9f5961bde65ff0894db12e1412c', 's'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_seller_listing_cleanup(text)', '7b82d4570b291fd2f255a68eb1fe8491', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_admin_listing_cleanup(text)', '07c9daa3c05502d4cb4594e55c9eb183', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_block_cleanup(text)', '07c0b8e2f04721ee973a3e0a529c5be0', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", 'u'::"char", false),
+        ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char", true),
+        ('public.grainline_seller_owner_saved_listing_count()', 'af665497cf9f8402f7aee00c18eec77e', 's'::"char", 'u'::"char", true),
+        ('public.grainline_seller_owner_saved_listing_page(integer,integer)', '5a8199b4902de8c27b6e39d92bfc3a27', 's'::"char", 'u'::"char", true),
+        ('public.grainline_user_public_listing_favorite_counts(text[])', 'a4559ed4be797615616c41d4bd733014', 's'::"char", 'u'::"char", true)
+      ) AS expected(identity, source_md5, volatility, parallel_mode, runtime_execute)
+  LOOP
     IF NOT EXISTS (
       SELECT 1
         FROM pg_catalog.pg_proc AS procedure
@@ -533,16 +561,49 @@ BEGIN
        WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
          AND procedure.proowner = table_owner
          AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = expected_volatility
+         AND procedure.proparallel = expected_parallel
          AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
          AND (owner.rolsuper OR owner.rolbypassrls)
-    ) OR NOT pg_catalog.has_function_privilege(
-      'grainline_app_runtime', pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
     ) OR pg_catalog.has_function_privilege(
       0, pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
-    ) THEN
+    ) OR pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      pg_catalog.to_regprocedure(reviewed_function),
+      'EXECUTE'
+    ) IS DISTINCT FROM expected_runtime_execute THEN
       RAISE EXCEPTION 'Favorite function posture drifted: %', reviewed_function;
     END IF;
   END LOOP;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND procedure.prosrc LIKE '%public."Favorite"%'
+       AND procedure.oid <> ALL (ARRAY[
+         pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_block_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_add(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_delete_all(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_export()'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_listing_ids(text[])'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_owner_remove(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_seller_listing_cleanup(text)'),
+         pg_catalog.to_regprocedure('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)'),
+         pg_catalog.to_regprocedure('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)'),
+         pg_catalog.to_regprocedure('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)'),
+         pg_catalog.to_regprocedure('public.grainline_seller_owner_saved_listing_count()'),
+         pg_catalog.to_regprocedure('public.grainline_seller_owner_saved_listing_page(integer,integer)'),
+         pg_catalog.to_regprocedure('public.grainline_user_public_listing_favorite_counts(text[])')
+       ]::oid[])
+  ) THEN
+    RAISE EXCEPTION 'Favorite has an unreviewed function reader after activation';
+  END IF;
 
   SELECT pg_catalog.count(*)::bigint
     INTO drift_count
