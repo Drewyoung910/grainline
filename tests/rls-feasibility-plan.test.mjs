@@ -1035,7 +1035,8 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(cartUpdate, /updateOwnerCartItemQuantity\(/);
     assert.match(cartUpdate, /deleteOwnerCartItem\(/);
     assert.match(checkoutSeller, /ownerCartForCheckoutSeller\(me\.id\)/);
-    assert.match(checkoutSeller, /updateOwnerCartItemPrice\(me\.id, cart\.id, item\.id/);
+    assert.match(checkoutSeller, /cartPriceReviewState\(\{/);
+    assert.doesNotMatch(checkoutSeller, /updateOwnerCartItemPrice/);
     assert.match(checkoutResume, /ownerCartForCheckoutResume\(me\.id\)/);
     assert.match(shippingQuote, /ownerCartForShippingQuoteById\(me\.id, body\.cartId, body\.sellerId\)/);
     assert.match(shippingQuote, /ownerCartForShippingQuote\(me\.id, body\.sellerId\)/);

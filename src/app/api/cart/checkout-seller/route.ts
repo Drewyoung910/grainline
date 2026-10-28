@@ -35,7 +35,8 @@ import {
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
-import { ownerCartForCheckoutSeller, updateOwnerCartItemPrice } from "@/lib/cartOwnerAccess";
+import { ownerCartForCheckoutSeller } from "@/lib/cartOwnerAccess";
+import { cartPriceReviewState } from "@/lib/cartPriceReviewState";
 import { isPickupRateObjectId } from "@/lib/shippingQuoteState";
 import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
 import { normalizeCheckoutShippingAddress } from "@/lib/addressFields";
@@ -313,21 +314,20 @@ export async function POST(req: Request) {
           { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
-      if (unitPriceCents !== item.priceCents || item.priceVersion !== item.listing.priceVersion) {
-        await updateOwnerCartItemPrice(me.id, cart.id, item.id, {
-          priceCents: unitPriceCents,
-          priceVersion: item.listing.priceVersion,
-        });
+      const priceReview = cartPriceReviewState({
+        oldPriceCents: item.priceCents,
+        newPriceCents: unitPriceCents,
+        oldPriceVersion: item.priceVersion,
+        newPriceVersion: item.listing.priceVersion,
+      });
+      if (priceReview) {
         return privateJson(
           {
             error: "Price changed since this item was added to your cart. Review your cart before checking out.",
             code: "PRICE_CHANGED",
             cartItemId: item.id,
             listingId: item.listingId,
-            oldPriceCents: item.priceCents,
-            newPriceCents: unitPriceCents,
-            oldPriceVersion: item.priceVersion,
-            newPriceVersion: item.listing.priceVersion,
+            ...priceReview,
           },
           { status: HTTP_STATUS.CONFLICT },
         );
