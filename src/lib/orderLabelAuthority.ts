@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
 import { normalizeCurrencyCode } from "@/lib/money";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type LabelAuthorityClient = Pick<typeof prisma, "$queryRaw">;
 
@@ -142,7 +143,7 @@ function record(value: unknown, label: string): Record<string, unknown> {
 }
 
 function string(value: unknown, label: string, max: number) {
-  if (typeof value !== "string" || value.length < 1 || value.length > max) {
+  if (!isTextWithinCodePointRange(value, 1, max)) {
     throw new TypeError(`${label} is invalid`);
   }
   return value;
@@ -489,5 +490,5 @@ export async function sellerLabelDownload(
 }
 
 export function isValidProviderLabelUrl(value: unknown): value is string {
-  return typeof value === "string" && value.length <= 2048 && HTTPS_URL.test(value);
+  return isTextWithinCodePointRange(value, 1, 2048) && HTTPS_URL.test(value);
 }

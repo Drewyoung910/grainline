@@ -85,6 +85,29 @@ describe("historical OrderItem snapshots", () => {
     assert.deepEqual(historicalProcessingTimeDays(snapshot), { min: 2, max: 2 });
   });
 
+  it("keeps database-valid snapshot text at Unicode code-point limits", () => {
+    const sellerName = `${"a".repeat(99)}😀`;
+    const title = `${"t".repeat(199)}🪵`;
+    const snapshot = readHistoricalOrderItemSnapshot({
+      title,
+      description: null,
+      priceCents: 9000,
+      imageUrls: [],
+      category: null,
+      tags: [],
+      sellerName,
+      capturedAt: null,
+      listingType: "IN_STOCK",
+      processingTimeMinDays: null,
+      processingTimeMaxDays: null,
+      shipsWithinDays: 2,
+    }, 1);
+
+    assert.equal(snapshot.complete, true);
+    assert.equal(snapshot.title, title);
+    assert.equal(snapshot.sellerName, sellerName);
+  });
+
   it("fails closed to generic retained facts for malformed snapshots", () => {
     const snapshot = readHistoricalOrderItemSnapshot({
       title: "",

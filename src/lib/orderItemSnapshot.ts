@@ -1,3 +1,5 @@
+import { isTextWithinCodePointRange } from "./textLength.ts";
+
 const MAX_SNAPSHOT_TITLE_LENGTH = 200;
 const MAX_SNAPSHOT_DESCRIPTION_LENGTH = 5000;
 const MAX_SNAPSHOT_SELLER_NAME_LENGTH = 100;
@@ -43,7 +45,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function boundedString(value: unknown, maxLength: number): string | null {
-  return typeof value === "string" && value.length <= maxLength ? value : null;
+  return isTextWithinCodePointRange(value, 0, maxLength) ? value : null;
 }
 
 function boundedNonNegativeInteger(value: unknown, max: number): number | null {
@@ -58,7 +60,7 @@ function boundedStringArray(
   maxItemLength: number,
 ): string[] | null {
   if (!Array.isArray(value) || value.length > maxItems) return null;
-  if (!value.every((item) => typeof item === "string" && item.length <= maxItemLength)) {
+  if (!value.every((item) => isTextWithinCodePointRange(item, 0, maxItemLength))) {
     return null;
   }
   return [...value];
