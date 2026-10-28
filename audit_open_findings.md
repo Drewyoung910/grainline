@@ -4144,6 +4144,20 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-1231 case-message durable text bounds
+
+- **[FIX PREPARED; NOT MERGED OR LIVE]** The Case reply route previously
+  checked the submitted body with JavaScript UTF-16 `.length` before
+  sanitization, while `sanitizeRichText()` can expand entity text before the
+  database stores it. Page and account-export validation then applied the same
+  UTF-16 limit to the stored row. A 4,900-code-point, 7,600-byte message using
+  emoji and ampersands therefore passed the write authority but made every
+  Case-message reader throw. The isolated correction sanitizes first, enforces
+  the shared 5,000-code-point and 20,000-UTF-8-byte durable bounds before the
+  write, and applies those same bounds to page/export results. The behavior
+  regression fails on current `main` and passes with the correction; no schema,
+  grant, RLS, email, or provider behavior changes.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
