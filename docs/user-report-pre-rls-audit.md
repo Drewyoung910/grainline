@@ -118,10 +118,13 @@ witness in one transaction.
 
 The report row stores the sanitized resolution note. The AdminAuditLog witness
 stores only that a note was stored and its length; it does not duplicate the
-note. This is more privacy-minimizing than the current `CLAUDE.md` statement
-that says the same note is copied into audit metadata, but the documentation
-and implementation must be reconciled before the fixed resolution authority is
-specified.
+note. The same report note is included in both the submitted-report and
+received-report account exports. The staff form does not disclose that audience
+or warn staff not to include the reporter's identity, private narrative, or
+other third-party data. This is more privacy-minimizing than the current
+`CLAUDE.md` statement that says the same note is copied into audit metadata,
+but both the audit-witness contract and the participant-visible-note contract
+must be reconciled before the fixed resolution authority is specified.
 
 ### Cross-domain service consumers
 
@@ -243,16 +246,29 @@ first inventory production for:
 Add only constraints that preserve reviewed legacy/legal records. Do not
 delete or rewrite report evidence merely to satisfy a migration.
 
-### USERREPORT-RLS-6: resolution-audit documentation has drifted
+### USERREPORT-RLS-6: resolution-note storage and audience are ambiguous
 
 Classification: `DESIGN_DECISION_BEFORE_IMPLEMENTATION`.
 
 The code atomically records a full note in `UserReport` and a privacy-minimized
-witness in `AdminAuditLog`; `CLAUDE.md` claims both store the note. The current
-single-note design avoids duplicating moderation narrative and is sufficient
-to prove an audit row co-committed, while the report row remains retained.
-Select and document one contract before implementing the fixed transition.
-This audit recommends preserving the privacy-minimized witness.
+witness in `AdminAuditLog`; `CLAUDE.md` and the closed ledger claim both store
+the note. The current single-note design avoids duplicating moderation
+narrative and is sufficient to prove an audit row co-committed, while the
+report row remains retained.
+
+Separately, account export sends that same note to both the reporter and the
+reported user. The staff form calls it a resolution reason but does not say it
+is participant-visible. A well-intentioned staff member can therefore put the
+reporter's identity, report details, or internal investigative material into a
+field later disclosed to the reported user, contradicting the no-reporter-
+identity/details projection.
+
+Select and document both contracts before implementing the fixed transition.
+This audit recommends preserving the privacy-minimized audit witness and either
+making the one report note explicitly participant-safe (with clear form copy
+and a behavior test) or splitting participant-facing rationale from an
+internal note. Do not silently expose an unrestricted internal note through
+account export.
 
 ### USERREPORT-RLS-7: current tests do not prove the report lifecycle
 
@@ -321,12 +337,16 @@ schema and prove at least:
 11. every accepted target type has usable, bounded staff context;
 12. resolution requires an unresolved row, writes one terminal state plus its
     audit witness, and replays safely;
-13. staff role without a valid application PIN never reaches the operation;
+13. staff role without a valid application PIN never reaches the operation,
+    and the chosen resolution-note audience is explicit and cannot disclose
+    reporter identity/details to the reported-user projection;
 14. reporter deletion redacts details without erasing the report;
 15. reported-user deletion redacts details/notes and auto-resolves only open
     reports against that user;
-16. staff deletion clears `resolvedById` without losing the retained report or
-    audit evidence;
+16. resolver account deletion preserves the internal `resolvedById` reference
+    to the anonymized retained User row without exposing deleted staff profile
+    or contact data; a later hard deletion follows the existing `ON DELETE SET
+    NULL` foreign key without losing the report or audit evidence;
 17. listing-report notification source validation still accepts the exact row
     and rejects forged reporter/reported/listing tuples;
 18. reported-thread staff access remains available only for active staff and

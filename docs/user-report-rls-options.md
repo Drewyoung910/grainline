@@ -121,7 +121,8 @@ Required safeguards:
 - replace the newest-50 queue with a true count and stable oldest-first page;
 - inventory production before adding categorical/state constraints;
 - preserve the privacy-minimized resolution audit witness unless Drew chooses
-  a different documented contract;
+  a different documented contract, and decide whether the report note is an
+  explicitly participant-safe rationale or is split from an internal note;
 - preserve submitted/received export asymmetry and deletion retention;
 - catalog every installed `UserReport` reader from the full migrated database;
 - run full-chain PostgreSQL 17 lifecycle, cross-domain, concurrency, deletion,
