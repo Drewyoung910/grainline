@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -174,6 +175,10 @@ function environment(directory, phase, previousPath) {
 
 test("StockNotification activation is the byte-sealed owner SELECT/DELETE shape", () => {
   assert.equal(release.shape, "stock_notification");
+  assert.equal(
+    release.minimumCompatibleAppCommit,
+    "e57362b515f41f0f72d7d483dc79a651de6bb711",
+  );
   assert.equal(verified.digest, release.migrationSha256);
   assert.equal(verified.retainedDigest, release.retainedFunctionMigrationSha256);
   assert.equal(verified.retainedFunctionSources.size, 9);
@@ -203,6 +208,27 @@ test("StockNotification activation is the byte-sealed owner SELECT/DELETE shape"
     /GRANT (?:INSERT|UPDATE)[\s\S]{0,120}public\."StockNotification"/iu,
   );
   assert.doesNotMatch(migration, /DROP (?:TABLE|COLUMN)/iu);
+});
+
+test("StockNotification release CLI exposes only the reviewed compatibility floor", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "scripts/owner-table-rls-activation-catalog.mjs",
+      "--minimum-compatible-app-commit",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        OWNER_TABLE_RLS_RELEASE_ID: releaseId,
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.equal(result.stdout.trim(), release.minimumCompatibleAppCommit);
 });
 
 test("StockNotification rollback restores the exact predecessor before disabling RLS", () => {
