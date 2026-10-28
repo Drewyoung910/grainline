@@ -30,7 +30,8 @@ on fixed database operations.
    active seller may submit or read its owner projection.
 2. Owners do not receive `reviewedById` or another seller's evidence.
 3. Member and Master applications accept only their exact allowed predecessor
-   state, cooldown, actor, and bounded input.
+   state, cooldown, actor, attestation, non-empty sanitized evidence, and
+   bounded input.
 4. Badge decisions keep MakerVerification, SellerProfile,
    SellerProfilePrivate, audit evidence, and source-bound notifications
    consistent.
