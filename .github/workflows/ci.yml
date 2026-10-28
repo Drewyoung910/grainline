@@ -260,6 +260,27 @@ jobs:
           tests/stock-mutation-state.test.mjs
           tests/stock-notification-route.test.mjs
           tests/stock-notification-state.test.mjs
+      - name: Verify Favorite preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/public-query-determinism.test.mjs
+          tests/public-visibility-followups.test.mjs
+          tests/r49-account-state-routes.test.mjs
+          tests/request-origin-guard.test.mjs
+          tests/rls-feasibility-plan.test.mjs
+          tests/seller-profile-favorite-target-route.test.mjs
+      - name: Isolate Favorite preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/favorite-preparation"
+          migration=20261028010000_prepare_favorite_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "FAVORITE_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Isolate email delivery-ledger preparation until historical release guards pass
         shell: bash
         run: |
@@ -5112,7 +5133,7 @@ jobs:
           predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
           predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
           predecessor_staff_blob=43e85a986eb4790e222482e81a00afbfcc91dce5
-          current_schema_blob=09a93630f62752dab2ee414ea6430799adf8420d
+          current_schema_blob=faf2d67f0b86e7efc22b49f52bd7778375d2f4ff
           git cat-file -e "$predecessor^{commit}"
           git merge-base --is-ancestor "$predecessor" HEAD
           test "$(git hash-object prisma/schema.prisma)" = "$current_schema_blob"
@@ -5132,11 +5153,11 @@ jobs:
           schema="$root/prisma/schema.prisma"
           current="$holding/current-schema.$$.prisma"
           test ! -e "$current"
-          test "$(git hash-object "$schema")" = 09a93630f62752dab2ee414ea6430799adf8420d
+          test "$(git hash-object "$schema")" = faf2d67f0b86e7efc22b49f52bd7778375d2f4ff
           cp "$schema" "$current"
           cleanup() {
             mv "$current" "$schema"
-            test "$(git hash-object "$schema")" = 09a93630f62752dab2ee414ea6430799adf8420d
+            test "$(git hash-object "$schema")" = faf2d67f0b86e7efc22b49f52bd7778375d2f4ff
           }
           trap cleanup EXIT
           cp "$holding/predecessor-schema.prisma" "$schema"
@@ -6806,6 +6827,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Favorite preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/favorite-preparation"
+          migration=20261028010000_prepare_favorite_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "FAVORITE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
