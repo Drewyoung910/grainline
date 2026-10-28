@@ -141,7 +141,9 @@ jobs:
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.expected_pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Apply reviewed correction transaction outside Prisma's ledger
-        if: steps.preflight.outputs.state == 'pending'
+        if: >-
+          steps.preflight.outputs.state == 'pending' &&
+          steps.preflight.outputs.schema_state == 'predecessor'
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
