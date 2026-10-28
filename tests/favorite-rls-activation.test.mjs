@@ -29,6 +29,16 @@ test("Favorite activation keeps guarded add as the only runtime insert boundary"
     /GRANT (?:INSERT|UPDATE|SELECT, INSERT|SELECT, UPDATE)[^;]*ON TABLE public\."Favorite"/u,
   );
   assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN)/iu);
+  for (const identity of [
+    "grainline_notification_create_core",
+    "grainline_order_seller_analytics_top_listings",
+    "grainline_seller_owner_saved_listing_count",
+    "grainline_seller_owner_saved_listing_page",
+    "grainline_user_public_listing_favorite_counts",
+  ]) {
+    assert.match(migration, new RegExp(identity, "u"));
+  }
+  assert.match(migration, /Favorite has an unreviewed function reader/u);
 });
 
 test("Favorite rollback restores the compatible predecessor without deleting preparation", () => {
