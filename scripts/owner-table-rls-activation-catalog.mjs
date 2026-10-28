@@ -13,6 +13,7 @@ export const OWNER_TABLE_RLS_CONFIRMATION = "activate-reviewed-owner-table-rls";
 
 export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
   saved_blog_post_v1: Object.freeze({
+    minimumCompatibleAppCommit: "e77792ff3bd3a5c540c64db7a6996b75790cb64e",
     predecessorDeploymentId: "dpl_9P14wnz14RfsVfaiALkUhR4eejph",
     predecessorSourceCommit: "18bdcb7e59a435001e8a8c903606ff8b78819249",
     shape: "saved_blog_post",
@@ -42,6 +43,7 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
     ]),
   }),
   cart_cart_item_v1: Object.freeze({
+    minimumCompatibleAppCommit: "b29e41a5287b5d5f43f54ff29da23210f18001e9",
     predecessorDeploymentId: "dpl_CQzwxpZQzyxn4d9zHJy5o9JMN1Y1",
     predecessorSourceCommit: "a0524648ec37b397d004e9b816eb933f55ab385a",
     shape: "cart_cart_item",
@@ -102,6 +104,7 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
     ]),
   }),
   stock_notification_v1: Object.freeze({
+    minimumCompatibleAppCommit: "e57362b515f41f0f72d7d483dc79a651de6bb711",
     // Replace the placeholder deployment id with the exact reviewed
     // predecessor immediately before this candidate becomes mergeable.
     predecessorDeploymentId: "dpl_REPLACE_BEFORE_MERGE",
@@ -419,10 +422,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         process.env.OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_SOURCE_COMMIT,
       );
     }
-    const verified = verifyOwnerTableRlsActivationSource(
-      releaseId,
-    );
-    process.stdout.write(`${verified.release.migration}\n`);
+    const verified = verifyOwnerTableRlsActivationSource(releaseId);
+    const output = process.argv[2] ?? "--migration";
+    if (output === "--migration") {
+      process.stdout.write(`${verified.release.migration}\n`);
+    } else if (output === "--minimum-compatible-app-commit") {
+      process.stdout.write(`${verified.release.minimumCompatibleAppCommit}\n`);
+    } else {
+      throw stopped("output selector is invalid");
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
