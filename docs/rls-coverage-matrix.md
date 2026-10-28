@@ -319,7 +319,7 @@ completed alternative.
 | `Metro` | `ALTERNATIVE_REVIEW` | Reference and configuration | Public geographic reference data; public readers and administrative loaders | Read-only ordinary runtime and controlled loader or migration writes |
 | `AdminAuditLog` | `BLOCKED_DESIGN` | Admin security | Sensitive immutable admin actions and undo evidence; admins and audit operations | Staff context or dedicated admin role, append and undo constraints, no ordinary user visibility |
 | `Block` | `BLOCKED_DESIGN` | Aggregate and fanout | Bidirectional safety relationship; blocker, blocked user and fanout filters | Bidirectional read policy and service filtering without revealing unsafe detail |
-| `UserReport` | `BLOCKED_DESIGN` | Admin security | Reporter details, target and resolution notes; reporter and staff | Reporter submission or status projection, staff-only investigation fields and retention rules |
+| `UserReport` | `BLOCKED_DESIGN` | Trust and safety | Asymmetric reporter/reported exports, private narrative, staff queue/resolution, account deletion retention, notification and reported-thread service checks | Audit complete; Option B zero-direct fixed operations recommended in `docs/user-report-pre-rls-audit.md` and `docs/user-report-rls-options.md`; target-attribution, queue/context, invariant and resolution-audit decisions block implementation |
 
 The dated `OrderPaymentEvent` updates below are the authoritative current gate
 state and supersede earlier inline chronology in its matrix summary.
