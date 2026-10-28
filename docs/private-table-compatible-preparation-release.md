@@ -9,7 +9,7 @@ not deploy the application, enable or force RLS, revoke table access, delete a
 column, or change row data.
 
 Each catalogued release names one byte-sealed migration. The current catalog
-covers SupportRequest, StockNotification and Favorite preparations.
+covers SupportRequest, StockNotification, Favorite and Follow preparations.
 
 ## Required order
 
