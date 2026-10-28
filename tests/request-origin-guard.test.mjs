@@ -274,8 +274,7 @@ describe("request origin guard", () => {
       "await ctx.params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.review.findUnique",
-      "prisma.$transaction",
+      "toggleOwnerReviewVote(me.id, id)",
     ]);
     assertHandlerGuardBefore("src/app/api/listings/[id]/notify/route.ts", "export async function POST(", [
       "await auth()",

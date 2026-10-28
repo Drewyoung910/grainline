@@ -83,7 +83,6 @@ describe("account export privacy coverage", () => {
       "sellerFaq",
       "newsletterSubscriber",
       "sellerBroadcast",
-      "reviewVote",
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
     }
@@ -113,6 +112,12 @@ describe("account export privacy coverage", () => {
       "account export must query stock notifications through its owner authority",
     );
     assert.doesNotMatch(route, /prisma\.stockNotification\./);
+    assert.match(
+      route,
+      /exportOwnerReviewVotes\(user\.id\)/,
+      "account export must query review votes through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.reviewVote\./);
 
     for (const key of [
       "blocks",

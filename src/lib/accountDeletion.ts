@@ -80,6 +80,7 @@ import {
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
+import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import {
@@ -1166,7 +1167,7 @@ export async function anonymizeUserAccount(
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id);
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
-    await tx.reviewVote.deleteMany({ where: { userId: user.id } });
+    await deleteAllOwnerReviewVotes(tx);
     await tx.block.deleteMany({ where: { blockerId: user.id } });
     await redactActorMessagesForAccountDeletion({
       sideEffectId: localAnonymizeSideEffectId,

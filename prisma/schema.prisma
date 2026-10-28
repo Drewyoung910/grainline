@@ -613,6 +613,7 @@ model ReviewVote {
   createdAt DateTime @default(now())
 
   @@id([reviewId, userId])
+  @@index([userId, createdAt(sort: Desc), reviewId])
 }
 
 enum LabelStatus {
