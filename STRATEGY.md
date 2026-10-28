@@ -3477,3 +3477,14 @@ required boundary.
 zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
+
+### ReviewVote RLS direction (2026-10-28)
+
+Treat vote identities as private owner data and keep only the existing
+`Review.helpfulCount` scalar public. Use owner-only `SELECT`, not direct row
+mutation. One actor-bound database operation must validate and toggle the exact
+vote while maintaining the count; account deletion uses a separate target-bound
+operation that repairs affected counts. Do not activate until existing count
+drift, reciprocal-block parity, atomic eligibility, the value constraint and
+owner-leading index are closed on the full PostgreSQL 17 chain. See
+`docs/review-vote-rls-options.md` and `docs/review-vote-pre-rls-audit.md`.
