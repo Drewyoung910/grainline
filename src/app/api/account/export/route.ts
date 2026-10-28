@@ -48,6 +48,7 @@ import {
 import { sellerOwnerExportProfile } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAccess";
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
+import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 
 export const runtime = "nodejs";
 
@@ -350,11 +351,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       : [],
     sellerProfile ? exportSellerPayoutEvents(user.id) : [],
     exportOwnedDirectUploads(user.id),
-    prisma.reviewVote.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { reviewId: true, value: true, createdAt: true, review: { select: { listingId: true } } },
-    }),
+    exportOwnerReviewVotes(user.id),
   ]);
   const messagesSent = messageRows
     .filter((message) => message.senderId === user.id)

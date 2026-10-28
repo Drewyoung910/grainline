@@ -9,6 +9,7 @@ import BlockReportButton from "@/components/BlockReportButton";
 import { publicListingPath } from "@/lib/publicPaths";
 import { avatarInitials } from "@/lib/avatarInitials";
 import { lockReviewEligibleOrderItem } from "@/lib/orderEligibilityAuthority";
+import { ownerReviewVoteIds } from "@/lib/reviewVoteAccess";
 
 const LISTING_REVIEW_DISPLAY_LIMIT = 100;
 
@@ -153,11 +154,7 @@ export default async function ReviewsSection({
   // instead of always reading as "not voted yet".
   let votedReviewIds = new Set<string>();
   if (meId && others.length > 0) {
-    const votes = await prisma.reviewVote.findMany({
-      where: { userId: meId, reviewId: { in: others.map((r) => r.id) } },
-      select: { reviewId: true },
-    });
-    votedReviewIds = new Set(votes.map((v) => v.reviewId));
+    votedReviewIds = await ownerReviewVoteIds(meId, others.map((review) => review.id));
   }
 
   // Link builders (always target listing path + #reviews)

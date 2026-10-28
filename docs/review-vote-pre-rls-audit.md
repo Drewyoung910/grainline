@@ -2,8 +2,8 @@
 
 Date: 2026-10-28  
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`  
-Decision: **GO for isolated A2 preparation after the blocking correctness
-findings below are fixed; NO-GO for RLS or grant activation.**
+Decision: **A2 compatible preparation candidate is implemented and proven on
+the complete PostgreSQL 17 chain; NO-GO remains for RLS or grant activation.**
 
 This is a product, functionality, authority, privacy, concurrency, lifecycle,
 scale, recovery, and rollback audit. It is not Production authorization.
@@ -218,7 +218,35 @@ public scalar aggregate. The domain is small, but it is not safe to activate
 until count drift, block semantics, atomic eligibility, the missing constraint,
 and the owner-leading index are closed with executed full-chain behavior proof.
 
-`GO` for an isolated compatible preparation that fixes those items without
-changing RLS or predecessor grants. `NO-GO` remains for activation, merge of an
-RLS migration, or any Production operation.
+The compatible preparation candidate now:
+
+- converts the route to one actor-bound toggle and account export/deletion to
+  fixed operations;
+- adds the `value = 1` and non-negative scalar constraints plus the
+  owner-leading index;
+- repairs existing scalar drift before installing the boundary;
+- serializes actor, reviewer, maker, listing visibility, blocks, and the vote
+  mutation without changing RLS or predecessor table grants;
+- adds a predecessor-compatible insert guard, while deliberately deferring a
+  general count trigger until predecessor application traffic is drained; and
+- fails its own transaction unless every new function remains owned by a
+  superuser/BYPASSRLS role, uses `SECURITY DEFINER` with the fixed
+  `pg_catalog` search path, and denies `PUBLIC` execution; and
+- passes the complete 437-migration PostgreSQL 17 build plus executed
+  runtime-role behavior and mixed predecessor/new-operation concurrency proof.
+
+The mixed-version proof is important: the predecessor route still updates
+`Review.helpfulCount` itself. Installing a general insert/delete count trigger
+in preparation would double-count between the database release and compatible
+app deployment. The candidate instead makes each reviewed writer reconcile the
+exact scalar; activation may add cascade maintenance only after the predecessor
+is no longer eligible to serve traffic.
+
+Status: `COMPATIBLE_CANDIDATE`. The preparation fixes RV-RLS-1, RV-RLS-2,
+RV-RLS-3, RV-RLS-5, RV-RLS-6, and the executed-proof portion of RV-RLS-7.
+RV-RLS-4 remains an activation gate for hard User-delete cascade maintenance.
+Activation also still needs the owner policy, direct runtime mutation denial,
+cross-owner proof, rollback/reactivation proof, and the remaining availability
+race matrix. `NO-GO` remains for an RLS/grant migration, merge, deployment, or
+any Production operation.
 

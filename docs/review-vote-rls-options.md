@@ -19,15 +19,22 @@ rows without changing public review ordering or exposing voter identities.
 
 ## Decision
 
-Select **A2** for compatible preparation: owner-only `SELECT`, no direct row
-mutation, one fixed toggle operation, and one account-deletion operation. Keep
-`Review.helpfulCount` as the public aggregate, but make the database maintain
-and reconcile it from `ReviewVote` rows.
+Select **A2**: owner-only `SELECT`, no direct row mutation after activation,
+one fixed toggle operation, and one account-deletion operation. Keep
+`Review.helpfulCount` as the public aggregate and reconcile it from
+`ReviewVote` rows inside every compatible writer.
 
-This decision authorizes design and isolated preparation only. It does not
-authorize an RLS migration, grant change, deployment, or Production action.
-Activation remains blocked on the findings and full-chain proofs in
-`docs/review-vote-pre-rls-audit.md`.
+The compatible preparation candidate is implemented without an RLS or table
+grant change and has passed the full 437-migration PostgreSQL 17 behavior and
+mixed-version concurrency proof. It does not install a general count trigger:
+the predecessor route still increments/decrements the scalar itself, so doing
+that before predecessor traffic is drained would double-count. The final
+activation must close hard User-delete cascade maintenance, install the owner
+policy, revoke direct mutations, and pass the denial/rollback matrix.
+
+This decision authorizes isolated preparation only. It does not authorize an
+RLS migration, grant change, merge, deployment, or Production action. See
+`docs/review-vote-pre-rls-audit.md` for the remaining activation gates.
 
 ## Required fixed-operation properties
 
