@@ -16,9 +16,10 @@ functions plus five missing bounded operations for public batch state, owner
 target IDs, the raw account-overview count, seller-owner incoming count, and
 claim-bound account-deletion cleanup.
 
-The Follow candidate is deliberately based on Favorite so the full-chain proof
-includes both preparations. Release order is strict: Favorite preparation must
-merge and be applied by itself before Follow can merge or be applied. Follow
+The Follow compatible candidate is draft PR #695 and is deliberately based on
+Favorite so the full-chain proof includes both preparations. Release order is
+strict: Favorite preparation must merge and be applied by itself before Follow
+can merge or be applied. Follow
 preparation is additive and compatible only; it does not enable or force RLS,
 revoke predecessor table grants, or authorize Production. Its separate
 activation still requires direct runtime/no-context/cross-user denial, cascade,
