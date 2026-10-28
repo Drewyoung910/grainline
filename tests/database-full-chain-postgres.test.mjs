@@ -114,8 +114,11 @@ import {
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
 import {
   FAVORITE_PREPARATION_MIGRATION,
+  FAVORITE_RLS_MIGRATION,
   proveFavoritePredecessorGap,
   proveFavoritePreparedAuthorities,
+  proveFavoriteRlsAuthorities,
+  proveFavoriteRlsRollback,
   seedFavoritePredecessorFixture,
 } from "../tools/database-full-chain/scenarios/favorite-authorities.mjs";
 import {
@@ -511,6 +514,17 @@ test(
             followPredecessorEvidence = await proveFollowPredecessorCompatibility({
               database: adapter,
               fixture: followFixture,
+            });
+          }
+          if (artifact.name === FAVORITE_RLS_MIGRATION) {
+            assert.ok(
+              favoriteFixture,
+              "Favorite fixture must exist before its activation proof",
+            );
+            await proveFavoritePreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+              fixture: favoriteFixture,
             });
           }
         },
@@ -1018,9 +1032,27 @@ test(
         favoriteFixture,
         "Favorite predecessor fixture must be seeded before preparation",
       );
-      await proveFavoritePreparedAuthorities({
+      await proveFavoriteRlsAuthorities({
         database: adapter,
-        connectionString: proofDatabaseUrl,
+        fixture: favoriteFixture,
+      });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/favorite-activation-rollback.sql"),
+        "utf8",
+      ));
+      await proveFavoriteRlsRollback({
+        database: adapter,
+        fixture: favoriteFixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${FAVORITE_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveFavoriteRlsAuthorities({
+        database: adapter,
         fixture: favoriteFixture,
       });
       assert.deepEqual(followPredecessorEvidence, {

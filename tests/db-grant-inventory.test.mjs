@@ -232,6 +232,8 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
 ];
 const FAVORITE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
+const FAVORITE_RLS_MIGRATION =
+  "prisma/migrations/20261028050000_activate_favorite_rls/migration.sql";
 const FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES = [
   "grainline_favorite_owner_listing_ids",
   "grainline_favorite_owner_add",
@@ -3590,6 +3592,13 @@ describe("database grant inventory guardrails", () => {
     ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
+    const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
+      && source(FAVORITE_RLS_MIGRATION).includes(
+        "CREATE POLICY favorite_owner_select",
+      )
+      && source(FAVORITE_RLS_MIGRATION).includes(
+        "CREATE POLICY favorite_owner_delete",
+      );
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3855,6 +3864,7 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (accountDeletionClaimFencePrepared ? 13 : 0)
         + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
+        + (favoriteRlsActivationPresent ? 1 : 0)
         + (listingHideDeleteMigrationPresent ? 1 : 0)
         + (supportRequestAuthorityPrepared
           ? supportRequestAuthorityFunctionNames.length
@@ -4300,6 +4310,7 @@ describe("database grant inventory guardrails", () => {
           : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Conversation",
+        ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         "Message",
         "Notification",
         ...(savedBlogPostRlsActivationMigrationPresent
@@ -4333,6 +4344,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUpload",
         "DirectUploadReference",
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
+        ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
@@ -4389,6 +4401,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUpload",
         "DirectUploadReference",
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
+        ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),

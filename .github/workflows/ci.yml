@@ -288,11 +288,12 @@ jobs:
           tests/stock-mutation-state.test.mjs
           tests/stock-notification-route.test.mjs
           tests/stock-notification-state.test.mjs
-      - name: Verify Favorite preparation source package
+      - name: Verify Favorite source packages
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
           --experimental-strip-types --test --test-concurrency=1
           tests/db-grant-inventory.test.mjs
+          tests/favorite-rls-activation.test.mjs
           tests/private-table-preparation-production.test.mjs
           tests/public-query-determinism.test.mjs
           tests/public-visibility-followups.test.mjs
@@ -334,15 +335,19 @@ jobs:
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
-      - name: Isolate Favorite preparation until historical release guards pass
+      - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/favorite-preparation"
-          migration=20261028010000_prepare_favorite_authorities
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "FAVORITE_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+          for migration in \
+            20261028010000_prepare_favorite_authorities \
+            20261028050000_activate_favorite_rls
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done
+          echo "FAVORITE_PREPARATION_MIGRATION_PATH=$holding/migrations/20261028010000_prepare_favorite_authorities" >> "$GITHUB_ENV"
       - name: Isolate Follow preparation until historical release guards pass
         shell: bash
         run: |
@@ -6922,13 +6927,17 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore Favorite preparation after historical release guards
+      - name: Restore Favorite source packages after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/favorite-preparation"
-          migration=20261028010000_prepare_favorite_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for migration in \
+            20261028010000_prepare_favorite_authorities \
+            20261028050000_activate_favorite_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           rmdir "$holding/migrations" "$holding"
           echo "FAVORITE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore Follow preparation after historical release guards

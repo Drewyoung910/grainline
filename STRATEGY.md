@@ -3523,6 +3523,13 @@ deployment. RLS activation, direct-grant revocation and Production execution
 remain separate reviewed gates; no security release drops the additive count
 column.
 
+The final activation authority shape is owner-direct SELECT and DELETE only.
+Do not grant direct INSERT: the prepared `grainline_favorite_owner_add(text)`
+operation is the atomic boundary for active-account, public-target,
+self-favorite, reciprocal-block and race checks. Direct UPDATE remains absent.
+The combined ENABLE/FORCE candidate must preserve the maintained public count,
+both FK cascades and a database-first rollback to the compatible predecessor.
+
 ### ReviewVote RLS direction (2026-10-28)
 
 Treat vote identities as private owner data and keep only the existing
