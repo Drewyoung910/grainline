@@ -299,6 +299,9 @@ describe("public query determinism", () => {
 
   it("bounds and tie-breaks remaining public capped query surfaces", () => {
     const home = source("src/app/page.tsx");
+    const followPreparation = source(
+      "prisma/migrations/20261028020000_prepare_follow_authorities/migration.sql",
+    );
     const tagPage = source("src/app/tag/[slug]/page.tsx");
     const authorPage = source("src/app/blog/author/[slug]/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
@@ -320,7 +323,11 @@ describe("public query determinism", () => {
     const featuredFetchBlock = home.slice(featuredBlockStart, featuredBlockEnd);
     assert.ok(featuredBlockStart >= 0 && featuredBlockEnd > featuredBlockStart);
     assert.doesNotMatch(featuredFetchBlock, /take:\s*3/);
-    assert.match(home, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 50/);
+    assert.match(home, /ownerFollowedSellerIds\(meDbId, 50\)/);
+    assert.match(
+      followPreparation,
+      /grainline_follow_owner_target_ids[\s\S]*ORDER BY relationship\."createdAt" DESC, relationship\.id DESC[\s\S]*LIMIT p_limit/,
+    );
 
     assert.match(tagPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
     assert.match(tagPage, /const page = Math\.min\(requestedPage, totalPages\)/);

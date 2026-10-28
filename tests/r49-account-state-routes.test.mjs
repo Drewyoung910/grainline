@@ -88,7 +88,7 @@ describe("R49 account-state route guardrails", () => {
     assert.doesNotMatch(feedRoute, /safeRateLimitOpen\(accountFeedRatelimit/);
     assert.ok(
       feedRoute.indexOf("safeRateLimit(accountFeedRatelimit, me.id)") <
-        feedRoute.indexOf("prisma.follow.findMany"),
+        feedRoute.indexOf("ownerFollowedSellerIds("),
       "account-feed GET should fail closed before fan-out feed queries",
     );
 
