@@ -13,8 +13,14 @@ migration merged in PR #657 as
 `968315f775c86d84a547d0a6eb3abaeec4662f49`. Protected run `40546465682`
 applied `20261026010000_prepare_stock_notification_authorities` in Production
 from exact main `857bc94706913a4d5c4368afa99de0a55bb2437c`; RLS remains off and predecessor
-table grants remain. The compatible application is not yet live. Application
-deploy and RLS activation remain later, separately gated steps.
+table grants remain. Production deployment
+`dpl_9WW7bJdjnmawMGt89i3SRJXrARPb` serves hotfix commit
+`113f176c362bc136bf55fbc0d32fbc9b5b39a0a5`, which diverges from the
+preparation lineage at `af1ee330f661c4604bf939085b175d00060d2dd0` and is
+therefore not compatible with activation. The activation branch explicitly
+joins that live hotfix lineage to current main, but a joined compatible commit
+must still be deployed and the exact predecessor drained before activation.
+Application deploy and RLS activation remain later, separately gated steps.
 
 This document is a product, authority, concurrency, privacy, scalability,
 recovery, and rollback audit. It is not a Production authorization. See
