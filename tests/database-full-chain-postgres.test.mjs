@@ -517,6 +517,7 @@ test(
       await proveReviewVoteAuthorities({
         connectionString: proofDatabaseUrl,
         database: adapter,
+        repositoryRoot,
         seller: fixture,
       });
       await proveSellerProfileActorReviewListingTarget({
