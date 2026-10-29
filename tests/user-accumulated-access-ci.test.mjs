@@ -119,6 +119,12 @@ const followPreparationMigration =
   "20261028020000_prepare_follow_authorities";
 const reviewVotePreparationMigration =
   "20261028030000_prepare_review_vote_authorities";
+const reviewVoteActivationMigration =
+  "20261028070000_activate_review_vote_rls";
+const reviewVoteCandidateMigrations = [
+  reviewVotePreparationMigration,
+  reviewVoteActivationMigration,
+];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -684,14 +690,16 @@ test("Follow preparation is proved, isolated, and restored around historical gua
 });
 
 test("ReviewVote preparation is proved, isolated, and restored around historical guards", () => {
-  const verifyName = "Verify ReviewVote preparation source package";
-  const isolateName = "Isolate ReviewVote preparation until historical release guards pass";
+  const verifyName = "Verify ReviewVote source packages";
+  const isolateName = "Isolate ReviewVote source packages until historical release guards pass";
   const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
-  const restoreName = "Restore ReviewVote preparation after historical release guards";
+  const restoreName = "Restore ReviewVote source packages after historical release guards";
   const isolate = step(isolateName);
   const restore = step(restoreName);
-  assert.match(isolate, new RegExp(reviewVotePreparationMigration));
-  assert.match(restore, new RegExp(reviewVotePreparationMigration));
+  for (const migration of reviewVoteCandidateMigrations) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
   assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
   assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
