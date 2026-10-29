@@ -111,6 +111,12 @@ const stockNotificationPreparationMigration =
   "20261026010000_prepare_stock_notification_authorities";
 const reviewVotePreparationMigration =
   "20261028030000_prepare_review_vote_authorities";
+const reviewVoteActivationMigration =
+  "20261028070000_activate_review_vote_rls";
+const reviewVoteCandidateMigrations = [
+  reviewVotePreparationMigration,
+  reviewVoteActivationMigration,
+];
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -586,14 +592,16 @@ test("StockNotification preparation is proved, isolated, and restored around his
 });
 
 test("ReviewVote preparation is proved, isolated, and restored around historical guards", () => {
-  const verifyName = "Verify ReviewVote preparation source package";
-  const isolateName = "Isolate ReviewVote preparation until historical release guards pass";
+  const verifyName = "Verify ReviewVote source packages";
+  const isolateName = "Isolate ReviewVote source packages until historical release guards pass";
   const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
-  const restoreName = "Restore ReviewVote preparation after historical release guards";
+  const restoreName = "Restore ReviewVote source packages after historical release guards";
   const isolate = step(isolateName);
   const restore = step(restoreName);
-  assert.match(isolate, new RegExp(reviewVotePreparationMigration));
-  assert.match(restore, new RegExp(reviewVotePreparationMigration));
+  for (const migration of reviewVoteCandidateMigrations) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
   assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
   assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
@@ -767,8 +775,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${emailProviderEligibilityFenceMigration}/migration.sql`;
     const stockNotificationPreparationPath =
       `prisma/migrations/${stockNotificationPreparationMigration}/migration.sql`;
-    const reviewVotePreparationPath =
-      `prisma/migrations/${reviewVotePreparationMigration}/migration.sql`;
+    const reviewVoteCandidatePaths = reviewVoteCandidateMigrations.map(
+      (migration) => `prisma/migrations/${migration}/migration.sql`,
+    );
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
@@ -783,7 +792,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       emailProviderDeletionFencePath,
       emailProviderEligibilityFencePath,
       stockNotificationPreparationPath,
-      reviewVotePreparationPath,
+      ...reviewVoteCandidatePaths,
       "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
@@ -815,7 +824,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate email delivery-ledger preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SupportRequest candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate StockNotification preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
-    execFileSync("bash", ["-c", bashBody("Isolate ReviewVote preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate ReviewVote source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -841,7 +850,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, emailProviderDeletionFencePath)), false);
     assert.equal(existsSync(path.join(root, emailProviderEligibilityFencePath)), false);
     assert.equal(existsSync(path.join(root, stockNotificationPreparationPath)), false);
-    assert.equal(existsSync(path.join(root, reviewVotePreparationPath)), false);
+    assert.ok(reviewVoteCandidatePaths.every(
+      (relative) => !existsSync(path.join(root, relative)),
+    ));
     assert.ok(emailDeliveryLedgerCandidateTests.every(
       (file) => !existsSync(path.join(root, "tests", file)),
     ));
@@ -899,7 +910,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore blocked-checkout refund witness after immutable refund repair")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SupportRequest candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore StockNotification preparation after historical release guards")], { cwd: root, env: scriptEnv });
-    execFileSync("bash", ["-c", bashBody("Restore ReviewVote preparation after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore ReviewVote source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/account-deletion fence after historical release guards")], { cwd: root, env: scriptEnv });
