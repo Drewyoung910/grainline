@@ -320,6 +320,42 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  review_vote_v1: Object.freeze({
+    migration: "20261028030000_prepare_review_vote_authorities",
+    migrationSha256: "ade8192879c56f7bb9cc414e58d722e6da4c611e11d4c5e61bdd4f3ccd137ea4",
+    table: "ReviewVote",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/review-vote-access.test.mjs",
+      "tests/review-vote-route.test.mjs",
+      "tests/review-vote-visibility.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_review_vote_owner_toggle",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_review_vote_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_review_vote_owner_delete_all",
+        arguments: "",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {
