@@ -635,6 +635,85 @@ async function proveStaleGenerationCannotStart(database, fixture) {
   assert.equal(await beginProvider(database, jobId, currentClaim), "ready");
 }
 
+async function proveApplicationTransactionalSourceAllowlist(database, fixture) {
+  const cases = Object.freeze([
+    ["order_payment", "refund_issued"],
+    ["order_fulfillment", "order_shipped"],
+    ["case", "case_resolved"],
+  ]);
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    for (const [sourceType, templateName] of cases) {
+      const suffix = `application_source_${sourceType}`;
+      assert.equal(await enqueue(database, {
+        suffix,
+        recipientEmail: fixture.email,
+        userId: fixture.userId,
+        templateName,
+        sourceType,
+        sourceId: id(`source_${sourceType}`),
+      }), id(`job_${suffix}`));
+    }
+  } finally {
+    await database.query("RESET ROLE");
+  }
+}
+
+async function proveCompleteDeletionKeySet(database, fixture) {
+  const emailKeys = Array.from(
+    { length: 24 },
+    (_, index) => `${PREFIX}.historical.${index}@example.test`,
+  );
+  await database.query("BEGIN");
+  await database.query("SET LOCAL ROLE grainline_app_runtime");
+  try {
+    assert.equal(
+      await deletionFence(database, fixture.userId, emailKeys),
+      0,
+      "the complete historical-address set must not be rejected by an arbitrary key-count cap",
+    );
+  } finally {
+    await database.query("ROLLBACK");
+  }
+}
+
+async function provePredecessorRetryWindow(database, fixture) {
+  const jobId = await enqueue(database, {
+    suffix: "retry_window_attempt_nine",
+    recipientEmail: fixture.email,
+    userId: fixture.userId,
+  });
+  await database.query(
+    `UPDATE public."EmailOutbox"
+        SET attempts = 8
+      WHERE id = $1`,
+    [jobId],
+  );
+  const claimIdentity = await claim(database, jobId);
+  assert.equal(claimIdentity.generation, 1);
+  assert.equal(await beginProvider(database, jobId, claimIdentity), "ready");
+  assert.equal((await database.query(
+    `SELECT public.grainline_email_outbox_fail(
+       $1, $2::bigint, $3::uuid, 'provider_retryable', 'temporary timeout'
+     ) AS result`,
+    [jobId, claimIdentity.generation, claimIdentity.token],
+  )).rows[0].result, "applied");
+
+  const retry = (await database.query(
+    `SELECT status,
+            EXTRACT(
+              EPOCH FROM ("nextAttemptAt" - "updatedAt")
+            )::integer AS "delaySeconds"
+       FROM public."EmailOutbox"
+      WHERE id = $1`,
+    [jobId],
+  )).rows[0];
+  assert.deepEqual(retry, {
+    status: "FAILED",
+    delaySeconds: 256 * 60,
+  });
+}
+
 async function proveSourceOwnerAndAnonymousAlias({
   database,
   seller,
@@ -781,6 +860,9 @@ export async function proveEmailProviderDeletionFence({
   const providerMarkers = await seedUser(database, "provider_markers");
   const staleGeneration = await seedUser(database, "stale_generation");
   const enqueueFirst = await seedUser(database, "enqueue_first");
+  const applicationSources = await seedUser(database, "application_sources");
+  const completeDeletionKeys = await seedUser(database, "complete_deletion_keys");
+  const retryWindow = await seedUser(database, "retry_window");
 
   await proveDeletionFirstProviderStart({
     database,
@@ -795,6 +877,9 @@ export async function proveEmailProviderDeletionFence({
   await proveProviderMarkers({ database, fixture: providerMarkers });
   await proveEnqueueFirstDeletion(database, enqueueFirst);
   await proveStaleGenerationCannotStart(database, staleGeneration);
+  await proveApplicationTransactionalSourceAllowlist(database, applicationSources);
+  await proveCompleteDeletionKeySet(database, completeDeletionKeys);
+  await provePredecessorRetryWindow(database, retryWindow);
   await proveSourceOwnerAndAnonymousAlias({ database, seller });
   assert.ok(historical, "historical source reconciliation fixture is required");
   await proveHistoricalSourceReconciliation(database, historical, seller);
@@ -813,5 +898,8 @@ export async function proveEmailProviderDeletionFence({
     historicalSourceReconciliation: true,
     ambiguousLegacyFailClosed: true,
     atomicMigrationRollback: true,
+    applicationTransactionalSources: true,
+    completeDeletionKeySet: true,
+    predecessorRetryWindow: true,
   });
 }
