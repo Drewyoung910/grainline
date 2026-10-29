@@ -356,9 +356,13 @@ async function proveSubscribeBanSerialization({ connectionString, database, fixt
 
     await beginRuntime(subscribeSecond, fixture.subscriberA, "2s");
     let subscribeSettled = false;
-    const subscribeResult = subscribeSecond.query(
-      `SELECT * FROM public.grainline_stock_notification_owner_subscribe($1, $2)`,
-      [randomUUID(), fixture.listings.subscribeBanRace],
+    const subscribeResult = assert.rejects(
+      subscribeSecond.query(
+        `SELECT * FROM public.grainline_stock_notification_owner_subscribe($1, $2)`,
+        [randomUUID(), fixture.listings.subscribeBanRace],
+      ),
+      (error) => error?.code === "42501",
+      "subscription must recheck actor activity after the user lock is acquired",
     ).finally(() => {
       subscribeSettled = true;
     });
@@ -370,11 +374,7 @@ async function proveSubscribeBanSerialization({ connectionString, database, fixt
     );
 
     await banFirst.query("COMMIT");
-    await assert.rejects(
-      subscribeResult,
-      (error) => error?.code === "42501",
-      "subscription must recheck actor activity after the user lock is acquired",
-    );
+    await subscribeResult;
     await subscribeSecond.query("ROLLBACK");
     assert.equal(Number(rowsOf(await database.query(
       `SELECT pg_catalog.count(*)::integer AS count
