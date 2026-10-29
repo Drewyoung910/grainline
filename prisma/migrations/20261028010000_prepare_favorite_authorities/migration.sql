@@ -718,6 +718,18 @@ BEGIN
        AND trigger_state.tgtype = 19
        AND trigger_state.tgenabled = 'O'
        AND NOT trigger_state.tgisinternal
+       AND (
+         SELECT pg_catalog.array_agg(
+                  attribute.attname::text ORDER BY target_column.ordinality
+                )
+           FROM pg_catalog.unnest(
+                  trigger_state.tgattr::smallint[]
+                ) WITH ORDINALITY AS target_column(attnum, ordinality)
+           JOIN pg_catalog.pg_attribute AS attribute
+             ON attribute.attrelid = 'public."Listing"'::pg_catalog.regclass
+            AND attribute.attnum = target_column.attnum
+            AND NOT attribute.attisdropped
+       ) = ARRAY['favoriteCount']::text[]
        AND trigger_state.tgfoid = pg_catalog.to_regprocedure(
          'public.grainline_listing_favorite_count_guard()'
        )

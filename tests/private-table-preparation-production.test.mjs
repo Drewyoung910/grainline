@@ -213,6 +213,10 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
   );
   assert.match(
     sql,
+    /trigger_state\.tgattr::smallint\[\][\s\S]*ARRAY\['favoriteCount'\]::text\[\]/u,
+  );
+  assert.match(
+    sql,
     /REVOKE ALL ON FUNCTION public\.grainline_listing_favorite_count_guard\(\)[\s\S]*FROM PUBLIC, grainline_app_runtime/u,
   );
   assert.doesNotMatch(sql, /grainline_favorite_block_cleanup/u);
