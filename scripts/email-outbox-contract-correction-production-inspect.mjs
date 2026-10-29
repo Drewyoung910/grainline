@@ -22,7 +22,7 @@ export const MIGRATION_SHA256 =
 export const RESEND_RECOVERY_MIGRATION =
   "20261027010000_restore_resend_webhook_receipts";
 export const RESEND_RECOVERY_SHA256 =
-  "c4ccc1d97c42a586e824adbbc575f0c0112fbb3896f169d29a184dfde0eed567";
+  "a765482bfdeca66a82aaa912c5bfc2c6f7bc44b033fea4ace2e5bc40243ad2ba";
 export const STOCK_NOTIFICATION_MIGRATION =
   "20261026010000_prepare_stock_notification_authorities";
 export const STOCK_NOTIFICATION_SHA256 =
@@ -243,7 +243,7 @@ async function readCatalog(client) {
   });
 }
 
-async function proveRuntimeContracts(client) {
+async function proveCorrectedContracts(client) {
   const runId = process.env.GITHUB_RUN_ID;
   assert.match(runId ?? "", /^[1-9][0-9]{0,19}$/u);
   const prefix = `c1185_${runId}`;
@@ -254,7 +254,6 @@ async function proveRuntimeContracts(client) {
   ];
   await client.query("BEGIN");
   try {
-    await client.query("SET LOCAL ROLE grainline_app_runtime");
     for (const [sourceType, templateName] of sources) {
       const result = await client.query(`
         SELECT * FROM public.grainline_email_outbox_enqueue_legacy(
@@ -297,12 +296,10 @@ async function proveRuntimeContracts(client) {
         'Contract proof', '<p>Contract proof</p>', $3
       )
     `, [retryJobId, `${prefix}.retry@example.test`, `${prefix}_retry_dedup`]);
-    await client.query("RESET ROLE");
     await client.query(
       `UPDATE public."EmailOutbox" SET attempts = 8 WHERE id = $1`,
       [retryJobId],
     );
-    await client.query("SET LOCAL ROLE grainline_app_runtime");
     const claim = (await client.query(
       "SELECT * FROM public.grainline_email_outbox_claim_one($1)",
       [retryJobId],
@@ -353,7 +350,7 @@ export async function inspect(mode, connectionString) {
     );
     const verified = verifyCatalog(catalog, ledger);
     const runtime = mode === "postflight"
-      ? await proveRuntimeContracts(client)
+      ? await proveCorrectedContracts(client)
       : null;
     return Object.freeze({
       mode,

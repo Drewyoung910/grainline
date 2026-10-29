@@ -11,6 +11,8 @@ import yaml from "js-yaml";
 import {
   MIGRATION,
   MIGRATION_SHA256,
+  RESEND_RECOVERY_MIGRATION,
+  RESEND_RECOVERY_SHA256,
   STOCK_NOTIFICATION_MIGRATION,
   databaseClientOptions,
   expectedPendingMigrations,
@@ -168,6 +170,17 @@ test("email correction applies one exact migration after C-1180 while preserving
   );
   assert.match(workflow, new RegExp(MIGRATION_SHA256, "u"));
   assert.equal(REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(MIGRATION), MIGRATION_SHA256);
+  const resendRecoverySql = readFileSync(
+    path.join(
+      process.env.RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH
+        ?? `prisma/migrations/${RESEND_RECOVERY_MIGRATION}`,
+      "migration.sql",
+    ),
+  );
+  assert.equal(
+    createHash("sha256").update(resendRecoverySql).digest("hex"),
+    RESEND_RECOVERY_SHA256,
+  );
   assert.match(inspectorSource, /20261027010000_restore_resend_webhook_receipts/u);
   assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
   assert.equal(expectedPendingMigrations({
@@ -325,6 +338,18 @@ test("production inspector parses the URL and records sanitized fail-closed evid
   } finally {
     rmSync(runnerTemp, { recursive: true, force: true });
   }
+});
+
+test("postflight proves corrected contracts without assuming owner can SET ROLE", () => {
+  assert.doesNotMatch(
+    inspectorSource,
+    /SET(?: LOCAL)? ROLE grainline_app_runtime/u,
+  );
+  assert.doesNotMatch(inspectorSource, /RESET ROLE/u);
+  assert.match(inspectorSource, /grainline_email_outbox_enqueue_legacy/u);
+  assert.match(inspectorSource, /grainline_email_outbox_account_deletion_fence/u);
+  assert.match(inspectorSource, /grainline_email_outbox_fail/u);
+  assert.match(inspectorSource, /writesRolledBack: true/u);
 });
 
 test("final CI replay applies the correction only after both provider fences", () => {
