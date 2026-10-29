@@ -269,6 +269,7 @@ jobs:
           tests/admin-page-pin-boundary.test.mjs
           tests/db-grant-inventory.test.mjs
           tests/maker-verification-preparation.test.mjs
+          tests/private-table-rls-activation-catalog.test.mjs
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
