@@ -452,6 +452,423 @@ async function proveStaffPagination({ database, staffId, prefix }) {
   );
 }
 
+async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
+  const userPrefix = `${prefix}_staff_user_`;
+  const sellerPrefix = `${prefix}_staff_seller_`;
+  const verificationPrefix = `${prefix}_staff_verification_`;
+  const operations = [
+    ["approve_member", "APPROVE_GUILD_MEMBER", true],
+    ["reject_member", "REJECT_GUILD_MEMBER", false],
+    ["revoke_member", "REVOKE_GUILD_MEMBER", false],
+    ["approve_master", "APPROVE_GUILD_MASTER", false],
+    ["reject_master", "REJECT_GUILD_MASTER", false],
+    ["revoke_master", "REVOKE_GUILD_MASTER", false],
+    ["reinstate", "REINSTATE_GUILD_MEMBER", false],
+  ];
+  const keys = operations.map(([key]) => key);
+
+  await database.query(
+    `INSERT INTO public."User" (
+       id, "clerkId", email, name, role, "createdAt", "updatedAt"
+     )
+     SELECT $1 || source.key,
+            'clerk_' || $1 || source.key,
+            $1 || source.key || '@example.test',
+            'Transition ' || source.key,
+            'USER',
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+       FROM pg_catalog.unnest($2::text[]) AS source(key)`,
+    [userPrefix, keys],
+  );
+  await database.query(
+    `INSERT INTO public."SellerProfile" (
+       id, "userId", "displayName", "displayNameNormalized", "guildLevel",
+       "isVerifiedMaker", "ownerAccountActive", "createdAt", "updatedAt"
+     )
+     SELECT $1 || source.key,
+            $2 || source.key,
+            'Transition ' || source.key,
+            'transition ' || source.key,
+            CASE
+              WHEN source.key IN ('revoke_member', 'approve_master', 'reject_master')
+                THEN 'GUILD_MEMBER'::public."GuildLevel"
+              WHEN source.key = 'revoke_master'
+                THEN 'GUILD_MASTER'::public."GuildLevel"
+              ELSE 'NONE'::public."GuildLevel"
+            END,
+            source.key IN ('revoke_member', 'approve_master', 'reject_master', 'revoke_master'),
+            true,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+       FROM pg_catalog.unnest($3::text[]) AS source(key)`,
+    [sellerPrefix, userPrefix, keys],
+  );
+  await database.query(
+    `INSERT INTO public."MakerVerification" (
+       id, "sellerProfileId", "craftDescription", "yearsExperience", status,
+       "appliedAt", "createdAt", "updatedAt"
+     )
+     SELECT $1 || source.key,
+            $2 || source.key,
+            'Transition craft ' || source.key,
+            10,
+            CASE
+              WHEN source.key IN ('approve_member', 'reject_member')
+                THEN 'PENDING'::public."VerificationStatus"
+              WHEN source.key = 'revoke_member'
+                THEN 'APPROVED'::public."VerificationStatus"
+              WHEN source.key IN ('approve_master', 'reject_master')
+                THEN 'GUILD_MASTER_PENDING'::public."VerificationStatus"
+              WHEN source.key = 'revoke_master'
+                THEN 'GUILD_MASTER_APPROVED'::public."VerificationStatus"
+              ELSE 'REJECTED'::public."VerificationStatus"
+            END,
+            CURRENT_TIMESTAMP - INTERVAL '31 days',
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+       FROM pg_catalog.unnest($3::text[]) AS source(key)`,
+    [verificationPrefix, sellerPrefix, keys],
+  );
+  await database.query(
+    `UPDATE public."SellerProfilePrivate" AS seller_private
+        SET "guildMemberApprovedAt" = CURRENT_TIMESTAMP - INTERVAL '31 days',
+            "guildMasterApprovedAt" = CASE
+              WHEN seller_private."sellerProfileId" = $1 || 'revoke_master'
+                THEN CURRENT_TIMESTAMP - INTERVAL '31 days'
+              ELSE NULL
+            END,
+            "updatedAt" = CURRENT_TIMESTAMP
+      WHERE pg_catalog.left(
+              seller_private."sellerProfileId",
+              pg_catalog.length($1)
+            ) = $1
+        AND seller_private."sellerProfileId" NOT IN (
+          $1 || 'approve_member',
+          $1 || 'reject_member'
+        )`,
+    [sellerPrefix],
+  );
+  await database.query(
+    `INSERT INTO public."Listing" (
+       id, "sellerId", title, description, "priceCents", currency, status,
+       "listingType", "stockQuantity", "isPrivate", "createdAt", "updatedAt"
+     )
+     SELECT $1 || source.n,
+            $2 || 'reinstate',
+            'Reinstatement listing ' || source.n,
+            'Transition-matrix reinstatement proof',
+            1000,
+            'usd',
+            'ACTIVE'::public."ListingStatus",
+            'IN_STOCK'::public."ListingType",
+            1,
+            false,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+       FROM pg_catalog.generate_series(1, 5) AS source(n)`,
+    [`${prefix}_staff_listing_`, sellerPrefix],
+  );
+
+  await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+  try {
+    for (const [key, operation, adminOverride] of operations) {
+      const usesVerification = new Set([
+        "APPROVE_GUILD_MEMBER",
+        "REJECT_GUILD_MEMBER",
+        "APPROVE_GUILD_MASTER",
+        "REJECT_GUILD_MASTER",
+      ]).has(operation);
+      const result = rowsOf(await database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, $2, $3, $4, $5, $6
+         )`,
+        [
+          staffId,
+          operation,
+          usesVerification ? `${verificationPrefix}${key}` : null,
+          usesVerification ? null : `${sellerPrefix}${key}`,
+          operation.startsWith("REJECT_") ? `Matrix reason for ${key}` : null,
+          adminOverride,
+        ],
+      ));
+      assert.equal(result.length, 1, operation);
+      assert.equal(result[0].applied, true, operation);
+      assert.equal(typeof result[0].auditId, "string", operation);
+      assert.equal(result[0].sellerProfileId, `${sellerPrefix}${key}`, operation);
+      assert.equal(result[0].sellerUserId, `${userPrefix}${key}`, operation);
+    }
+  } finally {
+    await database.query("RESET SESSION AUTHORIZATION");
+  }
+
+  const state = rowsOf(await database.query(
+    `SELECT pg_catalog.substring(seller.id FROM pg_catalog.length($1) + 1) AS key,
+            seller."guildLevel"::text AS "guildLevel",
+            seller."isVerifiedMaker" AS "isVerifiedMaker",
+            verification.status::text AS status,
+            verification."reviewNotes" AS "reviewNotes",
+            seller_private."guildMemberApprovedAt" AS "guildMemberApprovedAt",
+            seller_private."guildMasterApprovedAt" AS "guildMasterApprovedAt"
+       FROM public."SellerProfile" AS seller
+       JOIN public."SellerProfilePrivate" AS seller_private
+         ON seller_private."sellerProfileId" = seller.id
+       JOIN public."MakerVerification" AS verification
+         ON verification."sellerProfileId" = seller.id
+      WHERE pg_catalog.left(seller.id, pg_catalog.length($1)) = $1
+      ORDER BY seller.id`,
+    [sellerPrefix],
+  ));
+  const byKey = Object.fromEntries(state.map((row) => [row.key, row]));
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(byKey).map(([key, row]) => [key, [row.status, row.guildLevel]])),
+    {
+      approve_master: ["GUILD_MASTER_APPROVED", "GUILD_MASTER"],
+      approve_member: ["APPROVED", "GUILD_MEMBER"],
+      reinstate: ["APPROVED", "GUILD_MEMBER"],
+      reject_master: ["GUILD_MASTER_REJECTED", "GUILD_MEMBER"],
+      reject_member: ["REJECTED", "NONE"],
+      revoke_master: ["GUILD_MASTER_REJECTED", "GUILD_MEMBER"],
+      revoke_member: ["REJECTED", "NONE"],
+    },
+  );
+  assert.equal(byKey.approve_member.isVerifiedMaker, true);
+  assert.equal(byKey.reinstate.isVerifiedMaker, true);
+  assert.equal(byKey.revoke_member.isVerifiedMaker, false);
+  assert.equal(byKey.approve_member.guildMemberApprovedAt instanceof Date, true);
+  assert.equal(byKey.approve_master.guildMasterApprovedAt instanceof Date, true);
+  assert.equal(byKey.revoke_master.guildMasterApprovedAt, null);
+  assert.equal(byKey.reject_member.reviewNotes, "Matrix reason for reject_member");
+  assert.equal(
+    Number(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*) AS value
+         FROM public."AdminAuditLog"
+        WHERE "adminId" = $1
+          AND pg_catalog.left("targetId", pg_catalog.length($2)) = $2`,
+      [staffId, sellerPrefix],
+    ))[0]?.value),
+    7,
+  );
+
+  await database.query(
+    `DELETE FROM public."AdminAuditLog"
+      WHERE "adminId" = $1
+        AND pg_catalog.left("targetId", pg_catalog.length($2)) = $2`,
+    [staffId, sellerPrefix],
+  );
+  await database.query(
+    `DELETE FROM public."Listing"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [`${prefix}_staff_listing_`],
+  );
+  await database.query(
+    `DELETE FROM public."MakerVerification"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [verificationPrefix],
+  );
+  await database.query(
+    `DELETE FROM public."SellerProfile"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [sellerPrefix],
+  );
+  await database.query(
+    `DELETE FROM public."User"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [userPrefix],
+  );
+}
+
+async function proveServiceTransitionMatrix({ database, prefix }) {
+  const userPrefix = `${prefix}_service_user_`;
+  const sellerPrefix = `${prefix}_service_seller_`;
+  const verificationPrefix = `${prefix}_service_verification_`;
+  const memberSellerId = `${sellerPrefix}member`;
+  const masterSellerId = `${sellerPrefix}master`;
+
+  await database.query(
+    `INSERT INTO public."User" (
+       id, "clerkId", email, name, role, "createdAt", "updatedAt"
+     ) VALUES
+       ($1 || 'member', 'clerk_' || $1 || 'member', $1 || 'member@example.test',
+        'Service member', 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ($1 || 'master', 'clerk_' || $1 || 'master', $1 || 'master@example.test',
+        'Service master', 'USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [userPrefix],
+  );
+  await database.query(
+    `INSERT INTO public."SellerProfile" (
+       id, "userId", "displayName", "displayNameNormalized", "guildLevel",
+       "isVerifiedMaker", "ownerAccountActive", "createdAt", "updatedAt"
+     ) VALUES
+       ($1, $2 || 'member', 'Service member', 'service member',
+        'GUILD_MEMBER', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ($3, $2 || 'master', 'Service master', 'service master',
+        'GUILD_MASTER', true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [memberSellerId, userPrefix, masterSellerId],
+  );
+  await database.query(
+    `INSERT INTO public."MakerVerification" (
+       id, "sellerProfileId", "craftDescription", "yearsExperience", status,
+       "appliedAt", "createdAt", "updatedAt"
+     ) VALUES
+       ($1 || 'member', $2, 'Service member craft', 12, 'APPROVED',
+        CURRENT_TIMESTAMP - INTERVAL '60 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ($1 || 'master', $3, 'Service master craft', 20, 'GUILD_MASTER_APPROVED',
+        CURRENT_TIMESTAMP - INTERVAL '60 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [verificationPrefix, memberSellerId, masterSellerId],
+  );
+  await database.query(
+    `UPDATE public."SellerProfilePrivate"
+        SET "guildMemberApprovedAt" = CURRENT_TIMESTAMP - INTERVAL '60 days',
+            "guildMasterApprovedAt" = CASE
+              WHEN "sellerProfileId" = $2
+                THEN CURRENT_TIMESTAMP - INTERVAL '45 days'
+              ELSE NULL
+            END,
+            "listingsBelowThresholdSince" = CASE
+              WHEN "sellerProfileId" = $1
+                THEN CURRENT_TIMESTAMP - INTERVAL '31 days'
+              ELSE NULL
+            END,
+            "consecutiveMetricFailures" = 0,
+            "metricWarningSentAt" = NULL,
+            "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "sellerProfileId" IN ($1, $2)`,
+    [memberSellerId, masterSellerId],
+  );
+  await database.query(
+    `INSERT INTO public."SellerMetrics" (
+       id, "sellerProfileId", "calculatedAt", "periodMonths",
+       "averageRating", "reviewCount", "onTimeShippingRate", "responseRate",
+       "totalSalesCents", "completedOrderCount", "activeCaseCount", "accountAgeDays"
+     ) VALUES (
+       $1, $2, (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::timestamp(3), 3,
+       4.0, 10, 0.80, 0.80, 50000, 10, 1, 200
+     )`,
+    [`${prefix}_service_metrics`, masterSellerId],
+  );
+  const calculatedAt = rowsOf(await database.query(
+    `SELECT "calculatedAt" AS value
+       FROM public."SellerMetrics"
+      WHERE "sellerProfileId" = $1`,
+    [masterSellerId],
+  ))[0]?.value;
+  assert.equal(calculatedAt instanceof Date, true);
+
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    const memberRevocation = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_guild_member_revoke($1)",
+      [memberSellerId],
+    ));
+    assert.equal(memberRevocation.length, 1);
+    assert.equal(memberRevocation[0].applied, true);
+    assert.equal(memberRevocation[0].guardKind, "listing_threshold");
+    assert.equal(typeof memberRevocation[0].auditId, "string");
+
+    const warning = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_guild_metrics_apply($1, $2)",
+      [masterSellerId, calculatedAt],
+    ));
+    assert.equal(warning.length, 1);
+    assert.equal(warning[0].action, "MASTER_WARNED");
+    assert.equal(typeof warning[0].auditId, "string");
+    assert.equal(warning[0].warningSentAt instanceof Date, true);
+  } finally {
+    await database.query("RESET ROLE");
+  }
+
+  await database.query(
+    `UPDATE public."SellerProfilePrivate"
+        SET "consecutiveMetricFailures" = 1,
+            "metricWarningSentAt" = CURRENT_TIMESTAMP - INTERVAL '31 days',
+            "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "sellerProfileId" = $1`,
+    [masterSellerId],
+  );
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    const downgrade = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_guild_metrics_apply($1, $2)",
+      [masterSellerId, calculatedAt],
+    ));
+    assert.equal(downgrade.length, 1);
+    assert.equal(downgrade[0].action, "MASTER_REVOKED");
+    assert.equal(typeof downgrade[0].auditId, "string");
+  } finally {
+    await database.query("RESET ROLE");
+  }
+
+  const finalState = rowsOf(await database.query(
+    `SELECT seller.id,
+            seller."guildLevel"::text AS "guildLevel",
+            seller."isVerifiedMaker" AS "isVerifiedMaker",
+            verification.status::text AS status,
+            seller_private."consecutiveMetricFailures" AS "consecutiveMetricFailures",
+            seller_private."metricWarningSentAt" AS "metricWarningSentAt",
+            seller_private."guildMasterApprovedAt" AS "guildMasterApprovedAt"
+       FROM public."SellerProfile" AS seller
+       JOIN public."SellerProfilePrivate" AS seller_private
+         ON seller_private."sellerProfileId" = seller.id
+       JOIN public."MakerVerification" AS verification
+         ON verification."sellerProfileId" = seller.id
+      WHERE seller.id IN ($1, $2)
+      ORDER BY seller.id`,
+    [memberSellerId, masterSellerId],
+  ));
+  const stateById = Object.fromEntries(finalState.map((row) => [row.id, row]));
+  assert.deepEqual(
+    [stateById[memberSellerId].status, stateById[memberSellerId].guildLevel],
+    ["REJECTED", "NONE"],
+  );
+  assert.equal(stateById[memberSellerId].isVerifiedMaker, false);
+  assert.deepEqual(
+    [stateById[masterSellerId].status, stateById[masterSellerId].guildLevel],
+    ["GUILD_MASTER_REJECTED", "GUILD_MEMBER"],
+  );
+  assert.equal(stateById[masterSellerId].isVerifiedMaker, true);
+  assert.equal(stateById[masterSellerId].consecutiveMetricFailures, 0);
+  assert.equal(stateById[masterSellerId].metricWarningSentAt, null);
+  assert.equal(stateById[masterSellerId].guildMasterApprovedAt, null);
+  assert.deepEqual(
+    rowsOf(await database.query(
+      `SELECT action
+         FROM public."SystemAuditLog"
+        WHERE "targetId" IN ($1, $2)
+        ORDER BY action`,
+      [memberSellerId, masterSellerId],
+    )).map((row) => row.action),
+    [
+      "AUTO_REVOKE_GUILD_MASTER",
+      "AUTO_REVOKE_GUILD_MEMBER",
+      "WARN_GUILD_MASTER_METRICS",
+    ],
+  );
+
+  await database.query(
+    `DELETE FROM public."SystemAuditLog" WHERE "targetId" IN ($1, $2)`,
+    [memberSellerId, masterSellerId],
+  );
+  await database.query(
+    `DELETE FROM public."SellerMetrics" WHERE "sellerProfileId" = $1`,
+    [masterSellerId],
+  );
+  await database.query(
+    `DELETE FROM public."MakerVerification"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [verificationPrefix],
+  );
+  await database.query(
+    `DELETE FROM public."SellerProfile" WHERE id IN ($1, $2)`,
+    [memberSellerId, masterSellerId],
+  );
+  await database.query(
+    `DELETE FROM public."User"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [userPrefix],
+  );
+}
+
 export async function proveMakerVerificationPreparedAuthorities({ database, seller, connectionString }) {
   const verificationIdPrefix = `${seller.sellerProfileId}_maker_verification`;
   const staffId = `${verificationIdPrefix}_staff`;
@@ -596,6 +1013,15 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
     database,
     staffId,
     prefix: `${verificationIdPrefix}_pagination`,
+  });
+  await proveStaffTransitionMatrix({
+    database,
+    staffId,
+    prefix: `${verificationIdPrefix}_transitions`,
+  });
+  await proveServiceTransitionMatrix({
+    database,
+    prefix: `${verificationIdPrefix}_transitions`,
   });
   await database.query(
     `UPDATE public."SellerProfile"
