@@ -455,6 +455,7 @@ jobs:
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done
           echo "REVIEW_VOTE_PREPARATION_MIGRATION_PATH=$holding/migrations/20261028030000_prepare_review_vote_authorities/migration.sql" >> "$GITHUB_ENV"
+          echo "REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/20261028070000_activate_review_vote_rls/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate MakerVerification candidates until historical release guards pass
         shell: bash
         run: |
@@ -6980,6 +6981,7 @@ jobs:
           done
           rmdir "$holding/migrations" "$holding"
           echo "REVIEW_VOTE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore MakerVerification candidates after historical release guards
         shell: bash
         run: |
