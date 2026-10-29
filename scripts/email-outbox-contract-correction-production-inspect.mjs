@@ -8,7 +8,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import pg from "pg";
 
-import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
+import {
+  parseExactPostgresUrl,
+  postgresChannelBindingClientOptions,
+} from "./postgres-url-safety.mjs";
 import { isReviewedSuccessfulMigration } from "./reviewed-manually-applied-migrations.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -84,6 +87,14 @@ export function expectedPendingMigrations({ candidateState, stockState }) {
     ...(stockState === "pending" ? [STOCK_NOTIFICATION_MIGRATION] : []),
     ...(candidateState === "pending" ? [MIGRATION] : []),
   ].join(",");
+}
+
+export function databaseClientOptions(connectionString) {
+  const parsed = parseExactPostgresUrl(connectionString, "DIRECT_URL");
+  return Object.freeze({
+    connectionString,
+    ...postgresChannelBindingClientOptions(parsed),
+  });
 }
 
 export function verifyCatalog(
@@ -329,10 +340,7 @@ async function proveRuntimeContracts(client) {
 
 export async function inspect(mode, connectionString) {
   assert.ok(mode === "preflight" || mode === "postflight");
-  const client = new pg.Client({
-    connectionString,
-    ...postgresChannelBindingClientOptions(connectionString),
-  });
+  const client = new pg.Client(databaseClientOptions(connectionString));
   await client.connect();
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -358,6 +366,19 @@ export async function inspect(mode, connectionString) {
   }
 }
 
+function evidencePath(mode) {
+  return path.join(
+    process.env.RUNNER_TEMP ?? "/tmp",
+    `email-outbox-contract-correction-${mode}.json`,
+  );
+}
+
+function writeEvidence(mode, value) {
+  writeFileSync(evidencePath(mode), `${JSON.stringify(value, null, 2)}\n`, {
+    mode: 0o600,
+  });
+}
+
 async function main() {
   const mode = process.argv[2];
   assert.ok(mode === "preflight" || mode === "postflight", "mode is invalid");
@@ -376,18 +397,21 @@ async function main() {
     appendFileSync(outputPath, `expected_pending=${expectedPending}\n`);
     appendFileSync(outputPath, `expected_after=${expectedAfter}\n`);
   }
-  const evidencePath = path.join(
-    process.env.RUNNER_TEMP ?? "/tmp",
-    `email-outbox-contract-correction-${mode}.json`,
-  );
-  writeFileSync(evidencePath, `${JSON.stringify(result, null, 2)}\n`, {
-    mode: 0o600,
-  });
+  writeEvidence(mode, result);
   process.stdout.write(`Email outbox contract correction ${mode} accepted.\n`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   main().catch((error) => {
+    const mode = process.argv[2];
+    if (mode === "preflight" || mode === "postflight") {
+      writeEvidence(mode, {
+        mode,
+        inspectionAccepted: false,
+        containsRowData: false,
+        productionChanged: false,
+      });
+    }
     process.stderr.write(`${error instanceof Error ? error.message : "inspection failed"}\n`);
     process.exitCode = 1;
   });

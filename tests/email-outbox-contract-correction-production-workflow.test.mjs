@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -10,6 +12,7 @@ import {
   MIGRATION,
   MIGRATION_SHA256,
   STOCK_NOTIFICATION_MIGRATION,
+  databaseClientOptions,
   expectedPendingMigrations,
   verifyCatalog,
 } from "../scripts/email-outbox-contract-correction-production-inspect.mjs";
@@ -280,6 +283,48 @@ test("production workflow rolls back smoke writes and always uploads sanitized e
   );
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   assert.doesNotMatch(workflow, /resend\s+(?:emails|webhooks|domains)/iu);
+});
+
+test("production inspector parses the URL and records sanitized fail-closed evidence", () => {
+  const connectionString =
+    "postgresql://owner:secret@example.test:5432/neondb?sslmode=verify-full&channel_binding=require";
+  assert.deepEqual(databaseClientOptions(connectionString), {
+    connectionString,
+    enableChannelBinding: true,
+  });
+
+  const runnerTemp = mkdtempSync(
+    path.join(tmpdir(), "grainline-email-outbox-inspector-"),
+  );
+  try {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/email-outbox-contract-correction-production-inspect.mjs", "preflight"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIRECT_URL: "not-a-postgresql-url",
+          RUNNER_TEMP: runnerTemp,
+        },
+      },
+    );
+    assert.notEqual(result.status, 0);
+    const serialized = readFileSync(
+      path.join(runnerTemp, "email-outbox-contract-correction-preflight.json"),
+      "utf8",
+    );
+    assert.deepEqual(JSON.parse(serialized), {
+      mode: "preflight",
+      inspectionAccepted: false,
+      containsRowData: false,
+      productionChanged: false,
+    });
+    assert.doesNotMatch(serialized, /not-a-postgresql-url|owner|secret/iu);
+  } finally {
+    rmSync(runnerTemp, { recursive: true, force: true });
+  }
 });
 
 test("final CI replay applies the correction only after both provider fences", () => {
