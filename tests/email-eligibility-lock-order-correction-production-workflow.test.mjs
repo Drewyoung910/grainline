@@ -206,6 +206,34 @@ test("lock-order source is proved then isolated from historical release guards",
   );
 });
 
+test("final disposable build applies the lock-order correction after its predecessors", () => {
+  const finalBuild = ciWorkflow.slice(ciWorkflow.indexOf(
+    "name: Apply complete public SellerProfile chain for final Production build",
+  ));
+  const holdLockOrder = finalBuild.indexOf(
+    'mv "prisma/migrations/$lock_order_correction_migration" "$holding/migrations/$lock_order_correction_migration"',
+  );
+  const restoreEligibility = finalBuild.indexOf(
+    '"$holding/migrations/$eligibility_migration"',
+    holdLockOrder + 1,
+  );
+  const restoreOutboxCorrection = finalBuild.lastIndexOf(
+    '"$holding/migrations/$correction_migration"',
+  );
+  const restoreLockOrder = finalBuild.lastIndexOf(
+    '"$holding/migrations/$lock_order_correction_migration"',
+  );
+
+  assert.ok(holdLockOrder >= 0);
+  assert.ok(restoreEligibility > holdLockOrder);
+  assert.ok(restoreOutboxCorrection > restoreEligibility);
+  assert.ok(restoreLockOrder > restoreOutboxCorrection);
+  assert.match(
+    finalBuild.slice(restoreLockOrder),
+    /EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH=/u,
+  );
+});
+
 test("catalog proof pins predecessor and corrected function bodies, owners and ACLs", () => {
   assert.equal(verifyCatalog(catalog(), {
     candidateState: "pending",
