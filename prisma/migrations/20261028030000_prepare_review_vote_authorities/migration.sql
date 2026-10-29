@@ -73,11 +73,77 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_review_vote_insert_guard$
 DECLARE
+  discovered_reviewer_id text;
+  discovered_seller_user_id text;
   target_reviewer_id text;
   target_seller_user_id text;
   locked_user_count integer := 0;
   expected_user_count integer := 0;
 BEGIN
+  -- Discover the three account identities without retaining a Listing or
+  -- SellerProfile row lock. Account deletion takes the seller User lock before
+  -- pausing SellerProfile, so retaining either target lock here would invert
+  -- that order and permit a mixed-version deadlock.
+  SELECT review."reviewerId",
+         seller."userId"
+    INTO discovered_reviewer_id,
+         discovered_seller_user_id
+    FROM public."Review" AS review
+    JOIN public."Listing" AS listing
+      ON listing.id = review."listingId"
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = listing."sellerId"
+   WHERE review.id = NEW."reviewId";
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ReviewVote target is unavailable'
+      USING ERRCODE = '23503';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO expected_user_count
+    FROM (
+      SELECT DISTINCT candidate.id
+        FROM pg_catalog.unnest(ARRAY[
+          NEW."userId",
+          discovered_reviewer_id,
+          discovered_seller_user_id
+        ]) AS candidate(id)
+    ) AS expected;
+
+  -- Block writers and account deletion lock the same User rows first. This
+  -- makes the guard compatible with the predecessor route while closing its
+  -- check-then-insert race for blocks and account state.
+  PERFORM 1
+    FROM public."User" AS account_user
+   WHERE account_user.id = ANY (ARRAY[
+     NEW."userId",
+     discovered_reviewer_id,
+     discovered_seller_user_id
+   ])
+   ORDER BY account_user.id
+   FOR UPDATE;
+  GET DIAGNOSTICS locked_user_count = ROW_COUNT;
+  IF locked_user_count <> expected_user_count THEN
+    RAISE EXCEPTION 'ReviewVote account state is unavailable'
+      USING ERRCODE = '23503';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = NEW."userId"
+       AND actor.banned = false
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'ReviewVote actor is inactive'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Re-read all mutable target eligibility after the canonical User locks.
+  -- This closes the predecessor trigger's account-state race: a reviewer ban
+  -- or deletion that committed while the insert waited must make the target
+  -- unavailable, not leave behind a vote for an inactive review. Locking the
+  -- target rows only now also preserves User -> SellerProfile lock ordering.
   SELECT review."reviewerId",
          seller."userId"
     INTO target_reviewer_id,
@@ -88,6 +154,8 @@ BEGIN
     JOIN public."SellerProfile" AS seller
       ON seller.id = listing."sellerId"
    WHERE review.id = NEW."reviewId"
+     AND review."reviewerId" = discovered_reviewer_id
+     AND seller."userId" = discovered_seller_user_id
      AND review."reviewerAccountActive" = true
      AND listing."archivedAt" IS NULL
      AND (
@@ -111,45 +179,6 @@ BEGIN
       USING ERRCODE = '23503';
   END IF;
 
-  SELECT pg_catalog.count(*)::integer
-    INTO expected_user_count
-    FROM (
-      SELECT DISTINCT candidate.id
-        FROM pg_catalog.unnest(ARRAY[
-          NEW."userId",
-          target_reviewer_id,
-          target_seller_user_id
-        ]) AS candidate(id)
-    ) AS expected;
-
-  -- Block writers and account deletion lock the same User rows first. This
-  -- makes the guard compatible with the predecessor route while closing its
-  -- check-then-insert race for blocks and account state.
-  PERFORM 1
-    FROM public."User" AS account_user
-   WHERE account_user.id = ANY (ARRAY[
-     NEW."userId",
-     target_reviewer_id,
-     target_seller_user_id
-   ])
-   ORDER BY account_user.id
-   FOR UPDATE;
-  GET DIAGNOSTICS locked_user_count = ROW_COUNT;
-  IF locked_user_count <> expected_user_count THEN
-    RAISE EXCEPTION 'ReviewVote account state is unavailable'
-      USING ERRCODE = '23503';
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1
-      FROM public."User" AS actor
-     WHERE actor.id = NEW."userId"
-       AND actor.banned = false
-       AND actor."deletedAt" IS NULL
-  ) THEN
-    RAISE EXCEPTION 'ReviewVote actor is inactive'
-      USING ERRCODE = '42501';
-  END IF;
   IF NEW."userId" = target_reviewer_id
      OR NEW."userId" = target_seller_user_id THEN
     RAISE EXCEPTION 'ReviewVote actor cannot vote on this review'

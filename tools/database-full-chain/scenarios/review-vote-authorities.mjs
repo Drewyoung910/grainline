@@ -42,11 +42,30 @@ async function beginRuntime(client, actorId, lockTimeout = null) {
   );
 }
 
+async function waitForBackendLock(database, backendPid, label) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const state = rowsOf(await database.query(
+      `SELECT wait_event_type AS "waitEventType",
+              wait_event AS "waitEvent"
+         FROM pg_catalog.pg_stat_activity
+        WHERE pid = $1`,
+      [backendPid],
+    ))[0];
+    if (state?.waitEventType === "Lock") return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail(`${label} did not reach its expected database lock wait`);
+}
+
 async function proveMixedVersionSerialization({
   connectionString,
   database,
   actorId,
   reviewId,
+  reviewerId,
+  sellerProfileId,
+  sellerUserId,
 }) {
   const first = new pg.Client({ connectionString });
   const second = new pg.Client({ connectionString });
@@ -106,6 +125,103 @@ async function proveMixedVersionSerialization({
       voted: false,
       helpfulCount: 0,
     }]);
+
+    // A predecessor insert must re-read reviewer eligibility after waiting on
+    // the canonical User locks. Otherwise a concurrent reviewer ban can commit
+    // while the trigger waits and the stale insert can still create a vote.
+    await first.query("BEGIN");
+    await first.query(
+      `SELECT 1 FROM public."User" WHERE id = $1 FOR UPDATE`,
+      [reviewerId],
+    );
+    const reviewerRacePid = Number((await second.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0]?.pid);
+    await beginRuntime(second, actorId);
+    await second.query("SET LOCAL statement_timeout = '5s'");
+    const staleReviewerInsert = second.query(
+      `INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
+       VALUES ($1, $2, 1)`,
+      [reviewId, actorId],
+    );
+    await waitForBackendLock(
+      database,
+      reviewerRacePid,
+      "predecessor insert behind reviewer account transition",
+    );
+    await first.query(
+      `UPDATE public."User" SET banned = true WHERE id = $1`,
+      [reviewerId],
+    );
+    await first.query(
+      `UPDATE public."Review"
+          SET "reviewerAccountActive" = false
+        WHERE id = $1`,
+      [reviewId],
+    );
+    await first.query("COMMIT");
+    await assert.rejects(
+      staleReviewerInsert,
+      (error) => error?.code === "23503",
+      "a predecessor insert must reject reviewer state that changed while it waited",
+    );
+    await second.query("ROLLBACK");
+    assert.equal(Number(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS value
+         FROM public."ReviewVote"
+        WHERE "reviewId" = $1 AND "userId" = $2`,
+      [reviewId, actorId],
+    ))[0]?.value), 0);
+    await database.query(
+      `UPDATE public."User" SET banned = false WHERE id = $1`,
+      [reviewerId],
+    );
+    await database.query(
+      `UPDATE public."Review"
+          SET "reviewerAccountActive" = true
+        WHERE id = $1`,
+      [reviewId],
+    );
+
+    // Account deletion holds the seller User row before it pauses the
+    // SellerProfile. A predecessor vote insert must wait on that User without
+    // retaining a SellerProfile lock, or the two transactions deadlock.
+    await first.query("BEGIN");
+    await first.query("SET LOCAL lock_timeout = '750ms'");
+    await first.query(
+      `SELECT 1 FROM public."User" WHERE id = $1 FOR UPDATE`,
+      [sellerUserId],
+    );
+    const deletionRacePid = Number((await second.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0]?.pid);
+    await beginRuntime(second, actorId);
+    await second.query("SET LOCAL statement_timeout = '5s'");
+    const insertBehindDeletion = second.query(
+      `INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
+       VALUES ($1, $2, 1)`,
+      [reviewId, actorId],
+    );
+    await waitForBackendLock(
+      database,
+      deletionRacePid,
+      "predecessor insert behind seller account deletion",
+    );
+    await first.query(
+      `UPDATE public."SellerProfile"
+          SET "vacationMode" = "vacationMode"
+        WHERE id = $1`,
+      [sellerProfileId],
+    );
+    await first.query("COMMIT");
+    await insertBehindDeletion;
+    await second.query("ROLLBACK");
+    assert.equal(Number(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS value
+         FROM public."ReviewVote"
+        WHERE "reviewId" = $1 AND "userId" = $2`,
+      [reviewId, actorId],
+    ))[0]?.value), 0);
   } finally {
     await first.query("ROLLBACK").catch(() => {});
     await second.query("ROLLBACK").catch(() => {});
@@ -318,6 +434,9 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
     database,
     actorId,
     reviewId,
+    reviewerId,
+    sellerProfileId: seller.sellerProfileId,
+    sellerUserId: seller.userId,
   });
 
   await database.query(
