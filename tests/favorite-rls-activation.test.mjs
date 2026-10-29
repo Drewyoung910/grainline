@@ -59,6 +59,10 @@ test("runtime provisioning converges Favorite to the exact activated grant set",
   assert.match(provisioning, /favorite_owner_delete/u);
   assert.match(
     provisioning,
+    /Favorite RLS is partially or unexpectedly configured; refusing runtime-role provisioning[\s\S]*WHERE active IS DISTINCT FROM true[\s\S]*AND clean_predecessor IS DISTINCT FROM true/u,
+  );
+  assert.match(
+    provisioning,
     /GRANT SELECT, DELETE ON TABLE public\."Favorite"\s+TO :"runtime_role"/u,
   );
 });

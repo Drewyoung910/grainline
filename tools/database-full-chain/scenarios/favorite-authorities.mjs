@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import pg from "pg";
+
+import { runPsqlScript } from "./psql-script.mjs";
 
 export const FAVORITE_PREPARATION_MIGRATION =
   "20261028010000_prepare_favorite_authorities";
@@ -706,6 +710,51 @@ export async function proveFavoriteRlsAuthorities({ database, fixture }) {
     `SELECT 1 FROM public."Favorite" WHERE "listingId" = $1`,
     [cascadeListing],
   )).length, 0, "Listing deletion must cascade under FORCE");
+}
+
+export async function proveFavoriteProvisioningRejectsPolicylessPartial({
+  database,
+  repositoryRoot,
+}) {
+  await database.query("BEGIN");
+  try {
+    await database.query('DROP POLICY favorite_owner_select ON public."Favorite"');
+    await database.query('DROP POLICY favorite_owner_delete ON public."Favorite"');
+    const source = readFileSync(
+      join(repositoryRoot, "scripts/provision-runtime-db-role.sql"),
+      "utf8",
+    );
+    await assert.rejects(
+      runPsqlScript(database, source, {
+        runtime_role: "grainline_app_runtime",
+        migration_role: "ci",
+      }),
+      (error) => error?.code === "P0001"
+        && /runtime-role provisioning refused/u.test(error.message),
+      "runtime-role provisioning must reject RLS with no Favorite policies",
+    );
+  } finally {
+    await database.query("ROLLBACK").catch(() => {});
+  }
+
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'Favorite'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: true,
+    rls_forced: true,
+    policy_count: 2,
+  }, "the rejected provisioning attempt must leave the activated posture intact");
 }
 
 export async function proveFavoriteRlsRollback({ database, fixture }) {
