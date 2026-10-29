@@ -4402,6 +4402,7 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         "Message",
         "Notification",
+        ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
           : []),
@@ -4447,6 +4448,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
           : []),
@@ -4506,6 +4508,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
           : []),
