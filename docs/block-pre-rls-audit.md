@@ -106,6 +106,19 @@ search path/ACL, and fail closed if any current function is unclassified. A
 historical migration text search is not a substitute because many functions
 have later replacements.
 
+The full 437-migration PostgreSQL 17 schema at the audited source contains
+exactly 45 functions whose installed body directly references `Block`. All 45
+deny `PUBLIC` execution. Forty-three are `SECURITY DEFINER` (including two
+owner-private core functions) with the reviewed fixed-owner posture. Two
+runtime-executable messaging projections are still `SECURITY INVOKER`:
+
+- `grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)`;
+- `grainline_message_unread_count(text)`.
+
+Those two projections currently depend on the runtime role's direct `SELECT`
+grant on `Block`. They cannot survive policyless FORCE unchanged; see
+BLOCK-RLS-6.
+
 ### Mutation side effects
 
 On block creation:
@@ -210,6 +223,30 @@ but a user with more than 50 blocks cannot manage older entries in the UI.
 Preserve the current cap in the security release; cursor pagination is a
 separate UX change.
 
+### BLOCK-RLS-6: two messaging projections break under policyless FORCE
+
+Classification: `FIX_BEFORE_ACTIVATION`.
+
+`grainline_conversation_inbox(...)` and
+`grainline_message_unread_count(text)` are runtime-executable `SECURITY
+INVOKER` functions. Each reads `Block` directly to hide blocked conversations.
+After runtime table authority is revoked, the first such read raises
+`permission denied for table Block`; policyless RLS cannot provide an
+alternative row path.
+
+This is execution-proven, not inferred: inside a rolled-back transaction on the
+full-chain PostgreSQL 17 schema, enabling and forcing `Block` RLS, revoking the
+runtime grant, setting `app.user_id`, and calling the unread projection failed
+at its reciprocal `Block` predicate. The transaction rollback restored the
+predecessor posture.
+
+Before activation, replace the two direct reads with a bounded fixed-owner
+boolean operation or convert the projections themselves to fixed-owner
+operations with their existing participant and actor checks preserved. Do not
+grant generic runtime `SELECT`, add a bidirectional disclosure policy, or
+expose an arbitrary two-user block oracle merely to keep these projections
+working.
+
 ## Concurrency And Recovery Requirements
 
 - Create/delete replay remains idempotent.
@@ -256,10 +293,13 @@ schema and prove at least:
 13. export preserves the reviewed current representation until legal review;
 14. every installed function referencing Block has an accepted owner,
     SECURITY mode, search path, source identity and ACL;
-15. emergency rollback restores the exact predecessor application statements.
+15. inbox and unread projections still exclude blocked pairs under the runtime
+    role after direct `Block` authority is revoked;
+16. emergency rollback restores the exact predecessor application statements.
 
 ## Audit Decision
 
 `NO-GO` for policy or grant activation today. BLOCK-RLS-1 determines the
-privacy shape and BLOCK-RLS-2 requires a correctness fix before activation.
+privacy shape, BLOCK-RLS-2 requires atomic dependent cleanup, and BLOCK-RLS-6
+requires replacing two invoker-mode messaging reads before activation.
 See `docs/block-rls-options.md` for the recommended boundary.

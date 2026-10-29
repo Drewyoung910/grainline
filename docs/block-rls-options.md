@@ -57,7 +57,9 @@ Advantages:
 Costs and risks:
 
 - every current installed function that reads Block becomes part of the
-  retained function-owner/ACL catalog;
+  retained function-owner/ACL catalog (45 at the audited full-chain source);
+- two runtime messaging projections are currently `SECURITY INVOKER` and must
+  stop reading `Block` directly before policyless activation;
 - five application operations need conversion or consolidation;
 - behavior drift is possible unless replacements are compared with the exact
   predecessor in awkward cases;
@@ -119,6 +121,8 @@ Required safeguards:
 - preserve the current export until separate legal review;
 - catalog every installed Block-reading function from the full migrated
   database and reject unclassified functions;
+- preserve blocked-pair filtering in inbox and unread projections without
+  retaining direct runtime table access or exposing a generic pair oracle;
 - full-chain PostgreSQL 17 race, paid-checkout, account-deletion, function-owner
   and rollback proofs;
 - no column drop, pair projection or product-semantics change in the security
