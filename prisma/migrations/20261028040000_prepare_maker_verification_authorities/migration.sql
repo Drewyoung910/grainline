@@ -268,7 +268,7 @@ BEGIN
   -- locked in the canonical order.
   IF source_verification_status IS DISTINCT FROM
        'GUILD_MASTER_PENDING'::public."VerificationStatus"
-     OR pg_catalog.coalesce(transition_applied, false)
+     OR COALESCE(transition_applied, false)
      OR transition_guard_kind IS NULL THEN
     RETURN QUERY
     SELECT transition_applied,

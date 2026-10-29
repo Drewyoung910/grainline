@@ -129,7 +129,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   maker_verification_v1: Object.freeze({
     migration: "20261028040000_prepare_maker_verification_authorities",
-    migrationSha256: "f42f4562c3476402fef6bce2d2e65513d3c1e9bedf4c03e0604ebb87198d5d3e",
+    migrationSha256: "1e60a13d6947139e2a01ef7083e7766310a02dec00ab1d77fd452139c8f91526",
     table: "MakerVerification",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
