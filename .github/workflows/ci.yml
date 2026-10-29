@@ -5197,7 +5197,7 @@ jobs:
           predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
           predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
           predecessor_staff_blob=43e85a986eb4790e222482e81a00afbfcc91dce5
-          current_schema_blob=faf2d67f0b86e7efc22b49f52bd7778375d2f4ff
+          current_schema_blob=10b25135465208259c72e5423370d93e5040a020
           git cat-file -e "$predecessor^{commit}"
           git merge-base --is-ancestor "$predecessor" HEAD
           test "$(git hash-object prisma/schema.prisma)" = "$current_schema_blob"
@@ -5217,11 +5217,11 @@ jobs:
           schema="$root/prisma/schema.prisma"
           current="$holding/current-schema.$$.prisma"
           test ! -e "$current"
-          test "$(git hash-object "$schema")" = faf2d67f0b86e7efc22b49f52bd7778375d2f4ff
+          test "$(git hash-object "$schema")" = 10b25135465208259c72e5423370d93e5040a020
           cp "$schema" "$current"
           cleanup() {
             mv "$current" "$schema"
-            test "$(git hash-object "$schema")" = faf2d67f0b86e7efc22b49f52bd7778375d2f4ff
+            test "$(git hash-object "$schema")" = 10b25135465208259c72e5423370d93e5040a020
           }
           trap cleanup EXIT
           cp "$holding/predecessor-schema.prisma" "$schema"
