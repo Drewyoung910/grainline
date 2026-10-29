@@ -1,5 +1,8 @@
 BEGIN;
 
+SET LOCAL lock_timeout = '10s';
+SET LOCAL statement_timeout = '60s';
+
 -- Compatible preparation only. Favorite RLS and predecessor table grants stay
 -- unchanged until every caller and the full-chain race/rollback proof have
 -- passed review.

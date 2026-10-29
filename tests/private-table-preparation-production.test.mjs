@@ -198,6 +198,8 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
   assert.equal(favorite.functionSources.size, 9);
   assert.deepEqual(favorite.release.addedColumns, []);
   const sql = readFileSync(favorite.migrationPath, "utf8");
+  assert.match(sql, /SET LOCAL lock_timeout = '10s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
   assert.match(sql, /ADD COLUMN "favoriteCount" integer NOT NULL DEFAULT 0/u);
   assert.match(sql, /Favorite_count_after_insert/u);
   assert.match(sql, /Favorite_update_forbidden/u);
