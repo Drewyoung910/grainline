@@ -413,7 +413,11 @@ test(
               { Client: DisposableOwnerClient, rootDir: repositoryRoot },
             );
             assert.equal(preparationPreflight.state, "pending");
-            assert.equal(preparationPreflight.catalog.functions.length, 5);
+            assert.equal(
+              preparationPreflight.catalog.functions.length,
+              0,
+              "all five Block functions are new and must be absent before preparation",
+            );
           }
         },
         onProgress: ({ index, total, name, retried }) => {
