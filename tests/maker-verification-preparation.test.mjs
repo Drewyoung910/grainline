@@ -49,6 +49,10 @@ test("MakerVerification preparation installs the exact purpose-bound surface", (
     "grainline_maker_verification_owner_delete_redact",
     "grainline_maker_verification_staff_pending_count",
     "grainline_maker_verification_staff_pending_page",
+    "grainline_seller_guild_staff_master_pending_count",
+    "grainline_seller_guild_staff_master_pending_page",
+    "grainline_seller_guild_staff_roster_count",
+    "grainline_seller_guild_staff_roster_page",
   ];
   const created = [...sql.matchAll(/CREATE FUNCTION public\.([a-z0-9_]+)\(/gu)]
     .map((match) => match[1]);
@@ -126,6 +130,14 @@ test("MakerVerification app callers use fixed operations and preserve input inte
     "grainline_maker_verification_staff_pending_page",
   ]) assert.match(access, new RegExp(functionName, "u"));
 
+  const staffAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
+  for (const functionName of [
+    "grainline_seller_guild_staff_master_pending_count",
+    "grainline_seller_guild_staff_master_pending_page",
+    "grainline_seller_guild_staff_roster_count",
+    "grainline_seller_guild_staff_roster_page",
+  ]) assert.match(staffAccess, new RegExp(functionName, "u"));
+
   const route = source("src/app/api/verification/apply/route.ts");
   assert.match(route, /confirmHandmade: z\.literal\(true\)/u);
   assert.match(route, /const craftDescription = truncateText\(sanitizeText\(/u);
@@ -150,8 +162,11 @@ test("MakerVerification complete-schema proof is wired into the full-chain job",
   const scenario = source("tools/database-full-chain/scenarios/maker-verification-authorities.mjs");
   assert.match(scenario, /async function proveOwnerStaffLockOrder/u);
   assert.match(scenario, /async function proveOwnerCronLockOrder/u);
+  assert.match(scenario, /async function proveStaffPagination/u);
+  assert.match(scenario, /pg_catalog\.generate_series\(1, 55\)/u);
   assert.match(scenario, /await proveOwnerStaffLockOrder\(\{/u);
   assert.match(scenario, /await proveOwnerCronLockOrder\(\{/u);
+  assert.match(scenario, /await proveStaffPagination\(\{/u);
   assert.match(scenario, /Promise\.all/u);
   assert.match(scenario, /grainline_seller_guild_staff_transition_prepared_impl/u);
   assert.match(scenario, /grainline_seller_guild_member_revoke_prepared_impl/u);

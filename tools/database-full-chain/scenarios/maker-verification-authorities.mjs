@@ -203,6 +203,255 @@ async function proveOwnerCronLockOrder({ connectionString, seller, verificationI
   }
 }
 
+async function proveStaffPagination({ database, staffId, prefix }) {
+  const userPrefix = `${prefix}_page_user_`;
+  const sellerPrefix = `${prefix}_page_seller_`;
+  const verificationPrefix = `${prefix}_page_verification_`;
+  const baseTime = new Date("2026-10-28T12:00:00.000Z");
+
+  await database.query(
+    `INSERT INTO public."User" (
+       id, "clerkId", email, name, role, "createdAt", "updatedAt"
+     )
+     SELECT $1 || source.n,
+            'clerk_' || $1 || source.n,
+            $1 || source.n || '@example.test',
+            'Pagination maker ' || source.n,
+            'USER',
+            $4::timestamp,
+            $4::timestamp
+       FROM pg_catalog.generate_series(1, 55) AS source(n)`,
+    [userPrefix, sellerPrefix, verificationPrefix, baseTime],
+  );
+  await database.query(
+    `INSERT INTO public."SellerProfile" (
+       id, "userId", "displayName", "displayNameNormalized", "createdAt", "updatedAt"
+     )
+     SELECT $2 || source.n,
+            $1 || source.n,
+            'Pagination workshop ' || source.n,
+            'pagination workshop ' || source.n,
+            $4::timestamp,
+            $4::timestamp
+       FROM pg_catalog.generate_series(1, 55) AS source(n)`,
+    [userPrefix, sellerPrefix, verificationPrefix, baseTime],
+  );
+  await database.query(
+    `INSERT INTO public."MakerVerification" (
+       id, "sellerProfileId", "craftDescription", "yearsExperience", status,
+       "appliedAt", "createdAt", "updatedAt"
+     )
+     SELECT $3 || source.n,
+            $2 || source.n,
+            'Pagination craft ' || source.n,
+            source.n,
+            'PENDING'::public."VerificationStatus",
+            $4::timestamp + source.n * INTERVAL '1 second',
+            $4::timestamp,
+            $4::timestamp
+       FROM pg_catalog.generate_series(1, 55) AS source(n)`,
+    [userPrefix, sellerPrefix, verificationPrefix, baseTime],
+  );
+
+  await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+  try {
+    const memberCount = rowsOf(await database.query(
+      "SELECT public.grainline_maker_verification_staff_pending_count($1) AS value",
+      [staffId],
+    ));
+    assert.equal(Number(memberCount[0]?.value), 55);
+    const memberFirst = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_maker_verification_staff_pending_page(
+         $1, NULL, NULL, 50
+       )`,
+      [staffId],
+    ));
+    assert.equal(memberFirst.length, 50);
+    const memberSecond = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_maker_verification_staff_pending_page(
+         $1, $2, $3, 50
+       )`,
+      [staffId, memberFirst.at(-1).appliedAt, memberFirst.at(-1).id],
+    ));
+    assert.equal(memberSecond.length, 5);
+    assert.equal(new Set([...memberFirst, ...memberSecond].map((row) => row.id)).size, 55);
+    await assert.rejects(
+      database.query(
+        "SELECT public.grainline_seller_guild_staff_roster_count($1, NULL)",
+        [staffId],
+      ),
+      (error) => error?.code === "22023",
+    );
+    await assert.rejects(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
+           $1, 'GUILD_MEMBER', NULL, NULL, 101
+         )`,
+        [staffId],
+      ),
+      (error) => error?.code === "22023",
+    );
+  } finally {
+    await database.query("RESET SESSION AUTHORIZATION");
+  }
+
+  await database.query(
+    `UPDATE public."MakerVerification"
+        SET status = 'GUILD_MASTER_PENDING'::public."VerificationStatus"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [verificationPrefix],
+  );
+  await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+  try {
+    const masterCount = rowsOf(await database.query(
+      "SELECT public.grainline_seller_guild_staff_master_pending_count($1) AS value",
+      [staffId],
+    ));
+    assert.equal(Number(masterCount[0]?.value), 55);
+    const masterFirst = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_seller_guild_staff_master_pending_page(
+         $1, NULL, NULL, 50
+       )`,
+      [staffId],
+    ));
+    assert.equal(masterFirst.length, 50);
+    const masterSecond = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_seller_guild_staff_master_pending_page(
+         $1, $2, $3, 50
+       )`,
+      [staffId, masterFirst.at(-1).appliedAt, masterFirst.at(-1).id],
+    ));
+    assert.equal(masterSecond.length, 5);
+    assert.equal(new Set([...masterFirst, ...masterSecond].map((row) => row.id)).size, 55);
+  } finally {
+    await database.query("RESET SESSION AUTHORIZATION");
+  }
+
+  const proveRoster = async ({ cohort, level, approvalColumn }) => {
+    await database.query(
+      `UPDATE public."SellerProfile"
+          SET "guildLevel" = $2::public."GuildLevel"
+        WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+      [sellerPrefix, level],
+    );
+    await database.query(
+      `UPDATE public."SellerProfilePrivate"
+          SET "guildMemberApprovedAt" = CASE
+                WHEN $2 = 'guildMemberApprovedAt' THEN $3::timestamp + substring("sellerProfileId" from '[0-9]+$')::integer * INTERVAL '1 second'
+                ELSE "guildMemberApprovedAt"
+              END,
+              "guildMasterApprovedAt" = CASE
+                WHEN $2 = 'guildMasterApprovedAt' THEN $3::timestamp + substring("sellerProfileId" from '[0-9]+$')::integer * INTERVAL '1 second'
+                ELSE "guildMasterApprovedAt"
+              END
+        WHERE pg_catalog.left("sellerProfileId", pg_catalog.length($1)) = $1`,
+      [sellerPrefix, approvalColumn, baseTime],
+    );
+    if (cohort === "GUILD_MASTER") {
+      await database.query(
+        `UPDATE public."SellerProfilePrivate"
+            SET "guildMasterApprovedAt" = NULL
+          WHERE "sellerProfileId" = $1`,
+        [`${sellerPrefix}1`],
+      );
+    }
+    await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+    try {
+      const count = rowsOf(await database.query(
+        "SELECT public.grainline_seller_guild_staff_roster_count($1, $2) AS value",
+        [staffId, cohort],
+      ));
+      assert.equal(Number(count[0]?.value), 55);
+      const first = rowsOf(await database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
+           $1, $2, NULL, NULL, 50
+         )`,
+        [staffId, cohort],
+      ));
+      assert.equal(first.length, 50);
+      const cursorAt = cohort === "GUILD_MASTER"
+        ? first.at(-1).guildMasterApprovedAt
+        : first.at(-1).guildMemberApprovedAt;
+      const second = rowsOf(await database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
+           $1, $2, $3, $4, 50
+         )`,
+        [staffId, cohort, cursorAt, first.at(-1).id],
+      ));
+      assert.equal(second.length, 5);
+      assert.equal(new Set([...first, ...second].map((row) => row.id)).size, 55);
+      if (cohort === "GUILD_MASTER") {
+        assert.equal(second.at(-1).guildMasterApprovedAt, null);
+        assert.deepEqual(rowsOf(await database.query(
+          `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
+             $1, $2, NULL, $3, 50
+           )`,
+          [staffId, cohort, second.at(-1).id],
+        )), []);
+      }
+    } finally {
+      await database.query("RESET SESSION AUTHORIZATION");
+    }
+  };
+
+  await proveRoster({
+    cohort: "GUILD_MEMBER",
+    level: "GUILD_MEMBER",
+    approvalColumn: "guildMemberApprovedAt",
+  });
+  await proveRoster({
+    cohort: "GUILD_MASTER",
+    level: "GUILD_MASTER",
+    approvalColumn: "guildMasterApprovedAt",
+  });
+  await proveRoster({
+    cohort: "REVOKED_MEMBER",
+    level: "NONE",
+    approvalColumn: "guildMemberApprovedAt",
+  });
+
+  await database.query(
+    `UPDATE public."SellerProfile"
+        SET "guildLevel" = 'GUILD_MEMBER'::public."GuildLevel",
+            "featuredUntil" = CURRENT_TIMESTAMP + INTERVAL '30 days'
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [sellerPrefix],
+  );
+  await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+  try {
+    const featuredCount = rowsOf(await database.query(
+      "SELECT public.grainline_seller_guild_staff_roster_count($1, 'FEATURED') AS value",
+      [staffId],
+    ));
+    assert.equal(Number(featuredCount[0]?.value), 55);
+    const featured = rowsOf(await database.query(
+      `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
+         $1, 'FEATURED', NULL, NULL, 3
+       )`,
+      [staffId],
+    ));
+    assert.equal(featured.length, 3);
+  } finally {
+    await database.query("RESET SESSION AUTHORIZATION");
+  }
+
+  await database.query(
+    `DELETE FROM public."MakerVerification"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [verificationPrefix],
+  );
+  await database.query(
+    `DELETE FROM public."SellerProfile"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [sellerPrefix],
+  );
+  await database.query(
+    `DELETE FROM public."User"
+      WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+    [userPrefix],
+  );
+}
+
 export async function proveMakerVerificationPreparedAuthorities({ database, seller, connectionString }) {
   const verificationIdPrefix = `${seller.sellerProfileId}_maker_verification`;
   const staffId = `${verificationIdPrefix}_staff`;
@@ -235,9 +484,15 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
       JOIN pg_catalog.pg_roles AS owner_role
         ON owner_role.oid = procedure.proowner
      WHERE procedure.proname LIKE 'grainline_maker_verification_%'
+        OR procedure.proname IN (
+          'grainline_seller_guild_staff_master_pending_count',
+          'grainline_seller_guild_staff_master_pending_page',
+          'grainline_seller_guild_staff_roster_count',
+          'grainline_seller_guild_staff_roster_page'
+        )
      ORDER BY procedure.proname
   `));
-  assert.equal(catalog.length, 6);
+  assert.equal(catalog.length, 10);
   assert.equal(catalog.every((row) => (
     row.securityDefiner === true
     && row.ownerBypassesRls === true
@@ -245,13 +500,13 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
     && JSON.stringify(row.config) === JSON.stringify(["search_path=pg_catalog"])
   )), true);
   assert.equal(
-    catalog.filter((row) => row.name.includes("staff_pending")).every((row) => (
+    catalog.filter((row) => row.name.includes("staff_")).every((row) => (
       row.staffExecute === true && row.runtimeExecute === false
     )),
     true,
   );
   assert.equal(
-    catalog.filter((row) => !row.name.includes("staff_pending")).every((row) => (
+    catalog.filter((row) => !row.name.includes("staff_")).every((row) => (
       row.runtimeExecute === true && row.staffExecute === false
     )),
     true,
@@ -337,6 +592,11 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
       `${verificationIdPrefix}_other@example.com`,
     ],
   );
+  await proveStaffPagination({
+    database,
+    staffId,
+    prefix: `${verificationIdPrefix}_pagination`,
+  });
   await database.query(
     `UPDATE public."SellerProfile"
         SET "guildLevel" = 'NONE',
