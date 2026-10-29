@@ -226,14 +226,19 @@ The compatible preparation candidate now:
   owner-leading index;
 - repairs existing scalar drift before installing the boundary;
 - serializes actor, reviewer, maker, listing visibility, blocks, and the vote
-  mutation without changing RLS or predecessor table grants;
+  mutation without changing RLS or predecessor table grants; the predecessor
+  insert guard discovers identities, takes the canonical sorted `User` locks,
+  and only then re-reads and locks target eligibility, preventing both stale
+  reviewer-state writes and the seller-deletion `User`/`SellerProfile` lock
+  inversion;
 - adds a predecessor-compatible insert guard, while deliberately deferring a
   general count trigger until predecessor application traffic is drained; and
 - fails its own transaction unless every new function remains owned by a
   superuser/BYPASSRLS role, uses `SECURITY DEFINER` with the fixed
   `pg_catalog` search path, and denies `PUBLIC` execution; and
 - passes the complete 437-migration PostgreSQL 17 build plus executed
-  runtime-role behavior and mixed predecessor/new-operation concurrency proof.
+  runtime-role behavior and mixed predecessor/new-operation concurrency proof,
+  including reviewer-state transition and seller account-deletion races.
 
 The mixed-version proof is important: the predecessor route still updates
 `Review.helpfulCount` itself. Installing a general insert/delete count trigger

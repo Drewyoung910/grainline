@@ -26,7 +26,10 @@ one fixed toggle operation, and one account-deletion operation. Keep
 
 The compatible preparation candidate is implemented without an RLS or table
 grant change and has passed the full 437-migration PostgreSQL 17 behavior and
-mixed-version concurrency proof. It does not install a general count trigger:
+mixed-version concurrency proof. Its predecessor insert guard uses the same
+sorted `User`-first protocol as account deletion, then re-reads the mutable
+review/listing/seller eligibility before retaining target locks. It does not
+install a general count trigger:
 the predecessor route still increments/decrements the scalar itself, so doing
 that before predecessor traffic is drained would double-count. The final
 activation must close hard User-delete cascade maintenance, install the owner

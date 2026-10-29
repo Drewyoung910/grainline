@@ -30,8 +30,19 @@ describe("review vote visibility guardrails", () => {
   });
 
   it("serializes visibility and keeps predecessor count maintenance compatible", () => {
-    assert.match(migration, /ORDER BY account_user\.id\s+FOR UPDATE/);
-    assert.match(migration, /FOR SHARE OF listing, seller/);
+    const userLock = migration.indexOf("ORDER BY account_user.id");
+    const targetReread = migration.indexOf("FOR SHARE OF listing, seller");
+    assert.notEqual(userLock, -1);
+    assert.notEqual(targetReread, -1);
+    assert.ok(
+      userLock < targetReread,
+      "the predecessor guard must lock User before retaining target rows",
+    );
+    assert.match(
+      migration.slice(userLock, targetReread),
+      /review\."reviewerAccountActive" = true/,
+      "the predecessor guard must re-read reviewer eligibility after the User locks",
+    );
     assert.match(migration, /FROM public\."Block" AS relationship/);
     assert.match(migration, /DELETE FROM public\."ReviewVote"/);
     assert.match(migration, /INSERT INTO public\."ReviewVote"/);
