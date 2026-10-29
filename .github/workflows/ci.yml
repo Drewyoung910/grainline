@@ -3119,6 +3119,7 @@ jobs:
       - name: Tests
         env:
           DATABASE_FULL_CHAIN_TEST_MIGRATIONS_DIR: ${{ runner.temp }}/database-full-chain-source/migrations
+          DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH: ${{ runner.temp }}/seller-profile-public-candidate/tests/database-full-chain-postgres.test.mjs
           SELLER_PROFILE_RETAINED_EVIDENCE_TESTS_DIR: ${{ runner.temp }}/seller-profile-retained-authority-evidence
           USER_CLERK_IDENTITY_MIGRATION_PATH: ${{ runner.temp }}/user-clerk-identity-authority/migration/migration.sql
         run: |
