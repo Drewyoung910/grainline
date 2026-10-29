@@ -525,6 +525,7 @@ test(
             assert.equal(followPreparationPostflight.catalog.functions.length, 5);
             await proveFollowPreparedAuthorities({
               database: adapter,
+              connectionString: proofDatabaseUrl,
               fixture: followFixture,
             });
           }

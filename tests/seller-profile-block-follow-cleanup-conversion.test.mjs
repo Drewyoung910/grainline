@@ -9,10 +9,19 @@ const migration = readFileSync(
   "utf8",
 );
 
-test("blocking delegates reciprocal follow cleanup to one actor-bound authority", () => {
-  assert.match(route, /cleanupUserBlockFollows\(me\.id, blockedId\)/u);
+test("blocking commits reciprocal follow cleanup in the block transaction", () => {
+  assert.doesNotMatch(route, /cleanupUserBlockFollows|block_follow_cleanup/u);
   assert.doesNotMatch(route, /prisma\.sellerProfile|prisma\.follow/u);
   assert.match(access, /withDbUserContext\(blockerId/u);
+  const blockUpsertIndex = access.indexOf("await tx.block.upsert");
+  const cleanupIndex = access.indexOf("await cleanupBlockFollows(tx, blockedId)");
+  const transactionEndIndex = access.indexOf(
+    "}, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });",
+    blockUpsertIndex,
+  );
+  assert.equal(blockUpsertIndex >= 0, true);
+  assert.equal(blockUpsertIndex < cleanupIndex, true);
+  assert.equal(cleanupIndex < transactionEndIndex, true);
   assert.match(access, /grainline_user_block_follow_cleanup\(\$\{blockedId\}::text\)/u);
   assert.match(access, /TransactionIsolationLevel\.ReadCommitted/u);
 });
