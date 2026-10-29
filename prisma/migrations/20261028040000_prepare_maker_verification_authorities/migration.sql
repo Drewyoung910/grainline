@@ -213,6 +213,16 @@ PARALLEL UNSAFE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_seller_guild_member_revoke$
+DECLARE
+  source_verification_status public."VerificationStatus";
+  transition_applied boolean;
+  transition_audit_id text;
+  transition_reason text;
+  transition_seller_user_id text;
+  transition_guard_kind text;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+  verification_changed integer;
 BEGIN
   -- The implementation keeps every validation and eligibility check. Acquire
   -- the shared Guild lifecycle locks first so cron, staff, and owner paths all
@@ -226,21 +236,118 @@ BEGIN
       FROM public."MakerVerification" AS verification
      WHERE verification."sellerProfileId" = p_seller_profile_id
      FOR UPDATE;
+    SELECT verification.status
+      INTO source_verification_status
+      FROM public."MakerVerification" AS verification
+     WHERE verification."sellerProfileId" = p_seller_profile_id;
     PERFORM 1
       FROM public."SellerProfilePrivate" AS seller_private
      WHERE seller_private."sellerProfileId" = p_seller_profile_id
      FOR UPDATE;
   END IF;
 
-  RETURN QUERY
   SELECT transition.applied,
          transition."auditId",
          transition.reason,
          transition."sellerUserId",
          transition."guardKind"
+    INTO transition_applied,
+         transition_audit_id,
+         transition_reason,
+         transition_seller_user_id,
+         transition_guard_kind
     FROM public.grainline_seller_guild_member_revoke_prepared_impl(
       p_seller_profile_id
     ) AS transition;
+
+  -- The predecessor intentionally recognizes only the ordinary Member states.
+  -- Once a Member has a pending Master application, that omission prevents a
+  -- required Member revocation even after the unresolved-case or listing guard
+  -- has fired. The predecessor still owns the guard calculation; complete only
+  -- that exact pending-Master transition here while the lifecycle rows remain
+  -- locked in the canonical order.
+  IF source_verification_status IS DISTINCT FROM
+       'GUILD_MASTER_PENDING'::public."VerificationStatus"
+     OR pg_catalog.coalesce(transition_applied, false)
+     OR transition_guard_kind IS NULL THEN
+    RETURN QUERY
+    SELECT transition_applied,
+           transition_audit_id,
+           transition_reason,
+           transition_seller_user_id,
+           transition_guard_kind;
+    RETURN;
+  END IF;
+
+  transition_reason := CASE transition_guard_kind
+    WHEN 'unresolved_case' THEN
+      'An unresolved dispute has been open for over 90 days.'
+    WHEN 'listing_threshold' THEN
+      'Your shop has had fewer than 5 active listings for over 30 consecutive days.'
+    ELSE NULL
+  END;
+  IF transition_reason IS NULL THEN
+    RAISE EXCEPTION 'Seller Guild Member revocation guard is unsupported'
+      USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE public."MakerVerification"
+     SET status = 'REJECTED'::public."VerificationStatus",
+         "reviewedAt" = source_now,
+         "reviewNotes" = transition_reason,
+         "updatedAt" = source_now
+   WHERE "sellerProfileId" = p_seller_profile_id
+     AND status = 'GUILD_MASTER_PENDING'::public."VerificationStatus";
+  GET DIAGNOSTICS verification_changed = ROW_COUNT;
+  IF verification_changed <> 1 THEN
+    RETURN QUERY
+    SELECT false,
+           NULL::text,
+           NULL::text,
+           transition_seller_user_id,
+           transition_guard_kind;
+    RETURN;
+  END IF;
+
+  UPDATE public."SellerProfilePrivate"
+     SET "consecutiveMetricFailures" = 0,
+         "metricWarningSentAt" = NULL,
+         "updatedAt" = source_now
+   WHERE "sellerProfileId" = p_seller_profile_id;
+  UPDATE public."SellerProfile"
+     SET "guildLevel" = 'NONE'::public."GuildLevel",
+         "isVerifiedMaker" = false,
+         "updatedAt" = source_now
+   WHERE id = p_seller_profile_id;
+
+  transition_audit_id :=
+    'guild-member-revocation:' || pg_catalog.gen_random_uuid()::text;
+  INSERT INTO public."SystemAuditLog" (
+    id, "actorType", "actorId", action, "targetType", "targetId",
+    reason, metadata, "createdAt"
+  ) VALUES (
+    transition_audit_id,
+    'cron',
+    'guild-member-check',
+    'AUTO_REVOKE_GUILD_MEMBER',
+    'SELLER_PROFILE',
+    p_seller_profile_id,
+    transition_reason,
+    pg_catalog.jsonb_build_object(
+      'jobName', 'guild-member-check',
+      'sellerUserId', transition_seller_user_id,
+      'guardKind', transition_guard_kind,
+      'cancelledGuildMasterApplication', true
+    ),
+    source_now
+  );
+
+  RETURN QUERY
+  SELECT true,
+         transition_audit_id,
+         transition_reason,
+         transition_seller_user_id,
+         transition_guard_kind;
 END;
 $grainline_seller_guild_member_revoke$;
 
@@ -1006,7 +1113,13 @@ BEGIN
           AND seller."guildLevel" = 'GUILD_MASTER'::public."GuildLevel")
       OR (p_cohort = 'REVOKED_MEMBER'
           AND seller."guildLevel" = 'NONE'::public."GuildLevel"
-          AND seller_private."guildMemberApprovedAt" IS NOT NULL)
+          AND seller_private."guildMemberApprovedAt" IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1
+              FROM public."MakerVerification" AS verification
+             WHERE verification."sellerProfileId" = seller.id
+               AND verification.status = 'PENDING'::public."VerificationStatus"
+          ))
       OR (p_cohort = 'FEATURED'
           AND seller."guildLevel" IN (
             'GUILD_MEMBER'::public."GuildLevel",
@@ -1082,7 +1195,13 @@ BEGIN
            AND seller."guildLevel" = 'GUILD_MASTER'::public."GuildLevel")
        OR (p_cohort = 'REVOKED_MEMBER'
            AND seller."guildLevel" = 'NONE'::public."GuildLevel"
-           AND seller_private."guildMemberApprovedAt" IS NOT NULL)
+           AND seller_private."guildMemberApprovedAt" IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1
+               FROM public."MakerVerification" AS verification
+              WHERE verification."sellerProfileId" = seller.id
+                AND verification.status = 'PENDING'::public."VerificationStatus"
+           ))
        OR (p_cohort = 'FEATURED'
            AND seller."guildLevel" IN (
              'GUILD_MEMBER'::public."GuildLevel",
