@@ -17,6 +17,7 @@ import {
   STOCK_NOTIFICATION_MIGRATION,
   databaseClientOptions,
   expectedPendingMigrations,
+  reviewedMigrationSql,
   verifyCatalog,
 } from "../scripts/email-eligibility-lock-order-correction-production-inspect.mjs";
 import { REVIEWED_MANUALLY_APPLIED_MIGRATIONS } from "../scripts/reviewed-manually-applied-migrations.mjs";
@@ -26,10 +27,7 @@ const workflow = readFileSync(
   "utf8",
 );
 const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
-const migrationSql = readFileSync(
-  `prisma/migrations/${MIGRATION}/migration.sql`,
-  "utf8",
-);
+const migrationSql = reviewedMigrationSql(MIGRATION).toString("utf8");
 const scenarioSource = readFileSync(
   "tools/database-full-chain/scenarios/email-provider-eligibility-fence.mjs",
   "utf8",
@@ -198,6 +196,37 @@ test("lock-order correction applies one exact successor after the outbox correct
     candidateState: "applied",
     stockState: "pending",
   }), STOCK_NOTIFICATION_MIGRATION);
+});
+
+test("reviewed migration files remain verifiable while CI stages their directories", () => {
+  for (const [name, environmentName] of [
+    [MIGRATION, "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH"],
+    [OUTBOX_CORRECTION_MIGRATION, "EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH"],
+    [RESEND_RECOVERY_MIGRATION, "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH"],
+    [STOCK_NOTIFICATION_MIGRATION, "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH"],
+  ]) {
+    const stagedDirectory = process.env[environmentName]?.trim();
+    const expectedDirectory = stagedDirectory
+      || path.resolve("prisma/migrations", name);
+    assert.equal(
+      reviewedMigrationSql(name).toString("utf8"),
+      readFileSync(path.join(expectedDirectory, "migration.sql"), "utf8"),
+    );
+  }
+  assert.throws(
+    () => reviewedMigrationSql(MIGRATION, {
+      EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH: "relative/path",
+    }),
+    /must be an absolute path/u,
+  );
+  assert.throws(
+    () => reviewedMigrationSql(MIGRATION, {
+      EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH: path.resolve(
+        "prisma/migrations/not-the-reviewed-migration",
+      ),
+    }),
+    /must name the reviewed migration directory/u,
+  );
 });
 
 test("lock-order source is proved then isolated from historical release guards", () => {

@@ -33,6 +33,13 @@ export const STOCK_NOTIFICATION_MIGRATION =
 export const STOCK_NOTIFICATION_SHA256 =
   "3c77aed31571f7e4adb942bea15611ee97d75e8183f76899cc634749ab2955ce";
 
+const MIGRATION_DIRECTORY_ENVIRONMENTS = Object.freeze(new Map([
+  [MIGRATION, "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH"],
+  [OUTBOX_CORRECTION_MIGRATION, "EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH"],
+  [RESEND_RECOVERY_MIGRATION, "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH"],
+  [STOCK_NOTIFICATION_MIGRATION, "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH"],
+]));
+
 const ROUTINES = Object.freeze(new Map([
   [
     "grainline_user_clerk_identity_ensure",
@@ -76,10 +83,24 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function migrationSql(name) {
-  return readFileSync(
-    path.join(ROOT, "prisma/migrations", name, "migration.sql"),
-  );
+export function reviewedMigrationSql(name, environment = process.env) {
+  const environmentName = MIGRATION_DIRECTORY_ENVIRONMENTS.get(name);
+  assert.ok(environmentName, `unreviewed migration requested: ${name}`);
+  const stagedDirectory = environment[environmentName]?.trim();
+  if (stagedDirectory) {
+    assert.ok(
+      path.isAbsolute(stagedDirectory),
+      `${environmentName} must be an absolute path`,
+    );
+    assert.equal(
+      path.basename(stagedDirectory),
+      name,
+      `${environmentName} must name the reviewed migration directory`,
+    );
+  }
+  const migrationDirectory = stagedDirectory
+    || path.join(ROOT, "prisma/migrations", name);
+  return readFileSync(path.join(migrationDirectory, "migration.sql"));
 }
 
 function migrationState(rows, name, checksum, { required = false } = {}) {
@@ -188,7 +209,11 @@ async function readLedger(client) {
     [RESEND_RECOVERY_MIGRATION, RESEND_RECOVERY_SHA256],
     [STOCK_NOTIFICATION_MIGRATION, STOCK_NOTIFICATION_SHA256],
   ]) {
-    assert.equal(sha256(migrationSql(name)), checksum, `${name} file drifted`);
+    assert.equal(
+      sha256(reviewedMigrationSql(name)),
+      checksum,
+      `${name} file drifted`,
+    );
   }
   const names = [
     MIGRATION,
