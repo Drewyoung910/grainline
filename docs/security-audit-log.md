@@ -5236,7 +5236,11 @@ Open work:
   --applied`. A rerun after a ledger-write failure records the already active
   state without replaying SQL. It also requires exact green main, the accepted
   preparation run, a compatible live deployment, predecessor skew drain, sole
-  pending migration and a separate typed Production confirmation.
+  pending migration and a separate typed Production confirmation. The
+  activation downloads the exact non-expired artifact from that accepted
+  preparation run and independently binds both sanitized evidence files to the
+  reviewed preparation release id, source commit, table, migration checksum,
+  database/role posture and applied postflight before owner access is opened.
 - This is candidate source only. No merge, deployment, migration, role, grant,
   provider or Production database state changed, and no Production run is
   authorized.
