@@ -260,13 +260,14 @@ jobs:
           tests/stock-mutation-state.test.mjs
           tests/stock-notification-route.test.mjs
           tests/stock-notification-state.test.mjs
-      - name: Verify ReviewVote preparation source package
+      - name: Verify ReviewVote source packages
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
           --experimental-strip-types --test --test-concurrency=1
           tests/account-export-privacy.test.mjs
           tests/request-origin-guard.test.mjs
           tests/review-vote-access.test.mjs
+          tests/review-vote-rls-activation.test.mjs
           tests/review-vote-route.test.mjs
           tests/review-vote-visibility.test.mjs
           tests/seller-profile-public-review-vote-target-conversion.test.mjs
@@ -347,15 +348,19 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
-      - name: Isolate ReviewVote preparation until historical release guards pass
+      - name: Isolate ReviewVote source packages until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/review-vote-preparation"
-          migration=20261028030000_prepare_review_vote_authorities
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "REVIEW_VOTE_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+          for migration in \
+            20261028030000_prepare_review_vote_authorities \
+            20261028070000_activate_review_vote_rls
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done
+          echo "REVIEW_VOTE_PREPARATION_MIGRATION_PATH=$holding/migrations/20261028030000_prepare_review_vote_authorities/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6825,13 +6830,17 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore ReviewVote preparation after historical release guards
+      - name: Restore ReviewVote source packages after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/review-vote-preparation"
-          migration=20261028030000_prepare_review_vote_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for migration in \
+            20261028030000_prepare_review_vote_authorities \
+            20261028070000_activate_review_vote_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           rmdir "$holding/migrations" "$holding"
           echo "REVIEW_VOTE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
