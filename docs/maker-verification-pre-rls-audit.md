@@ -243,6 +243,12 @@ authorization is implied.
    remain in the reinstatement roster (known C-1203). Resolve or explicitly
    preserve each behavior with a named test before claiming the root cause is
    closed.
+   **Candidate resolution:** the compatible preparation completes a guarded
+   Member revocation from `GUILD_MASTER_PENDING`, records that the pending
+   Master application was cancelled in immutable audit metadata, and excludes
+   a revoked seller with a new `PENDING` application from both reinstatement
+   roster count and page results. The complete-schema proof exercises both
+   cases.
 7. **Account export and deletion require dedicated behavior parity.** Export
    includes seller-authored evidence, seller-visible decision notes, and
    timestamps but intentionally excludes `reviewedById`. Deletion scrubs the
