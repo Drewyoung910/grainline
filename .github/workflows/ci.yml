@@ -122,6 +122,32 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Verify email outbox contract correction source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/email-outbox-contract-correction-production-workflow.test.mjs
+      - name: Isolate email outbox contract correction until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-outbox-contract-correction"
+          migration=20261027020000_correct_email_outbox_contracts
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Verify email eligibility lock-order correction source package
+        run: >-
+          node --test --test-concurrency=1
+          tests/email-eligibility-lock-order-correction-production-workflow.test.mjs
+      - name: Isolate email eligibility lock-order correction until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-eligibility-lock-order-correction"
+          migration=20261027030000_correct_email_eligibility_lock_order
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Verify C-875 unsubscribe correction source package
         run: >-
           node --test --test-concurrency=1
@@ -6901,6 +6927,24 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email outbox contract correction after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-outbox-contract-correction"
+          migration=20261027020000_correct_email_outbox_contracts
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email eligibility lock-order correction after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-eligibility-lock-order-correction"
+          migration=20261027030000_correct_email_eligibility_lock_order
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build
@@ -6912,9 +6956,13 @@ jobs:
           holding="$RUNNER_TEMP/email-provider-fence-final-audit"
           deletion_migration=20261025020000_fence_email_provider_and_account_deletion
           eligibility_migration=20261025030000_fence_email_provider_and_eligibility_changes
+          correction_migration=20261027020000_correct_email_outbox_contracts
+          lock_order_correction_migration=20261027030000_correct_email_eligibility_lock_order
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$deletion_migration" "$holding/migrations/$deletion_migration"
           mv "prisma/migrations/$eligibility_migration" "$holding/migrations/$eligibility_migration"
+          mv "prisma/migrations/$correction_migration" "$holding/migrations/$correction_migration"
+          mv "prisma/migrations/$lock_order_correction_migration" "$holding/migrations/$lock_order_correction_migration"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
@@ -6956,7 +7004,6 @@ jobs:
           mv \
             "$holding/migrations/$eligibility_migration" \
             "prisma/migrations/$eligibility_migration"
-          rmdir "$holding/migrations" "$holding"
           echo "EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH=" >> "$GITHUB_ENV"
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
             RUNTIME_DB_ROLE=grainline_app_runtime \
@@ -6965,6 +7012,39 @@ jobs:
               --allow-loopback-ci \
               --staff-read-stage=order-user-combined
 
+          npx prisma migrate deploy
+          npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
+
+          # The correction is a successor to both provider fences. Keep it out
+          # of the disposable preparation/fence replays, then prove it only
+          # after the exact eligibility predecessor has been applied.
+          mv \
+            "$holding/migrations/$correction_migration" \
+            "prisma/migrations/$correction_migration"
+          echo "EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          npx prisma migrate deploy
+          npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
+
+          # The lock-order correction is a successor to the eligibility fence
+          # and outbox correction. Apply it last so this disposable rebuild
+          # proves the same release order required in Production.
+          mv \
+            "$holding/migrations/$lock_order_correction_migration" \
+            "prisma/migrations/$lock_order_correction_migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           npx prisma migrate deploy
           npx prisma migrate status
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \

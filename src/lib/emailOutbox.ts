@@ -6,6 +6,7 @@ import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { isEmailProviderConfigured, sendRenderedEmail } from "@/lib/email";
 import { redis } from "@/lib/ratelimit";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { classifyEmailOutboxFailure } from "@/lib/emailOutboxFailure";
 import { truncateText } from "@/lib/sanitize";
 import { emailOutboxDedupKey } from "@/lib/emailOutboxState";
 import {
@@ -29,12 +30,8 @@ import {
   failEmailOutboxClaim,
   type ClaimedEmailOutboxJob,
 } from "@/lib/emailOutboxAccess";
-import {
-  processClaimedEmailOutboxJob,
-  type EmailOutboxFailureClass,
-} from "@/lib/emailOutboxWorker";
+import { processClaimedEmailOutboxJob } from "@/lib/emailOutboxWorker";
 import { renderStructuredEmailOutboxClaim } from "@/lib/emailOutboxStructuredRenderer";
-import { emailSendErrorStatus, isRetryableEmailSendError } from "@/lib/emailRetry";
 
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 2;
@@ -56,12 +53,20 @@ export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
   "seller_broadcast",
   "welcome",
 ] as const;
+export const EMAIL_OUTBOX_SOURCE_TYPES = [
+  "seller_broadcast",
+  "followed_maker_new_listing",
+  "order_payment",
+  "order_fulfillment",
+  "case",
+] as const;
 const globalDailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_GLOBAL_ALLOWANCE_SCRIPT);
 const globalDailySendAllowanceRollbackScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_ROLLBACK_SCRIPT);
 const recipientDailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 const recipientDailySendAllowanceRollbackScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_ROLLBACK_SCRIPT);
 
 export type EmailOutboxTemplateName = typeof EMAIL_OUTBOX_TEMPLATE_NAMES[number];
+export type EmailOutboxSourceType = typeof EMAIL_OUTBOX_SOURCE_TYPES[number];
 
 export type QueuedEmail = {
   to: string;
@@ -72,7 +77,7 @@ export type QueuedEmail = {
   templateVersion?: number;
   userId?: string;
   preferenceKey?: string;
-  sourceType?: string;
+  sourceType?: EmailOutboxSourceType;
   sourceId?: string;
 };
 
@@ -200,32 +205,6 @@ export async function enqueueEmailOutbox(
 ) {
   const { job } = await enqueueEmailOutboxOnce(email, client);
   return job;
-}
-
-function classifyEmailOutboxFailure(error: unknown): EmailOutboxFailureClass {
-  const message = sanitizeEmailOutboxError(error).toLowerCase();
-  if (
-    message.includes("email provider not configured")
-    || message.includes("unsubscribe url unavailable")
-  ) {
-    return "configuration";
-  }
-  if (
-    message.includes("invalid recipient")
-    || message.includes("compatible renderer")
-  ) {
-    return "invalid_payload";
-  }
-  if (isRetryableEmailSendError(error)) return "provider_retryable";
-  if (emailSendErrorStatus(error) !== null) return "provider_rejected";
-  if (error && typeof error === "object") {
-    const code = (error as { code?: unknown }).code;
-    const name = (error as { name?: unknown }).name;
-    if (typeof code === "string" || name === "validation_error") {
-      return "provider_rejected";
-    }
-  }
-  return "unexpected_internal";
 }
 
 async function processEmailOutboxClaim(claim: ClaimedEmailOutboxJob) {

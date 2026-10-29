@@ -4299,11 +4299,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 3);
+    assert.equal(auditMatches.length, 5);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 3);
+    assert.equal(combinedStaffStageMatches.length, 5);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -4329,6 +4329,17 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreEligibilityFence,
     );
+    const eligibilityFenceAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyEligibilityFence,
+    );
+    const restoreCorrection = stagedProof.indexOf(
+      '"$holding/migrations/$correction_migration" \\\n            "prisma/migrations/$correction_migration"',
+    );
+    const applyCorrection = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreCorrection,
+    );
     const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
@@ -4340,7 +4351,12 @@ describe("database grant inventory guardrails", () => {
     assert.ok(restoreEligibilityFence < deletionFenceAudit);
     assert.ok(
       deletionFenceAudit < applyEligibilityFence
-      && applyEligibilityFence < finalAudit,
+      && applyEligibilityFence < eligibilityFenceAudit,
+    );
+    assert.ok(
+      eligibilityFenceAudit < restoreCorrection
+      && restoreCorrection < applyCorrection
+      && applyCorrection < finalAudit,
     );
   });
 

@@ -4073,7 +4073,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   Notification proof plus every other required push proof before the separately
   approved predecessor migration run.
 
-## 2026-10-26 — C-1174 pending-successor grant-audit false failure
+## 2026-10-26 — C-1183 pending-successor grant-audit false failure
 
 - **[PRODUCTION MIGRATION APPLIED; AUDIT RESTART FIX PREPARED]** Protected run
   `40381099751` committed and recorded
@@ -4089,6 +4089,58 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   audit so the exact Production state is exercised. No migration transaction
   may be replayed; only the protected applied-state restart path may complete
   evidence after review, merge, exact-main CI, and separate approval.
+
+## 2026-10-27 — C-1174, C-1178, C-1185 email outbox contract regressions
+
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1174:** the already-applied
+  enqueue authority accepts only seller fanout source identities, while the
+  refund, fulfillment/label and staff-Case finalizers atomically enqueue
+  `order_payment`, `order_fulfillment` and `case`. Current-main PostgreSQL 17
+  proof fails with SQLSTATE `22023`; the forward correction accepts the exact
+  five application source types, and `QueuedEmail.sourceType` is now a closed
+  TypeScript union so a new producer cannot silently outrun the SQL contract.
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1178:** the deletion fence
+  rejects more than 20 normalized historical-address keys even though account
+  history is unbounded. Current-main proof with 24 valid keys fails with
+  SQLSTATE `42501`; the forward correction validates every supplied key but
+  removes the arbitrary cardinality cap.
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1185:** retry attempt nine
+  currently schedules only 16 minutes after failure, reducing the predecessor
+  retry window from about 8.5 hours to about 2 hours. The correction restores
+  the 1, 2, 4, 8, 16, 32, 64, 128 and 256 minute sequence with the existing
+  360-minute defensive cap. The full PostgreSQL 17 chain executes all three
+  corrected behaviors as the runtime role.
+- Migration `20261027020000_correct_email_outbox_contracts` is a forward-only
+  successor with exact predecessor/postflight function hashes and unchanged
+  owner, `SECURITY DEFINER`, `search_path` and ACL contracts. It must remain
+  draft and must not merge or release until the earlier C-1180 migration
+  `20261027010000_restore_resend_webhook_receipts` is merged and live; otherwise
+  the earlier exact-pending-set release is blocked. C-1177 lock-order repair and
+  C-1184 compatible-app release binding remain separate open blockers.
+
+## 2026-10-27 — C-1177, C-1181 email eligibility lock order
+
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1177:** current main takes
+  email account/address advisory locks before `User ... FOR UPDATE` in Clerk
+  identity sync, notification preference changes, signed unsubscribe and staff
+  ban. The account-deletion transaction takes the same `User` row first and
+  then enters the email deletion fence. A two-session PostgreSQL 17 regression
+  using the exact runtime snapshot and staff-ban authorities fails on main with
+  SQLSTATE `40P01`: deletion owns the `User` row while ban owns two advisory
+  locks. The forward correction makes all four paths row-first.
+- **[FIX PREPARED; PRODUCTION REMAINS UNCHANGED] C-1181:** the same functions
+  fence an email captured by an unlocked read, so a concurrent email change can
+  make the keyed address stale before the row is locked. The correction derives
+  keys from the locked row; signed unsubscribe locks every currently matching
+  account in deterministic id order, and new-account identity creation locks
+  any current exact address owners before taking address keys.
+- Migration `20261027030000_correct_email_eligibility_lock_order` replaces only
+  those four functions, pins exact predecessor/postflight bodies, and preserves
+  owner, `SECURITY DEFINER`, `search_path` and ACL contracts. The full PostgreSQL
+  17 chain passes all 438 migrations and executes deletion-first and
+  mutation-first schedules for ban, identity, preference and unsubscribe. This
+  stacked draft must not merge or release until C-1180 and migration
+  `20261027020000_correct_email_outbox_contracts` are both merged and live.
 
 ## 2026-10-26 — StockNotification compatible RLS preparation
 
@@ -4143,6 +4195,22 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   transaction. Production remains broken until that migration is reviewed,
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
+
+## 2026-10-27 — C-1175/C-1176 email outbox failure classification
+
+- **[VERIFIED; FIX PREPARED; NOT YET DEPLOYED]** The predecessor classified
+  every error object with a string `code` as `provider_rejected`, including
+  Prisma query/pool errors and PostgreSQL SQLSTATEs. It also classified missing
+  provider/unsubscribe configuration plus provider account-level 401/403/422
+  responses into immediate terminal classes. The candidate isolates the pure
+  classifier and keeps those operational failures retryable while preserving
+  immediate terminal handling for locally proven invalid payloads and
+  definitive non-transient provider 4xx responses. A behavior-first test fails
+  against the predecessor classifications and passes for Prisma P2010/P2024,
+  PostgreSQL 40P01, provider configuration/account errors, transient provider
+  failures, invalid local payloads and a definitive provider 400 response.
+  This app correction does not by itself release the pending email migration or
+  close C-1174/C-1177/C-1178/C-1185.
 
 ## Recommended fix order for Codex
 
