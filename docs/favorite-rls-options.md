@@ -1,6 +1,6 @@
 # Favorite RLS Options
 
-Date: 2026-10-28  
+Date: 2026-10-28
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 
 This comparison follows the audit in `docs/favorite-pre-rls-audit.md`. Favorite
