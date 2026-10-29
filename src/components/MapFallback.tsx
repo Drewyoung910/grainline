@@ -23,7 +23,7 @@ export default function MapFallback({
     : null;
 
   return (
-    <div className={`${className} flex flex-col justify-center gap-2 bg-neutral-50 p-4 text-sm text-neutral-700`}>
+    <div className={`${className} flex flex-col justify-center gap-2 bg-white p-4 text-sm text-neutral-700`}>
       <p className="font-medium text-neutral-900">{message}</p>
       {hasCoordinates && (
         <p className="text-xs text-neutral-500">
@@ -32,12 +32,12 @@ export default function MapFallback({
       )}
       <div className="flex flex-wrap gap-3 text-xs">
         {osmHref && (
-          <a href={osmHref} target="_blank" rel="noopener noreferrer" className="font-medium text-amber-700 underline">
+          <a href={osmHref} target="_blank" rel="noopener noreferrer" className="font-medium text-neutral-900 underline underline-offset-2 hover:text-neutral-600">
             Open in OpenStreetMap
           </a>
         )}
         {links.map((link) => (
-          <Link key={link.href} href={link.href} className="font-medium text-amber-700 underline">
+          <Link key={link.href} href={link.href} className="font-medium text-neutral-900 underline underline-offset-2 hover:text-neutral-600">
             {link.label}
           </Link>
         ))}

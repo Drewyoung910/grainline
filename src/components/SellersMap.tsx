@@ -5,6 +5,7 @@ import * as maplibregl from "@/lib/maplibreClient";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
+import { createMapPinElement } from "@/lib/mapPinElement";
 import MakerMapCard, { type MakerMapCardCache } from "@/components/MakerMapCard";
 
 type SellerPin = {
@@ -69,7 +70,7 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
             city: seller.city ?? null,
             state: seller.state ?? null,
           });
-        const marker = new maplibregl.Marker({ color: "#1C1C1A" })
+        const marker = new maplibregl.Marker({ element: createMapPinElement(), anchor: "bottom" })
           .setLngLat([seller.lng, seller.lat])
           .addTo(map);
         const markerEl = marker.getElement();

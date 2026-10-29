@@ -253,7 +253,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
         <div className="p-4">
-          <p className="text-sm text-neutral-700">{item.message}</p>
+          <p className="whitespace-pre-line break-words text-sm text-neutral-700">{item.message}</p>
           {item.broadcastImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img

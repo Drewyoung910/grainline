@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Security | Grainline",
+  title: "Security",
   description: "How to report a security vulnerability to Grainline.",
   alternates: { canonical: "https://thegrainline.com/security" },
 };

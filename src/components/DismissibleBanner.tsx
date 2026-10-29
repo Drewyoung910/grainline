@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { X } from "@/components/icons";
 
 const STORAGE_KEY = "dismissed-rejected-ids";
 const MAX_DISMISSED_REJECTED_IDS = 500;
@@ -19,6 +20,21 @@ function parseDismissedIds(stored: string | null): string[] {
   }
 }
 
+function isStoredDismissed(rejectedIds: string[]): boolean {
+  if (rejectedIds.length === 0) return false;
+  try {
+    const dismissedIds = parseDismissedIds(localStorage.getItem(STORAGE_KEY));
+    return rejectedIds.every((id) => dismissedIds.includes(id));
+  } catch {
+    return false;
+  }
+}
+
+function subscribeToStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 export default function DismissibleBanner({
   children,
   className = "",
@@ -28,21 +44,19 @@ export default function DismissibleBanner({
   className?: string;
   rejectedIds?: string[];
 }) {
-  const [dismissed, setDismissed] = useState(false);
+  // Dismissals live in localStorage, which the server cannot read. A banner
+  // that can be dismissed by id stays hidden until the client has checked
+  // storage, so a dismissed banner never flashes back on load. Banners without
+  // ids render immediately, and client navigations read storage synchronously.
+  const storedDismissed = useSyncExternalStore(
+    subscribeToStorage,
+    () => isStoredDismissed(rejectedIds),
+    () => rejectedIds.length > 0,
+  );
+  const idsKey = JSON.stringify(rejectedIds);
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    setDismissed(false);
-    if (rejectedIds.length === 0) return;
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const dismissedIds = parseDismissedIds(stored);
-      setDismissed(rejectedIds.every((id) => dismissedIds.includes(id)));
-    } catch {
-      setDismissed(false);
-    }
-  }, [rejectedIds]);
-
-  if (dismissed) return null;
+  if (storedDismissed || dismissedKey === idsKey) return null;
 
   const handleDismiss = () => {
     try {
@@ -52,18 +66,19 @@ export default function DismissibleBanner({
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeDismissedIds([...dismissedIds, ...rejectedIds])));
       }
     } catch { /* non-fatal */ }
-    setDismissed(true);
+    setDismissedKey(idsKey);
   };
 
   return (
     <div className={`relative ${className}`}>
       {children}
       <button
+        type="button"
         onClick={handleDismiss}
-        className="absolute top-2 right-2 text-neutral-500 hover:text-neutral-600 text-lg leading-none"
+        className="absolute -right-1.5 -top-1.5 inline-flex h-11 w-11 items-center justify-center rounded-full opacity-70 transition-opacity hover:opacity-100"
         aria-label="Dismiss"
       >
-        ×
+        <X size={18} />
       </button>
     </div>
   );

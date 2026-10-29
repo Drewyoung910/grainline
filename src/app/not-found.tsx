@@ -4,7 +4,7 @@ import { Logs } from "@/components/icons";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Page not found | Grainline",
+  title: "Page not found",
   robots: { index: false, follow: false },
 };
 

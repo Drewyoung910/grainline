@@ -22,7 +22,7 @@ describe("security disclosure surface", () => {
   it("keeps the human security policy public and canonical", () => {
     const page = source("src/app/security/page.tsx");
 
-    assert.match(page, /title: "Security \| Grainline"/);
+    assert.match(page, /title: "Security"/);
     assert.match(page, /canonical: "https:\/\/thegrainline\.com\/security"/);
     assert.match(page, /security@thegrainline\.com/);
     assert.match(page, /Safe testing guidelines/);
