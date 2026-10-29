@@ -281,3 +281,30 @@ test("production workflow rolls back smoke writes and always uploads sanitized e
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   assert.doesNotMatch(workflow, /resend\s+(?:emails|webhooks|domains)/iu);
 });
+
+test("final CI replay applies the correction only after both provider fences", () => {
+  const finalBuildStart = ciWorkflow.indexOf(
+    "name: Apply complete public SellerProfile chain for final Production build",
+  );
+  const finalBuildEnd = ciWorkflow.indexOf("name: Production build", finalBuildStart);
+  assert.ok(finalBuildStart >= 0 && finalBuildEnd > finalBuildStart);
+  const replay = ciWorkflow.slice(finalBuildStart, finalBuildEnd);
+
+  const holdCorrection = replay.indexOf(
+    'mv "prisma/migrations/$correction_migration" "$holding/migrations/$correction_migration"',
+  );
+  const restoreEligibility = replay.indexOf(
+    '"$holding/migrations/$eligibility_migration" \\\n            "prisma/migrations/$eligibility_migration"',
+  );
+  const applyEligibility = replay.indexOf("npx prisma migrate deploy", restoreEligibility);
+  const restoreCorrection = replay.indexOf(
+    '"$holding/migrations/$correction_migration" \\\n            "prisma/migrations/$correction_migration"',
+  );
+  const applyCorrection = replay.indexOf("npx prisma migrate deploy", restoreCorrection);
+
+  assert.ok(holdCorrection >= 0);
+  assert.ok(holdCorrection < restoreEligibility);
+  assert.ok(restoreEligibility < applyEligibility);
+  assert.ok(applyEligibility < restoreCorrection);
+  assert.ok(restoreCorrection < applyCorrection);
+});
