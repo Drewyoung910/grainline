@@ -3853,8 +3853,9 @@ describe("database grant inventory guardrails", () => {
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
           : 0)
+        // Activation revokes the table plus its private count-repair trigger function.
         + (reviewVoteRlsActivationPresent
-          ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.length
+          ? 1 + REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.length
           : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
