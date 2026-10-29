@@ -357,19 +357,25 @@ function stockNotificationPreparationMigrationSourcePath() {
   return stagedPath;
 }
 
-function reviewVotePreparationMigrationSourcePath() {
+function reviewVoteCandidateMigrationSourcePath(migration) {
   const livePath = path.join(
     "prisma",
     "migrations",
-    reviewVotePreparationMigration,
+    migration,
   );
   if (existsSync(livePath)) return livePath;
   const stagedPath = process.env.REVIEW_VOTE_PREPARATION_MIGRATION_PATH ?? "";
   assert.ok(
     stagedPath && existsSync(stagedPath),
-    "missing isolated ReviewVote preparation migration",
+    `missing isolated ReviewVote source package for ${migration}`,
   );
-  return path.dirname(stagedPath);
+  const stagedMigrations = path.dirname(path.dirname(stagedPath));
+  const candidatePath = path.join(stagedMigrations, migration);
+  assert.ok(
+    existsSync(candidatePath),
+    `missing isolated ReviewVote migration ${migration}`,
+  );
+  return candidatePath;
 }
 
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
@@ -738,18 +744,15 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
-    const reviewVotePreparationTarget = path.join(
-      root,
-      "prisma",
-      "migrations",
-      reviewVotePreparationMigration,
-    );
-    if (!existsSync(reviewVotePreparationTarget)) {
-      cpSync(
-        reviewVotePreparationMigrationSourcePath(),
-        reviewVotePreparationTarget,
-        { recursive: true },
-      );
+    for (const migration of reviewVoteCandidateMigrations) {
+      const target = path.join(root, "prisma", "migrations", migration);
+      if (!existsSync(target)) {
+        cpSync(
+          reviewVoteCandidateMigrationSourcePath(migration),
+          target,
+          { recursive: true },
+        );
+      }
     }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
