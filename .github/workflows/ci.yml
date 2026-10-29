@@ -439,10 +439,13 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/maker-verification-preparation"
-          migration=20261028040000_prepare_maker_verification_authorities
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+          preparation=20261028040000_prepare_maker_verification_authorities
+          activation=20261028050000_activate_maker_verification_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6945,10 +6948,13 @@ jobs:
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/maker-verification-preparation"
-          migration=20261028040000_prepare_maker_verification_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          preparation=20261028040000_prepare_maker_verification_authorities
+          activation=20261028050000_activate_maker_verification_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          mv "$holding/migrations/$activation" "prisma/migrations/$activation"
           rmdir "$holding/migrations" "$holding"
           echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |

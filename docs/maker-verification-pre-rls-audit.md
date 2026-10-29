@@ -2,9 +2,10 @@
 
 Date: 2026-10-28
 
-Decision: **The Option B compatible preparation candidate is implemented and
-proven on the complete PostgreSQL 17 chain; NO-GO remains for RLS or grant
-activation.**
+Decision: **The Option B compatible preparation is implemented and a separate
+policyless ENABLE+FORCE candidate now has direct-denial and predecessor-
+rollback proofs; NO-GO remains for Production RLS or grant activation until
+exact-head PostgreSQL 16/17 accepts the complete matrix.**
 
 Reviewed source baseline:
 `857bc94706913a4d5c4368afa99de0a55bb2437c`.
@@ -188,9 +189,11 @@ eligibility snapshot and the database rechecks actor/account/Guild state under
 lock; staff approval remains the final eligibility authority. The complete
 staff/service transition matrix and the owner/staff input, inactive-account,
 cross-role, and deletion-retry matrix are now wired into the full-chain proof
-and await exact-head PostgreSQL 16/17 acceptance. Activation still requires
-exact-head acceptance of both matrices, direct-table denial after ENABLE+FORCE,
-and predecessor rollback proof. No Production authorization is implied.
+and await exact-head PostgreSQL 16/17 acceptance. The isolated activation
+candidate supplies direct-table denial after ENABLE+FORCE and a database-first
+rollback/reactivation round trip. Activation still requires exact-head
+acceptance of those proofs and both behavior matrices. No Production
+authorization is implied.
 
 ## Findings and activation gates
 
