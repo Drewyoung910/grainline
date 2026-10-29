@@ -1,6 +1,6 @@
 -- Database-first emergency rollback for Favorite ENABLE/FORCE activation.
 -- Run only after the compatible preparation application is confirmed live.
--- The additive count projection, its maintenance triggers, and the nine fixed
+-- The additive count projection, its maintenance triggers, and the eight fixed
 -- operations remain; this restores the compatible predecessor table grants.
 
 BEGIN;
