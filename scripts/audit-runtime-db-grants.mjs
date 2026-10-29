@@ -570,6 +570,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_saved_blog_post_insert_guard",
   "grainline_favorite_count_maintain",
   "grainline_favorite_update_forbidden",
+  "grainline_listing_favorite_count_guard",
   "grainline_review_reviewer_public_state_bind",
   "grainline_commission_buyer_public_state_bind",
   "grainline_user_public_review_commission_state_sync",
