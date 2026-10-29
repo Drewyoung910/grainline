@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -77,4 +85,48 @@ test("activation and rollback retain one-table, no-policy boundaries", () => {
   assert.doesNotMatch(rollback, /CREATE\s+POLICY/iu);
   assert.doesNotMatch(activation, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
+});
+
+test("catalog verifies isolated migration candidates through generic path overrides", () => {
+  const isolatedRoot = mkdtempSync(
+    path.join(tmpdir(), "grainline-private-table-activation-"),
+  );
+  const rollbackPath = path.join(isolatedRoot, release.rollbackPath);
+  const previousPreparationPath =
+    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH;
+  const previousActivationPath =
+    process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH;
+
+  try {
+    mkdirSync(path.dirname(rollbackPath), { recursive: true });
+    copyFileSync(verified.rollbackPath, rollbackPath);
+    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH =
+      verified.preparation.migrationPath;
+    process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH =
+      verified.migrationPath;
+
+    const isolated = verifyPrivateTableRlsActivationSource(
+      releaseId,
+      isolatedRoot,
+    );
+    assert.equal(
+      isolated.preparation.migrationPath,
+      verified.preparation.migrationPath,
+    );
+    assert.equal(isolated.migrationPath, verified.migrationPath);
+  } finally {
+    if (previousPreparationPath === undefined) {
+      delete process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH;
+    } else {
+      process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH =
+        previousPreparationPath;
+    }
+    if (previousActivationPath === undefined) {
+      delete process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH;
+    } else {
+      process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH =
+        previousActivationPath;
+    }
+    rmSync(isolatedRoot, { recursive: true, force: true });
+  }
 });

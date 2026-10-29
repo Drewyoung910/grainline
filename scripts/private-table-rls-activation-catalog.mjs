@@ -50,7 +50,9 @@ function escapeRegExp(value) {
 }
 
 function artifact(rootDir, relativePath, expectedDigest, label) {
-  const absolutePath = path.join(rootDir, relativePath);
+  const absolutePath = path.isAbsolute(relativePath)
+    ? relativePath
+    : path.join(rootDir, relativePath);
   const bytes = readFileSync(absolutePath);
   const digest = createHash("sha256").update(bytes).digest("hex");
   if (digest !== expectedDigest) throw stopped(`${label} digest drifted`);
@@ -90,10 +92,12 @@ export function verifyPrivateTableRlsActivationSource(
   const preparation = verifyPrivateTablePreparationSource(
     release.preparationReleaseId,
     rootDir,
+    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
   );
   const activation = artifact(
     rootDir,
-    privateTableRlsActivationMigrationPath(release),
+    process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH?.trim()
+      || privateTableRlsActivationMigrationPath(release),
     release.migrationSha256,
     "activation migration",
   );
