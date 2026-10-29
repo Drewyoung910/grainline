@@ -1,11 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { rateLimitResponse, reviewVoteRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { sellerPublicReviewVoteTarget } from "@/lib/sellerProfilePublicAccess";
+import { isReviewVoteId, toggleOwnerReviewVote } from "@/lib/reviewVoteAccess";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
@@ -14,6 +13,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const { id } = await ctx.params; // review id
+  if (!isReviewVoteId(id)) return privateJson({ error: "Not found" }, { status: 404 });
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
@@ -30,62 +30,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const review = await sellerPublicReviewVoteTarget(me.id, id);
-  if (!review) return privateJson({ error: "Not found" }, { status: 404 });
-
-  // Don't allow voting on your own review
-  if (review.reviewerId === me.id) {
+  const updated = await toggleOwnerReviewVote(me.id, id);
+  if (updated.resultStatus === "NOT_FOUND") {
+    return privateJson({ error: "Not found" }, { status: 404 });
+  }
+  if (updated.resultStatus === "SELF") {
     return privateJson({ error: "Cannot vote own review" }, { status: 400 });
   }
-  // Don't allow the seller to vote helpful on reviews of their own listing
-  // (would let sellers boost their best reviews).
-  if (review.sellerUserId === me.id) {
+  if (updated.resultStatus === "OWN_LISTING") {
     return privateJson({ error: "Cannot vote on your own listing" }, { status: 400 });
-  }
-
-  let updated: { helpfulCount: number; voted: boolean };
-  try {
-    updated = await prisma.$transaction(async (tx) => {
-      const existing = await tx.reviewVote.findUnique({
-        where: { reviewId_userId: { reviewId: id, userId: me.id } },
-      });
-
-      if (existing) {
-        const deleted = await tx.reviewVote.deleteMany({
-          where: { reviewId: id, userId: me.id },
-        });
-        if (deleted.count === 1) {
-          await tx.$executeRaw`
-            UPDATE "Review"
-            SET "helpfulCount" = GREATEST("helpfulCount" - 1, 0)
-            WHERE id = ${id}
-          `;
-        }
-        const reviewUpdated = await tx.review.findUnique({
-          where: { id },
-          select: { helpfulCount: true },
-        });
-        return { helpfulCount: reviewUpdated?.helpfulCount ?? 0, voted: false };
-      }
-      await tx.reviewVote.create({
-        data: { reviewId: id, userId: me.id, value: 1 },
-      });
-      const reviewUpdated = await tx.review.update({
-        where: { id },
-        data: { helpfulCount: { increment: 1 } },
-        select: { helpfulCount: true },
-      });
-      return { helpfulCount: reviewUpdated.helpfulCount, voted: true };
-    });
-  } catch (error) {
-    if ((error as { code?: string }).code === "P2002") {
-      const current = await prisma.review.findUnique({
-        where: { id },
-        select: { helpfulCount: true },
-      });
-      return privateJson({ ok: true, helpfulCount: current?.helpfulCount ?? review.helpfulCount, voted: true });
-    }
-    throw error;
   }
 
   return privateJson({ ok: true, helpfulCount: updated.helpfulCount, voted: updated.voted });

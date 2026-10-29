@@ -194,7 +194,7 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
   );
   assert.match(
     ci,
-    /test "\$\(git hash-object "\$schema"\)" = 09a93630f62752dab2ee414ea6430799adf8420d[\s\S]*trap cleanup EXIT[\s\S]*cp "\$holding\/predecessor-schema\.prisma" "\$schema"/u,
+    /test "\$\(git hash-object "\$schema"\)" = 2796667e3166f9ff7dfec04b1e2285e50bb8bb0a[\s\S]*trap cleanup EXIT[\s\S]*cp "\$holding\/predecessor-schema\.prisma" "\$schema"/u,
   );
   assert.equal(
     [

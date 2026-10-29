@@ -3477,3 +3477,23 @@ required boundary.
 zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
+
+### ReviewVote RLS direction (2026-10-28)
+
+Treat vote identities as private owner data and keep only the existing
+`Review.helpfulCount` scalar public. Use owner-only `SELECT`, not direct row
+mutation. One actor-bound database operation must validate and toggle the exact
+vote while maintaining the count; account deletion uses a separate target-bound
+operation that repairs affected counts. Do not activate until existing count
+drift, reciprocal-block parity, atomic eligibility, the value constraint and
+owner-leading index are closed on the full PostgreSQL 17 chain. See
+`docs/review-vote-rls-options.md` and `docs/review-vote-pre-rls-audit.md`.
+
+The isolated A2 compatible candidate now closes those preparation items and
+passes the 437-migration PostgreSQL 17 behavior plus mixed-version concurrency
+proof without changing RLS or predecessor grants. Count maintenance remains in
+the reviewed predecessor/fixed writers during the compatibility window; a
+general cascade-maintenance trigger must wait for activation so the predecessor
+route cannot double-update the scalar. Activation remains separately blocked
+on policy/grant denial, hard User-delete cascade, cross-owner/race coverage,
+rollback, and explicit release authorization.
