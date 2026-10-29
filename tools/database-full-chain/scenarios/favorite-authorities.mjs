@@ -257,12 +257,8 @@ async function proveAddBlockRaces({ connectionString, database, fixture }) {
        VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
       [`${fixture.listings.addFirstRace}_block`, fixture.seller.userId, fixture.buyerA],
     );
-    await second.query(
-      "SELECT public.grainline_favorite_block_cleanup($1)",
-      [fixture.buyerA],
-    );
     await second.query("COMMIT");
-    assert.equal(await projectedCount(database, fixture.listings.addFirstRace), 0);
+    assert.equal(await projectedCount(database, fixture.listings.addFirstRace), 1);
 
     await beginRuntime(second, fixture.seller.userId);
     await second.query(
@@ -507,15 +503,6 @@ export async function proveFavoritePreparedAuthorities({
   ));
   assert.equal(Number(deletedAll[0]?.value ?? -1), 1);
   assert.equal(await projectedCount(database, fixture.listings.blockCleanup), 0);
-  await assert.rejects(
-    runtimeQuery(
-      database,
-      fixture.buyerB,
-      "SELECT public.grainline_favorite_block_cleanup($1)",
-      [fixture.seller.userId],
-    ),
-    (error) => error?.code === "42501",
-  );
   await assert.rejects(
     runtimeQuery(
       database,

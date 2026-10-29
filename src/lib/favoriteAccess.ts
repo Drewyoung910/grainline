@@ -206,18 +206,6 @@ export async function deleteFavoritesForAdminListing(
   return cleanupCount(rows, "Favorite admin cleanup authority");
 }
 
-export async function deleteFavoritesForBlockedPair(
-  client: FavoriteAccessClient,
-  targetUserId: string,
-) {
-  const rows = await client.$queryRaw<Array<{ value: bigint | number }>>`
-    SELECT public.grainline_favorite_block_cleanup(
-      ${targetUserId}::text
-    ) AS value
-  `;
-  return cleanupCount(rows, "Favorite block cleanup authority");
-}
-
 export function deleteAllOwnerFavorites(
   userId: string,
   client: FavoriteAccessClient,

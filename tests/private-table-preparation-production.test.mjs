@@ -195,7 +195,7 @@ test("catalog admits only byte-sealed, additive reviewed preparations", () => {
 test("Favorite preparation is byte-sealed and remains compatible", () => {
   const favorite = verifyPrivateTablePreparationSource("favorite_v1");
   assert.equal(favorite.release.table, "Favorite");
-  assert.equal(favorite.functionSources.size, 9);
+  assert.equal(favorite.functionSources.size, 8);
   assert.deepEqual(favorite.release.addedColumns, []);
   const sql = readFileSync(favorite.migrationPath, "utf8");
   assert.match(sql, /SET LOCAL lock_timeout = '10s'/u);
@@ -203,6 +203,7 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
   assert.match(sql, /ADD COLUMN "favoriteCount" integer NOT NULL DEFAULT 0/u);
   assert.match(sql, /Favorite_count_after_insert/u);
   assert.match(sql, /Favorite_update_forbidden/u);
+  assert.doesNotMatch(sql, /grainline_favorite_block_cleanup/u);
   assert.ok(
     sql.indexOf('LOCK TABLE public."Listing" IN SHARE ROW EXCLUSIVE MODE')
       < sql.indexOf('LOCK TABLE public."Favorite" IN SHARE ROW EXCLUSIVE MODE'),

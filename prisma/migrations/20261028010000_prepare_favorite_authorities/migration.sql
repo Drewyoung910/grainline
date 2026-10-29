@@ -30,8 +30,7 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_favorite_owner_export()'),
        pg_catalog.to_regprocedure('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)'),
        pg_catalog.to_regprocedure('public.grainline_favorite_seller_listing_cleanup(text)'),
-       pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)'),
-       pg_catalog.to_regprocedure('public.grainline_favorite_block_cleanup(text)')
+       pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)')
      )
   ) THEN
     RAISE EXCEPTION 'Favorite preparation function already exists';
@@ -583,60 +582,6 @@ BEGIN
 END;
 $grainline_favorite_admin_listing_cleanup$;
 
-CREATE FUNCTION public.grainline_favorite_block_cleanup(
-  p_target_user_id text
-)
-RETURNS integer
-LANGUAGE plpgsql
-VOLATILE
-PARALLEL UNSAFE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $grainline_favorite_block_cleanup$
-DECLARE
-  request_user_id text := NULLIF(
-    pg_catalog.current_setting('app.user_id', true),
-    ''
-  );
-  deleted_count integer := 0;
-BEGIN
-  IF request_user_id IS NULL
-     OR request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-     OR p_target_user_id IS NULL
-     OR p_target_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-     OR request_user_id = p_target_user_id THEN
-    RAISE EXCEPTION 'Favorite block cleanup input is invalid'
-      USING ERRCODE = '22023';
-  END IF;
-
-  PERFORM 1 FROM public.grainline_user_block_pair_lock(p_target_user_id);
-  IF NOT EXISTS (
-    SELECT 1
-      FROM public."Block"
-     WHERE "blockerId" = request_user_id
-       AND "blockedId" = p_target_user_id
-  ) THEN
-    RAISE EXCEPTION 'Favorite block cleanup requires an active block'
-      USING ERRCODE = '42501';
-  END IF;
-
-  DELETE FROM public."Favorite" AS favorite
-   USING public."Listing" AS listing,
-         public."SellerProfile" AS seller
-   WHERE listing.id = favorite."listingId"
-     AND seller.id = listing."sellerId"
-     AND (
-       (favorite."userId" = request_user_id
-        AND seller."userId" = p_target_user_id)
-       OR
-       (favorite."userId" = p_target_user_id
-        AND seller."userId" = request_user_id)
-     );
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RETURN deleted_count;
-END;
-$grainline_favorite_block_cleanup$;
-
 REVOKE ALL ON FUNCTION public.grainline_favorite_count_maintain()
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_favorite_update_forbidden()
@@ -658,8 +603,6 @@ REVOKE ALL ON FUNCTION public.grainline_favorite_seller_listing_cleanup(text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_favorite_admin_listing_cleanup(text)
   FROM PUBLIC, grainline_app_runtime;
-REVOKE ALL ON FUNCTION public.grainline_favorite_block_cleanup(text)
-  FROM PUBLIC, grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION public.grainline_favorite_owner_listing_ids(text[])
   TO grainline_app_runtime;
@@ -676,8 +619,6 @@ GRANT EXECUTE ON FUNCTION public.grainline_favorite_seller_range_count(timestamp
 GRANT EXECUTE ON FUNCTION public.grainline_favorite_seller_listing_cleanup(text)
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_favorite_admin_listing_cleanup(text)
-  TO grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_favorite_block_cleanup(text)
   TO grainline_app_runtime;
 
 ALTER TABLE public."Listing"
@@ -712,8 +653,7 @@ BEGIN
         ('public.grainline_favorite_owner_export()'),
         ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)'),
         ('public.grainline_favorite_seller_listing_cleanup(text)'),
-        ('public.grainline_favorite_admin_listing_cleanup(text)'),
-        ('public.grainline_favorite_block_cleanup(text)')
+        ('public.grainline_favorite_admin_listing_cleanup(text)')
     ) AS expected(signature)
    WHERE pg_catalog.to_regprocedure(expected.signature) IS NULL;
   IF missing_functions IS NOT NULL THEN

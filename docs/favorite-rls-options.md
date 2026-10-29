@@ -11,7 +11,7 @@ the marketplace intentionally consumes cross-user counts.
 
 The isolated candidate selects Option B's maintained Listing projection for
 the raw public count and popular ordering. It goes one step narrower during
-preparation by converting every current Favorite caller to nine bounded
+preparation by converting every current Favorite caller to eight bounded
 operations; this leaves the final activation free to choose owner policies or
 zero direct runtime table authority without another application rewrite.
 Quality-score eligibility remains on its stricter existing authority, while
