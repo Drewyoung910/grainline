@@ -811,7 +811,7 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
   }
 
   const state = rowsOf(await database.query(
-    `SELECT pg_catalog.substring(seller.id FROM pg_catalog.length($1) + 1) AS key,
+    `SELECT pg_catalog.substr(seller.id, pg_catalog.length($1) + 1) AS key,
             seller."guildLevel"::text AS "guildLevel",
             seller."isVerifiedMaker" AS "isVerifiedMaker",
             verification.status::text AS status,
