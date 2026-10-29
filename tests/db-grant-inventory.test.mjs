@@ -243,6 +243,7 @@ const FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES = [
 const FAVORITE_PREPARATION_PRIVATE_FUNCTION_NAMES = [
   "grainline_favorite_count_maintain",
   "grainline_favorite_update_forbidden",
+  "grainline_listing_favorite_count_guard",
 ];
 const FAVORITE_PREPARATION_FUNCTION_NAMES = [
   ...FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES,

@@ -2168,7 +2168,8 @@ SELECT format(
 WITH favorite_private(function_signature) AS (
   VALUES
     ('public."grainline_favorite_count_maintain"()'),
-    ('public."grainline_favorite_update_forbidden"()')
+    ('public."grainline_favorite_update_forbidden"()'),
+    ('public."grainline_listing_favorite_count_guard"()')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM favorite_private
@@ -2178,7 +2179,8 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 WITH favorite_private(function_signature) AS (
   VALUES
     ('public."grainline_favorite_count_maintain"()'),
-    ('public."grainline_favorite_update_forbidden"()')
+    ('public."grainline_favorite_update_forbidden"()'),
+    ('public."grainline_listing_favorite_count_guard"()')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',

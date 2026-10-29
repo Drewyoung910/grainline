@@ -381,6 +381,25 @@ export async function proveFavoritePreparedAuthorities({
   await assert.rejects(
     runtimeQuery(
       database,
+      fixture.buyerB,
+      `UPDATE public."Listing"
+          SET "favoriteCount" = 999
+        WHERE id = $1`,
+      [fixture.listings.add],
+    ),
+    (error) => error?.code === "42501",
+  );
+  assert.equal(await projectedCount(database, fixture.listings.add), 1);
+  await runtimeQuery(
+    database,
+    fixture.buyerB,
+    `UPDATE public."Listing" SET "updatedAt" = "updatedAt" WHERE id = $1`,
+    [fixture.listings.add],
+  );
+
+  await assert.rejects(
+    runtimeQuery(
+      database,
       null,
       "SELECT * FROM public.grainline_favorite_owner_listing_ids($1::text[])",
       [[fixture.listings.add]],

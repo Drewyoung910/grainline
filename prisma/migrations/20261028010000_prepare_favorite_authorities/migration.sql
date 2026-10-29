@@ -30,7 +30,10 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_favorite_owner_export()'),
        pg_catalog.to_regprocedure('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)'),
        pg_catalog.to_regprocedure('public.grainline_favorite_seller_listing_cleanup(text)'),
-       pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)')
+       pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)'),
+       pg_catalog.to_regprocedure('public.grainline_favorite_count_maintain()'),
+       pg_catalog.to_regprocedure('public.grainline_favorite_update_forbidden()'),
+       pg_catalog.to_regprocedure('public.grainline_listing_favorite_count_guard()')
      )
   ) THEN
     RAISE EXCEPTION 'Favorite preparation function already exists';
@@ -110,6 +113,37 @@ BEGIN
     USING ERRCODE = '0A000';
 END;
 $grainline_favorite_count_maintain$;
+
+-- Listing remains directly writable during this compatible preparation. Keep
+-- its public aggregate database-managed even before Favorite activation. The
+-- guard must be SECURITY INVOKER: direct runtime writes execute as the runtime
+-- role and fail, while the nested UPDATE issued by the owner-held Favorite
+-- maintenance trigger executes as its BYPASSRLS definer and succeeds.
+CREATE FUNCTION public.grainline_listing_favorite_count_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY INVOKER
+SET search_path = pg_catalog
+AS $grainline_listing_favorite_count_guard$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_roles AS role_state
+     WHERE role_state.rolname = CURRENT_USER
+       AND (role_state.rolsuper OR role_state.rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'Listing favorite-count projection is database-managed'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$grainline_listing_favorite_count_guard$;
+
+CREATE TRIGGER "Listing_favoriteCount_guard"
+BEFORE UPDATE OF "favoriteCount" ON public."Listing"
+FOR EACH ROW EXECUTE FUNCTION public.grainline_listing_favorite_count_guard();
 
 CREATE TRIGGER "Favorite_count_after_insert"
 AFTER INSERT ON public."Favorite"
@@ -586,6 +620,8 @@ REVOKE ALL ON FUNCTION public.grainline_favorite_count_maintain()
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_favorite_update_forbidden()
   FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_listing_favorite_count_guard()
+  FROM PUBLIC, grainline_app_runtime;
 
 REVOKE ALL ON FUNCTION public.grainline_favorite_owner_listing_ids(text[])
   FROM PUBLIC, grainline_app_runtime;
@@ -653,7 +689,10 @@ BEGIN
         ('public.grainline_favorite_owner_export()'),
         ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)'),
         ('public.grainline_favorite_seller_listing_cleanup(text)'),
-        ('public.grainline_favorite_admin_listing_cleanup(text)')
+        ('public.grainline_favorite_admin_listing_cleanup(text)'),
+        ('public.grainline_favorite_count_maintain()'),
+        ('public.grainline_favorite_update_forbidden()'),
+        ('public.grainline_listing_favorite_count_guard()')
     ) AS expected(signature)
    WHERE pg_catalog.to_regprocedure(expected.signature) IS NULL;
   IF missing_functions IS NOT NULL THEN
@@ -669,6 +708,34 @@ BEGIN
            'Favorite_update_forbidden'
          )) <> 3 THEN
     RAISE EXCEPTION 'Favorite preparation triggers are incomplete';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger AS trigger_state
+     WHERE trigger_state.tgrelid = 'public."Listing"'::pg_catalog.regclass
+       AND trigger_state.tgname = 'Listing_favoriteCount_guard'
+       AND trigger_state.tgtype = 19
+       AND trigger_state.tgenabled = 'O'
+       AND NOT trigger_state.tgisinternal
+       AND trigger_state.tgfoid = pg_catalog.to_regprocedure(
+         'public.grainline_listing_favorite_count_guard()'
+       )
+  ) OR NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_roles AS owner
+        ON owner.oid = procedure.proowner
+     WHERE procedure.oid = pg_catalog.to_regprocedure(
+             'public.grainline_listing_favorite_count_guard()'
+           )
+       AND NOT procedure.prosecdef
+       AND procedure.provolatile = 'v'
+       AND procedure.proparallel = 'u'
+       AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+       AND (owner.rolsuper OR owner.rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'Listing favorite-count guard is incomplete';
   END IF;
 
   IF EXISTS (

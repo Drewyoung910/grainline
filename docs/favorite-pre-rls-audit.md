@@ -199,7 +199,7 @@ before any account approaches the ceiling.
 - Listing cleanup must be all-or-nothing with the visibility transition.
 - Counter maintenance, if selected, must cover single deletes, bulk deletes,
   foreign-key cascades and transaction rollback.
-- The final activation must prevent ordinary runtime writes to
+- The compatible preparation must prevent ordinary runtime writes to
   `Listing.favoriteCount`; a non-negative check and reconciliation proof do not
   stop an otherwise-authorized Listing update from forging the projection.
 - A repair/reconciliation query must compare projected counts with Favorite
@@ -239,7 +239,8 @@ The compatible preparation selects Option B's maintained raw-current-row count
 projection without activating its final policy/grant posture. Migration
 `20261028010000_prepare_favorite_authorities` adds the non-negative
 `Listing.favoriteCount` projection, exact backfill and insert/delete
-maintenance, forbids Favorite UPDATE, and installs eight bounded operations.
+maintenance, rejects direct non-owner projection writes, forbids Favorite
+UPDATE, and installs eight bounded operations.
 All application consumers now use those operations or the scalar projection;
 no source caller directly reads, writes, counts or orders by Favorite.
 
@@ -249,8 +250,9 @@ proves predecessor direct insert/replay/delete compatibility, atomic guarded
 add/replay, no-context and self/inactive/blocked denial,
 cross-user read/remove denial, owner state, export, seller range analytics,
 seller/admin cleanup authorization, User and Listing cascades, exact count
-reconciliation, a concurrent actor-ban recheck, and both winner orders of
-add-versus-block and add-versus-archive races. The Prisma schema pins the same
+reconciliation, direct runtime projection-forgery denial without blocking an
+unrelated Listing update, a concurrent actor-ban recheck, and both winner
+orders of add-versus-block and add-versus-archive races. The Prisma schema pins the same
 descending three-column index order as the SQL migration, and both mutation
 routes reject malformed listing ids before database access.
 

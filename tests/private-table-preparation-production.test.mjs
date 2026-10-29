@@ -203,6 +203,18 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
   assert.match(sql, /ADD COLUMN "favoriteCount" integer NOT NULL DEFAULT 0/u);
   assert.match(sql, /Favorite_count_after_insert/u);
   assert.match(sql, /Favorite_update_forbidden/u);
+  assert.match(
+    sql,
+    /CREATE FUNCTION public\.grainline_listing_favorite_count_guard\(\)[\s\S]*SECURITY INVOKER[\s\S]*IF NOT EXISTS[\s\S]*role_state\.rolsuper OR role_state\.rolbypassrls[\s\S]*Listing favorite-count projection is database-managed/u,
+  );
+  assert.match(
+    sql,
+    /CREATE TRIGGER "Listing_favoriteCount_guard"[\s\S]*BEFORE UPDATE OF "favoriteCount" ON public\."Listing"[\s\S]*grainline_listing_favorite_count_guard\(\)/u,
+  );
+  assert.match(
+    sql,
+    /REVOKE ALL ON FUNCTION public\.grainline_listing_favorite_count_guard\(\)[\s\S]*FROM PUBLIC, grainline_app_runtime/u,
+  );
   assert.doesNotMatch(sql, /grainline_favorite_block_cleanup/u);
   assert.ok(
     sql.indexOf('LOCK TABLE public."Listing" IN SHARE ROW EXCLUSIVE MODE')
