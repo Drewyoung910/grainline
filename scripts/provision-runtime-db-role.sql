@@ -882,7 +882,8 @@ WITH table_state AS (
     'StockNotification RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
       AS message
     FROM posture
-   WHERE NOT active AND NOT clean_predecessor
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
 )
 SELECT
   EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
