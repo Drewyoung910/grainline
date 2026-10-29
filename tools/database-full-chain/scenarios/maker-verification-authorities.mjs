@@ -56,6 +56,11 @@ async function proveOwnerInputAndActorDenials({ database, seller }) {
 
   const expectInactive = async (prepare, restore) => {
     await prepare();
+    const inactiveMirror = rowsOf(await database.query(
+      'SELECT "ownerAccountActive" FROM public."SellerProfile" WHERE id = $1',
+      [seller.sellerProfileId],
+    ));
+    assert.equal(inactiveMirror[0]?.ownerAccountActive, false);
     await database.query("SELECT pg_catalog.set_config('app.user_id', $1, false)", [seller.userId]);
     await database.query("SET ROLE grainline_app_runtime");
     try {
@@ -70,6 +75,11 @@ async function proveOwnerInputAndActorDenials({ database, seller }) {
       await database.query("RESET ROLE");
       await database.query("RESET app.user_id").catch(() => {});
       await restore();
+      const activeMirror = rowsOf(await database.query(
+        'SELECT "ownerAccountActive" FROM public."SellerProfile" WHERE id = $1',
+        [seller.sellerProfileId],
+      ));
+      assert.equal(activeMirror[0]?.ownerAccountActive, true);
     }
   };
 
@@ -80,10 +90,6 @@ async function proveOwnerInputAndActorDenials({ database, seller }) {
   await expectInactive(
     () => database.query('UPDATE public."User" SET "deletedAt" = CURRENT_TIMESTAMP WHERE id = $1', [seller.userId]),
     () => database.query('UPDATE public."User" SET "deletedAt" = NULL WHERE id = $1', [seller.userId]),
-  );
-  await expectInactive(
-    () => database.query('UPDATE public."SellerProfile" SET "ownerAccountActive" = false WHERE id = $1', [seller.sellerProfileId]),
-    () => database.query('UPDATE public."SellerProfile" SET "ownerAccountActive" = true WHERE id = $1', [seller.sellerProfileId]),
   );
 }
 
