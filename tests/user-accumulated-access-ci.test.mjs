@@ -338,6 +338,38 @@ function emailProviderEligibilityFenceMigrationSourcePath() {
   return stagedPath;
 }
 
+function emailOutboxContractCorrectionMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    emailOutboxContractCorrectionMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath =
+    process.env.EMAIL_OUTBOX_CONTRACT_CORRECTION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated email outbox contract correction migration",
+  );
+  return stagedPath;
+}
+
+function emailEligibilityLockOrderCorrectionMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    emailEligibilityLockOrderCorrectionMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath =
+    process.env.EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated email eligibility lock-order correction migration",
+  );
+  return stagedPath;
+}
+
 function stockNotificationPreparationMigrationSourcePath() {
   const livePath = path.join(
     "prisma",
@@ -687,6 +719,32 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       cpSync(
         emailProviderEligibilityFenceMigrationSourcePath(),
         emailProviderEligibilityFenceTarget,
+        { recursive: true },
+      );
+    }
+    const emailOutboxContractCorrectionTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      emailOutboxContractCorrectionMigration,
+    );
+    if (!existsSync(emailOutboxContractCorrectionTarget)) {
+      cpSync(
+        emailOutboxContractCorrectionMigrationSourcePath(),
+        emailOutboxContractCorrectionTarget,
+        { recursive: true },
+      );
+    }
+    const emailEligibilityLockOrderCorrectionTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      emailEligibilityLockOrderCorrectionMigration,
+    );
+    if (!existsSync(emailEligibilityLockOrderCorrectionTarget)) {
+      cpSync(
+        emailEligibilityLockOrderCorrectionMigrationSourcePath(),
+        emailEligibilityLockOrderCorrectionTarget,
         { recursive: true },
       );
     }
