@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import pg from "pg";
 
 function rowsOf(result) {
@@ -7,6 +8,80 @@ function rowsOf(result) {
 
 async function expectSqlState(promise, code) {
   await assert.rejects(promise, (error) => error?.code === code);
+}
+
+async function assertActivatedDirectDenials(database) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS enabled,
+           class.relforcerowsecurity AS forced,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS "policyCount"
+      FROM pg_catalog.pg_class AS class
+     WHERE class.oid = 'public."MakerVerification"'::pg_catalog.regclass
+  `));
+  assert.deepEqual(posture, [{ enabled: true, forced: true, policyCount: 0 }]);
+
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    for (const statement of [
+      'SELECT id FROM public."MakerVerification" LIMIT 1',
+      'INSERT INTO public."MakerVerification" SELECT * FROM public."MakerVerification" WHERE false',
+      'UPDATE public."MakerVerification" SET "updatedAt" = "updatedAt" WHERE false',
+      'DELETE FROM public."MakerVerification" WHERE false',
+    ]) {
+      await expectSqlState(database.query(statement), "42501");
+    }
+  } finally {
+    await database.query("RESET ROLE");
+  }
+
+  await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+  try {
+    await expectSqlState(
+      database.query('SELECT id FROM public."MakerVerification" LIMIT 1'),
+      "42501",
+    );
+  } finally {
+    await database.query("RESET SESSION AUTHORIZATION");
+  }
+}
+
+async function proveActivationRollbackRoundTrip(database) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS enabled,
+           class.relforcerowsecurity AS forced
+      FROM pg_catalog.pg_class AS class
+     WHERE class.oid = 'public."MakerVerification"'::pg_catalog.regclass
+  `));
+  if (posture[0]?.enabled !== true || posture[0]?.forced !== true) return;
+
+  const rollbackSql = readFileSync(
+    "docs/rls-drafts/maker-verification-activation-rollback.sql",
+    "utf8",
+  );
+  const activationSql = readFileSync(
+    "prisma/migrations/20261028050000_activate_maker_verification_rls/migration.sql",
+    "utf8",
+  );
+  await database.query(rollbackSql);
+
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await database.query('SELECT id FROM public."MakerVerification" LIMIT 1');
+    await database.query(
+      'INSERT INTO public."MakerVerification" SELECT * FROM public."MakerVerification" WHERE false',
+    );
+    await database.query(
+      'UPDATE public."MakerVerification" SET "updatedAt" = "updatedAt" WHERE false',
+    );
+    await database.query('DELETE FROM public."MakerVerification" WHERE false');
+  } finally {
+    await database.query("RESET ROLE");
+  }
+
+  await database.query(activationSql);
+  await assertActivatedDirectDenials(database);
 }
 
 async function proveOwnerInputAndActorDenials({ database, seller }) {
@@ -1591,4 +1666,5 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
     [seller.sellerProfileId],
   );
   await database.query('DELETE FROM public."User" WHERE id = ANY($1::text[])', [[staffId, otherUserId]]);
+  await proveActivationRollbackRoundTrip(database);
 }

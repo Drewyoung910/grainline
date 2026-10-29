@@ -262,6 +262,8 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
 ];
 const MAKER_VERIFICATION_PREPARATION_MIGRATION =
   "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+const MAKER_VERIFICATION_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261028050000_activate_maker_verification_rls/migration.sql";
 const MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES = [
   "grainline_maker_verification_owner_member_apply",
   "grainline_maker_verification_owner_master_apply",
@@ -3582,6 +3584,11 @@ describe("database grant inventory guardrails", () => {
       source(MAKER_VERIFICATION_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const makerVerificationActivationPresent = existsSync(
+      MAKER_VERIFICATION_ACTIVATION_MIGRATION,
+    ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
+    );
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3875,6 +3882,7 @@ describe("database grant inventory guardrails", () => {
           ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES.length
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
+        + (makerVerificationActivationPresent ? 1 : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
@@ -4323,6 +4331,7 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
@@ -4378,6 +4387,7 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
