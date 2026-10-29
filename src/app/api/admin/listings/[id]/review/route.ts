@@ -22,6 +22,7 @@ import { HTTP_STATUS } from '@/lib/httpStatus'
 import { sanitizeText, truncateText } from '@/lib/sanitize'
 import { getOrderStaffReadClient } from '@/lib/orderStaffReadDb'
 import { sellerProfileStaffListingReviewTransition } from '@/lib/sellerProfileStaffAccess'
+import { OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE } from '@/lib/sellerShippingReadiness'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
@@ -125,6 +126,9 @@ export async function PATCH(
     return privateJson({ error: 'Reason required for rejection' }, { status: HTTP_STATUS.BAD_REQUEST })
   }
   if (action === 'approve' && transition.blockReason) {
+    if (transition.blockReason === 'SELLER_SHIPPING_UNAVAILABLE') {
+      return privateJson({ error: OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE }, { status: HTTP_STATUS.CONFLICT })
+    }
     const unavailableReason = sellerUnavailableReason(listing.seller)
     if (!unavailableReason) {
       throw new Error('Listing review transition returned an inconsistent seller block')

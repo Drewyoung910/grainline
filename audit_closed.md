@@ -20037,3 +20037,28 @@ operations.
   finish the original delivery; pruning them would hide incomplete work.
 - Detailed scope, evidence and release order:
   `docs/email-suppression-recovery-c715.md`.
+
+## 2026-10-27 C-264 listing shipping-readiness candidate
+
+- **C-264 — verified; correction prepared, not live.** Current `main` allows a
+  new maker with no usable shipping or pickup path to complete onboarding and
+  allows staff approval to activate the listing. Buyers then receive an empty
+  shipping result whose generic copy blames their address. The correction
+  centralizes the exact checkout readiness rule, gates create, publish,
+  republish, custom-listing activation, active-listing edits, onboarding and
+  staff approval, preserves draft creation, adds a maker-facing dashboard
+  warning for legacy active rows, and returns an accurate buyer-facing setup
+  error from the quote route.
+- The database backstop refuses onboarding completion and staff approval unless
+  a nonarchived listing has a flat rate, local pickup, or a complete origin and
+  effective positive package measurements. The helper is unprivileged and the
+  two fixed authorities retain reviewed owner, `SECURITY DEFINER`, search-path
+  and ACL properties.
+- Failing-first evidence reproduced the missing application contract before the
+  helper existed. The focused behavior suite passes 4/4. Disposable PostgreSQL
+  17 and PostgreSQL 16 each rebuilt and applied all 437 migrations, proved the
+  predecessor accepted the invalid state, then proved the correction blocks it
+  and permits local-pickup recovery. TypeScript, lint and the dependency audit
+  pass. Migration `20261027060000_enforce_listing_shipping_readiness` and its
+  application callers remain candidate source only; no Production database,
+  deployment or listing was changed.

@@ -18,6 +18,7 @@ import {
   type SellerConfiguredShippingRate,
   type ShippoQuoteRate,
 } from "@/lib/shippingQuoteState";
+import { SELLER_SHIPPING_SETUP_REQUIRED_MESSAGE } from "@/lib/sellerShippingReadiness";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { DEFAULT_CURRENCY } from "@/lib/money";
@@ -634,7 +635,10 @@ export async function POST(req: Request) {
             : {}),
         });
       }
-      return privateJson({ rates: [] });
+      return privateJson({
+        rates: [],
+        error: SELLER_SHIPPING_SETUP_REQUIRED_MESSAGE,
+      });
     }
     if (!totalWeightGrams || !lengthCm || !widthCm || !heightCm) {
       const configuredRates = configuredAndPickupRates();
@@ -649,7 +653,10 @@ export async function POST(req: Request) {
             : {}),
         });
       }
-      return privateJson({ rates: [] });
+      return privateJson({
+        rates: [],
+        error: SELLER_SHIPPING_SETUP_REQUIRED_MESSAGE,
+      });
     }
 
     type ShippoShipment = { rates?: ShippoQuoteRate[] };

@@ -38,6 +38,11 @@ import { lockListingStock, prepareListingStockMutation, recordListingStockMutati
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
+import { sellerOwnerShopSettingsState } from "@/lib/sellerOwnerPrivateAccess";
+import {
+  evaluateSellerListingShippingReadiness,
+  OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE,
+} from "@/lib/sellerShippingReadiness";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -314,6 +319,21 @@ async function updateListing(
   if (!listing) return { ok: false, error: "Not allowed" };
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
+
+  if (listing.status === ListingStatus.ACTIVE) {
+    const shippingState = await sellerOwnerShopSettingsState(
+      sellerCore.sellerProfileId,
+      actor.id,
+    );
+    if (!shippingState || !evaluateSellerListingShippingReadiness(shippingState, {
+      packagedWeightGrams,
+      packagedLengthCm,
+      packagedWidthCm,
+      packagedHeightCm,
+    }).ready) {
+      return { ok: false, error: OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE };
+    }
+  }
 
   const photoManifest = parsePhotoManifestField(formData.get("photoManifestJson"), listing.photos, userId);
   if (!photoManifest.ok) return { ok: false, error: photoManifest.error };
@@ -710,6 +730,18 @@ export default async function EditListingPage(props: {
   if (listing.archivedAt) return notFound();
   const editBlockReason = listingEditBlockReason(listing);
   const chargesEnabled = sellerCore.chargesEnabled;
+  const shippingState = await sellerOwnerShopSettingsState(
+    sellerCore.sellerProfileId,
+    actor.id,
+  );
+  const shippingReadiness = shippingState
+    ? evaluateSellerListingShippingReadiness(shippingState, null)
+    : null;
+  const shippingMethodConfigured = Boolean(
+    shippingReadiness?.hasFlatRate
+    || shippingReadiness?.allowsLocalPickup
+    || shippingReadiness?.hasCompleteShipFrom,
+  );
 
   if (editBlockReason) {
     return (
@@ -736,7 +768,9 @@ export default async function EditListingPage(props: {
     listing.status === "REJECTED";
   const publishDisabledTitle = !chargesEnabled
     ? "Connect Stripe payouts in Shop Settings before publishing."
-    : undefined;
+    : !shippingMethodConfigured
+      ? OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE
+      : undefined;
 
   return (
     <main className="max-w-4xl mx-auto p-8">
@@ -915,7 +949,7 @@ export default async function EditListingPage(props: {
               <SubmitButton
                 name="publish"
                 value="true"
-                disabled={!chargesEnabled}
+                disabled={!chargesEnabled || !shippingMethodConfigured}
                 pendingLabel="Publishing..."
                 title={publishDisabledTitle}
                 className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -925,9 +959,9 @@ export default async function EditListingPage(props: {
             </span>
           )}
         </div>
-        {canPublishFromEdit && !chargesEnabled && (
+        {canPublishFromEdit && (!chargesEnabled || !shippingMethodConfigured) && (
           <p className="mt-2 text-xs text-amber-800">
-            Connect Stripe payouts in{" "}
+            {!chargesEnabled ? "Connect Stripe payouts" : "Set up shipping"} in{" "}
             <Link href="/dashboard/seller" className="underline">Shop Settings</Link>{" "}
             before publishing.
           </p>

@@ -20,6 +20,7 @@ type SellerProfileStaffListingReviewBlockReason =
   | "SELLER_ACCOUNT_UNAVAILABLE"
   | "SELLER_PAYOUTS_UNAVAILABLE"
   | "SELLER_VACATION"
+  | "SELLER_SHIPPING_UNAVAILABLE"
   | "REASON_REQUIRED";
 
 type SellerProfileStaffListingReviewTransitionRow = Readonly<{
@@ -133,6 +134,7 @@ const LISTING_REVIEW_BLOCK_REASONS = new Set<SellerProfileStaffListingReviewBloc
   "SELLER_ACCOUNT_UNAVAILABLE",
   "SELLER_PAYOUTS_UNAVAILABLE",
   "SELLER_VACATION",
+  "SELLER_SHIPPING_UNAVAILABLE",
   "REASON_REQUIRED",
 ]);
 

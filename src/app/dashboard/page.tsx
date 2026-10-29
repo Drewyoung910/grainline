@@ -17,7 +17,7 @@ import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { countUnreadOwnerNotifications } from "@/lib/notificationOwnerAccess";
-import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerShopSettingsState } from "@/lib/sellerOwnerPrivateAccess";
 import { deleteOwnerSavedSearch, listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
@@ -29,6 +29,7 @@ import { Suspense } from "react";
 import { WorkshopSkeleton } from "@/components/RouteSkeletons";
 import { sellerOwnerCore, sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
+import { evaluateSellerListingShippingReadiness } from "@/lib/sellerShippingReadiness";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -261,6 +262,37 @@ type DashboardPageProps = {
   searchParams?: Promise<{ setup?: string }>;
 };
 
+async function hasUnreadyActiveListing(
+  sellerId: string,
+  shippingState: NonNullable<Awaited<ReturnType<typeof sellerOwnerShopSettingsState>>>,
+) {
+  let cursor: string | undefined;
+  for (;;) {
+    const rows = await prisma.listing.findMany({
+      where: { sellerId, status: ListingStatus.ACTIVE, archivedAt: null },
+      select: {
+        id: true,
+        packagedWeightGrams: true,
+        packagedLengthCm: true,
+        packagedWidthCm: true,
+        packagedHeightCm: true,
+      },
+      orderBy: { id: "asc" },
+      take: 200,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    if (rows.some((listing) => !evaluateSellerListingShippingReadiness(
+      shippingState,
+      listing,
+    ).ready)) {
+      return true;
+    }
+    if (rows.length < 200) return false;
+    cursor = rows.at(-1)?.id;
+    if (!cursor) return false;
+  }
+}
+
 export default function DashboardPage(props: DashboardPageProps) {
   return (
     <Suspense fallback={<WorkshopSkeleton />}>
@@ -278,11 +310,14 @@ async function DashboardPageContent({
 
   const { me, seller } = await ensureSeller();
 
-  const sellerPrivate = await sellerOwnerPrivateState(seller.userId, seller.id);
-  const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
+  const sellerSettings = await sellerOwnerShopSettingsState(seller.id, seller.userId);
+  if (!sellerSettings) {
+    throw new Error("Seller Shop Settings authority returned no owner state");
+  }
+  const onboardingComplete = sellerSettings.onboardingComplete;
   const forceSetupBanner = params.setup === "required";
 
-  const [listingRows, savedSearches, verification, notifUnreadCount, dashboardSeller] = await Promise.all([
+  const [listingRows, savedSearches, verification, notifUnreadCount, dashboardSeller, shippingSetupIncomplete] = await Promise.all([
     prisma.listing.findMany({
       where: { sellerId: seller.id, archivedAt: null },
       select: {
@@ -311,6 +346,7 @@ async function DashboardPageContent({
     }),
     countUnreadOwnerNotifications(me.id),
     sellerOwnerDashboardState(me.id),
+    hasUnreadyActiveListing(seller.id, sellerSettings),
   ]);
   const stockNotificationCounts = await sellerStockNotificationCounts(
     me.id,
@@ -363,6 +399,21 @@ async function DashboardPageContent({
             </div>
           </div>
         </DismissibleBanner>
+      )}
+
+      {shippingSetupIncomplete && (
+        <div className="mb-8 rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-950">
+          <p className="font-semibold">One or more live listings cannot be checked out</p>
+          <p className="mt-1 text-amber-800">
+            Add a flat rate, enable local pickup, or complete the ship-from address and package measurements.
+          </p>
+          <Link
+            href="/dashboard/seller"
+            className="mt-3 inline-flex rounded-md bg-amber-900 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800"
+          >
+            Fix shipping setup →
+          </Link>
+        </div>
       )}
 
       <header className="mb-10">

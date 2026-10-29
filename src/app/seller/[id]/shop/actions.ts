@@ -29,6 +29,11 @@ import {
   sellerOwnerCore,
   sellerOwnerListingPublishReview,
 } from "@/lib/sellerProfileOwnerAccess";
+import { sellerOwnerShopSettingsState } from "@/lib/sellerOwnerPrivateAccess";
+import {
+  evaluateSellerListingShippingReadiness,
+  OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE,
+} from "@/lib/sellerShippingReadiness";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -279,6 +284,18 @@ export async function publishListingAction(listingId: string): Promise<{ status:
   );
   if (!sellerReview?.chargesEnabled || sellerReview.vacationMode) {
     return { error: "Connect your bank account in Shop Settings to publish." };
+  }
+  const shippingState = await sellerOwnerShopSettingsState(
+    listing.sellerId,
+    listing.seller.userId,
+  );
+  if (!shippingState || !evaluateSellerListingShippingReadiness(shippingState, {
+    packagedWeightGrams: listing.packagedWeightGrams,
+    packagedLengthCm: listing.packagedLengthCm,
+    packagedWidthCm: listing.packagedWidthCm,
+    packagedHeightCm: listing.packagedHeightCm,
+  }).ready) {
+    return { error: OWNER_SHIPPING_SETUP_REQUIRED_MESSAGE };
   }
 
   try {
