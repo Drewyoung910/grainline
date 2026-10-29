@@ -247,7 +247,11 @@ WITH required(function_signature) AS (
 ), maker_verification_candidate(function_signature) AS (
   VALUES
     ('public."grainline_maker_verification_staff_pending_count"(text)'),
-    ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)')
+    ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_master_pending_count"(text)'),
+    ('public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
+    ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)')
 ), candidate_state AS (
   SELECT pg_catalog.count(*) FILTER (
     WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
@@ -341,7 +345,11 @@ SELECT pg_catalog.format(
 FROM (
   VALUES
     ('public."grainline_maker_verification_staff_pending_count"(text)'),
-    ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)')
+    ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_master_pending_count"(text)'),
+    ('public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
+    ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)')
 ) AS maker_verification_candidate(function_signature)
 WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
@@ -441,7 +449,11 @@ WITH table_authority AS (
   FROM (
     VALUES
       ('public."grainline_maker_verification_staff_pending_count"(text)'),
-      ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)')
+      ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)'),
+      ('public."grainline_seller_guild_staff_master_pending_count"(text)'),
+      ('public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)'),
+      ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
+      ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)')
   ) AS maker_verification_candidate(function_signature)
   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
 ), expected_authority AS (

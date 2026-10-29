@@ -296,10 +296,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
   it("centralizes staff Guild private state behind one compatibility boundary", () => {
     for (const operation of [
       "applySellerGuildStaffTransition",
-      "sellerGuildStaffMasterPendingList",
-      "sellerGuildStaffMemberList",
-      "sellerGuildStaffMasterList",
-      "sellerGuildStaffRevokedMemberList",
+      "sellerGuildStaffMasterPendingCount",
+      "sellerGuildStaffMasterPendingPage",
+      "sellerGuildStaffRosterCount",
+      "sellerGuildStaffRosterPage",
     ]) {
       assert.match(adminVerification, new RegExp(`\\b${operation}\\(`));
       assert.match(guildStaffPrivateAccess, new RegExp(`export (?:async )?function ${operation}\\(`));

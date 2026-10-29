@@ -166,7 +166,9 @@ The isolated candidate now:
   and the 30-day reapplication cooldown inside the database transition;
 - keeps Guild Master application changes to `MakerVerification` and
   `SellerProfilePrivate` in one fixed operation;
-- adds a true Member-pending count plus stable `(appliedAt,id)` cursor page;
+- adds exact counts plus stable keyset pages for Member pending, Master pending,
+  active Member, active Master and revoked Member cohorts, and queries featured
+  makers independently instead of inferring them from a capped roster;
 - wraps staff transition, Member revocation, and Guild metrics application in
   the shared SellerProfile -> MakerVerification -> SellerProfilePrivate lock
   order while leaving the predecessor implementation private;
@@ -175,17 +177,18 @@ The isolated candidate now:
   the global grant audit; and
 - passes the full migrated PostgreSQL 17 behavior proof for Member apply,
   duplicate conflict, cross-owner export denial, staff count/page and approval,
-  Guild Master apply, account-deletion redaction, plus owner/staff and
-  owner/cron contention in both winner orders without deadlock.
+  all five staff cohorts beyond 50 rows, Guild Master apply, account-deletion
+  redaction, plus owner/staff and owner/cron contention in both winner orders
+  without deadlock.
 
 Status: `COMPATIBLE_CANDIDATE`. The conversion closes gates 1, 2, 4, 7, 9 and
 10 for preparation. Gate 3 retains the documented split: the app computes the
 eligibility snapshot and the database rechecks actor/account/Guild state under
 lock; staff approval remains the final eligibility authority. Activation still
 requires executed coverage of all seven staff transitions and both service
-transition families, pagination/true totals for the Master and roster views,
-the complete inactive/bounds matrix, direct-table denial after ENABLE+FORCE,
-and predecessor rollback proof. No Production authorization is implied.
+transition families, the complete inactive/bounds matrix, direct-table denial
+after ENABLE+FORCE, and predecessor rollback proof. No Production authorization
+is implied.
 
 ## Findings and activation gates
 
@@ -224,6 +227,11 @@ and predecessor rollback proof. No Production authorization is implied.
    operation must accept a bounded cursor, return a stable `(appliedAt,id)` or
    approval-time cursor, and expose a separate true count. Featured sellers
    must be queried independently rather than inferred from a capped roster.
+   **Candidate resolution:** the compatible preparation now provides exact
+   counts and bounded keyset pages for all five cohorts, handles equal and
+   legacy-null approval timestamps, queries featured sellers independently,
+   and wires a 55-row full-chain proof. Exact-head PostgreSQL CI still has to
+   accept that proof before this gate is considered evidenced.
 6. **Existing lifecycle edge cases must not be silently frozen into the new
    functions.** In particular, a pending Guild Master application currently
    blocks Member revocation (known C-320), and revoked members who reapply can

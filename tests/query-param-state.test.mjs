@@ -151,16 +151,19 @@ describe("query parameter parsing helpers", () => {
     assert.match(review, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
     assert.match(review, /take: REVIEW_QUEUE_LIMIT/);
 
-    assert.match(verification, /makerVerificationStaffPendingPage\(staffClient, \{[\s\S]*actorId: staff\.id,[\s\S]*take: 50/);
+    assert.match(verification, /makerVerificationStaffPendingCount\(staffClient, staff\.id\)/);
+    assert.match(verification, /makerVerificationStaffPendingPage\(staffClient, \{[\s\S]*actorId: staff\.id,[\s\S]*take: STAFF_FETCH_SIZE/);
     assert.match(makerVerificationAccess, /grainline_maker_verification_staff_pending_page/);
     assert.match(makerVerificationPreparation, /WHERE verification\.status = 'PENDING'::public\."VerificationStatus"[\s\S]*ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT p_take/);
-    assert.match(verification, /sellerGuildStaffMasterPendingList\(staffClient, staff\.id\)/);
-    assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_master_pending/);
-    const staffReadMigration = readFileSync(
-      sellerProfilePrivateMigrationPath("20261014210000_prepare_seller_profile_private_guild_staff_read_authorities"),
-      "utf8",
-    );
-    assert.match(staffReadMigration, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT 50/);
+    assert.match(verification, /sellerGuildStaffMasterPendingCount\(staffClient, staff\.id\)/);
+    assert.match(verification, /sellerGuildStaffMasterPendingPage\(staffClient, \{[\s\S]*take: STAFF_FETCH_SIZE/);
+    assert.match(verification, /sellerGuildStaffRosterCount\(staffClient, \{ actorId: staff\.id, cohort: "GUILD_MEMBER" \}\)/);
+    assert.match(verification, /sellerGuildStaffRosterPage\(staffClient, \{[\s\S]*cohort: "GUILD_MEMBER"[\s\S]*take: STAFF_FETCH_SIZE/);
+    assert.match(verification, /const STAFF_FETCH_SIZE = STAFF_PAGE_SIZE \+ 1/);
+    assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_master_pending_page/);
+    assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_roster_page/);
+    assert.match(makerVerificationPreparation, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT p_take/);
+    assert.match(makerVerificationPreparation, /END DESC NULLS LAST,[\s\S]*seller\.id ASC[\s\S]*LIMIT p_take/);
 
     assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 30/);
     assert.match(reports, /where: \{ resolved: false \}[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);

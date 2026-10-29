@@ -33,6 +33,18 @@ BEGIN
        'public.grainline_maker_verification_staff_pending_page(text,timestamp without time zone,text,integer)'
      ) IS NOT NULL
      OR pg_catalog.to_regprocedure(
+       'public.grainline_seller_guild_staff_master_pending_count(text)'
+     ) IS NOT NULL
+     OR pg_catalog.to_regprocedure(
+       'public.grainline_seller_guild_staff_master_pending_page(text,timestamp without time zone,text,integer)'
+     ) IS NOT NULL
+     OR pg_catalog.to_regprocedure(
+       'public.grainline_seller_guild_staff_roster_count(text,text)'
+     ) IS NOT NULL
+     OR pg_catalog.to_regprocedure(
+       'public.grainline_seller_guild_staff_roster_page(text,text,timestamp without time zone,text,integer)'
+     ) IS NOT NULL
+     OR pg_catalog.to_regprocedure(
        'public.grainline_seller_guild_staff_transition_prepared_impl(text,text,text,text,text,boolean)'
      ) IS NOT NULL
      OR pg_catalog.to_regprocedure(
@@ -802,6 +814,329 @@ BEGIN
 END;
 $grainline_maker_verification_staff_pending_page$;
 
+CREATE FUNCTION public.grainline_seller_guild_staff_master_pending_count(
+  p_actor_id text
+)
+RETURNS bigint
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_guild_staff_master_pending_count$
+DECLARE
+  result_count bigint;
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Seller Guild Master count requires the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Seller Guild Master count input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = p_actor_id
+       AND actor.role::text IN ('ADMIN', 'EMPLOYEE')
+       AND actor.banned = false
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Seller Guild Master count actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT pg_catalog.count(*)
+    INTO result_count
+    FROM public."MakerVerification" AS verification
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = verification."sellerProfileId"
+    JOIN public."SellerProfilePrivate" AS seller_private
+      ON seller_private."sellerProfileId" = seller.id
+   WHERE verification.status = 'GUILD_MASTER_PENDING'::public."VerificationStatus";
+  RETURN result_count;
+END;
+$grainline_seller_guild_staff_master_pending_count$;
+
+CREATE FUNCTION public.grainline_seller_guild_staff_master_pending_page(
+  p_actor_id text,
+  p_cursor_applied_at timestamp without time zone,
+  p_cursor_id text,
+  p_take integer
+)
+RETURNS TABLE (
+  id text,
+  "craftDescription" text,
+  "guildMasterCraftBusiness" text,
+  "yearsExperience" integer,
+  "portfolioUrl" text,
+  "appliedAt" timestamp(3) without time zone,
+  "sellerProfileId" text,
+  "sellerDisplayName" text,
+  "guildMasterAppliedAt" timestamp(3) without time zone,
+  "metricsCalculatedAt" timestamp(3) without time zone,
+  "metricsPeriodMonths" integer,
+  "metricsAverageRating" double precision,
+  "metricsReviewCount" integer,
+  "metricsOnTimeShippingRate" double precision,
+  "metricsResponseRate" double precision,
+  "metricsTotalSalesCents" bigint,
+  "metricsCompletedOrderCount" integer,
+  "metricsActiveCaseCount" integer,
+  "metricsAccountAgeDays" integer
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_guild_staff_master_pending_page$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Seller Guild Master page requires the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_take IS NULL
+     OR p_take < 1
+     OR p_take > 100
+     OR ((p_cursor_applied_at IS NULL) <> (p_cursor_id IS NULL))
+     OR (p_cursor_id IS NOT NULL AND p_cursor_id !~ '^[A-Za-z0-9._:-]{1,191}$') THEN
+    RAISE EXCEPTION 'Seller Guild Master page input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = p_actor_id
+       AND actor.role::text IN ('ADMIN', 'EMPLOYEE')
+       AND actor.banned = false
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Seller Guild Master page actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT verification.id,
+         verification."craftDescription"::text,
+         verification."guildMasterCraftBusiness"::text,
+         verification."yearsExperience",
+         verification."portfolioUrl"::text,
+         verification."appliedAt",
+         seller.id,
+         seller."displayName"::text,
+         seller_private."guildMasterAppliedAt",
+         metrics."calculatedAt",
+         metrics."periodMonths",
+         metrics."averageRating",
+         metrics."reviewCount",
+         metrics."onTimeShippingRate",
+         metrics."responseRate",
+         metrics."totalSalesCents",
+         metrics."completedOrderCount",
+         metrics."activeCaseCount",
+         metrics."accountAgeDays"
+    FROM public."MakerVerification" AS verification
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = verification."sellerProfileId"
+    JOIN public."SellerProfilePrivate" AS seller_private
+      ON seller_private."sellerProfileId" = seller.id
+    LEFT JOIN public."SellerMetrics" AS metrics
+      ON metrics."sellerProfileId" = seller.id
+   WHERE verification.status = 'GUILD_MASTER_PENDING'::public."VerificationStatus"
+     AND (
+       p_cursor_applied_at IS NULL
+       OR (verification."appliedAt", verification.id)
+          > (p_cursor_applied_at, p_cursor_id)
+     )
+   ORDER BY verification."appliedAt" ASC, verification.id ASC
+   LIMIT p_take;
+END;
+$grainline_seller_guild_staff_master_pending_page$;
+
+CREATE FUNCTION public.grainline_seller_guild_staff_roster_count(
+  p_actor_id text,
+  p_cohort text
+)
+RETURNS bigint
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_guild_staff_roster_count$
+DECLARE
+  result_count bigint;
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Seller Guild roster count requires the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_cohort IS NULL
+     OR p_cohort NOT IN ('GUILD_MEMBER', 'GUILD_MASTER', 'REVOKED_MEMBER', 'FEATURED') THEN
+    RAISE EXCEPTION 'Seller Guild roster count input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = p_actor_id
+       AND actor.role::text IN ('ADMIN', 'EMPLOYEE')
+       AND actor.banned = false
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Seller Guild roster count actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT pg_catalog.count(*)
+    INTO result_count
+    FROM public."SellerProfile" AS seller
+    JOIN public."SellerProfilePrivate" AS seller_private
+      ON seller_private."sellerProfileId" = seller.id
+   WHERE (p_cohort = 'GUILD_MEMBER'
+          AND seller."guildLevel" = 'GUILD_MEMBER'::public."GuildLevel")
+      OR (p_cohort = 'GUILD_MASTER'
+          AND seller."guildLevel" = 'GUILD_MASTER'::public."GuildLevel")
+      OR (p_cohort = 'REVOKED_MEMBER'
+          AND seller."guildLevel" = 'NONE'::public."GuildLevel"
+          AND seller_private."guildMemberApprovedAt" IS NOT NULL)
+      OR (p_cohort = 'FEATURED'
+          AND seller."guildLevel" IN (
+            'GUILD_MEMBER'::public."GuildLevel",
+            'GUILD_MASTER'::public."GuildLevel"
+          )
+          AND seller."featuredUntil" > CURRENT_TIMESTAMP);
+  RETURN result_count;
+END;
+$grainline_seller_guild_staff_roster_count$;
+
+CREATE FUNCTION public.grainline_seller_guild_staff_roster_page(
+  p_actor_id text,
+  p_cohort text,
+  p_cursor_approved_at timestamp without time zone,
+  p_cursor_id text,
+  p_take integer
+)
+RETURNS TABLE (
+  id text,
+  "displayName" text,
+  "guildMemberApprovedAt" timestamp(3) without time zone,
+  "guildMasterApprovedAt" timestamp(3) without time zone,
+  "featuredUntil" timestamp(3) without time zone
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_guild_staff_roster_page$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Seller Guild roster page requires the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_cohort IS NULL
+     OR p_cohort NOT IN ('GUILD_MEMBER', 'GUILD_MASTER', 'REVOKED_MEMBER', 'FEATURED')
+     OR p_take IS NULL
+     OR p_take < 1
+     OR p_take > 100
+     OR (p_cursor_id IS NULL AND p_cursor_approved_at IS NOT NULL)
+     OR (p_cursor_id IS NOT NULL AND p_cursor_id !~ '^[A-Za-z0-9._:-]{1,191}$') THEN
+    RAISE EXCEPTION 'Seller Guild roster page input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = p_actor_id
+       AND actor.role::text IN ('ADMIN', 'EMPLOYEE')
+       AND actor.banned = false
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Seller Guild roster page actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT seller.id,
+         seller."displayName"::text,
+         seller_private."guildMemberApprovedAt",
+         seller_private."guildMasterApprovedAt",
+         seller."featuredUntil"
+    FROM public."SellerProfile" AS seller
+    JOIN public."SellerProfilePrivate" AS seller_private
+      ON seller_private."sellerProfileId" = seller.id
+   WHERE (
+       (p_cohort = 'GUILD_MEMBER'
+        AND seller."guildLevel" = 'GUILD_MEMBER'::public."GuildLevel")
+       OR (p_cohort = 'GUILD_MASTER'
+           AND seller."guildLevel" = 'GUILD_MASTER'::public."GuildLevel")
+       OR (p_cohort = 'REVOKED_MEMBER'
+           AND seller."guildLevel" = 'NONE'::public."GuildLevel"
+           AND seller_private."guildMemberApprovedAt" IS NOT NULL)
+       OR (p_cohort = 'FEATURED'
+           AND seller."guildLevel" IN (
+             'GUILD_MEMBER'::public."GuildLevel",
+             'GUILD_MASTER'::public."GuildLevel"
+           )
+           AND seller."featuredUntil" > CURRENT_TIMESTAMP)
+     )
+     AND (
+       p_cursor_id IS NULL
+       OR (
+         p_cursor_approved_at IS NOT NULL
+         AND (
+           CASE p_cohort
+             WHEN 'FEATURED' THEN seller."featuredUntil"
+             WHEN 'GUILD_MASTER' THEN seller_private."guildMasterApprovedAt"
+             ELSE seller_private."guildMemberApprovedAt"
+           END < p_cursor_approved_at
+           OR CASE p_cohort
+                WHEN 'FEATURED' THEN seller."featuredUntil"
+                WHEN 'GUILD_MASTER' THEN seller_private."guildMasterApprovedAt"
+                ELSE seller_private."guildMemberApprovedAt"
+              END IS NULL
+           OR (
+             CASE p_cohort
+               WHEN 'FEATURED' THEN seller."featuredUntil"
+               WHEN 'GUILD_MASTER' THEN seller_private."guildMasterApprovedAt"
+               ELSE seller_private."guildMemberApprovedAt"
+             END = p_cursor_approved_at
+             AND seller.id > p_cursor_id
+           )
+         )
+       )
+       OR (
+         p_cursor_id IS NOT NULL
+         AND p_cursor_approved_at IS NULL
+         AND CASE p_cohort
+               WHEN 'FEATURED' THEN seller."featuredUntil"
+               WHEN 'GUILD_MASTER' THEN seller_private."guildMasterApprovedAt"
+               ELSE seller_private."guildMemberApprovedAt"
+             END IS NULL
+         AND seller.id > p_cursor_id
+       )
+     )
+   ORDER BY
+     CASE p_cohort
+       WHEN 'FEATURED' THEN seller."featuredUntil"
+       WHEN 'GUILD_MASTER' THEN seller_private."guildMasterApprovedAt"
+       ELSE seller_private."guildMemberApprovedAt"
+     END DESC NULLS LAST,
+     seller.id ASC
+   LIMIT p_take;
+END;
+$grainline_seller_guild_staff_roster_page$;
+
 REVOKE ALL ON FUNCTION public.grainline_maker_verification_owner_member_apply(
   text, integer, text, boolean
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
@@ -817,6 +1152,16 @@ REVOKE ALL ON FUNCTION public.grainline_maker_verification_staff_pending_count(t
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 REVOKE ALL ON FUNCTION public.grainline_maker_verification_staff_pending_page(
   text, timestamp without time zone, text, integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_seller_guild_staff_master_pending_count(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_seller_guild_staff_master_pending_page(
+  text, timestamp without time zone, text, integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_seller_guild_staff_roster_count(text, text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_seller_guild_staff_roster_page(
+  text, text, timestamp without time zone, text, integer
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 
 GRANT EXECUTE ON FUNCTION public.grainline_maker_verification_owner_member_apply(
@@ -834,6 +1179,16 @@ GRANT EXECUTE ON FUNCTION public.grainline_maker_verification_staff_pending_coun
   TO grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_maker_verification_staff_pending_page(
   text, timestamp without time zone, text, integer
+) TO grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_seller_guild_staff_master_pending_count(text)
+  TO grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_seller_guild_staff_master_pending_page(
+  text, timestamp without time zone, text, integer
+) TO grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_seller_guild_staff_roster_count(text, text)
+  TO grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_seller_guild_staff_roster_page(
+  text, text, timestamp without time zone, text, integer
 ) TO grainline_staff_read_runtime;
 
 DO $grainline_maker_verification_postflight$
@@ -900,6 +1255,22 @@ BEGIN
           ),
           (
             'public.grainline_maker_verification_staff_pending_page(text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure::oid,
+            false
+          ),
+          (
+            'public.grainline_seller_guild_staff_master_pending_count(text)'::pg_catalog.regprocedure::oid,
+            false
+          ),
+          (
+            'public.grainline_seller_guild_staff_master_pending_page(text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure::oid,
+            false
+          ),
+          (
+            'public.grainline_seller_guild_staff_roster_count(text,text)'::pg_catalog.regprocedure::oid,
+            false
+          ),
+          (
+            'public.grainline_seller_guild_staff_roster_page(text,text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure::oid,
             false
           )
       ) AS candidate(function_oid, expected_runtime)

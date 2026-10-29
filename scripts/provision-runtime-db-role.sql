@@ -3107,6 +3107,10 @@ WITH maker_verification_private(function_signature) AS (
   VALUES
     ('public."grainline_maker_verification_staff_pending_count"(text)'),
     ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_master_pending_count"(text)'),
+    ('public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
+    ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)'),
     ('public."grainline_seller_guild_staff_transition_prepared_impl"(text, text, text, text, text, boolean)'),
     ('public."grainline_seller_guild_member_revoke_prepared_impl"(text)'),
     ('public."grainline_seller_guild_metrics_apply_prepared_impl"(text, timestamp without time zone)')

@@ -119,15 +119,16 @@ No generic row lookup or generic status update should be granted.
 ## Candidate status
 
 The current compatible candidate converts all eight direct application
-operations, installs the owner/export/deletion/staff functions, and serializes
-the three retained Guild transition families through a canonical lock order.
-Its complete-schema proof covers the primary owner/staff lifecycle, exact ACLs,
-deletion, cross-owner denial, and both owner/staff and owner/cron winner orders.
+operations, installs the owner/export/deletion/staff functions, adds true counts
+and stable keyset pages for all five staff cohorts plus an independent featured
+cohort, and serializes the three retained Guild transition families through a
+canonical lock order. Its complete-schema proof covers the primary owner/staff
+lifecycle, exact ACLs, deletion, cross-owner denial, 55-row pagination, and both
+owner/staff and owner/cron winner orders.
 
 Activation remains blocked on the remaining staff/service transition matrix,
-Master and roster pagination beyond 50 rows, full input/inactive-user cases,
-direct-table denial after ENABLE+FORCE, and tested predecessor rollback. The
-candidate is additive preparation only.
+full input/inactive-user cases, direct-table denial after ENABLE+FORCE, and
+tested predecessor rollback. The candidate is additive preparation only.
 
 ## Decision record
 

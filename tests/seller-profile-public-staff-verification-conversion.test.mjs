@@ -27,10 +27,11 @@ test("Guild rejection notifications use the atomic transition identity", () => {
 test("pending Guild Member cards resolve public seller labels through the bounded staff authority", () => {
   assert.match(
     page,
-    /const \[memberPendingSource, masterPending, memberActive, masterActive, revokedMembers\] = await Promise\.all/u,
+    /memberPendingCount,[\s\S]*memberPendingSourcePage,[\s\S]*masterPendingCount,[\s\S]*featuredNow,[\s\S]*= await Promise\.all/u,
   );
   assert.match(page, /makerVerificationStaffPendingPage\(staffClient, \{/u);
-  assert.match(page, /actorId: staff\.id,[\s\S]{0,80}take: 50/u);
+  assert.match(page, /actorId: staff\.id,[\s\S]{0,80}take: STAFF_FETCH_SIZE/u);
+  assert.match(page, /makerVerificationStaffPendingCount\(staffClient, staff\.id\)/u);
   assert.doesNotMatch(page, /prisma\.makerVerification\./u);
   assert.doesNotMatch(
     page,

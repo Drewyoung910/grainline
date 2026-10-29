@@ -74,6 +74,10 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
   for (const signature of [
     'public."grainline_maker_verification_staff_pending_count"(text)',
     'public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)',
+    'public."grainline_seller_guild_staff_master_pending_count"(text)',
+    'public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)',
+    'public."grainline_seller_guild_staff_roster_count"(text, text)',
+    'public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)',
   ]) {
     assert.match(script, new RegExp(signature.replace(/[()]/gu, "\\$&"), "u"));
   }

@@ -271,6 +271,10 @@ const MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES = [
 const MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES = [
   "grainline_maker_verification_staff_pending_count",
   "grainline_maker_verification_staff_pending_page",
+  "grainline_seller_guild_staff_master_pending_count",
+  "grainline_seller_guild_staff_master_pending_page",
+  "grainline_seller_guild_staff_roster_count",
+  "grainline_seller_guild_staff_roster_page",
   "grainline_seller_guild_staff_transition_prepared_impl",
   "grainline_seller_guild_member_revoke_prepared_impl",
   "grainline_seller_guild_metrics_apply_prepared_impl",
