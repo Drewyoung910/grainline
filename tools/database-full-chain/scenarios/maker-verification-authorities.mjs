@@ -5,6 +5,88 @@ function rowsOf(result) {
   return Array.isArray(result) ? result : result?.rows ?? [];
 }
 
+async function expectSqlState(promise, code) {
+  await assert.rejects(promise, (error) => error?.code === code);
+}
+
+async function proveOwnerInputAndActorDenials({ database, seller }) {
+  const validMemberArguments = ["Denial matrix craft", 12, null, true];
+
+  await database.query("RESET app.user_id").catch(() => {});
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await expectSqlState(
+      database.query(
+        "SELECT * FROM public.grainline_maker_verification_owner_member_apply($1, $2, $3, $4)",
+        validMemberArguments,
+      ),
+      "42501",
+    );
+    await database.query("SELECT pg_catalog.set_config('app.user_id', 'not valid', false)");
+    await expectSqlState(
+      database.query(
+        "SELECT * FROM public.grainline_maker_verification_owner_member_apply($1, $2, $3, $4)",
+        validMemberArguments,
+      ),
+      "42501",
+    );
+    await database.query("SELECT pg_catalog.set_config('app.user_id', $1, false)", [seller.userId]);
+    for (const input of [
+      [null, 12, null, true],
+      ["   ", 12, null, true],
+      ["x".repeat(501), 12, null, true],
+      ["Valid craft", -1, null, true],
+      ["Valid craft", 101, null, true],
+      ["Valid craft", 12, "http://example.com", true],
+      ["Valid craft", 12, `https://example.com/${"x".repeat(500)}`, true],
+      ["Valid craft", 12, null, false],
+    ]) {
+      await expectSqlState(
+        database.query(
+          "SELECT * FROM public.grainline_maker_verification_owner_member_apply($1, $2, $3, $4)",
+          input,
+        ),
+        "22023",
+      );
+    }
+  } finally {
+    await database.query("RESET ROLE");
+    await database.query("RESET app.user_id").catch(() => {});
+  }
+
+  const expectInactive = async (prepare, restore) => {
+    await prepare();
+    await database.query("SELECT pg_catalog.set_config('app.user_id', $1, false)", [seller.userId]);
+    await database.query("SET ROLE grainline_app_runtime");
+    try {
+      await expectSqlState(
+        database.query(
+          "SELECT * FROM public.grainline_maker_verification_owner_member_apply($1, $2, $3, $4)",
+          validMemberArguments,
+        ),
+        "42501",
+      );
+    } finally {
+      await database.query("RESET ROLE");
+      await database.query("RESET app.user_id").catch(() => {});
+      await restore();
+    }
+  };
+
+  await expectInactive(
+    () => database.query('UPDATE public."User" SET banned = true WHERE id = $1', [seller.userId]),
+    () => database.query('UPDATE public."User" SET banned = false WHERE id = $1', [seller.userId]),
+  );
+  await expectInactive(
+    () => database.query('UPDATE public."User" SET "deletedAt" = CURRENT_TIMESTAMP WHERE id = $1', [seller.userId]),
+    () => database.query('UPDATE public."User" SET "deletedAt" = NULL WHERE id = $1', [seller.userId]),
+  );
+  await expectInactive(
+    () => database.query('UPDATE public."SellerProfile" SET "ownerAccountActive" = false WHERE id = $1', [seller.sellerProfileId]),
+    () => database.query('UPDATE public."SellerProfile" SET "ownerAccountActive" = true WHERE id = $1', [seller.sellerProfileId]),
+  );
+}
+
 async function proveOwnerStaffLockOrder({ connectionString, seller, staffId, verificationId }) {
   const ownerClient = new pg.Client({ connectionString });
   const staffClient = new pg.Client({ connectionString });
@@ -470,6 +552,7 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
   const userPrefix = `${prefix}_staff_user_`;
   const sellerPrefix = `${prefix}_staff_seller_`;
   const verificationPrefix = `${prefix}_staff_verification_`;
+  const employeeId = `${prefix}_staff_employee`;
   const operations = [
     ["approve_member", "APPROVE_GUILD_MEMBER", true],
     ["reject_member", "REJECT_GUILD_MEMBER", false],
@@ -517,6 +600,15 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
             CURRENT_TIMESTAMP
        FROM pg_catalog.unnest($3::text[]) AS source(key)`,
     [sellerPrefix, userPrefix, keys],
+  );
+  await database.query(
+    `INSERT INTO public."User" (
+       id, "clerkId", email, name, role, "createdAt", "updatedAt"
+     ) VALUES (
+       $1, 'clerk_' || $1, $1 || '@example.test', 'Transition employee',
+       'EMPLOYEE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+     )`,
+    [employeeId],
   );
   await database.query(
     `INSERT INTO public."MakerVerification" (
@@ -584,8 +676,84 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
     [`${prefix}_staff_listing_`, sellerPrefix],
   );
 
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await expectSqlState(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, 'APPROVE_GUILD_MEMBER', $2, NULL, NULL, false
+         )`,
+        [staffId, `${verificationPrefix}approve_member`],
+      ),
+      "42501",
+    );
+  } finally {
+    await database.query("RESET ROLE");
+  }
+
   await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
   try {
+    await expectSqlState(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, NULL, NULL, $2, NULL, false
+         )`,
+        [staffId, `${sellerPrefix}revoke_member`],
+      ),
+      "22023",
+    );
+    await expectSqlState(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, 'APPROVE_GUILD_MEMBER', $2, NULL, NULL, false
+         )`,
+        [`${userPrefix}approve_member`, `${verificationPrefix}approve_member`],
+      ),
+      "42501",
+    );
+    await expectSqlState(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, 'REINSTATE_GUILD_MEMBER', NULL, $2, NULL, false
+         )`,
+        [employeeId, `${sellerPrefix}reinstate`],
+      ),
+      "42501",
+    );
+    await expectSqlState(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, 'APPROVE_GUILD_MEMBER', $2, NULL, NULL, true
+         )`,
+        [employeeId, `${verificationPrefix}approve_member`],
+      ),
+      "42501",
+    );
+    await expectSqlState(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, 'REJECT_GUILD_MEMBER', $2, NULL, $3, false
+         )`,
+        [staffId, `${verificationPrefix}reject_member`, "x".repeat(2001)],
+      ),
+      "22023",
+    );
+    await expectSqlState(
+      database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_transition(
+           $1, 'APPROVE_GUILD_MEMBER', $2, $3, NULL, false
+         )`,
+        [staffId, `${verificationPrefix}approve_member`, `${sellerPrefix}approve_member`],
+      ),
+      "22023",
+    );
+    await expectSqlState(
+      database.query(
+        "SELECT public.grainline_maker_verification_staff_pending_count($1)",
+        [`${userPrefix}approve_member`],
+      ),
+      "42501",
+    );
     for (const [key, operation, adminOverride] of operations) {
       const usesVerification = new Set([
         "APPROVE_GUILD_MEMBER",
@@ -614,6 +782,32 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
     }
   } finally {
     await database.query("RESET SESSION AUTHORIZATION");
+  }
+
+  for (const [prepare, restore] of [
+    [
+      () => database.query('UPDATE public."User" SET banned = true WHERE id = $1', [employeeId]),
+      () => database.query('UPDATE public."User" SET banned = false WHERE id = $1', [employeeId]),
+    ],
+    [
+      () => database.query('UPDATE public."User" SET "deletedAt" = CURRENT_TIMESTAMP WHERE id = $1', [employeeId]),
+      () => database.query('UPDATE public."User" SET "deletedAt" = NULL WHERE id = $1', [employeeId]),
+    ],
+  ]) {
+    await prepare();
+    await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+    try {
+      await expectSqlState(
+        database.query(
+          "SELECT public.grainline_maker_verification_staff_pending_count($1)",
+          [employeeId],
+        ),
+        "42501",
+      );
+    } finally {
+      await database.query("RESET SESSION AUTHORIZATION");
+      await restore();
+    }
   }
 
   const state = rowsOf(await database.query(
@@ -690,6 +884,7 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
       WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
     [userPrefix],
   );
+  await database.query('DELETE FROM public."User" WHERE id = $1', [employeeId]);
 }
 
 async function proveServiceTransitionMatrix({ database, prefix }) {
@@ -1045,6 +1240,7 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
       WHERE id = $1`,
     [seller.sellerProfileId],
   );
+  await proveOwnerInputAndActorDenials({ database, seller });
 
   await database.query("SELECT pg_catalog.set_config('app.user_id', $1, false)", [seller.userId]);
   await database.query("SET ROLE grainline_app_runtime");
@@ -1131,6 +1327,22 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
   await database.query("SELECT pg_catalog.set_config('app.user_id', $1, false)", [seller.userId]);
   await database.query("SET ROLE grainline_app_runtime");
   try {
+    for (const input of [
+      [null, null, true],
+      ["   ", null, true],
+      ["x".repeat(501), null, true],
+      ["Valid Master evidence", "http://example.com", true],
+      ["Valid Master evidence", `https://example.com/${"x".repeat(500)}`, true],
+      ["Valid Master evidence", null, false],
+    ]) {
+      await expectSqlState(
+        database.query(
+          "SELECT * FROM public.grainline_maker_verification_owner_master_apply($1, $2, $3)",
+          input,
+        ),
+        "22023",
+      );
+    }
     const master = rowsOf(await database.query(`
       SELECT * FROM public.grainline_maker_verification_owner_master_apply(
         'A sustainable studio', 'https://example.com/master', true
@@ -1235,6 +1447,11 @@ export async function proveMakerVerificationPreparedAuthorities({ database, sell
       [deletionTime],
     ));
     assert.deepEqual(redaction, [{ redacted: true }]);
+    const retriedRedaction = rowsOf(await database.query(
+      `SELECT public.grainline_maker_verification_owner_delete_redact($1) AS redacted`,
+      [deletionTime],
+    ));
+    assert.deepEqual(retriedRedaction, [{ redacted: true }]);
   } finally {
     await database.query("RESET ROLE");
     await database.query("RESET app.user_id");

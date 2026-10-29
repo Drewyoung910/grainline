@@ -186,10 +186,11 @@ Status: `COMPATIBLE_CANDIDATE`. The conversion closes gates 1, 2, 4, 7, 9 and
 10 for preparation. Gate 3 retains the documented split: the app computes the
 eligibility snapshot and the database rechecks actor/account/Guild state under
 lock; staff approval remains the final eligibility authority. The complete
-staff/service transition matrix is now wired into the full-chain proof and
-awaits exact-head PostgreSQL 16/17 acceptance. Activation still requires the
-complete inactive/bounds matrix, direct-table denial after ENABLE+FORCE, and
-predecessor rollback proof. No Production authorization is implied.
+staff/service transition matrix and the owner/staff input, inactive-account,
+cross-role, and deletion-retry matrix are now wired into the full-chain proof
+and await exact-head PostgreSQL 16/17 acceptance. Activation still requires
+exact-head acceptance of both matrices, direct-table denial after ENABLE+FORCE,
+and predecessor rollback proof. No Production authorization is implied.
 
 ## Findings and activation gates
 
