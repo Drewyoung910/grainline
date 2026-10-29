@@ -447,8 +447,11 @@ export async function proveFavoritePreparedAuthorities({
       database,
       fixture.seller.userId,
       `SELECT public.grainline_favorite_seller_range_count(
-         '2026-10-28 00:00:00', '2026-10-29 00:00:00', true
+         $1::timestamp without time zone,
+         (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') + interval '1 hour',
+         true
        ) AS value`,
+      [fixture.now],
     ))[0]?.value ?? -1) >= 3,
     true,
   );
