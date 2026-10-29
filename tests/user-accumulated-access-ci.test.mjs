@@ -408,27 +408,25 @@ function favoritePreparationMigrationSourcePath() {
   return stagedPath;
 }
 
-function followPreparationMigrationSourcePath() {
+function followCandidateMigrationSourcePath(migration) {
   const livePath = path.join(
     "prisma",
     "migrations",
-    followPreparationMigration,
+    migration,
   );
   if (existsSync(livePath)) return livePath;
   const stagedPath = process.env.FOLLOW_PREPARATION_MIGRATION_PATH ?? "";
   assert.ok(
     stagedPath && existsSync(stagedPath),
-    "missing isolated Follow preparation migration",
+    `missing isolated Follow source package for ${migration}`,
   );
-  return stagedPath;
-}
-
-function followActivationMigrationSourcePath() {
-  return path.join(
-    "prisma",
-    "migrations",
-    followActivationMigration,
+  const stagedMigrations = path.dirname(stagedPath);
+  const candidatePath = path.join(stagedMigrations, migration);
+  assert.ok(
+    existsSync(candidatePath),
+    `missing isolated Follow migration ${migration}`,
   );
+  return candidatePath;
 }
 
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
@@ -858,7 +856,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(followPreparationTarget)) {
       cpSync(
-        followPreparationMigrationSourcePath(),
+        followCandidateMigrationSourcePath(followPreparationMigration),
         followPreparationTarget,
         { recursive: true },
       );
@@ -871,7 +869,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(followActivationTarget)) {
       cpSync(
-        followActivationMigrationSourcePath(),
+        followCandidateMigrationSourcePath(followActivationMigration),
         followActivationTarget,
         { recursive: true },
       );
