@@ -11,6 +11,7 @@ const migration = readFileSync(
 
 test("blocking commits reciprocal follow cleanup in the block transaction", () => {
   assert.doesNotMatch(route, /cleanupUserBlockFollows|block_follow_cleanup/u);
+  assert.doesNotMatch(access, /export async function cleanupUserBlockFollows/u);
   assert.doesNotMatch(route, /prisma\.sellerProfile|prisma\.follow/u);
   assert.match(access, /withDbUserContext\(blockerId/u);
   const blockUpsertIndex = access.indexOf("await tx.block.upsert");
