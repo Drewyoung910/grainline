@@ -8,13 +8,32 @@ const migration = readFileSync(
   "prisma/migrations/20261019140000_prepare_seller_profile_block_follow_cleanup/migration.sql",
   "utf8",
 );
+const blockPreparation = readFileSync(
+  "prisma/migrations/20261028050000_prepare_block_authorities/migration.sql",
+  "utf8",
+);
 
-test("blocking delegates reciprocal follow cleanup to one actor-bound authority", () => {
-  assert.match(route, /cleanupUserBlockFollows\(me\.id, blockedId\)/u);
+test("blocking atomically delegates reciprocal follow cleanup to its create authority", () => {
+  assert.match(route, /createUserBlock\(me\.id, blockedId\)/u);
+  assert.doesNotMatch(route, /cleanupUserBlockFollows/u);
   assert.doesNotMatch(route, /prisma\.sellerProfile|prisma\.follow/u);
   assert.match(access, /withDbUserContext\(blockerId/u);
-  assert.match(access, /grainline_user_block_follow_cleanup\(\$\{blockedId\}::text\)/u);
+  assert.match(access, /grainline_user_block_create\(\$\{blockedId\}::text\)/u);
   assert.match(access, /TransactionIsolationLevel\.ReadCommitted/u);
+  const createStart = blockPreparation.indexOf(
+    "CREATE FUNCTION public.grainline_user_block_create(",
+  );
+  const createEnd = blockPreparation.indexOf(
+    "$grainline_user_block_create$;",
+    createStart,
+  );
+  const createAuthority = blockPreparation.slice(createStart, createEnd);
+  assert.match(createAuthority, /INSERT INTO public\."Block"/u);
+  assert.match(createAuthority, /grainline_user_block_follow_cleanup\(p_target_user_id\)/u);
+  assert.ok(
+    createAuthority.indexOf('INSERT INTO public."Block"') <
+      createAuthority.indexOf("grainline_user_block_follow_cleanup(p_target_user_id)"),
+  );
 });
 
 test("block follow cleanup is exact, contextual, and runtime-only", () => {

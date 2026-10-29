@@ -132,6 +132,12 @@ Required safeguards:
 - no column drop, pair projection or product-semantics change in the security
   release.
 
-Compatible preparation may proceed in isolation. Production activation still
-requires its own exact approval after the full behavior, race, rollback, and
-installed-function catalog proofs pass.
+Compatible preparation is implemented in the isolated
+`20261028050000_prepare_block_authorities` candidate. It converts all direct
+application callers, makes Block/Follow/StockNotification cleanup atomic,
+source-pins and fixes the two messaging projections, and is wired to the
+reusable byte-sealed `block_v1` production preparation path. It deliberately
+keeps RLS off and predecessor table grants intact. Production preparation and
+later activation each require their own exact approval; activation additionally
+requires the full behavior, race, rollback, direct-denial and installed-function
+catalog proofs.

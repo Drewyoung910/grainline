@@ -7,8 +7,10 @@ Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 Reverified against exact main `fb38730ff86f85a9b1dbd5bba39cbddd54af9108`
 on 2026-10-29. No Block runtime consumer changed between those sources.
 
-Status: Option B design accepted; compatible preparation remains unimplemented,
-and no Block RLS, grant, data, or production change is authorized by this audit
+Status: Option B design accepted; compatible preparation is implemented in the
+isolated candidate `20261028050000_prepare_block_authorities`. RLS, predecessor
+table grants, stored rows, and Production remain unchanged pending full-chain
+PostgreSQL 17 CI and a separately approved release.
 
 ## Intended Product Behavior
 
@@ -54,7 +56,8 @@ same pair-lock order.
 
 ### Direct application operations
 
-Nine application modules still issue direct Prisma Block operations:
+At the audited predecessor, nine application modules issue direct Prisma Block
+operations:
 
 - block creation/removal in `blockMutationAccess.ts`;
 - pair checks in checkout preflight, commission interest, favorite creation,
@@ -62,7 +65,10 @@ Nine application modules still issue direct Prisma Block operations:
 - account export;
 - account deletion.
 
-The shared `checkoutPairIsBlocked()` direct query is called by cart add, cart
+The compatible candidate converts all nine families to actor-bound fixed
+operations. A repository guard rejects remaining direct Block ORM access in
+the converted callers. The shared predecessor `checkoutPairIsBlocked()` direct
+query is called by cart add, cart
 quantity update, seller-group checkout, Buy Now, Buy Now resume and both
 shipping-quote paths. The signed checkout/order authorities revalidate the pair
 inside the database before committing paid-order state; these route checks are
@@ -125,7 +131,7 @@ BLOCK-RLS-6.
 
 ### Mutation side effects
 
-On block creation:
+On block creation at the audited predecessor:
 
 - the Block row and pair StockNotification cleanup commit together;
 - checkout-session expiry runs after the response and is retryable through the
@@ -134,6 +140,12 @@ On block creation:
   best-effort transaction;
 - all other discovery, message, fanout and checkout reads treat the durable
   Block row itself as authoritative immediately.
+
+The compatible candidate moves the Block insert plus reciprocal Follow and
+StockNotification cleanup into one fixed, sorted-pair-locked database
+transaction. A cleanup failure now rolls the Block insert back instead of
+leaving a stale relationship to reappear after unblock. Checkout-session expiry
+remains the reviewed after-response recovery path.
 
 On unblock, removed relationships and checkout sessions are not restored.
 
@@ -181,7 +193,7 @@ set instead. RLS must not weaken that privacy boundary.
 
 ### BLOCK-RLS-2: Follow cleanup is best effort and can resurrect on unblock
 
-Classification: `FIX_BEFORE_ACTIVATION`.
+Classification: `FIXED_IN_COMPATIBLE_CANDIDATE`; production release pending.
 
 Follow cleanup runs after the Block commits and its failure is logged but not
 retried. While the Block remains, all reviewed fanout/feed paths exclude the
@@ -229,7 +241,7 @@ separate UX change.
 
 ### BLOCK-RLS-6: two messaging projections break under policyless FORCE
 
-Classification: `FIX_BEFORE_ACTIVATION`.
+Classification: `FIXED_IN_COMPATIBLE_CANDIDATE`; production release pending.
 
 `grainline_conversation_inbox(...)` and
 `grainline_message_unread_count(text)` are runtime-executable `SECURITY
@@ -244,12 +256,11 @@ runtime grant, setting `app.user_id`, and calling the unread projection failed
 at its reciprocal `Block` predicate. The transaction rollback restored the
 predecessor posture.
 
-Before activation, replace the two direct reads with a bounded fixed-owner
-boolean operation or convert the projections themselves to fixed-owner
-operations with their existing participant and actor checks preserved. Do not
-grant generic runtime `SELECT`, add a bidirectional disclosure policy, or
-expose an arbitrary two-user block oracle merely to keep these projections
-working.
+The compatible candidate source-pins both exact predecessor bodies and converts
+the projections themselves to fixed ownership. Its postflight requires a
+superuser/BYPASSRLS owner, fixed `pg_catalog` search path, no PUBLIC execute and
+the existing runtime execute grant. It does not add a bidirectional disclosure
+policy or retain generic Block access for this purpose.
 
 ## Concurrency And Recovery Requirements
 
@@ -303,9 +314,13 @@ schema and prove at least:
 
 ## Audit Decision
 
-`GO` for isolated compatible preparation using accepted Option B, but `NO-GO`
-for policy or grant activation. BLOCK-RLS-1 determines the privacy shape,
-BLOCK-RLS-2 requires atomic dependent cleanup, and BLOCK-RLS-6 requires
-replacing two invoker-mode messaging reads before activation. Preparation must
-prove those fixes without changing predecessor grants or enabling RLS. See
-`docs/block-rls-options.md` for the accepted boundary.
+`GO` for review and CI of the isolated compatible preparation using accepted
+Option B, but `NO-GO` for policy or grant activation. The candidate implements
+the BLOCK-RLS-2 atomic dependent cleanup and BLOCK-RLS-6 fixed messaging
+posture without changing predecessor table grants or enabling RLS. Its
+full-chain scenario executes actor/no-actor pair checks, idempotent create and
+remove, reciprocal Follow/StockNotification cleanup, bilateral export,
+outgoing-only deletion, banned-actor denial and predecessor-posture retention.
+Activation still requires the remaining catalog, direct-denial, race and
+rollback proofs listed above. See `docs/block-rls-options.md` for the accepted
+boundary.

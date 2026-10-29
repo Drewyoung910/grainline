@@ -127,6 +127,51 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  block_v1: Object.freeze({
+    migration: "20261028050000_prepare_block_authorities",
+    migrationSha256: "ee1d8402bc282749e1005e61c1f8579ba1a0e12c7a0f366379b759612c4dfa08",
+    table: "Block",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/block-authority-preparation.test.mjs",
+      "tests/notification-block-race-guardrails.test.mjs",
+      "tests/order-blocked-pair-checkout.test.mjs",
+      "tests/seller-profile-block-follow-cleanup-conversion.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_user_block_pair_is_blocked",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_create",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_delete_owned",
+        arguments: "",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {

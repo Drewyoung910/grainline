@@ -48,8 +48,14 @@ function functionDefinition(sql, name) {
 describe("blocked-pair checkout boundary", () => {
   it("uses one reciprocal application check on every pre-payment entry and ready-session resume", () => {
     const helper = source("src/lib/checkoutBlockState.ts");
-    assert.match(helper, /blockerId: buyerId, blockedId: sellerUserId/u);
-    assert.match(helper, /blockerId: sellerUserId, blockedId: buyerId/u);
+    const blockAccess = source("src/lib/blockAccess.ts");
+    const blockPreparation = source(
+      "prisma/migrations/20261028050000_prepare_block_authorities/migration.sql",
+    );
+    assert.match(helper, /userBlockPairIsBlocked\(buyerId, sellerUserId\)/u);
+    assert.match(blockAccess, /grainline_user_block_pair_is_blocked/u);
+    assert.match(blockPreparation, /relationship\."blockerId" = request_user_id[\s\S]*relationship\."blockedId" = p_target_user_id/u);
+    assert.match(blockPreparation, /relationship\."blockerId" = p_target_user_id[\s\S]*relationship\."blockedId" = request_user_id/u);
     assert.match(helper, /CHECKOUT_PAIR_UNAVAILABLE_MESSAGE = "This checkout is unavailable\."/u);
 
     for (const path of [

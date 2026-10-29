@@ -6,7 +6,6 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import {
-  cleanupUserBlockFollows,
   createUserBlock,
   deleteUserBlock,
 } from "@/lib/blockMutationAccess";
@@ -69,17 +68,6 @@ export async function POST(
       });
     }
   });
-
-  // Remove reciprocal Follow rows (both directions)
-  try {
-    await cleanupUserBlockFollows(me.id, blockedId);
-  } catch (error) {
-    logServerError(error, {
-      source: "block_follow_cleanup",
-      level: "warning",
-      extra: { blockerId: me.id, blockedId },
-    });
-  }
 
   return privateJson({ ok: true, blocked: true });
 }

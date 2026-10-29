@@ -48,6 +48,7 @@ import {
 import { sellerOwnerExportProfile } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAccess";
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
+import { ownerBlockExportRows } from "@/lib/blockAccess";
 
 export const runtime = "nodejs";
 
@@ -243,11 +244,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         })
       : [],
     ownerNotificationExportRows(user.id),
-    prisma.block.findMany({
-      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
-      orderBy: { createdAt: "desc" },
-      select: { blockerId: true, blockedId: true, createdAt: true },
-    }),
+    ownerBlockExportRows(user.id),
     prisma.userReport.findMany({
       where: { reporterId: user.id },
       orderBy: { createdAt: "desc" },
