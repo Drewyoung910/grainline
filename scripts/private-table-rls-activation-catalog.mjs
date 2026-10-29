@@ -20,7 +20,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     preparationReleaseId: "maker_verification_v1",
     minimumCompatibleAppCommit:
       "f2a23fd301ce5ba8c3968eccd6a2e9cb7b798799",
-    migration: "20261028050000_activate_maker_verification_rls",
+    migration: "20261028080000_activate_maker_verification_rls",
     migrationSha256:
       "7868277f03b599768784c0f3a44a3c7bb28c8b64772a24f6183c538ec6f3401c",
     rollbackPath: "docs/rls-drafts/maker-verification-activation-rollback.sql",

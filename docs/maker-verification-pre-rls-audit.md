@@ -422,7 +422,7 @@ No rollback deletes rows or drops a column.
 
 The compatible preparation and activation remain separate branches and release
 boundaries. Candidate migration
-`20261028050000_activate_maker_verification_rls` performs one combined,
+`20261028080000_activate_maker_verification_rls` performs one combined,
 policyless `ENABLE` plus `FORCE` activation after revoking ordinary runtime,
 staff and `PUBLIC` table authority. It changes no row, creates no policy and
 drops no schema object.

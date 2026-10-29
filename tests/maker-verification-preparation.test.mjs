@@ -10,7 +10,7 @@ import {
 const migrationPath = process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH?.trim()
   || "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
 const activationPath = process.env.MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH?.trim()
-  || "prisma/migrations/20261028050000_activate_maker_verification_rls/migration.sql";
+  || "prisma/migrations/20261028080000_activate_maker_verification_rls/migration.sql";
 const fullChainTestPath = process.env.DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH?.trim()
   || "tests/database-full-chain-postgres.test.mjs";
 
