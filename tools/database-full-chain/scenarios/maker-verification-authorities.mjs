@@ -247,8 +247,22 @@ async function proveOwnerCronLockOrder({ connectionString, seller, verificationI
     await new Promise((resolve) => setTimeout(resolve, 50));
     await ownerClient.query("COMMIT");
     const cronAfterOwner = await waitingCron;
-    assert.equal(cronAfterOwner.rows[0]?.applied, false);
+    assert.equal(cronAfterOwner.rows[0]?.applied, true);
+    assert.equal(cronAfterOwner.rows[0]?.guardKind, "listing_threshold");
     await cronClient.query("COMMIT");
+    const revokedAfterOwner = await ownerClient.query(
+      `SELECT seller."guildLevel",
+              seller."isVerifiedMaker",
+              verification.status
+         FROM public."SellerProfile" AS seller
+         JOIN public."MakerVerification" AS verification
+           ON verification."sellerProfileId" = seller.id
+        WHERE seller.id = $1`,
+      [seller.sellerProfileId],
+    );
+    assert.equal(revokedAfterOwner.rows[0]?.guildLevel, "NONE");
+    assert.equal(revokedAfterOwner.rows[0]?.isVerifiedMaker, false);
+    assert.equal(revokedAfterOwner.rows[0]?.status, "REJECTED");
 
     await resetMemberState();
     await cronClient.query("BEGIN");
