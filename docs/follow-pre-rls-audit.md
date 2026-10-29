@@ -43,7 +43,9 @@ one operation. It takes the shared sorted user-pair lock, revalidates the
 seller after the lock, checks reciprocal blocks, inserts idempotently and
 returns the raw current count. The block path uses the same pair lock, and
 `grainline_user_block_follow_cleanup(text)` removes both reciprocal follow
-directions after the durable Block exists. This closes the block/follow race.
+directions in the same transaction that creates the durable Block. The Block
+and cleanup therefore commit or roll back together. This closes the
+block/follow race without leaving a post-commit repair window.
 
 ## Complete Current Consumer Inventory
 
@@ -120,8 +122,8 @@ policy cannot be allowed to alter their result sets.
 
 - Account deletion directly deletes outgoing Follow rows. For a seller it also
   directly deletes all incoming rows before SellerProfile anonymization.
-- Creating a Block calls the fixed reciprocal follow cleanup after the Block
-  commits.
+- Creating a Block calls the fixed reciprocal follow cleanup in the same
+  transaction as the Block insert.
 - Hard deletion of User or SellerProfile cascades Follow rows.
 - Unblocking does not restore prior follows.
 
@@ -259,7 +261,8 @@ The compatible preparation closes FOLLOW-RLS-1 by converting all nine direct
 application consumers to fixed operations. It closes FOLLOW-RLS-2 with the
 target-context account-deletion cleanup covering both outgoing and incoming
 seller relationships. The preparation proof covers the shared Block/follow
-lock order, actor rechecks, raw-count semantics and prepared cleanup behavior.
+lock order in both two-session schedules, atomic Block cleanup, actor rechecks,
+raw-count semantics and prepared cleanup behavior.
 
 The isolated `20261028060000_activate_follow_rls` candidate then revokes all
 ordinary runtime and PUBLIC table authority and applies policyless ENABLE plus

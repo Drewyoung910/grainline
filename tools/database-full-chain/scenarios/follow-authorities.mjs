@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 
+import pg from "pg";
+
 export const FOLLOW_PREPARATION_MIGRATION =
   "20261028020000_prepare_follow_authorities";
 export const FOLLOW_RLS_MIGRATION =
@@ -51,6 +53,8 @@ export async function seedFollowPredecessorFixture({ database }) {
     draftBlogSource: `${suffix}_draft_blog_source`,
     followADeleting: `${suffix}_a_deleting`,
     followBDeleting: `${suffix}_b_deleting`,
+    raceFollowerA: `${suffix}_race_follower_a`,
+    raceFollowerB: `${suffix}_race_follower_b`,
     sideEffectId: `${suffix}_side_effect`,
     claimToken: "00000000-0000-4000-8000-000000000128",
     now: "2026-10-28 12:00:00",
@@ -63,6 +67,8 @@ export async function seedFollowPredecessorFixture({ database }) {
     [fixture.unrelated, "Follow unrelated buyer"],
     [fixture.deletingSellerUser, "Follow deleting seller"],
     [fixture.otherSellerUser, "Follow other seller"],
+    [fixture.raceFollowerA, "Follow race buyer A"],
+    [fixture.raceFollowerB, "Follow race buyer B"],
   ]) {
     await database.query(
       `INSERT INTO public."User"
@@ -192,7 +198,109 @@ export async function proveFollowPredecessorCompatibility({ database, fixture })
   return Object.freeze({ directRelationshipVisible: true });
 }
 
-export async function proveFollowPreparedAuthorities({ database, fixture }) {
+async function beginRuntime(client, actorId, lockTimeout = null) {
+  await client.query("BEGIN");
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  if (lockTimeout) await client.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
+  await client.query(
+    "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+    [actorId ?? ""],
+  );
+}
+
+async function proveFollowBlockSerialization({ connectionString, database, fixture }) {
+  const followFirst = new pg.Client({ connectionString });
+  const blockFirst = new pg.Client({ connectionString });
+  await Promise.all([followFirst.connect(), blockFirst.connect()]);
+  try {
+    // Follow wins the pair lock first. Block must wait, then its in-transaction
+    // cleanup removes the committed relationship before the Block commits.
+    await beginRuntime(followFirst, fixture.raceFollowerA);
+    const created = (await followFirst.query(
+      "SELECT * FROM public.grainline_seller_public_follow_create($1,$2)",
+      [fixture.otherSellerProfile, `${fixture.sideEffectId}_race_follow_first`],
+    )).rows;
+    assert.equal(created[0]?.resultStatus, "OK");
+    assert.equal(created[0]?.created, true);
+
+    await beginRuntime(blockFirst, fixture.otherSellerUser, "250ms");
+    await assert.rejects(
+      blockFirst.query(
+        "SELECT * FROM public.grainline_user_block_pair_lock($1)",
+        [fixture.raceFollowerA],
+      ),
+      (error) => error?.code === "55P03",
+      "block creation must wait behind a concurrent follow decision",
+    );
+    await blockFirst.query("ROLLBACK");
+    await followFirst.query("COMMIT");
+
+    await beginRuntime(blockFirst, fixture.otherSellerUser);
+    await blockFirst.query(
+      "SELECT * FROM public.grainline_user_block_pair_lock($1)",
+      [fixture.raceFollowerA],
+    );
+    await blockFirst.query(
+      `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
+       VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
+      [`${fixture.sideEffectId}_race_follow_first_block`, fixture.otherSellerUser, fixture.raceFollowerA],
+    );
+    await blockFirst.query(
+      "SELECT public.grainline_user_block_follow_cleanup($1)",
+      [fixture.raceFollowerA],
+    );
+    await blockFirst.query("COMMIT");
+    assert.equal(Number(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS count
+         FROM public."Follow"
+        WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
+      [fixture.raceFollowerA, fixture.otherSellerProfile],
+    ))[0]?.count ?? -1), 0);
+
+    // Block wins first. Follow must wait on the same pair lock and, after the
+    // Block commits, the next attempt observes BLOCKED instead of inserting.
+    await beginRuntime(blockFirst, fixture.otherSellerUser);
+    await blockFirst.query(
+      "SELECT * FROM public.grainline_user_block_pair_lock($1)",
+      [fixture.raceFollowerB],
+    );
+    await blockFirst.query(
+      `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
+       VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
+      [`${fixture.sideEffectId}_race_block_first`, fixture.otherSellerUser, fixture.raceFollowerB],
+    );
+
+    await beginRuntime(followFirst, fixture.raceFollowerB, "250ms");
+    await assert.rejects(
+      followFirst.query(
+        "SELECT * FROM public.grainline_seller_public_follow_create($1,$2)",
+        [fixture.otherSellerProfile, `${fixture.sideEffectId}_race_blocked_follow`],
+      ),
+      (error) => error?.code === "55P03",
+      "follow creation must wait behind a concurrent block decision",
+    );
+    await followFirst.query("ROLLBACK");
+    await blockFirst.query("COMMIT");
+    const blocked = rowsOf(await runtimeQuery(
+      database,
+      fixture.raceFollowerB,
+      "SELECT * FROM public.grainline_seller_public_follow_create($1,$2)",
+      [fixture.otherSellerProfile, `${fixture.sideEffectId}_race_blocked_follow`],
+    ));
+    assert.equal(blocked[0]?.resultStatus, "BLOCKED");
+    assert.equal(blocked[0]?.created, false);
+  } finally {
+    await followFirst.query("ROLLBACK").catch(() => {});
+    await blockFirst.query("ROLLBACK").catch(() => {});
+    await Promise.all([followFirst.end(), blockFirst.end()]);
+  }
+}
+
+export async function proveFollowPreparedAuthorities({
+  database,
+  connectionString,
+  fixture,
+}) {
   // Preparation is backward compatible: predecessor direct DELETE remains
   // available until the separate activation release.
   await runtimeQuery(
@@ -292,6 +400,7 @@ export async function proveFollowPreparedAuthorities({ database, fixture }) {
     )),
     [{ sellerProfileId: fixture.otherSellerProfile }],
   );
+  await proveFollowBlockSerialization({ connectionString, database, fixture });
   const ownerOutgoingBeforeVisibilityChange = rowsOf(await runtimeQuery(
     database,
     fixture.followerA,
