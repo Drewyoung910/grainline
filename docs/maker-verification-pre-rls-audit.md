@@ -177,18 +177,19 @@ The isolated candidate now:
   the global grant audit; and
 - passes the full migrated PostgreSQL 17 behavior proof for Member apply,
   duplicate conflict, cross-owner export denial, staff count/page and approval,
-  all five staff cohorts beyond 50 rows, Guild Master apply, account-deletion
-  redaction, plus owner/staff and owner/cron contention in both winner orders
-  without deadlock.
+  all five staff cohorts beyond 50 rows, all seven staff transition families,
+  the system Member revocation and Guild Master warning/downgrade families,
+  Guild Master apply, account-deletion redaction, plus owner/staff and owner/cron
+  contention in both winner orders without deadlock.
 
 Status: `COMPATIBLE_CANDIDATE`. The conversion closes gates 1, 2, 4, 7, 9 and
 10 for preparation. Gate 3 retains the documented split: the app computes the
 eligibility snapshot and the database rechecks actor/account/Guild state under
-lock; staff approval remains the final eligibility authority. Activation still
-requires executed coverage of all seven staff transitions and both service
-transition families, the complete inactive/bounds matrix, direct-table denial
-after ENABLE+FORCE, and predecessor rollback proof. No Production authorization
-is implied.
+lock; staff approval remains the final eligibility authority. The complete
+staff/service transition matrix is now wired into the full-chain proof and
+awaits exact-head PostgreSQL 16/17 acceptance. Activation still requires the
+complete inactive/bounds matrix, direct-table denial after ENABLE+FORCE, and
+predecessor rollback proof. No Production authorization is implied.
 
 ## Findings and activation gates
 

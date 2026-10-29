@@ -163,10 +163,23 @@ test("MakerVerification complete-schema proof is wired into the full-chain job",
   assert.match(scenario, /async function proveOwnerStaffLockOrder/u);
   assert.match(scenario, /async function proveOwnerCronLockOrder/u);
   assert.match(scenario, /async function proveStaffPagination/u);
+  assert.match(scenario, /async function proveStaffTransitionMatrix/u);
+  assert.match(scenario, /async function proveServiceTransitionMatrix/u);
   assert.match(scenario, /pg_catalog\.generate_series\(1, 55\)/u);
   assert.match(scenario, /await proveOwnerStaffLockOrder\(\{/u);
   assert.match(scenario, /await proveOwnerCronLockOrder\(\{/u);
   assert.match(scenario, /await proveStaffPagination\(\{/u);
+  assert.match(scenario, /await proveStaffTransitionMatrix\(\{/u);
+  assert.match(scenario, /await proveServiceTransitionMatrix\(\{/u);
+  for (const operation of [
+    "APPROVE_GUILD_MEMBER",
+    "REJECT_GUILD_MEMBER",
+    "REVOKE_GUILD_MEMBER",
+    "APPROVE_GUILD_MASTER",
+    "REJECT_GUILD_MASTER",
+    "REVOKE_GUILD_MASTER",
+    "REINSTATE_GUILD_MEMBER",
+  ]) assert.match(scenario, new RegExp(`\\[\"[^\"]+\", \"${operation}\"`, "u"));
   assert.match(scenario, /Promise\.all/u);
   assert.match(scenario, /grainline_seller_guild_staff_transition_prepared_impl/u);
   assert.match(scenario, /grainline_seller_guild_member_revoke_prepared_impl/u);
