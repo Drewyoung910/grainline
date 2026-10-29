@@ -391,7 +391,8 @@ export function functionSourceFromMigration(sql, name) {
 export function verifyPrivateTablePreparationSource(
   releaseId,
   rootDir = process.cwd(),
-  migrationPathOverride,
+  migrationPathOverride =
+    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
 ) {
   const release = privateTablePreparation(releaseId);
   const migrationPath = migrationPathOverride
