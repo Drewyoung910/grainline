@@ -217,6 +217,89 @@ jobs:
               throw new Error(`Exact-main push workflows are not all green: ${unacceptable
                 .map((run) => `${run.name}:${run.status}/${run.conclusion}`).join(', ')}`);
             }
+      - name: Download accepted preparation evidence
+        id: preparation_evidence
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_PREPARATION_RUN_ID: ${{ inputs.preparation_run_id }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const runValue = process.env.REVIEWED_PREPARATION_RUN_ID;
+            if (!/^[1-9][0-9]{0,19}$/.test(runValue ?? '')) {
+              throw new Error('Preparation evidence run id drifted');
+            }
+            const runId = Number(runValue);
+            if (!Number.isSafeInteger(runId)) {
+              throw new Error('Preparation evidence run id is unsafe');
+            }
+            const {data: run} = await github.rest.actions.getWorkflowRun({
+              ...context.repo,
+              run_id: runId,
+            });
+            if (run.name !== 'Private Table Preparation Production' ||
+                run.path !== '.github/workflows/private-table-preparation-production.yml' ||
+                run.event !== 'workflow_dispatch' || run.head_branch !== 'main' ||
+                run.run_attempt !== 1 || run.status !== 'completed' ||
+                run.conclusion !== 'success' ||
+                !/^[0-9a-f]{40}$/.test(run.head_sha ?? '')) {
+              throw new Error('Preparation evidence source run drifted');
+            }
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              {...context.repo, run_id: runId, per_page: 100},
+            );
+            const expectedName = `private-table-preparation-production-${runId}`;
+            const matches = artifacts.filter((artifact) =>
+              artifact.name === expectedName && artifact.expired !== true
+            );
+            const maximumArtifactBytes = 5 * 1024 * 1024;
+            const artifactBytes = Number(matches[0]?.size_in_bytes);
+            if (matches.length !== 1 || !Number.isSafeInteger(artifactBytes) ||
+                artifactBytes <= 0 || artifactBytes > maximumArtifactBytes) {
+              throw new Error('Accepted preparation evidence artifact is absent or ambiguous');
+            }
+            const response = await github.rest.actions.downloadArtifact({
+              ...context.repo,
+              artifact_id: matches[0].id,
+              archive_format: 'zip',
+            });
+            const archivePath = path.join(
+              process.env.RUNNER_TEMP,
+              `private-table-preparation-${runId}.zip`,
+            );
+            const archive = Buffer.from(response.data);
+            if (archive.length <= 0 || archive.length > maximumArtifactBytes) {
+              throw new Error('Accepted preparation evidence archive size drifted');
+            }
+            fs.writeFileSync(archivePath, archive, {
+              flag: 'wx',
+              mode: 0o600,
+            });
+            core.setOutput('archive', archivePath);
+            core.setOutput('preparation_commit', run.head_sha);
+      - name: Bind activation to accepted preparation evidence
+        shell: bash
+        env:
+          PRIVATE_TABLE_PREPARATION_ACCEPTED_COMMIT: ${{ steps.preparation_evidence.outputs.preparation_commit }}
+          PRIVATE_TABLE_PREPARATION_ARCHIVE: ${{ steps.preparation_evidence.outputs.archive }}
+          PRIVATE_TABLE_PREPARATION_BINDING_EVIDENCE_PATH: ${{ runner.temp }}/private-table-rls-${{ github.sha }}-preparation-binding.json
+        run: |
+          set -euo pipefail
+          directory="$RUNNER_TEMP/private-table-preparation-accepted-${GITHUB_RUN_ID}"
+          actual="$RUNNER_TEMP/private-table-preparation-${GITHUB_RUN_ID}-actual.txt"
+          expected="$RUNNER_TEMP/private-table-preparation-${GITHUB_RUN_ID}-expected.txt"
+          install -d -m 0700 "$directory"
+          unzip -Z1 "$PRIVATE_TABLE_PREPARATION_ARCHIVE" | LC_ALL=C sort > "$actual"
+          printf '%s\n' \
+            "private-table-preparation-${PRIVATE_TABLE_PREPARATION_ACCEPTED_COMMIT}-postflight.json" \
+            "private-table-preparation-${PRIVATE_TABLE_PREPARATION_ACCEPTED_COMMIT}-preflight.json" \
+            | LC_ALL=C sort > "$expected"
+          cmp "$expected" "$actual"
+          unzip -qq "$PRIVATE_TABLE_PREPARATION_ARCHIVE" -d "$directory"
+          PRIVATE_TABLE_PREPARATION_ACCEPTED_EVIDENCE_DIRECTORY="$directory" \
+            node scripts/private-table-preparation-evidence-verify.mjs
       - name: Verify reviewed private-table activation source before owner access
         shell: bash
         run: |

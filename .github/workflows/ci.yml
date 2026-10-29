@@ -330,6 +330,7 @@ jobs:
           tests/private-table-rls-activation-catalog.test.mjs
           tests/private-table-rls-activation-production.test.mjs
           tests/private-table-rls-activation-workflow.test.mjs
+          tests/private-table-preparation-evidence-verify.test.mjs
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
