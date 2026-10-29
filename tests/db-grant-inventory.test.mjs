@@ -239,7 +239,6 @@ const FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES = [
   "grainline_favorite_seller_range_count",
   "grainline_favorite_seller_listing_cleanup",
   "grainline_favorite_admin_listing_cleanup",
-  "grainline_favorite_block_cleanup",
 ];
 const FAVORITE_PREPARATION_PRIVATE_FUNCTION_NAMES = [
   "grainline_favorite_count_maintain",

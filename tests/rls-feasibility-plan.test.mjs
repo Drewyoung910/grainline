@@ -1205,7 +1205,6 @@ describe("RLS feasibility plan guardrails", () => {
       "grainline_favorite_seller_range_count",
       "grainline_favorite_seller_listing_cleanup",
       "grainline_favorite_admin_listing_cleanup",
-      "grainline_favorite_block_cleanup",
     ]) {
       assert.match(access, new RegExp(functionName, "u"));
     }
@@ -1214,7 +1213,7 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(removeRoute, /removeOwnerFavorite\(me\.id, listingId\)/u);
     assert.match(accountExport, /ownerFavoriteExportRows\(user\.id\)/u);
     assert.match(accountDeletion, /deleteAllOwnerFavorites\(user\.id, tx\)/u);
-    assert.match(blockMutation, /deleteFavoritesForBlockedPair\(tx, blockedId\)/u);
+    assert.doesNotMatch(blockMutation, /deleteFavoritesForBlockedPair/u);
   });
 
   it("blocks direct Favorite delegate access after compatible conversion", () => {

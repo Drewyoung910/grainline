@@ -2198,8 +2198,7 @@ WITH favorite_service(function_signature) AS (
     ('public."grainline_favorite_owner_export"()'),
     ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
     ('public."grainline_favorite_seller_listing_cleanup"(text)'),
-    ('public."grainline_favorite_admin_listing_cleanup"(text)'),
-    ('public."grainline_favorite_block_cleanup"(text)')
+    ('public."grainline_favorite_admin_listing_cleanup"(text)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM favorite_service
@@ -2215,8 +2214,7 @@ WITH favorite_service(function_signature) AS (
     ('public."grainline_favorite_owner_export"()'),
     ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
     ('public."grainline_favorite_seller_listing_cleanup"(text)'),
-    ('public."grainline_favorite_admin_listing_cleanup"(text)'),
-    ('public."grainline_favorite_block_cleanup"(text)')
+    ('public."grainline_favorite_admin_listing_cleanup"(text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -2236,8 +2234,7 @@ WITH favorite_service(function_signature) AS (
     ('public."grainline_favorite_owner_export"()'),
     ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
     ('public."grainline_favorite_seller_listing_cleanup"(text)'),
-    ('public."grainline_favorite_admin_listing_cleanup"(text)'),
-    ('public."grainline_favorite_block_cleanup"(text)')
+    ('public."grainline_favorite_admin_listing_cleanup"(text)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

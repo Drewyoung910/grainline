@@ -20,6 +20,13 @@ ranking and seller analytics. Those aggregate uses do not make the underlying
 No product workflow updates a Favorite row. The only valid row mutations are
 insert and delete. `createdAt` is immutable.
 
+Creating a block prevents new saves but does not permanently delete an
+existing save. Block-aware public and saved-listing surfaces hide the other
+party while the block is active; retaining the row preserves predecessor raw
+count semantics and lets an unblock restore the owner's saved state. Any
+future decision to erase saves on block is a separate destructive product
+change, not part of the security preparation.
+
 ## Schema And Current Authority
 
 `Favorite` has a composite primary key `(userId, listingId)`, an index on
@@ -232,7 +239,7 @@ The compatible preparation selects Option B's maintained raw-current-row count
 projection without activating its final policy/grant posture. Migration
 `20261028010000_prepare_favorite_authorities` adds the non-negative
 `Listing.favoriteCount` projection, exact backfill and insert/delete
-maintenance, forbids Favorite UPDATE, and installs nine bounded operations.
+maintenance, forbids Favorite UPDATE, and installs eight bounded operations.
 All application consumers now use those operations or the scalar projection;
 no source caller directly reads, writes, counts or orders by Favorite.
 

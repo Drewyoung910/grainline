@@ -129,7 +129,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   favorite_v1: Object.freeze({
     migration: "20261028010000_prepare_favorite_authorities",
-    migrationSha256: "38600cd9a0cd2adbe6fa6f16a66684d3d42c917df95cdae25f7cd9411696ceb0",
+    migrationSha256: "18da5a0901c15c6f3ea0d5cc958b37a85d3b6ea2481cc00c8007241858c713cd",
     table: "Favorite",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -180,10 +180,6 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
       Object.freeze({
         name: "grainline_favorite_admin_listing_cleanup",
-        arguments: "text",
-      }),
-      Object.freeze({
-        name: "grainline_favorite_block_cleanup",
         arguments: "text",
       }),
     ]),

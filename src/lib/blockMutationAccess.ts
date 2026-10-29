@@ -2,7 +2,6 @@ import { Prisma } from "@prisma/client";
 import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteStockNotificationsForBlockedPair } from "@/lib/stockNotificationAccess";
-import { deleteFavoritesForBlockedPair } from "@/lib/favoriteAccess";
 
 type BlockMutationTx = DbUserContextTransactionClient;
 
@@ -40,7 +39,6 @@ export async function createUserBlock(blockerId: string, blockedId: string) {
       create: { blockerId, blockedId },
       update: {},
     });
-    await deleteFavoritesForBlockedPair(tx, blockedId);
     await deleteStockNotificationsForBlockedPair(tx, blockedId);
     return true;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
