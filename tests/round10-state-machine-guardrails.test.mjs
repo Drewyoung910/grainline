@@ -7,6 +7,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const makerVerificationPreparationMigrationPath =
+  process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH?.trim()
+  || "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+
 const {
   GUILD_REAPPLY_COOLDOWN_DAYS,
   guildMasterApplicationBlockReason,
@@ -120,7 +124,7 @@ describe("Round 10 state-machine guardrails", () => {
     assert.doesNotMatch(guildMetricsCron, /makerVerification\.updateMany/);
     assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_APPROVED'/);
     const makerVerificationAuthority = source(
-      "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+      makerVerificationPreparationMigrationPath,
     );
     assert.match(makerVerificationAuthority, /source_verification\.status NOT IN \([\s\S]*'APPROVED'[\s\S]*'GUILD_MASTER_REJECTED'/);
     assert.match(makerVerificationAuthority, /UPDATE public\."SellerProfilePrivate"[\s\S]*"guildMasterAppliedAt" = source_now/);
