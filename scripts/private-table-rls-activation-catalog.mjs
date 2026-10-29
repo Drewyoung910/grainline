@@ -18,6 +18,8 @@ export const PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION =
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
   maker_verification_v1: Object.freeze({
     preparationReleaseId: "maker_verification_v1",
+    minimumCompatibleAppCommit:
+      "f2a23fd301ce5ba8c3968eccd6a2e9cb7b798799",
     migration: "20261028050000_activate_maker_verification_rls",
     migrationSha256:
       "7868277f03b599768784c0f3a44a3c7bb28c8b64772a24f6183c538ec6f3401c",
@@ -187,7 +189,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const verified = verifyPrivateTableRlsActivationSource(
       process.env.PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID ?? "",
     );
-    process.stdout.write(`${verified.release.migration}\n`);
+    process.stdout.write(process.argv.includes("--minimum-compatible-app-commit")
+      ? `${verified.release.minimumCompatibleAppCommit}\n`
+      : `${verified.release.migration}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

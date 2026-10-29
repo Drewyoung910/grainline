@@ -18,6 +18,10 @@ test("catalog byte-seals the combined policyless activation and rollback", () =>
     "activate-reviewed-private-table-rls",
   );
   assert.equal(release.table, "MakerVerification");
+  assert.equal(
+    release.minimumCompatibleAppCommit,
+    "f2a23fd301ce5ba8c3968eccd6a2e9cb7b798799",
+  );
   assert.equal(release.preparation.table, release.table);
   assert.equal(release.mode, "policyless_combined_enable_force");
   assert.equal(release.expectedPolicyCount, 0);

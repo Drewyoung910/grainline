@@ -11,18 +11,22 @@ import {
 import {
   inspectPrivateTableRlsActivationProduction,
 } from "../scripts/private-table-rls-activation-production-inspect.mjs";
+import {
+  isReviewedSuccessfulMigration,
+  REVIEWED_MANUALLY_APPLIED_MIGRATIONS,
+} from "../scripts/reviewed-manually-applied-migrations.mjs";
 
 const releaseId = "maker_verification_v1";
 const release = privateTableRlsActivation(releaseId);
 const verified = verifyPrivateTableRlsActivationSource(releaseId);
 
-function migrationRow(entry) {
+function migrationRow(entry, appliedStepsCount = 1) {
   return {
     migration_name: entry.migration,
     checksum: entry.migrationSha256,
     finished_at: "2026-10-28T12:00:00.000Z",
     rolled_back_at: null,
-    applied_steps_count: 1,
+    applied_steps_count: appliedStepsCount,
   };
 }
 
@@ -99,7 +103,12 @@ function functionRows() {
     ));
 }
 
-function fakeClientClass({ active, tableOverrides = {}, roleOverrides = {} }) {
+function fakeClientClass({
+  active,
+  recorded = active,
+  tableOverrides = {},
+  roleOverrides = {},
+}) {
   return class FakeClient {
     async connect() {}
     async end() {}
@@ -121,8 +130,8 @@ function fakeClientClass({ active, tableOverrides = {}, roleOverrides = {} }) {
       }
       if (sql.includes("FROM public._prisma_migrations")) {
         return {
-          rows: active
-            ? [migrationRow(release.preparation), migrationRow(release)]
+          rows: recorded
+            ? [migrationRow(release.preparation), migrationRow(release, 0)]
             : [migrationRow(release.preparation)],
         };
       }
@@ -214,6 +223,24 @@ test("inspector rejects partial activation and elevated runtime roles", async ()
   } finally {
     rmSync(firstDirectory, { recursive: true, force: true });
     rmSync(secondDirectory, { recursive: true, force: true });
+  }
+});
+
+test("inspector detects committed activation before Prisma ledger recovery", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-unrecorded-"));
+  try {
+    const evidence = await inspectPrivateTableRlsActivationProduction(
+      environment(directory, "preflight"),
+      { Client: fakeClientClass({ active: true, recorded: false }) },
+    );
+    assert.equal(evidence.state, "active_unrecorded");
+    assert.equal(
+      REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(release.migration),
+      release.migrationSha256,
+    );
+    assert.equal(isReviewedSuccessfulMigration(migrationRow(release, 0)), true);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
