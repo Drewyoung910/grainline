@@ -419,7 +419,13 @@ async function proveStaffPagination({ database, staffId, prefix }) {
     await database.query("RESET SESSION AUTHORIZATION");
   }
 
-  const proveRoster = async ({ cohort, level, approvalColumn }) => {
+  const proveRoster = async ({
+    cohort,
+    level,
+    approvalColumn,
+    expectedSyntheticRows = 55,
+    excludedSellerId = null,
+  }) => {
     await database.query(
       `UPDATE public."SellerProfile"
           SET "guildLevel" = $2::public."GuildLevel"
@@ -474,7 +480,10 @@ async function proveStaffPagination({ database, staffId, prefix }) {
       assert.equal(rosterRows.length, Number(count[0]?.value));
       assert.equal(new Set(rosterRows.map((row) => row.id)).size, rosterRows.length);
       const syntheticRows = rosterRows.filter((row) => row.id.startsWith(sellerPrefix));
-      assert.equal(syntheticRows.length, 55);
+      assert.equal(syntheticRows.length, expectedSyntheticRows);
+      if (excludedSellerId !== null) {
+        assert.equal(syntheticRows.some((row) => row.id === excludedSellerId), false);
+      }
       if (cohort === "GUILD_MASTER") {
         assert.equal(
           syntheticRows.find((row) => row.id === `${sellerPrefix}1`)?.guildMasterApprovedAt,
@@ -500,6 +509,20 @@ async function proveStaffPagination({ database, staffId, prefix }) {
     cohort: "REVOKED_MEMBER",
     level: "NONE",
     approvalColumn: "guildMemberApprovedAt",
+  });
+  const reappliedSellerId = `${sellerPrefix}0`;
+  await database.query(
+    `UPDATE public."MakerVerification"
+        SET status = 'PENDING'::public."VerificationStatus"
+      WHERE "sellerProfileId" = $1`,
+    [reappliedSellerId],
+  );
+  await proveRoster({
+    cohort: "REVOKED_MEMBER",
+    level: "NONE",
+    approvalColumn: "guildMemberApprovedAt",
+    expectedSyntheticRows: 54,
+    excludedSellerId: reappliedSellerId,
   });
 
   await database.query(
@@ -989,6 +1012,44 @@ async function proveServiceTransitionMatrix({ database, prefix }) {
     assert.equal(warning[0].action, "MASTER_WARNED");
     assert.equal(typeof warning[0].auditId, "string");
     assert.equal(warning[0].warningSentAt instanceof Date, true);
+  } finally {
+    await database.query("RESET ROLE");
+  }
+
+  await database.query(
+    `UPDATE public."SellerProfile"
+        SET "guildLevel" = 'GUILD_MEMBER'::public."GuildLevel",
+            "isVerifiedMaker" = true,
+            "updatedAt" = CURRENT_TIMESTAMP
+      WHERE id = $1`,
+    [memberSellerId],
+  );
+  await database.query(
+    `UPDATE public."MakerVerification"
+        SET status = 'GUILD_MASTER_PENDING'::public."VerificationStatus",
+            "reviewedAt" = NULL,
+            "reviewNotes" = NULL,
+            "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "sellerProfileId" = $1`,
+    [memberSellerId],
+  );
+  await database.query(
+    `UPDATE public."SellerProfilePrivate"
+        SET "listingsBelowThresholdSince" = CURRENT_TIMESTAMP - INTERVAL '31 days',
+            "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "sellerProfileId" = $1`,
+    [memberSellerId],
+  );
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    const pendingMasterRevocation = rowsOf(await database.query(
+      "SELECT * FROM public.grainline_seller_guild_member_revoke($1)",
+      [memberSellerId],
+    ));
+    assert.equal(pendingMasterRevocation.length, 1);
+    assert.equal(pendingMasterRevocation[0].applied, true);
+    assert.equal(pendingMasterRevocation[0].guardKind, "listing_threshold");
+    assert.equal(typeof pendingMasterRevocation[0].auditId, "string");
   } finally {
     await database.query("RESET ROLE");
   }
