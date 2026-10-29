@@ -585,6 +585,7 @@ export async function proveFavoritePreparedAuthorities({
          (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') + INTERVAL '1 day',
          true
        ) AS value`,
+      [fixture.now],
     ))[0]?.value ?? -1) >= 3,
     true,
   );
