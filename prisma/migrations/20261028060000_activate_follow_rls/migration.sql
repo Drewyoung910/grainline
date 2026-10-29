@@ -55,6 +55,14 @@ BEGIN
   IF table_oid IS NULL THEN
     RAISE EXCEPTION 'public.Follow is missing';
   END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger
+     WHERE tgrelid = table_oid
+       AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Follow has an unreviewed user trigger';
+  END IF;
   SELECT oid INTO current_role_oid
     FROM pg_catalog.pg_roles
    WHERE rolname = current_user;
@@ -334,6 +342,14 @@ BEGIN
     SELECT 1 FROM pg_catalog.pg_policy WHERE polrelid = table_oid
   ) THEN
     RAISE EXCEPTION 'Follow policyless ENABLE/FORCE did not persist';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger
+     WHERE tgrelid = table_oid
+       AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Follow gained an unreviewed user trigger';
   END IF;
 
   IF pg_catalog.has_table_privilege(

@@ -23,6 +23,12 @@ test("Follow activation removes all direct runtime table authority", () => {
   assert.equal((migration.match(/\bCREATE POLICY\b/gu) ?? []).length, 0);
   assert.doesNotMatch(migration, /GRANT\s+[^;]*ON TABLE public\."Follow"/iu);
   assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
+  assert.equal(
+    (migration.match(/FROM pg_catalog\.pg_trigger/gu) ?? []).length,
+    2,
+  );
+  assert.match(migration, /Follow has an unreviewed user trigger/u);
+  assert.match(migration, /Follow gained an unreviewed user trigger/u);
 });
 
 test("Follow activation pins every installed cross-domain reader", () => {
