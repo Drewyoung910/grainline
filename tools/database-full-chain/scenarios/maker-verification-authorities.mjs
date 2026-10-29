@@ -259,22 +259,24 @@ async function proveStaffPagination({ database, staffId, prefix }) {
       "SELECT public.grainline_maker_verification_staff_pending_count($1) AS value",
       [staffId],
     ));
-    assert.equal(Number(memberCount[0]?.value), 55);
-    const memberFirst = rowsOf(await database.query(
-      `SELECT * FROM public.grainline_maker_verification_staff_pending_page(
-         $1, NULL, NULL, 50
-       )`,
-      [staffId],
-    ));
-    assert.equal(memberFirst.length, 50);
-    const memberSecond = rowsOf(await database.query(
-      `SELECT * FROM public.grainline_maker_verification_staff_pending_page(
-         $1, $2, $3, 50
-       )`,
-      [staffId, memberFirst.at(-1).appliedAt, memberFirst.at(-1).id],
-    ));
-    assert.equal(memberSecond.length, 5);
-    assert.equal(new Set([...memberFirst, ...memberSecond].map((row) => row.id)).size, 55);
+    const memberRows = [];
+    let memberCursorAt = null;
+    let memberCursorId = null;
+    for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+      const page = rowsOf(await database.query(
+        `SELECT * FROM public.grainline_maker_verification_staff_pending_page(
+           $1, $2, $3, 50
+         )`,
+        [staffId, memberCursorAt, memberCursorId],
+      ));
+      memberRows.push(...page);
+      if (page.length < 50) break;
+      memberCursorAt = page.at(-1).appliedAt;
+      memberCursorId = page.at(-1).id;
+    }
+    assert.equal(memberRows.length, Number(memberCount[0]?.value));
+    assert.equal(new Set(memberRows.map((row) => row.id)).size, memberRows.length);
+    assert.equal(memberRows.filter((row) => row.id.startsWith(verificationPrefix)).length, 55);
     await assert.rejects(
       database.query(
         "SELECT public.grainline_seller_guild_staff_roster_count($1, NULL)",
@@ -307,22 +309,24 @@ async function proveStaffPagination({ database, staffId, prefix }) {
       "SELECT public.grainline_seller_guild_staff_master_pending_count($1) AS value",
       [staffId],
     ));
-    assert.equal(Number(masterCount[0]?.value), 55);
-    const masterFirst = rowsOf(await database.query(
-      `SELECT * FROM public.grainline_seller_guild_staff_master_pending_page(
-         $1, NULL, NULL, 50
-       )`,
-      [staffId],
-    ));
-    assert.equal(masterFirst.length, 50);
-    const masterSecond = rowsOf(await database.query(
-      `SELECT * FROM public.grainline_seller_guild_staff_master_pending_page(
-         $1, $2, $3, 50
-       )`,
-      [staffId, masterFirst.at(-1).appliedAt, masterFirst.at(-1).id],
-    ));
-    assert.equal(masterSecond.length, 5);
-    assert.equal(new Set([...masterFirst, ...masterSecond].map((row) => row.id)).size, 55);
+    const masterRows = [];
+    let masterCursorAt = null;
+    let masterCursorId = null;
+    for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+      const page = rowsOf(await database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_master_pending_page(
+           $1, $2, $3, 50
+         )`,
+        [staffId, masterCursorAt, masterCursorId],
+      ));
+      masterRows.push(...page);
+      if (page.length < 50) break;
+      masterCursorAt = page.at(-1).appliedAt;
+      masterCursorId = page.at(-1).id;
+    }
+    assert.equal(masterRows.length, Number(masterCount[0]?.value));
+    assert.equal(new Set(masterRows.map((row) => row.id)).size, masterRows.length);
+    assert.equal(masterRows.filter((row) => row.id.startsWith(verificationPrefix)).length, 55);
   } finally {
     await database.query("RESET SESSION AUTHORIZATION");
   }
@@ -361,33 +365,33 @@ async function proveStaffPagination({ database, staffId, prefix }) {
         "SELECT public.grainline_seller_guild_staff_roster_count($1, $2) AS value",
         [staffId, cohort],
       ));
-      assert.equal(Number(count[0]?.value), 55);
-      const first = rowsOf(await database.query(
-        `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
-           $1, $2, NULL, NULL, 50
-         )`,
-        [staffId, cohort],
-      ));
-      assert.equal(first.length, 50);
-      const cursorAt = cohort === "GUILD_MASTER"
-        ? first.at(-1).guildMasterApprovedAt
-        : first.at(-1).guildMemberApprovedAt;
-      const second = rowsOf(await database.query(
-        `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
-           $1, $2, $3, $4, 50
-         )`,
-        [staffId, cohort, cursorAt, first.at(-1).id],
-      ));
-      assert.equal(second.length, 5);
-      assert.equal(new Set([...first, ...second].map((row) => row.id)).size, 55);
-      if (cohort === "GUILD_MASTER") {
-        assert.equal(second.at(-1).guildMasterApprovedAt, null);
-        assert.deepEqual(rowsOf(await database.query(
+      const rosterRows = [];
+      let cursorAt = null;
+      let cursorId = null;
+      for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+        const page = rowsOf(await database.query(
           `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
-             $1, $2, NULL, $3, 50
+             $1, $2, $3, $4, 50
            )`,
-          [staffId, cohort, second.at(-1).id],
-        )), []);
+          [staffId, cohort, cursorAt, cursorId],
+        ));
+        rosterRows.push(...page);
+        if (page.length < 50) break;
+        const last = page.at(-1);
+        cursorAt = cohort === "GUILD_MASTER"
+          ? last.guildMasterApprovedAt
+          : last.guildMemberApprovedAt;
+        cursorId = last.id;
+      }
+      assert.equal(rosterRows.length, Number(count[0]?.value));
+      assert.equal(new Set(rosterRows.map((row) => row.id)).size, rosterRows.length);
+      const syntheticRows = rosterRows.filter((row) => row.id.startsWith(sellerPrefix));
+      assert.equal(syntheticRows.length, 55);
+      if (cohort === "GUILD_MASTER") {
+        assert.equal(
+          syntheticRows.find((row) => row.id === `${sellerPrefix}1`)?.guildMasterApprovedAt,
+          null,
+        );
       }
     } finally {
       await database.query("RESET SESSION AUTHORIZATION");
@@ -423,14 +427,24 @@ async function proveStaffPagination({ database, staffId, prefix }) {
       "SELECT public.grainline_seller_guild_staff_roster_count($1, 'FEATURED') AS value",
       [staffId],
     ));
-    assert.equal(Number(featuredCount[0]?.value), 55);
-    const featured = rowsOf(await database.query(
-      `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
-         $1, 'FEATURED', NULL, NULL, 3
-       )`,
-      [staffId],
-    ));
-    assert.equal(featured.length, 3);
+    const featuredRows = [];
+    let featuredCursorAt = null;
+    let featuredCursorId = null;
+    for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+      const page = rowsOf(await database.query(
+        `SELECT * FROM public.grainline_seller_guild_staff_roster_page(
+           $1, 'FEATURED', $2, $3, 50
+         )`,
+        [staffId, featuredCursorAt, featuredCursorId],
+      ));
+      featuredRows.push(...page);
+      if (page.length < 50) break;
+      featuredCursorAt = page.at(-1).featuredUntil;
+      featuredCursorId = page.at(-1).id;
+    }
+    assert.equal(featuredRows.length, Number(featuredCount[0]?.value));
+    assert.equal(new Set(featuredRows.map((row) => row.id)).size, featuredRows.length);
+    assert.equal(featuredRows.filter((row) => row.id.startsWith(sellerPrefix)).length, 55);
   } finally {
     await database.query("RESET SESSION AUTHORIZATION");
   }
