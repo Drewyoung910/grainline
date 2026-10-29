@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const migration = readFileSync(
-  "prisma/migrations/20261028050000_activate_favorite_rls/migration.sql",
-  "utf8",
-);
+const migrationPath =
+  process.env.FAVORITE_RLS_ACTIVATION_MIGRATION_PATH?.trim() ||
+  "prisma/migrations/20261028050000_activate_favorite_rls/migration.sql";
+const migration = readFileSync(migrationPath, "utf8");
 const rollback = readFileSync(
   "docs/rls-drafts/favorite-activation-rollback.sql",
   "utf8",

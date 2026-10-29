@@ -286,6 +286,7 @@ jobs:
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done
           echo "FAVORITE_PREPARATION_MIGRATION_PATH=$holding/migrations/20261028010000_prepare_favorite_authorities" >> "$GITHUB_ENV"
+          echo "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/20261028050000_activate_favorite_rls/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate email delivery-ledger preparation until historical release guards pass
         shell: bash
         run: |
@@ -6845,6 +6846,7 @@ jobs:
           done
           rmdir "$holding/migrations" "$holding"
           echo "FAVORITE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
