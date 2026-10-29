@@ -5,6 +5,8 @@ import test from "node:test";
 
 const migrationPath = process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH?.trim()
   || "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+const fullChainTestPath = process.env.DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH?.trim()
+  || "tests/database-full-chain-postgres.test.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -140,7 +142,7 @@ test("MakerVerification app callers use fixed operations and preserve input inte
 });
 
 test("MakerVerification complete-schema proof is wired into the full-chain job", () => {
-  const fullChain = source("tests/database-full-chain-postgres.test.mjs");
+  const fullChain = source(fullChainTestPath);
   assert.match(fullChain, /import \{ proveMakerVerificationPreparedAuthorities \}/u);
   assert.match(fullChain, /await proveMakerVerificationPreparedAuthorities\(\{/u);
   assert.match(fullChain, /connectionString: proofDatabaseUrl/u);
