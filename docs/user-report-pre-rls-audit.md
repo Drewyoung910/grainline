@@ -4,8 +4,12 @@ Date: 2026-10-28
 
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 
-Status: design gate open; no `UserReport` RLS, grant, data, or production
-change is authorized by this audit
+Reverified against exact main `fb38730ff86f85a9b1dbd5bba39cbddd54af9108`
+on 2026-10-29. No UserReport runtime consumer changed between those sources.
+
+Status: Option B and the split-note privacy contract are accepted; compatible
+preparation remains unimplemented, and no `UserReport` RLS, grant, data, or
+production change is authorized by this audit
 
 ## Intended Product Behavior
 
@@ -357,7 +361,9 @@ schema and prove at least:
 
 ## Audit Decision
 
-`NO-GO` for policy, grant, or caller-conversion implementation today.
-USERREPORT-RLS-1 through -5 define correctness work that must land first, and
-USERREPORT-RLS-6 must be resolved in the implementation contract. See
-`docs/user-report-rls-options.md` for the recommended final boundary.
+`GO` for isolated compatible preparation using accepted Option B and a split
+participant-rationale/internal-note contract, but `NO-GO` for policy or grant
+activation. USERREPORT-RLS-1 through -5 are preparation requirements, not
+follow-ups: attribution, staff reachability, target vocabulary/context, and
+data invariants must be corrected and behavior-proven before activation. See
+`docs/user-report-rls-options.md` for the accepted final boundary.

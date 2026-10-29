@@ -4,6 +4,12 @@ Date: 2026-10-28
 
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 
+Decision: Option B accepted on 2026-10-29 for long-term privacy, safety, and
+scalability. Reverified against exact main
+`fb38730ff86f85a9b1dbd5bba39cbddd54af9108`; no UserReport runtime consumer
+changed. Resolution storage will separate participant-visible rationale from
+an internal staff note.
+
 This comparison follows `docs/user-report-pre-rls-audit.md`. `UserReport` is
 fully private, but its submitted, received, staff, service, export, and deletion
 projections intentionally disclose different fields.
@@ -106,8 +112,8 @@ inside the shared runtime database role without the same actor-bound operation.
 
 ## Recommendation
 
-Choose **Option B** after the correctness blockers in the pre-RLS audit are
-fixed and independently proven.
+Choose **Option B**. This option is accepted, with the correctness blockers in
+the pre-RLS audit fixed and independently proven inside compatible preparation.
 
 `UserReport` is an intentionally asymmetric trust ledger, not a conventional
 owner-only table. Policyless zero-direct access provides the clearest durable
@@ -120,9 +126,10 @@ Required safeguards:
 - make every accepted target type investigable by staff or remove it;
 - replace the newest-50 queue with a true count and stable oldest-first page;
 - inventory production before adding categorical/state constraints;
-- preserve the privacy-minimized resolution audit witness unless Drew chooses
-  a different documented contract, and decide whether the report note is an
-  explicitly participant-safe rationale or is split from an internal note;
+- preserve the privacy-minimized audit witness;
+- split participant-visible resolution rationale from the internal staff note,
+  label both audiences in staff UI, exclude the internal note from participant
+  exports, and retain/redact each under its documented lifecycle;
 - preserve submitted/received export asymmetry and deletion retention;
 - catalog every installed `UserReport` reader from the full migrated database;
 - run full-chain PostgreSQL 17 lifecycle, cross-domain, concurrency, deletion,
@@ -130,6 +137,6 @@ Required safeguards:
 - make no purge, legal-retention, target-deletion, or product-notification
   change in the security release.
 
-Do not implement the migration or caller conversion until this option and the
-resolution-audit contract are accepted. Preparation may then proceed in
-isolation; production activation still requires its own exact approval.
+Compatible preparation may proceed in isolation. Production activation still
+requires its own exact approval after lifecycle, cross-domain, concurrency,
+privacy, direct-denial, and rollback proofs pass.

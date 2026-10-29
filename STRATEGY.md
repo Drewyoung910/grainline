@@ -3477,3 +3477,16 @@ required boundary.
 zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
+
+### UserReport RLS direction (2026-10-29)
+
+Use policyless zero-direct Option B. UserReport is an asymmetric trust ledger:
+submission, received export, submitted export, staff investigation, resolution,
+notification validation, and deletion require different bounded projections.
+Compatible preparation must fix target attribution, oldest-first complete staff
+reachability, accepted-target staff context, and reviewed data invariants.
+Resolution storage will split participant-visible rationale from an internal
+staff note; staff UI must label each audience, participant exports must never
+include the internal note, and the privacy-minimized audit witness remains.
+No purge, retention change, column drop, RLS activation, or production change
+is part of the preparation decision.
