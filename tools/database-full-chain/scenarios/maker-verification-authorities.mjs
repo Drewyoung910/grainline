@@ -510,7 +510,7 @@ async function proveStaffPagination({ database, staffId, prefix }) {
     level: "NONE",
     approvalColumn: "guildMemberApprovedAt",
   });
-  const reappliedSellerId = `${sellerPrefix}0`;
+  const reappliedSellerId = `${sellerPrefix}1`;
   await database.query(
     `UPDATE public."MakerVerification"
         SET status = 'PENDING'::public."VerificationStatus"
