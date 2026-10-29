@@ -366,7 +366,8 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.ok(verificationUpdateStart > -1, "account deletion must invoke maker verification redaction");
     assert.match(verificationUpdate, /redactOwnerMakerVerificationForDeletion\(tx, now\)/);
     const authority = source(
-      "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+      process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH?.trim()
+        || "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
     );
     for (const pattern of [
       /"craftDescription" = '\[Deleted\]'/,
