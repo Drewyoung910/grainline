@@ -115,6 +115,7 @@ import {
   FAVORITE_RLS_MIGRATION,
   proveFavoritePredecessorGap,
   proveFavoritePreparedAuthorities,
+  proveFavoriteProvisioningRejectsPolicylessPartial,
   proveFavoriteRlsAuthorities,
   proveFavoriteRlsRollback,
   seedFavoritePredecessorFixture,
@@ -878,6 +879,10 @@ test(
       await proveFavoriteRlsAuthorities({
         database: adapter,
         fixture: favoriteFixture,
+      });
+      await proveFavoriteProvisioningRejectsPolicylessPartial({
+        database: adapter,
+        repositoryRoot,
       });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/favorite-activation-rollback.sql"),
