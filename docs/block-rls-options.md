@@ -4,6 +4,10 @@ Date: 2026-10-28
 
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 
+Decision: Option B accepted on 2026-10-29 for long-term privacy, safety, and
+scalability. Reverified against exact main
+`fb38730ff86f85a9b1dbd5bba39cbddd54af9108`; no Block runtime consumer changed.
+
 This comparison follows `docs/block-pre-rls-audit.md`. Block is an asymmetric
 safety relation: both endpoints need silent enforcement, but only the blocker
 may see and manage the explicit record.
@@ -103,7 +107,7 @@ boundary.
 
 ## Recommendation
 
-Choose **Option B**.
+Choose **Option B**. This option is accepted.
 
 Block is a poor fit for a generic row policy because enforcement is symmetric
 while disclosure and management are asymmetric. The app already routes most
@@ -128,6 +132,6 @@ Required safeguards:
 - no column drop, pair projection or product-semantics change in the security
   release.
 
-Do not implement the migration or caller conversion until this option is
-accepted. Preparation may proceed in isolation after acceptance; production
-activation still requires its own exact approval.
+Compatible preparation may proceed in isolation. Production activation still
+requires its own exact approval after the full behavior, race, rollback, and
+installed-function catalog proofs pass.

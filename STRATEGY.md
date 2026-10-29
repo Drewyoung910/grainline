@@ -3477,3 +3477,14 @@ required boundary.
 zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
+
+### Block RLS direction (2026-10-29)
+
+Use policyless zero-direct Option B. Block enforcement is symmetric, while
+record disclosure and management are intentionally asymmetric, so a generic
+row policy would reveal who blocked whom. Compatible preparation must make
+block creation and reciprocal Follow/StockNotification cleanup one locked
+transition, replace the two invoker-mode messaging reads, preserve outgoing-
+only management/deletion and current export pending legal review, and catalog
+every installed Block reader. No pair-projection table, column drop, RLS
+activation, or production change is part of the preparation decision.

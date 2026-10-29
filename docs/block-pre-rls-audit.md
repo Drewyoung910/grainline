@@ -4,7 +4,11 @@ Date: 2026-10-28
 
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 
-Status: design gate open; no Block RLS or grant change is authorized by this audit
+Reverified against exact main `fb38730ff86f85a9b1dbd5bba39cbddd54af9108`
+on 2026-10-29. No Block runtime consumer changed between those sources.
+
+Status: Option B design accepted; compatible preparation remains unimplemented,
+and no Block RLS, grant, data, or production change is authorized by this audit
 
 ## Intended Product Behavior
 
@@ -299,7 +303,9 @@ schema and prove at least:
 
 ## Audit Decision
 
-`NO-GO` for policy or grant activation today. BLOCK-RLS-1 determines the
-privacy shape, BLOCK-RLS-2 requires atomic dependent cleanup, and BLOCK-RLS-6
-requires replacing two invoker-mode messaging reads before activation.
-See `docs/block-rls-options.md` for the recommended boundary.
+`GO` for isolated compatible preparation using accepted Option B, but `NO-GO`
+for policy or grant activation. BLOCK-RLS-1 determines the privacy shape,
+BLOCK-RLS-2 requires atomic dependent cleanup, and BLOCK-RLS-6 requires
+replacing two invoker-mode messaging reads before activation. Preparation must
+prove those fixes without changing predecessor grants or enabling RLS. See
+`docs/block-rls-options.md` for the accepted boundary.
