@@ -171,7 +171,11 @@ test("email correction applies one exact migration after C-1180 while preserving
   assert.match(workflow, new RegExp(MIGRATION_SHA256, "u"));
   assert.equal(REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(MIGRATION), MIGRATION_SHA256);
   const resendRecoverySql = readFileSync(
-    `prisma/migrations/${RESEND_RECOVERY_MIGRATION}/migration.sql`,
+    path.join(
+      process.env.RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH
+        ?? `prisma/migrations/${RESEND_RECOVERY_MIGRATION}`,
+      "migration.sql",
+    ),
   );
   assert.equal(
     createHash("sha256").update(resendRecoverySql).digest("hex"),
