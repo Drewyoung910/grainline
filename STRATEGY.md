@@ -3522,11 +3522,13 @@ drift, reciprocal-block parity, atomic eligibility, the value constraint and
 owner-leading index are closed on the full PostgreSQL 17 chain. See
 `docs/review-vote-rls-options.md` and `docs/review-vote-pre-rls-audit.md`.
 
-The isolated A2 compatible candidate now closes those preparation items and
-passes the 437-migration PostgreSQL 17 behavior plus mixed-version concurrency
-proof without changing RLS or predecessor grants. Count maintenance remains in
-the reviewed predecessor/fixed writers during the compatibility window; a
-general cascade-maintenance trigger must wait for activation so the predecessor
-route cannot double-update the scalar. Activation remains separately blocked
-on policy/grant denial, hard User-delete cascade, cross-owner/race coverage,
-rollback, and explicit release authorization.
+The isolated A2 compatible candidate closes those preparation items and passes
+the 437-migration PostgreSQL 17 behavior plus mixed-version concurrency proof
+without changing RLS or predecessor grants. Count maintenance remains in the
+reviewed predecessor/fixed writers during the compatibility window. The
+separate isolated activation candidate adds the delete-side maintenance trigger
+only after predecessor traffic is drained, retains owner-only `SELECT`, removes
+direct mutations, and exercises hard-delete, denial, rollback, predecessor
+concurrency and reactivation behavior. Exact-head PostgreSQL 17 CI, independent
+review and explicit release authorization remain separate gates; no Production
+workflow is part of the candidate.

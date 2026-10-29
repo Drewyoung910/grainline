@@ -119,6 +119,8 @@ export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELE
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const STOCK_NOTIFICATION_TABLE = "StockNotification";
 export const STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
+export const REVIEW_VOTE_TABLE = "ReviewVote";
+export const REVIEW_VOTE_OWNER_TABLE_PRIVILEGES = ["SELECT"];
 export const CART_OWNER_COLUMN_PRIVILEGES = ["\"updatedAt\":UPDATE"];
 export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
   "\"priceCents\":UPDATE",
@@ -573,6 +575,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_listing_favorite_count_guard",
   "grainline_review_vote_insert_guard",
   "grainline_review_vote_update_forbidden",
+  "grainline_review_vote_count_after_delete",
   "grainline_review_reviewer_public_state_bind",
   "grainline_commission_buyer_public_state_bind",
   "grainline_user_public_review_commission_state_sync",
@@ -2971,6 +2974,12 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     && rlsPolicyTables.includes(STOCK_NOTIFICATION_TABLE)
   ) {
     return STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES;
+  }
+  if (
+    tableName === REVIEW_VOTE_TABLE
+    && rlsPolicyTables.includes(REVIEW_VOTE_TABLE)
+  ) {
+    return REVIEW_VOTE_OWNER_TABLE_PRIVILEGES;
   }
   return REQUIRED_TABLE_PRIVILEGES;
 }
