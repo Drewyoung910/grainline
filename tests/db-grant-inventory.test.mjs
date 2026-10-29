@@ -337,6 +337,11 @@ const REVIEW_VOTE_PREPARATION_FUNCTION_NAMES = [
   "grainline_review_vote_owner_export",
   "grainline_review_vote_owner_delete_all",
 ];
+const REVIEW_VOTE_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261028070000_activate_review_vote_rls/migration.sql";
+const REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES = [
+  "grainline_review_vote_count_after_delete",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3668,6 +3673,12 @@ describe("database grant inventory guardrails", () => {
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_delete",
       );
+    const reviewVoteRlsActivationPresent = existsSync(
+      REVIEW_VOTE_ACTIVATION_MIGRATION,
+    ) && REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.every((functionName) =>
+      source(REVIEW_VOTE_ACTIVATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3884,6 +3895,9 @@ describe("database grant inventory guardrails", () => {
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(reviewVoteRlsActivationPresent
+        ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
+        : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
@@ -3965,6 +3979,9 @@ describe("database grant inventory guardrails", () => {
         + (makerVerificationActivationPresent ? 1 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
+        + (reviewVoteRlsActivationPresent
+          ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.length
+          : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
@@ -6038,6 +6055,9 @@ describe("database grant inventory guardrails", () => {
     const followProvisioningPresent = provision.includes(
       "grainline_follow_rls_active",
     );
+    const reviewVoteProvisioningPresent = provision.includes(
+      "review_vote_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6047,7 +6067,8 @@ describe("database grant inventory guardrails", () => {
         + Number(stockNotificationProvisioningPresent)
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
-        + Number(followProvisioningPresent),
+        + Number(followProvisioningPresent)
+        + Number(reviewVoteProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
