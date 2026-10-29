@@ -11,6 +11,9 @@ import {
   verifyPrivateTableRlsActivationSource,
 } from "./private-table-rls-activation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
+import {
+  isReviewedSuccessfulMigration,
+} from "./reviewed-manually-applied-migrations.mjs";
 
 const PHASES = new Set(["preflight", "postflight"]);
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -37,11 +40,7 @@ function successfulMigration(rows, entry) {
   for (const row of attempts) {
     assert.equal(row.checksum, entry.migrationSha256, `${entry.migration} checksum drifted`);
   }
-  const successes = attempts.filter((row) => (
-    row.finished_at !== null
-    && row.rolled_back_at === null
-    && Number(row.applied_steps_count) === 1
-  ));
+  const successes = attempts.filter(isReviewedSuccessfulMigration);
   assert.ok(successes.length <= 1, `${entry.migration} has duplicate successful rows`);
   for (const row of attempts) {
     if (!successes.includes(row)) {
@@ -309,11 +308,25 @@ export async function inspectPrivateTableRlsActivationProduction(
       true,
       "compatible preparation is not applied",
     );
-    const active = successfulMigration(ledger, release);
+    const recorded = successfulMigration(ledger, release);
     const posture = postureFromRow(row);
-    const state = active ? "active" : "ready";
-    if (active) assertActivePosture(posture);
-    else assertReadyPosture(posture, release.preparation.expectedPredecessorPosture);
+    let activeCatalog = false;
+    try {
+      assertActivePosture(posture);
+      activeCatalog = true;
+    } catch (activeError) {
+      try {
+        assertReadyPosture(posture, release.preparation.expectedPredecessorPosture);
+      } catch {
+        throw activeError;
+      }
+    }
+    if (recorded) assert.equal(activeCatalog, true, "recorded activation has predecessor posture");
+    const state = recorded
+      ? "active"
+      : activeCatalog
+        ? "active_unrecorded"
+        : "ready";
     if (phase === "postflight") assert.equal(state, "active", "activation is not applied");
 
     const functions = await readFunctions(client, verified, row.table_owner_name);
@@ -343,7 +356,10 @@ export async function inspectPrivateTableRlsActivationProduction(
       assert.equal(previous.releaseId, evidence.releaseId, "release evidence drifted");
       assert.equal(previous.releaseCommit, evidence.releaseCommit, "commit evidence drifted");
       assert.equal(previous.activationMigration, evidence.activationMigration, "migration evidence drifted");
-      assert.equal(previous.state === "ready" || previous.state === "active", true);
+      assert.equal(
+        ["ready", "active_unrecorded", "active"].includes(previous.state),
+        true,
+      );
       assert.deepEqual(previous.roles, evidence.roles, "restricted roles changed during activation");
       assert.deepEqual(previous.functions, evidence.functions, "function boundary changed during activation");
     }
