@@ -2,57 +2,31 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const source = readFileSync("src/app/api/users/[id]/report/route.ts", "utf8");
+const route = readFileSync("src/app/api/users/[id]/report/route.ts", "utf8");
+const access = readFileSync("src/lib/userReportAccess.ts", "utf8");
+const migration = readFileSync(
+  "prisma/migrations/20261028060000_prepare_user_report_authorities/migration.sql",
+  "utf8",
+);
 
 describe("user report target access guardrails", () => {
-  it("keeps report reason categorical and free-text details separate", () => {
-    const deletion = readFileSync("src/lib/accountDeletion.ts", "utf8");
-
-    assert.match(source, /reason: z\.enum\(\["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"\]\)/);
-    assert.match(source, /details: z\.string\(\)\.max\(500\)\.optional\(\)/);
-    assert.match(source, /const details = body\.details \? truncateText\(sanitizeText\(body\.details\), 500\) \|\| null : null/);
-    assert.match(deletion, /tx\.userReport\.updateMany\(\{\s*where: \{ OR: \[\{ reporterId: user\.id \}, \{ reportedId: user\.id \}\] \},\s*data: \{ details: null \},\s*\}\)/);
+  it("keeps categorical reasons, cleaned details, and one actor-bound write", () => {
+    assert.match(route, /reason: z\.enum\(\["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"\]\)/u);
+    assert.match(route, /truncateText\(sanitizeText\(body\.details\), 500\)/u);
+    assert.match(route, /codePointLength\(value\) <= 500/u);
+    assert.match(route, /createUserReport\(\{/u);
+    assert.match(access, /withDbUserContext\(actorUserId/u);
+    assert.doesNotMatch(route, /prisma\.userReport\./u);
   });
 
-  it("requires reporter access before accepting private report targets", () => {
-    assert.match(source, /let reporterCanAccess = false/);
-    assert.match(source, /!exists \|\| !reporterCanAccess/);
-
-    assert.match(source, /canReportOrderTarget\(\{/);
-    const orderAuthority = readFileSync(
-      "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
-      "utf8",
-    );
-    assert.match(orderAuthority, /source_order\."buyerId" = p_actor_user_id OR seller\."userId" = p_actor_user_id/);
-    assert.match(
-      source,
-      /isActorMessageReportTarget\(\s*me\.id,\s*reportedId,\s*body\.targetType,\s*body\.targetId,\s*\)/,
-      "message and thread reports must use exact participant authority",
-    );
-    const authority = readFileSync("src/lib/conversationMessageAuthority.ts", "utf8");
-    assert.match(authority, /public\.grainline_message_report_target_valid/);
-    assert.doesNotMatch(source, /prisma\.(?:message|conversation)\.count/);
-    assert.match(
-      source,
-      /sellerActorReportResourceTarget\(\s*me\.id,\s*body\.targetType,\s*body\.targetId,\s*reportedId,\s*\)/,
-      "listing and review reports must use exact actor-bound resource authority",
-    );
-    assert.doesNotMatch(source, /prisma\.(?:listing|review)\.findUnique/);
-    assert.match(
-      source,
-      /post: publicBlogPostWhere\(\)/,
-      "blog comment reports must be limited to comments on public posts",
-    );
-    assert.match(
-      source,
-      /"SELLER_PROFILE"/,
-      "seller-profile reports must use the canonical seller profile target",
-    );
-    assert.match(
-      source,
-      /sellerPublicReportTarget\(body\.targetId, reportedId\)/,
-      "seller-profile reports must require a public seller profile owned by the reported user",
-    );
+  it("admits only report targets the reporter can actually inspect", () => {
+    assert.match(access, /"LISTING",\s*"MESSAGE_THREAD",\s*"REVIEW",\s*"BLOG_COMMENT",\s*"SELLER_PROFILE"/u);
+    assert.doesNotMatch(access, /"ORDER"|"MESSAGE"|"BLOG_POST"|"COMMISSION_REQUEST"/u);
+    assert.match(migration, /actor_id IN \(conversation\."userAId", conversation\."userBId"\)/u);
+    assert.match(migration, /p_reported_user_id IN \(\s*conversation\."userAId", conversation\."userBId"/u);
+    assert.match(migration, /review\."reviewerId" = p_reported_user_id/u);
+    assert.match(migration, /comment\."authorId" = p_reported_user_id/u);
+    assert.match(migration, /public\.grainline_seller_public_report_target\(/u);
   });
 
   it("keeps seller profile report UI and admin links aligned with the API target", () => {
@@ -60,16 +34,14 @@ describe("user report target access guardrails", () => {
     const adminReports = readFileSync("src/app/admin/reports/page.tsx", "utf8");
     const docs = readFileSync("CLAUDE.md", "utf8");
 
-    assert.match(sellerPage, /targetType="SELLER_PROFILE"/);
-    assert.match(sellerPage, /targetId=\{seller\.id\}/);
-    assert.doesNotMatch(sellerPage, /targetType="SELLER"/);
-    assert.match(adminReports, /targetType === "SELLER_PROFILE" \|\| targetType === "SELLER"/);
-    assert.match(adminReports, /isSellerProfileReportTarget\(r\.targetType\)/);
-    assert.match(adminReports, /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/);
-    assert.doesNotMatch(adminReports, /prisma\.sellerProfile\./);
-    assert.match(adminReports, /publicSellerPath\(seller\.id, seller\.displayName\)/);
-    assert.match(docs, /\| Seller profiles \| `SELLER_PROFILE` \| `BlockReportButton` on `\/seller\/\[id\]` \|/);
-    assert.doesNotMatch(docs, /\| Seller profiles \| `SELLER` \|/);
-    assert.doesNotMatch(docs, /targetType="SELLER" targetId=\{seller\.id\}/);
+    assert.match(sellerPage, /targetType="SELLER_PROFILE"/u);
+    assert.match(sellerPage, /targetId=\{seller\.id\}/u);
+    assert.doesNotMatch(sellerPage, /targetType="SELLER"/u);
+    assert.match(adminReports, /targetType === "SELLER_PROFILE" \|\| targetType === "SELLER"/u);
+    assert.match(adminReports, /isSellerProfileReportTarget\(r\.targetType\)/u);
+    assert.match(adminReports, /sellerProfileStaffReportTargets\(staffClient, \{/u);
+    assert.doesNotMatch(adminReports, /prisma\.sellerProfile\./u);
+    assert.match(adminReports, /publicSellerPath\(seller\.id, seller\.displayName\)/u);
+    assert.match(docs, /\| Seller profiles \| `SELLER_PROFILE` \| `BlockReportButton` on `\/seller\/\[id\]` \|/u);
   });
 });

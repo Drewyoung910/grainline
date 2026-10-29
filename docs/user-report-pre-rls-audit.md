@@ -7,9 +7,11 @@ Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 Reverified against exact main `fb38730ff86f85a9b1dbd5bba39cbddd54af9108`
 on 2026-10-29. No UserReport runtime consumer changed between those sources.
 
-Status: Option B and the split-note privacy contract are accepted; compatible
-preparation remains unimplemented, and no `UserReport` RLS, grant, data, or
-production change is authorized by this audit
+Status: Option B and the split-note privacy contract are accepted. Compatible
+preparation is implemented on the isolated UserReport branch and passes the
+full PostgreSQL 17 migration chain, including a predecessor-failing review
+attribution proof. It remains unapplied in Production. No `UserReport` RLS or
+direct-table grant activation is authorized by this audit.
 
 ## Intended Product Behavior
 
@@ -65,7 +67,8 @@ cross-domain target validators, and mutation code.
 
 ## Complete Current Consumer Inventory
 
-Five application modules perform nine direct Prisma operations:
+Before compatible preparation, five application modules performed nine direct
+Prisma operations:
 
 1. `/api/users/[id]/report` creates one row;
 2. `/admin/reports` reads the unresolved queue;
@@ -77,6 +80,14 @@ Five application modules perform nine direct Prisma operations:
 8. account deletion replaces resolved free-text notes for either participant;
 9. account deletion auto-resolves unresolved rows against the deleted reported
    account.
+
+The compatible preparation converts all nine operations to eight fixed
+database authorities. It also replaces the newest-50 staff queue with a true
+open count and oldest-first stable cursor, moves all staff reads/resolution to
+the isolated staff credential, narrows the accepted target vocabulary to the
+five target types staff can investigate, and separates participant-visible
+resolution rationale from the internal staff note. RLS and predecessor table
+grants remain unchanged until activation.
 
 No ordinary application path needs direct UPDATE outside staff resolution and
 account deletion. No ordinary application path deletes a report.

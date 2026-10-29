@@ -2053,6 +2053,7 @@ model UserReport {
   resolvedAt     DateTime?
   resolvedById   String?
   resolutionNote String?   @db.VarChar(500)
+  internalResolutionNote String? @db.VarChar(1000)
   createdAt      DateTime  @default(now())
 
   reporter   User  @relation("UserReports", fields: [reporterId], references: [id], onDelete: Restrict)

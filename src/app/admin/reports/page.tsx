@@ -8,8 +8,16 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { userStaffAdminLabels, userStaffReportLabels } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
+import {
+  userReportStaffOpenCount,
+  userReportStaffOpenPage,
+  userReportStaffTopReporters,
+  type UserReportStaffCursor,
+} from "@/lib/userReportAccess";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
+const REPORT_PAGE_SIZE = 25;
+const REPORT_CURSOR_ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/u;
 
 type ReportUserLabel = {
   name: string | null;
@@ -32,26 +40,41 @@ function isSellerProfileReportTarget(targetType: string | null) {
   return targetType === "SELLER_PROFILE" || targetType === "SELLER";
 }
 
-export default async function AdminReportsPage() {
+function parseReportCursor(searchParams: Record<string, string | string[] | undefined>) {
+  const createdAtValue = typeof searchParams.afterCreatedAt === "string"
+    ? searchParams.afterCreatedAt
+    : null;
+  const id = typeof searchParams.afterId === "string" ? searchParams.afterId : null;
+  if (!createdAtValue || !id || !REPORT_CURSOR_ID_PATTERN.test(id)) return null;
+  const createdAt = new Date(createdAtValue);
+  if (!Number.isFinite(createdAt.getTime())) return null;
+  return { createdAt, id } satisfies UserReportStaffCursor;
+}
+
+export default async function AdminReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
 
-  const reports = await prisma.userReport.findMany({
-    where: { resolved: false },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 50,
-    select: {
-      id: true,
-      reason: true,
-      details: true,
-      targetType: true,
-      targetId: true,
-      createdAt: true,
-      reporterId: true,
-      reportedId: true,
-    },
-  });
-  const reportUsers = await userStaffAdminLabels(getOrderStaffReadClient(), {
+  const cursor = parseReportCursor(await searchParams);
+  const staffClient = getOrderStaffReadClient();
+  const [openCount, reports, topReporters] = await Promise.all([
+    userReportStaffOpenCount(staffClient, staff.id),
+    userReportStaffOpenPage(staffClient, {
+      actorUserId: staff.id,
+      cursor,
+      limit: REPORT_PAGE_SIZE,
+    }),
+    userReportStaffTopReporters(staffClient, {
+      actorUserId: staff.id,
+      since: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      limit: 5,
+    }),
+  ]);
+  const reportUsers = await userStaffAdminLabels(staffClient, {
     actorId: staff.id,
     userIds: reports.flatMap((report) => [report.reporterId, report.reportedId]),
   });
@@ -97,7 +120,7 @@ export default async function AdminReportsPage() {
   }
 
   if (sellerTargetIds.length > 0) {
-    const sellers = await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
+    const sellers = await sellerProfileStaffReportTargets(staffClient, {
       actorId: staff.id,
       sellerProfileIds: sellerTargetIds,
     });
@@ -116,16 +139,8 @@ export default async function AdminReportsPage() {
     }
   }
 
-  // Top reporters in last 30 days (abuse detection)
-  const topReporters = await prisma.userReport.groupBy({
-    by: ["reporterId"],
-    where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
-    _count: { id: true },
-    orderBy: { _count: { id: "desc" } },
-    take: 5,
-  });
   const reporterUsers = topReporters.length > 0
-    ? await userStaffReportLabels(getOrderStaffReadClient(), {
+    ? await userStaffReportLabels(staffClient, {
         actorId: staff.id,
         userIds: topReporters.map((r) => r.reporterId),
       })
@@ -134,10 +149,11 @@ export default async function AdminReportsPage() {
 
   return (
     <main className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-semibold font-display mb-6">User Reports ({reports.length} open)</h1>
+      <h1 className="text-2xl font-semibold font-display mb-2">User Reports ({openCount} open)</h1>
+      <p className="mb-6 text-sm text-neutral-500">Oldest unresolved reports are shown first.</p>
 
       {/* Top reporters — abuse detection */}
-      {topReporters.length > 0 && topReporters[0]._count.id >= 3 && (
+      {topReporters.length > 0 && topReporters[0].count >= 3 && (
         <div className="card-section p-4 mb-6">
           <h2 className="text-sm font-semibold text-neutral-700 mb-2">Top reporters (last 30 days)</h2>
           <div className="flex flex-wrap gap-3">
@@ -147,8 +163,8 @@ export default async function AdminReportsPage() {
                 <div key={tr.reporterId} className="text-xs text-neutral-600">
                   <span className="font-medium">{reportUserLabel(u)}</span>
                   {" "}
-                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tr._count.id >= 10 ? "bg-red-100 text-red-700" : tr._count.id >= 5 ? "bg-amber-100 text-amber-700" : "bg-neutral-100 text-neutral-600"}`}>
-                    {tr._count.id} reports
+                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tr.count >= 10 ? "bg-red-100 text-red-700" : tr.count >= 5 ? "bg-amber-100 text-amber-700" : "bg-neutral-100 text-neutral-600"}`}>
+                    {tr.count} reports
                   </span>
                 </div>
               );
@@ -209,6 +225,23 @@ export default async function AdminReportsPage() {
           <p className="text-neutral-500 text-sm">No open reports.</p>
         )}
       </div>
+      {reports.length === REPORT_PAGE_SIZE && (() => {
+        const last = reports.at(-1)!;
+        const href = new URLSearchParams({
+          afterCreatedAt: last.createdAt.toISOString(),
+          afterId: last.id,
+        });
+        return (
+          <div className="mt-6 flex justify-end">
+            <Link
+              href={`/admin/reports?${href.toString()}`}
+              className="rounded-md border border-neutral-200 px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            >
+              Next {REPORT_PAGE_SIZE} →
+            </Link>
+          </div>
+        );
+      })()}
     </main>
   );
 }

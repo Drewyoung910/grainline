@@ -4179,7 +4179,11 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
     ('public."grainline_seller_staff_verification_target"(text, text)'),
-    ('public."grainline_seller_staff_orderability_state"(text, text)')
+    ('public."grainline_seller_staff_orderability_state"(text, text)'),
+    ('public."grainline_user_report_staff_open_count"(text)'),
+    ('public."grainline_user_report_staff_open_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_user_report_staff_top_reporters"(text, timestamp without time zone, integer)'),
+    ('public."grainline_user_report_staff_resolve"(text, text, text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

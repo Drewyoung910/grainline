@@ -77,8 +77,9 @@ describe("admin moderation hardening follow-ups", () => {
 
     assert.match(route, /adminActionRatelimit/);
     assert.match(route, /safeRateLimit\(adminActionRatelimit, admin\.id\)/);
-    assert.match(route, /userReport\.updateMany/);
-    assert.match(route, /where: \{ id, resolved: false \}/);
+    assert.match(route, /resolveUserReport\(getOrderStaffReadClient\(\), \{/);
+    assert.match(route, /reportId: id/);
+    assert.match(route, /if \(result === "UNCHANGED"\)/);
   });
 
   it("keeps admin review rating summaries transactional and delegates media release to the database lifecycle", () => {

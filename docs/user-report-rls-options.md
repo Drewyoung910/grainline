@@ -10,6 +10,11 @@ scalability. Reverified against exact main
 changed. Resolution storage will separate participant-visible rationale from
 an internal staff note.
 
+Compatible preparation is now implemented and behavior-proven on PostgreSQL
+17 without enabling RLS or revoking predecessor table grants. Production
+preparation and later policyless activation remain separate, serially approved
+release actions.
+
 This comparison follows `docs/user-report-pre-rls-audit.md`. `UserReport` is
 fully private, but its submitted, received, staff, service, export, and deletion
 projections intentionally disclose different fields.

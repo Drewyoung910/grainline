@@ -136,16 +136,17 @@ describe("security lifecycle follow-ups", () => {
     const migration = source("prisma/migrations/20260518180000_add_user_report_resolution_note/migration.sql");
 
     assert.match(schema, /resolutionNote\s+String\?\s+@db\.VarChar\(500\)/);
+    assert.match(schema, /internalResolutionNote\s+String\?\s+@db\.VarChar\(1000\)/);
     assert.match(migration, /ADD COLUMN "resolutionNote" VARCHAR\(500\)/);
-    assert.match(route, /const ReportResolveSchema = z\.object\(\{\s*reason: z\.string\(\)\.min\(1\)\.max\(500\),\s*\}\)/s);
+    assert.match(route, /participantRationale: z\.string\(\)[\s\S]*codePointLength\(value\) <= 500/);
+    assert.match(route, /internalNote: z\.string\(\)[\s\S]*codePointLength\(value\) <= 1000/);
     assert.match(route, /readBoundedJson\(req, ADMIN_REPORT_RESOLVE_BODY_MAX_BYTES\)/);
-    assert.match(route, /const resolutionNote = truncateText\(sanitizeText\(body\.reason\), 500\)/);
-    assert.match(route, /data: \{ resolved: true, resolvedAt: new Date\(\), resolvedById: admin\.id, resolutionNote \}/);
-    assert.match(route, /resolutionNoteStored: true/);
-    assert.match(route, /resolutionNoteLength: resolutionNote\.length/);
-    assert.doesNotMatch(route, /metadata: \{ resolutionNote \}/);
-    assert.match(button, /Resolution reason/);
-    assert.match(button, /body: JSON\.stringify\(\{ reason: trimmedReason \}\)/);
+    assert.match(route, /const participantRationale = truncateText\(sanitizeText\(body\.participantRationale\), 500\)/);
+    assert.match(route, /resolveUserReport\(getOrderStaffReadClient\(\), \{/);
+    assert.match(button, /Resolution explanation shown to both people/);
+    assert.match(button, /Internal staff note \(optional\)/);
+    assert.match(button, /participantRationale: trimmedRationale/);
+    assert.match(button, /internalNote: internalNote\.trim\(\) \|\| undefined/);
     assert.match(button, /Add a resolution reason before closing the report/);
   });
 
@@ -165,9 +166,9 @@ describe("security lifecycle follow-ups", () => {
     assert.match(deletion, /sellerMetrics\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /sellerRatingSummary\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
     assert.match(deletion, /review\.updateMany\(\{\s*where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \},\s*data: \{ sellerReply: null, sellerReplyAt: null \},\s*\}\)/s);
-    assert.match(deletion, /resolutionNote: \{ not: null \}/);
-    assert.match(deletion, /Resolution note removed after an involved account was deleted\./);
-    assert.match(deletion, /where: \{ reportedId: user\.id, resolved: false \}/);
-    assert.match(deletion, /resolutionNote: "Auto-resolved after the reported account was deleted\."/);
+    assert.match(deletion, /redactUserReportsForAccountDeletion\(tx, \{/);
+    assert.match(deletion, /sideEffectId: localAnonymizeSideEffectId/);
+    assert.match(deletion, /claimGeneration: localClaimGeneration/);
+    assert.match(deletion, /claimToken: localClaimToken/);
   });
 });
