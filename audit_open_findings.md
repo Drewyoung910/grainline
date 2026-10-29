@@ -4144,6 +4144,22 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   merged, green on exact main and separately approved and applied. Replaying
   rejected provider events is a later, separate operation.
 
+## 2026-10-27 — C-1175/C-1176 email outbox failure classification
+
+- **[VERIFIED; FIX PREPARED; NOT YET DEPLOYED]** The predecessor classified
+  every error object with a string `code` as `provider_rejected`, including
+  Prisma query/pool errors and PostgreSQL SQLSTATEs. It also classified missing
+  provider/unsubscribe configuration plus provider account-level 401/403/422
+  responses into immediate terminal classes. The candidate isolates the pure
+  classifier and keeps those operational failures retryable while preserving
+  immediate terminal handling for locally proven invalid payloads and
+  definitive non-transient provider 4xx responses. A behavior-first test fails
+  against the predecessor classifications and passes for Prisma P2010/P2024,
+  PostgreSQL 40P01, provider configuration/account errors, transient provider
+  failures, invalid local payloads and a definitive provider 400 response.
+  This app correction does not by itself release the pending email migration or
+  close C-1174/C-1177/C-1178/C-1185.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
