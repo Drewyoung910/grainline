@@ -29,6 +29,12 @@ test("Favorite activation keeps guarded add as the only runtime insert boundary"
     /GRANT (?:INSERT|UPDATE|SELECT, INSERT|SELECT, UPDATE)[^;]*ON TABLE public\."Favorite"/u,
   );
   assert.doesNotMatch(migration, /DROP\s+(?:TABLE|COLUMN)/iu);
+  assert.doesNotMatch(migration, /grainline_favorite_block_cleanup/u);
+  assert.match(migration, /Listing_favoriteCount_guard/u);
+  assert.match(migration, /grainline_listing_favorite_count_guard/u);
+  assert.match(migration, /trigger_state\.tgattr::smallint\[\][\s\S]*ARRAY\['favoriteCount'\]::text\[\]/u);
+  assert.match(migration, /cd8aafa21436851fdddb0cd24b3dcec9/u);
+  assert.match(migration, /AND NOT procedure\.prosecdef/u);
   for (const identity of [
     "grainline_notification_create_core",
     "grainline_order_seller_analytics_top_listings",

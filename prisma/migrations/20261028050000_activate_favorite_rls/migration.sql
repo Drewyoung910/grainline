@@ -19,6 +19,7 @@ DO $grainline_favorite_rls_preflight$
 DECLARE
   runtime_oid oid;
   table_oid oid;
+  listing_oid oid;
   table_owner oid;
   current_role_oid oid;
   reviewed_function text;
@@ -59,6 +60,16 @@ BEGIN
      AND class.relkind = 'r';
   IF table_oid IS NULL THEN
     RAISE EXCEPTION 'public.Favorite is missing';
+  END IF;
+  SELECT class.oid INTO listing_oid
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'Listing'
+     AND class.relkind = 'r';
+  IF listing_oid IS NULL THEN
+    RAISE EXCEPTION 'public.Listing is missing';
   END IF;
   SELECT oid INTO current_role_oid
     FROM pg_catalog.pg_roles
@@ -290,6 +301,56 @@ BEGIN
     RAISE EXCEPTION 'Favorite preparation triggers drifted';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger AS trigger_state
+     WHERE trigger_state.tgrelid = listing_oid
+       AND trigger_state.tgname = 'Listing_favoriteCount_guard'
+       AND trigger_state.tgtype = 19
+       AND trigger_state.tgenabled = 'O'
+       AND NOT trigger_state.tgisinternal
+       AND (
+         SELECT pg_catalog.array_agg(
+                  attribute.attname::text ORDER BY target_column.ordinality
+                )
+           FROM pg_catalog.unnest(
+                  trigger_state.tgattr::smallint[]
+                ) WITH ORDINALITY AS target_column(attnum, ordinality)
+           JOIN pg_catalog.pg_attribute AS attribute
+             ON attribute.attrelid = listing_oid
+            AND attribute.attnum = target_column.attnum
+            AND NOT attribute.attisdropped
+       ) = ARRAY['favoriteCount']::text[]
+       AND trigger_state.tgfoid = pg_catalog.to_regprocedure(
+         'public.grainline_listing_favorite_count_guard()'
+       )
+  ) OR NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+     WHERE procedure.oid = pg_catalog.to_regprocedure(
+             'public.grainline_listing_favorite_count_guard()'
+           )
+       AND procedure.proowner = table_owner
+       AND NOT procedure.prosecdef
+       AND procedure.prokind = 'f'
+       AND procedure.provolatile = 'v'
+       AND procedure.proparallel = 'u'
+       AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+       AND pg_catalog.md5(procedure.prosrc) = 'cd8aafa21436851fdddb0cd24b3dcec9'
+       AND (owner.rolsuper OR owner.rolbypassrls)
+  ) OR pg_catalog.has_function_privilege(
+    0,
+    'public.grainline_listing_favorite_count_guard()'::pg_catalog.regprocedure,
+    'EXECUTE'
+  ) OR pg_catalog.has_function_privilege(
+    'grainline_app_runtime',
+    'public.grainline_listing_favorite_count_guard()'::pg_catalog.regprocedure,
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Listing favorite-count guard drifted';
+  END IF;
+
   FOR reviewed_function, expected_source_md5, expected_volatility,
       expected_parallel, expected_runtime_execute IN
     SELECT expected.identity, expected.source_md5, expected.volatility,
@@ -305,7 +366,6 @@ BEGIN
         ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '2cafa9f5961bde65ff0894db12e1412c', 's'::"char", 'u'::"char", true),
         ('public.grainline_favorite_seller_listing_cleanup(text)', '7b82d4570b291fd2f255a68eb1fe8491', 'v'::"char", 'u'::"char", true),
         ('public.grainline_favorite_admin_listing_cleanup(text)', '07c9daa3c05502d4cb4594e55c9eb183', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_block_cleanup(text)', '07c0b8e2f04721ee973a3e0a529c5be0', 'v'::"char", 'u'::"char", true),
         ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", 'u'::"char", false),
         ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char", true),
         ('public.grainline_seller_owner_saved_listing_count()', 'af665497cf9f8402f7aee00c18eec77e', 's'::"char", 'u'::"char", true),
@@ -349,7 +409,6 @@ BEGIN
        AND procedure.prosrc LIKE '%public."Favorite"%'
        AND procedure.oid <> ALL (ARRAY[
          pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)'),
-         pg_catalog.to_regprocedure('public.grainline_favorite_block_cleanup(text)'),
          pg_catalog.to_regprocedure('public.grainline_favorite_owner_add(text)'),
          pg_catalog.to_regprocedure('public.grainline_favorite_owner_delete_all(text)'),
          pg_catalog.to_regprocedure('public.grainline_favorite_owner_export()'),
@@ -438,6 +497,7 @@ DO $grainline_favorite_rls_postflight$
 DECLARE
   runtime_oid oid;
   table_oid oid;
+  listing_oid oid;
   table_owner oid;
   reviewed_function text;
   expected_source_md5 text;
@@ -457,8 +517,15 @@ BEGIN
    WHERE namespace.nspname = 'public'
      AND class.relname = 'Favorite'
      AND class.relkind = 'r';
+  SELECT class.oid INTO listing_oid
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'Listing'
+     AND class.relkind = 'r';
 
-  IF table_oid IS NULL OR NOT EXISTS (
+  IF table_oid IS NULL OR listing_oid IS NULL OR NOT EXISTS (
     SELECT 1
       FROM pg_catalog.pg_class
      WHERE oid = table_oid
@@ -531,6 +598,56 @@ BEGIN
     RAISE EXCEPTION 'Favorite table ACL drifted';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger AS trigger_state
+     WHERE trigger_state.tgrelid = listing_oid
+       AND trigger_state.tgname = 'Listing_favoriteCount_guard'
+       AND trigger_state.tgtype = 19
+       AND trigger_state.tgenabled = 'O'
+       AND NOT trigger_state.tgisinternal
+       AND (
+         SELECT pg_catalog.array_agg(
+                  attribute.attname::text ORDER BY target_column.ordinality
+                )
+           FROM pg_catalog.unnest(
+                  trigger_state.tgattr::smallint[]
+                ) WITH ORDINALITY AS target_column(attnum, ordinality)
+           JOIN pg_catalog.pg_attribute AS attribute
+             ON attribute.attrelid = listing_oid
+            AND attribute.attnum = target_column.attnum
+            AND NOT attribute.attisdropped
+       ) = ARRAY['favoriteCount']::text[]
+       AND trigger_state.tgfoid = pg_catalog.to_regprocedure(
+         'public.grainline_listing_favorite_count_guard()'
+       )
+  ) OR NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+     WHERE procedure.oid = pg_catalog.to_regprocedure(
+             'public.grainline_listing_favorite_count_guard()'
+           )
+       AND procedure.proowner = table_owner
+       AND NOT procedure.prosecdef
+       AND procedure.prokind = 'f'
+       AND procedure.provolatile = 'v'
+       AND procedure.proparallel = 'u'
+       AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+       AND pg_catalog.md5(procedure.prosrc) = 'cd8aafa21436851fdddb0cd24b3dcec9'
+       AND (owner.rolsuper OR owner.rolbypassrls)
+  ) OR pg_catalog.has_function_privilege(
+    0,
+    'public.grainline_listing_favorite_count_guard()'::pg_catalog.regprocedure,
+    'EXECUTE'
+  ) OR pg_catalog.has_function_privilege(
+    'grainline_app_runtime',
+    'public.grainline_listing_favorite_count_guard()'::pg_catalog.regprocedure,
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Listing favorite-count guard drifted after activation';
+  END IF;
+
   FOR reviewed_function, expected_source_md5, expected_volatility,
       expected_parallel, expected_runtime_execute IN
     SELECT expected.identity, expected.source_md5, expected.volatility,
@@ -546,7 +663,6 @@ BEGIN
         ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '2cafa9f5961bde65ff0894db12e1412c', 's'::"char", 'u'::"char", true),
         ('public.grainline_favorite_seller_listing_cleanup(text)', '7b82d4570b291fd2f255a68eb1fe8491', 'v'::"char", 'u'::"char", true),
         ('public.grainline_favorite_admin_listing_cleanup(text)', '07c9daa3c05502d4cb4594e55c9eb183', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_block_cleanup(text)', '07c0b8e2f04721ee973a3e0a529c5be0', 'v'::"char", 'u'::"char", true),
         ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", 'u'::"char", false),
         ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char", true),
         ('public.grainline_seller_owner_saved_listing_count()', 'af665497cf9f8402f7aee00c18eec77e', 's'::"char", 'u'::"char", true),
@@ -587,7 +703,6 @@ BEGIN
        AND procedure.prosrc LIKE '%public."Favorite"%'
        AND procedure.oid <> ALL (ARRAY[
          pg_catalog.to_regprocedure('public.grainline_favorite_admin_listing_cleanup(text)'),
-         pg_catalog.to_regprocedure('public.grainline_favorite_block_cleanup(text)'),
          pg_catalog.to_regprocedure('public.grainline_favorite_owner_add(text)'),
          pg_catalog.to_regprocedure('public.grainline_favorite_owner_delete_all(text)'),
          pg_catalog.to_regprocedure('public.grainline_favorite_owner_export()'),
