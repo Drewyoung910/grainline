@@ -107,6 +107,10 @@ const emailProviderDeletionFenceMigration =
   "20261025020000_fence_email_provider_and_account_deletion";
 const emailProviderEligibilityFenceMigration =
   "20261025030000_fence_email_provider_and_eligibility_changes";
+const emailOutboxContractCorrectionMigration =
+  "20261027020000_correct_email_outbox_contracts";
+const emailEligibilityLockOrderCorrectionMigration =
+  "20261027030000_correct_email_eligibility_lock_order";
 const stockNotificationPreparationMigration =
   "20261026010000_prepare_stock_notification_authorities";
 const reviewVotePreparationMigration =
@@ -765,6 +769,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${emailProviderDeletionFenceMigration}/migration.sql`;
     const emailProviderEligibilityFencePath =
       `prisma/migrations/${emailProviderEligibilityFenceMigration}/migration.sql`;
+    const emailOutboxContractCorrectionPath =
+      `prisma/migrations/${emailOutboxContractCorrectionMigration}/migration.sql`;
+    const emailEligibilityLockOrderCorrectionPath =
+      `prisma/migrations/${emailEligibilityLockOrderCorrectionMigration}/migration.sql`;
     const stockNotificationPreparationPath =
       `prisma/migrations/${stockNotificationPreparationMigration}/migration.sql`;
     const reviewVotePreparationPath =
@@ -782,6 +790,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       ...emailDeliveryLedgerCandidateTests.map((file) => `tests/${file}`),
       emailProviderDeletionFencePath,
       emailProviderEligibilityFencePath,
+      emailOutboxContractCorrectionPath,
+      emailEligibilityLockOrderCorrectionPath,
       stockNotificationPreparationPath,
       reviewVotePreparationPath,
       "prisma/schema.prisma",
@@ -809,6 +819,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       path.join(sellerPublicTestHolding, "db-grant-inventory.test.mjs"),
     );
     rmSync(path.join(root, "tests", "db-grant-inventory.test.mjs"));
+    execFileSync("bash", ["-c", bashBody("Isolate email eligibility lock-order correction until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate email outbox contract correction until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email provider/eligibility fence until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email provider/account-deletion fence until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SavedBlogPost RLS candidate until historical release guards pass")], { cwd: root, env: scriptEnv });
@@ -840,6 +852,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, emailDeliveryLedgerCandidatePath)), false);
     assert.equal(existsSync(path.join(root, emailProviderDeletionFencePath)), false);
     assert.equal(existsSync(path.join(root, emailProviderEligibilityFencePath)), false);
+    assert.equal(existsSync(path.join(root, emailOutboxContractCorrectionPath)), false);
+    assert.equal(existsSync(path.join(root, emailEligibilityLockOrderCorrectionPath)), false);
     assert.equal(existsSync(path.join(root, stockNotificationPreparationPath)), false);
     assert.equal(existsSync(path.join(root, reviewVotePreparationPath)), false);
     assert.ok(emailDeliveryLedgerCandidateTests.every(
@@ -853,7 +867,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         migration !== "20261007155000_correct_user_clerk_identity_placeholder")
       .flatMap(({ functions }) => functions.map(({ name }) => name));
     const historical = deriveGrantInventory(root);
-    assert.ok(heldFunctions.every((name) => !historical.functions.includes(name)));
+    assert.deepEqual(
+      heldFunctions.filter((name) => historical.functions.includes(name)),
+      [],
+    );
     mkdirSync(path.join(holding, "user-staff-admin-labels"));
     mkdirSync(path.join(holding, "user-follower-authority"));
     execFileSync("bash", ["-c", bashBody("Prepare SellerProfile public predecessor schema for historical audit replay")], { cwd: root, env: scriptEnv });
@@ -904,6 +921,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/account-deletion fence after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/eligibility fence after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore email outbox contract correction after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore email eligibility lock-order correction after historical release guards")], { cwd: root, env: scriptEnv });
     for (const [index, relative] of trackedPaths.entries()) {
       if (relative !== catalogPath) assert.equal(hash(relative), original[index], relative);
     }
