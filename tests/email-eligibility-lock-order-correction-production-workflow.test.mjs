@@ -12,6 +12,8 @@ import {
   MIGRATION,
   MIGRATION_SHA256,
   OUTBOX_CORRECTION_MIGRATION,
+  RESEND_RECOVERY_MIGRATION,
+  RESEND_RECOVERY_SHA256,
   STOCK_NOTIFICATION_MIGRATION,
   databaseClientOptions,
   expectedPendingMigrations,
@@ -175,6 +177,17 @@ test("lock-order correction applies one exact successor after the outbox correct
   );
   assert.match(workflow, new RegExp(MIGRATION_SHA256, "u"));
   assert.equal(REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(MIGRATION), MIGRATION_SHA256);
+  const resendRecoverySql = readFileSync(
+    path.join(
+      process.env.RESEND_WEBHOOK_RECEIPT_RECOVERY_MIGRATION_PATH
+        ?? `prisma/migrations/${RESEND_RECOVERY_MIGRATION}`,
+      "migration.sql",
+    ),
+  );
+  assert.equal(
+    createHash("sha256").update(resendRecoverySql).digest("hex"),
+    RESEND_RECOVERY_SHA256,
+  );
   assert.match(inspectorSource, new RegExp(OUTBOX_CORRECTION_MIGRATION, "u"));
   assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
   assert.equal(expectedPendingMigrations({

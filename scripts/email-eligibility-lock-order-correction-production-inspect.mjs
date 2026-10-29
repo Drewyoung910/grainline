@@ -27,7 +27,7 @@ export const OUTBOX_CORRECTION_SHA256 =
 export const RESEND_RECOVERY_MIGRATION =
   "20261027010000_restore_resend_webhook_receipts";
 export const RESEND_RECOVERY_SHA256 =
-  "c4ccc1d97c42a586e824adbbc575f0c0112fbb3896f169d29a184dfde0eed567";
+  "a765482bfdeca66a82aaa912c5bfc2c6f7bc44b033fea4ace2e5bc40243ad2ba";
 export const STOCK_NOTIFICATION_MIGRATION =
   "20261026010000_prepare_stock_notification_authorities";
 export const STOCK_NOTIFICATION_SHA256 =
