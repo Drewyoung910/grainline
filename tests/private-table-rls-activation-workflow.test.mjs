@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import yaml from "js-yaml";
 
@@ -16,7 +19,11 @@ const bindingScript = parsed.jobs.activate.steps.find(
   (step) => step.name
     === "Bind activation to exact main, preparation, green checks, and compatible app",
 ).with.script;
+const preparationEvidenceScript = parsed.jobs.activate.steps.find(
+  (step) => step.name === "Download accepted preparation evidence",
+).with.script;
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const nodeRequire = createRequire(import.meta.url);
 
 function exactPushRuns(sha, conclusion = "success") {
   return [
@@ -120,6 +127,71 @@ async function runBinding({
   );
 }
 
+async function runPreparationEvidenceDownload({ artifacts } = {}) {
+  const directory = mkdtempSync(join(tmpdir(), "private-preparation-download-"));
+  const outputs = new Map();
+  const runId = 102;
+  const preparationHead = "d".repeat(40);
+  const resolvedArtifacts = artifacts ?? [{
+    id: 301,
+    name: `private-table-preparation-production-${runId}`,
+    expired: false,
+    size_in_bytes: 4,
+  }];
+  const github = {
+    rest: {
+      actions: {
+        getWorkflowRun: async () => ({
+          data: {
+            name: "Private Table Preparation Production",
+            path: ".github/workflows/private-table-preparation-production.yml",
+            event: "workflow_dispatch",
+            head_branch: "main",
+            head_sha: preparationHead,
+            run_attempt: 1,
+            status: "completed",
+            conclusion: "success",
+          },
+        }),
+        listWorkflowRunArtifacts: () => {},
+        downloadArtifact: async ({ artifact_id: artifactId }) => {
+          assert.equal(artifactId, 301);
+          return { data: Uint8Array.from([0x50, 0x4b, 0x03, 0x04]) };
+        },
+      },
+    },
+    paginate: async () => resolvedArtifacts,
+  };
+  try {
+    await new AsyncFunction(
+      "github",
+      "context",
+      "process",
+      "core",
+      "require",
+      preparationEvidenceScript,
+    )(
+      github,
+      { repo: { owner: "test", repo: "grainline" } },
+      {
+        env: {
+          REVIEWED_PREPARATION_RUN_ID: String(runId),
+          RUNNER_TEMP: directory,
+        },
+      },
+      { setOutput: (name, value) => outputs.set(name, value) },
+      nodeRequire,
+    );
+    assert.deepEqual(
+      [...readFileSync(outputs.get("archive"))],
+      [0x50, 0x4b, 0x03, 0x04],
+    );
+    assert.equal(outputs.get("preparation_commit"), preparationHead);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 test("workflow binds one reviewed activation to exact main and Production", async () => {
   assert.ok(parsed.on.workflow_dispatch);
   assert.equal(parsed.concurrency.group, "production-database-migrations");
@@ -137,6 +209,18 @@ test("workflow binds one reviewed activation to exact main and Production", asyn
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(workflow, /REVIEWED_SUPERSEDED_DEPLOYMENT_ID/u);
   assert.match(workflow, /predecessorToApp\.data\.status !== 'ahead'/u);
+  assert.match(workflow, /listWorkflowRunArtifacts/u);
+  assert.match(workflow, /downloadArtifact/u);
+  assert.match(workflow, /private-table-preparation-production-\$\{runId\}/u);
+  assert.match(workflow, /private-table-preparation-evidence-verify\.mjs/u);
+  assert.doesNotThrow(() => new AsyncFunction(
+    "github",
+    "context",
+    "process",
+    "core",
+    "require",
+    preparationEvidenceScript,
+  ));
   await assert.doesNotReject(runBinding());
 });
 
@@ -148,6 +232,14 @@ test("workflow rejects red exact-main proofs and invalid ancestry", async () => 
   await assert.rejects(
     runBinding({ minimumAncestry: "diverged" }),
     /ancestry drifted/u,
+  );
+});
+
+test("workflow downloads one exact non-expired preparation artifact", async () => {
+  await assert.doesNotReject(runPreparationEvidenceDownload());
+  await assert.rejects(
+    runPreparationEvidenceDownload({ artifacts: [] }),
+    /evidence artifact is absent or ambiguous/u,
   );
 });
 
@@ -167,12 +259,14 @@ test("workflow is sole-pending, restart-aware, readback-bound, and evidence-reta
   assert.match(workflow, /if: always\(\)[\s\S]*actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   const source = workflow.indexOf("Verify reviewed private-table activation source before owner access");
+  const evidence = workflow.indexOf("Bind activation to accepted preparation evidence");
   const deployment = workflow.indexOf("Verify exact compatible deployment is live");
   const boundary = workflow.indexOf("Verify owner connection boundary");
   const preflight = workflow.indexOf("Inspect restart-safe private-table state");
   const apply = workflow.indexOf("Apply reviewed private-table activation outside Prisma's ledger");
   const resolve = workflow.indexOf("Record the committed private-table activation in Prisma's ledger");
   const postflight = workflow.indexOf("Read back exact private-table RLS catalog");
+  assert.ok(evidence >= 0 && evidence < source);
   assert.ok(source >= 0 && source < deployment && deployment < boundary && boundary < preflight);
   assert.ok(preflight < apply && apply < resolve && resolve < postflight);
 });
