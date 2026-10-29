@@ -322,6 +322,21 @@ test("C-1180 workflow resumes after committed DDL without executing it twice", (
   );
 });
 
+test("C-1180 postflight does not assume the owner can SET ROLE to runtime", () => {
+  assert.doesNotMatch(
+    inspectorSource,
+    /SET(?: LOCAL)? ROLE grainline_app_runtime/u,
+  );
+  assert.match(
+    inspectorSource,
+    /INSERT INTO public\."ResendWebhookEvent"/u,
+  );
+  assert.match(
+    inspectorSource,
+    /UPDATE public\."ResendWebhookEvent"/u,
+  );
+});
+
 test("C-1180 evidence is always uploaded and never deploys app/provider changes", () => {
   assert.match(
     workflow,
