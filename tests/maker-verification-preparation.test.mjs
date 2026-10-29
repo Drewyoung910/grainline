@@ -160,6 +160,8 @@ test("MakerVerification complete-schema proof is wired into the full-chain job",
   assert.match(fullChain, /connectionString: proofDatabaseUrl/u);
 
   const scenario = source("tools/database-full-chain/scenarios/maker-verification-authorities.mjs");
+  assert.match(scenario, /async function expectSqlState/u);
+  assert.match(scenario, /async function proveOwnerInputAndActorDenials/u);
   assert.match(scenario, /async function proveOwnerStaffLockOrder/u);
   assert.match(scenario, /async function proveOwnerCronLockOrder/u);
   assert.match(scenario, /async function proveStaffPagination/u);
@@ -171,6 +173,7 @@ test("MakerVerification complete-schema proof is wired into the full-chain job",
   assert.match(scenario, /await proveStaffPagination\(\{/u);
   assert.match(scenario, /await proveStaffTransitionMatrix\(\{/u);
   assert.match(scenario, /await proveServiceTransitionMatrix\(\{/u);
+  assert.match(scenario, /await proveOwnerInputAndActorDenials\(\{/u);
   for (const operation of [
     "APPROVE_GUILD_MEMBER",
     "REJECT_GUILD_MEMBER",

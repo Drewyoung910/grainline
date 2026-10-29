@@ -126,11 +126,11 @@ canonical lock order. Its complete-schema proof covers the primary owner/staff
 lifecycle, exact ACLs, deletion, cross-owner denial, 55-row pagination, and both
 owner/staff and owner/cron winner orders.
 
-Activation remains blocked on full input/inactive-user cases, direct-table
-denial after ENABLE+FORCE, and tested predecessor rollback. The staff/service
-transition matrix is now part
-of the complete-schema proof but remains provisional until exact-head
-PostgreSQL 16/17 CI accepts it. The candidate is additive preparation only.
+Activation remains blocked on direct-table denial after ENABLE+FORCE and tested
+predecessor rollback. The staff/service transition matrix and the full
+input/inactive-user matrix are now part of the complete-schema proof but remain
+provisional until exact-head PostgreSQL 16/17 CI accepts them. The candidate is
+additive preparation only.
 
 ## Decision record
 
