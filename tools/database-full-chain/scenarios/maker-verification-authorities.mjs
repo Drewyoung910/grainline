@@ -1117,6 +1117,7 @@ async function proveServiceTransitionMatrix({ database, prefix }) {
     [
       "AUTO_REVOKE_GUILD_MASTER",
       "AUTO_REVOKE_GUILD_MEMBER",
+      "AUTO_REVOKE_GUILD_MEMBER",
       "WARN_GUILD_MASTER_METRICS",
     ],
   );
