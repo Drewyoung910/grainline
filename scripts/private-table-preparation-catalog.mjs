@@ -127,6 +127,99 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  maker_verification_v1: Object.freeze({
+    migration: "20261028040000_prepare_maker_verification_authorities",
+    migrationSha256: "1e60a13d6947139e2a01ef7083e7766310a02dec00ab1d77fd452139c8f91526",
+    table: "MakerVerification",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/maker-verification-preparation.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_guild_staff_transition",
+        arguments: "text, text, text, text, text, boolean",
+        executeRole: "staff",
+        predecessorSourceSha256:
+          "36592c7c9112c6e3dd6262aa41edf9fd19bb17bbf1d942a449fec8d306e80fd7",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_member_revoke",
+        arguments: "text",
+        executeRole: "runtime",
+        predecessorSourceSha256:
+          "5ed7441b6255800532810a6afaa7c16a1ec3f0483e4c1e7543d4a57751e0ea2a",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_metrics_apply",
+        arguments: "text, timestamp without time zone",
+        executeRole: "runtime",
+        predecessorSourceSha256:
+          "7299fca002e46e5451534095ac981621d0e56a1d5cdf97d2949072a1fb97d7ef",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_member_apply",
+        arguments: "text, integer, text, boolean",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_master_apply",
+        arguments: "text, text, boolean",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_export",
+        arguments: "",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_delete_redact",
+        arguments: "timestamp without time zone",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_staff_pending_count",
+        arguments: "text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_staff_pending_page",
+        arguments: "text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_master_pending_count",
+        arguments: "text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_master_pending_page",
+        arguments: "text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_roster_count",
+        arguments: "text, text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_roster_page",
+        arguments: "text, text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {
@@ -198,6 +291,12 @@ export function verifyPrivateTablePreparationSource(
     && !/^[0-9a-f]{64}$/u.test(entry.predecessorSourceSha256)
   ))) {
     throw stopped("predecessor function digest is invalid");
+  }
+  if (release.functions.some((entry) => (
+    (entry.executeRole ?? "runtime") !== "runtime"
+    && entry.executeRole !== "staff"
+  ))) {
+    throw stopped("function execution role is invalid");
   }
   const functionSources = new Map(release.functions.map((entry) => [
     entry.name,

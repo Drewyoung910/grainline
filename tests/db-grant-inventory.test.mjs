@@ -228,6 +228,29 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_block_cleanup",
   "grainline_stock_notification_owner_export",
 ];
+const MAKER_VERIFICATION_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+const MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES = [
+  "grainline_maker_verification_owner_member_apply",
+  "grainline_maker_verification_owner_master_apply",
+  "grainline_maker_verification_owner_export",
+  "grainline_maker_verification_owner_delete_redact",
+];
+const MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES = [
+  "grainline_maker_verification_staff_pending_count",
+  "grainline_maker_verification_staff_pending_page",
+  "grainline_seller_guild_staff_master_pending_count",
+  "grainline_seller_guild_staff_master_pending_page",
+  "grainline_seller_guild_staff_roster_count",
+  "grainline_seller_guild_staff_roster_page",
+  "grainline_seller_guild_staff_transition_prepared_impl",
+  "grainline_seller_guild_member_revoke_prepared_impl",
+  "grainline_seller_guild_metrics_apply_prepared_impl",
+];
+const MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES = [
+  ...MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES,
+  ...MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES,
+];
 const EMAIL_DELIVERY_LEDGER_MIGRATION =
   "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
 const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
@@ -3435,6 +3458,12 @@ describe("database grant inventory guardrails", () => {
       source(STOCK_NOTIFICATION_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const makerVerificationAuthorityPrepared = existsSync(
+      MAKER_VERIFICATION_PREPARATION_MIGRATION,
+    ) && MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(MAKER_VERIFICATION_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3639,6 +3668,9 @@ describe("database grant inventory guardrails", () => {
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(makerVerificationAuthorityPrepared
+        ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
@@ -3701,6 +3733,10 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (stockNotificationAuthorityPrepared
           ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (makerVerificationAuthorityPrepared
+          ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES.length
+            + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
@@ -3809,6 +3845,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(makerVerificationAuthorityPrepared
+        ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES

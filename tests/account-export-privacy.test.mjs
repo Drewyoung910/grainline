@@ -79,7 +79,6 @@ describe("account export privacy coverage", () => {
       "emailSuppression",
       "emailOutbox",
       "emailFailureCount",
-      "makerVerification",
       "sellerFaq",
       "newsletterSubscriber",
       "sellerBroadcast",
@@ -87,6 +86,11 @@ describe("account export privacy coverage", () => {
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
     }
+    assert.match(
+      route,
+      /exportOwnerMakerVerification\(user\.id\)/,
+      "account export must query maker verification through its owner authority",
+    );
     assert.match(
       route,
       /exportOwnerSupportRequests\(user\.id\)/,

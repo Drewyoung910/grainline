@@ -54,6 +54,7 @@ import { proveSellerProfilePublicRecentlyViewedListings } from "../tools/databas
 import { proveSellerProfileOwnerReviewReply } from "../tools/database-full-chain/scenarios/seller-profile-owner-review-reply.mjs";
 import { proveSellerProfilePublicCommissionInterestAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-commission-interest.mjs";
 import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-guild-application.mjs";
+import { proveMakerVerificationPreparedAuthorities } from "../tools/database-full-chain/scenarios/maker-verification-authorities.mjs";
 import { proveSellerProfileOwnerBootstrapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-bootstrap.mjs";
 import { proveSellerProfileStaffReportTargetsAuthority } from "../tools/database-full-chain/scenarios/seller-profile-staff-report-targets.mjs";
 import { proveSellerProfileStaffBroadcastTargets } from "../tools/database-full-chain/scenarios/seller-profile-staff-broadcast-targets.mjs";
@@ -537,6 +538,11 @@ test(
       await proveSellerProfileOwnerGuildApplicationAuthority({
         database: adapter,
         seller: fixture,
+      });
+      await proveMakerVerificationPreparedAuthorities({
+        database: adapter,
+        seller: fixture,
+        connectionString: proofDatabaseUrl,
       });
       await proveSellerProfileOwnerBootstrapAuthority({
         database: adapter,

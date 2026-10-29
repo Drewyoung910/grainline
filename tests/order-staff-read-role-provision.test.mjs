@@ -38,7 +38,7 @@ test("staff-read role convergence requires the restricted login posture", () => 
   assert.match(script, /NOT set_option/u);
 });
 
-test("isolated staff role receives exactly twenty-five reviewed operations and no tables", () => {
+test("isolated staff role receives the reviewed operations and no tables", () => {
   for (const signature of [
     "grainline_order_staff_page_v2\\(text, text, integer, integer\\)",
     "grainline_order_staff_detail_v2\\(text, text\\)",
@@ -71,7 +71,20 @@ test("isolated staff role receives exactly twenty-five reviewed operations and n
       new RegExp(`GRANT EXECUTE ON FUNCTION\\s+public\\.${signature}`, "u"),
     );
   }
-  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 25);
+  for (const signature of [
+    'public."grainline_maker_verification_staff_pending_count"(text)',
+    'public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)',
+    'public."grainline_seller_guild_staff_master_pending_count"(text)',
+    'public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)',
+    'public."grainline_seller_guild_staff_roster_count"(text, text)',
+    'public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)',
+  ]) {
+    assert.match(script, new RegExp(signature.replace(/[()]/gu, "\\$&"), "u"));
+  }
+  assert.match(script, /maker_verification_candidate\(function_signature\)/u);
+  assert.match(script, /candidate_state\.installed_count > 0/u);
+  assert.match(script, /WHERE pg_catalog\.to_regprocedure\(function_signature\) IS NOT NULL;/u);
+  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 26);
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

@@ -111,8 +111,17 @@ function assertFunctionPosture(row, expected, tableOwner) {
   assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
   assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
   assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
-  assert.equal(row.runtime_execute, true, `${identity} runtime EXECUTE is absent`);
-  assert.equal(row.staff_execute, false, `${identity} staff EXECUTE is present`);
+  const executeRole = expected.executeRole ?? "runtime";
+  assert.equal(
+    row.runtime_execute,
+    executeRole === "runtime",
+    `${identity} runtime EXECUTE drifted`,
+  );
+  assert.equal(
+    row.staff_execute,
+    executeRole === "staff",
+    `${identity} staff EXECUTE drifted`,
+  );
   assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
   assert.equal(identity, `${expected.name}(${expected.arguments})`);
   return identity;

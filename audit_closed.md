@@ -20037,3 +20037,16 @@ operations.
   finish the original delivery; pruning them would hide incomplete work.
 - Detailed scope, evidence and release order:
   `docs/email-suppression-recovery-c715.md`.
+
+## 2026-10-28 MakerVerification compatible RLS preparation
+
+- **Isolated candidate only; no Production claim.** The Option B candidate
+  removes all direct application `MakerVerification` delegates, installs
+  actor-bound Member/Master, export/deletion and isolated-staff operations, and
+  serializes retained staff/cron transitions through the canonical Guild lock
+  order. The complete PostgreSQL 17 behavior proof covers primary lifecycle,
+  ACL, deletion, cross-owner and two-session race behavior while RLS remains off
+  and predecessor table grants remain unchanged. Activation is still open for
+  the full staff/service transition matrix, remaining queue pagination, denial
+  and input boundaries, direct-table denial, and predecessor rollback. See
+  `docs/maker-verification-pre-rls-audit.md`.

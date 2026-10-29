@@ -2874,6 +2874,62 @@ FROM (
 WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- MakerVerification preparation keeps predecessor table CRUD until activation.
+-- Converge the four actor-bound owner operations without exposing the isolated
+-- staff queue or the three lock-envelope implementation functions.
+WITH maker_verification_private(function_signature) AS (
+  VALUES
+    ('public."grainline_maker_verification_staff_pending_count"(text)'),
+    ('public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_master_pending_count"(text)'),
+    ('public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
+    ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)'),
+    ('public."grainline_seller_guild_staff_transition_prepared_impl"(text, text, text, text, text, boolean)'),
+    ('public."grainline_seller_guild_member_revoke_prepared_impl"(text)'),
+    ('public."grainline_seller_guild_metrics_apply_prepared_impl"(text, timestamp without time zone)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM maker_verification_private
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH maker_verification_owner(function_signature) AS (
+  VALUES
+    ('public."grainline_maker_verification_owner_member_apply"(text, integer, text, boolean)'),
+    ('public."grainline_maker_verification_owner_master_apply"(text, text, boolean)'),
+    ('public."grainline_maker_verification_owner_export"()'),
+    ('public."grainline_maker_verification_owner_delete_redact"(timestamp without time zone)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM maker_verification_owner
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH maker_verification_owner(function_signature) AS (
+  VALUES
+    ('public."grainline_maker_verification_owner_member_apply"(text, integer, text, boolean)'),
+    ('public."grainline_maker_verification_owner_master_apply"(text, text, boolean)'),
+    ('public."grainline_maker_verification_owner_export"()'),
+    ('public."grainline_maker_verification_owner_delete_redact"(timestamp without time zone)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+FROM maker_verification_owner
+WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Public SellerProfile remains in additive preparation. Converge every fixed
 -- candidate authority that exists, while keeping staff-only operations out of
 -- the ordinary runtime role. This block is intentionally complete so a
