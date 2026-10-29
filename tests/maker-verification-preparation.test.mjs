@@ -3,8 +3,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
+import {
+  verifyPrivateTablePreparationSource,
+} from "../scripts/private-table-preparation-catalog.mjs";
+
 const migrationPath = process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH?.trim()
   || "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+const activationPath = process.env.MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH?.trim()
+  || "prisma/migrations/20261028050000_activate_maker_verification_rls/migration.sql";
 const fullChainTestPath = process.env.DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH?.trim()
   || "tests/database-full-chain-postgres.test.mjs";
 
@@ -35,6 +41,21 @@ test("MakerVerification preparation remains additive and preserves predecessor g
   assert.doesNotMatch(sql, /ALTER TABLE public\."MakerVerification" (?:ENABLE|FORCE) ROW LEVEL SECURITY/u);
   assert.doesNotMatch(sql, /REVOKE [^;]* ON (?:TABLE )?public\."MakerVerification"/u);
   assert.match(sql, /MakerVerification RLS and predecessor table[\s\S]*grants remain unchanged/u);
+});
+
+test("MakerVerification preparation is admitted by the reusable release catalog", () => {
+  const verified = verifyPrivateTablePreparationSource(
+    "maker_verification_v1",
+    process.cwd(),
+    migrationPath,
+  );
+  assert.equal(verified.release.table, "MakerVerification");
+  assert.equal(verified.release.functions.length, 13);
+  assert.equal(
+    verified.release.functions.filter((entry) => entry.executeRole === "staff").length,
+    7,
+  );
+  assert.equal(verified.functionSources.size, 13);
 });
 
 test("MakerVerification preparation installs the exact purpose-bound surface", () => {
@@ -174,6 +195,8 @@ test("MakerVerification complete-schema proof is wired into the full-chain job",
   assert.match(scenario, /await proveStaffTransitionMatrix\(\{/u);
   assert.match(scenario, /await proveServiceTransitionMatrix\(\{/u);
   assert.match(scenario, /await proveOwnerInputAndActorDenials\(\{/u);
+  assert.match(scenario, /await proveActivationRollbackRoundTrip\(database\)/u);
+  assert.match(scenario, /await assertActivatedDirectDenials\(database\)/u);
   for (const operation of [
     "APPROVE_GUILD_MEMBER",
     "REJECT_GUILD_MEMBER",
@@ -187,4 +210,34 @@ test("MakerVerification complete-schema proof is wired into the full-chain job",
   assert.match(scenario, /grainline_seller_guild_staff_transition_prepared_impl/u);
   assert.match(scenario, /grainline_seller_guild_member_revoke_prepared_impl/u);
   assert.match(scenario, /grainline_seller_guild_metrics_apply_prepared_impl/u);
+});
+
+test("MakerVerification activation is policyless, zero-direct, and rollbackable", () => {
+  const activation = source(activationPath);
+  const rollback = source(
+    "docs/rls-drafts/maker-verification-activation-rollback.sql",
+  );
+  assert.match(
+    activation,
+    /ALTER TABLE public\."MakerVerification" ENABLE ROW LEVEL SECURITY/u,
+  );
+  assert.match(
+    activation,
+    /ALTER TABLE public\."MakerVerification" FORCE ROW LEVEL SECURITY/u,
+  );
+  assert.match(
+    activation,
+    /REVOKE ALL PRIVILEGES ON TABLE public\."MakerVerification"/u,
+  );
+  assert.doesNotMatch(activation, /CREATE\s+POLICY/iu);
+  assert.doesNotMatch(activation, /DROP\s+(?:TABLE|COLUMN|FUNCTION)/iu);
+  assert.match(
+    rollback,
+    /GRANT SELECT, INSERT, UPDATE, DELETE\s+ON TABLE public\."MakerVerification"/u,
+  );
+  assert.match(
+    rollback,
+    /ALTER TABLE public\."MakerVerification" DISABLE ROW LEVEL SECURITY/u,
+  );
+  assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION)/iu);
 });

@@ -230,6 +230,8 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
 ];
 const MAKER_VERIFICATION_PREPARATION_MIGRATION =
   "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+const MAKER_VERIFICATION_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261028050000_activate_maker_verification_rls/migration.sql";
 const MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES = [
   "grainline_maker_verification_owner_member_apply",
   "grainline_maker_verification_owner_master_apply",
@@ -3464,6 +3466,11 @@ describe("database grant inventory guardrails", () => {
       source(MAKER_VERIFICATION_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const makerVerificationActivationPresent = existsSync(
+      MAKER_VERIFICATION_ACTIVATION_MIGRATION,
+    ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
+    );
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3738,6 +3745,7 @@ describe("database grant inventory guardrails", () => {
           ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES.length
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
+        + (makerVerificationActivationPresent ? 1 : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
@@ -4174,6 +4182,7 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
@@ -4226,6 +4235,7 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
@@ -5756,12 +5766,16 @@ describe("database grant inventory guardrails", () => {
     const cartCartItemProvisioningPresent = provision.includes(
       "grainline_cart_rls_active",
     );
+    const makerVerificationProvisioningPresent = provision.includes(
+      "maker_verification_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
         + Number(supportRequestProvisioningPresent)
         + Number(savedBlogPostProvisioningPresent)
-        + Number(cartCartItemProvisioningPresent),
+        + Number(cartCartItemProvisioningPresent)
+        + Number(makerVerificationProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5805,6 +5819,16 @@ describe("database grant inventory guardrails", () => {
           ),
         );
       }
+    }
+    if (makerVerificationProvisioningPresent) {
+      assert.match(
+        provision,
+        /MakerVerification RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :maker_verification_rls_active[\s\S]*REVOKE ALL ON TABLE public\."MakerVerification"\s+FROM PUBLIC, :"runtime_role"/,
+      );
     }
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,

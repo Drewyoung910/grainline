@@ -481,6 +481,66 @@ REVOKE ALL ON TABLE public."SupportRequest"
 \endif
 \unset support_request_rls_active
 
+-- MakerVerification keeps compatible predecessor CRUD only while RLS is
+-- cleanly off. The reviewed activation is policyless ENABLE plus FORCE, so a
+-- provisioning replay must preserve zero direct table authority afterwards.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'MakerVerification'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(
+        relrowsecurity AND relforcerowsecurity AND policy_count = 0
+      ) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'MakerVerification RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS maker_verification_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_maker_verification_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_maker_verification_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :maker_verification_rls_active
+REVOKE ALL ON TABLE public."MakerVerification"
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset maker_verification_rls_active
+
 -- OrderItem and OrderShippingRateQuote remain separate from the Core Order RLS
 -- release, but the application no longer needs ordinary table access. Preserve
 -- predecessor grants until the exact runtime-lock migration is durably applied;

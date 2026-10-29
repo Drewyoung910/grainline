@@ -114,6 +114,7 @@ export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote";
 export const USER_TABLE = "User";
 export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 export const SUPPORT_REQUEST_TABLE = "SupportRequest";
+export const MAKER_VERIFICATION_TABLE = "MakerVerification";
 export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
 export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
@@ -1486,6 +1487,18 @@ export function supportRequestRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(SUPPORT_REQUEST_TABLE);
 }
 
+export function makerVerificationRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(MAKER_VERIFICATION_TABLE)
+    && !policies.has(MAKER_VERIFICATION_TABLE);
+}
+
+export function makerVerificationRlsForceExpected(inventory) {
+  return makerVerificationRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(MAKER_VERIFICATION_TABLE);
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -1931,6 +1944,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(userRlsActivationExpected(inventory) ? [USER_TABLE] : []),
     ...(supportRequestRlsActivationExpected(inventory)
       ? [SUPPORT_REQUEST_TABLE]
+      : []),
+    ...(makerVerificationRlsActivationExpected(inventory)
+      ? [MAKER_VERIFICATION_TABLE]
       : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
@@ -2956,6 +2972,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && supportRequestRlsActivationExpected(inventory)
     )
     || (
+      tableName === MAKER_VERIFICATION_TABLE
+      && makerVerificationRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3038,6 +3058,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? userRlsForceExpected(inventory)
         : tableName === SUPPORT_REQUEST_TABLE
           ? supportRequestRlsForceExpected(inventory)
+        : tableName === MAKER_VERIFICATION_TABLE
+          ? makerVerificationRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE
