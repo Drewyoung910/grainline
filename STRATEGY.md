@@ -3555,6 +3555,13 @@ route cannot double-update the scalar. Activation remains separately blocked
 on policy/grant denial, hard User-delete cascade, cross-owner/race coverage,
 rollback, and explicit release authorization.
 
+The separate isolated activation candidate adds the delete-side maintenance
+trigger only after predecessor traffic is drained, retains owner-only `SELECT`,
+removes direct mutations, and exercises hard-delete, denial, rollback,
+predecessor concurrency and reactivation behavior. Exact-head PostgreSQL 17 CI,
+independent review and explicit release authorization remain separate gates;
+no Production workflow is part of the candidate.
+
 ### MakerVerification compatible RLS preparation (2026-10-28)
 
 MakerVerification uses policyless Option B because applicant evidence, staff

@@ -1,9 +1,9 @@
 # ReviewVote pre-RLS domain audit
 
 Date: 2026-10-28  
-Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`  
-Decision: **A2 compatible preparation candidate is implemented and proven on
-the complete PostgreSQL 17 chain; NO-GO remains for RLS or grant activation.**
+Source: `adcfdde69a8c5651b30532ba15b161e218300f46`
+Decision: **A2 activation candidate is implemented in isolation; NO-GO remains
+for merge, deployment, Production activation, or any release workflow.**
 
 This is a product, functionality, authority, privacy, concurrency, lifecycle,
 scale, recovery, and rollback audit. It is not Production authorization.
@@ -248,11 +248,20 @@ app deployment. The candidate instead makes each reviewed writer reconcile the
 exact scalar; activation may add cascade maintenance only after the predecessor
 is no longer eligible to serve traffic.
 
-Status: `COMPATIBLE_CANDIDATE`. The preparation fixes RV-RLS-1, RV-RLS-2,
-RV-RLS-3, RV-RLS-5, RV-RLS-6, and the executed-proof portion of RV-RLS-7.
-RV-RLS-4 remains an activation gate for hard User-delete cascade maintenance.
-Activation also still needs the owner policy, direct runtime mutation denial,
-cross-owner proof, rollback/reactivation proof, and the remaining availability
-race matrix. `NO-GO` remains for an RLS/grant migration, merge, deployment, or
-any Production operation.
+Status: `ACTIVATION_CANDIDATE`. The compatible preparation fixes RV-RLS-1,
+RV-RLS-2, RV-RLS-3, RV-RLS-5, RV-RLS-6, and the executed-proof portion of
+RV-RLS-7. The isolated activation candidate closes RV-RLS-4 with an exact
+delete-side count-maintenance trigger installed only after predecessor traffic
+is drained. It adds one owner-only `SELECT` policy, removes direct runtime
+mutation authority, and retains the three actor-bound fixed operations.
+
+The candidate proof now covers owner, cross-owner and missing-context reads;
+direct runtime `INSERT`, `UPDATE` and `DELETE` denial; hard User-delete and
+Review-delete cascades; exact catalog and function-owner posture; emergency
+rollback to predecessor CRUD; predecessor mixed-version serialization after
+rollback; and clean reactivation. The exact activation, rollback and
+reactivation SQL also executes on pinned PGlite 0.4.3. Exact-head full-chain
+PostgreSQL 17 CI and independent diff review remain required before this can
+be considered releasable. No Production workflow is included. `NO-GO` remains
+for merge, deployment, Production activation, or any Production operation.
 

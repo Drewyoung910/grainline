@@ -1,7 +1,7 @@
 # ReviewVote RLS options
 
 Date: 2026-10-28  
-Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
+Source: `adcfdde69a8c5651b30532ba15b161e218300f46`
 
 `ReviewVote` stores a private relationship between one voter and one review.
 The public product consumes only `Review.helpfulCount`; it never needs the
@@ -32,8 +32,11 @@ review/listing/seller eligibility before retaining target locks. It does not
 install a general count trigger:
 the predecessor route still increments/decrements the scalar itself, so doing
 that before predecessor traffic is drained would double-count. The final
-activation must close hard User-delete cascade maintenance, install the owner
-policy, revoke direct mutations, and pass the denial/rollback matrix.
+activation candidate now installs delete-side count maintenance only after the
+predecessor is drained, installs the exact owner `SELECT` policy, revokes direct
+mutations, and exercises the denial, hard-delete, rollback and reactivation
+matrix. Exact-head full-chain PostgreSQL 17 CI and independent review remain
+gates. No release or Production workflow is included.
 
 This decision authorizes isolated preparation only. It does not authorize an
 RLS migration, grant change, merge, deployment, or Production action. See
