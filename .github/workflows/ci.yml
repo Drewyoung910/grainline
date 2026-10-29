@@ -450,6 +450,8 @@ jobs:
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+          echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6959,6 +6961,8 @@ jobs:
           rmdir "$holding/migrations" "$holding"
           echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
