@@ -244,6 +244,20 @@ test("Follow preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("ReviewVote preparation is byte-sealed and remains compatible", () => {
+  const reviewVote = verifyPrivateTablePreparationSource("review_vote_v1");
+  assert.equal(reviewVote.release.table, "ReviewVote");
+  assert.equal(reviewVote.functionSources.size, 3);
+  assert.deepEqual(reviewVote.release.addedColumns, []);
+  const sql = readFileSync(reviewVote.migrationPath, "utf8");
+  assert.match(sql, /grainline_review_vote_owner_toggle/u);
+  assert.match(sql, /grainline_review_vote_insert_guard/u);
+  assert.match(sql, /grainline_review_vote_update_forbidden/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -321,6 +335,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "stock_notification_v1",
     "favorite_v1",
     "follow_v1",
+    "review_vote_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -341,7 +356,13 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.ok(parsed.on.workflow_dispatch);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    ["support_request_v1", "stock_notification_v1", "favorite_v1", "follow_v1"],
+    [
+      "support_request_v1",
+      "stock_notification_v1",
+      "favorite_v1",
+      "follow_v1",
+      "review_vote_v1",
+    ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(PRIVATE_TABLE_PREPARATION_CONFIRMATION, "u"));
