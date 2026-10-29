@@ -360,7 +360,7 @@ jobs:
           holding="$RUNNER_TEMP/maker-verification-preparation"
           mkdir -p "$holding/migrations"
           preparation=20261028040000_prepare_maker_verification_authorities
-          activation=20261028050000_activate_maker_verification_rls
+          activation=20261028080000_activate_maker_verification_rls
           mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           echo "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
@@ -6843,7 +6843,7 @@ jobs:
           set -euo pipefail
           holding="$RUNNER_TEMP/maker-verification-preparation"
           preparation=20261028040000_prepare_maker_verification_authorities
-          activation=20261028050000_activate_maker_verification_rls
+          activation=20261028080000_activate_maker_verification_rls
           mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
           mv "$holding/migrations/$activation" "prisma/migrations/$activation"
           rmdir "$holding/migrations" "$holding"

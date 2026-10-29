@@ -61,7 +61,7 @@ async function proveActivationRollbackRoundTrip(database) {
     "utf8",
   );
   const activationSql = readFileSync(
-    "prisma/migrations/20261028050000_activate_maker_verification_rls/migration.sql",
+    "prisma/migrations/20261028080000_activate_maker_verification_rls/migration.sql",
     "utf8",
   );
   await database.query(rollbackSql);
