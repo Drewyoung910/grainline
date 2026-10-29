@@ -1,6 +1,13 @@
 -- Database-first emergency rollback for the combined policyless
--- MakerVerification ENABLE/FORCE activation. Run only after the predecessor
--- application is live. This restores predecessor CRUD before disabling RLS.
+-- MakerVerification ENABLE/FORCE activation. Run this database step while the
+-- compatible fixed-operation application remains live; it restores predecessor
+-- CRUD before disabling RLS, and that application remains valid with the wider
+-- predecessor grants. After this transaction and its readback succeed, record
+-- the activation ledger reversal with:
+--   npx prisma migrate resolve --rolled-back \
+--     20261028080000_activate_maker_verification_rls
+-- Only then redeploy the predecessor application if application rollback is
+-- still required. Never put the predecessor application live before this SQL.
 
 BEGIN;
 

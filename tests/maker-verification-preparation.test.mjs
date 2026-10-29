@@ -247,5 +247,14 @@ test("MakerVerification activation is policyless, zero-direct, and rollbackable"
     rollback,
     /ALTER TABLE public\."MakerVerification" DISABLE ROW LEVEL SECURITY/u,
   );
+  assert.match(
+    rollback,
+    /migrate resolve --rolled-back \\/u,
+  );
+  assert.match(rollback, /20261028080000_activate_maker_verification_rls/u);
+  assert.match(
+    rollback,
+    /Never put the predecessor application live before this SQL/u,
+  );
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION)/iu);
 });
