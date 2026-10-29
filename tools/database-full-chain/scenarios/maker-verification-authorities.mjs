@@ -218,10 +218,10 @@ async function proveStaffPagination({ database, staffId, prefix }) {
             $1 || source.n || '@example.test',
             'Pagination maker ' || source.n,
             'USER',
-            $4::timestamp,
-            $4::timestamp
+            $2::timestamp,
+            $2::timestamp
        FROM pg_catalog.generate_series(1, 55) AS source(n)`,
-    [userPrefix, sellerPrefix, verificationPrefix, baseTime],
+    [userPrefix, baseTime],
   );
   await database.query(
     `INSERT INTO public."SellerProfile" (
@@ -231,26 +231,26 @@ async function proveStaffPagination({ database, staffId, prefix }) {
             $1 || source.n,
             'Pagination workshop ' || source.n,
             'pagination workshop ' || source.n,
-            $4::timestamp,
-            $4::timestamp
+            $3::timestamp,
+            $3::timestamp
        FROM pg_catalog.generate_series(1, 55) AS source(n)`,
-    [userPrefix, sellerPrefix, verificationPrefix, baseTime],
+    [userPrefix, sellerPrefix, baseTime],
   );
   await database.query(
     `INSERT INTO public."MakerVerification" (
        id, "sellerProfileId", "craftDescription", "yearsExperience", status,
        "appliedAt", "createdAt", "updatedAt"
      )
-     SELECT $3 || source.n,
-            $2 || source.n,
+     SELECT $2 || source.n,
+            $1 || source.n,
             'Pagination craft ' || source.n,
             source.n,
             'PENDING'::public."VerificationStatus",
-            $4::timestamp + source.n * INTERVAL '1 second',
-            $4::timestamp,
-            $4::timestamp
+            $3::timestamp + source.n * INTERVAL '1 second',
+            $3::timestamp,
+            $3::timestamp
        FROM pg_catalog.generate_series(1, 55) AS source(n)`,
-    [userPrefix, sellerPrefix, verificationPrefix, baseTime],
+    [sellerPrefix, verificationPrefix, baseTime],
   );
 
   await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
