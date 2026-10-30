@@ -3522,6 +3522,11 @@ drift, reciprocal-block parity, atomic eligibility, the value constraint and
 owner-leading index are closed on the full PostgreSQL 17 chain. See
 `docs/review-vote-rls-options.md` and `docs/review-vote-pre-rls-audit.md`.
 
+Existing votes survive later blocks so a maker cannot reduce critical-review
+helpful counts by blocking voters. A blocked voter may always withdraw their
+own existing vote, while adding a new vote across either block direction stays
+forbidden.
+
 The isolated A2 compatible candidate now closes those preparation items and
 passes the 437-migration PostgreSQL 17 behavior plus mixed-version concurrency
 proof without changing RLS or predecessor grants. Count maintenance remains in

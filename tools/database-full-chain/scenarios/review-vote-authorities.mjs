@@ -502,11 +502,17 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
     [actorId],
   );
 
+  assert.equal((await callToggle(database, actorId, reviewId))[0]?.voted, true);
   await database.query(
     `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
      VALUES ($1, $2, $3, $4)`,
     [`${suffix}_reviewer_block`, actorId, reviewerId, now],
   );
+  assert.deepEqual(await callToggle(database, actorId, reviewId), [{
+    resultStatus: "OK",
+    voted: false,
+    helpfulCount: 0,
+  }]);
   assert.deepEqual(await callToggle(database, actorId, reviewId), [{
     resultStatus: "NOT_FOUND",
     voted: false,

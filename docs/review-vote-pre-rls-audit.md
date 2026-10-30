@@ -111,10 +111,11 @@ The current vote-target function checks actor and listing visibility but does
 not inspect `Block`. A signed-in user who knows a review id can therefore vote
 on a review whose author is blocked or whose listing maker is blocked.
 
-The fixed toggle must re-check reciprocal blocks against both the review author
-and listing maker under the same lock protocol as the write. Block creation
-must either remove affected votes and repair counts or durably document that
-past anonymous votes remain; new votes cannot be admitted across the block.
+The fixed toggle re-checks reciprocal blocks against both the review author and
+listing maker under the same lock protocol as the write. Existing anonymous
+votes remain when a block is created, so neither party can erase public helpful
+counts by mass-blocking voters. The voter can always withdraw their own
+existing vote after a block; new votes cannot be admitted across the block.
 
 ### RV-RLS-3: eligibility is check-then-write
 
