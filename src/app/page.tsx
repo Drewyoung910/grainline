@@ -472,7 +472,7 @@ export default async function HomePage() {
                 href="/browse"
                 data-home-primary-cta
                 style={heroRiseDelay(550)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
+                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
               >
                 Browse
               </Link>
@@ -480,7 +480,7 @@ export default async function HomePage() {
                 href="/map"
                 data-home-secondary-cta
                 style={heroRiseDelay(620)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
+                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
               >
                 Find Shops Near You
               </Link>
@@ -772,7 +772,7 @@ export default async function HomePage() {
                     src={spotlightImage}
                     alt={`${spotlight.displayName ?? "Maker"} workshop`}
                     loading="lazy"
-                    className="spot-parallax absolute inset-x-0 -top-[10%] h-[120%] w-full object-cover"
+                    className="photo-drift absolute inset-x-0 -top-[10%] h-[120%] w-full object-cover"
                     fallbackClassName="absolute inset-0 h-full w-full bg-gradient-to-br from-neutral-800 to-neutral-600"
                   />
                   {/* Identity chip over the photo */}

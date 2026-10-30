@@ -2940,9 +2940,21 @@ first pass's rough edges. Behavior future agents must preserve:
   on client-side navigation only; the first page load is never animated.
   The header lives in the root layout, outside the template, so it stays put.
 - **Parallax**: the homepage hero photo (`.hero-parallax` wrapper) and the
-  maker spotlight photo (`.spot-parallax`, drawn 120% tall inside an
+  maker spotlight photo (`.photo-drift`, drawn 120% tall inside an
   `overflow-hidden` frame) drift with CSS scroll-driven animations only.
 - **Popovers** (menu card, search panel) open with a gentle spring.
+- **Batch two**: buttons press in slightly (`scale: 0.97` from the base
+  layer, so any `scale-*` utility on a button wins). Add to cart confirms with
+  a drawn check (`.check-draw`, `pathLength={1}`) and "Added" for 1.8s. The
+  listing price rolls on every option change after the first render. Save
+  search's bookmark fills and bumps. Browse results stagger in
+  (`.results-stagger`) and the Grid/List highlight slides; it animates
+  because the element survives the client navigation. The maker banner
+  drifts like the spotlight photo. Not yet done: browse filter chips, cart
+  step and quantity motion (wait for Codex's open cart PRs #678/#685), map
+  pin drop (markers are rebuilt on every pan, so a naive drop would replay),
+  rating bars (there is no rating breakdown UI yet), and the card-to-gallery
+  photo morph.
 
 ## Pending Tasks
 

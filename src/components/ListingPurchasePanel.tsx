@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import VariantSelector, { type VariantGroupForSelector } from "./VariantSelector";
 import BuyNowButton from "./BuyNowButton";
@@ -91,6 +91,13 @@ export default function ListingPurchasePanel({
     [basePriceCents, intentSelectedOptionIds, variantGroups],
   );
   const [totalPriceCents, setTotalPriceCents] = useState(initialPriceCents);
+  const [priceChangeCount, setPriceChangeCount] = useState(0);
+  const shownPriceRef = useRef(initialPriceCents);
+  useEffect(() => {
+    if (shownPriceRef.current === totalPriceCents) return;
+    shownPriceRef.current = totalPriceCents;
+    setPriceChangeCount((count) => count + 1);
+  }, [totalPriceCents]);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
   const variantRequired = hasVariants;
   const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
@@ -127,7 +134,14 @@ export default function ListingPurchasePanel({
       {/* Price + rating */}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <div className="min-w-0 text-3xl font-semibold">
-          {formatCurrencyCents(totalPriceCents, displayCurrency)}
+          {/* Rolls to the new total when an option changes the price; the
+              first render never animates (same rule as RollingNumber). */}
+          <span
+            key={priceChangeCount}
+            className={`inline-block tabular-nums${priceChangeCount > 0 ? " count-roll-in" : ""}`}
+          >
+            {formatCurrencyCents(totalPriceCents, displayCurrency)}
+          </span>
           {hasVariants && totalPriceCents !== basePriceCents && (
             <span className="text-base font-normal text-neutral-500 ml-2 line-through">
               {formatCurrencyCents(basePriceCents, displayCurrency)}

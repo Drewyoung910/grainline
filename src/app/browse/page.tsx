@@ -707,17 +707,27 @@ async function BrowseContent({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {/* View toggle */}
-              <div className="flex rounded-md border border-neutral-200 bg-white overflow-hidden text-sm">
+              {/* View toggle: the dark highlight slides between Grid and List
+                  (the element is kept across the navigation, so its
+                  translate change animates). */}
+              <div className="relative grid grid-cols-2 overflow-hidden rounded-md border border-neutral-200 bg-white text-sm">
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-neutral-900 transition-[translate] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none ${
+                    view === "list" ? "translate-x-full" : "translate-x-0"
+                  }`}
+                />
                 <Link
                   href={viewToggleHref("grid")}
-                  className={`px-3 py-1.5 transition-colors ${view === "grid" ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
+                  aria-current={view === "grid" ? "page" : undefined}
+                  className={`relative px-3 py-1.5 text-center transition-colors duration-300 ${view === "grid" ? "text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
                 >
                   Grid
                 </Link>
                 <Link
                   href={viewToggleHref("list")}
-                  className={`px-3 py-1.5 transition-colors ${view === "list" ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
+                  aria-current={view === "list" ? "page" : undefined}
+                  className={`relative px-3 py-1.5 text-center transition-colors duration-300 ${view === "list" ? "text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
                 >
                   List
                 </Link>
@@ -730,13 +740,13 @@ async function BrowseContent({
 
           {/* Listings */}
           {view === "grid" ? (
-            <ul className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
+            <ul className="results-stagger grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
               {listings.map((l) => (
                 <GridCard key={l.id} l={l} />
               ))}
             </ul>
           ) : (
-            <ul className="space-y-4">
+            <ul className="results-stagger space-y-4">
               {listings.map((l) => (
                 <ClickTracker key={l.id} listingId={l.id} className="card-listing">
                   <ListCard l={l} />

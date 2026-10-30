@@ -370,11 +370,12 @@ async function SellerPublicContent({
       <section className="mt-4">
         <div className="relative aspect-[3/1]">
           <div className="absolute inset-0 rounded-2xl overflow-hidden">
+            {/* Drawn taller than its frame so it can drift as the page scrolls. */}
             <MediaImage
               src={seller.bannerImageUrl}
               alt={`${seller.displayName} banner`}
               fetchPriority="high"
-              className="w-full h-full object-cover"
+              className="photo-drift absolute inset-x-0 -top-[10%] h-[120%] w-full object-cover"
               fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
             />
           </div>
