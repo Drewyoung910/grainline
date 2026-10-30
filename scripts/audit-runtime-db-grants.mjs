@@ -120,6 +120,8 @@ export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELE
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const STOCK_NOTIFICATION_TABLE = "StockNotification";
 export const STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
+export const FAVORITE_TABLE = "Favorite";
+export const FAVORITE_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const CART_OWNER_COLUMN_PRIVILEGES = ["\"updatedAt\":UPDATE"];
 export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
   "\"priceCents\":UPDATE",
@@ -3021,6 +3023,12 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     && rlsPolicyTables.includes(STOCK_NOTIFICATION_TABLE)
   ) {
     return STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES;
+  }
+  if (
+    tableName === FAVORITE_TABLE
+    && rlsPolicyTables.includes(FAVORITE_TABLE)
+  ) {
+    return FAVORITE_OWNER_TABLE_PRIVILEGES;
   }
   return REQUIRED_TABLE_PRIVILEGES;
 }
