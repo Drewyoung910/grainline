@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 const LIVE_MIGRATION_PATH =
   "prisma/migrations/20261028050000_prepare_block_authorities/migration.sql";
@@ -11,5 +12,7 @@ export function blockPreparationMigrationPath() {
     existsSync(isolatedPath),
     "missing isolated Block preparation migration",
   );
-  return isolatedPath;
+  return statSync(isolatedPath).isDirectory()
+    ? join(isolatedPath, "migration.sql")
+    : isolatedPath;
 }
