@@ -6035,6 +6035,9 @@ describe("database grant inventory guardrails", () => {
     const favoriteProvisioningPresent = provision.includes(
       "grainline_favorite_rls_active",
     );
+    const followProvisioningPresent = provision.includes(
+      "grainline_follow_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6043,7 +6046,8 @@ describe("database grant inventory guardrails", () => {
         + Number(cartCartItemProvisioningPresent)
         + Number(stockNotificationProvisioningPresent)
         + Number(makerVerificationProvisioningPresent)
-        + Number(favoriteProvisioningPresent),
+        + Number(favoriteProvisioningPresent)
+        + Number(followProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -6116,6 +6120,16 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :grainline_favorite_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Favorite"[\s\S]*GRANT SELECT, DELETE ON TABLE public\."Favorite"/,
+      );
+    }
+    if (followProvisioningPresent) {
+      assert.match(
+        provision,
+        /Follow RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :grainline_follow_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Follow"\s+FROM PUBLIC, :"runtime_role"/,
       );
     }
     assert.equal(
