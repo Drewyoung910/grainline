@@ -205,10 +205,19 @@ describe("branded root error page (UI-09)", () => {
 });
 
 describe("variant selection reminder", () => {
-  it("waits until the buyer has started choosing", () => {
+  it("waits until the buyer has started choosing or tried to buy early", () => {
     const selector = source("src/components/VariantSelector.tsx");
     assert.match(selector, /const anySelected = groups\.some\(\(g\) => selected\[g\.id\]\);/);
-    assert.match(selector, /groups\.length > 0 && anySelected && !allSelected && \(/);
+    assert.match(
+      selector,
+      /groups\.length > 0 && \(anySelected \|\| blockedAttemptCount > 0\) && !allSelected && \(/,
+    );
+    // An early Buy or Add click restarts the shake through the key and
+    // announces the missing choice.
+    assert.match(selector, /key=\{blockedAttemptCount\}/);
+    assert.match(selector, /role=\{blockedAttemptCount > 0 \? "alert" : undefined\}/);
+    const panel = source("src/components/ListingPurchasePanel.tsx");
+    assert.match(panel, /onClickCapture=\{\(\) => \{\s*if \(!variantSelectionComplete\) setBlockedVariantAttempts/);
   });
 });
 

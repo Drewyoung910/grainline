@@ -28,6 +28,7 @@ import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
+import RollingAmount from "@/components/RollingAmount";
 
 function CartLoadingSkeleton() {
   return (
@@ -259,6 +260,12 @@ function CartPage() {
   const router = useRouter();
 
   const [items, setItems] = React.useState<CartItem[]>([]);
+  // The full skeleton is for the first load only. Later reloads (quantity
+  // changes, price refreshes) keep the cart on screen so totals can roll to
+  // their new values instead of the whole page flashing.
+  const [hasLoadedCart, setHasLoadedCart] = React.useState(false);
+  // Rows fade out briefly before a removal is sent.
+  const [removingIds, setRemovingIds] = React.useState<ReadonlySet<string>>(() => new Set());
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
@@ -282,7 +289,7 @@ function CartPage() {
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
   // The step entrance plays briefly when the step changes, not whenever the
-  // cart reloads (a quantity change swaps in the loading skeleton and back).
+  // cart re-renders after a reload.
   const [shownStep, setShownStep] = React.useState(step);
   const [animateStep, setAnimateStep] = React.useState(false);
   if (shownStep !== step) {
@@ -404,7 +411,6 @@ function CartPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    setNeedsSignIn(false);
     try {
       const anonymousItems = readAnonymousCartItems();
       const res = await fetch("/api/cart", { cache: "no-store" });
@@ -413,6 +419,9 @@ function CartPage() {
         setItems(cartItemsFromAnonymous(anonymousItems));
         return;
       }
+      // Cleared only once the server answers, so a reload never flashes the
+      // signed-in layout over a signed-out cart.
+      setNeedsSignIn(false);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || "Failed to load cart");
@@ -445,6 +454,7 @@ function CartPage() {
       setError((e as Error).message || "Failed to load cart");
     } finally {
       setLoading(false);
+      setHasLoadedCart(true);
     }
   }
 
@@ -517,7 +527,30 @@ function CartPage() {
     }
   }
 
-  if (loading) return <CartLoadingSkeleton />;
+  if (loading && !hasLoadedCart) return <CartLoadingSkeleton />;
+
+  // While a reload or a removal is in flight, quantity controls wait so two
+  // updates cannot race each other's reload.
+  const cartBusy = loading || removingIds.size > 0;
+
+  const removeItem = (cartItemId: string) => {
+    if (removingIds.has(cartItemId)) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      void setQuantity(cartItemId, 0);
+      return;
+    }
+    setRemovingIds((current) => new Set(current).add(cartItemId));
+    window.setTimeout(() => {
+      void setQuantity(cartItemId, 0).finally(() => {
+        setRemovingIds((current) => {
+          const next = new Set(current);
+          next.delete(cartItemId);
+          return next;
+        });
+      });
+    }, 240);
+  };
 
   if (needsSignIn && items.length === 0) {
     return (
@@ -593,7 +626,7 @@ function CartPage() {
             <span className="font-medium">{g.sellerName}</span>
           </div>
           <div className="text-sm">
-            Subtotal: <span className="font-semibold">{formatCurrencyCents(g.subtotalCents, g.currency)}</span>
+            Subtotal: <RollingAmount cents={g.subtotalCents} currency={g.currency} className="font-semibold" />
           </div>
         </header>
 
@@ -606,7 +639,11 @@ function CartPage() {
             const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
-              <li key={i.id} className="flex items-center gap-3 py-3">
+              <li
+                key={i.id}
+                className={`flex items-center gap-3 py-3${removingIds.has(i.id) ? " cart-row-leaving" : ""}`}
+                aria-busy={removingIds.has(i.id) || undefined}
+              >
                 {img ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
@@ -680,6 +717,7 @@ function CartPage() {
                             id={quantitySelectId}
                             className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
                             value={i.quantity}
+                            disabled={cartBusy}
                             onChange={(e) => setQuantity(i.id, Number(e.target.value))}
                           >
                             {Array.from({ length: maxQty }).map((_, idx) => {
@@ -695,8 +733,9 @@ function CartPage() {
 
                     <button
                       type="button"
-                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50"
-                      onClick={() => setQuantity(i.id, 0)}
+                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50 disabled:opacity-50"
+                      disabled={cartBusy}
+                      onClick={() => removeItem(i.id)}
                     >
                       Remove
                     </button>
@@ -704,7 +743,7 @@ function CartPage() {
                 </div>
 
                 <div className="text-sm font-medium shrink-0">
-                  {formatCurrencyCents(lineCents, i.listing.currency)}
+                  <RollingAmount cents={lineCents} currency={i.listing.currency} />
                 </div>
               </li>
             );
@@ -887,7 +926,9 @@ function CartPage() {
 
           <div className="flex items-center justify-end gap-4">
             <div className="text-sm text-neutral-600">Subtotal (items only)</div>
-            <div className="text-lg font-semibold">{formatCurrencyCents(grandTotal, cartCurrency)}</div>
+            <div className="text-lg font-semibold">
+              <RollingAmount cents={grandTotal} currency={cartCurrency} />
+            </div>
           </div>
 
           {hasUnavailable && (
@@ -1036,16 +1077,14 @@ function CartPage() {
                 {groups.some((g) => giftBySeller[g.sellerId]?.giftWrapping) && (
                   <div className="flex justify-between text-sm text-neutral-600">
                     <span>Gift wrapping</span>
-                    <span>
-                      {formatCurrencyCents(totalGiftWrappingCents, cartCurrency)}
-                    </span>
+                    <RollingAmount cents={totalGiftWrappingCents} currency={cartCurrency} />
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Shipping</span>
                   <span className="font-medium">
                     {allRatesSelected
-                      ? formatCurrencyCents(totalShippingCents, cartCurrency)
+                      ? <RollingAmount cents={totalShippingCents} currency={cartCurrency} />
                       : "Selecting..."}
                   </span>
                 </div>
@@ -1058,7 +1097,7 @@ function CartPage() {
                   <span className="text-neutral-900">Estimated total</span>
                   <span className="font-semibold">
                     {allRatesSelected
-                      ? formatCurrencyCents(grandTotal + totalShippingCents + totalGiftWrappingCents, cartCurrency)
+                      ? <RollingAmount cents={grandTotal + totalShippingCents + totalGiftWrappingCents} currency={cartCurrency} />
                       : `${formatCurrencyCents(grandTotal + totalGiftWrappingCents, cartCurrency)}+`}
                   </span>
                 </div>

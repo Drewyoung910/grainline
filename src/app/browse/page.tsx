@@ -11,7 +11,8 @@ import FilterSidebar from "@/components/FilterSidebar";
 import MobileFilterBar from "@/components/MobileFilterBar";
 import SaveSearchButton from "@/components/SaveSearchButton";
 import ClickTracker from "@/components/ClickTracker";
-import { X } from "@/components/icons";
+import FilterChipLink from "@/components/FilterChipLink";
+import RollingNumber from "@/components/RollingNumber";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
 import RecentlyViewed from "@/components/RecentlyViewed";
@@ -772,7 +773,8 @@ async function BrowseContent({
                 )}
               </h1>
               <p className="text-sm text-neutral-500 mt-0.5">
-                {total} {total === 1 ? "result" : "results"}
+                {/* The count rolls to the new total when filters change. */}
+                <RollingNumber value={total} /> {total === 1 ? "result" : "results"}
                 {activeFilterCount > 0 && (
                   <> · {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active</>
                 )}
@@ -814,15 +816,7 @@ async function BrowseContent({
           {activeFilterChips.length > 0 && (
             <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
               {activeFilterChips.map((chip) => (
-                <Link
-                  key={chip.key}
-                  href={chip.href}
-                  aria-label={`Remove filter: ${chip.label}`}
-                  className="filter-chip-in inline-flex h-8 items-center gap-1.5 rounded-full bg-[#2C1F1A] pl-3 pr-2 text-[13.5px] text-[#FBF8F3] transition-colors hover:bg-[#45332B]"
-                >
-                  <span className="max-w-[16rem] truncate">{chip.label}</span>
-                  <X size={14} aria-hidden="true" className="shrink-0 opacity-80" />
-                </Link>
+                <FilterChipLink key={chip.key} href={chip.href} label={chip.label} />
               ))}
               {activeFilterChips.length > 1 && (
                 <Link

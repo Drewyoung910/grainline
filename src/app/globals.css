@@ -160,6 +160,47 @@
     }
   }
 }
+/* Choice radio whose dot springs in when selected (checkout shipping
+   rates). Forced-colors mode falls back to the native control. */
+@utility radio-spring {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 9999px;
+  border: 1.5px solid #a8a29e;
+  background: #ffffff;
+  cursor: pointer;
+  &::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: #1c1917;
+    scale: 0;
+  }
+  &:checked {
+    border-color: #1c1917;
+  }
+  &:checked::before {
+    scale: 1;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    transition: border-color 0.2s ease-out;
+    &::before {
+      transition: scale 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  }
+  @media (forced-colors: active) {
+    appearance: auto;
+    &::before {
+      display: none;
+    }
+  }
+}
+
 @utility btn-sm {
   min-height: 38px;
   padding: 0.4375rem 0.9375rem;
@@ -353,11 +394,24 @@ input, textarea, select {
 
 /* Search dropdown slide-down animation */
 @keyframes slide-down {
-  from { transform: translateY(-8px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from { transform: translateY(-12px) scale(0.96); opacity: 0; }
+  55%  { opacity: 1; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
 }
+@keyframes toast-rise {
+  from { transform: translateY(14px) scale(0.96); opacity: 0; }
+  55%  { opacity: 1; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+/* Toasts (the only user of this class) spring in: down from the top on
+   phones, up from the bottom corner on wider screens. */
 .animate-slide-down {
-  animation: slide-down 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slide-down 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@media (min-width: 640px) {
+  .animate-slide-down {
+    animation-name: toast-rise;
+  }
 }
 
 
@@ -837,10 +891,17 @@ input, textarea, select {
   .filter-chip-in {
     animation: filter-chip-in 0.36s var(--motion-ease-spring) backwards;
   }
+  .filter-chip-out {
+    animation: filter-chip-out 0.2s ease-in forwards;
+    pointer-events: none;
+  }
 }
 @keyframes filter-chip-in {
   from { opacity: 0; transform: scale(0.6); }
   to   { opacity: 1; transform: scale(1); }
+}
+@keyframes filter-chip-out {
+  to { opacity: 0; transform: scale(0.6); }
 }
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
@@ -856,6 +917,19 @@ input, textarea, select {
 @keyframes rating-bar-fill {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* A missing variant choice shakes when the buyer tries to buy. */
+  .hint-shake {
+    animation: hint-shake 0.42s var(--motion-ease-out);
+  }
+}
+@keyframes hint-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
 }
 @keyframes check-draw {
   from { stroke-dashoffset: 1; }
@@ -901,4 +975,33 @@ input, textarea, select {
 @keyframes reveal-card-in {
   from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
+}
+
+/* Batch five: cart and checkout. */
+@media (prefers-reduced-motion: no-preference) {
+  /* A removed cart row slides out before the cart reloads without it. */
+  .cart-row-leaving {
+    animation: cart-row-leave 0.24s ease-in forwards;
+  }
+  /* The gift note and wrapping options ease open under the checkbox. */
+  .gift-reveal-in {
+    animation: gift-reveal-in 0.32s var(--motion-ease-out) backwards;
+  }
+  /* The payment placeholder fades away once Stripe's form has drawn. */
+  .checkout-placeholder-out {
+    animation: checkout-placeholder-out 0.3s ease-out forwards;
+  }
+}
+.cart-row-leaving {
+  pointer-events: none;
+}
+@keyframes cart-row-leave {
+  to { opacity: 0; transform: translateX(-12px); }
+}
+@keyframes gift-reveal-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes checkout-placeholder-out {
+  to { opacity: 0; }
 }

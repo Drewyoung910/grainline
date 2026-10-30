@@ -30,12 +30,16 @@ export default function VariantSelector({
   currency = DEFAULT_CURRENCY,
   onSelectionChange,
   initialSelectedOptionIds = [],
+  blockedAttemptCount = 0,
 }: {
   groups: VariantGroupForSelector[];
   basePriceCents: number;
   currency?: string | null;
   onSelectionChange: (selectedOptionIds: string[], totalPriceCents: number) => void;
   initialSelectedOptionIds?: string[];
+  // Bumped each time the buyer tries to buy before choosing every option;
+  // the reminder then appears (even with nothing chosen yet) and shakes.
+  blockedAttemptCount?: number;
 }) {
   const baseId = useId();
   // Map of groupId -> selected optionId
@@ -223,8 +227,14 @@ export default function VariantSelector({
           </div>
         </div>
       ))}
-      {groups.length > 0 && anySelected && !allSelected && (
-        <p className="text-xs text-amber-700">Please select all options to continue</p>
+      {groups.length > 0 && (anySelected || blockedAttemptCount > 0) && !allSelected && (
+        <p
+          key={blockedAttemptCount}
+          role={blockedAttemptCount > 0 ? "alert" : undefined}
+          className={`text-xs text-amber-700${blockedAttemptCount > 0 ? " hint-shake" : ""}`}
+        >
+          Please select all options to continue
+        </p>
       )}
     </div>
   );

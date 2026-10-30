@@ -2964,9 +2964,8 @@ first pass's rough edges. Behavior future agents must preserve:
   nudge their arrow on hover. Checkout step content rises in and the current
   step pill springs in (`[data-cart-steps]`). "Use my location" spins its icon
   while locating. Map pins drop in the first time each maker appears, paused
-  until the map is on screen (`data-pins-visible`). Not yet done: browse
-  filter chips, the card-to-gallery photo morph, and review rating bars (no
-  rating breakdown UI exists yet).
+  until the map is on screen (`data-pins-visible`). Browse filter chips and
+  review rating bars followed in batch four.
 - **Audit fixes (2026-10-30, three-agent review of PR #715)**: the site
   header is pinned on every page except message threads (`/messages/[id]`,
   which pin their own chat header and composer); only the homepage animates
@@ -2994,6 +2993,27 @@ first pass's rough edges. Behavior future agents must preserve:
   actually applied. Listing reviews show a 5-to-1 star breakdown whose bars
   fill on scroll (`.rating-bar-fill`); it counts the same visible reviews as
   the average, and a half star counts toward the star below it.
+- **Batch five**: tapping Buy or Add before every option is chosen shakes
+  and announces the "choose an option" reminder (`.hint-shake`; the
+  purchase panel counts blocked clicks in a capture handler and the reminder
+  re-keys on that count). Toasts arrive with a spring and rise from the
+  bottom on wider screens. A removed browse filter chip shrinks away
+  (`FilterChipLink`, 180ms, then navigates; modified clicks and reduced
+  motion navigate straight away) and the browse result count rolls. Cart
+  amounts roll when they change (`RollingAmount`, same render-time key
+  pattern as the listing price); the full cart skeleton shows only on the
+  first load, so a quantity change no longer flashes the page, and quantity
+  controls wait while a reload or removal is in flight (`cartBusy`) so two
+  updates cannot race. A removed cart row slides out for 240ms before the
+  request (`.cart-row-leaving`); there is no Undo because the toast has no
+  action slot. The gift-note options ease open, shipping-rate radios fill
+  with a spring (`radio-spring` utility; native control in forced-colors
+  mode), and the Stripe payment step shows a shimmer until its iframe has
+  drawn (a `ResizeObserver` on the form wrapper, with a 10s give-up); no
+  scripts were added, so `docs/checkout-script-inventory.md` is unchanged.
+  Not done, deliberately: the card-to-gallery photo morph (needs view
+  transitions across a route change), browse grid reflow animation (filters
+  are full navigations), and zooming the homepage map in place.
 
 ## Pending Tasks
 

@@ -103,6 +103,7 @@ export default function ListingPurchasePanel({
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
   const variantRequired = hasVariants;
   const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
+  const [blockedVariantAttempts, setBlockedVariantAttempts] = useState(0);
   const canPurchase = canBuy && sellerAcceptingNewOrders;
   const displayCurrency = currency ?? DEFAULT_CURRENCY;
   const selectedVariantLabels = useMemo(() => {
@@ -167,6 +168,7 @@ export default function ListingPurchasePanel({
           currency={displayCurrency}
           onSelectionChange={handleSelectionChange}
           initialSelectedOptionIds={intentSelectedOptionIds}
+          blockedAttemptCount={blockedVariantAttempts}
         />
       )}
 
@@ -201,9 +203,16 @@ export default function ListingPurchasePanel({
         />
       )}
 
-      {/* Buy buttons */}
+      {/* Buy buttons. A click before every option is chosen also flags the
+          missing choice next to the options (the buttons show their own
+          message too). */}
       {canPurchase && (
-        <div className="flex flex-col gap-2">
+        <div
+          className="flex flex-col gap-2"
+          onClickCapture={() => {
+            if (!variantSelectionComplete) setBlockedVariantAttempts((count) => count + 1);
+          }}
+        >
           {userId ? (
             <BuyNowButton
               listingId={listingId}
