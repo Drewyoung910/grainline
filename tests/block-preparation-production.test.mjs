@@ -14,7 +14,12 @@ import {
 
 const releaseId = "block_v1";
 const release = privateTablePreparation(releaseId);
-const verified = verifyPrivateTablePreparationSource(releaseId);
+const migrationDirectory = process.env.BLOCK_PREPARATION_MIGRATION_PATH;
+const verified = verifyPrivateTablePreparationSource(
+  releaseId,
+  process.cwd(),
+  migrationDirectory ? `${migrationDirectory}/migration.sql` : undefined,
+);
 
 function acceptedMigration() {
   return {

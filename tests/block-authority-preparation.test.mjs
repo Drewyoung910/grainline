@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 
-const migrationPath =
-  "prisma/migrations/20261028050000_prepare_block_authorities/migration.sql";
+const migrationDirectory =
+  process.env.BLOCK_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261028050000_prepare_block_authorities";
+const migrationPath = `${migrationDirectory}/migration.sql`;
 const migration = fs.readFileSync(migrationPath, "utf8");
 
 const convertedCallers = [

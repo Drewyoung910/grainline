@@ -24,16 +24,6 @@ function fixture(options = {}) {
     errors: [],
   };
   const prisma = {
-    block: {
-      findFirst: async ({ where }) => {
-        state.blockReads += 1;
-        assert.equal(JSON.stringify(where.OR), JSON.stringify([
-          { blockerId: actor.id, blockedId: target.ownerUserId },
-          { blockerId: target.ownerUserId, blockedId: actor.id },
-        ]));
-        return options.blocked ? { id: "block" } : null;
-      },
-    },
     favorite: {
       upsert: async ({ where, update, create }) => {
         state.favoriteWrites += 1;
@@ -90,6 +80,14 @@ function fixture(options = {}) {
     "@/lib/httpStatus": { HTTP_STATUS },
     "@/lib/serverErrorLogger": {
       logServerError: (error, context) => state.errors.push({ error, context }),
+    },
+    "@/lib/blockAccess": {
+      userBlockPairIsBlocked: async (actorId, targetUserId) => {
+        state.blockReads += 1;
+        assert.equal(actorId, actor.id);
+        assert.equal(targetUserId, target.ownerUserId);
+        return options.blocked === true;
+      },
     },
     zod: require("zod"),
   };

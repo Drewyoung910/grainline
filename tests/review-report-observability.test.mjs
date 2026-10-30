@@ -55,7 +55,7 @@ describe("review/report/favorite observability hardening", () => {
     assert.doesNotMatch(editRoute, /comment: comment \? sanitizeRichText\(comment\) : undefined/);
   });
 
-  it("captures report, favorite, and block cleanup failures instead of swallowing them", () => {
+  it("captures report, favorite, and block checkout-cleanup failures instead of swallowing them", () => {
     const reportRoute = source("src/app/api/users/[id]/report/route.ts");
     const favoriteRoute = source("src/app/api/favorites/route.ts");
     const favoriteDeleteRoute = source("src/app/api/favorites/[listingId]/route.ts");
@@ -72,8 +72,9 @@ describe("review/report/favorite observability hardening", () => {
     assert.match(favoriteDeleteRoute, /HTTP_STATUS\.INTERNAL_SERVER_ERROR/);
     assert.doesNotMatch(favoriteDeleteRoute, /error: "DB error"/);
     assert.match(blockRoute, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
-    assert.match(blockRoute, /source: "block_follow_cleanup"/);
-    assert.doesNotMatch(blockRoute, /console\.error\("Failed to remove follow rows after block:/);
+    assert.match(blockRoute, /source: "block_checkout_session_expiry"/);
+    assert.match(blockRoute, /createUserBlock\(me\.id, blockedId\)/);
+    assert.doesNotMatch(blockRoute, /prisma\.(?:follow|favorite|stockNotification)\./);
   });
 
   it("captures remaining AI and seller analytics failures with Sentry context", () => {
