@@ -534,6 +534,78 @@ test(
               favoriteFixture,
               "Favorite fixture must exist before its activation proof",
             );
+            assert.ok(
+              favoritePreparationPreflightPath,
+              "Favorite Production preflight must run before its preparation",
+            );
+            const favoritePostflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                  preparationEvidenceDirectory,
+                  "favorite-preparation-postflight.json",
+                ),
+                PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                  favoritePreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(favoritePostflight.state, "applied");
+            assert.equal(favoritePostflight.catalog.functions.length, 8);
+
+            // Prove restart recovery while the table still has the preparation
+            // posture. Once activation runs, this inspector must no longer
+            // pretend that the preparation-only table posture remains current.
+            const favoriteLedgerRows = (await adapter.query(
+              `SELECT id, checksum, finished_at, migration_name, logs,
+                      rolled_back_at, started_at, applied_steps_count
+                 FROM public."_prisma_migrations"
+                WHERE migration_name = $1`,
+              [FAVORITE_PREPARATION_MIGRATION],
+            )).rows;
+            assert.equal(favoriteLedgerRows.length, 1);
+            const favoriteLedger = favoriteLedgerRows[0];
+            await adapter.query(
+              `DELETE FROM public."_prisma_migrations" WHERE migration_name = $1`,
+              [FAVORITE_PREPARATION_MIGRATION],
+            );
+            try {
+              const favoriteInterrupted = await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "favorite-preparation-applied-unrecorded.json",
+                  ),
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+              assert.equal(favoriteInterrupted.state, "applied_unrecorded");
+              assert.equal(favoriteInterrupted.catalog.functions.length, 8);
+            } finally {
+              await adapter.query(
+                `INSERT INTO public."_prisma_migrations"
+                   (id, checksum, finished_at, migration_name, logs,
+                    rolled_back_at, started_at, applied_steps_count)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                  favoriteLedger.id,
+                  favoriteLedger.checksum,
+                  favoriteLedger.finished_at,
+                  favoriteLedger.migration_name,
+                  favoriteLedger.logs,
+                  favoriteLedger.rolled_back_at,
+                  favoriteLedger.started_at,
+                  favoriteLedger.applied_steps_count,
+                ],
+              );
+            }
             await proveFavoritePreparedAuthorities({
               database: adapter,
               connectionString: proofDatabaseUrl,
@@ -638,76 +710,6 @@ test(
           { Client: DisposableOwnerClient, rootDir: repositoryRoot },
         );
         assert.equal(activationPostflight.state, "active");
-      }
-
-      assert.ok(
-        favoritePreparationPreflightPath,
-        "Favorite Production preflight must run before its preparation",
-      );
-      const favoritePostflight = await inspectPrivateTablePreparationProduction(
-        {
-          DIRECT_URL: proofDatabaseUrl,
-          PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
-          PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
-          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
-            preparationEvidenceDirectory,
-            "favorite-preparation-postflight.json",
-          ),
-          PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
-            favoritePreparationPreflightPath,
-          PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
-        },
-        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
-      );
-      assert.equal(favoritePostflight.state, "applied");
-      assert.equal(favoritePostflight.catalog.functions.length, 8);
-
-      const favoriteLedgerRows = (await adapter.query(
-        `SELECT id, checksum, finished_at, migration_name, logs,
-                rolled_back_at, started_at, applied_steps_count
-           FROM public."_prisma_migrations"
-          WHERE migration_name = $1`,
-        [FAVORITE_PREPARATION_MIGRATION],
-      )).rows;
-      assert.equal(favoriteLedgerRows.length, 1);
-      const favoriteLedger = favoriteLedgerRows[0];
-      await adapter.query(
-        `DELETE FROM public."_prisma_migrations" WHERE migration_name = $1`,
-        [FAVORITE_PREPARATION_MIGRATION],
-      );
-      try {
-        const favoriteInterrupted = await inspectPrivateTablePreparationProduction(
-          {
-            DIRECT_URL: proofDatabaseUrl,
-            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
-            PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
-            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
-              preparationEvidenceDirectory,
-              "favorite-preparation-applied-unrecorded.json",
-            ),
-            PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
-          },
-          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
-        );
-        assert.equal(favoriteInterrupted.state, "applied_unrecorded");
-        assert.equal(favoriteInterrupted.catalog.functions.length, 8);
-      } finally {
-        await adapter.query(
-          `INSERT INTO public."_prisma_migrations"
-             (id, checksum, finished_at, migration_name, logs,
-              rolled_back_at, started_at, applied_steps_count)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            favoriteLedger.id,
-            favoriteLedger.checksum,
-            favoriteLedger.finished_at,
-            favoriteLedger.migration_name,
-            favoriteLedger.logs,
-            favoriteLedger.rolled_back_at,
-            favoriteLedger.started_at,
-            favoriteLedger.applied_steps_count,
-          ],
-        );
       }
 
       assert.ok(

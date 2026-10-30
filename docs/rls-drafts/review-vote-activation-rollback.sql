@@ -81,9 +81,9 @@ BEGIN
   FOR reviewed_function, expected_source_md5, expected_runtime_execute IN
     SELECT expected.identity, expected.source_md5, expected.runtime_execute
       FROM (VALUES
-        ('public.grainline_review_vote_owner_toggle(text)', '5ec13e47a866c42205a61eafb10bc0ef', true),
-        ('public.grainline_review_vote_owner_delete_all()', '7f33cdc75a5dc2e7426cd10f5e3a0fd6', true),
-        ('public.grainline_review_vote_owner_toggle_compatible(text)', '0e9153d1ddabac3e1542970bf6147583', false),
+        ('public.grainline_review_vote_owner_toggle(text)', '665aa85a9a1ef369045fd80cfb4174de', true),
+        ('public.grainline_review_vote_owner_delete_all()', '19d5b126b52eda84242168bbb58d7ba9', true),
+        ('public.grainline_review_vote_owner_toggle_compatible(text)', 'b1b42c31985f06069c7f608df728672e', false),
         ('public.grainline_review_vote_owner_delete_all_compatible()', 'e0f3bcc6143107e6609cf3fe4a209410', false)
       ) AS expected(identity, source_md5, runtime_execute)
   LOOP
@@ -285,7 +285,7 @@ BEGIN
   FOR reviewed_function, expected_source_md5 IN
     SELECT expected.identity, expected.source_md5
       FROM (VALUES
-        ('public.grainline_review_vote_owner_toggle(text)', '0e9153d1ddabac3e1542970bf6147583'),
+        ('public.grainline_review_vote_owner_toggle(text)', 'b1b42c31985f06069c7f608df728672e'),
         ('public.grainline_review_vote_owner_delete_all()', 'e0f3bcc6143107e6609cf3fe4a209410')
       ) AS expected(identity, source_md5)
   LOOP

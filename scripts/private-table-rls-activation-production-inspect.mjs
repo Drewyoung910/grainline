@@ -405,9 +405,9 @@ export async function inspectPrivateTableRlsActivationProduction(
                       END
                  FROM pg_catalog.unnest(policy.polroles) AS role_oid
                 ORDER BY 1
-             ) AS roles,
-             pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, true) AS "using",
-             pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, true) AS with_check
+             )::text[] AS roles,
+             pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, false) AS "using",
+             pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, false) AS with_check
         FROM pg_catalog.pg_policy AS policy
        WHERE policy.polrelid = $1::pg_catalog.regclass
        ORDER BY policy.polname

@@ -33,7 +33,7 @@ test("Favorite activation keeps guarded add as the only runtime insert boundary"
   assert.match(migration, /Listing_favoriteCount_guard/u);
   assert.match(migration, /grainline_listing_favorite_count_guard/u);
   assert.match(migration, /trigger_state\.tgattr::smallint\[\][\s\S]*ARRAY\['favoriteCount'\]::text\[\]/u);
-  assert.match(migration, /cd8aafa21436851fdddb0cd24b3dcec9/u);
+  assert.match(migration, /d8085ac26793b1bdbcaab3694de9842c/u);
   assert.match(migration, /AND NOT procedure\.prosecdef/u);
   for (const identity of [
     "grainline_notification_create_core",

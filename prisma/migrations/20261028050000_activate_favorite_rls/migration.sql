@@ -306,7 +306,7 @@ BEGIN
       FROM pg_catalog.pg_trigger AS trigger_state
      WHERE trigger_state.tgrelid = listing_oid
        AND trigger_state.tgname = 'Listing_favoriteCount_guard'
-       AND trigger_state.tgtype = 19
+       AND trigger_state.tgtype = 23
        AND trigger_state.tgenabled = 'O'
        AND NOT trigger_state.tgisinternal
        AND (
@@ -337,7 +337,7 @@ BEGIN
        AND procedure.provolatile = 'v'
        AND procedure.proparallel = 'u'
        AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
-       AND pg_catalog.md5(procedure.prosrc) = 'cd8aafa21436851fdddb0cd24b3dcec9'
+       AND pg_catalog.md5(procedure.prosrc) = 'd8085ac26793b1bdbcaab3694de9842c'
        AND (owner.rolsuper OR owner.rolbypassrls)
   ) OR pg_catalog.has_function_privilege(
     0,
@@ -359,13 +359,13 @@ BEGIN
         ('public.grainline_favorite_count_maintain()', '33d336428d410e5d45ec4864d9d983cb', 'v'::"char", 'u'::"char", false),
         ('public.grainline_favorite_update_forbidden()', '954c359579963c28fb3be2aee2dfb484', 'v'::"char", 'u'::"char", false),
         ('public.grainline_favorite_owner_listing_ids(text[])', 'c3c4ff9a7c848f960d7b7b79356b19da', 's'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_owner_add(text)', '7b7ed210b7cf94f79ce55c6fbbddf73b', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_owner_remove(text)', '7e4ca58a60cbf6b93bc260e4051331da', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_owner_delete_all(text)', '684284c4482d67e87ab1f52fa1256890', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_add(text)', '0b60cca1bdd9db09bdd9598e2543f3e2', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_remove(text)', 'a3aedd2b5ff8665e8ae6bbb82e5ed370', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_delete_all(text)', '01317acf4c1b71b60975ab077f52e29b', 'v'::"char", 'u'::"char", true),
         ('public.grainline_favorite_owner_export()', 'ca792d781eef9e3818bd3b9ee7a98286', 's'::"char", 'u'::"char", true),
         ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '2cafa9f5961bde65ff0894db12e1412c', 's'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_seller_listing_cleanup(text)', '7b82d4570b291fd2f255a68eb1fe8491', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_admin_listing_cleanup(text)', '07c9daa3c05502d4cb4594e55c9eb183', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_seller_listing_cleanup(text)', 'dcdb28eb08ed4f7abc55fa3e7c43466a', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_admin_listing_cleanup(text)', '058a0bd6035409ca90b2e995362d70d3', 'v'::"char", 'u'::"char", true),
         ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", 'u'::"char", false),
         ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char", true),
         ('public.grainline_seller_owner_saved_listing_count()', 'af665497cf9f8402f7aee00c18eec77e', 's'::"char", 'u'::"char", true),
@@ -603,7 +603,7 @@ BEGIN
       FROM pg_catalog.pg_trigger AS trigger_state
      WHERE trigger_state.tgrelid = listing_oid
        AND trigger_state.tgname = 'Listing_favoriteCount_guard'
-       AND trigger_state.tgtype = 19
+       AND trigger_state.tgtype = 23
        AND trigger_state.tgenabled = 'O'
        AND NOT trigger_state.tgisinternal
        AND (
@@ -634,7 +634,7 @@ BEGIN
        AND procedure.provolatile = 'v'
        AND procedure.proparallel = 'u'
        AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
-       AND pg_catalog.md5(procedure.prosrc) = 'cd8aafa21436851fdddb0cd24b3dcec9'
+       AND pg_catalog.md5(procedure.prosrc) = 'd8085ac26793b1bdbcaab3694de9842c'
        AND (owner.rolsuper OR owner.rolbypassrls)
   ) OR pg_catalog.has_function_privilege(
     0,
@@ -656,13 +656,13 @@ BEGIN
         ('public.grainline_favorite_count_maintain()', '33d336428d410e5d45ec4864d9d983cb', 'v'::"char", 'u'::"char", false),
         ('public.grainline_favorite_update_forbidden()', '954c359579963c28fb3be2aee2dfb484', 'v'::"char", 'u'::"char", false),
         ('public.grainline_favorite_owner_listing_ids(text[])', 'c3c4ff9a7c848f960d7b7b79356b19da', 's'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_owner_add(text)', '7b7ed210b7cf94f79ce55c6fbbddf73b', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_owner_remove(text)', '7e4ca58a60cbf6b93bc260e4051331da', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_owner_delete_all(text)', '684284c4482d67e87ab1f52fa1256890', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_add(text)', '0b60cca1bdd9db09bdd9598e2543f3e2', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_remove(text)', 'a3aedd2b5ff8665e8ae6bbb82e5ed370', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_owner_delete_all(text)', '01317acf4c1b71b60975ab077f52e29b', 'v'::"char", 'u'::"char", true),
         ('public.grainline_favorite_owner_export()', 'ca792d781eef9e3818bd3b9ee7a98286', 's'::"char", 'u'::"char", true),
         ('public.grainline_favorite_seller_range_count(timestamp without time zone,timestamp without time zone,boolean)', '2cafa9f5961bde65ff0894db12e1412c', 's'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_seller_listing_cleanup(text)', '7b82d4570b291fd2f255a68eb1fe8491', 'v'::"char", 'u'::"char", true),
-        ('public.grainline_favorite_admin_listing_cleanup(text)', '07c9daa3c05502d4cb4594e55c9eb183', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_seller_listing_cleanup(text)', 'dcdb28eb08ed4f7abc55fa3e7c43466a', 'v'::"char", 'u'::"char", true),
+        ('public.grainline_favorite_admin_listing_cleanup(text)', '058a0bd6035409ca90b2e995362d70d3', 'v'::"char", 'u'::"char", true),
         ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", 'u'::"char", false),
         ('public.grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)', '195c87faa7dab7e74006f768b0a2e488', 's'::"char", 's'::"char", true),
         ('public.grainline_seller_owner_saved_listing_count()', 'af665497cf9f8402f7aee00c18eec77e', 's'::"char", 'u'::"char", true),

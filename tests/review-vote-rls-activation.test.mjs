@@ -47,15 +47,15 @@ test("ReviewVote activation retains only owner SELECT and fixed mutations", () =
     /Lock the parent rows in one stable order before deleting child votes[\s\S]*?ORDER BY review\.id\s+FOR UPDATE[\s\S]*?DELETE FROM public\."ReviewVote"/u,
   );
   for (const activatedSourceHash of [
-    "5ec13e47a866c42205a61eafb10bc0ef",
-    "7f33cdc75a5dc2e7426cd10f5e3a0fd6",
+    "665aa85a9a1ef369045fd80cfb4174de",
+    "19d5b126b52eda84242168bbb58d7ba9",
   ]) {
     assert.match(migration, new RegExp(activatedSourceHash, "u"));
   }
   for (const sourceHash of [
     "f6c529e56b59735d36d7c78e1bcf45bc",
     "30d3d3cb1d88e9206970c2f9f103e367",
-    "0e9153d1ddabac3e1542970bf6147583",
+    "b1b42c31985f06069c7f608df728672e",
     "f655fe4f4f6ef26db9588db34e9aece4",
     "e0f3bcc6143107e6609cf3fe4a209410",
   ]) {
@@ -82,7 +82,7 @@ test("ReviewVote rollback removes activation-only maintenance before restoring C
     rollback,
     /DROP FUNCTION public\.grainline_review_vote_owner_toggle\(text\)[\s\S]*?RENAME TO grainline_review_vote_owner_toggle/u,
   );
-  assert.match(rollback, /0e9153d1ddabac3e1542970bf6147583/u);
+  assert.match(rollback, /b1b42c31985f06069c7f608df728672e/u);
   assert.match(rollback, /e0f3bcc6143107e6609cf3fe4a209410/u);
   assert.match(rollback, /procedure\.prosrc = \$grainline_review_vote_count_expected\$/u);
   assert.match(rollback, /tgfoid = pg_catalog\.to_regprocedure/u);

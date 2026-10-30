@@ -67,15 +67,15 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261028050000_activate_favorite_rls",
-    "f3539711b0d5882309d32d5855ba7cd8019c0e8d54f22880af656cd5ca4008d0",
+    "e338d85fd1e2a124ce0a32cb755836f35c565ce4fabc374d0df4cdc07f9fb358",
   ],
   [
     "20261028060000_activate_follow_rls",
-    "bb4abeaf52787b5c4002d132ca4a7fc6b3b6321128bc287cb2e706556514d8b7",
+    "a2b8de8d2e6ad171b4eee951b32cbecdcf40999fcad85b1f1a72e8bab71007e2",
   ],
   [
     "20261028070000_activate_review_vote_rls",
-    "600dd452c4af2a2cdcd393637057af8761ac7e4cc794600eb3e04a30333ff486",
+    "bfaee38486632365db0239804858d4c32cd93cbcd2d96a133411fbc7517eadbf",
   ],
   [
     "20261028080000_activate_maker_verification_rls",

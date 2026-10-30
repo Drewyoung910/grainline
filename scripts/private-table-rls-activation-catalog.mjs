@@ -40,7 +40,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     minimumCompatibleAppCommit: OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT,
     migration: "20261028050000_activate_favorite_rls",
     migrationSha256:
-      "f3539711b0d5882309d32d5855ba7cd8019c0e8d54f22880af656cd5ca4008d0",
+      "e338d85fd1e2a124ce0a32cb755836f35c565ce4fabc374d0df4cdc07f9fb358",
     rollbackPath: "docs/rls-drafts/favorite-activation-rollback.sql",
     rollbackSha256:
       "58bb32267b836b8f920e9e9cfe4f786581ca5d14c5a08351b82a7b9b27f71e3d",
@@ -77,7 +77,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     minimumCompatibleAppCommit: OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT,
     migration: "20261028060000_activate_follow_rls",
     migrationSha256:
-      "bb4abeaf52787b5c4002d132ca4a7fc6b3b6321128bc287cb2e706556514d8b7",
+      "a2b8de8d2e6ad171b4eee951b32cbecdcf40999fcad85b1f1a72e8bab71007e2",
     rollbackPath: "docs/rls-drafts/follow-activation-rollback.sql",
     rollbackSha256:
       "db9baa25124fc650e9d08e383933a5b13bdad7fdb30b77726d7499a66019bc0c",
@@ -109,10 +109,10 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     minimumCompatibleAppCommit: OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT,
     migration: "20261028070000_activate_review_vote_rls",
     migrationSha256:
-      "600dd452c4af2a2cdcd393637057af8761ac7e4cc794600eb3e04a30333ff486",
+      "bfaee38486632365db0239804858d4c32cd93cbcd2d96a133411fbc7517eadbf",
     rollbackPath: "docs/rls-drafts/review-vote-activation-rollback.sql",
     rollbackSha256:
-      "f0eec9d2c6acece61dc05875d388bfabbfabb150434f1ca077bcd05babb27a34",
+      "3d63aba353e8223223089b91c765d359ab40ca06e898e70c1c415ce45ca6162a",
     table: "ReviewVote",
     mode: "owner_policy_combined_enable_force",
     policies: Object.freeze([

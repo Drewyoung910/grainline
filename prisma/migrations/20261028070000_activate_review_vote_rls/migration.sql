@@ -208,7 +208,7 @@ BEGIN
       FROM (VALUES
         ('public.grainline_review_vote_insert_guard()', 'f6c529e56b59735d36d7c78e1bcf45bc', 'v'::"char", false),
         ('public.grainline_review_vote_update_forbidden()', '30d3d3cb1d88e9206970c2f9f103e367', 'v'::"char", false),
-        ('public.grainline_review_vote_owner_toggle(text)', '0e9153d1ddabac3e1542970bf6147583', 'v'::"char", true),
+        ('public.grainline_review_vote_owner_toggle(text)', 'b1b42c31985f06069c7f608df728672e', 'v'::"char", true),
         ('public.grainline_review_vote_owner_export()', 'f655fe4f4f6ef26db9588db34e9aece4', 's'::"char", true),
         ('public.grainline_review_vote_owner_delete_all()', 'e0f3bcc6143107e6609cf3fe4a209410', 'v'::"char", true)
       ) AS expected(identity, source_md5, volatility, runtime_execute)
@@ -730,8 +730,8 @@ BEGIN
   FOR reviewed_function, expected_source_md5 IN
     SELECT expected.identity, expected.source_md5
       FROM (VALUES
-        ('public.grainline_review_vote_owner_toggle(text)', '5ec13e47a866c42205a61eafb10bc0ef'),
-        ('public.grainline_review_vote_owner_delete_all()', '7f33cdc75a5dc2e7426cd10f5e3a0fd6')
+        ('public.grainline_review_vote_owner_toggle(text)', '665aa85a9a1ef369045fd80cfb4174de'),
+        ('public.grainline_review_vote_owner_delete_all()', '19d5b126b52eda84242168bbb58d7ba9')
       ) AS expected(identity, source_md5)
   LOOP
     IF pg_catalog.to_regprocedure(reviewed_function) IS NULL OR NOT EXISTS (
@@ -761,7 +761,7 @@ BEGIN
   FOR reviewed_function, expected_source_md5 IN
     SELECT expected.identity, expected.source_md5
       FROM (VALUES
-        ('public.grainline_review_vote_owner_toggle_compatible(text)', '0e9153d1ddabac3e1542970bf6147583'),
+        ('public.grainline_review_vote_owner_toggle_compatible(text)', 'b1b42c31985f06069c7f608df728672e'),
         ('public.grainline_review_vote_owner_delete_all_compatible()', 'e0f3bcc6143107e6609cf3fe4a209410')
       ) AS expected(identity, source_md5)
   LOOP
