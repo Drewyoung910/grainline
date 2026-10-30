@@ -193,7 +193,7 @@ not a miniature hand-built table, is the acceptance authority.
 
 This candidate evidence is not Production authorization. Activation remains
 blocked until an application containing at least compatible authority commit
-`e57362b515f41f0f72d7d483dc79a651de6bb711` is live, the exact superseded
+`968315f775c86d84a547d0a6eb3abaeec4662f49` is live, the exact superseded
 deployment and source commit are bound, predecessor traffic is drained, the
 exact activation source is reviewed and merged, and Drew approves the exact
 protected Production run. The production application currently descends from
