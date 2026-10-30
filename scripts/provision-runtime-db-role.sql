@@ -2102,6 +2102,54 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- UserReport participant operations remain callable through the ordinary
+-- runtime role during compatible preparation. Staff operations are converged
+-- separately below onto the isolated staff role and must stay unavailable
+-- here.
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- StockNotification preparation is additive and keeps predecessor table CRUD
 -- available until activation. When present, converge only the reviewed fixed
 -- operations; the existing back-in-stock claim is provisioned with the other
