@@ -2344,6 +2344,54 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- UserReport participant operations remain callable through the ordinary
+-- runtime role during compatible preparation. Staff operations are converged
+-- separately below onto the isolated staff role and must stay unavailable
+-- here.
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- StockNotification preparation is additive and keeps predecessor table CRUD
 -- available until activation. When present, converge only the reviewed fixed
 -- operations; the existing back-in-stock claim is provisioned with the other
@@ -2596,6 +2644,52 @@ $grainline_follow_provisioning_abort$;
 \if :grainline_follow_rls_active
 REVOKE ALL ON TABLE public."Follow" FROM PUBLIC, :"runtime_role";
 \endif
+
+-- SellerFaq preparation is additive and keeps predecessor table CRUD until
+-- activation. Converge only the four reviewed actor/claim-bound operations.
+WITH seller_faq_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_faq_owner_create"(text, text, text)'),
+    ('public."grainline_seller_faq_owner_remove"(text)'),
+    ('public."grainline_seller_faq_owner_export"()'),
+    ('public."grainline_seller_faq_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM seller_faq_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_faq_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_faq_owner_create"(text, text, text)'),
+    ('public."grainline_seller_faq_owner_remove"(text)'),
+    ('public."grainline_seller_faq_owner_export"()'),
+    ('public."grainline_seller_faq_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_faq_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_faq_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_faq_owner_create"(text, text, text)'),
+    ('public."grainline_seller_faq_owner_remove"(text)'),
+    ('public."grainline_seller_faq_owner_export"()'),
+    ('public."grainline_seller_faq_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_faq_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
 
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
@@ -4670,7 +4764,11 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
     ('public."grainline_seller_staff_verification_target"(text, text)'),
-    ('public."grainline_seller_staff_orderability_state"(text, text)')
+    ('public."grainline_seller_staff_orderability_state"(text, text)'),
+    ('public."grainline_user_report_staff_open_count"(text)'),
+    ('public."grainline_user_report_staff_open_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_user_report_staff_top_reporters"(text, timestamp without time zone, integer)'),
+    ('public."grainline_user_report_staff_resolve"(text, text, text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
@@ -5188,6 +5286,11 @@ WITH user_relationship_runtime(function_signature) AS (
     ('public."grainline_user_block_targets"()'),
     ('public."grainline_user_blocked_account_page"()'),
     ('public."grainline_user_block_pair_lock"(text)'),
+    ('public."grainline_user_block_pair_is_blocked"(text)'),
+    ('public."grainline_user_block_create"(text)'),
+    ('public."grainline_user_block_remove"(text)'),
+    ('public."grainline_user_block_export"()'),
+    ('public."grainline_user_block_delete_owned"()'),
     ('public."grainline_user_email_fallback_addresses"()'),
     ('public."grainline_user_follower_notification_page"(text, text, integer)'),
     ('public."grainline_user_owner_broadcast_follower_page"(text, text, integer, boolean)'),
@@ -5211,6 +5314,11 @@ WITH user_relationship_runtime(function_signature) AS (
     ('public."grainline_user_block_targets"()'),
     ('public."grainline_user_blocked_account_page"()'),
     ('public."grainline_user_block_pair_lock"(text)'),
+    ('public."grainline_user_block_pair_is_blocked"(text)'),
+    ('public."grainline_user_block_create"(text)'),
+    ('public."grainline_user_block_remove"(text)'),
+    ('public."grainline_user_block_export"()'),
+    ('public."grainline_user_block_delete_owned"()'),
     ('public."grainline_user_email_fallback_addresses"()'),
     ('public."grainline_user_follower_notification_page"(text, text, integer)'),
     ('public."grainline_user_owner_broadcast_follower_page"(text, text, integer, boolean)'),

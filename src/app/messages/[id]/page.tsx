@@ -46,6 +46,7 @@ import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
+import { userBlockPairIsBlocked } from "@/lib/blockAccess";
 import {
   sellerActorConversationContextListing,
   sellerParticipantConversationListingTarget,
@@ -204,16 +205,9 @@ export default async function ThreadPage({
     if (unavailableReason) return { ok: false, error: unavailableReason };
 
     // Block check — reject if either user has blocked the other
-    const blockExists = await prisma.block.findFirst({
-      where: {
-        OR: [
-          { blockerId: me.id, blockedId: recipientId },
-          { blockerId: recipientId, blockedId: me.id },
-        ],
-      },
-      select: { id: true },
-    });
-    if (blockExists) return { ok: false, error: "blocked" };
+    if (await userBlockPairIsBlocked(me.id, recipientId)) {
+      return { ok: false, error: "blocked" };
+    }
 
     if (atts.length > 0) {
       const attachmentVerifications = await Promise.all(

@@ -51,6 +51,12 @@ import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAcces
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
+import { ownerBlockExportRows } from "@/lib/blockAccess";
+import {
+  exportReceivedUserReports,
+  exportSubmittedUserReports,
+} from "@/lib/userReportAccess";
+import { ownerSellerFaqExportRows } from "@/lib/sellerFaqAccess";
 
 export const runtime = "nodejs";
 
@@ -242,41 +248,9 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         })
       : [],
     ownerNotificationExportRows(user.id),
-    prisma.block.findMany({
-      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
-      orderBy: { createdAt: "desc" },
-      select: { blockerId: true, blockedId: true, createdAt: true },
-    }),
-    prisma.userReport.findMany({
-      where: { reporterId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reportedId: true,
-        reason: true,
-        details: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
-    prisma.userReport.findMany({
-      where: { reportedId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reason: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
+    ownerBlockExportRows(user.id),
+    exportSubmittedUserReports(user.id),
+    exportReceivedUserReports(user.id),
     exportOwnerSupportRequests(user.id),
     accountEmailSuppressionKeys.length > 0
       ? prisma.emailSuppression.findMany({
@@ -300,13 +274,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     ownerStockNotificationExportRows(user.id),
     exportCheckoutStockReservations(user.id),
     sellerProfile ? exportOwnerMakerVerification(user.id) : null,
-    sellerProfile
-      ? prisma.sellerFaq.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, question: true, answer: true, sortOrder: true, createdAt: true },
-        })
-      : [],
+    ownerSellerFaqExportRows(user.id),
     accountEmailSuppressionKeys.length > 0
       ? prisma.newsletterSubscriber.findMany({
           where: { email: { in: accountEmailSuppressionKeys } },

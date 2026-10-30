@@ -230,6 +230,35 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_block_cleanup",
   "grainline_stock_notification_owner_export",
 ];
+const BLOCK_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030010000_prepare_block_authorities/migration.sql";
+const BLOCK_PREPARATION_FUNCTION_NAMES = [
+  "grainline_user_block_pair_is_blocked",
+  "grainline_user_block_create",
+  "grainline_user_block_remove",
+  "grainline_user_block_export",
+  "grainline_user_block_delete_owned",
+];
+const USER_REPORT_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030020000_prepare_user_report_authorities/migration.sql";
+const USER_REPORT_PREPARATION_FUNCTION_NAMES = [
+  "grainline_user_report_submit",
+  "grainline_user_report_owner_submitted_export",
+  "grainline_user_report_owner_received_export",
+  "grainline_user_report_staff_open_count",
+  "grainline_user_report_staff_open_page",
+  "grainline_user_report_staff_top_reporters",
+  "grainline_user_report_staff_resolve",
+  "grainline_user_report_account_deletion_redact",
+];
+const SELLER_FAQ_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030030000_prepare_seller_faq_authorities/migration.sql";
+const SELLER_FAQ_PREPARATION_FUNCTION_NAMES = [
+  "grainline_seller_faq_owner_create",
+  "grainline_seller_faq_owner_remove",
+  "grainline_seller_faq_owner_export",
+  "grainline_seller_faq_account_deletion_cleanup",
+];
 const FAVORITE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
 const FAVORITE_RLS_MIGRATION =
@@ -3668,6 +3697,24 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
+    const blockAuthorityPrepared = existsSync(
+      BLOCK_PREPARATION_MIGRATION,
+    ) && BLOCK_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(BLOCK_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const userReportAuthorityPrepared = existsSync(
+      USER_REPORT_PREPARATION_MIGRATION,
+    ) && USER_REPORT_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(USER_REPORT_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const sellerFaqAuthorityPrepared = existsSync(
+      SELLER_FAQ_PREPARATION_MIGRATION,
+    ) && SELLER_FAQ_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_FAQ_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const favoriteAuthorityPrepared = existsSync(
       FAVORITE_PREPARATION_MIGRATION,
     ) && FAVORITE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -3926,6 +3973,15 @@ describe("database grant inventory guardrails", () => {
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(blockAuthorityPrepared
+        ? BLOCK_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(userReportAuthorityPrepared
+        ? USER_REPORT_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(reviewVoteRlsActivationPresent
         ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
         : []),
@@ -3994,6 +4050,15 @@ describe("database grant inventory guardrails", () => {
           ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (stockNotificationRlsActivationPresent ? 1 : 0)
+        + (blockAuthorityPrepared
+          ? BLOCK_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (userReportAuthorityPrepared
+          ? USER_REPORT_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (sellerFaqAuthorityPrepared
+          ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES.length
+          : 0)
         + (favoriteAuthorityPrepared
           ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
           : 0)
@@ -4134,6 +4199,15 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(blockAuthorityPrepared
+        ? BLOCK_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(userReportAuthorityPrepared
+        ? USER_REPORT_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES

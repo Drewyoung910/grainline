@@ -8,23 +8,33 @@ const migration = readFileSync(
   "prisma/migrations/20261019140000_prepare_seller_profile_block_follow_cleanup/migration.sql",
   "utf8",
 );
+const blockPreparation = readFileSync(
+  "prisma/migrations/20261030010000_prepare_block_authorities/migration.sql",
+  "utf8",
+);
 
-test("blocking commits reciprocal follow cleanup in the block transaction", () => {
+test("blocking atomically delegates reciprocal follow cleanup to its create authority", () => {
+  assert.match(route, /createUserBlock\(me\.id, blockedId\)/u);
   assert.doesNotMatch(route, /cleanupUserBlockFollows|block_follow_cleanup/u);
   assert.doesNotMatch(access, /export async function cleanupUserBlockFollows/u);
   assert.doesNotMatch(route, /prisma\.sellerProfile|prisma\.follow/u);
   assert.match(access, /withDbUserContext\(blockerId/u);
-  const blockUpsertIndex = access.indexOf("await tx.block.upsert");
-  const cleanupIndex = access.indexOf("await cleanupBlockFollows(tx, blockedId)");
-  const transactionEndIndex = access.indexOf(
-    "}, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });",
-    blockUpsertIndex,
-  );
-  assert.equal(blockUpsertIndex >= 0, true);
-  assert.equal(blockUpsertIndex < cleanupIndex, true);
-  assert.equal(cleanupIndex < transactionEndIndex, true);
-  assert.match(access, /grainline_user_block_follow_cleanup\(\$\{blockedId\}::text\)/u);
+  assert.match(access, /grainline_user_block_create\(\$\{blockedId\}::text\)/u);
   assert.match(access, /TransactionIsolationLevel\.ReadCommitted/u);
+  const createStart = blockPreparation.indexOf(
+    "CREATE FUNCTION public.grainline_user_block_create(",
+  );
+  const createEnd = blockPreparation.indexOf(
+    "$grainline_user_block_create$;",
+    createStart,
+  );
+  const createAuthority = blockPreparation.slice(createStart, createEnd);
+  assert.match(createAuthority, /INSERT INTO public\."Block"/u);
+  assert.match(createAuthority, /grainline_user_block_follow_cleanup\(p_target_user_id\)/u);
+  assert.ok(
+    createAuthority.indexOf('INSERT INTO public."Block"') <
+      createAuthority.indexOf("grainline_user_block_follow_cleanup(p_target_user_id)"),
+  );
 });
 
 test("block follow cleanup is exact, contextual, and runtime-only", () => {

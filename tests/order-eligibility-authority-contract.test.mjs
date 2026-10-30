@@ -16,7 +16,6 @@ describe("Order eligibility authority contract", () => {
   it("converts the four eligibility families away from direct Order reads", () => {
     const converted = [
       "src/app/api/reviews/route.ts",
-      "src/app/api/users/[id]/report/route.ts",
       "src/app/api/verification/apply/route.ts",
       "src/app/dashboard/verification/page.tsx",
       "src/lib/listingDelete.ts",

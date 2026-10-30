@@ -89,11 +89,13 @@ describe("account-state residue hardening", () => {
 
   it("removes deleted seller FAQs from retained seller profiles", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const faqDelete = deletion.indexOf("await tx.sellerFaq.deleteMany");
+    const faqDelete = deletion.indexOf("await cleanupSellerFaqsForAccountDeletion(tx");
     const profileUpdate = deletion.indexOf("await anonymizeSellerForAccountDeletion(tx");
 
     assert.ok(faqDelete >= 0, "account deletion should remove seller FAQs");
-    assert.match(deletion.slice(faqDelete, profileUpdate), /where: \{ sellerProfileId: user\.sellerProfile\.id \}/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /expectedUserId: user\.id/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /claimGeneration: localClaimGeneration/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /claimToken: localClaimToken/);
     assert.ok(faqDelete < profileUpdate, "FAQ deletion should happen before the retained seller profile is anonymized");
   });
 
@@ -104,9 +106,10 @@ describe("account-state residue hardening", () => {
     assert.match(reportsPage, /if \(user\.deletedAt\) return "Deleted user"/);
     assert.match(reportsPage, /function reportUserSearchValue/);
     assert.match(reportsPage, /if \(!user \|\| user\.deletedAt\) return ""/);
-    assert.match(reportsPage, /userStaffAdminLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: reports\.flatMap\(\(report\) => \[report\.reporterId, report\.reportedId\]\),/s);
+    assert.match(reportsPage, /const staffClient = getOrderStaffReadClient\(\)/);
+    assert.match(reportsPage, /userStaffAdminLabels\(staffClient, \{\s*actorId: staff\.id,\s*userIds: reports\.flatMap\(\(report\) => \[report\.reporterId, report\.reportedId\]\),/s);
     assert.match(reportsPage, /const reportUserById = new Map\(reportUsers\.map\(\(user\) => \[user\.id, user\]\)\)/);
-    assert.match(reportsPage, /userStaffReportLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
+    assert.match(reportsPage, /userStaffReportLabels\(staffClient, \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
     assert.match(source("src/lib/userStaffAccess.ts"), /UserStaffReportLabel = UserStaffEmailTarget & \{\s*deletedAt: Date \| null;/s);
     assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reporterId\)\)/);
     assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reportedId\)\)/);
