@@ -198,7 +198,7 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
   assert.equal(favorite.functionSources.size, 8);
   assert.deepEqual(favorite.release.addedColumns, []);
   const sql = readFileSync(favorite.migrationPath, "utf8");
-  assert.match(sql, /SET LOCAL lock_timeout = '10s'/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
   assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
   assert.match(sql, /ADD COLUMN "favoriteCount" integer NOT NULL DEFAULT 0/u);
   assert.match(sql, /Favorite_count_after_insert/u);
@@ -209,7 +209,7 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
   );
   assert.match(
     sql,
-    /CREATE TRIGGER "Listing_favoriteCount_guard"[\s\S]*BEFORE UPDATE OF "favoriteCount" ON public\."Listing"[\s\S]*grainline_listing_favorite_count_guard\(\)/u,
+    /CREATE TRIGGER "Listing_favoriteCount_guard"[\s\S]*BEFORE INSERT OR UPDATE OF "favoriteCount" ON public\."Listing"[\s\S]*grainline_listing_favorite_count_guard\(\)/u,
   );
   assert.match(
     sql,

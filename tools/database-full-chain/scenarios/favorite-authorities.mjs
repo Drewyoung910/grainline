@@ -390,6 +390,32 @@ export async function proveFavoritePreparedAuthorities({
     (error) => error?.code === "42501",
   );
   assert.equal(await projectedCount(database, fixture.listings.add), 1);
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      fixture.buyerB,
+      `INSERT INTO public."Listing"
+       SELECT (
+         pg_catalog.jsonb_populate_record(
+           NULL::public."Listing",
+           pg_catalog.to_jsonb(source_listing)
+             || pg_catalog.jsonb_build_object(
+                  'id', $2::text,
+                  'slug', $3::text,
+                  'favoriteCount', 999
+                )
+         )
+       ).*
+         FROM public."Listing" AS source_listing
+        WHERE source_listing.id = $1`,
+      [
+        fixture.listings.add,
+        `${fixture.listings.add}_forged_count`,
+        `${fixture.listings.add}-forged-count`,
+      ],
+    ),
+    (error) => error?.code === "42501",
+  );
   await runtimeQuery(
     database,
     fixture.buyerB,

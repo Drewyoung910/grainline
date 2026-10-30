@@ -129,7 +129,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   favorite_v1: Object.freeze({
     migration: "20261028010000_prepare_favorite_authorities",
-    migrationSha256: "ec921aa2eb31d2b6a63a22682e753d7ec2a54e80be84c0a1f4c9b4749bb4537e",
+    migrationSha256: "d35ae9c5b2d90758d0f665bd246b60fe8fa8753cb10d5f8d72a6d573712b11e9",
     table: "Favorite",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
