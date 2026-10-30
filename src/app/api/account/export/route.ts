@@ -48,6 +48,10 @@ import {
 import { sellerOwnerExportProfile } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAccess";
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
+import {
+  exportReceivedUserReports,
+  exportSubmittedUserReports,
+} from "@/lib/userReportAccess";
 
 export const runtime = "nodejs";
 
@@ -248,36 +252,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       orderBy: { createdAt: "desc" },
       select: { blockerId: true, blockedId: true, createdAt: true },
     }),
-    prisma.userReport.findMany({
-      where: { reporterId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reportedId: true,
-        reason: true,
-        details: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
-    prisma.userReport.findMany({
-      where: { reportedId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reason: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
+    exportSubmittedUserReports(user.id),
+    exportReceivedUserReports(user.id),
     exportOwnerSupportRequests(user.id),
     accountEmailSuppressionKeys.length > 0
       ? prisma.emailSuppression.findMany({

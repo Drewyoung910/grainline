@@ -1,7 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
-import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import {
   isInvalidJsonBodyError,
@@ -11,10 +10,17 @@ import {
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { resolveUserReport } from "@/lib/userReportAccess";
+import { codePointLength } from "@/lib/textLength";
 import { z } from "zod";
 
 const ReportResolveSchema = z.object({
-  reason: z.string().min(1).max(500),
+  participantRationale: z.string()
+    .refine((value) => codePointLength(value) >= 1 && codePointLength(value) <= 500),
+  internalNote: z.string()
+    .refine((value) => codePointLength(value) <= 1000)
+    .optional(),
 });
 const ADMIN_REPORT_RESOLVE_BODY_MAX_BYTES = 16 * 1024;
 
@@ -49,31 +55,21 @@ export async function POST(
     }
     throw error;
   }
-  const resolutionNote = truncateText(sanitizeText(body.reason), 500);
-  if (!resolutionNote) {
+  const participantRationale = truncateText(sanitizeText(body.participantRationale), 500);
+  const internalNote = body.internalNote
+    ? truncateText(sanitizeText(body.internalNote), 1000) || null
+    : null;
+  if (!participantRationale) {
     return privateJson({ error: "Resolution reason is required." }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.userReport.updateMany({
-      where: { id, resolved: false },
-      data: { resolved: true, resolvedAt: new Date(), resolvedById: admin.id, resolutionNote },
-    });
-    if (result.count === 0) return result;
-    await logAdminActionOrThrow({
-      client: tx,
-      adminId: admin.id,
-      action: "RESOLVE_REPORT",
-      targetType: "UserReport",
-      targetId: id,
-      metadata: {
-        resolutionNoteStored: true,
-        resolutionNoteLength: resolutionNote.length,
-      },
-    });
-    return result;
+  const result = await resolveUserReport(getOrderStaffReadClient(), {
+    actorUserId: admin.id,
+    reportId: id,
+    participantRationale,
+    internalNote,
   });
-  if (updated.count === 0) {
+  if (result === "UNCHANGED") {
     return privateJson({ error: "Report is already resolved or no longer exists." }, { status: HTTP_STATUS.NOT_FOUND });
   }
 

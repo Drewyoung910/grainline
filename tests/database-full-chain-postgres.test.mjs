@@ -110,6 +110,11 @@ import {
   proveStockNotificationRlsRollback,
   seedStockNotificationPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
+import {
+  proveUserReportPreparedAuthorities,
+  seedUserReportPredecessorFixture,
+  USER_REPORT_PREPARATION_MIGRATION,
+} from "../tools/database-full-chain/scenarios/user-report-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -232,6 +237,8 @@ test(
       let stockNotificationFixture;
       let stockNotificationPredecessorEvidence;
       let stockNotificationPreparationPreflightPath;
+      let userReportFixture;
+      let userReportPreparationPreflightPath;
       let stockNotificationPreparationPostflightClosed = false;
       let stockNotificationActivationReadyEvidencePath;
       class DisposableOwnerClient extends pg.Client {
@@ -438,6 +445,30 @@ test(
             assert.equal(activationReady.policies.length, 0);
             assert.equal(activationReady.retainedFunctions.length, 10);
           }
+          if (artifact.name === USER_REPORT_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before UserReport proof");
+            userReportPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "user-report-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "user_report_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  userReportPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
+            userReportFixture = await seedUserReportPredecessorFixture({
+              database: adapter,
+              seller: fixture,
+            });
+          }
         },
         onProgress: ({ index, total, name, retried }) => {
           if (index === total || index % 50 === 0 || retried) {
@@ -469,6 +500,29 @@ test(
         true,
         "StockNotification preparation postflight must close before activation",
       );
+
+      assert.ok(
+        userReportPreparationPreflightPath,
+        "UserReport Production preflight must run before its preparation",
+      );
+      const userReportPreparationPostflight =
+        await inspectPrivateTablePreparationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "user_report_v1",
+            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              "user-report-preparation-postflight.json",
+            ),
+            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+              userReportPreparationPreflightPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+      assert.equal(userReportPreparationPostflight.state, "applied");
+      assert.equal(userReportPreparationPostflight.catalog.functions.length, 8);
 
       await assertSellerProfilePrivateLayout(adapter);
       await proveSellerProfilePolicylessEnable({
@@ -834,6 +888,11 @@ test(
       await proveStockNotificationRlsAuthorities({
         database: adapter,
         fixture: stockNotificationFixture,
+      });
+      assert.ok(userReportFixture, "UserReport predecessor fixture must be seeded");
+      await proveUserReportPreparedAuthorities({
+        database: adapter,
+        fixture: userReportFixture,
       });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),

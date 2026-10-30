@@ -38,7 +38,7 @@ test("staff-read role convergence requires the restricted login posture", () => 
   assert.match(script, /NOT set_option/u);
 });
 
-test("isolated staff role receives exactly twenty-five reviewed operations and no tables", () => {
+test("isolated staff role receives the exact reviewed operations and no tables", () => {
   for (const signature of [
     "grainline_order_staff_page_v2\\(text, text, integer, integer\\)",
     "grainline_order_staff_detail_v2\\(text, text\\)",
@@ -71,7 +71,26 @@ test("isolated staff role receives exactly twenty-five reviewed operations and n
       new RegExp(`GRANT EXECUTE ON FUNCTION\\s+public\\.${signature}`, "u"),
     );
   }
-  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 25);
+  assert.equal(
+    (script.match(/GRANT EXECUTE ON FUNCTION\s*\n\s+public\./gu) ?? []).length,
+    25,
+  );
+  for (const signature of [
+    'public."grainline_user_report_staff_open_count"(text)',
+    'public."grainline_user_report_staff_open_page"(text, timestamp without time zone, text, integer)',
+    'public."grainline_user_report_staff_top_reporters"(text, timestamp without time zone, integer)',
+    'public."grainline_user_report_staff_resolve"(text, text, text, text)',
+  ]) {
+    assert.match(
+      script,
+      new RegExp(signature.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"),
+    );
+  }
+  assert.match(script, /optional_user_report_staff/u);
+  assert.match(
+    script,
+    /WHERE pg_catalog\.to_regprocedure\(function_signature\) IS NOT NULL;\s*\\gexec/u,
+  );
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

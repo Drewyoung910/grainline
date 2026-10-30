@@ -2192,6 +2192,54 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- UserReport participant operations remain callable through the ordinary
+-- runtime role during compatible preparation. Staff operations are converged
+-- separately below onto the isolated staff role and must stay unavailable
+-- here.
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH user_report_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_submit"(text, text, text, text, text, text)'),
+    ('public."grainline_user_report_owner_submitted_export"()'),
+    ('public."grainline_user_report_owner_received_export"()'),
+    ('public."grainline_user_report_account_deletion_redact"(text, bigint, uuid)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM user_report_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- StockNotification preparation is additive and keeps predecessor table CRUD
 -- available until activation. When present, converge only the reviewed fixed
 -- operations; the existing back-in-stock claim is provisioned with the other
@@ -4269,7 +4317,11 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
     ('public."grainline_seller_staff_verification_target"(text, text)'),
-    ('public."grainline_seller_staff_orderability_state"(text, text)')
+    ('public."grainline_seller_staff_orderability_state"(text, text)'),
+    ('public."grainline_user_report_staff_open_count"(text)'),
+    ('public."grainline_user_report_staff_open_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_user_report_staff_top_reporters"(text, timestamp without time zone, integer)'),
+    ('public."grainline_user_report_staff_resolve"(text, text, text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

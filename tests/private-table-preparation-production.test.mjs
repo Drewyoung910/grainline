@@ -226,7 +226,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.ok(parsed.on.workflow_dispatch);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    ["support_request_v1", "stock_notification_v1"],
+    ["support_request_v1", "stock_notification_v1", "user_report_v1"],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(PRIVATE_TABLE_PREPARATION_CONFIRMATION, "u"));

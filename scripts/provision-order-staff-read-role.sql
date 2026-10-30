@@ -340,6 +340,22 @@ GRANT EXECUTE ON FUNCTION
   public.grainline_seller_staff_orderability_state(text, text)
   TO :"staff_role";
 
+-- UserReport staff operations are additive and may be absent from historical
+-- replay stages. Converge them when their compatible preparation is present.
+WITH optional_user_report_staff(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_staff_open_count"(text)'),
+    ('public."grainline_user_report_staff_open_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_user_report_staff_top_reporters"(text, timestamp without time zone, integer)'),
+    ('public."grainline_user_report_staff_resolve"(text, text, text, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'staff_role'
+)
+  FROM optional_user_report_staff
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH table_authority AS (
   SELECT class.oid
   FROM pg_catalog.pg_class AS class
@@ -382,7 +398,7 @@ WITH table_authority AS (
   WHERE acl.grantee = (
     SELECT oid FROM pg_catalog.pg_roles WHERE rolname = :'staff_role'
   )
-), expected(function_signature) AS (
+), expected_base(function_signature) AS (
   VALUES
     ('public."grainline_order_staff_page_v2"(text, text, integer, integer)'),
     ('public."grainline_order_staff_detail_v2"(text, text)'),
@@ -409,6 +425,18 @@ WITH table_authority AS (
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
     ('public."grainline_seller_staff_verification_target"(text, text)'),
     ('public."grainline_seller_staff_orderability_state"(text, text)')
+), expected_optional(function_signature) AS (
+  VALUES
+    ('public."grainline_user_report_staff_open_count"(text)'),
+    ('public."grainline_user_report_staff_open_page"(text, timestamp without time zone, text, integer)'),
+    ('public."grainline_user_report_staff_top_reporters"(text, timestamp without time zone, integer)'),
+    ('public."grainline_user_report_staff_resolve"(text, text, text, text)')
+), expected(function_signature) AS (
+  SELECT function_signature FROM expected_base
+  UNION ALL
+  SELECT function_signature
+    FROM expected_optional
+   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
 ), expected_authority AS (
   SELECT function_signature,
          pg_catalog.has_function_privilege(

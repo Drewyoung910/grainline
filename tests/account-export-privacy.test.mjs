@@ -75,7 +75,6 @@ describe("account export privacy coverage", () => {
 
     for (const model of [
       "block",
-      "userReport",
       "emailSuppression",
       "emailOutbox",
       "emailFailureCount",
@@ -87,6 +86,17 @@ describe("account export privacy coverage", () => {
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
     }
+    assert.match(
+      route,
+      /exportSubmittedUserReports\(user\.id\)/,
+      "account export must query submitted reports through its owner authority",
+    );
+    assert.match(
+      route,
+      /exportReceivedUserReports\(user\.id\)/,
+      "account export must query received reports through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.userReport\./);
     assert.match(
       route,
       /exportOwnerSupportRequests\(user\.id\)/,
