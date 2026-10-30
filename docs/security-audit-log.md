@@ -5213,3 +5213,34 @@ Open work:
   the final frozen-tree suite passed 4,290 tests with 12 skips and zero failures
   across 4,302 tests / 536 suites. TypeScript, ESLint and `git diff --check`
   passed.
+
+## 2026-10-28 MakerVerification combined activation candidate
+
+- The isolated compatible preparation converts all known direct
+  `MakerVerification` application operations to 13 purpose-bound owner, staff
+  and service functions while retaining predecessor CRUD and RLS-off posture.
+- A separate isolated activation candidate revokes direct ordinary-runtime,
+  staff and `PUBLIC` table authority and applies policyless ENABLE plus FORCE in
+  one transaction. It creates no policy, rewrites no row and drops no object.
+- The byte-sealed catalog also pins a database-first rollback that restores
+  predecessor CRUD before disabling FORCE/RLS. The full PostgreSQL 17
+  production-parity job accepted preparation, activation, direct-denial and
+  rollback behavior.
+- The generic read-only production inspector independently checks restricted
+  role posture, table and column ACLs, all 13 function bodies/owners/search
+  paths/EXECUTE grants, exact policyless catalog state and migration history.
+  It recognizes only complete predecessor, active-but-unrecorded and complete
+  active states.
+- The protected workflow applies the reviewed transaction outside Prisma's
+  ledger and then records it with a byte-allowlisted `migrate resolve
+  --applied`. A rerun after a ledger-write failure records the already active
+  state without replaying SQL. It also requires exact green main, the accepted
+  preparation run, a compatible live deployment, predecessor skew drain, sole
+  pending migration and a separate typed Production confirmation. The
+  activation downloads the exact non-expired artifact from that accepted
+  preparation run and independently binds both sanitized evidence files to the
+  reviewed preparation release id, source commit, table, migration checksum,
+  database/role posture and applied postflight before owner access is opened.
+- This is candidate source only. No merge, deployment, migration, role, grant,
+  provider or Production database state changed, and no Production run is
+  authorized.

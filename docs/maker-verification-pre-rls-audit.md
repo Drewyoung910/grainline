@@ -2,9 +2,10 @@
 
 Date: 2026-10-28
 
-Decision: **The Option B compatible preparation candidate is implemented and
-proven on the complete PostgreSQL 17 chain; NO-GO remains for RLS or grant
-activation.**
+Decision: **The Option B compatible preparation is implemented and a separate
+policyless ENABLE+FORCE candidate now has direct-denial and predecessor-
+rollback proofs; NO-GO remains for Production RLS or grant activation until
+exact-head PostgreSQL 16/17 accepts the complete matrix.**
 
 Reviewed source baseline:
 `857bc94706913a4d5c4368afa99de0a55bb2437c`.
@@ -188,9 +189,11 @@ eligibility snapshot and the database rechecks actor/account/Guild state under
 lock; staff approval remains the final eligibility authority. The complete
 staff/service transition matrix and the owner/staff input, inactive-account,
 cross-role, and deletion-retry matrix are now wired into the full-chain proof
-and await exact-head PostgreSQL 16/17 acceptance. Activation still requires
-exact-head acceptance of both matrices, direct-table denial after ENABLE+FORCE,
-and predecessor rollback proof. No Production authorization is implied.
+and await exact-head PostgreSQL 16/17 acceptance. The isolated activation
+candidate supplies direct-table denial after ENABLE+FORCE and a database-first
+rollback/reactivation round trip. Activation still requires exact-head
+acceptance of those proofs and both behavior matrices. No Production
+authorization is implied.
 
 ## Findings and activation gates
 
@@ -414,3 +417,34 @@ then restores the predecessor application. Preparation functions may remain.
 Rollback must be executed against a disposable full-chain database and prove
 the predecessor Member/Master, staff, export, and deletion statements work.
 No rollback deletes rows or drops a column.
+
+## Isolated activation candidate (2026-10-28)
+
+The compatible preparation and activation remain separate branches and release
+boundaries. Candidate migration
+`20261028080000_activate_maker_verification_rls` performs one combined,
+policyless `ENABLE` plus `FORCE` activation after revoking ordinary runtime,
+staff and `PUBLIC` table authority. It changes no row, creates no policy and
+drops no schema object.
+
+The reusable candidate package now includes:
+
+- a byte-sealed private-table activation catalog binding the compatible
+  preparation, 13 reviewed operations, activation migration and database-first
+  rollback;
+- a read-only production inspector that accepts only the complete predecessor,
+  complete active-but-unrecorded, or complete active state and rejects partial
+  ENABLE/FORCE, elevated runtime roles, unexpected policies, function drift or
+  any residual non-owner table/column authority;
+- a protected generic release workflow bound to exact main, exact successful
+  push proofs, the accepted preparation run, the compatible live deployment,
+  and proof that predecessor-pinned traffic resolves to that deployment; and
+- restart-safe external transaction application plus a byte-allowlisted
+  `prisma migrate resolve --applied` ledger step, so a ledger-write failure
+  cannot replay the authority change.
+
+Exact-head PostgreSQL 17 production-parity accepted the preparation and the
+combined activation/rollback SQL. The workflow and inspector still require
+their final exact-head CI result. No compatible application is merged or live,
+no preparation or activation migration is applied, and no Production action is
+authorized by this candidate.
