@@ -104,7 +104,7 @@ but the RLS release must not silently introduce a new rich-text product format.
 | Owner editor read | active seller owner | rows belonging to the actor's seller profile | retain parent owner-editor function |
 | Add | active seller owner | one bounded row, maximum 20, serialized next sort order | actor-bound fixed transition |
 | Delete | active seller owner | exact actor-owned row | actor-bound fixed transition |
-| Export | active seller owner | all actor-owned rows, stable order | actor-bound fixed projection |
+| Export | active account owner | all actor-owned rows, stable order, including an inactive shop | actor-bound fixed projection |
 | Account deletion | current deletion worker | rows belonging to the claimed seller account | claim-bound fixed cleanup |
 
 No ordinary principal needs direct `UPDATE`. No staff principal needs a broad
