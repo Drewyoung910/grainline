@@ -58,10 +58,10 @@ describe("rendering security guardrails", () => {
   it("keeps message-body media rendering behind trusted media origins", () => {
     const thread = source("src/components/ThreadMessages.tsx");
 
-    assert.match(thread, /import \{ isTrustedMediaUrl \} from "@\/lib\/urlValidation"/);
-    assert.match(thread, /const isTrustedImageUrl = \(s: string\) => isTrustedMediaUrl\(s\) && hasImageExtension\(s\)/);
-    assert.match(thread, /const isTrustedPdfUrl = \(s: string\) => isTrustedMediaUrl\(s\) && hasPdfExtension\(s\)/);
-    assert.match(thread, /const fileUrlTrusted = file \? isTrustedMediaUrl\(file\.url\) : false/);
+    assert.match(thread, /parseStoredFileMessageBody\(body, m\.kind\)/);
+    assert.match(thread, /const isAttachment = m\.kind === "file"/);
+    assert.doesNotMatch(thread, /isTrustedImageUrl\(body\)/);
+    assert.doesNotMatch(thread, /isTrustedPdfUrl\(body\)/);
     assert.doesNotMatch(thread, /const isImageUrl/);
     assert.doesNotMatch(thread, /const isPdfUrl/);
   });

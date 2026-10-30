@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
-import { parseFileMessageBody } from "@/lib/messageBodies";
+import { parseStoredFileMessageBody } from "@/lib/messageBodies";
 import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
 import { Search, X } from "@/components/icons";
@@ -27,7 +27,7 @@ function formatSnippet(body?: string | null, kind?: string | null) {
   const txt = (body ?? "").toString();
   if (!txt) return "No messages yet";
 
-  const f = parseFileMessageBody(txt.trim());
+  const f = parseStoredFileMessageBody(txt.trim(), kind);
   if (f) {
     const isImg = (f.type?.startsWith("image/") ?? false) || isImageUrl(f.url);
     if (isImg) return "Photo";
@@ -39,8 +39,7 @@ function formatSnippet(body?: string | null, kind?: string | null) {
   if (kind === "custom_order_request") return "Custom order request";
   if (kind === "custom_order_link") return "Custom listing ready";
 
-  if (isImageUrl(txt)) return "Photo";
-  if (isPdfUrl(txt)) return "PDF";
+  if (kind === "file") return "Attachment unavailable";
   return txt;
 }
 

@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const source = readFileSync(new URL("../src/lib/messageBodies.ts", import.meta.url), "utf8");
 const {
+  parseStoredFileMessageBody,
   parseCommissionInterestMessageBody,
   parseCustomOrderLinkMessageBody,
   parseCustomOrderRequestMessageBody,
@@ -11,6 +12,45 @@ const {
 } = await import("../src/lib/messageBodies.ts");
 
 describe("message body parser guardrails", () => {
+  it("requires durable file kind before granting attachment presentation", () => {
+    const structured = JSON.stringify({
+      kind: "file",
+      url: "https://utfs.io/f/attacker/Payment-Instructions.pdf",
+      name: "Payment-Instructions.pdf",
+      type: "application/pdf",
+    });
+
+    assert.equal(parseStoredFileMessageBody(structured, null), null);
+    assert.equal(parseStoredFileMessageBody("https://utfs.io/f/attacker.jpg", null), null);
+    assert.deepEqual(parseStoredFileMessageBody(structured, "file"), {
+      kind: "file",
+      url: "https://utfs.io/f/attacker/Payment-Instructions.pdf",
+      name: "Payment-Instructions.pdf",
+      type: "application/pdf",
+    });
+    assert.deepEqual(
+      parseStoredFileMessageBody("https://utfs.io/f/legacy.jpg", "file"),
+      {
+        kind: "file",
+        url: "https://utfs.io/f/legacy.jpg",
+        name: null,
+        type: null,
+      },
+    );
+    assert.equal(
+      parseStoredFileMessageBody(
+        JSON.stringify({
+          kind: "file",
+          url: "https://evil.example/attacker.jpg",
+          name: "invoice.jpg",
+          type: "image/jpeg",
+        }),
+        "file",
+      ),
+      null,
+    );
+  });
+
   it("keeps file message read paths behind trusted media URL validation", () => {
     assert.match(source, /import \{ isR2PublicUrl \} from "\.\/urlValidation\.ts"/);
     assert.match(source, /MAX_FILE_MESSAGE_URL_LENGTH = 1000/);

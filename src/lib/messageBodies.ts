@@ -99,6 +99,23 @@ export function parseFileMessageBody(
   };
 }
 
+export function parseStoredFileMessageBody(
+  raw: string,
+  storedKind: string | null | undefined,
+  isAllowedUrl: (url: string) => boolean = isR2PublicUrl,
+): FileMessageBody | null {
+  if (storedKind !== "file") return null;
+
+  const structured = parseFileMessageBody(raw, isAllowedUrl);
+  if (structured) return structured;
+
+  const url = raw.trim();
+  if (!url || url.length > MAX_FILE_MESSAGE_URL_LENGTH || !isAllowedUrl(url)) {
+    return null;
+  }
+  return { kind: "file", url, name: null, type: null };
+}
+
 export function parseCommissionInterestMessageBody(raw: string): CommissionInterestMessageBody {
   const obj = parseJsonRecord(raw);
   if (!obj) return {};

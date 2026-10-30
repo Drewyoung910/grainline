@@ -7,14 +7,13 @@ import {
   parseCommissionInterestMessageBody,
   parseCustomOrderLinkMessageBody,
   parseCustomOrderRequestMessageBody,
-  parseFileMessageBody,
+  parseStoredFileMessageBody,
   parseThreadMessagesEvent,
 } from "@/lib/messageBodies";
 import { messageStreamStatusMessage } from "@/lib/messageStreamState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
-import { isTrustedMediaUrl } from "@/lib/urlValidation";
 
 type Msg = {
   id: string;
@@ -67,8 +66,6 @@ function appendCursorParams(
 const hasImageExtension = (s: string) =>
   /^https:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
 const hasPdfExtension = (s: string) => /^https:\/\/.+\.pdf$/i.test(s.trim());
-const isTrustedImageUrl = (s: string) => isTrustedMediaUrl(s) && hasImageExtension(s);
-const isTrustedPdfUrl = (s: string) => isTrustedMediaUrl(s) && hasPdfExtension(s);
 
 function PdfChip({ url, name }: { url: string; name?: string | null }) {
   return (
@@ -513,19 +510,18 @@ export default function ThreadMessages({
           }
 
           // ── Standard message rendering ──────────────────────────────────
-          const file = parseFileMessageBody(body);
-          const fileUrlTrusted = file ? isTrustedMediaUrl(file.url) : false;
+          const file = parseStoredFileMessageBody(body, m.kind);
 
           const isImage = file
-            ? fileUrlTrusted && ((file.type?.startsWith("image/") ?? false) || hasImageExtension(file.url))
-            : isTrustedImageUrl(body);
+            ? (file.type?.startsWith("image/") ?? false) || hasImageExtension(file.url)
+            : false;
 
           const isPdf = file
-            ? fileUrlTrusted && (file.type === "application/pdf" || hasPdfExtension(file.url))
-            : isTrustedPdfUrl(body);
+            ? file.type === "application/pdf" || hasPdfExtension(file.url)
+            : false;
 
           // Attachment bubbles are always light for readability
-          const isAttachment = file || isImage || isPdf;
+          const isAttachment = m.kind === "file";
           const bubbleClass = isAttachment
             ? "bg-white text-neutral-900 border border-stone-200/60"
             : mine
@@ -553,7 +549,7 @@ export default function ThreadMessages({
               );
             } else if (isPdf) {
               bubble = <PdfChip url={file.url} name={file.name ?? undefined} />;
-            } else if (fileUrlTrusted) {
+            } else {
               bubble = (
                 <a
                   href={file.url}
@@ -568,22 +564,9 @@ export default function ThreadMessages({
                   </span>
                 </a>
               );
-            } else {
-              bubble = <div className="whitespace-pre-wrap break-words">{file.name ?? "Attachment unavailable"}</div>;
             }
-          } else if (isImage) {
-            bubble = (
-              <a href={body} target="_blank" rel="noopener noreferrer" aria-label="Open image attachment in a new tab">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={body}
-                  alt="attachment"
-                  className="max-h-80 max-w-[260px] rounded-lg object-cover"
-                />
-              </a>
-            );
-          } else if (isPdf) {
-            bubble = <PdfChip url={body} name={"Document.pdf"} />;
+          } else if (m.kind === "file") {
+            bubble = <div className="whitespace-pre-wrap break-words">Attachment unavailable</div>;
           } else {
             bubble = <div className="whitespace-pre-wrap break-words">{body}</div>;
           }
