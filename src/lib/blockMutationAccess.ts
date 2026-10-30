@@ -14,6 +14,21 @@ type BlockFollowCleanupRow = {
   deletedCount: number;
 };
 
+async function cleanupBlockFollows(
+  tx: BlockMutationTx,
+  blockedId: string,
+) {
+  const rows = await tx.$queryRaw<BlockFollowCleanupRow[]>`
+    SELECT public.grainline_user_block_follow_cleanup(${blockedId}::text)
+      AS "deletedCount"
+  `;
+  const deletedCount = rows[0]?.deletedCount;
+  if (rows.length !== 1 || !Number.isSafeInteger(deletedCount) || deletedCount < 0) {
+    throw new Error("User block follow cleanup returned an invalid result");
+  }
+  return deletedCount;
+}
+
 async function lockBlockUserPair(
   tx: BlockMutationTx,
   blockedId: string,
@@ -39,6 +54,10 @@ export async function createUserBlock(blockerId: string, blockedId: string) {
       create: { blockerId, blockedId },
       update: {},
     });
+    // The Block and reciprocal Follow cleanup are one durable decision. If the
+    // cleanup fails, roll the Block back instead of leaving a blocked pair
+    // visible in follower counts until a later retry happens to repair it.
+    await cleanupBlockFollows(tx, blockedId);
     await deleteStockNotificationsForBlockedPair(tx, blockedId);
     return true;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
@@ -53,19 +72,5 @@ export async function deleteUserBlock(blockerId: string, blockedId: string) {
       where: { blockerId, blockedId },
     });
     return result.count;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
-}
-
-export async function cleanupUserBlockFollows(blockerId: string, blockedId: string) {
-  return withDbUserContext(blockerId, async (tx) => {
-    const rows = await tx.$queryRaw<BlockFollowCleanupRow[]>`
-      SELECT public.grainline_user_block_follow_cleanup(${blockedId}::text)
-        AS "deletedCount"
-    `;
-    const deletedCount = rows[0]?.deletedCount;
-    if (rows.length !== 1 || !Number.isSafeInteger(deletedCount) || deletedCount < 0) {
-      throw new Error("User block follow cleanup returned an invalid result");
-    }
-    return deletedCount;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }

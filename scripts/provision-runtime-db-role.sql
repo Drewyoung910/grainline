@@ -2388,6 +2388,61 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Follow has no generic runtime table contract after its policyless
+-- activation. All reads and writes use the purpose-bound functions above and
+-- the previously reviewed follow/fanout authority families. Refuse partial
+-- RLS state so a provisioning replay cannot silently reopen the table.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'Follow'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND relforcerowsecurity AND policy_count = 0)
+      AS active,
+    COUNT(*) = 1
+      AND bool_and(NOT relrowsecurity AND NOT relforcerowsecurity AND policy_count = 0)
+      AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'Follow RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false) AS grainline_follow_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_follow_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_follow_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_follow_rls_active
+REVOKE ALL ON TABLE public."Follow" FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_follow_rls_active
+
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
 -- When its functions exist, converge every helper away from PUBLIC/runtime

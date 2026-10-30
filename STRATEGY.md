@@ -3510,3 +3510,16 @@ never need to support public reads. Compatible preparation runs before its app
 deployment. RLS activation, direct-grant revocation and Production execution
 remain separate reviewed gates; no security release drops the additive count
 column.
+
+### Follow RLS fixed-operation boundary (2026-10-28)
+
+Use zero ordinary runtime table authority for `Follow`, rather than generic
+owner policies or a maintained public counter. Preserve raw current-row counts
+as a distinct contract from eligible notification/broadcast audiences, retain
+the shared Block/follow pair-lock order, and expose only bounded public, owner,
+seller-owner, fanout, broadcast, cleanup and export operations. Compatible
+preparation releases before the application. The isolated activation combines
+policyless ENABLE plus FORCE and must preserve database-first rollback,
+account-deletion cleanup and User/SellerProfile cascades. Preparation,
+compatible deployment, skew drain and Production activation remain separate
+reviewed gates; this decision is not standing Production authorization.

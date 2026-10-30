@@ -114,6 +114,7 @@ export const ORDER_QUOTE_TABLE = "OrderShippingRateQuote";
 export const USER_TABLE = "User";
 export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 export const SUPPORT_REQUEST_TABLE = "SupportRequest";
+export const FOLLOW_TABLE = "Follow";
 export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
 export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
@@ -1470,6 +1471,17 @@ export function supportRequestRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(SUPPORT_REQUEST_TABLE);
 }
 
+export function followRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(FOLLOW_TABLE) && !policies.has(FOLLOW_TABLE);
+}
+
+export function followRlsForceExpected(inventory) {
+  return followRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -1916,6 +1928,7 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(supportRequestRlsActivationExpected(inventory)
       ? [SUPPORT_REQUEST_TABLE]
       : []),
+    ...(followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -2931,6 +2944,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && supportRequestRlsActivationExpected(inventory)
     )
     || (
+      tableName === FOLLOW_TABLE
+      && followRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3019,6 +3036,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? userRlsForceExpected(inventory)
         : tableName === SUPPORT_REQUEST_TABLE
           ? supportRequestRlsForceExpected(inventory)
+        : tableName === FOLLOW_TABLE
+          ? followRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE

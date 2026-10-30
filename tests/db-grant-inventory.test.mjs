@@ -378,6 +378,7 @@ const {
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
   SUPPORT_REQUEST_TABLE,
+  FOLLOW_TABLE,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
   CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
@@ -427,6 +428,8 @@ const {
   userRlsForceExpected,
   supportRequestRlsActivationExpected,
   supportRequestRlsForceExpected,
+  followRlsActivationExpected,
+  followRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -901,6 +904,17 @@ describe("database grant inventory guardrails", () => {
       ...supportRequestPredecessorInventory,
       rlsEnableTables: ["SupportRequest"],
     };
+    const followPredecessorInventory = {
+      tables: [FOLLOW_TABLE],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const followActivatedInventory = {
+      ...followPredecessorInventory,
+      rlsEnableTables: [FOLLOW_TABLE],
+      rlsForceTables: [FOLLOW_TABLE],
+    };
     const savedBlogPostPredecessorInventory = {
       rlsPolicyTables: [],
       savedBlogPostOwnerPrivilegesProvisioned: false,
@@ -1086,6 +1100,42 @@ describe("database grant inventory guardrails", () => {
       }], supportRequestEnabledInventory), []);
     } else {
       assert.equal(supportRequestRlsForceExpected, undefined);
+    }
+    if (typeof followRlsActivationExpected === "function") {
+      assert.equal(followRlsActivationExpected(followPredecessorInventory), false);
+      assert.equal(followRlsForceExpected(followPredecessorInventory), false);
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(FOLLOW_TABLE, followPredecessorInventory),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.equal(followRlsActivationExpected(followActivatedInventory), true);
+      assert.equal(followRlsForceExpected(followActivatedInventory), true);
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(FOLLOW_TABLE, followActivatedInventory),
+        [],
+      );
+      assert.equal(
+        policylessServiceRlsTableNames(followActivatedInventory).includes(
+          FOLLOW_TABLE,
+        ),
+        true,
+      );
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: FOLLOW_TABLE,
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      }], followActivatedInventory), []);
+      assert.deepEqual(collectPolicylessServiceRlsIssues([{
+        table_name: FOLLOW_TABLE,
+        rls_enabled: true,
+        rls_forced: false,
+        policy_count: 0,
+      }], followActivatedInventory), [
+        "service-only table Follow must have FORCE ROW LEVEL SECURITY enabled",
+      ]);
+    } else {
+      assert.equal(followRlsForceExpected, undefined);
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
@@ -3818,6 +3868,8 @@ describe("database grant inventory guardrails", () => {
         + (followAuthorityPrepared
           ? FOLLOW_PREPARATION_FUNCTION_NAMES.length
           : 0)
+        + (typeof followRlsActivationExpected === "function"
+          && followRlsActivationExpected(inventory) ? 1 : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
@@ -4260,6 +4312,8 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(typeof followRlsActivationExpected === "function"
+          && followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
@@ -4315,6 +4369,8 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(typeof followRlsForceExpected === "function"
+          && followRlsForceExpected(inventory) ? [FOLLOW_TABLE] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
@@ -5867,13 +5923,17 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationProvisioningPresent = provision.includes(
       "grainline_stock_notification_rls_active",
     );
+    const followProvisioningPresent = provision.includes(
+      "grainline_follow_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
         + Number(supportRequestProvisioningPresent)
         + Number(savedBlogPostProvisioningPresent)
         + Number(cartCartItemProvisioningPresent)
-        + Number(stockNotificationProvisioningPresent),
+        + Number(stockNotificationProvisioningPresent)
+        + Number(followProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5926,6 +5986,16 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :grainline_stock_notification_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StockNotification"[\s\S]*GRANT SELECT, DELETE ON TABLE public\."StockNotification"/,
+      );
+    }
+    if (followProvisioningPresent) {
+      assert.match(
+        provision,
+        /Follow RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :grainline_follow_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Follow"\s+FROM PUBLIC, :"runtime_role"/,
       );
     }
     assert.equal(

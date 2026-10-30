@@ -4,7 +4,7 @@ Date: 2026-10-28
 
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
 
-Status: design gate open; no Follow RLS or grant change is authorized by this audit
+Status: isolated activation candidate prepared; no Production action is authorized by this audit
 
 ## Intended Product Behavior
 
@@ -43,7 +43,9 @@ one operation. It takes the shared sorted user-pair lock, revalidates the
 seller after the lock, checks reciprocal blocks, inserts idempotently and
 returns the raw current count. The block path uses the same pair lock, and
 `grainline_user_block_follow_cleanup(text)` removes both reciprocal follow
-directions after the durable Block exists. This closes the block/follow race.
+directions in the same transaction that creates the durable Block. The Block
+and cleanup therefore commit or roll back together. This closes the
+block/follow race without leaving a post-commit repair window.
 
 ## Complete Current Consumer Inventory
 
@@ -116,8 +118,8 @@ policy cannot be allowed to alter their result sets.
 
 - Account deletion directly deletes outgoing Follow rows. For a seller it also
   directly deletes all incoming rows before SellerProfile anonymization.
-- Creating a Block calls the fixed reciprocal follow cleanup after the Block
-  commits.
+- Creating a Block calls the fixed reciprocal follow cleanup in the same
+  transaction as the Block insert.
 - Hard deletion of User or SellerProfile cascades Follow rows.
 - Unblocking does not restore prior follows.
 
@@ -246,7 +248,26 @@ schema and prove at least:
 
 ## Audit Decision
 
-`NO-GO` for policy or grant activation today. The consumer inventory is
-complete enough to select the boundary, but FOLLOW-RLS-1 and FOLLOW-RLS-2 must
-be closed in source and full-chain PostgreSQL behavior proofs first. See
-`docs/follow-rls-options.md` for the recommended design.
+`GO` for isolated review of the policyless activation candidate, and `NO-GO`
+for Production activation until the preparation/app release, deployment-skew
+drain, exact-head review, protected release wiring and explicit Production
+approval are complete.
+
+The compatible preparation closes FOLLOW-RLS-1 by converting all nine direct
+application consumers to fixed operations. It closes FOLLOW-RLS-2 with the
+target-context account-deletion cleanup covering both outgoing and incoming
+seller relationships. The preparation proof covers the shared Block/follow
+lock order in both two-session schedules, atomic Block cleanup, actor rechecks,
+raw-count semantics and prepared cleanup behavior.
+
+The isolated `20261028060000_activate_follow_rls` candidate then revokes all
+ordinary runtime and PUBLIC table authority and applies policyless ENABLE plus
+FORCE. Its full-chain PostgreSQL 17 proof applies all 439 migrations and proves
+direct SELECT/INSERT/UPDATE/DELETE denial, fixed create/delete/read behavior,
+account-deletion cleanup, User and SellerProfile cascades, database-first
+rollback, and a second activation after rollback. The migration preflight pins
+the exact table shape and all 18 functions whose bodies reference `Follow`,
+including owner, mode, volatility, search path and ACL posture, and rejects an
+unreviewed reader. No table, column, function, trigger or row is dropped.
+
+This evidence is source readiness only. Production remains unchanged.
