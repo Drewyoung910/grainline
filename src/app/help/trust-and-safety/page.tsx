@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Trust & Safety | Grainline",
+  title: "Trust & Safety",
   description:
     "How Grainline protects buyers. Verified makers, secure payments, dispute resolution, and reporting tools.",
   alternates: { canonical: "https://thegrainline.com/help/trust-and-safety" },

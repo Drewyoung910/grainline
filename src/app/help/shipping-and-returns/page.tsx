@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Shipping & Returns | Grainline",
+  title: "Shipping & Returns",
   description:
     "How shipping, delivery timelines, refunds, and returns work for buyers on Grainline.",
   alternates: { canonical: "https://thegrainline.com/help/shipping-and-returns" },

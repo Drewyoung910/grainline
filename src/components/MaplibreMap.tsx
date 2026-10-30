@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "@/lib/maplibreClient";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
+import { createMapPinElement } from "@/lib/mapPinElement";
 
 export default function MaplibreMap({
   lat,
@@ -40,7 +41,7 @@ export default function MaplibreMap({
       return;
     }
 
-    new maplibregl.Marker({ color: "#1C1C1A" })
+    new maplibregl.Marker({ element: createMapPinElement(), anchor: "bottom" })
       .setLngLat([lng, lat])
       .addTo(map);
 
