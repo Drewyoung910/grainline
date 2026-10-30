@@ -2,6 +2,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Site text face (Geist, loaded in src/app/layout.tsx). */
+@theme inline {
+  --font-sans: var(--font-geist), "Helvetica Neue", Arial, system-ui, sans-serif;
+}
+
 /* TipTap WYSIWYG editor */
 .tiptap { min-height: 300px; padding: 1rem; }
 .tiptap:focus { outline: none; }
@@ -103,12 +108,19 @@
 }
 }
 
-/* Serif display font for hero + section headings. Registered as a Tailwind
-   utility so variants work (e.g. `prose-headings:font-display` on the Help
-   and Seller Handbook pages); a plain class can't take a variant. */
+/* Serif display font for hero + section headings (Newsreader, loaded in
+   src/app/layout.tsx). Registered as a Tailwind utility so variants work
+   (e.g. `prose-headings:font-display` on the Help and Seller Handbook pages);
+   a plain class can't take a variant. */
 @utility font-display {
-  font-family: Georgia, 'Times New Roman', serif;
-  letter-spacing: -0.025em;
+  font-family: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  letter-spacing: -0.015em;
+}
+/* Newsreader reads best a step lighter than the old Georgia headings, so
+   bold display headings settle at medium weight (as in the prototype). */
+.font-display.font-semibold,
+.font-display.font-bold {
+  font-weight: 500;
 }
 
 /* Header logo. A mask keeps the shared logo artwork intact while letting the
@@ -636,6 +648,88 @@ input, textarea, select {
     }
   }
 }
+/* Batch three: accordions show a plus that turns into a close mark, and
+   empty-state icons float gently. */
+.smooth-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+}
+.smooth-details summary::-webkit-details-marker {
+  display: none;
+}
+.smooth-details summary::after {
+  content: "+";
+  flex: none;
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1;
+  color: #57534e;
+}
+.smooth-details details[open] > summary::after {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .smooth-details summary::after {
+    transition: transform 0.42s var(--motion-ease-spring);
+  }
+  .float-gently {
+    animation: float-gently 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Checkout: each step's content rises in when the step changes; the
+     current step's pill springs in. */
+  [data-cart-steps] > :nth-child(n + 3) {
+    animation: step-in 0.4s var(--motion-ease-out) backwards;
+  }
+  .step-pill-in {
+    animation: popover-spring-in 0.36s var(--motion-ease-spring) backwards;
+  }
+}
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Maker map pins drop in once the map is on screen (see AllSellersMap). */
+  .map-pin-drop {
+    animation: map-pin-drop 0.7s var(--motion-ease-spring) backwards;
+    animation-play-state: paused;
+  }
+  [data-pins-visible] .map-pin-drop {
+    animation-play-state: running;
+  }
+}
+@keyframes map-pin-drop {
+  from { opacity: 0; transform: translateY(-36px); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes float-gently {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* Cards rise in as they scroll into view (scroll-driven, compositor only).
+   Inside horizontal rows the timeline has nothing to track and the card
+   simply stays put. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .card-rise {
+      animation: card-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+  }
+}
+@keyframes card-rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Batch two: confirmations and browse results. */
 .check-draw path {
   stroke-dasharray: 1;

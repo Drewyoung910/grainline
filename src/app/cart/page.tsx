@@ -84,7 +84,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
       <div className="p-10 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600">
+        <div className="float-gently mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600">
           <ShoppingBag size={28} />
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
@@ -833,10 +833,11 @@ function CartPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+    <main data-cart-steps className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
-      {/* Step indicator */}
+      {/* Step indicator: the current step sits on a small white pill that
+          springs in; each step's content rises in as it appears. */}
       <div className="rounded-full bg-[#EFEAE0] px-4 py-2 inline-flex items-center gap-2 text-sm mb-6">
         {[
           { key: "review", label: "Cart" },
@@ -846,11 +847,14 @@ function CartPage() {
         ].map((s, i) => (
           <span key={s.key} className="flex items-center gap-2">
             {i > 0 && <span className="text-neutral-500" aria-hidden="true">›</span>}
-            <span className={
-              step === s.key
-                ? "text-neutral-900 font-semibold"
-                : "text-neutral-500"
-            }>
+            <span
+              aria-current={step === s.key ? "step" : undefined}
+              className={`rounded-full px-2.5 py-0.5 transition-colors duration-300 ${
+                step === s.key
+                  ? "step-pill-in bg-white font-semibold text-neutral-900 shadow-sm"
+                  : "text-neutral-500"
+              }`}
+            >
               {s.label}
             </span>
           </span>

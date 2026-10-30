@@ -139,7 +139,8 @@ describe("homepage hero and header contracts", () => {
     assert.match(home, /See what people are building nearby, or explore shops across the country\./);
     assert.doesNotMatch(home, /Find Makers Near You|One-of-a-kind pieces, made with care/);
     assert.match(mapSection, /import \{ Navigation \} from "@\/components\/icons"/);
-    assert.match(mapSection, /<Navigation size=\{15\} className="shrink-0" \/>[\s\S]*Use my location/);
+    // The location icon spins while the browser looks up the position.
+    assert.match(mapSection, /<Navigation size=\{15\} className=\{`shrink-0\$\{locating \? " motion-safe:animate-spin" : ""\}`\} \/>[\s\S]*Use my location/);
     assert.match(mapSection, />\s*Explore the full map\s*</);
   });
 
@@ -178,7 +179,7 @@ describe("homepage hero and header contracts", () => {
   it("keeps homepage editorial links and featured surfaces visually consistent", () => {
     const home = source("src/app/page.tsx");
     const sharedLinkClass =
-      "text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline";
+      "group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline";
     const storiesLink = openingTagWith(home, "Read more stories");
     const alsoFeaturedIndex = home.indexOf("Also featured this week");
 
@@ -186,7 +187,7 @@ describe("homepage hero and header contracts", () => {
       storiesLink.includes(`className="${sharedLinkClass}"`),
       "Read more stories should share the View more and Visit shop link treatment",
     );
-    assert.match(home, /Read more stories →/);
+    assert.match(home, /Read more stories <span aria-hidden="true"[^>]*>→<\/span>/);
     assert.notEqual(alsoFeaturedIndex, -1, "expected the Also featured strip");
     assert.match(
       home.slice(alsoFeaturedIndex, alsoFeaturedIndex + 1_000),

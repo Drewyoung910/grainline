@@ -6,6 +6,7 @@ import { addAnonymousCartItem, type AnonymousCartSnapshot } from "@/lib/anonymou
 import { notifyCartUpdated } from "@/lib/cartEvents";
 import { publicListingPath } from "@/lib/publicPaths";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
+import { flyToCart } from "@/lib/flyToCart";
 
 export default function AddToCartButton({
   listingId,
@@ -36,6 +37,7 @@ export default function AddToCartButton({
     if (addedTimerRef.current !== null) window.clearTimeout(addedTimerRef.current);
   }, []);
   const confirmAdded = () => {
+    flyToCart();
     setAddedCount((count) => count + 1);
     setShowAdded(true);
     if (addedTimerRef.current !== null) window.clearTimeout(addedTimerRef.current);

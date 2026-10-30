@@ -379,7 +379,7 @@ export default function ThreadMessages({
       )}
       {msgs.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600 mb-4">
+          <div className="float-gently flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600 mb-4">
             <MessageCircle size={28} />
           </div>
           <h3 className="text-base font-medium text-neutral-800 mb-1">

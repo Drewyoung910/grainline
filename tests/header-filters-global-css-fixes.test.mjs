@@ -153,7 +153,8 @@ describe("global CSS layering (UI-08, UI-11, #1270, #1275)", () => {
       if (rule.params === "font-display") utility = rule;
     });
     assert.ok(utility, "missing @utility font-display");
-    assert.match(utility.toString(), /font-family: Georgia, 'Times New Roman', serif;/);
+    // Newsreader from next/font (2026-10-30 font switch), Georgia as fallback.
+    assert.match(utility.toString(), /font-family: var\(--font-newsreader\), "Iowan Old Style", Georgia, serif;/);
   });
 
   it("hides the prose backticks around Seller Handbook code words (#1275)", () => {

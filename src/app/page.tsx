@@ -549,7 +549,7 @@ export default async function HomePage() {
           <ScrollSection>
             <div data-home-top-picks className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Top Picks</h2>
-              <Link href="/browse?sort=popular" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
+              <Link href="/browse?sort=popular" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
             </div>
 
             <ScrollFadeRow arrows className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
@@ -626,7 +626,7 @@ export default async function HomePage() {
         <ScrollSection>
           <div data-home-new-arrivals className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
-            <Link href="/browse?sort=newest" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
+            <Link href="/browse?sort=newest" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
           </div>
 
           {fresh.length === 0 ? (
@@ -682,8 +682,8 @@ export default async function HomePage() {
           <ScrollSection>
             <div data-home-followed-makers className="mb-5 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Makers You Follow</h2>
-              <Link href="/account/feed" className="text-sm text-neutral-600 hover:underline">
-                See full feed →
+              <Link href="/account/feed" className="group text-sm text-neutral-600 hover:underline">
+                See full feed <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
             </div>
             <ScrollFadeRow arrows className="overflow-x-auto -mx-1 px-1">
@@ -962,9 +962,9 @@ export default async function HomePage() {
                       )}
                       <Link
                         href={publicSellerPath(also.id, also.displayName)}
-                        className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline"
+                        className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline"
                       >
-                        Visit shop →
+                        Visit shop <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
                       </Link>
                     </div>
                   </div>
@@ -979,8 +979,8 @@ export default async function HomePage() {
           <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
             <div data-home-blog className="mb-5 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">From the Blog</h2>
-              <Link href="/blog" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">
-                Read more stories →
+              <Link href="/blog" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">
+                Read more stories <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
             </div>
             <ul className="grid grid-cols-1 sm:grid-cols-3 gap-6">

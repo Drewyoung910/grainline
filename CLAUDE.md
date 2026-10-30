@@ -211,7 +211,8 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ### Typography
 
-- **`.font-display`** — `font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.025em` — applies ONLY to `<h1>` page titles and `<h2>` section headings. Never on card text, prices, nav links, buttons, or metadata. Registered with `@utility`, so variants such as `prose-h2:font-display` work.
+- **Typefaces (2026-10-30, from the motion prototype)**: Geist for all text and Newsreader for display headings, both self-hosted through `next/font/google` in `src/app/layout.tsx` (CSS variables `--font-geist`, `--font-newsreader`; `@theme inline` maps `--font-sans` to Geist). No runtime request goes to Google, so the CSP needs no font hosts.
+- **`.font-display`** — `font-family: var(--font-newsreader), "Iowan Old Style", Georgia, serif; letter-spacing: -0.015em`; a display heading marked `font-semibold`/`font-bold` renders at weight 500 — applies ONLY to `<h1>` page titles and `<h2>` section headings. Never on card text, prices, nav links, buttons, or metadata. Registered with `@utility`, so variants such as `prose-h2:font-display` work.
 - **Section headings with `.font-display`**: Browse h1, Commission Room h1, My Account h1/h2s, Your Feed h1, Workshop h1, Messages h1, Listing detail "About this piece" / "Details" / "You might also like" h2s, Dashboard h2s
 
 ### Card Image Standards
@@ -2950,11 +2951,21 @@ first pass's rough edges. Behavior future agents must preserve:
   search's bookmark fills and bumps. Browse results stagger in
   (`.results-stagger`) and the Grid/List highlight slides; it animates
   because the element survives the client navigation. The maker banner
-  drifts like the spotlight photo. Not yet done: browse filter chips, cart
-  step and quantity motion (wait for Codex's open cart PRs #678/#685), map
-  pin drop (markers are rebuilt on every pan, so a naive drop would replay),
-  rating bars (there is no rating breakdown UI yet), and the card-to-gallery
-  photo morph.
+  drifts like the spotlight photo.
+- **Batch three**: listing cards rise in as they scroll into view
+  (`.card-rise`, scroll-driven `view()` timeline; inert inside horizontal
+  rows). Add to cart also sends a copy of the main gallery photo
+  (`[data-fly-to-cart-source]`) flying into the visible header cart
+  (`[data-cart-target]`) via `src/lib/flyToCart.ts` (Web Animations, skipped
+  under reduced motion). Gallery arrows are white and fade in on hover (always
+  visible on touch). `.smooth-details` accordions show a "+" that turns into a
+  close mark. Empty-state icons float (`.float-gently`). Homepage text links
+  nudge their arrow on hover. Checkout step content rises in and the current
+  step pill springs in (`[data-cart-steps]`). "Use my location" spins its icon
+  while locating. Map pins drop in the first time each maker appears, paused
+  until the map is on screen (`data-pins-visible`). Not yet done: browse
+  filter chips, the card-to-gallery photo morph, and review rating bars (no
+  rating breakdown UI exists yet).
 
 ## Pending Tasks
 

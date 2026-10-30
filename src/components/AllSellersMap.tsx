@@ -36,6 +36,25 @@ export default function AllSellersMap({
 }: Props) {
   const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Pin drops wait until the map is on screen (the homepage map starts below
+  // the fold); CSS keeps them paused until this attribute appears.
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      element.setAttribute("data-pins-visible", "");
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        element.setAttribute("data-pins-visible", "");
+        observer.disconnect();
+      }
+    }, { threshold: 0.25 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const cardCache = useMemo<MakerMapCardCache>(() => new Map(), []);
   const [mapUnavailable, setMapUnavailable] = useState(false);
   // Pin selected for the maker-card overlay (rendered OUTSIDE maplibre,
@@ -142,6 +161,10 @@ export default function AllSellersMap({
     map.on("click", () => setSelectedPin(null));
 
     const markers: maplibregl.Marker[] = [];
+    // Pins drop in the first time each maker appears; markers are rebuilt on
+    // every pan, so already-shown pins never replay the drop.
+    const droppedPinIds = new Set<string>();
+    let dropOrder = 0;
 
     // map.resize() can fire moveend before the load handler adds the source;
     // isSourceLoaded() on a missing source logs "There is no tile manager".
@@ -174,7 +197,17 @@ export default function AllSellersMap({
         // No maplibre popup — pin click opens the MakerMapCard overlay,
         // which lives outside the map canvas and can't be clipped by it.
         const selectPin = () => setSelectedPin({ id, name: nameText, city: cityText, state: stateText });
-        const marker = new maplibregl.Marker({ element: createMapPinElement(), anchor: "bottom" })
+        const pinElement = createMapPinElement();
+        if (!droppedPinIds.has(id)) {
+          droppedPinIds.add(id);
+          const pinGraphic = pinElement.firstElementChild as SVGElement | null;
+          if (pinGraphic) {
+            pinGraphic.classList.add("map-pin-drop");
+            pinGraphic.style.animationDelay = `${Math.min(dropOrder, 12) * 70}ms`;
+            dropOrder += 1;
+          }
+        }
+        const marker = new maplibregl.Marker({ element: pinElement, anchor: "bottom" })
           .setLngLat(coords)
           .addTo(map);
         const markerEl = marker.getElement();

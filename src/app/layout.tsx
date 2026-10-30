@@ -6,6 +6,23 @@ import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { getFooterMetros } from "@/lib/footerMetros";
+import { Geist, Newsreader } from "next/font/google";
+
+// Typefaces from the motion prototype, self-hosted by next/font (no request
+// to Google at runtime). Geist for text; Newsreader for headings, with its
+// optical-size axis so small headings stay sturdy and large ones stay fine.
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+});
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  display: "swap",
+  style: ["normal", "italic"],
+  axes: ["opsz"],
+});
 
 const vercelCommit = process.env.VERCEL_GIT_COMMIT_SHA;
 const releaseCommit = vercelCommit && /^[0-9a-f]{40}$/.test(vercelCommit)
@@ -72,7 +89,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const footerMetros = await getFooterMetros().catch(() => []);
 
   return (
-    <html lang="en" className="bg-[#F7F5F0]">
+    <html lang="en" className={`${geist.variable} ${newsreader.variable} bg-[#F7F5F0]`}>
       <body className="min-h-[100dvh] flex flex-col bg-[#F7F5F0] text-neutral-900">
         <a href="#main-content" className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-[9999] focus-visible:bg-neutral-900 focus-visible:text-white focus-visible:px-4 focus-visible:py-2 focus-visible:rounded-md focus-visible:text-sm">
           Skip to content

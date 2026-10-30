@@ -478,7 +478,7 @@ export default function Header() {
             </Show>
 
             {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
-            <Link href="/cart" className={iconButtonClass} aria-label="Cart">
+            <Link href="/cart" className={iconButtonClass} aria-label="Cart" data-cart-target="">
               <ShoppingBag size={22} />
               <IconHoverTip label="Cart" />
               {cartCount != null && cartCount > 0 && (
@@ -545,6 +545,7 @@ export default function Header() {
             href="/cart"
             className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
             aria-label="Cart"
+            data-cart-target=""
           >
             <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]">
               <ShoppingBag size={20} />

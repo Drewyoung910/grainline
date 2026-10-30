@@ -38,6 +38,8 @@ export default function MakersMapSection({
   compact?: boolean;
 }) {
   const [geoErr, setGeoErr] = useState<string | null>(null);
+  // The location icon spins while the browser looks up the position.
+  const [locating, setLocating] = useState(false);
   const router = useRouter();
 
   const onUseMyLocation = () => {
@@ -46,6 +48,7 @@ export default function MakersMapSection({
       setGeoErr("Location not available in this browser.");
       return;
     }
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const url = new URL("/map", window.location.origin);
@@ -53,7 +56,10 @@ export default function MakersMapSection({
         url.searchParams.set("zoom", "12");
         router.push(url.toString());
       },
-      (err) => setGeoErr(err.message || "Could not get location."),
+      (err) => {
+        setLocating(false);
+        setGeoErr(err.message || "Could not get location.");
+      },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
@@ -70,10 +76,11 @@ export default function MakersMapSection({
             <button
               type="button"
               onClick={onUseMyLocation}
+              aria-busy={locating || undefined}
               className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
             >
-              <Navigation size={15} className="shrink-0" />
-              Use my location
+              <Navigation size={15} className={`shrink-0${locating ? " motion-safe:animate-spin" : ""}`} />
+              {locating ? "Finding you…" : "Use my location"}
             </button>
             <a
               href="/map"

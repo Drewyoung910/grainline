@@ -569,7 +569,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /initialCount=\{featuredFollowerCounts\.get\(spotlight\.id\) \?\? 0\}/);
     assert.match(homepage, /meDbId !== also\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
-    assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
+    // The arrow sits in its own span so it can nudge on hover.
+    assert.match(homepage, /hover:underline[\s\S]*Visit shop <span aria-hidden="true"[^>]*>→<\/span>/);
     assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfileId/);
     assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.authorId === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);
