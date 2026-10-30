@@ -313,6 +313,17 @@ export async function proveBlockPreparedAuthorities({ database }) {
     "a deleted target must not create a block",
   );
 
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_user_block_create($1) AS created",
+      [targetId],
+    ),
+    [{ created: true }],
+    "the actor-owned row exists before suspended-actor mutation denials",
+  );
+
   await assert.rejects(
     runtimeQuery(
       database,
@@ -337,6 +348,16 @@ export async function proveBlockPreparedAuthorities({ database }) {
     ),
     (error) => error?.code === "42501",
     "a banned actor cannot create a new block",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_user_block_remove($1)",
+      [targetId],
+    ),
+    (error) => error?.code === "42501",
+    "a banned actor cannot remove an existing block",
   );
 
   const posture = rowsOf(await database.query(`

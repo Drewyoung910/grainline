@@ -247,6 +247,16 @@ BEGIN
   IF locked_user_count <> 2 THEN
     RETURN 0;
   END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = request_user_id
+       AND actor.banned = false
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'User unblock actor is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
 
   DELETE FROM public."Block" AS relationship
    WHERE relationship."blockerId" = request_user_id

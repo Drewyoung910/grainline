@@ -129,7 +129,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   block_v1: Object.freeze({
     migration: "20261028050000_prepare_block_authorities",
-    migrationSha256: "ee1d8402bc282749e1005e61c1f8579ba1a0e12c7a0f366379b759612c4dfa08",
+    migrationSha256: "a41fd289fc1c8d33e385961e5ae0418a3a33224833d68f03a1e992049452764a",
     table: "Block",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,

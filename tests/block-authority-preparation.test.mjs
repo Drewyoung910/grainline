@@ -83,6 +83,15 @@ describe("Block compatible authority preparation", () => {
     assert.match(create, /ON CONFLICT \("blockerId", "blockedId"\) DO NOTHING/u);
   });
 
+  it("requires an active actor for both block mutation directions", () => {
+    const create = functionBody("grainline_user_block_create");
+    const remove = functionBody("grainline_user_block_remove");
+    for (const body of [create, remove]) {
+      assert.match(body, /actor\.banned = false/u);
+      assert.match(body, /actor\."deletedAt" IS NULL/u);
+    }
+  });
+
   it("pins messaging source before converting only its Block reads to fixed ownership", () => {
     assert.match(migration, /4b2884765f4ca0db432c4678f98b1bdd/u);
     assert.match(migration, /6465832d045b72cc2762907f66a461f3/u);
