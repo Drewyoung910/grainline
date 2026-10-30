@@ -116,7 +116,10 @@ test("Block preparation inspector proves restart-safe pending and applied states
     const pendingEnv = environment(directory, "preflight");
     const pending = await inspectPrivateTablePreparationProduction(
       pendingEnv,
-      { Client: fakeClientClass({ applied: false }) },
+      {
+        Client: fakeClientClass({ applied: false }),
+        migrationPath: verified.migrationPath,
+      },
     );
     assert.equal(pending.state, "pending");
     assert.deepEqual(pending.catalog, { columns: [], functions: [] });
@@ -127,7 +130,10 @@ test("Block preparation inspector proves restart-safe pending and applied states
     };
     const applied = await inspectPrivateTablePreparationProduction(
       appliedPreflightEnv,
-      { Client: fakeClientClass({ applied: true }) },
+      {
+        Client: fakeClientClass({ applied: true }),
+        migrationPath: verified.migrationPath,
+      },
     );
     assert.equal(applied.state, "applied");
     assert.equal(applied.catalog.functions.length, 5);
@@ -138,7 +144,10 @@ test("Block preparation inspector proves restart-safe pending and applied states
         "postflight",
         appliedPreflightEnv.PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH,
       ),
-      { Client: fakeClientClass({ applied: true }) },
+      {
+        Client: fakeClientClass({ applied: true }),
+        migrationPath: verified.migrationPath,
+      },
     );
     assert.equal(postflight.state, "applied");
     assert.deepEqual(postflight.posture, applied.posture);
