@@ -1188,6 +1188,91 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, {});
   });
 
+  it("centralizes Favorite access before its separate RLS activation", () => {
+    const access = source("src/lib/favoriteAccess.ts");
+    const addRoute = source("src/app/api/favorites/route.ts");
+    const removeRoute = source("src/app/api/favorites/[listingId]/route.ts");
+    const accountExport = source("src/app/api/account/export/route.ts");
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const blockMutation = source("src/lib/blockMutationAccess.ts");
+
+    for (const functionName of [
+      "grainline_favorite_owner_listing_ids",
+      "grainline_favorite_owner_add",
+      "grainline_favorite_owner_remove",
+      "grainline_favorite_owner_delete_all",
+      "grainline_favorite_owner_export",
+      "grainline_favorite_seller_range_count",
+      "grainline_favorite_seller_listing_cleanup",
+      "grainline_favorite_admin_listing_cleanup",
+    ]) {
+      assert.match(access, new RegExp(functionName, "u"));
+    }
+    assert.doesNotMatch(access, /\$queryRawUnsafe|Prisma\.raw/u);
+    assert.match(addRoute, /addOwnerFavorite\(me\.id, listingId\)/u);
+    assert.match(removeRoute, /removeOwnerFavorite\(me\.id, listingId\)/u);
+    assert.match(accountExport, /ownerFavoriteExportRows\(user\.id\)/u);
+    assert.match(accountDeletion, /deleteAllOwnerFavorites\(user\.id, tx\)/u);
+    assert.doesNotMatch(blockMutation, /deleteFavoritesForBlockedPair/u);
+  });
+
+  it("blocks direct Favorite delegate access after compatible conversion", () => {
+    const directFavoriteAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.favorite\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|upsert|update|updateMany)\b/g;
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      const matches = [...source(file).matchAll(directFavoriteAccessPattern)]
+        .map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, {});
+  });
+
+  it("centralizes Follow access before its separate RLS activation", () => {
+    const access = source("src/lib/sellerFollowAccess.ts");
+    const followerAccess = source("src/lib/userFollowerAccess.ts");
+    const homepage = source("src/app/page.tsx");
+    const feed = source("src/app/api/account/feed/route.ts");
+    const account = source("src/app/account/page.tsx");
+    const dashboard = source("src/app/dashboard/seller/page.tsx");
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+
+    for (const functionName of [
+      "grainline_follow_public_state_batch",
+      "grainline_follow_owner_target_ids",
+      "grainline_follow_owner_outgoing_count",
+      "grainline_follow_seller_owner_incoming_count",
+      "grainline_follow_account_deletion_cleanup",
+    ]) {
+      assert.match(access, new RegExp(functionName, "u"));
+    }
+    assert.match(followerAccess, /grainline_follow_source_notification_page/u);
+    assert.doesNotMatch(followerAccess, /grainline_user_follower_notification_page/u);
+    assert.doesNotMatch(access, /\$queryRawUnsafe|Prisma\.raw/u);
+    assert.match(homepage, /sellerPublicFollowStateBatch/u);
+    assert.match(homepage, /ownerFollowedSellerIds\(meDbId, 50\)/u);
+    assert.match(feed, /ownerFollowedSellerIds/u);
+    assert.match(account, /ownerRawFollowCount\(me\.id\)/u);
+    assert.match(dashboard, /sellerOwnerFollowerCount\(me\.id\)/u);
+    assert.match(accountDeletion, /cleanupFollowsForAccountDeletion/u);
+  });
+
+  it("blocks direct Follow delegate access after compatible conversion", () => {
+    const directFollowAccessPattern =
+      /\b[A-Za-z_$][\w$]*\.follow\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|groupBy|upsert|update|updateMany)\b/g;
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      const matches = [...source(file).matchAll(directFollowAccessPattern)]
+        .map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, {});
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 

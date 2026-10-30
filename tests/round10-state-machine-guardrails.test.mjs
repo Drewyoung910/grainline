@@ -7,6 +7,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const makerVerificationPreparationMigrationPath =
+  process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH?.trim()
+  || "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+
 const {
   GUILD_REAPPLY_COOLDOWN_DAYS,
   guildMasterApplicationBlockReason,
@@ -113,12 +117,17 @@ describe("Round 10 state-machine guardrails", () => {
       sellerProfilePrivateMigrationPath("20261014220000_prepare_seller_profile_private_guild_staff_transition_authority"),
     );
 
-    assert.match(dashboard, /makerVerification\.updateMany\(\{\s*where: \{\s*sellerProfileId: s\.id,\s*status: \{ in: \[\.\.\.GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES\] \}/s);
+    assert.match(dashboard, /applyOwnerGuildMasterVerification\(s\.userId/);
+    assert.doesNotMatch(dashboard, /makerVerification\.(?:update|updateMany|upsert)/);
     assert.doesNotMatch(guildMemberCron, /makerVerification\.updateMany/);
     assert.match(guildMemberAuthority, /status IN \([\s\S]*'APPROVED'[\s\S]*'GUILD_MASTER_REJECTED'/);
     assert.doesNotMatch(guildMetricsCron, /makerVerification\.updateMany/);
     assert.match(guildMetricsAuthority, /status = 'GUILD_MASTER_APPROVED'/);
-    assert.match(dashboard, /assertGuildVerificationTransition\(sellerUpdated\.count, "apply for Guild Master"\)/);
+    const makerVerificationAuthority = source(
+      makerVerificationPreparationMigrationPath,
+    );
+    assert.match(makerVerificationAuthority, /source_verification\.status NOT IN \([\s\S]*'APPROVED'[\s\S]*'GUILD_MASTER_REJECTED'/);
+    assert.match(makerVerificationAuthority, /UPDATE public\."SellerProfilePrivate"[\s\S]*"guildMasterAppliedAt" = source_now/);
     for (const operation of ["REVOKE_GUILD_MEMBER", "REVOKE_GUILD_MASTER", "REINSTATE_GUILD_MEMBER"]) {
       assert.match(adminVerification, new RegExp(`operation: "${operation}"`));
     }

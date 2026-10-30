@@ -6,6 +6,10 @@
 
 export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   [
+    "20261023010000_prepare_support_request_authorities",
+    "c65e259df2bd476e2d265c8973fabbcf018b5f989b4b01a2ca923bb1013dc384",
+  ],
+  [
     "20261023040000_repair_resend_failed_event_suppressions",
     "7f438ca723b05cf2e91a581f48223c0a577fc58715e22ff7176de4206ad8a2c8",
   ],
@@ -26,6 +30,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "969aff03c7d720067d8a2d39057fed5048c12b60d521666aff7bce12ffd762e4",
   ],
   [
+    "20261026010000_prepare_stock_notification_authorities",
+    "3c77aed31571f7e4adb942bea15611ee97d75e8183f76899cc634749ab2955ce",
+  ],
+  [
     "20261027010000_restore_resend_webhook_receipts",
     "a765482bfdeca66a82aaa912c5bfc2c6f7bc44b033fea4ace2e5bc40243ad2ba",
   ],
@@ -40,6 +48,22 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   [
     "20261027040000_activate_stock_notification_rls",
     "c771b5c6caed905ce00515969e461a5f9de7c65b626d1eaa6c80916d4b6d7942",
+  ],
+  [
+    "20261028010000_prepare_favorite_authorities",
+    "b3b55a349b2bcdfb0059c5a661926714f7314e92b2d39ea5de94f3c07d385a27",
+  ],
+  [
+    "20261028020000_prepare_follow_authorities",
+    "3404910d8445d521df668b670c5fa2c57929c1df79bc4046383136454fc0fcc2",
+  ],
+  [
+    "20261028030000_prepare_review_vote_authorities",
+    "05a3203bc591cbf1dcdf357612d46b4f7f34671e211bebe3788e43abf9a5ebc2",
+  ],
+  [
+    "20261028040000_prepare_maker_verification_authorities",
+    "7ea3956395dfb57b51110d93332c71f5251aaf49cc5292c6282f6c013a892fab",
   ],
 ]);
 

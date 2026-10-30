@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { withDbUserContext } from "@/lib/dbUserContext";
+import {
+  type DbUserContextTransactionClient,
+  withDbUserContext,
+} from "@/lib/dbUserContext";
 
 type SellerFollowClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
@@ -25,6 +28,10 @@ type SellerFollowDeleteRow = {
 
 type SellerOwnerFollowingCountRow = {
   value: unknown;
+};
+
+type SellerFollowTargetRow = {
+  sellerProfileId: unknown;
 };
 
 type SellerOwnerFollowingPageRow = {
@@ -120,6 +127,13 @@ function countNumber(value: unknown) {
   return Number(value);
 }
 
+function integerNumber(value: unknown) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error("Follow authority returned an invalid integer count");
+  }
+  return value;
+}
+
 async function readSellerPublicFollowState(
   client: SellerFollowClient,
   sellerProfileId: string,
@@ -155,6 +169,54 @@ export function sellerPublicFollowState(
   return readSellerPublicFollowState(prisma, sellerProfileId);
 }
 
+export async function sellerPublicFollowStateBatch(
+  sellerProfileIds: string[],
+  viewerUserId?: string,
+) {
+  const uniqueSellerProfileIds = [...new Set(sellerProfileIds)];
+  if (uniqueSellerProfileIds.length === 0) {
+    return Object.freeze([]) as readonly Readonly<SellerFollowState>[];
+  }
+  if (
+    uniqueSellerProfileIds.length > 100
+    || uniqueSellerProfileIds.some((id) => !validId(id))
+  ) {
+    throw new RangeError("Seller public follow-state batch is outside the supported range");
+  }
+  const read = async (client: SellerFollowClient) => {
+    const rows = await client.$queryRaw<SellerFollowStateRow[]>`
+      SELECT *
+        FROM public.grainline_follow_public_state_batch(
+          ${uniqueSellerProfileIds}::text[]
+        )
+    `;
+    if (rows.length > uniqueSellerProfileIds.length) {
+      throw new Error("Seller public follow-state batch returned too many rows");
+    }
+    const requested = new Set(uniqueSellerProfileIds);
+    const seen = new Set<string>();
+    return Object.freeze(rows.map((row) => {
+      if (
+        !validId(row.sellerProfileId)
+        || !requested.has(row.sellerProfileId)
+        || seen.has(row.sellerProfileId)
+        || typeof row.following !== "boolean"
+      ) {
+        throw new Error("Seller public follow-state batch returned an invalid result");
+      }
+      seen.add(row.sellerProfileId);
+      return Object.freeze({
+        sellerProfileId: row.sellerProfileId,
+        followerCount: countNumber(row.followerCount),
+        following: row.following,
+      }) satisfies Readonly<SellerFollowState>;
+    }));
+  };
+  return viewerUserId
+    ? withDbUserContext(viewerUserId, read)
+    : read(prisma);
+}
+
 async function readSellerOwnerFollowingCount(client: SellerFollowClient) {
   const rows = await client.$queryRaw<SellerOwnerFollowingCountRow[]>`
     SELECT * FROM public.grainline_seller_owner_following_count()
@@ -167,6 +229,73 @@ async function readSellerOwnerFollowingCount(client: SellerFollowClient) {
 
 export function sellerOwnerFollowingCount(actorUserId: string) {
   return withDbUserContext(actorUserId, readSellerOwnerFollowingCount);
+}
+
+export function ownerRawFollowCount(actorUserId: string) {
+  return withDbUserContext(actorUserId, async (client) => {
+    const rows = await client.$queryRaw<SellerOwnerFollowingCountRow[]>`
+      SELECT * FROM public.grainline_follow_owner_outgoing_count()
+    `;
+    if (rows.length !== 1) {
+      throw new Error("Follow owner outgoing-count authority returned an invalid result");
+    }
+    return countNumber(rows[0].value);
+  });
+}
+
+export function sellerOwnerFollowerCount(actorUserId: string) {
+  return withDbUserContext(actorUserId, async (client) => {
+    const rows = await client.$queryRaw<SellerOwnerFollowingCountRow[]>`
+      SELECT * FROM public.grainline_follow_seller_owner_incoming_count()
+    `;
+    if (rows.length !== 1) {
+      throw new Error("Seller owner follower-count authority returned an invalid result");
+    }
+    return countNumber(rows[0].value);
+  });
+}
+
+export function ownerFollowedSellerIds(actorUserId: string, limit: number) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
+    throw new RangeError("Owner followed-seller limit is outside the supported range");
+  }
+  return withDbUserContext(actorUserId, async (client) => {
+    const rows = await client.$queryRaw<SellerFollowTargetRow[]>`
+      SELECT * FROM public.grainline_follow_owner_target_ids(${limit}::integer)
+    `;
+    const sellerProfileIds = rows.map((row) => row.sellerProfileId);
+    if (
+      rows.length > limit
+      || sellerProfileIds.some((id) => !validId(id))
+      || new Set(sellerProfileIds).size !== sellerProfileIds.length
+    ) {
+      throw new Error("Owner followed-seller authority returned an invalid result");
+    }
+    return Object.freeze(sellerProfileIds as string[]);
+  });
+}
+
+export async function cleanupFollowsForAccountDeletion(
+  client: DbUserContextTransactionClient,
+  input: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
+) {
+  const rows = await client.$queryRaw<Array<{ value: bigint | number }>>`
+    SELECT public.grainline_follow_account_deletion_cleanup(
+      ${input.sideEffectId}::text,
+      ${input.expectedUserId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
+    ) AS value
+  `;
+  if (rows.length !== 1) {
+    throw new Error("Follow account-deletion authority returned invalid cardinality");
+  }
+  return integerNumber(rows[0].value);
 }
 
 async function readSellerOwnerFollowingPage(

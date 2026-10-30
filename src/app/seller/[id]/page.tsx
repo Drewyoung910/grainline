@@ -42,6 +42,8 @@ import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import { getCachedPublicSellerTopTags } from "@/lib/popularTags";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -188,7 +190,7 @@ async function SellerPublicContent({
   const nowMs = Date.now();
 
   const [
-    [followerCount, isFollowing],
+    followState,
     latestBroadcast,
     sellerBlogPosts,
     listings,
@@ -199,15 +201,7 @@ async function SellerPublicContent({
     topTags,
     customerPhotoRows,
   ] = await Promise.all([
-    Promise.all([
-      prisma.follow.count({ where: { sellerProfileId: seller.id } }),
-      meId
-        ? prisma.follow.findUnique({
-            where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: seller.id } },
-            select: { id: true },
-          }).then((r) => r !== null)
-        : Promise.resolve(false),
-    ]),
+    sellerPublicFollowState(seller.id, meId ?? undefined),
     prisma.sellerBroadcast.findFirst({
       where: { sellerProfileId: seller.id },
       orderBy: [{ sentAt: "desc" }, { id: "desc" }],
@@ -248,6 +242,8 @@ async function SellerPublicContent({
       },
     }),
   ]);
+  const followerCount = followState?.followerCount ?? 0;
+  const isFollowing = followState?.following ?? false;
 
   const broadcastAgeDays = latestBroadcast
     ? (nowMs - latestBroadcast.sentAt.getTime()) / MS_PER_DAY
@@ -269,14 +265,9 @@ async function SellerPublicContent({
   ]));
 
   // Saved set for current viewer
-  const savedSet = new Set<string>();
-  if (meId && listingIds.length > 0) {
-    const favs = await prisma.favorite.findMany({
-      where: { userId: meId, listingId: { in: listingIds } },
-      select: { listingId: true },
-    });
-    for (const f of favs) savedSet.add(f.listingId);
-  }
+  const savedSet = meId && listingIds.length > 0
+    ? await ownerFavoriteListingIds(meId, listingIds)
+    : new Set<string>();
 
   const shopRating = sellerRatingMap.get(seller.id) ?? null;
   const { soldCount, avgShipDays } = publicSellerStats;

@@ -196,14 +196,13 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "sellerPublicFavoriteTarget(listingId)",
-      "prisma.favorite.upsert",
+      "addOwnerFavorite(me.id, listingId)",
     ]);
     assertGuardBefore("src/app/api/favorites/[listingId]/route.ts", [
       "await auth()",
       "safeRateLimit(",
       "await ctx.params",
-      "prisma.favorite.deleteMany",
+      "removeOwnerFavorite(me.id, listingId)",
     ]);
     assertHandlerGuardBefore("src/app/api/blog/[slug]/save/route.ts", "export async function POST(", [
       "await params",
@@ -275,8 +274,7 @@ describe("request origin guard", () => {
       "await ctx.params",
       "await auth()",
       "safeRateLimit(",
-      "prisma.review.findUnique",
-      "prisma.$transaction",
+      "toggleOwnerReviewVote(me.id, id)",
     ]);
     assertHandlerGuardBefore("src/app/api/listings/[id]/notify/route.ts", "export async function POST(", [
       "await auth()",

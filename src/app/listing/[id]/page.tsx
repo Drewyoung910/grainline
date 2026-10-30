@@ -41,6 +41,8 @@ import {
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { stockNotificationAvailable } from "@/lib/stockNotificationState";
 import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 import { formatCityState } from "@/lib/locationDisplay";
 
 function siteUrl(path: string) {
@@ -280,9 +282,8 @@ export default async function ListingPage({
     sellerRatingMap,
     moreFromSeller,
     topReviews,
-    favoriteRow,
-    sellerFollowerCount,
-    isFollowingSeller,
+    favoriteRows,
+    sellerFollowState,
     stockNotificationRow,
   ] = await Promise.all([
     prisma.review.aggregate({
@@ -319,25 +320,9 @@ export default async function ListingPage({
       },
     }),
     meId
-      ? prisma.favorite.findFirst({
-          where: { userId: meId, listingId },
-          select: { userId: true },
-        })
-      : Promise.resolve(null),
-    prisma.follow.count({ where: { sellerProfileId: listing.sellerId } }),
-    meId
-      ? prisma.follow
-          .findUnique({
-            where: {
-              followerId_sellerProfileId: {
-                followerId: meId,
-                sellerProfileId: listing.sellerId,
-              },
-            },
-            select: { id: true },
-          })
-          .then((r) => r !== null)
-      : Promise.resolve(false),
+      ? ownerFavoriteListingIds(meId, [listingId])
+      : Promise.resolve(new Set<string>()),
+    sellerPublicFollowState(listing.sellerId, meId ?? undefined),
     meId && canSubscribeForStockNotification
       ? findOwnerStockNotification(meId, listingId)
       : Promise.resolve(null),
@@ -352,21 +337,16 @@ export default async function ListingPage({
   const sellerReviewCount = sellerRating?.count ?? 0;
   const sellerStars = sellerAvgRaw != null ? quarterRoundStars(sellerAvgRaw) : null;
 
-  const isFavorited = favoriteRow !== null;
+  const isFavorited = favoriteRows.has(listingId);
   const isNotified = stockNotificationRow !== null;
+  const sellerFollowerCount = sellerFollowState?.followerCount ?? 0;
+  const isFollowingSeller = sellerFollowState?.following ?? false;
 
   // Saved state for the "More from this maker" cards so their hearts render
   // filled correctly for signed-in viewers (bounded: ≤4 ids, indexed lookup).
   const moreFromSavedIds =
     meId && moreFromSeller.length > 0
-      ? new Set(
-          (
-            await prisma.favorite.findMany({
-              where: { userId: meId, listingId: { in: moreFromSeller.map((ml) => ml.id) } },
-              select: { listingId: true },
-            })
-          ).map((f) => f.listingId),
-        )
+      ? await ownerFavoriteListingIds(meId, moreFromSeller.map((listing) => listing.id))
       : new Set<string>();
 
   const sellerName = listing.seller.displayName ?? "Maker";

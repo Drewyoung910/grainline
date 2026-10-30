@@ -127,6 +127,248 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  favorite_v1: Object.freeze({
+    migration: "20261028010000_prepare_favorite_authorities",
+    migrationSha256: "b3b55a349b2bcdfb0059c5a661926714f7314e92b2d39ea5de94f3c07d385a27",
+    table: "Favorite",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    // Listing.favoriteCount is sealed and verified by the migration itself;
+    // this table-scoped catalog intentionally records only Favorite additions.
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-profile-favorite-target-route.test.mjs",
+      "tests/public-visibility-followups.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_favorite_owner_listing_ids",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_add",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_delete_all",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_range_count",
+        arguments: "timestamp without time zone, timestamp without time zone, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_admin_listing_cleanup",
+        arguments: "text",
+      }),
+    ]),
+  }),
+  follow_v1: Object.freeze({
+    migration: "20261028020000_prepare_follow_authorities",
+    migrationSha256: "3404910d8445d521df668b670c5fa2c57929c1df79bc4046383136454fc0fcc2",
+    table: "Follow",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-profile-follow-authority-conversion.test.mjs",
+      "tests/user-follower-authorities-source.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_follow_public_state_batch",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_follow_source_notification_page",
+        arguments: "text, text, text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_follow_owner_target_ids",
+        arguments: "integer",
+      }),
+      Object.freeze({
+        name: "grainline_follow_owner_outgoing_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_follow_seller_owner_incoming_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_follow_account_deletion_cleanup",
+        arguments: "text, text, bigint, uuid",
+      }),
+    ]),
+  }),
+  maker_verification_v1: Object.freeze({
+    migration: "20261028040000_prepare_maker_verification_authorities",
+    migrationSha256: "7ea3956395dfb57b51110d93332c71f5251aaf49cc5292c6282f6c013a892fab",
+    table: "MakerVerification",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/maker-verification-preparation.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_guild_staff_transition",
+        arguments: "text, text, text, text, text, boolean",
+        executeRole: "staff",
+        predecessorSourceSha256:
+          "36592c7c9112c6e3dd6262aa41edf9fd19bb17bbf1d942a449fec8d306e80fd7",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_member_revoke",
+        arguments: "text",
+        executeRole: "runtime",
+        predecessorSourceSha256:
+          "5ed7441b6255800532810a6afaa7c16a1ec3f0483e4c1e7543d4a57751e0ea2a",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_metrics_apply",
+        arguments: "text, timestamp without time zone",
+        executeRole: "runtime",
+        predecessorSourceSha256:
+          "7299fca002e46e5451534095ac981621d0e56a1d5cdf97d2949072a1fb97d7ef",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_member_apply",
+        arguments: "text, integer, text, boolean",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_master_apply",
+        arguments: "text, text, boolean",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_export",
+        arguments: "",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_owner_delete_redact",
+        arguments: "timestamp without time zone",
+        executeRole: "runtime",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_staff_pending_count",
+        arguments: "text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_maker_verification_staff_pending_page",
+        arguments: "text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_master_pending_count",
+        arguments: "text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_master_pending_page",
+        arguments: "text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_roster_count",
+        arguments: "text, text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_roster_page",
+        arguments: "text, text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+    ]),
+  }),
+  review_vote_v1: Object.freeze({
+    migration: "20261028030000_prepare_review_vote_authorities",
+    migrationSha256: "05a3203bc591cbf1dcdf357612d46b4f7f34671e211bebe3788e43abf9a5ebc2",
+    table: "ReviewVote",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/review-vote-access.test.mjs",
+      "tests/review-vote-route.test.mjs",
+      "tests/review-vote-visibility.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_review_vote_owner_toggle",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_review_vote_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_review_vote_owner_delete_all",
+        arguments: "",
+      }),
+    ]),
+  }),
+});
+
+export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
+  owner_social_verification_v1: Object.freeze([
+    "favorite_v1",
+    "follow_v1",
+    "review_vote_v1",
+    "maker_verification_v1",
+  ]),
 });
 
 function stopped(message) {
@@ -140,6 +382,29 @@ export function privateTablePreparation(releaseId) {
   const release = PRIVATE_TABLE_PREPARATIONS[releaseId];
   if (!release) throw stopped("release id is not reviewed");
   return release;
+}
+
+export function privateTablePreparationReleaseIds(selectionId) {
+  if (typeof selectionId !== "string" || !RELEASE_ID_PATTERN.test(selectionId)) {
+    throw stopped("release id is invalid");
+  }
+  if (PRIVATE_TABLE_PREPARATIONS[selectionId]) {
+    return Object.freeze([selectionId]);
+  }
+  const batch = PRIVATE_TABLE_PREPARATION_BATCHES[selectionId];
+  if (!batch) throw stopped("release id is not reviewed");
+  for (const releaseId of batch) privateTablePreparation(releaseId);
+  const migrations = batch.map((releaseId) => (
+    PRIVATE_TABLE_PREPARATIONS[releaseId].migration
+  ));
+  if (new Set(batch).size !== batch.length || new Set(migrations).size !== migrations.length) {
+    throw stopped("batch contains duplicate releases");
+  }
+  const sortedMigrations = [...migrations].sort((left, right) => left.localeCompare(right));
+  if (migrations.join("|") !== sortedMigrations.join("|")) {
+    throw stopped("batch migrations are not ordered");
+  }
+  return batch;
 }
 
 export function privateTablePreparationMigrationPath(release) {
@@ -199,6 +464,12 @@ export function verifyPrivateTablePreparationSource(
   ))) {
     throw stopped("predecessor function digest is invalid");
   }
+  if (release.functions.some((entry) => (
+    (entry.executeRole ?? "runtime") !== "runtime"
+    && entry.executeRole !== "staff"
+  ))) {
+    throw stopped("function execution role is invalid");
+  }
   const functionSources = new Map(release.functions.map((entry) => [
     entry.name,
     functionSourceFromMigration(sql, entry.name),
@@ -208,12 +479,21 @@ export function verifyPrivateTablePreparationSource(
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
-    const releaseId = process.env.PRIVATE_TABLE_PREPARATION_RELEASE_ID ?? "";
-    const verified = verifyPrivateTablePreparationSource(releaseId);
+    const selectionId = process.env.PRIVATE_TABLE_PREPARATION_RELEASE_ID ?? "";
+    const releaseIds = privateTablePreparationReleaseIds(selectionId);
+    const verified = releaseIds.map((releaseId) => (
+      verifyPrivateTablePreparationSource(releaseId)
+    ));
     if (process.argv[2] === "--tests") {
-      process.stdout.write(`${verified.release.sourceTests.join("\n")}\n`);
+      const tests = [...new Set(verified.flatMap((entry) => entry.release.sourceTests))];
+      process.stdout.write(`${tests.join("\n")}\n`);
+    } else if (process.argv[2] === "--release-ids") {
+      process.stdout.write(`${releaseIds.join("\n")}\n`);
+    } else if (process.argv[2] === "--migrations") {
+      process.stdout.write(`${verified.map((entry) => entry.release.migration).join("\n")}\n`);
     } else {
-      process.stdout.write(`${verified.release.migration}\n`);
+      if (verified.length !== 1) throw stopped("batch output requires an explicit mode");
+      process.stdout.write(`${verified[0].release.migration}\n`);
     }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);

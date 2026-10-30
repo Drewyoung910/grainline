@@ -38,6 +38,7 @@ import { proveSellerProfilePublicMapAuthority } from "../tools/database-full-cha
 import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-profile.mjs";
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
 import { proveSellerProfilePublicReviewVoteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-review-vote-target.mjs";
+import { proveReviewVoteAuthorities } from "../tools/database-full-chain/scenarios/review-vote-authorities.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -54,6 +55,7 @@ import { proveSellerProfilePublicRecentlyViewedListings } from "../tools/databas
 import { proveSellerProfileOwnerReviewReply } from "../tools/database-full-chain/scenarios/seller-profile-owner-review-reply.mjs";
 import { proveSellerProfilePublicCommissionInterestAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-commission-interest.mjs";
 import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-guild-application.mjs";
+import { proveMakerVerificationPreparedAuthorities } from "../tools/database-full-chain/scenarios/maker-verification-authorities.mjs";
 import { proveSellerProfileOwnerBootstrapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-bootstrap.mjs";
 import { proveSellerProfileStaffReportTargetsAuthority } from "../tools/database-full-chain/scenarios/seller-profile-staff-report-targets.mjs";
 import { proveSellerProfileStaffBroadcastTargets } from "../tools/database-full-chain/scenarios/seller-profile-staff-broadcast-targets.mjs";
@@ -110,6 +112,18 @@ import {
   proveStockNotificationRlsRollback,
   seedStockNotificationPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
+import {
+  FAVORITE_PREPARATION_MIGRATION,
+  proveFavoritePredecessorGap,
+  proveFavoritePreparedAuthorities,
+  seedFavoritePredecessorFixture,
+} from "../tools/database-full-chain/scenarios/favorite-authorities.mjs";
+import {
+  FOLLOW_PREPARATION_MIGRATION,
+  proveFollowPredecessorCompatibility,
+  proveFollowPreparedAuthorities,
+  seedFollowPredecessorFixture,
+} from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -234,6 +248,12 @@ test(
       let stockNotificationPreparationPreflightPath;
       let stockNotificationPreparationPostflightClosed = false;
       let stockNotificationActivationReadyEvidencePath;
+      let favoriteFixture;
+      let favoritePredecessorEvidence;
+      let favoritePreparationPreflightPath;
+      let followFixture;
+      let followPredecessorEvidence;
+      let followPreparationPreflightPath;
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -438,6 +458,61 @@ test(
             assert.equal(activationReady.policies.length, 0);
             assert.equal(activationReady.retainedFunctions.length, 10);
           }
+          if (artifact.name === FAVORITE_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before Favorite proof");
+            favoritePreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "favorite-preparation-preflight.json",
+            );
+            const favoritePreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  favoritePreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(favoritePreflight.state, "pending");
+            assert.equal(favoritePreflight.catalog.functions.length, 0);
+            favoriteFixture = await seedFavoritePredecessorFixture({
+              database: adapter,
+              seller: fixture,
+            });
+            favoritePredecessorEvidence = await proveFavoritePredecessorGap({
+              database: adapter,
+              fixture: favoriteFixture,
+            });
+          }
+          if (artifact.name === FOLLOW_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before Follow proof");
+            followPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "follow-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "follow_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  followPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
+            followFixture = await seedFollowPredecessorFixture({
+              database: adapter,
+            });
+            followPredecessorEvidence = await proveFollowPredecessorCompatibility({
+              database: adapter,
+              fixture: followFixture,
+            });
+          }
         },
         onProgress: ({ index, total, name, retried }) => {
           if (index === total || index % 50 === 0 || retried) {
@@ -461,6 +536,76 @@ test(
       );
 
       assert.ok(
+        favoritePreparationPreflightPath,
+        "Favorite Production preflight must run before its preparation",
+      );
+      const favoritePostflight = await inspectPrivateTablePreparationProduction(
+        {
+          DIRECT_URL: proofDatabaseUrl,
+          PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
+          PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+            preparationEvidenceDirectory,
+            "favorite-preparation-postflight.json",
+          ),
+          PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+            favoritePreparationPreflightPath,
+          PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+        },
+        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+      );
+      assert.equal(favoritePostflight.state, "applied");
+      assert.equal(favoritePostflight.catalog.functions.length, 8);
+
+      const favoriteLedgerRows = (await adapter.query(
+        `SELECT id, checksum, finished_at, migration_name, logs,
+                rolled_back_at, started_at, applied_steps_count
+           FROM public."_prisma_migrations"
+          WHERE migration_name = $1`,
+        [FAVORITE_PREPARATION_MIGRATION],
+      )).rows;
+      assert.equal(favoriteLedgerRows.length, 1);
+      const favoriteLedger = favoriteLedgerRows[0];
+      await adapter.query(
+        `DELETE FROM public."_prisma_migrations" WHERE migration_name = $1`,
+        [FAVORITE_PREPARATION_MIGRATION],
+      );
+      try {
+        const favoriteInterrupted = await inspectPrivateTablePreparationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
+            PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              "favorite-preparation-applied-unrecorded.json",
+            ),
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+        assert.equal(favoriteInterrupted.state, "applied_unrecorded");
+        assert.equal(favoriteInterrupted.catalog.functions.length, 8);
+      } finally {
+        await adapter.query(
+          `INSERT INTO public."_prisma_migrations"
+             (id, checksum, finished_at, migration_name, logs,
+              rolled_back_at, started_at, applied_steps_count)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            favoriteLedger.id,
+            favoriteLedger.checksum,
+            favoriteLedger.finished_at,
+            favoriteLedger.migration_name,
+            favoriteLedger.logs,
+            favoriteLedger.rolled_back_at,
+            favoriteLedger.started_at,
+            favoriteLedger.applied_steps_count,
+          ],
+        );
+      }
+
+      assert.ok(
         stockNotificationPreparationPreflightPath,
         "StockNotification Production preflight must run before its preparation",
       );
@@ -469,6 +614,27 @@ test(
         true,
         "StockNotification preparation postflight must close before activation",
       );
+      assert.ok(
+        followPreparationPreflightPath,
+        "Follow Production preflight must run before its preparation",
+      );
+      const followPreparationPostflight = await inspectPrivateTablePreparationProduction(
+        {
+          DIRECT_URL: proofDatabaseUrl,
+          PRIVATE_TABLE_PREPARATION_RELEASE_ID: "follow_v1",
+          PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+            preparationEvidenceDirectory,
+            "follow-preparation-postflight.json",
+          ),
+          PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+            followPreparationPreflightPath,
+          PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+        },
+        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+      );
+      assert.equal(followPreparationPostflight.state, "applied");
+      assert.equal(followPreparationPostflight.catalog.functions.length, 6);
 
       await assertSellerProfilePrivateLayout(adapter);
       await proveSellerProfilePolicylessEnable({
@@ -510,6 +676,11 @@ test(
         seller: fixture,
       });
       await proveSellerProfilePublicReviewVoteTarget({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveReviewVoteAuthorities({
+        connectionString: proofDatabaseUrl,
         database: adapter,
         seller: fixture,
       });
@@ -572,6 +743,11 @@ test(
       await proveSellerProfileOwnerGuildApplicationAuthority({
         database: adapter,
         seller: fixture,
+      });
+      await proveMakerVerificationPreparedAuthorities({
+        database: adapter,
+        seller: fixture,
+        connectionString: proofDatabaseUrl,
       });
       await proveSellerProfileOwnerBootstrapAuthority({
         database: adapter,
@@ -834,6 +1010,29 @@ test(
       await proveStockNotificationRlsAuthorities({
         database: adapter,
         fixture: stockNotificationFixture,
+      });
+      assert.deepEqual(favoritePredecessorEvidence, {
+        blockedFavoriteInserted: true,
+      });
+      assert.ok(
+        favoriteFixture,
+        "Favorite predecessor fixture must be seeded before preparation",
+      );
+      await proveFavoritePreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        fixture: favoriteFixture,
+      });
+      assert.deepEqual(followPredecessorEvidence, {
+        directRelationshipVisible: true,
+      });
+      assert.ok(
+        followFixture,
+        "Follow predecessor fixture must be seeded before preparation",
+      );
+      await proveFollowPreparedAuthorities({
+        database: adapter,
+        fixture: followFixture,
       });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),

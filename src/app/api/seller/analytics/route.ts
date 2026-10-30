@@ -22,6 +22,7 @@ import type { SellerOrderAnalyticsBucket } from "@/lib/orderSellerAnalyticsState
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { sellerStockNotificationRangeCount } from "@/lib/stockNotificationAccess";
+import { sellerFavoriteRangeCount } from "@/lib/favoriteAccess";
 
 export const runtime = "nodejs";
 
@@ -210,9 +211,12 @@ export async function GET(req: Request) {
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
       _sum: { views: true },
     });
-    const favoritesCountPromise = prisma.favorite.count({
-      where: { listing: { sellerId }, createdAt: analyticsDateRange },
-    });
+    const favoritesCountPromise = sellerFavoriteRangeCount(
+      me.id,
+      startDate,
+      endDate,
+      endExclusive,
+    );
     const stockNotificationSubsPromise = sellerStockNotificationRangeCount(
       me.id,
       startDate,

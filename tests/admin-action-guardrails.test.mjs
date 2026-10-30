@@ -75,7 +75,7 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
       ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
-      ["src/app/admin/verification/page.tsx", "prisma.makerVerification.findMany"],
+      ["src/app/admin/verification/page.tsx", "makerVerificationStaffPendingPage("],
       ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
       ["src/app/admin/users/page.tsx", "userStaffDirectoryCount("],
       ["src/app/admin/reviews/page.tsx", "prisma.review.count"],

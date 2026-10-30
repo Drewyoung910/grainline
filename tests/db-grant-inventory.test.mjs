@@ -230,6 +230,60 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_block_cleanup",
   "grainline_stock_notification_owner_export",
 ];
+const FAVORITE_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
+const FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES = [
+  "grainline_favorite_owner_listing_ids",
+  "grainline_favorite_owner_add",
+  "grainline_favorite_owner_remove",
+  "grainline_favorite_owner_delete_all",
+  "grainline_favorite_owner_export",
+  "grainline_favorite_seller_range_count",
+  "grainline_favorite_seller_listing_cleanup",
+  "grainline_favorite_admin_listing_cleanup",
+];
+const FAVORITE_PREPARATION_PRIVATE_FUNCTION_NAMES = [
+  "grainline_favorite_count_maintain",
+  "grainline_favorite_update_forbidden",
+  "grainline_listing_favorite_count_guard",
+];
+const FAVORITE_PREPARATION_FUNCTION_NAMES = [
+  ...FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES,
+  ...FAVORITE_PREPARATION_PRIVATE_FUNCTION_NAMES,
+];
+const FOLLOW_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028020000_prepare_follow_authorities/migration.sql";
+const FOLLOW_PREPARATION_FUNCTION_NAMES = [
+  "grainline_follow_public_state_batch",
+  "grainline_follow_source_notification_page",
+  "grainline_follow_owner_target_ids",
+  "grainline_follow_owner_outgoing_count",
+  "grainline_follow_seller_owner_incoming_count",
+  "grainline_follow_account_deletion_cleanup",
+];
+const MAKER_VERIFICATION_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
+const MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES = [
+  "grainline_maker_verification_owner_member_apply",
+  "grainline_maker_verification_owner_master_apply",
+  "grainline_maker_verification_owner_export",
+  "grainline_maker_verification_owner_delete_redact",
+];
+const MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES = [
+  "grainline_maker_verification_staff_pending_count",
+  "grainline_maker_verification_staff_pending_page",
+  "grainline_seller_guild_staff_master_pending_count",
+  "grainline_seller_guild_staff_master_pending_page",
+  "grainline_seller_guild_staff_roster_count",
+  "grainline_seller_guild_staff_roster_page",
+  "grainline_seller_guild_staff_transition_prepared_impl",
+  "grainline_seller_guild_member_revoke_prepared_impl",
+  "grainline_seller_guild_metrics_apply_prepared_impl",
+];
+const MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES = [
+  ...MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES,
+  ...MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES,
+];
 const EMAIL_DELIVERY_LEDGER_MIGRATION =
   "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
 const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
@@ -269,6 +323,15 @@ const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH =
   "prisma/migrations/20261025030000_fence_email_provider_and_eligibility_changes/migration.sql";
 const EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
   "grainline_email_hard_suppression_apply",
+];
+const REVIEW_VOTE_PREPARATION_MIGRATION =
+  "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql";
+const REVIEW_VOTE_PREPARATION_FUNCTION_NAMES = [
+  "grainline_review_vote_insert_guard",
+  "grainline_review_vote_update_forbidden",
+  "grainline_review_vote_owner_toggle",
+  "grainline_review_vote_owner_export",
+  "grainline_review_vote_owner_delete_all",
 ];
 
 const {
@@ -3496,6 +3559,30 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
+    const favoriteAuthorityPrepared = existsSync(
+      FAVORITE_PREPARATION_MIGRATION,
+    ) && FAVORITE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(FAVORITE_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const followAuthorityPrepared = existsSync(
+      FOLLOW_PREPARATION_MIGRATION,
+    ) && FOLLOW_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(FOLLOW_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const reviewVoteAuthorityPrepared = existsSync(
+      REVIEW_VOTE_PREPARATION_MIGRATION,
+    ) && REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(REVIEW_VOTE_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const makerVerificationAuthorityPrepared = existsSync(
+      MAKER_VERIFICATION_PREPARATION_MIGRATION,
+    ) && MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(MAKER_VERIFICATION_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3700,6 +3787,18 @@ describe("database grant inventory guardrails", () => {
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(favoriteAuthorityPrepared
+        ? FAVORITE_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(followAuthorityPrepared
+        ? FOLLOW_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(reviewVoteAuthorityPrepared
+        ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(makerVerificationAuthorityPrepared
+        ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
         : []),
@@ -3764,6 +3863,19 @@ describe("database grant inventory guardrails", () => {
           ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (stockNotificationRlsActivationPresent ? 1 : 0)
+        + (favoriteAuthorityPrepared
+          ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (followAuthorityPrepared
+          ? FOLLOW_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (reviewVoteAuthorityPrepared
+          ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (makerVerificationAuthorityPrepared
+          ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES.length
+            + 2 // member-revoke and metrics wrappers now also revoke staff-read
+          : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
@@ -3871,6 +3983,18 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(favoriteAuthorityPrepared
+        ? FAVORITE_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(followAuthorityPrepared
+        ? FOLLOW_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(reviewVoteAuthorityPrepared
+        ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(makerVerificationAuthorityPrepared
+        ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES

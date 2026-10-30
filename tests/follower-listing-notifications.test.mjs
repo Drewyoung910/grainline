@@ -17,6 +17,8 @@ describe("follower listing notification guardrails", () => {
     assert.match(fanout, /if \(!publicListing\) return/);
     assert.match(fanout, /const sellerUserId = publicListing\.seller\.userId/);
     assert.match(fanout, /userFollowerNotificationPage\(prisma, \{/);
+    assert.match(fanout, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOWED_MAKER_NEW_LISTING/);
+    assert.match(fanout, /sourceId: publicListing\.id/);
     assert.match(fanout, /afterFollowId: cursor/);
     assert.match(fanout, /limit: FOLLOWER_FANOUT_PAGE_SIZE/);
     assert.doesNotMatch(fanout, /prisma\.follow\.findMany/);
@@ -61,6 +63,8 @@ describe("follower listing notification guardrails", () => {
     assert.match(blogFanout, /if \(!seller\) return/);
     assert.match(blogFanout, /const sellerUserId = seller\.userId/);
     assert.match(blogFanout, /userFollowerNotificationPage\(prisma, \{/);
+    assert.match(blogFanout, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOWED_MAKER_NEW_BLOG/);
+    assert.match(blogFanout, /sourceId: publicPost\.id/);
     assert.match(blogFanout, /afterFollowId: cursor/);
     assert.match(blogFanout, /limit: BLOG_FOLLOWER_FANOUT_PAGE_SIZE/);
     assert.doesNotMatch(blogFanout, /prisma\.follow\.findMany/);

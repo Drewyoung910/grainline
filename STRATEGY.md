@@ -4,6 +4,27 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Owner-relation RLS compatible sequence (2026-10-28)
+
+Favorite and Follow are being prepared as two distinct, ordered releases rather
+than one coupled activation. Favorite's isolated compatible candidate is draft
+PR #694. It adds the reviewed raw-count projection and bounded Favorite
+operations while keeping Favorite RLS off and retaining predecessor table
+authority. Follow's selected long-term boundary is Option B: zero ordinary
+runtime table authority after activation, with existing operation-specific
+functions plus five missing bounded operations for public batch state, owner
+target IDs, the raw account-overview count, seller-owner incoming count, and
+claim-bound account-deletion cleanup.
+
+The Follow compatible candidate is draft PR #695 and is deliberately based on
+Favorite so the full-chain proof includes both preparations. Release order is
+strict: Favorite preparation must merge and be applied by itself before Follow
+can merge or be applied. Follow
+preparation is additive and compatible only; it does not enable or force RLS,
+revoke predecessor table grants, or authorize Production. Its separate
+activation still requires direct runtime/no-context/cross-user denial, cascade,
+race, rollback, deployment-skew and exact-head release evidence.
+
 ### Marketplace operating decisions (Drew, 2026-10-19)
 
 These are product and policy decisions, not claims that the behavior is live.
@@ -3477,3 +3498,64 @@ required boundary.
 zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
+
+The 2026-10-29 owner/social preparation wave groups Favorite, Follow,
+ReviewVote and MakerVerification into one immutable catalog selection after
+all four table audits and full-chain proofs are accepted. The batch preserves
+each migration's independent transaction, exact digest, inspector and
+applied-but-unrecorded recovery while using one protected Production run and
+one compatible application deploy. Later activation may use the same fixed
+batch pattern only after every table-specific activation blocker is closed;
+it remains a separate explicitly authorized Production operation. Production
+builds containing the converted callers must fail closed until every reviewed
+runtime and staff function in the preparation batch is installed with its
+exact source body and EXECUTE role.
+
+### Favorite RLS aggregate boundary (2026-10-28)
+
+Use a transactionally maintained raw-current-row favorite count on `Listing`
+for public counters and popular ordering. Keep the stricter eligible favorite
+aggregate for quality scoring; changing product ranking is not part of the
+security release. Convert Favorite owner state, add/remove, export, analytics
+and cleanup to bounded operations so the private `(userId, listingId)` pairs
+never need to support public reads. Compatible preparation runs before its app
+deployment. RLS activation, direct-grant revocation and Production execution
+remain separate reviewed gates; no security release drops the additive count
+column.
+
+### ReviewVote RLS direction (2026-10-28)
+
+Treat vote identities as private owner data and keep only the existing
+`Review.helpfulCount` scalar public. Use owner-only `SELECT`, not direct row
+mutation. One actor-bound database operation must validate and toggle the exact
+vote while maintaining the count; account deletion uses a separate target-bound
+operation that repairs affected counts. Do not activate until existing count
+drift, reciprocal-block parity, atomic eligibility, the value constraint and
+owner-leading index are closed on the full PostgreSQL 17 chain. See
+`docs/review-vote-rls-options.md` and `docs/review-vote-pre-rls-audit.md`.
+
+Existing votes survive later blocks so a maker cannot reduce critical-review
+helpful counts by blocking voters. A blocked voter may always withdraw their
+own existing vote, while adding a new vote across either block direction stays
+forbidden.
+
+The isolated A2 compatible candidate now closes those preparation items and
+passes the 437-migration PostgreSQL 17 behavior plus mixed-version concurrency
+proof without changing RLS or predecessor grants. Count maintenance remains in
+the reviewed predecessor/fixed writers during the compatibility window; a
+general cascade-maintenance trigger must wait for activation so the predecessor
+route cannot double-update the scalar. Activation remains separately blocked
+on policy/grant denial, hard User-delete cascade, cross-owner/race coverage,
+rollback, and explicit release authorization.
+
+### MakerVerification compatible RLS preparation (2026-10-28)
+
+MakerVerification uses policyless Option B because applicant evidence, staff
+attribution, badge state, export/deletion, cron and notification lifecycles
+cannot be represented safely by a simple owner row policy. Its isolated
+compatible candidate converts every direct caller and puts owner, staff and
+cron transitions behind actor/source-bound operations with a shared lock
+order. The complete PostgreSQL 17 proof covers primary Member/Master behavior,
+ACLs, deletion and two-session owner/staff plus owner/cron races. Activation
+remains separate and blocked on the full transition/queue/denial matrix and
+tested predecessor rollback; no current candidate changes RLS or table grants.

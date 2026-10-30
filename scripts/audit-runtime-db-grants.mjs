@@ -300,6 +300,12 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_seller_guild_staff_roster(text,text)",
   "grainline_seller_guild_staff_master_pending(text)",
   "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+  "grainline_maker_verification_staff_pending_count(text)",
+  "grainline_maker_verification_staff_pending_page(text,timestamp without time zone,text,integer)",
+  "grainline_seller_guild_staff_master_pending_count(text)",
+  "grainline_seller_guild_staff_master_pending_page(text,timestamp without time zone,text,integer)",
+  "grainline_seller_guild_staff_roster_count(text,text)",
+  "grainline_seller_guild_staff_roster_page(text,text,timestamp without time zone,text,integer)",
   "grainline_seller_staff_feature_transition(text,text,text)",
   "grainline_seller_staff_listing_review_transition(text,text,text,text)",
   "grainline_seller_staff_listing_detail_profile(text,text)",
@@ -322,6 +328,12 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_seller_guild_staff_roster(text,text)",
     "grainline_seller_guild_staff_master_pending(text)",
     "grainline_seller_guild_staff_transition(text,text,text,text,text,boolean)",
+    "grainline_maker_verification_staff_pending_count(text)",
+    "grainline_maker_verification_staff_pending_page(text,timestamp without time zone,text,integer)",
+    "grainline_seller_guild_staff_master_pending_count(text)",
+    "grainline_seller_guild_staff_master_pending_page(text,timestamp without time zone,text,integer)",
+    "grainline_seller_guild_staff_roster_count(text,text)",
+    "grainline_seller_guild_staff_roster_page(text,text,timestamp without time zone,text,integer)",
     "grainline_seller_staff_feature_transition(text,text,text)",
     "grainline_seller_staff_listing_review_transition(text,text,text,text)",
     "grainline_seller_staff_listing_detail_profile(text,text)",
@@ -568,6 +580,11 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_public_blog_state_sync",
   "grainline_seller_rating_listing_state_sync",
   "grainline_saved_blog_post_insert_guard",
+  "grainline_favorite_count_maintain",
+  "grainline_favorite_update_forbidden",
+  "grainline_listing_favorite_count_guard",
+  "grainline_review_vote_insert_guard",
+  "grainline_review_vote_update_forbidden",
   "grainline_review_reviewer_public_state_bind",
   "grainline_commission_buyer_public_state_bind",
   "grainline_user_public_review_commission_state_sync",
@@ -576,6 +593,15 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_guild_staff_roster",
   "grainline_seller_guild_staff_master_pending",
   "grainline_seller_guild_staff_transition",
+  "grainline_maker_verification_staff_pending_count",
+  "grainline_maker_verification_staff_pending_page",
+  "grainline_seller_guild_staff_master_pending_count",
+  "grainline_seller_guild_staff_master_pending_page",
+  "grainline_seller_guild_staff_roster_count",
+  "grainline_seller_guild_staff_roster_page",
+  "grainline_seller_guild_staff_transition_prepared_impl",
+  "grainline_seller_guild_member_revoke_prepared_impl",
+  "grainline_seller_guild_metrics_apply_prepared_impl",
   "grainline_seller_staff_feature_transition",
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_detail_profile",
@@ -2766,9 +2792,18 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
   // internal helper; a later CREATE/CREATE OR REPLACE restores the name.
   const functionLifecycle = new Map();
   for (const match of migrationSql.matchAll(
-    /\b(CREATE\s+(?:OR\s+REPLACE\s+)?|DROP\s+(?:IF\s+EXISTS\s+)?)FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(/gi,
+    /\b(?:(CREATE\s+(?:OR\s+REPLACE\s+)?|DROP\s+(?:IF\s+EXISTS\s+)?)FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\(|ALTER\s+FUNCTION\s+(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?\s*\([^;]*?\)\s+RENAME\s+TO\s+"?([A-Za-z_][A-Za-z0-9_]*)"?)/gi,
   )) {
-    const [, operation, name] = match;
+    const [, operation, name, renamedFrom, renamedTo] = match;
+    if (renamedFrom && renamedTo) {
+      if (renamedFrom.startsWith("grainline_")) {
+        functionLifecycle.set(renamedFrom, false);
+      }
+      if (renamedTo.startsWith("grainline_")) {
+        functionLifecycle.set(renamedTo, true);
+      }
+      continue;
+    }
     if (!name.startsWith("grainline_")) continue;
     functionLifecycle.set(name, /^CREATE\b/i.test(operation));
   }

@@ -8,6 +8,10 @@ export type UserFollowerNotificationRow = {
   followerId: string;
 };
 
+type FollowedMakerNotificationSource =
+  | { sourceType: "followed_maker_new_listing"; sourceId: string }
+  | { sourceType: "followed_maker_new_blog"; sourceId: string };
+
 export type UserBroadcastFollowerRow = UserFollowerNotificationRow & {
   notificationPreferences: Record<string, unknown>;
 };
@@ -38,16 +42,16 @@ function pageLimit(value: number) {
 
 export async function userFollowerNotificationPage(
   client: UserFollowerClient,
-  input: {
-    sellerProfileId: string;
+  input: FollowedMakerNotificationSource & {
     afterFollowId?: string | null;
     limit?: number;
   },
 ) {
   const limit = pageLimit(input.limit ?? MAX_FOLLOWER_PAGE_SIZE);
   const rows = await client.$queryRaw<UserFollowerNotificationRow[]>`
-    SELECT * FROM public.grainline_user_follower_notification_page(
-      ${input.sellerProfileId}::text,
+    SELECT * FROM public.grainline_follow_source_notification_page(
+      ${input.sourceType}::text,
+      ${input.sourceId}::text,
       ${input.afterFollowId ?? null}::text,
       ${limit}::integer
     )

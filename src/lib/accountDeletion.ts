@@ -5,6 +5,7 @@ import {
   withDbUserContext,
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
+import { redactOwnerMakerVerificationForDeletion } from "@/lib/makerVerificationAccess";
 import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { deleteAccountNotificationServiceRows } from "@/lib/notificationServiceAccess";
 import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
@@ -80,6 +81,7 @@ import {
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
+import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import {
@@ -88,6 +90,8 @@ import {
 } from "@/lib/emailOutboxContentLifecycle";
 import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess";
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
+import { deleteAllOwnerFavorites } from "@/lib/favoriteAccess";
+import { cleanupFollowsForAccountDeletion } from "@/lib/sellerFollowAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -1158,13 +1162,13 @@ export async function anonymizeUserAccount(
     });
 
     await tx.cart.deleteMany({ where: { userId: user.id } });
-    await tx.favorite.deleteMany({ where: { userId: user.id } });
+    await deleteAllOwnerFavorites(user.id, tx);
     await deleteAllOwnerSavedSearches(user.id, tx);
     await deleteAllOwnerStockNotifications(user.id, tx);
     await scrubCheckoutStockReservationsForDeletedAccount(tx, user.id);
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
-    await tx.reviewVote.deleteMany({ where: { userId: user.id } });
+    await deleteAllOwnerReviewVotes(tx);
     await tx.block.deleteMany({ where: { blockerId: user.id } });
     await redactActorMessagesForAccountDeletion({
       sideEffectId: localAnonymizeSideEffectId,
@@ -1354,27 +1358,12 @@ export async function anonymizeUserAccount(
           rejectionReason: "Seller account deleted",
         },
       });
-      await tx.makerVerification.updateMany({
-        where: { sellerProfileId: user.sellerProfile.id },
-        data: {
-          craftDescription: "[Deleted]",
-          guildMasterCraftBusiness: null,
-          yearsExperience: 0,
-          portfolioUrl: null,
-          status: "REJECTED",
-          reviewedById: null,
-          reviewNotes: null,
-          appliedAt: now,
-          reviewedAt: null,
-        },
-      });
-      await tx.follow.deleteMany({
-        where: {
-          OR: [
-            { followerId: user.id },
-            { sellerProfileId: user.sellerProfile.id },
-          ],
-        },
+      await redactOwnerMakerVerificationForDeletion(tx, now);
+      await cleanupFollowsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await tx.sellerBroadcast.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
@@ -1394,7 +1383,12 @@ export async function anonymizeUserAccount(
         claimToken: localClaimToken,
       });
     } else {
-      await tx.follow.deleteMany({ where: { followerId: user.id } });
+      await cleanupFollowsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      });
     }
 
     await archiveBlogPostsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);

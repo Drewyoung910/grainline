@@ -12,6 +12,7 @@ import { getStaffActiveCaseCount } from "@/lib/caseReadAuthority";
 import { readStaffOrderPage } from "@/lib/orderStaffReadAuthority";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { readSupportRequestStaffState } from "@/lib/supportRequestAccess";
+import { makerVerificationStaffPendingCount } from "@/lib/makerVerificationAccess";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
@@ -35,7 +36,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const [openCaseCountResult, reviewNeededOrders, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount] = await Promise.all([
     getStaffActiveCaseCount(user.id),
     readStaffOrderPage(user.id, "REVIEW_NEEDED", 1, 1, getOrderStaffReadClient()),
-    prisma.makerVerification.count({ where: { status: "PENDING" } }),
+    makerVerificationStaffPendingCount(getOrderStaffReadClient(), user.id),
     prisma.blogComment.count({ where: { approved: false } }),
     prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
     readSupportRequestStaffState(user.id, 1, 0, 0).then((state) => state.activeCount),

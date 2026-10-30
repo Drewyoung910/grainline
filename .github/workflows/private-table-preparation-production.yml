@@ -10,6 +10,11 @@ on:
         options:
           - support_request_v1
           - stock_notification_v1
+          - favorite_v1
+          - follow_v1
+          - review_vote_v1
+          - maker_verification_v1
+          - owner_social_verification_v1
       release_commit:
         description: Exact reviewed main commit
         required: true
@@ -129,8 +134,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          migration="$(node scripts/private-table-preparation-catalog.mjs)"
-          test -n "$migration"
+          mapfile -t release_ids < <(
+            node scripts/private-table-preparation-catalog.mjs --release-ids
+          )
+          mapfile -t migrations < <(
+            node scripts/private-table-preparation-catalog.mjs --migrations
+          )
+          test "${#release_ids[@]}" -gt 0
+          test "${#release_ids[@]}" -eq "${#migrations[@]}"
           mapfile -t release_tests < <(
             node scripts/private-table-preparation-catalog.mjs --tests
           )
@@ -149,37 +160,87 @@ jobs:
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          PRIVATE_TABLE_PREPARATION_PHASE: preflight
-          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: ${{ runner.temp }}/private-table-preparation-${{ github.sha }}-preflight.json
         run: |
           set -euo pipefail
-          state="$(node scripts/private-table-preparation-production-inspect.mjs)"
-          case "$state" in
-            pending)
-              migration="$(node scripts/private-table-preparation-catalog.mjs)"
-              echo "pending=$migration" >> "$GITHUB_OUTPUT"
-              ;;
-            applied) echo "pending=" >> "$GITHUB_OUTPUT" ;;
-            *) exit 1 ;;
-          esac
-          echo "state=$state" >> "$GITHUB_OUTPUT"
-      - name: Require only the reviewed preparation migration pending
+          selection="$PRIVATE_TABLE_PREPARATION_RELEASE_ID"
+          state_file="$RUNNER_TEMP/private-table-preparation-state.tsv"
+          : > "$state_file"
+          chmod 600 "$state_file"
+          pending=()
+          mapfile -t release_ids < <(
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID="$selection" \
+              node scripts/private-table-preparation-catalog.mjs --release-ids
+          )
+          for release_id in "${release_ids[@]}"
+          do
+            migration="$(
+              PRIVATE_TABLE_PREPARATION_RELEASE_ID="$release_id" \
+                node scripts/private-table-preparation-catalog.mjs
+            )"
+            evidence="$RUNNER_TEMP/private-table-preparation-${GITHUB_SHA}-${release_id}-preflight.json"
+            state="$(
+              PRIVATE_TABLE_PREPARATION_RELEASE_ID="$release_id" \
+              PRIVATE_TABLE_PREPARATION_PHASE=preflight \
+              PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH="$evidence" \
+                node scripts/private-table-preparation-production-inspect.mjs
+            )"
+            case "$state" in
+              pending|applied_unrecorded) pending+=("$migration") ;;
+              applied) ;;
+              *) exit 1 ;;
+            esac
+            printf '%s\t%s\t%s\n' "$release_id" "$migration" "$state" >> "$state_file"
+          done
+          pending_csv="$(IFS=,; echo "${pending[*]}")"
+          echo "pending=$pending_csv" >> "$GITHUB_OUTPUT"
+      - name: Require only the reviewed preparation migrations pending
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
-      - name: Apply only the reviewed private-table preparation
-        if: steps.preflight.outputs.state == 'pending'
+      - name: Apply reviewed preparation transactions outside Prisma's ledger
+        shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-        run: npx prisma migrate deploy
-      - name: Read back exact compatible preparation catalog
+          PGSSLROOTCERT: system
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r release_id migration state
+          do
+            if [ "$state" = pending ]
+            then
+              psql "$DIRECT_URL" \
+                --set=ON_ERROR_STOP=on \
+                --file="prisma/migrations/$migration/migration.sql"
+            fi
+          done < "$RUNNER_TEMP/private-table-preparation-state.tsv"
+      - name: Record the committed preparations in Prisma's ledger
+        shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          PRIVATE_TABLE_PREPARATION_PHASE: postflight
-          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: ${{ runner.temp }}/private-table-preparation-${{ github.sha }}-postflight.json
-          PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH: ${{ runner.temp }}/private-table-preparation-${{ github.sha }}-preflight.json
-        run: node scripts/private-table-preparation-production-inspect.mjs
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r release_id migration state
+          do
+            if [ "$state" = pending ] || [ "$state" = applied_unrecorded ]
+            then
+              npx prisma migrate resolve --applied "$migration"
+            fi
+          done < "$RUNNER_TEMP/private-table-preparation-state.tsv"
+      - name: Read back exact compatible preparation catalogs
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r release_id migration state
+          do
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID="$release_id" \
+            PRIVATE_TABLE_PREPARATION_PHASE=postflight \
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH="$RUNNER_TEMP/private-table-preparation-${GITHUB_SHA}-${release_id}-postflight.json" \
+            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH="$RUNNER_TEMP/private-table-preparation-${GITHUB_SHA}-${release_id}-preflight.json" \
+              node scripts/private-table-preparation-production-inspect.mjs
+          done < "$RUNNER_TEMP/private-table-preparation-state.tsv"
       - name: Require no migrations pending after preparation
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

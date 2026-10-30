@@ -20,6 +20,7 @@ import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
+import { ownerRawFollowCount } from "@/lib/sellerFollowAccess";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -47,7 +48,7 @@ async function AccountPageContent() {
     listOwnerSavedSearches(me.id, prisma, { take: 3 }),
 
     // Follow count
-    prisma.follow.count({ where: { followerId: me.id } }),
+    ownerRawFollowCount(me.id),
 
     // Seller profile stats (if they're a seller)
     sellerOwnerAccountSummary(me.id),

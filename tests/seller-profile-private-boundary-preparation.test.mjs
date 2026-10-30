@@ -296,10 +296,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
   it("centralizes staff Guild private state behind one compatibility boundary", () => {
     for (const operation of [
       "applySellerGuildStaffTransition",
-      "sellerGuildStaffMasterPendingList",
-      "sellerGuildStaffMemberList",
-      "sellerGuildStaffMasterList",
-      "sellerGuildStaffRevokedMemberList",
+      "sellerGuildStaffMasterPendingCount",
+      "sellerGuildStaffMasterPendingPage",
+      "sellerGuildStaffRosterCount",
+      "sellerGuildStaffRosterPage",
     ]) {
       assert.match(adminVerification, new RegExp(`\\b${operation}\\(`));
       assert.match(guildStaffPrivateAccess, new RegExp(`export (?:async )?function ${operation}\\(`));
@@ -988,7 +988,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(profileEditor, /toggleSellerOwnerFeaturedListing/);
     assert.match(guildDashboard, /sellerOwnerGuildDashboardState/);
     assert.match(guildDashboard, /sellerOwnerGuildApplicationState/);
-    assert.match(guildDashboard, /recordSellerOwnerGuildMasterApplication/);
+    assert.match(guildDashboard, /applyOwnerGuildMasterVerification/);
     assert.match(guildMemberCron, /sellerGuildMemberCronBatch/);
     assert.match(guildMemberCron, /applySellerGuildMemberRevocation/);
     assert.match(guildMetricsCron, /sellerGuildMetricsCronBatch/);
@@ -1089,7 +1089,7 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.match(sellerProfileView, /recordSellerProfileView\(id, todayUtcBucket\(\)\)/);
     assert.doesNotMatch(sellerProfileView, /sellerProfile\.update|sellerProfileViewDaily\.upsert/);
     assert.match(ownerPrivateAccess, /grainline_seller_owner_guild_master_application_record/);
-    assert.match(ownerGuild, /recordSellerOwnerGuildMasterApplication/);
+    assert.match(ownerGuild, /applyOwnerGuildMasterVerification/);
     assert.match(remainingAppAuthorityMigration, /FOR UPDATE OF seller, seller_private/);
     assert.match(provisioning, /grainline_seller_profile_view_record"\(text, date\)/);
     assert.match(provisioning, /grainline_seller_owner_guild_master_application_record/);

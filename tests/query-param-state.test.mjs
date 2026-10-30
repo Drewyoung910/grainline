@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 
 const {
   parseBoundedDecimalParam,
@@ -134,6 +133,15 @@ describe("query parameter parsing helpers", () => {
       "src/lib/sellerGuildStaffPrivateAccess.ts",
       "utf8",
     );
+    const makerVerificationAccess = readFileSync(
+      "src/lib/makerVerificationAccess.ts",
+      "utf8",
+    );
+    const makerVerificationPreparation = readFileSync(
+      process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH
+        ?? "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+      "utf8",
+    );
     const blog = readFileSync("src/app/admin/blog/page.tsx", "utf8");
     const reports = readFileSync("src/app/admin/reports/page.tsx", "utf8");
 
@@ -142,14 +150,19 @@ describe("query parameter parsing helpers", () => {
     assert.match(review, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
     assert.match(review, /take: REVIEW_QUEUE_LIMIT/);
 
-    assert.match(verification, /where: \{ status: "PENDING" \}[\s\S]*orderBy: \[\{ appliedAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 50/);
-    assert.match(verification, /sellerGuildStaffMasterPendingList\(staffClient, staff\.id\)/);
-    assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_master_pending/);
-    const staffReadMigration = readFileSync(
-      sellerProfilePrivateMigrationPath("20261014210000_prepare_seller_profile_private_guild_staff_read_authorities"),
-      "utf8",
-    );
-    assert.match(staffReadMigration, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT 50/);
+    assert.match(verification, /makerVerificationStaffPendingCount\(staffClient, staff\.id\)/);
+    assert.match(verification, /makerVerificationStaffPendingPage\(staffClient, \{[\s\S]*actorId: staff\.id,[\s\S]*take: STAFF_FETCH_SIZE/);
+    assert.match(makerVerificationAccess, /grainline_maker_verification_staff_pending_page/);
+    assert.match(makerVerificationPreparation, /WHERE verification\.status = 'PENDING'::public\."VerificationStatus"[\s\S]*ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT p_take/);
+    assert.match(verification, /sellerGuildStaffMasterPendingCount\(staffClient, staff\.id\)/);
+    assert.match(verification, /sellerGuildStaffMasterPendingPage\(staffClient, \{[\s\S]*take: STAFF_FETCH_SIZE/);
+    assert.match(verification, /sellerGuildStaffRosterCount\(staffClient, \{ actorId: staff\.id, cohort: "GUILD_MEMBER" \}\)/);
+    assert.match(verification, /sellerGuildStaffRosterPage\(staffClient, \{[\s\S]*cohort: "GUILD_MEMBER"[\s\S]*take: STAFF_FETCH_SIZE/);
+    assert.match(verification, /const STAFF_FETCH_SIZE = STAFF_PAGE_SIZE \+ 1/);
+    assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_master_pending_page/);
+    assert.match(sellerGuildStaffPrivateAccess, /grainline_seller_guild_staff_roster_page/);
+    assert.match(makerVerificationPreparation, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT p_take/);
+    assert.match(makerVerificationPreparation, /END DESC NULLS LAST,[\s\S]*seller\.id ASC[\s\S]*LIMIT p_take/);
 
     assert.match(blog, /const PENDING_COMMENT_LIMIT = 30;/);
     assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: PENDING_COMMENT_LIMIT \+ 1/);

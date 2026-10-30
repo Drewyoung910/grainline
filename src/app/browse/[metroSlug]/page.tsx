@@ -25,6 +25,7 @@ import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { Suspense } from "react";
 import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -181,11 +182,7 @@ async function BrowseMetroContent({
   let savedSet = new Set<string>();
   if (meDbId && listings.length > 0) {
     const listingIds = listings.map((listing) => listing.id);
-    const favs = await prisma.favorite.findMany({
-      where: { userId: meDbId, listingId: { in: listingIds } },
-      select: { listingId: true },
-    });
-    savedSet = new Set(favs.map((f) => f.listingId));
+    savedSet = await ownerFavoriteListingIds(meDbId, listingIds);
   }
 
   // Category counts for filter tabs

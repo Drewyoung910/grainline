@@ -32,6 +32,11 @@ import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 import { formatCurrencyCents } from "@/lib/money";
 import { formatCityState } from "@/lib/locationDisplay";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import {
+  ownerFollowedSellerIds,
+  sellerPublicFollowStateBatch,
+} from "@/lib/sellerFollowAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 import {
@@ -285,27 +290,19 @@ export default async function HomePage() {
   if (meDbId) {
     const ids = [...fresh.map((f) => f.id), ...topSaved.map((t) => t.id)];
     const blogPostIds = recentBlogPosts.map((p) => p.id);
-    const [favs, follows, savedBlogRows] = await Promise.all([
-      prisma.favorite.findMany({
-        where: { userId: meDbId, listingId: { in: ids } },
-        select: { listingId: true },
-      }),
-      prisma.follow.findMany({
-        where: { followerId: meDbId },
-        select: { sellerProfileId: true },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 50,
-      }),
+    const [savedListingIds, followedSellerIds, savedBlogRows] = await Promise.all([
+      ownerFavoriteListingIds(meDbId, ids),
+      ownerFollowedSellerIds(meDbId, 50),
       ownerSavedBlogPostIdRows(meDbId, blogPostIds),
     ]);
-    saved = new Set(favs.map((f) => f.listingId));
+    saved = savedListingIds;
     const savedBlogIdSet = new Set(savedBlogRows.map((s) => s.blogPostId));
     savedBlogSlugs = new Set(
       recentBlogPosts.filter((p) => savedBlogIdSet.has(p.id)).map((p) => p.slug)
     );
 
-    if (follows.length >= 3) {
-      const followedIds = follows.map((f) => f.sellerProfileId);
+    if (followedSellerIds.length >= 3) {
+      const followedIds = [...followedSellerIds];
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const [recentListingSources, recentPosts] = await Promise.all([
         prisma.listing.findMany({
@@ -373,21 +370,16 @@ export default async function HomePage() {
   let featuredFollowerCounts = new Map<string, number>();
   let featuredFollowing = new Set<string>();
   if (featuredMakerIds.length > 0) {
-    const [followCounts, myFollows] = await Promise.all([
-      prisma.follow.groupBy({
-        by: ["sellerProfileId"],
-        where: { sellerProfileId: { in: featuredMakerIds } },
-        _count: { _all: true },
-      }),
-      meDbId
-        ? prisma.follow.findMany({
-            where: { followerId: meDbId, sellerProfileId: { in: featuredMakerIds } },
-            select: { sellerProfileId: true },
-          })
-        : Promise.resolve([] as { sellerProfileId: string }[]),
-    ]);
-    featuredFollowerCounts = new Map(followCounts.map((c) => [c.sellerProfileId, c._count._all]));
-    featuredFollowing = new Set(myFollows.map((f) => f.sellerProfileId));
+    const followStates = await sellerPublicFollowStateBatch(
+      featuredMakerIds,
+      meDbId ?? undefined,
+    );
+    featuredFollowerCounts = new Map(
+      followStates.map((state) => [state.sellerProfileId, state.followerCount]),
+    );
+    featuredFollowing = new Set(
+      followStates.filter((state) => state.following).map((state) => state.sellerProfileId),
+    );
   }
   const spotlightStats =
     featuredMakers.length > 0

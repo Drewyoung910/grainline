@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { auth } from "@clerk/nextjs/server";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createNotification } from "@/lib/notifications";
@@ -43,17 +44,97 @@ import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import {
   applySellerGuildStaffTransition,
   applySellerStaffFeatureTransition,
-  sellerGuildStaffMasterList,
-  sellerGuildStaffMasterPendingList,
-  sellerGuildStaffMemberList,
-  sellerGuildStaffRevokedMemberList,
+  sellerGuildStaffMasterPendingCount,
+  sellerGuildStaffMasterPendingPage,
+  sellerGuildStaffRosterCount,
+  sellerGuildStaffRosterPage,
 } from "@/lib/sellerGuildStaffPrivateAccess";
 import {
   sellerProfileStaffReportTargets,
   sellerProfileStaffVerificationTarget,
 } from "@/lib/sellerProfileStaffAccess";
+import {
+  makerVerificationStaffPendingCount,
+  makerVerificationStaffPendingPage,
+} from "@/lib/makerVerificationAccess";
 
 type ActionState = { ok: boolean; error?: string };
+
+const STAFF_PAGE_SIZE = 50;
+const STAFF_FETCH_SIZE = STAFF_PAGE_SIZE + 1;
+const STAFF_QUEUE_KEYS = [
+  "member-pending",
+  "master-pending",
+  "member-active",
+  "master-active",
+  "revoked",
+] as const;
+type StaffQueueKey = typeof STAFF_QUEUE_KEYS[number];
+
+type StaffCursor = {
+  queue: StaffQueueKey;
+  at: Date | null;
+  id: string;
+};
+
+function parseStaffCursor(input: {
+  queue?: string;
+  cursorAt?: string;
+  cursorId?: string;
+}): StaffCursor | null {
+  if (!STAFF_QUEUE_KEYS.includes(input.queue as StaffQueueKey)
+      || !input.cursorId
+      || !/^[A-Za-z0-9._:-]{1,191}$/u.test(input.cursorId)) {
+    return null;
+  }
+  const queue = input.queue as StaffQueueKey;
+  if (!input.cursorAt) {
+    return queue === "member-active" || queue === "master-active" || queue === "revoked"
+      ? { queue, at: null, id: input.cursorId }
+      : null;
+  }
+  const at = new Date(input.cursorAt);
+  return Number.isNaN(at.getTime()) ? null : { queue, at, id: input.cursorId };
+}
+
+function staffPageHref(queue: StaffQueueKey, at: Date | null, id: string) {
+  const params = new URLSearchParams({ queue, cursorId: id });
+  if (at) params.set("cursorAt", at.toISOString());
+  return `/admin/verification?${params.toString()}`;
+}
+
+function StaffPager({
+  queue,
+  cursor,
+  hasNext,
+  nextAt,
+  nextId,
+}: {
+  queue: StaffQueueKey;
+  cursor: StaffCursor | null;
+  hasNext: boolean;
+  nextAt: Date | null;
+  nextId: string | null;
+}) {
+  if ((!cursor || cursor.queue !== queue) && !hasNext) return null;
+  return (
+    <div className="flex items-center gap-3 pt-2 text-sm">
+      {cursor?.queue === queue && (
+        <Link className="underline text-neutral-600 hover:text-neutral-900" href="/admin/verification">
+          Back to first 50
+        </Link>
+      )}
+      {hasNext && nextId && (
+        <Link
+          className="underline text-neutral-600 hover:text-neutral-900"
+          href={staffPageHref(queue, nextAt, nextId)}
+        >
+          Next 50
+        </Link>
+      )}
+    </div>
+  );
+}
 
 type CachedSellerMetrics = {
   calculatedAt: Date;
@@ -641,29 +722,80 @@ async function unfeatureMaker(sellerProfileId: string) {
 }
 
 // ── Page ────────────────────────────────────────────────────────────────────
-export default async function AdminVerificationPage() {
+export default async function AdminVerificationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ queue?: string; cursorAt?: string; cursorId?: string }>;
+}) {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
+  const cursor = parseStaffCursor(await searchParams);
   const staffClient = getOrderStaffReadClient();
-  const [memberPendingSource, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
-    prisma.makerVerification.findMany({
-      where: { status: "PENDING" },
-      orderBy: [{ appliedAt: "asc" }, { id: "asc" }],
-      take: 50,
-      select: {
-        id: true,
-        craftDescription: true,
-        yearsExperience: true,
-        portfolioUrl: true,
-        appliedAt: true,
-        sellerProfileId: true,
-      },
+  const rosterCursor = (queue: StaffQueueKey) => cursor?.queue === queue
+    ? { cursorApprovedAt: cursor.at, cursorId: cursor.id }
+    : { cursorApprovedAt: null, cursorId: null };
+  const pendingCursor = (queue: StaffQueueKey) => cursor?.queue === queue
+    ? { cursorAppliedAt: cursor.at, cursorId: cursor.id }
+    : { cursorAppliedAt: null, cursorId: null };
+  const [
+    memberPendingCount,
+    memberPendingSourcePage,
+    masterPendingCount,
+    masterPendingPage,
+    memberActiveCount,
+    memberActivePage,
+    masterActiveCount,
+    masterActivePage,
+    revokedMemberCount,
+    revokedMemberPage,
+    featuredCount,
+    featuredNow,
+  ] = await Promise.all([
+    makerVerificationStaffPendingCount(staffClient, staff.id),
+    makerVerificationStaffPendingPage(staffClient, {
+      actorId: staff.id,
+      take: STAFF_FETCH_SIZE,
+      ...pendingCursor("member-pending"),
     }),
-    sellerGuildStaffMasterPendingList(staffClient, staff.id),
-    sellerGuildStaffMemberList(staffClient, staff.id),
-    sellerGuildStaffMasterList(staffClient, staff.id),
-    sellerGuildStaffRevokedMemberList(staffClient, staff.id),
+    sellerGuildStaffMasterPendingCount(staffClient, staff.id),
+    sellerGuildStaffMasterPendingPage(staffClient, {
+      actorId: staff.id,
+      take: STAFF_FETCH_SIZE,
+      ...pendingCursor("master-pending"),
+    }),
+    sellerGuildStaffRosterCount(staffClient, { actorId: staff.id, cohort: "GUILD_MEMBER" }),
+    sellerGuildStaffRosterPage(staffClient, {
+      actorId: staff.id,
+      cohort: "GUILD_MEMBER",
+      take: STAFF_FETCH_SIZE,
+      ...rosterCursor("member-active"),
+    }),
+    sellerGuildStaffRosterCount(staffClient, { actorId: staff.id, cohort: "GUILD_MASTER" }),
+    sellerGuildStaffRosterPage(staffClient, {
+      actorId: staff.id,
+      cohort: "GUILD_MASTER",
+      take: STAFF_FETCH_SIZE,
+      ...rosterCursor("master-active"),
+    }),
+    sellerGuildStaffRosterCount(staffClient, { actorId: staff.id, cohort: "REVOKED_MEMBER" }),
+    sellerGuildStaffRosterPage(staffClient, {
+      actorId: staff.id,
+      cohort: "REVOKED_MEMBER",
+      take: STAFF_FETCH_SIZE,
+      ...rosterCursor("revoked"),
+    }),
+    sellerGuildStaffRosterCount(staffClient, { actorId: staff.id, cohort: "FEATURED" }),
+    sellerGuildStaffRosterPage(staffClient, {
+      actorId: staff.id,
+      cohort: "FEATURED",
+      take: 100,
+    }),
   ]);
+  const memberPendingSource = memberPendingSourcePage.slice(0, STAFF_PAGE_SIZE);
+  const masterPending = masterPendingPage.slice(0, STAFF_PAGE_SIZE);
+  const memberActive = memberActivePage.slice(0, STAFF_PAGE_SIZE);
+  const masterActive = masterActivePage.slice(0, STAFF_PAGE_SIZE);
+  const revokedMembers = revokedMemberPage.slice(0, STAFF_PAGE_SIZE);
   const memberTargets = await sellerProfileStaffReportTargets(staffClient, {
     actorId: staff.id,
     sellerProfileIds: memberPendingSource.map((verification) => verification.sellerProfileId),
@@ -684,12 +816,12 @@ export default async function AdminVerificationPage() {
     }
   }
 
-  // Currently-featured makers (for the 2-slot homepage spotlight)
-  const now = new Date();
-  const featuredNow = [...memberActive, ...masterActive]
-    .filter((s) => s.featuredUntil != null && s.featuredUntil > now)
-    .sort((a, b) => (b.featuredUntil!.getTime() - a.featuredUntil!.getTime()));
-  const featuredSlotsUsed = Math.min(featuredNow.length, 2);
+  const featuredSlotsUsed = Math.min(featuredCount, 2);
+  const lastMemberPending = memberPendingSource.at(-1) ?? null;
+  const lastMasterPending = masterPending.at(-1) ?? null;
+  const lastMemberActive = memberActive.at(-1) ?? null;
+  const lastMasterActive = masterActive.at(-1) ?? null;
+  const lastRevokedMember = revokedMembers.at(-1) ?? null;
 
   return (
     <div className="space-y-10">
@@ -712,9 +844,9 @@ export default async function AdminVerificationPage() {
                 <span><strong>{s.displayName}</strong> through {s.featuredUntil!.toLocaleDateString("en-US")}</span>
               </li>
             ))}
-            {featuredNow.length > 2 && (
+            {featuredCount > 2 && (
               <li className="text-xs text-amber-900 mt-2 italic">
-                {featuredNow.length - 2} additional maker{featuredNow.length - 2 === 1 ? "" : "s"} marked featured but not visible: only the 2 most recently featured show on the homepage. Unfeature one of the above to free a slot.
+                {featuredCount - 2} additional maker{featuredCount - 2 === 1 ? "" : "s"} marked featured but not visible: only the 2 most recently featured show on the homepage. Unfeature one of the above to free a slot.
               </li>
             )}
           </ul>
@@ -725,11 +857,13 @@ export default async function AdminVerificationPage() {
       <section className="space-y-4">
         <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2">
           Guild Member Applications{" "}
-          <span className="text-sm font-normal text-neutral-500">({memberPending.length} pending)</span>
+          <span className="text-sm font-normal text-neutral-500">({memberPendingCount} pending)</span>
         </h2>
 
         {memberPending.length === 0 ? (
-          <div className="card-section p-6 text-neutral-500 text-sm">No pending Guild Member applications.</div>
+          <div className="card-section p-6 text-neutral-500 text-sm">
+            {memberPendingCount === 0 ? "No pending Guild Member applications." : "No applications remain on this page."}
+          </div>
         ) : (
           <div className="space-y-4">
             {memberPending.map((v) => (
@@ -830,17 +964,26 @@ export default async function AdminVerificationPage() {
             ))}
           </div>
         )}
+        <StaffPager
+          queue="member-pending"
+          cursor={cursor}
+          hasNext={memberPendingSourcePage.length > STAFF_PAGE_SIZE}
+          nextAt={lastMemberPending?.appliedAt ?? null}
+          nextId={lastMemberPending?.id ?? null}
+        />
       </section>
 
       {/* ── Guild Master Applications ── */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2">
           Guild Master Applications{" "}
-          <span className="text-sm font-normal text-neutral-500">({masterPending.length} pending)</span>
+          <span className="text-sm font-normal text-neutral-500">({masterPendingCount} pending)</span>
         </h2>
 
         {masterPending.length === 0 ? (
-          <div className="card-section p-6 text-neutral-500 text-sm">No pending Guild Master applications.</div>
+          <div className="card-section p-6 text-neutral-500 text-sm">
+            {masterPendingCount === 0 ? "No pending Guild Master applications." : "No applications remain on this page."}
+          </div>
         ) : (
           <div className="space-y-4">
             {masterPending.map((v) => {
@@ -956,13 +1099,20 @@ export default async function AdminVerificationPage() {
             })}
           </div>
         )}
+        <StaffPager
+          queue="master-pending"
+          cursor={cursor}
+          hasNext={masterPendingPage.length > STAFF_PAGE_SIZE}
+          nextAt={lastMasterPending?.appliedAt ?? null}
+          nextId={lastMasterPending?.id ?? null}
+        />
       </section>
 
       {/* ── Active Guild Members (revocable) ── */}
-      {memberActive.length > 0 && (
+      {memberActiveCount > 0 && (
         <section className="space-y-4">
           <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-amber-800">
-            Active Guild Members ({memberActive.length})
+            Active Guild Members ({memberActiveCount})
           </h2>
           <div className="space-y-2">
             {memberActive.map((s) => (
@@ -995,14 +1145,21 @@ export default async function AdminVerificationPage() {
               </div>
             ))}
           </div>
+          <StaffPager
+            queue="member-active"
+            cursor={cursor}
+            hasNext={memberActivePage.length > STAFF_PAGE_SIZE}
+            nextAt={lastMemberActive?.guildMemberApprovedAt ?? null}
+            nextId={lastMemberActive?.id ?? null}
+          />
         </section>
       )}
 
       {/* ── Active Guild Masters (revocable) ── */}
-      {masterActive.length > 0 && (
+      {masterActiveCount > 0 && (
         <section className="space-y-4">
           <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-indigo-800">
-            Active Guild Masters ({masterActive.length})
+            Active Guild Masters ({masterActiveCount})
           </h2>
           <div className="space-y-2">
             {masterActive.map((s) => (
@@ -1035,13 +1192,20 @@ export default async function AdminVerificationPage() {
               </div>
             ))}
           </div>
+          <StaffPager
+            queue="master-active"
+            cursor={cursor}
+            hasNext={masterActivePage.length > STAFF_PAGE_SIZE}
+            nextAt={lastMasterActive?.guildMasterApprovedAt ?? null}
+            nextId={lastMasterActive?.id ?? null}
+          />
         </section>
       )}
       {/* ── Revoked Guild Members (reinstateable) ── */}
-      {revokedMembers.length > 0 && (
+      {revokedMemberCount > 0 && (
         <section className="space-y-4">
           <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-neutral-600">
-            Revoked Guild Members ({revokedMembers.length})
+            Revoked Guild Members ({revokedMemberCount})
           </h2>
           <div className="space-y-2">
             {revokedMembers.map((s) => (
@@ -1066,6 +1230,13 @@ export default async function AdminVerificationPage() {
               </div>
             ))}
           </div>
+          <StaffPager
+            queue="revoked"
+            cursor={cursor}
+            hasNext={revokedMemberPage.length > STAFF_PAGE_SIZE}
+            nextAt={lastRevokedMember?.guildMemberApprovedAt ?? null}
+            nextId={lastRevokedMember?.id ?? null}
+          />
         </section>
       )}
     </div>
