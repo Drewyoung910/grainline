@@ -244,7 +244,7 @@ UPDATE, and installs eight bounded operations.
 All application consumers now use those operations or the scalar projection;
 no source caller directly reads, writes, counts or orders by Favorite.
 
-The full 437-migration chain passes on disposable PostgreSQL 16 and 17. Its
+The complete current migration chain passes on disposable PostgreSQL 17. Its
 executed scenario first reproduces the predecessor add-after-block gap, then
 proves predecessor direct insert/replay/delete compatibility, atomic guarded
 add/replay, no-context and self/inactive/blocked denial,
@@ -252,7 +252,10 @@ cross-user read/remove denial, owner state, export, seller range analytics,
 seller/admin cleanup authorization, User and Listing cascades, exact count
 reconciliation, direct runtime projection-forgery denial without blocking an
 unrelated Listing update, a concurrent actor-ban recheck, and both winner
-orders of add-versus-block and add-versus-archive races. The Prisma schema pins the same
+orders of add-versus-block, add-versus-archive, and remove-versus-archive
+races. Owner removal, bulk deletion, and seller/admin cleanup pre-lock Listing
+parents in deterministic order; staff removal also hides the Listing before
+cleanup. The Prisma schema pins the same
 descending three-column index order as the SQL migration, and both mutation
 routes reject malformed listing ids before database access.
 

@@ -51,7 +51,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261028010000_prepare_favorite_authorities",
-    "d35ae9c5b2d90758d0f665bd246b60fe8fa8753cb10d5f8d72a6d573712b11e9",
+    "b3b55a349b2bcdfb0059c5a661926714f7314e92b2d39ea5de94f3c07d385a27",
   ],
   [
     "20261028020000_prepare_follow_authorities",

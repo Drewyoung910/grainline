@@ -81,6 +81,8 @@ export async function seedFavoritePredecessorFixture({ database, seller }) {
       "blockFirstRace",
       "addFirstArchiveRace",
       "archiveFirstRace",
+      "removeFirstArchiveRace",
+      "archiveFirstRemoveRace",
     ].map((key) => [key, `${suffix}_${key}`])),
     now: "2026-10-28 10:00:00",
   };
@@ -357,6 +359,88 @@ async function proveAddArchiveRaces({ connectionString, database, fixture }) {
   }
 }
 
+async function proveRemoveArchiveRaces({ connectionString, database, fixture }) {
+  const removeClient = new pg.Client({ connectionString });
+  const archiveClient = new pg.Client({ connectionString });
+  await Promise.all([removeClient.connect(), archiveClient.connect()]);
+  try {
+    await insertFavorite(
+      database,
+      fixture.buyerA,
+      fixture.listings.removeFirstArchiveRace,
+    );
+    await beginRuntime(removeClient, fixture.buyerA);
+    assert.equal(
+      Number((await removeClient.query(
+        "SELECT public.grainline_favorite_owner_remove($1) AS value",
+        [fixture.listings.removeFirstArchiveRace],
+      )).rows[0]?.value ?? -1),
+      1,
+    );
+
+    await beginRuntime(archiveClient, fixture.seller.userId, "250ms");
+    await assert.rejects(
+      archiveClient.query(
+        `UPDATE public."Listing"
+            SET status = 'HIDDEN'::public."ListingStatus", "isPrivate" = true
+          WHERE id = $1`,
+        [fixture.listings.removeFirstArchiveRace],
+      ),
+      (error) => error?.code === "55P03",
+    );
+    await archiveClient.query("ROLLBACK");
+    await removeClient.query("COMMIT");
+
+    await insertFavorite(
+      database,
+      fixture.buyerA,
+      fixture.listings.archiveFirstRemoveRace,
+    );
+    await beginRuntime(archiveClient, fixture.seller.userId);
+    await archiveClient.query(
+      `UPDATE public."Listing"
+          SET status = 'HIDDEN'::public."ListingStatus", "isPrivate" = true
+        WHERE id = $1`,
+      [fixture.listings.archiveFirstRemoveRace],
+    );
+    await archiveClient.query(
+      "SELECT public.grainline_favorite_seller_listing_cleanup($1)",
+      [fixture.listings.archiveFirstRemoveRace],
+    );
+
+    await beginRuntime(removeClient, fixture.buyerA, "250ms");
+    await assert.rejects(
+      removeClient.query(
+        "SELECT public.grainline_favorite_owner_remove($1)",
+        [fixture.listings.archiveFirstRemoveRace],
+      ),
+      (error) => error?.code === "55P03",
+    );
+    await removeClient.query("ROLLBACK");
+    await archiveClient.query("COMMIT");
+
+    const removedAfterArchive = rowsOf(await runtimeQuery(
+      database,
+      fixture.buyerA,
+      "SELECT public.grainline_favorite_owner_remove($1) AS value",
+      [fixture.listings.archiveFirstRemoveRace],
+    ));
+    assert.equal(Number(removedAfterArchive[0]?.value ?? -1), 0);
+    assert.equal(
+      await projectedCount(database, fixture.listings.removeFirstArchiveRace),
+      0,
+    );
+    assert.equal(
+      await projectedCount(database, fixture.listings.archiveFirstRemoveRace),
+      0,
+    );
+  } finally {
+    await removeClient.query("ROLLBACK").catch(() => {});
+    await archiveClient.query("ROLLBACK").catch(() => {});
+    await Promise.all([removeClient.end(), archiveClient.end()]);
+  }
+}
+
 export async function proveFavoritePreparedAuthorities({
   database,
   connectionString,
@@ -569,6 +653,7 @@ export async function proveFavoritePreparedAuthorities({
 
   await proveAddBlockRaces({ connectionString, database, fixture });
   await proveAddArchiveRaces({ connectionString, database, fixture });
+  await proveRemoveArchiveRaces({ connectionString, database, fixture });
 
   await insertFavorite(database, fixture.buyerCascade, fixture.listings.userCascade);
   await database.query('DELETE FROM public."User" WHERE id = $1', [fixture.buyerCascade]);

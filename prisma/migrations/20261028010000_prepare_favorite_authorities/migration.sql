@@ -245,6 +245,7 @@ DECLARE
     pg_catalog.current_setting('app.user_id', true),
     ''
   );
+  target_seller_profile_id text;
   target_user_id text;
   locked_target_user_id text;
   target_title text;
@@ -320,9 +321,10 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  target_seller_profile_id := NULL;
   target_user_id := NULL;
-  SELECT seller."userId", listing.title
-    INTO target_user_id, target_title
+  SELECT seller.id, seller."userId"
+    INTO target_seller_profile_id, target_user_id
     FROM public."Listing" AS listing
     JOIN public."SellerProfile" AS seller
       ON seller.id = listing."sellerId"
@@ -334,9 +336,36 @@ BEGIN
      AND seller."chargesEnabled" = true
      AND seller."stripeAccountSupported" = true
      AND seller."vacationMode" = false
-   FOR SHARE OF listing, seller;
+   FOR SHARE OF seller;
 
   IF target_user_id IS NULL OR target_user_id <> locked_target_user_id THEN
+    RETURN QUERY SELECT 'NOT_FOUND'::text, NULL::text, NULL::text, false;
+    RETURN;
+  END IF;
+
+  -- Seller state writers take SellerProfile before updating their Listings.
+  -- Keep that order, then hold the Listing strongly enough that the count
+  -- trigger never has to upgrade its lock after inserting the Favorite row.
+  PERFORM 1
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = target_seller_profile_id
+   FOR NO KEY UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT 'NOT_FOUND'::text, NULL::text, NULL::text, false;
+    RETURN;
+  END IF;
+
+  target_title := NULL;
+  SELECT listing.title
+    INTO target_title
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = target_seller_profile_id
+     AND listing.status::text IN ('ACTIVE', 'SOLD_OUT')
+     AND listing."isPrivate" = false
+     AND listing."archivedAt" IS NULL;
+  IF target_title IS NULL THEN
     RETURN QUERY SELECT 'NOT_FOUND'::text, NULL::text, NULL::text, false;
     RETURN;
   END IF;
@@ -398,6 +427,11 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
+  PERFORM 1
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+   FOR NO KEY UPDATE;
+
   DELETE FROM public."Favorite"
    WHERE "userId" = request_user_id
      AND "listingId" = p_listing_id;
@@ -431,6 +465,19 @@ BEGIN
     RAISE EXCEPTION 'Favorite owner delete-all context is invalid'
       USING ERRCODE = '42501';
   END IF;
+
+  -- Pre-lock every affected parent in deterministic order. The per-row count
+  -- trigger can then update each Listing without reversing Favorite/Listing
+  -- order against archive, cleanup, or cascade writers.
+  PERFORM 1
+    FROM public."Listing" AS listing
+   WHERE listing.id IN (
+     SELECT favorite."listingId"
+       FROM public."Favorite" AS favorite
+      WHERE favorite."userId" = request_user_id
+   )
+   ORDER BY listing.id
+   FOR NO KEY UPDATE;
 
   DELETE FROM public."Favorite" WHERE "userId" = request_user_id;
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
@@ -571,6 +618,11 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  PERFORM 1
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+   FOR NO KEY UPDATE;
+
   DELETE FROM public."Favorite" WHERE "listingId" = p_listing_id;
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
   RETURN deleted_count;
@@ -612,6 +664,11 @@ BEGIN
     RAISE EXCEPTION 'Favorite admin cleanup is forbidden'
       USING ERRCODE = '42501';
   END IF;
+
+  PERFORM 1
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+   FOR NO KEY UPDATE;
 
   DELETE FROM public."Favorite" WHERE "listingId" = p_listing_id;
   GET DIAGNOSTICS deleted_count = ROW_COUNT;

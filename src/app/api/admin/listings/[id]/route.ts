@@ -42,9 +42,6 @@ export async function DELETE(
   // than HIDDEN, and clear buyer-facing references that would otherwise point
   // at a removed listing.
   await withDbUserContext(admin.id, async (tx) => {
-    await deleteFavoritesForAdminListing(tx, id);
-    await deleteStockNotificationsForAdminListing(tx, id);
-    await deleteCartItemsForAdminListing(tx, id);
     await tx.listing.update({
       where: { id },
       data: {
@@ -53,6 +50,9 @@ export async function DELETE(
         rejectionReason: "Removed by Grainline staff.",
       },
     });
+    await deleteFavoritesForAdminListing(tx, id);
+    await deleteStockNotificationsForAdminListing(tx, id);
+    await deleteCartItemsForAdminListing(tx, id);
     await logAdminActionOrThrow({
       client: tx,
       adminId: admin.id,

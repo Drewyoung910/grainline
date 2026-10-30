@@ -221,6 +221,33 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
     /REVOKE ALL ON FUNCTION public\.grainline_listing_favorite_count_guard\(\)[\s\S]*FROM PUBLIC, grainline_app_runtime/u,
   );
   assert.doesNotMatch(sql, /grainline_favorite_block_cleanup/u);
+  assert.match(
+    sql,
+    /CREATE FUNCTION public\.grainline_favorite_owner_add[\s\S]*FOR SHARE OF seller;[\s\S]*FOR NO KEY UPDATE;[\s\S]*INSERT INTO public\."Favorite"/u,
+  );
+  for (const functionName of [
+    "grainline_favorite_owner_remove",
+    "grainline_favorite_owner_delete_all",
+    "grainline_favorite_seller_listing_cleanup",
+    "grainline_favorite_admin_listing_cleanup",
+  ]) {
+    assert.match(
+      sql,
+      new RegExp(
+        `CREATE FUNCTION public\\.${functionName}[\\s\\S]*?FOR NO KEY UPDATE;[\\s\\S]*?DELETE FROM public\\.\"Favorite\"`,
+        "u",
+      ),
+    );
+  }
+  const adminRemoval = readFileSync(
+    "src/app/api/admin/listings/[id]/route.ts",
+    "utf8",
+  );
+  assert.ok(
+    adminRemoval.indexOf("await tx.listing.update")
+      < adminRemoval.indexOf("await deleteFavoritesForAdminListing"),
+    "admin removal must hide and lock the Listing before Favorite cleanup",
+  );
   assert.ok(
     sql.indexOf('LOCK TABLE public."Listing" IN SHARE ROW EXCLUSIVE MODE')
       < sql.indexOf('LOCK TABLE public."Favorite" IN SHARE ROW EXCLUSIVE MODE'),
