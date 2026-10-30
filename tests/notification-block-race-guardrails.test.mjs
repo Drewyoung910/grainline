@@ -15,6 +15,10 @@ describe("Notification reciprocal-block serialization", () => {
     "prisma/migrations/20261007030000_prepare_user_block_email_authorities/migration.sql",
     "utf8",
   );
+  const blockPreparationSql = fs.readFileSync(
+    "prisma/migrations/20261030010000_prepare_block_authorities/migration.sql",
+    "utf8",
+  );
 
   it("serializes ordinary block and unblock mutations on a sorted user pair", () => {
     assert.equal((blockAccess.match(/withDbUserContext\(blockerId, async \(tx\) =>/g) ?? []).length, 2);
@@ -22,22 +26,34 @@ describe("Notification reciprocal-block serialization", () => {
       (blockAccess.match(/isolationLevel: Prisma\.TransactionIsolationLevel\.ReadCommitted/g) ?? []).length,
       2,
     );
-    assert.match(blockAccess, /grainline_user_block_pair_lock\(\$\{blockedId\}::text\)/);
     assert.match(userBlockSql, /current_setting\('transaction_isolation'\) <> 'read committed'/);
     assert.match(userBlockSql, /ORDER BY account_user\.id\s+FOR UPDATE/);
-    assert.equal((blockAccess.match(/await lockBlockUserPair\(tx, blockedId\)/g) ?? []).length, 2);
-    assert.match(blockAccess, /await tx\.block\.upsert/);
-    assert.match(blockAccess, /await tx\.block\.deleteMany/);
-    assert.match(blockAccess, /grainline_user_block_follow_cleanup\(\$\{blockedId\}::text\)/);
+    assert.match(blockAccess, /grainline_user_block_create\(\$\{blockedId\}::text\)/);
+    assert.match(blockAccess, /grainline_user_block_remove\(\$\{blockedId\}::text\)/);
+    assert.doesNotMatch(blockAccess, /tx\.block\.(?:upsert|deleteMany)/);
+    const createStart = blockPreparationSql.indexOf(
+      "CREATE FUNCTION public.grainline_user_block_create(",
+    );
+    const createEnd = blockPreparationSql.indexOf(
+      "$grainline_user_block_create$;",
+      createStart,
+    );
+    const createAuthority = blockPreparationSql.slice(createStart, createEnd);
+    assert.match(createAuthority, /grainline_user_block_pair_lock\(p_target_user_id\)/);
+    assert.match(createAuthority, /INSERT INTO public\."Block"/);
+    assert.match(createAuthority, /grainline_user_block_follow_cleanup\(p_target_user_id\)/);
+    assert.match(createAuthority, /grainline_stock_notification_block_cleanup\(p_target_user_id\)/);
     assert.ok(
-      blockAccess.indexOf("await lockBlockUserPair(tx, blockedId)") <
-        blockAccess.indexOf("await tx.block.upsert"),
+      createAuthority.indexOf("grainline_user_block_pair_lock(p_target_user_id)") <
+        createAuthority.indexOf('INSERT INTO public."Block"'),
       "block creation must lock the pair before inserting",
     );
     assert.ok(
-      blockAccess.lastIndexOf("await lockBlockUserPair(tx, blockedId)") <
-        blockAccess.indexOf("await tx.block.deleteMany"),
-      "unblock must lock the pair before deleting",
+      createAuthority.indexOf('INSERT INTO public."Block"') <
+        createAuthority.indexOf("grainline_user_block_follow_cleanup(p_target_user_id)") &&
+        createAuthority.indexOf("grainline_user_block_follow_cleanup(p_target_user_id)") <
+          createAuthority.indexOf("grainline_stock_notification_block_cleanup(p_target_user_id)"),
+      "block creation must durably insert before both cleanup families",
     );
   });
 
@@ -85,7 +101,7 @@ describe("Notification reciprocal-block serialization", () => {
   it("preserves account deletion's earlier conflicting lifecycle lock", () => {
     assert.ok(
       accountDeletion.indexOf("await deleteAccountNotificationServiceRows(tx, user.id)") <
-        accountDeletion.indexOf("await tx.block.deleteMany({ where: { blockerId: user.id } })"),
+        accountDeletion.indexOf("await deleteAllOwnerBlocks(tx)"),
       "account deletion must take the notification cleanup User lock before removing blocks",
     );
   });

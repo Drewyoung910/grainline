@@ -148,6 +148,7 @@ jobs:
           test "${#release_tests[@]}" -gt 0
           node --test \
             tests/private-table-preparation-production.test.mjs \
+            tests/block-preparation-production.test.mjs \
             tests/reviewed-pending-migrations.test.mjs \
             tests/stock-notification-preparation-production.test.mjs \
             "${release_tests[@]}"

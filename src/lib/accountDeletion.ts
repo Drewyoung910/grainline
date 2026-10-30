@@ -92,6 +92,7 @@ import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess"
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
 import { deleteAllOwnerFavorites } from "@/lib/favoriteAccess";
 import { cleanupFollowsForAccountDeletion } from "@/lib/sellerFollowAccess";
+import { deleteAllOwnerBlocks } from "@/lib/blockAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -1169,7 +1170,7 @@ export async function anonymizeUserAccount(
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
     await deleteAllOwnerReviewVotes(tx);
-    await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await deleteAllOwnerBlocks(tx);
     await redactActorMessagesForAccountDeletion({
       sideEffectId: localAnonymizeSideEffectId,
       userId: user.id,

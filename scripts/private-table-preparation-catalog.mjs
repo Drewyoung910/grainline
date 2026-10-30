@@ -360,6 +360,51 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  block_v1: Object.freeze({
+    migration: "20261030010000_prepare_block_authorities",
+    migrationSha256: "a41fd289fc1c8d33e385961e5ae0418a3a33224833d68f03a1e992049452764a",
+    table: "Block",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/block-authority-preparation.test.mjs",
+      "tests/notification-block-race-guardrails.test.mjs",
+      "tests/order-blocked-pair-checkout.test.mjs",
+      "tests/seller-profile-block-follow-cleanup-conversion.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_user_block_pair_is_blocked",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_create",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_delete_owned",
+        arguments: "",
+      }),
+    ]),
+  }),
 });
 
 export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({

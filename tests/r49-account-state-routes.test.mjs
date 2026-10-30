@@ -53,6 +53,15 @@ describe("R49 account-state route guardrails", () => {
     assert.doesNotMatch(text, /seller:\s*\{[\s\S]*?user:\s*\{/);
   });
 
+  it("keeps reciprocal block cleanup atomic and logs checkout cleanup failures", () => {
+    const text = source("src/app/api/users/[id]/block/route.ts");
+    assert.match(text, /createUserBlock\(me\.id, blockedId\)/);
+    assert.match(text, /logServerError\(error, \{/);
+    assert.match(text, /source: "block_checkout_session_expiry"/);
+    assert.doesNotMatch(text, /prisma\.(?:follow|favorite|stockNotification)\./);
+    assert.equal(text.includes("catch { /* non-fatal */ }"), false);
+  });
+
   it("keeps authenticated user-state reads rate-limited before fan-out database reads", () => {
     const shippingRoute = source("src/app/api/account/shipping-address/route.ts");
     assert.match(shippingRoute, /safeRateLimit\(shippingAddressRatelimit, userId\)/);

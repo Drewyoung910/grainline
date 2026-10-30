@@ -427,6 +427,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.match(workflow, /private-table-preparation-catalog\.mjs --release-ids/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --migrations/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --tests/u);
+  assert.match(workflow, /tests\/block-preparation-production\.test\.mjs/u);
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(runBinding("failure"), /push workflows are not all green/u);

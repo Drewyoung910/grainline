@@ -338,6 +338,13 @@ jobs:
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
+      - name: Verify Block preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/block-authority-preparation.test.mjs
+          tests/block-preparation-production.test.mjs
+          tests/db-grant-inventory.test.mjs
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
@@ -471,6 +478,15 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate Block preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/block-preparation"
+          migration=20261030010000_prepare_block_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6999,6 +7015,15 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Block preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/block-preparation"
+          migration=20261030010000_prepare_block_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
