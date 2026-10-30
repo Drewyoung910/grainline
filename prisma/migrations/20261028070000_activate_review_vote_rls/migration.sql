@@ -298,6 +298,311 @@ BEGIN
 END
 $grainline_review_vote_rls_preflight$;
 
+-- The compatible preparation deliberately matched the predecessor
+-- ReviewVote-before-Review mutation order. Once predecessor traffic is
+-- drained, converge the two runtime writers on User -> Review -> ReviewVote.
+-- That prevents review deletion from holding Review while waiting on a vote
+-- row whose owner path is waiting back on the same Review.
+-- Preserve the compatible sources under uncallable names so emergency
+-- rollback can restore mixed-version safety without copying or reconstructing
+-- function bodies during an incident.
+ALTER FUNCTION public.grainline_review_vote_owner_toggle(text)
+  RENAME TO grainline_review_vote_owner_toggle_compatible;
+ALTER FUNCTION public.grainline_review_vote_owner_delete_all()
+  RENAME TO grainline_review_vote_owner_delete_all_compatible;
+REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_toggle_compatible(text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_delete_all_compatible()
+  FROM PUBLIC, grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_review_vote_owner_toggle(
+  p_review_id text
+)
+RETURNS TABLE (
+  "resultStatus" text,
+  voted boolean,
+  "helpfulCount" integer
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_review_vote_owner_toggle$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  target_reviewer_id text;
+  target_seller_user_id text;
+  locked_user_count integer := 0;
+  expected_user_count integer := 0;
+  deleted_count integer := 0;
+  current_count integer := 0;
+BEGIN
+  IF request_user_id IS NULL
+     OR request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'ReviewVote owner context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_review_id IS NULL
+     OR p_review_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'ReviewVote target is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF pg_catalog.current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'ReviewVote toggle requires read committed isolation'
+      USING ERRCODE = '25001';
+  END IF;
+
+  SELECT review."reviewerId",
+         seller."userId"
+    INTO target_reviewer_id,
+         target_seller_user_id
+    FROM public."Review" AS review
+    JOIN public."Listing" AS listing
+      ON listing.id = review."listingId"
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = listing."sellerId"
+   WHERE review.id = p_review_id;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+    RETURN;
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO expected_user_count
+    FROM (
+      SELECT DISTINCT candidate.id
+        FROM pg_catalog.unnest(ARRAY[
+          request_user_id,
+          target_reviewer_id,
+          target_seller_user_id
+        ]) AS candidate(id)
+    ) AS expected;
+
+  PERFORM 1
+    FROM public."User" AS account_user
+   WHERE account_user.id = ANY (ARRAY[
+     request_user_id,
+     target_reviewer_id,
+     target_seller_user_id
+   ])
+   ORDER BY account_user.id
+   FOR UPDATE;
+  GET DIAGNOSTICS locked_user_count = ROW_COUNT;
+  IF locked_user_count <> expected_user_count THEN
+    RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = request_user_id
+       AND actor.banned = false
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'ReviewVote owner context is inactive'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Lock the parent before touching its vote rows. NO KEY UPDATE blocks a
+  -- concurrent Review delete while still allowing unrelated readers.
+  PERFORM 1
+    FROM public."Review" AS review
+   WHERE review.id = p_review_id
+   FOR NO KEY UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+    RETURN;
+  END IF;
+
+  -- Removing the actor's own existing vote remains allowed even after a block.
+  DELETE FROM public."ReviewVote"
+   WHERE "reviewId" = p_review_id
+     AND "userId" = request_user_id;
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+
+  IF deleted_count > 1 THEN
+    RAISE EXCEPTION 'ReviewVote toggle changed an invalid number of rows'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF deleted_count = 0 THEN
+    SELECT review."reviewerId",
+           seller."userId",
+           review."helpfulCount"
+      INTO target_reviewer_id,
+           target_seller_user_id,
+           current_count
+      FROM public."Review" AS review
+      JOIN public."Listing" AS listing
+        ON listing.id = review."listingId"
+      JOIN public."SellerProfile" AS seller
+        ON seller.id = listing."sellerId"
+     WHERE review.id = p_review_id
+       AND review."reviewerAccountActive" = true
+       AND listing."archivedAt" IS NULL
+       AND (
+         (
+           listing."isPrivate" = true
+           AND listing.status::text IN ('ACTIVE', 'SOLD')
+           AND listing."reservedForUserId" = request_user_id
+         )
+         OR (
+           listing."isPrivate" = false
+           AND listing.status::text IN ('ACTIVE', 'SOLD_OUT')
+         )
+       )
+       AND seller."ownerAccountActive" = true
+       AND seller."chargesEnabled" = true
+       AND seller."stripeAccountSupported" = true
+       AND seller."vacationMode" = false
+     FOR NO KEY UPDATE OF review FOR SHARE OF listing, seller;
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+      RETURN;
+    END IF;
+
+    IF target_reviewer_id = request_user_id THEN
+      RETURN QUERY SELECT 'SELF'::text, false, current_count;
+      RETURN;
+    END IF;
+    IF target_seller_user_id = request_user_id THEN
+      RETURN QUERY SELECT 'OWN_LISTING'::text, false, current_count;
+      RETURN;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+        FROM public."Block" AS relationship
+       WHERE (
+         relationship."blockerId" = request_user_id
+         AND relationship."blockedId" IN (
+           target_reviewer_id,
+           target_seller_user_id
+         )
+       ) OR (
+         relationship."blockedId" = request_user_id
+         AND relationship."blockerId" IN (
+           target_reviewer_id,
+           target_seller_user_id
+         )
+       )
+    ) THEN
+      RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+      RETURN;
+    END IF;
+
+    BEGIN
+      INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
+      VALUES (p_review_id, request_user_id, 1);
+    EXCEPTION
+      WHEN unique_violation THEN
+        NULL;
+    END;
+  END IF;
+
+  UPDATE public."Review" AS review
+     SET "helpfulCount" = (
+       SELECT pg_catalog.count(*)::integer
+         FROM public."ReviewVote" AS vote
+        WHERE vote."reviewId" = p_review_id
+     )
+   WHERE review.id = p_review_id
+   RETURNING review."helpfulCount" INTO current_count;
+  IF NOT FOUND OR current_count < 0 THEN
+    RAISE EXCEPTION 'ReviewVote count projection is unavailable'
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN QUERY SELECT 'OK'::text, deleted_count = 0, current_count;
+END;
+$grainline_review_vote_owner_toggle$;
+
+CREATE FUNCTION public.grainline_review_vote_owner_delete_all()
+RETURNS integer
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_review_vote_owner_delete_all$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  affected_review_ids text[];
+  deleted_count integer := 0;
+BEGIN
+  IF request_user_id IS NULL
+     OR request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'ReviewVote deletion owner context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS actor
+   WHERE actor.id = request_user_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN 0;
+  END IF;
+
+  SELECT pg_catalog.array_agg(candidate."reviewId" ORDER BY candidate."reviewId")
+    INTO affected_review_ids
+    FROM (
+      SELECT DISTINCT vote."reviewId"
+        FROM public."ReviewVote" AS vote
+       WHERE vote."userId" = request_user_id
+    ) AS candidate;
+
+  IF affected_review_ids IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  -- Lock the parent rows in one stable order before deleting child votes.
+  PERFORM 1
+    FROM public."Review" AS review
+   WHERE review.id = ANY (affected_review_ids)
+   ORDER BY review.id
+   FOR UPDATE;
+
+  DELETE FROM public."ReviewVote"
+   WHERE "userId" = request_user_id;
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+
+  WITH exact_counts AS (
+    SELECT review.id,
+           pg_catalog.count(vote."reviewId")::integer AS value
+      FROM public."Review" AS review
+      LEFT JOIN public."ReviewVote" AS vote
+        ON vote."reviewId" = review.id
+     WHERE review.id = ANY (affected_review_ids)
+     GROUP BY review.id
+  )
+  UPDATE public."Review" AS review
+     SET "helpfulCount" = exact_counts.value
+    FROM exact_counts
+   WHERE review.id = exact_counts.id
+     AND review."helpfulCount" <> exact_counts.value;
+
+  RETURN deleted_count;
+END;
+$grainline_review_vote_owner_delete_all$;
+
+REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_toggle(text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_delete_all()
+  FROM PUBLIC, grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_review_vote_owner_toggle(text)
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_review_vote_owner_delete_all()
+  TO grainline_app_runtime;
+
 -- Once predecessor traffic is drained, every surviving delete path can keep
 -- the public aggregate exact. This is required for hard User deletion, whose
 -- FK cascade otherwise removes votes without repairing surviving Reviews.
@@ -376,6 +681,8 @@ DECLARE
   runtime_oid oid;
   table_oid oid;
   table_owner oid;
+  reviewed_function text;
+  expected_source_md5 text;
   runtime_privileges text[];
   drift_count bigint;
 BEGIN
@@ -419,6 +726,68 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'ReviewVote owner-policy activation did not persist';
   END IF;
+
+  FOR reviewed_function, expected_source_md5 IN
+    SELECT expected.identity, expected.source_md5
+      FROM (VALUES
+        ('public.grainline_review_vote_owner_toggle(text)', '5ec13e47a866c42205a61eafb10bc0ef'),
+        ('public.grainline_review_vote_owner_delete_all()', '7f33cdc75a5dc2e7426cd10f5e3a0fd6')
+      ) AS expected(identity, source_md5)
+  LOOP
+    IF pg_catalog.to_regprocedure(reviewed_function) IS NULL OR NOT EXISTS (
+      SELECT 1
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+       WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
+         AND procedure.proowner = table_owner
+         AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = 'v'
+         AND procedure.proparallel = 'u'
+         AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
+         AND (owner.rolsuper OR owner.rolbypassrls)
+    ) OR pg_catalog.has_function_privilege(
+      0, pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
+    ) OR NOT pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      pg_catalog.to_regprocedure(reviewed_function),
+      'EXECUTE'
+    ) THEN
+      RAISE EXCEPTION 'ReviewVote activated function posture drifted: %', reviewed_function;
+    END IF;
+  END LOOP;
+
+  FOR reviewed_function, expected_source_md5 IN
+    SELECT expected.identity, expected.source_md5
+      FROM (VALUES
+        ('public.grainline_review_vote_owner_toggle_compatible(text)', '0e9153d1ddabac3e1542970bf6147583'),
+        ('public.grainline_review_vote_owner_delete_all_compatible()', 'e0f3bcc6143107e6609cf3fe4a209410')
+      ) AS expected(identity, source_md5)
+  LOOP
+    IF pg_catalog.to_regprocedure(reviewed_function) IS NULL OR NOT EXISTS (
+      SELECT 1
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+       WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
+         AND procedure.proowner = table_owner
+         AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = 'v'
+         AND procedure.proparallel = 'u'
+         AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
+         AND (owner.rolsuper OR owner.rolbypassrls)
+    ) OR pg_catalog.has_function_privilege(
+      0, pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
+    ) OR pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      pg_catalog.to_regprocedure(reviewed_function),
+      'EXECUTE'
+    ) THEN
+      RAISE EXCEPTION 'ReviewVote compatibility backup posture drifted: %', reviewed_function;
+    END IF;
+  END LOOP;
 
   SELECT COALESCE(
            pg_catalog.array_agg(

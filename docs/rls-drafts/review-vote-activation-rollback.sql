@@ -22,6 +22,9 @@ DECLARE
   table_oid oid;
   table_owner oid;
   current_role_oid oid;
+  reviewed_function text;
+  expected_source_md5 text;
+  expected_runtime_execute boolean;
   runtime_privileges text[];
   drift_count bigint;
 BEGIN
@@ -74,6 +77,39 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'ReviewVote rollback policy posture drifted';
   END IF;
+
+  FOR reviewed_function, expected_source_md5, expected_runtime_execute IN
+    SELECT expected.identity, expected.source_md5, expected.runtime_execute
+      FROM (VALUES
+        ('public.grainline_review_vote_owner_toggle(text)', '5ec13e47a866c42205a61eafb10bc0ef', true),
+        ('public.grainline_review_vote_owner_delete_all()', '7f33cdc75a5dc2e7426cd10f5e3a0fd6', true),
+        ('public.grainline_review_vote_owner_toggle_compatible(text)', '0e9153d1ddabac3e1542970bf6147583', false),
+        ('public.grainline_review_vote_owner_delete_all_compatible()', 'e0f3bcc6143107e6609cf3fe4a209410', false)
+      ) AS expected(identity, source_md5, runtime_execute)
+  LOOP
+    IF pg_catalog.to_regprocedure(reviewed_function) IS NULL OR NOT EXISTS (
+      SELECT 1
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+       WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
+         AND procedure.proowner = table_owner
+         AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = 'v'
+         AND procedure.proparallel = 'u'
+         AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
+         AND (owner.rolsuper OR owner.rolbypassrls)
+    ) OR pg_catalog.has_function_privilege(
+      0, pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
+    ) OR pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      pg_catalog.to_regprocedure(reviewed_function),
+      'EXECUTE'
+    ) IS DISTINCT FROM expected_runtime_execute THEN
+      RAISE EXCEPTION 'ReviewVote rollback function posture drifted: %', reviewed_function;
+    END IF;
+  END LOOP;
 
   SELECT COALESCE(
            pg_catalog.array_agg(
@@ -184,6 +220,21 @@ $grainline_review_vote_rollback_preflight$;
 DROP TRIGGER "ReviewVote_count_after_delete" ON public."ReviewVote";
 DROP FUNCTION public.grainline_review_vote_count_after_delete();
 
+REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_toggle(text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_delete_all()
+  FROM PUBLIC, grainline_app_runtime;
+DROP FUNCTION public.grainline_review_vote_owner_toggle(text);
+DROP FUNCTION public.grainline_review_vote_owner_delete_all();
+ALTER FUNCTION public.grainline_review_vote_owner_toggle_compatible(text)
+  RENAME TO grainline_review_vote_owner_toggle;
+ALTER FUNCTION public.grainline_review_vote_owner_delete_all_compatible()
+  RENAME TO grainline_review_vote_owner_delete_all;
+GRANT EXECUTE ON FUNCTION public.grainline_review_vote_owner_toggle(text)
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_review_vote_owner_delete_all()
+  TO grainline_app_runtime;
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."ReviewVote"
   TO grainline_app_runtime;
 ALTER TABLE public."ReviewVote" NO FORCE ROW LEVEL SECURITY;
@@ -195,6 +246,8 @@ DECLARE
   runtime_oid oid;
   table_oid oid;
   table_owner oid;
+  reviewed_function text;
+  expected_source_md5 text;
   runtime_privileges text[];
   drift_count bigint;
 BEGIN
@@ -221,9 +274,44 @@ BEGIN
      WHERE tgrelid = table_oid
        AND tgname = 'ReviewVote_count_after_delete'
        AND NOT tgisinternal
-  ) THEN
+  ) OR pg_catalog.to_regprocedure(
+    'public.grainline_review_vote_owner_toggle_compatible(text)'
+  ) IS NOT NULL OR pg_catalog.to_regprocedure(
+    'public.grainline_review_vote_owner_delete_all_compatible()'
+  ) IS NOT NULL THEN
     RAISE EXCEPTION 'ReviewVote rollback catalog did not converge';
   END IF;
+
+  FOR reviewed_function, expected_source_md5 IN
+    SELECT expected.identity, expected.source_md5
+      FROM (VALUES
+        ('public.grainline_review_vote_owner_toggle(text)', '0e9153d1ddabac3e1542970bf6147583'),
+        ('public.grainline_review_vote_owner_delete_all()', 'e0f3bcc6143107e6609cf3fe4a209410')
+      ) AS expected(identity, source_md5)
+  LOOP
+    IF pg_catalog.to_regprocedure(reviewed_function) IS NULL OR NOT EXISTS (
+      SELECT 1
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+       WHERE procedure.oid = pg_catalog.to_regprocedure(reviewed_function)
+         AND procedure.proowner = table_owner
+         AND procedure.prosecdef
+         AND procedure.prokind = 'f'
+         AND procedure.provolatile = 'v'
+         AND procedure.proparallel = 'u'
+         AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
+         AND (owner.rolsuper OR owner.rolbypassrls)
+    ) OR pg_catalog.has_function_privilege(
+      0, pg_catalog.to_regprocedure(reviewed_function), 'EXECUTE'
+    ) OR NOT pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      pg_catalog.to_regprocedure(reviewed_function),
+      'EXECUTE'
+    ) THEN
+      RAISE EXCEPTION 'ReviewVote rollback function did not converge: %', reviewed_function;
+    END IF;
+  END LOOP;
 
   SELECT COALESCE(
            pg_catalog.array_agg(

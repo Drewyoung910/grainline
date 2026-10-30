@@ -34,6 +34,24 @@ test("ReviewVote activation retains only owner SELECT and fixed mutations", () =
   assert.match(migration, /ORDER BY review\.id\s+FOR UPDATE/u);
   assert.match(migration, /procedure\.prosrc = \$grainline_review_vote_count_expected\$/u);
   assert.match(migration, /\(owner\.rolsuper OR owner\.rolbypassrls\)/u);
+  assert.match(
+    migration,
+    /ALTER FUNCTION public\.grainline_review_vote_owner_toggle\(text\)\s+RENAME TO grainline_review_vote_owner_toggle_compatible/u,
+  );
+  assert.match(
+    migration,
+    /FOR NO KEY UPDATE OF review FOR SHARE OF listing, seller/u,
+  );
+  assert.match(
+    migration,
+    /Lock the parent rows in one stable order before deleting child votes[\s\S]*?ORDER BY review\.id\s+FOR UPDATE[\s\S]*?DELETE FROM public\."ReviewVote"/u,
+  );
+  for (const activatedSourceHash of [
+    "5ec13e47a866c42205a61eafb10bc0ef",
+    "7f33cdc75a5dc2e7426cd10f5e3a0fd6",
+  ]) {
+    assert.match(migration, new RegExp(activatedSourceHash, "u"));
+  }
   for (const sourceHash of [
     "f6c529e56b59735d36d7c78e1bcf45bc",
     "30d3d3cb1d88e9206970c2f9f103e367",
@@ -56,6 +74,16 @@ test("ReviewVote rollback removes activation-only maintenance before restoring C
   );
   assert.ok(dropTriggerAt >= 0 && dropTriggerAt < restoreCrudAt);
   assert.match(rollback, /DROP FUNCTION public\.grainline_review_vote_count_after_delete\(\)/u);
+  const restoreToggleAt = rollback.indexOf(
+    "ALTER FUNCTION public.grainline_review_vote_owner_toggle_compatible(text)",
+  );
+  assert.ok(restoreToggleAt >= 0 && restoreToggleAt < restoreCrudAt);
+  assert.match(
+    rollback,
+    /DROP FUNCTION public\.grainline_review_vote_owner_toggle\(text\)[\s\S]*?RENAME TO grainline_review_vote_owner_toggle/u,
+  );
+  assert.match(rollback, /0e9153d1ddabac3e1542970bf6147583/u);
+  assert.match(rollback, /e0f3bcc6143107e6609cf3fe4a209410/u);
   assert.match(rollback, /procedure\.prosrc = \$grainline_review_vote_count_expected\$/u);
   assert.match(rollback, /tgfoid = pg_catalog\.to_regprocedure/u);
   assert.match(rollback, /ALTER TABLE public\."ReviewVote" NO FORCE ROW LEVEL SECURITY/u);

@@ -342,6 +342,10 @@ const REVIEW_VOTE_ACTIVATION_MIGRATION =
 const REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES = [
   "grainline_review_vote_count_after_delete",
 ];
+const REVIEW_VOTE_ACTIVATION_BACKUP_FUNCTION_NAMES = [
+  "grainline_review_vote_owner_toggle_compatible",
+  "grainline_review_vote_owner_delete_all_compatible",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -3896,7 +3900,10 @@ describe("database grant inventory guardrails", () => {
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
       ...(reviewVoteRlsActivationPresent
-        ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
+        ? [
+            ...REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES,
+            ...REVIEW_VOTE_ACTIVATION_BACKUP_FUNCTION_NAMES,
+          ]
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
@@ -3979,9 +3986,12 @@ describe("database grant inventory guardrails", () => {
         + (makerVerificationActivationPresent ? 1 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
-        // Activation revokes the table plus its private count-repair trigger function.
+        // Activation revokes the table, count-repair trigger function, and
+        // the two uncallable mixed-version rollback source backups.
         + (reviewVoteRlsActivationPresent
-          ? 1 + REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.length
+          ? 1
+            + REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES.length
+            + REVIEW_VOTE_ACTIVATION_BACKUP_FUNCTION_NAMES.length
           : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
@@ -4099,6 +4109,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(reviewVoteRlsActivationPresent
+        ? REVIEW_VOTE_ACTIVATION_BACKUP_FUNCTION_NAMES
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
