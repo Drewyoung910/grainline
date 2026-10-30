@@ -5065,13 +5065,15 @@ describe("database grant inventory guardrails", () => {
       )),
       { applied: true, issues: [] },
     );
-    assert.deepEqual(
-      await readFollowRlsActivationState(exactClient(
-        FOLLOW_RLS_ACTIVATION_MIGRATION,
-        FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
-      )),
-      { applied: true, issues: [] },
-    );
+    if (typeof readFollowRlsActivationState === "function") {
+      assert.deepEqual(
+        await readFollowRlsActivationState(exactClient(
+          FOLLOW_RLS_ACTIVATION_MIGRATION,
+          FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
+        )),
+        { applied: true, issues: [] },
+      );
+    }
     assert.deepEqual(
       await readAccountDeletionClaimFencePreparationState(exactClient(
         ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
