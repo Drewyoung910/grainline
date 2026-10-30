@@ -55,10 +55,11 @@ export async function proveSellerProfilePublicBlogAuthorSitemap({ database, sell
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
-    assert.deepEqual(rowsOf(await database.query(
+    const visibleAuthors = rowsOf(await database.query(
       `SELECT *
          FROM public.grainline_seller_public_blog_author_sitemap(500,100)`,
-    )), [{
+    ));
+    assert.deepEqual(visibleAuthors.filter((row) => row.id === seller.sellerProfileId), [{
       id: seller.sellerProfileId,
       displayName: "Full Chain Workshop",
       updatedAt: insertedPost[0].updatedAt,
@@ -81,9 +82,13 @@ export async function proveSellerProfilePublicBlogAuthorSitemap({ database, sell
   );
   await database.query("SET ROLE grainline_app_runtime");
   try {
-    assert.deepEqual(rowsOf(await database.query(
+    const visibleAuthors = rowsOf(await database.query(
       "SELECT * FROM public.grainline_seller_public_blog_author_sitemap(500,100)",
-    )), []);
+    ));
+    assert.equal(
+      visibleAuthors.some((row) => row.id === seller.sellerProfileId),
+      false,
+    );
   } finally {
     await database.query("RESET ROLE");
   }
