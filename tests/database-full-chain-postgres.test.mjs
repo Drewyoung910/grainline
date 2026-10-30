@@ -134,6 +134,7 @@ import {
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
+import { inspectPrivateTableRlsActivationProduction } from "../scripts/private-table-rls-activation-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
   SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -145,6 +146,12 @@ import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-fir
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 const expectedPostgresMajor = process.env.DATABASE_FULL_CHAIN_POSTGRES_MAJOR?.trim() || "16";
+const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
+  ["20261028050000_activate_favorite_rls", "favorite_v1"],
+  ["20261028060000_activate_follow_rls", "follow_v1"],
+  ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
+  ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
   const accountDeletionClient = new pg.Client({ connectionString });
@@ -262,6 +269,7 @@ test(
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
+      const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -566,6 +574,30 @@ test(
               fixture: followFixture,
             });
           }
+          const privateActivationReleaseId = PRIVATE_TABLE_ACTIVATION_RELEASES.get(
+            artifact.name,
+          );
+          if (privateActivationReleaseId) {
+            const evidencePath = join(
+              preparationEvidenceDirectory,
+              `${privateActivationReleaseId}-activation-preflight.json`,
+            );
+            const activationPreflight = await inspectPrivateTableRlsActivationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID: privateActivationReleaseId,
+                PRIVATE_TABLE_RLS_ACTIVATION_PHASE: "preflight",
+                PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH: evidencePath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "9".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(activationPreflight.state, "ready");
+            privateActivationPreflightPaths.set(
+              privateActivationReleaseId,
+              evidencePath,
+            );
+          }
         },
         onProgress: ({ index, total, name, retried }) => {
           if (index === total || index % 50 === 0 || retried) {
@@ -587,6 +619,26 @@ test(
           "20260927090000_enable_order_rls",
         ],
       );
+
+      for (const releaseId of PRIVATE_TABLE_ACTIVATION_RELEASES.values()) {
+        const previousPath = privateActivationPreflightPaths.get(releaseId);
+        assert.ok(previousPath, `${releaseId} activation preflight did not run`);
+        const activationPostflight = await inspectPrivateTableRlsActivationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID: releaseId,
+            PRIVATE_TABLE_RLS_ACTIVATION_PHASE: "postflight",
+            PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              `${releaseId}-activation-postflight.json`,
+            ),
+            PRIVATE_TABLE_RLS_ACTIVATION_PREVIOUS_EVIDENCE_PATH: previousPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "9".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+        assert.equal(activationPostflight.state, "active");
+      }
 
       assert.ok(
         favoritePreparationPreflightPath,
