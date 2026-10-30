@@ -185,7 +185,7 @@ export default function NewCommissionPage() {
             <UploadButton
               endpoint="messageImage"
               appearance={{
-                button: "rounded-md bg-neutral-900 text-white text-xs px-3 py-2 hover:bg-neutral-700",
+                button: "rounded-md bg-[#2C1F1A] text-white text-xs px-3 py-2 hover:bg-[#3A2A24]",
                 container: "inline-block",
                 allowedContent: "hidden",
               }}
@@ -230,7 +230,7 @@ export default function NewCommissionPage() {
                 value="national"
                 checked={scope === "national"}
                 onChange={() => setScope("national")}
-                className="accent-neutral-900"
+                className="accent-[#2C1F1A]"
               />
               <span className="text-sm">All makers nationwide</span>
             </label>
@@ -241,7 +241,7 @@ export default function NewCommissionPage() {
                 value="local"
                 checked={scope === "local"}
                 onChange={() => setScope("local")}
-                className="accent-neutral-900"
+                className="accent-[#2C1F1A]"
               />
               <span className="text-sm">Local makers only</span>
             </label>

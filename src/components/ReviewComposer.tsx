@@ -187,7 +187,7 @@ export default function ReviewComposer(props: {
                   title="Remove"
                   aria-label="Remove photo"
                   onClick={() => setPhotoUrls(photoUrls.filter((u) => u !== url))}
-                  className="absolute -top-3 -right-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white text-lg shadow-sm hover:bg-neutral-800 transition-colors"
+                  className="absolute -top-3 -right-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#2C1F1A] text-white text-lg shadow-sm hover:bg-[#3A2A24] transition-colors"
                 >
                   ×
                 </button>

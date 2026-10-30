@@ -124,7 +124,7 @@ export default function EditPhotoGrid({
           appearance={{
             container: "inline-block",
             button:
-              "rounded-md bg-neutral-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-800",
+              "rounded-md bg-[#2C1F1A] text-white px-3 py-1.5 text-sm font-medium hover:bg-[#3A2A24]",
             allowedContent: "hidden",
           }}
           content={{
@@ -272,7 +272,7 @@ export default function EditPhotoGrid({
       {/* Alt text modal */}
       {altModalIdx !== null && photos[altModalIdx] && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#14100D]/45 modal-backdrop-in"
           onClick={() => setAltModalIdx(null)}
         >
           <div
@@ -281,7 +281,7 @@ export default function EditPhotoGrid({
             aria-modal="true"
             aria-labelledby="edit-photo-alt-dialog-title"
             tabIndex={-1}
-            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5 space-y-3"
+            className="bg-white rounded-[20px] modal-card modal-card-in max-w-md w-full mx-4 p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="edit-photo-alt-dialog-title" className="text-sm font-semibold text-neutral-800">
@@ -313,7 +313,7 @@ export default function EditPhotoGrid({
             <button
               type="button"
               onClick={() => setAltModalIdx(null)}
-              className="w-full rounded-md bg-neutral-900 text-white py-2 text-sm hover:bg-neutral-800"
+              className="w-full rounded-md bg-[#2C1F1A] text-white py-2 text-sm hover:bg-[#3A2A24]"
             >
               Done
             </button>

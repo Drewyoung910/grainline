@@ -162,7 +162,7 @@ export default function GalleryUploader({
           endpoint="galleryImage"
           cropAspect={3 / 2}
           appearance={{
-            button: "bg-neutral-900 text-white text-xs px-3 py-2 hover:bg-neutral-700",
+            button: "bg-[#2C1F1A] text-white text-xs px-3 py-2 hover:bg-[#3A2A24]",
             container: "inline-block",
             allowedContent: "hidden",
           }}
@@ -182,12 +182,12 @@ export default function GalleryUploader({
 
       {altEditingIndex != null && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#14100D]/45 modal-backdrop-in p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Edit gallery alt text"
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-[20px] bg-white p-5 modal-card modal-card-in">
             <h3 className="font-display text-lg font-semibold text-neutral-900">Image alt text</h3>
             <p className="mt-1 text-sm text-neutral-600">
               Shortly describe the image for screen readers and image search.
@@ -214,7 +214,7 @@ export default function GalleryUploader({
               <button
                 type="button"
                 onClick={saveAltText}
-                className="rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                className="rounded-md bg-[#2C1F1A] px-3 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
               >
                 Save alt text
               </button>

@@ -114,7 +114,7 @@ export default function SellerLocationSection({
             }
           }}
           disabled={hasRadius || pin === null}
-          className="h-5 w-5 rounded border-neutral-300 accent-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="h-5 w-5 rounded border-neutral-300 accent-[#2C1F1A] disabled:opacity-40 disabled:cursor-not-allowed"
         />
         <label
           htmlFor="publicMapOptIn"
@@ -144,7 +144,7 @@ export default function SellerLocationSection({
                 : null);
             }}
             disabled={hasRadius || !mapOptIn || pin === null}
-            className="mt-0.5 h-5 w-5 rounded border-neutral-300 accent-neutral-900 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-0.5 h-5 w-5 rounded border-neutral-300 accent-[#2C1F1A] disabled:cursor-not-allowed disabled:opacity-40"
           />
           <label
             htmlFor="publicMapExactConsent"

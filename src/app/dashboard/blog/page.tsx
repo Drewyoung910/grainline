@@ -155,7 +155,7 @@ async function DashboardBlogContent({
         </div>
         <Link
           href="/dashboard/blog/new"
-          className="inline-flex min-h-[40px] items-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className="inline-flex min-h-[40px] items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
         >
           + New Post
         </Link>

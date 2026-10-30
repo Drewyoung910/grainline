@@ -99,7 +99,7 @@ describe("post-launch UI follow-ups", () => {
     ]) {
       const text = source(path);
       assert.match(text, /border-neutral-200/);
-      assert.match(text, /bg-neutral-900/);
+      assert.match(text, /bg-\[#2C1F1A\]/);
       assert.match(text, /rounded-md/);
       assert.doesNotMatch(text, /bg-black/);
     }
@@ -139,7 +139,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("uses neutral primary CTAs in the onboarding wizard while keeping amber as an accent", () => {
     const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
-    assert.match(wizard, /bg-neutral-900/);
+    assert.match(wizard, /bg-\[#2C1F1A\]/);
     assert.match(wizard, /h-full bg-amber-500/);
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
@@ -532,8 +532,8 @@ describe("post-launch UI follow-ups", () => {
     const docs = source("CLAUDE.md");
 
     assert.match(globals, /single sitewide field-focus treatment/);
-    assert.match(globals, /border-color: #a8a29e/);
-    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(168 162 158 \/ 0\.16\)/);
+    assert.match(globals, /border-color: #2C1F1A;/);
+    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(44 31 26 \/ 0\.12\)/);
     assert.match(blogComment, /rounded-md border border-neutral-200 bg-white/);
     assert.doesNotMatch(blogComment, /focus:border|focus:ring/);
     assert.match(messageComposer, /border-2 border-stone-300/);
@@ -678,7 +678,7 @@ describe("post-launch UI follow-ups", () => {
     // Icon buttons follow the header color: cream over the homepage photo,
     // dark on frosted paper.
     assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 hover:bg-current\/10/);
-    assert.match(header, /border-stone-200\/60 bg-\[#EFEAE0\]/);
+    assert.match(header, /border-b border-\[#2C1F1A\]\/\[0\.08\] py-1 pl-5 pr-2/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
     assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
@@ -687,7 +687,7 @@ describe("post-launch UI follow-ups", () => {
       assert.match(text, /absolute -top-1 -right-1 inline-flex h-5 min-w-5/);
     }
     assert.match(header, /inner span is the 40×40 visible hover circle/);
-    assert.match(bell, /"bg-\[#EFEAE0\] border-b border-stone-200\/60"/);
+    assert.match(bell, /"border-b border-\[#2C1F1A\]\/\[0\.08\]"/);
     assert.match(bell, /notificationUnreadClass[\s\S]*"bg-\[#EFEAE0\]\/50"/);
     assert.doesNotMatch(bell, /!n\.read \? "bg-amber-50" : ""/);
   });

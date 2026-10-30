@@ -195,6 +195,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 - **Borders**: `border-stone-200/60` on cards; `border-neutral-200` on inputs and buttons. A base rule in `globals.css` defaults every border color to neutral-200 (Tailwind v4 would otherwise draw a bare `border` in the dark text color); any border-color utility still wins.
 - **Text primary**: `text-neutral-900`; secondary: `text-neutral-500`; muted: `text-neutral-400`
 - **Accent**: amber — `bg-amber-50`, `border-amber-200`, `text-amber-700` for highlights/badges
+- **Espresso detail** (`#2C1F1A`, hover `#3A2A24`, cream text `#FBF8F3`): the dark fill for primary and dark buttons, active pills/chips, selected options, the cart count, toasts, checkbox/radio accent (`accent-[#2C1F1A]`), keyboard focus outlines and the field-focus border. Do not reintroduce `bg-neutral-900`/`accent-neutral-900` fills; near-black stays for text only.
 
 ### Card Classes (defined in `src/app/globals.css`)
 
@@ -427,7 +428,7 @@ The browse page (`src/app/browse/page.tsx`) is a full-featured search experience
 - **Layout**: two-column flex — `FilterSidebar` (sticky aside, mobile drawer) + main grid; grid/list toggle via `view` URL param
 - **ClickTracker** (`src/components/ClickTracker.tsx`) — "use client" `<li>` wrapper that fires `POST /api/listings/[id]/click` on click (fire-and-forget). Used on: browse grid/list cards, homepage Fresh from the Workshop cards, homepage Buyer Favorites cards, homepage From Your Makers listing cards, `SimilarItems`, seller profile Featured Work cards, seller profile All Listings cards, seller shop grid cards, account saved items scroll row, account/saved listings grid
 - **SaveSearchButton** (`src/components/SaveSearchButton.tsx`) — "use client", reads `useSearchParams`, POSTs to `/api/search/saved`; redirects to sign-in if not logged in
-- **FilterSidebar** (`src/components/FilterSidebar.tsx`) — "use client", reads `useSearchParams`, uses `key={searchParams.toString()}` form trick for `defaultValue` sync
+- **FilterSidebar** (`src/components/FilterSidebar.tsx`) — "use client" floating column (no card box) with uppercase group labels. Every change applies at once (category list, Availability `SegmentedControl`, ships-within/rating/distance/tag chips; price on Enter or blur) and glides the page back to the top (`scroll={false}` plus `window.scrollTo`). The column scrolls on its own inside the sticky wrapper (`max-h` + `overflow-y-auto`), so its bottom is reachable without scrolling the page to the end. Desktop sort lives in `SortMenu` beside the view toggle; phones keep `MobileFilterBar`'s sheet with an Apply button.
 
 ### Search suggestions / autocomplete
 
@@ -2884,13 +2885,13 @@ Legacy-styling cleanup + chrome green removal. Behavior contracts to preserve:
 - **Blog post loading skeleton**: `src/app/blog/[slug]/loading.tsx` mirrors the article layout (breadcrumb, badge/meta, title, author card, cover, body lines). Without it, post navigation fell back to the blog-index grid skeleton — keep a per-segment skeleton whenever a child route's layout differs from its parent's.
 - **OrderTimeline connectors**: rows are `flex` with a `self-stretch` dot column and a `flex-1 min-h-4` connector line so lines always reach the next dot regardless of step content height. Do not restore fixed-height connector lines.
 - **GiftNoteSection**: checkboxes use `accent-neutral-900` (never browser-default blue); textarea uses the design-system input style, has a programmatic label (`htmlFor`/`id`), `maxLength={200}`, and connects its live counter with `aria-describedby` + `aria-live="polite"`.
-- **Mobile drawer** (`Header.tsx`): `w-64 max-w-[80vw]`, cream body (`#F7F5F0`), darker-cream header strip (`#EFEAE0`) with compact "Menu" label, grouped nav ("Explore" / "Your account") with uppercase section labels, icon-led rows with `rounded-md hover:bg-[#EFEAE0]`, espresso rounded-full Sign in CTA for signed-out, white account footer. The current header menu is a non-modal popover: the hamburger exposes `aria-expanded`/`aria-controls`, focus moves to the panel itself on open, and blur outside closes it. Preserve the detailed "Mobile menu popover behavior" rule below.
+- **Mobile drawer** (`Header.tsx`): `w-64 max-w-[80vw]`, white popover card (`rounded-[18px] popover-shadow`), hairline header row with compact "Menu" label, grouped nav ("Explore" / "Your account") with uppercase section labels, icon-led rows with `rounded-md hover:bg-[#EFEAE0]`, espresso rounded-full Sign in CTA for signed-out, white account footer. The current header menu is a non-modal popover: the hamburger exposes `aria-expanded`/`aria-controls`, focus moves to the panel itself on open, and blur outside closes it. Preserve the detailed "Mobile menu popover behavior" rule below.
 - **Avatar rings**: the header avatar TRIGGER BUTTON is the only place that uses a hairline (`ring-1 ring-black/10 hover:ring-black/20`) — it doubles as the button's hover affordance. Content avatars (maker map card, similar-makers cards, spotlight strips, overlap avatars) use NO hairline: thick borders match their card background (cream cutout look, e.g. `border-[3px] border-[#F7F5F0]` on a cream card, `ring-4 ring-[#F7F5F0] shadow-sm` on the page bg). Drew explicitly rejected hairlines on content avatars — do not re-add them for "visibility"; fix blend-in with card background color instead.
 - **Chrome green removed**: no `#3F5D3A` / `#D9E2D5` / `#C7D4C2` / `#345030` outside GuildBadge artwork. Footer is `#EFEAE0`; former green buttons (StripeConnectButton, BroadcastComposer send) are espresso. Guarded by `tests/chrome-color-guardrails.test.mjs`.
 - **Metro/city SEO pages modernized**: `/browse/[metroSlug]`, `/browse/[metroSlug]/[category]`, and `/makers/[metroSlug]` use `max-w-[1600px]` containers, while the metro branch of `/commission/[param]` intentionally stays `max-w-4xl` because it is a single-column request list. These pages use `font-display text-3xl` h1s, rounded-full cream category/nearby pills (active `bg-neutral-900 text-white`), `card-section`/`card-listing` surfaces, and espresso CTAs. Do not reintroduce square bordered tabs/chips or `bg-amber-500` buttons on these pages.
-- **Field focus standard (2026-07-11)**: text-entry fields (input/textarea/select, excluding checkbox/radio/range/file) get ONE sitewide focus treatment from `globals.css` `@layer base` — `outline: none; border-color: stone-400; box-shadow: 0 0 0 3px rgb(168 162 158 / 0.16)`. The old amber glow + dark outline on fields is gone, and ~32 components had their per-field `focus:ring-*` / `focus:border-*` overrides stripped so the base rule owns it. Do NOT add per-field focus rings to new components. Links/buttons/toggle inputs keep the 2px dark keyboard outline. Borderless inputs inside pill containers (SearchBar, TagsInput, messages search) keep `focus-visible:outline-none focus-visible:shadow-none` and put the ring on the container via `focus-within:` — do not remove those opt-outs.
+- **Field focus standard (2026-07-11)**: text-entry fields (input/textarea/select, excluding checkbox/radio/range/file) get ONE sitewide focus treatment from `globals.css` `@layer base` — `outline: none; border-color: #2C1F1A; box-shadow: 0 0 0 3px rgb(44 31 26 / 0.12)` (espresso since 2026-10-30; was stone-400). The old amber glow + dark outline on fields is gone, and ~32 components had their per-field `focus:ring-*` / `focus:border-*` overrides stripped so the base rule owns it. Do NOT add per-field focus rings to new components. Links/buttons/toggle inputs keep the 2px dark keyboard outline. Borderless inputs inside pill containers (SearchBar, TagsInput, messages search) keep `focus-visible:outline-none focus-visible:shadow-none` and put the ring on the container via `focus-within:` — do not remove those opt-outs.
 - **Mobile menu (2026-07-11)**: the hamburger opens a floating card (`fixed right-3 top-14 w-64 max-h-[calc(100dvh-4.5rem)] rounded-2xl`), NOT a full-height sheet. It uses a transparent full-screen click-catcher instead of a painted backdrop; open/close is animated (`animate-menu-in` / `animate-menu-out`), and all close paths go through `closeDrawer()` so the pop-out animation runs before unmount — do not close by calling `setDrawerOpen(false)` directly from UI handlers (navigation-effect instant close is the exception).
-- **NotificationBell dropdown**: shares the chrome language with the mobile menu; the dropdown header uses `bg-[#EFEAE0] border-b border-stone-200/60`, and unread rows use `bg-[#EFEAE0]/50` instead of amber highlight.
+- **NotificationBell dropdown**: shares the chrome language with the mobile menu; the dropdown header uses a hairline `border-b border-[#2C1F1A]/[0.08]` on white, and unread rows use `bg-[#EFEAE0]/50` instead of amber highlight.
 - **Empty-state icon circles** use `bg-[#EFEAE0] text-neutral-600` (cart empty state, message thread empty state) — not amber.
 - **Amber is highlight-only**: amber-50/200/700 stays for badges, warning banners, and semantic highlights. Action buttons and "View more"-style CTAs must be espresso, neutral-900, or cream pills — never `bg-amber-500/600/800` buttons or `text-amber-700` action links (homepage View more links are cream pills; following/verification/thread CTAs are espresso).
 - **Homepage newsletter removed**: `NewsletterSignup` no longer renders on `/`. Blog posts by makers end with a card-section Follow-the-maker CTA (FollowButton + follower count; hidden when the viewer is the author); staff posts keep the generic `NewsletterSignup`. Blog index keeps the newsletter.
@@ -2996,8 +2997,7 @@ first pass's rough edges. Behavior future agents must preserve:
 - **Batch five**: tapping Buy or Add before every option is chosen shakes
   and announces the "choose an option" reminder (`.hint-shake`; the
   purchase panel counts blocked clicks in a capture handler and the reminder
-  re-keys on that count). Toasts arrive with a spring and rise from the
-  bottom on wider screens. A removed browse filter chip shrinks away
+  re-keys on that count). A removed browse filter chip shrinks away
   (`FilterChipLink`, 180ms, then navigates; modified clicks and reduced
   motion navigate straight away) and the browse result count rolls. Cart
   amounts roll when they change (`RollingAmount`, same render-time key
@@ -3014,6 +3014,35 @@ first pass's rough edges. Behavior future agents must preserve:
   Not done, deliberately: the card-to-gallery photo morph (needs view
   transitions across a route change), browse grid reflow animation (filters
   are full navigations), and zooming the homepage map in place.
+- **Batch six (Drew's picks from the motion study)**:
+  - **Toasts** (`Toast.tsx`, built on Codex PR #627's timing and dismissal
+    logic, whose tests pass against it): espresso pills at the bottom
+    centre that spring up, pause while hovered or focused, and slide back
+    down when dismissed (removed on `animationend`, at once under reduced
+    motion, so no timer outlives a toast). Errors keep `role="alert"`, stay
+    until dismissed and carry a red dot. `toast(message, type, { action })`
+    adds one action: Add to cart offers "View cart"; removing a cart row
+    offers "Undo" (re-adds the same options and quantity; the saved browser
+    cart restores the exact entry; `/api/cart` now returns each line's
+    `selectedVariantOptionIds` for this).
+  - **Popups**: menus, the notification list, badge explanations and the
+    report menu are white cards (`rounded-[18px]`/`[14px]`, `popover-shadow`,
+    items `rounded-[10px] hover:bg-[#F7F5F0]`); dialogs use `modal-card`
+    with a warm scrim (`bg-[#14100D]/45`) and spring in
+    (`.modal-backdrop-in`, `.modal-card-in`).
+  - **Sliding toggles** (`SegmentedControl`): cream track, white thumb that
+    springs to the choice; radio mode is a keyboard radiogroup, link mode
+    moves the thumb on click before the page arrives. Used for browse
+    Availability (desktop and mobile), Grid/List, message filters, saved
+    tabs, blog sort and Commission Room All / Near me.
+  - **Number rolls** (`RollingText`, behind `RollingNumber` and
+    `RollingAmount`): the old value slides out as the new one slides in,
+    upward when it grows and downward when it shrinks; the outgoing copy is
+    out of flow and hidden under reduced motion. Used for the listing price,
+    cart totals, browse count, follower and helpful counts.
+  - **Filters**: see the FilterSidebar entry under Search & Browse. Desktop
+    keeps an always-visible floating column (recommended to Drew over a
+    full-width grid with a slide-in panel; his call is pending).
 
 ## Pending Tasks
 

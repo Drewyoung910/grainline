@@ -6,6 +6,7 @@ import VariantSelector, { type VariantGroupForSelector } from "./VariantSelector
 import BuyNowButton from "./BuyNowButton";
 import AddToCartButton from "./AddToCartButton";
 import NotifyMeButton from "./NotifyMeButton";
+import RollingAmount from "./RollingAmount";
 import { Gift } from "./icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
@@ -91,15 +92,6 @@ export default function ListingPurchasePanel({
     [basePriceCents, intentSelectedOptionIds, variantGroups],
   );
   const [totalPriceCents, setTotalPriceCents] = useState(initialPriceCents);
-  // Bump the roll key in the same render as the price change (React's
-  // "adjust state while rendering" pattern), so the new price never shows
-  // for a frame before it rolls in.
-  const [priceChangeCount, setPriceChangeCount] = useState(0);
-  const [shownPriceCents, setShownPriceCents] = useState(initialPriceCents);
-  if (shownPriceCents !== totalPriceCents) {
-    setShownPriceCents(totalPriceCents);
-    setPriceChangeCount((count) => count + 1);
-  }
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
   const variantRequired = hasVariants;
   const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
@@ -137,14 +129,8 @@ export default function ListingPurchasePanel({
       {/* Price + rating */}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <div className="min-w-0 text-3xl font-semibold">
-          {/* Rolls to the new total when an option changes the price; the
-              first render never animates (same rule as RollingNumber). */}
-          <span
-            key={priceChangeCount}
-            className={`inline-block tabular-nums${priceChangeCount > 0 ? " count-roll-in" : ""}`}
-          >
-            {formatCurrencyCents(totalPriceCents, displayCurrency)}
-          </span>
+          {/* Rolls to the new total when an option changes the price. */}
+          <RollingAmount cents={totalPriceCents} currency={displayCurrency} />
           {hasVariants && totalPriceCents !== basePriceCents && (
             <span className="text-base font-normal text-neutral-500 ml-2 line-through">
               {formatCurrencyCents(basePriceCents, displayCurrency)}

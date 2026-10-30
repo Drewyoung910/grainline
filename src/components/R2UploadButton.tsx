@@ -152,7 +152,7 @@ export default function R2UploadButton({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={disabled || isUploading}
-        className={appearance?.button ?? "rounded-md bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors disabled:opacity-50"}
+        className={appearance?.button ?? "rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm hover:bg-[#3A2A24] transition-colors disabled:opacity-50"}
       >
         <span className="inline-flex items-center justify-center gap-2">
           {isUploading && (

@@ -68,7 +68,7 @@ export function HelpfulButton({
       disabled={disabled || loading}
       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
         voted
-          ? "bg-neutral-900 text-white hover:bg-neutral-700"
+          ? "bg-[#2C1F1A] text-white hover:bg-[#3A2A24]"
           : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
       }`}
       title={titleText}

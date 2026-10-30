@@ -121,7 +121,7 @@ export default function VacationModeForm({
             checked={enabled || pendingEnable}
             onChange={handleToggleChange}
           />
-          <div className="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-neutral-900 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all peer-checked:after:translate-x-full" />
+          <div className="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-[#2C1F1A] transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all peer-checked:after:translate-x-full" />
         </label>
       </div>
 
@@ -138,7 +138,7 @@ export default function VacationModeForm({
             <button
               type="button"
               onClick={confirmEnable}
-              className="rounded-md bg-neutral-900 text-white px-4 py-1.5 text-sm font-medium hover:bg-neutral-800 transition-colors"
+              className="rounded-md bg-[#2C1F1A] text-white px-4 py-1.5 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
             >
               Enable vacation mode
             </button>
@@ -197,7 +197,7 @@ export default function VacationModeForm({
         type="button"
         onClick={handleSave}
         disabled={isPending || showWarning}
-        className="rounded-md bg-neutral-900 text-white px-4 py-2 text-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50"
+        className="rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors disabled:opacity-50"
       >
         {isPending ? "Saving…" : "Save vacation settings"}
       </button>

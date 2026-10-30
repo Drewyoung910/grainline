@@ -108,7 +108,7 @@ export default function CustomOrderRequestForm({
 
       {open && mounted && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#14100D]/45 modal-backdrop-in px-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleClose();
           }}
@@ -119,7 +119,7 @@ export default function CustomOrderRequestForm({
             aria-modal="true"
             aria-labelledby="custom-order-dialog-title"
             tabIndex={-1}
-            className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-[#F7F5F0] shadow-xl overflow-hidden"
+            className="flex max-h-[90vh] w-full max-w-md flex-col rounded-[20px] bg-[#F7F5F0] modal-card modal-card-in overflow-hidden"
           >
             <div className="flex shrink-0 items-center justify-between px-5 py-3 border-b border-stone-200/60 bg-[#EFEAE0]">
               <h2 id="custom-order-dialog-title" className="text-base font-semibold">Request a Custom Piece</h2>

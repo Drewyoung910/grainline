@@ -118,7 +118,7 @@ export default function BroadcastComposer({
                 name="audience"
                 checked={!sellersOnly}
                 onChange={() => setSellersOnly(false)}
-                className="accent-neutral-900"
+                className="accent-[#2C1F1A]"
               />
               All followers
             </label>
@@ -128,7 +128,7 @@ export default function BroadcastComposer({
                 name="audience"
                 checked={sellersOnly}
                 onChange={() => setSellersOnly(true)}
-                className="accent-neutral-900"
+                className="accent-[#2C1F1A]"
               />
               Sellers only
             </label>

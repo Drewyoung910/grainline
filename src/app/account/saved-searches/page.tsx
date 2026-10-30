@@ -80,7 +80,7 @@ export default async function AccountSavedSearchesPage() {
         </div>
         <Link
           href="/browse"
-          className="inline-flex min-h-10 w-fit items-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+          className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#2C1F1A] bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24]"
         >
           Browse listings
         </Link>

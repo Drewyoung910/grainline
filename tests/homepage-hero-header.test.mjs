@@ -212,9 +212,11 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(header, /overlay=\{/);
     for (const text of [bell, account]) {
       assert.match(text, /overlay = false/);
-      assert.match(text, /ring-1 ring-black\/5 bg-white/);
+      // Popovers are white cards with the shared long soft shadow.
+      assert.match(text, /: "bg-white";/);
+      assert.match(text, /rounded-\[18px\] text-neutral-900 popover-shadow/);
     }
-    assert.match(header, /rounded-2xl bg-\[#F7F5F0\] text-neutral-900 shadow-2xl ring-1 ring-black\/5/);
+    assert.match(header, /rounded-\[18px\] bg-white text-neutral-900 popover-shadow/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.doesNotMatch(header, /fixed inset-0[^\n]*backdrop-blur/);
     assert.match(bell, /className="text-\[13px\] font-medium leading-tight"/);

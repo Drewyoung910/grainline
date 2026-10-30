@@ -295,7 +295,7 @@ export default function BuyNowCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-12 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[#14100D]/45 modal-backdrop-in p-4 pt-12 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -306,7 +306,7 @@ export default function BuyNowCheckoutModal({
         aria-modal="true"
         aria-label={`Buy ${listingTitle}`}
         tabIndex={-1}
-        className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-auto mb-8"
+        className="relative bg-white rounded-[20px] modal-card modal-card-in w-full max-w-lg mx-auto mb-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header: item summary + close */}

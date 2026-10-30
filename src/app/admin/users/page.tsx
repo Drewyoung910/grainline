@@ -93,7 +93,7 @@ export default async function AdminUsersPage({
         />
         <button
           type="submit"
-          className="border border-neutral-900 bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800"
+          className="border border-[#2C1F1A] bg-[#2C1F1A] text-white px-4 py-2 text-sm hover:bg-[#3A2A24]"
         >
           Search
         </button>

@@ -109,7 +109,7 @@ export default async function NewConversationPage({
           <ActionForm action={startConversation}>
             <SubmitButton
               pendingLabel="Starting…"
-              className="min-h-[44px] rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700"
+              className="min-h-[44px] rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24]"
             >
               Continue to message
             </SubmitButton>

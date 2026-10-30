@@ -48,7 +48,7 @@ export default function AcceptTermsForm({ redirectUrl }: { redirectUrl: string }
           type="checkbox"
           checked={termsAccepted}
           onChange={(event) => setTermsAccepted(event.target.checked)}
-          className="mt-1 h-4 w-4 shrink-0 accent-neutral-900"
+          className="mt-1 h-4 w-4 shrink-0 accent-[#2C1F1A]"
         />
         <span>
           I agree to Grainline&apos;s{" "}
@@ -68,7 +68,7 @@ export default function AcceptTermsForm({ redirectUrl }: { redirectUrl: string }
           type="checkbox"
           checked={ageAttested}
           onChange={(event) => setAgeAttested(event.target.checked)}
-          className="mt-1 h-4 w-4 shrink-0 accent-neutral-900"
+          className="mt-1 h-4 w-4 shrink-0 accent-[#2C1F1A]"
         />
         <span>I confirm that I am at least 18 years old.</span>
       </label>
@@ -82,7 +82,7 @@ export default function AcceptTermsForm({ redirectUrl }: { redirectUrl: string }
       <button
         type="submit"
         disabled={!termsAccepted || !ageAttested || submitting}
-        className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full rounded-md bg-[#2C1F1A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitting ? "Saving..." : "Continue"}
       </button>

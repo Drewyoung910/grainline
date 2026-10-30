@@ -10,6 +10,8 @@ import FavoriteButton from "@/components/FavoriteButton";
 import FilterSidebar from "@/components/FilterSidebar";
 import MobileFilterBar from "@/components/MobileFilterBar";
 import SaveSearchButton from "@/components/SaveSearchButton";
+import SegmentedControl from "@/components/SegmentedControl";
+import SortMenu from "@/components/SortMenu";
 import ClickTracker from "@/components/ClickTracker";
 import FilterChipLink from "@/components/FilterChipLink";
 import RollingNumber from "@/components/RollingNumber";
@@ -782,31 +784,19 @@ async function BrowseContent({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {/* View toggle: the dark highlight slides between Grid and List
-                  (the element is kept across the navigation, so its
-                  translate change animates). */}
-              <div className="relative grid grid-cols-2 overflow-hidden rounded-md border border-neutral-200 bg-white text-sm">
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-neutral-900 transition-[translate] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none ${
-                    view === "list" ? "translate-x-full" : "translate-x-0"
-                  }`}
-                />
-                <Link
-                  href={viewToggleHref("grid")}
-                  aria-current={view === "grid" ? "page" : undefined}
-                  className={`relative px-3 py-1.5 text-center transition-colors duration-300 ${view === "grid" ? "text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
-                >
-                  Grid
-                </Link>
-                <Link
-                  href={viewToggleHref("list")}
-                  aria-current={view === "list" ? "page" : undefined}
-                  className={`relative px-3 py-1.5 text-center transition-colors duration-300 ${view === "list" ? "text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
-                >
-                  List
-                </Link>
-              </div>
+              <SortMenu />
+              {/* View toggle: the white thumb slides between Grid and List
+                  (the control is kept across the navigation and moves as
+                  soon as it is clicked). */}
+              <SegmentedControl
+                label="View"
+                size="sm"
+                value={view === "list" ? "list" : "grid"}
+                options={[
+                  { value: "grid", label: "Grid", href: viewToggleHref("grid") },
+                  { value: "list", label: "List", href: viewToggleHref("list") },
+                ]}
+              />
 
               <SaveSearchButton signedIn={!!userId} />
               <Pager />

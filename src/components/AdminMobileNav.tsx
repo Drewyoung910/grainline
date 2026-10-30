@@ -45,7 +45,7 @@ export default function AdminMobileNav(counts: Counts) {
             aria-current={active ? "page" : undefined}
             className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg min-w-[56px] min-h-[44px] justify-center
               ${active
-                ? "bg-neutral-900 text-white"
+                ? "bg-[#2C1F1A] text-white"
                 : "text-neutral-700 hover:bg-neutral-100"
               }`}
           >

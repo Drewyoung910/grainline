@@ -644,7 +644,7 @@ export default async function NewListingPage({
               title={publishBlockedMessage}
               pendingLabel="Publishing…"
               aria-describedby={publishBlockedMessage ? "publish-blocked-reason" : undefined}
-              className="w-full rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-md px-4 py-2.5 bg-[#2C1F1A] text-white text-sm font-medium hover:bg-[#3A2A24] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Publish
             </SubmitButton>

@@ -29,6 +29,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
 import RollingAmount from "@/components/RollingAmount";
+import { useToast } from "@/components/Toast";
 
 function CartLoadingSkeleton() {
   return (
@@ -85,7 +86,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
       <div className="p-10 text-center">
-        <div className="float-gently mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600">
+        <div className="float-gently mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-[#2C1F1A]">
           <ShoppingBag size={28} />
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
@@ -119,6 +120,8 @@ type CartItem = {
   variantUnavailable?: boolean;
   stockExceeded?: boolean;
   variantLabels?: string[];
+  // Used to put a removed line back exactly as it was (Undo).
+  selectedVariantOptionIds?: string[];
   listing: {
     id: string;
     title: string;
@@ -185,6 +188,7 @@ function cartItemsFromAnonymous(items: AnonymousCartItem[]): CartItem[] {
     variantUnavailable: false,
     stockExceeded: false,
     variantLabels: item.snapshot.variantLabels ?? [],
+    selectedVariantOptionIds: item.selectedVariantOptionIds,
     listing: {
       id: item.listingId,
       title: item.snapshot.title,
@@ -260,6 +264,7 @@ function CartPage() {
   const router = useRouter();
 
   const [items, setItems] = React.useState<CartItem[]>([]);
+  const { toast } = useToast();
   // The full skeleton is for the first load only. Later reloads (quantity
   // changes, price refreshes) keep the cart on screen so totals can roll to
   // their new values instead of the whole page flashing.
@@ -468,7 +473,7 @@ function CartPage() {
       const result = updateAnonymousCartItem(cartItemId, quantity);
       if (!result.ok) {
         setError("Could not update your saved cart in this browser.");
-        return;
+        return false;
       }
       setItems(cartItemsFromAnonymous(result.items));
       notifyCartUpdated();
@@ -477,7 +482,7 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
-      return;
+      return true;
     }
 
     try {
@@ -496,8 +501,52 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
+    }
+  }
+
+  // Undo for a removed line: the saved browser cart gets the exact entry
+  // back in its old place; an account cart re-adds the same piece, options
+  // and quantity (at today's price).
+  async function restoreRemovedItem(
+    removed: CartItem,
+    anonymousEntry: { item: AnonymousCartItem; index: number } | null,
+  ) {
+    setError(null);
+    try {
+      if (anonymousEntry) {
+        const current = readAnonymousCartItems();
+        if (!current.some((entry) => entry.lineKey === anonymousEntry.item.lineKey)) {
+          const next = [...current];
+          next.splice(Math.min(anonymousEntry.index, next.length), 0, anonymousEntry.item);
+          if (!writeAnonymousCartItems(next)) throw new Error("Could not restore that item in this browser.");
+          setItems(cartItemsFromAnonymous(next));
+        }
+      } else {
+        const res = await fetch("/api/cart/add", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            listingId: removed.listing.id,
+            quantity: removed.quantity,
+            selectedVariantOptionIds: removed.selectedVariantOptionIds ?? [],
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Could not put that item back.");
+        await load();
+      }
+      notifyCartUpdated();
+      clearCartSessionStorage();
+      setSelectedRates({});
+      setClientSecrets([]);
+      setCurrentPaymentIndex(0);
+      clearCompletedCheckoutSessions();
+    } catch (e) {
+      toast((e as Error).message || "Could not put that item back.", "error");
     }
   }
 
@@ -535,20 +584,35 @@ function CartPage() {
 
   const removeItem = (cartItemId: string) => {
     if (removingIds.has(cartItemId)) return;
+    const removed = items.find((item) => item.id === cartItemId);
+    let anonymousEntry: { item: AnonymousCartItem; index: number } | null = null;
+    if (needsSignIn) {
+      const saved = readAnonymousCartItems();
+      const index = saved.findIndex((entry) => entry.lineKey === cartItemId);
+      if (index >= 0) anonymousEntry = { item: saved[index], index };
+    }
+    const offerUndo = (ok: boolean) => {
+      if (!ok || !removed) return;
+      toast("Removed from your cart", "info", {
+        action: { label: "Undo", onClick: () => void restoreRemovedItem(removed, anonymousEntry) },
+      });
+    };
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
-      void setQuantity(cartItemId, 0);
+      void setQuantity(cartItemId, 0).then(offerUndo);
       return;
     }
     setRemovingIds((current) => new Set(current).add(cartItemId));
     window.setTimeout(() => {
-      void setQuantity(cartItemId, 0).finally(() => {
-        setRemovingIds((current) => {
-          const next = new Set(current);
-          next.delete(cartItemId);
-          return next;
+      void setQuantity(cartItemId, 0)
+        .then(offerUndo)
+        .finally(() => {
+          setRemovingIds((current) => {
+            const next = new Set(current);
+            next.delete(cartItemId);
+            return next;
+          });
         });
-      });
     }, 240);
   };
 

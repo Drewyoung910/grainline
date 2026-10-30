@@ -54,7 +54,7 @@ const MAX_DEFAULT_PACKAGE_WEIGHT_LB = 500;
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const checkboxClass =
-  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
+  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-[#2C1F1A] focus:ring-neutral-300";
 
 function shortText(v: unknown, maxLength: number) {
   const s = typeof v === "string" ? sanitizeText(v).slice(0, maxLength).trim() : "";
@@ -557,7 +557,7 @@ export default async function SellerSettingsPage({
           </div>
         </div>
 
-        <button type="submit" className="rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800">
+        <button type="submit" className="rounded-md px-4 py-2.5 bg-[#2C1F1A] text-white text-sm font-medium hover:bg-[#3A2A24]">
           Save settings
         </button>
       </ActionForm>

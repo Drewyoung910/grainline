@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { addAnonymousCartItem, type AnonymousCartSnapshot } from "@/lib/anonymousCart";
 import { notifyCartUpdated } from "@/lib/cartEvents";
@@ -36,10 +37,8 @@ export default function AddToCartButton({
   React.useEffect(() => () => {
     if (addedTimerRef.current !== null) window.clearTimeout(addedTimerRef.current);
   }, []);
-  // Returns how long to hold the "Added to cart" toast so it doesn't cover
-  // the photo landing in the header bag on phones.
   const confirmAdded = () => {
-    const flightMs = flyToCart();
+    flyToCart();
     setAddedCount((count) => count + 1);
     setShowAdded(true);
     if (addedTimerRef.current !== null) window.clearTimeout(addedTimerRef.current);
@@ -47,11 +46,12 @@ export default function AddToCartButton({
       setShowAdded(false);
       addedTimerRef.current = null;
     }, 1800);
-    return flightMs;
   };
-  const toastAfter = (delayMs: number) => {
-    if (delayMs > 0) window.setTimeout(() => toast("Added to cart!", "success"), delayMs);
-    else toast("Added to cart!", "success");
+  const router = useRouter();
+  // The toast sits at the bottom edge, clear of the photo flying to the
+  // header bag, so it can show straight away.
+  const showAddedToast = () => {
+    toast("Added to your cart", "success", { action: { label: "View cart", onClick: () => router.push("/cart") } });
   };
   const { toast } = useToast();
   const listingPath = publicListingPath(listingId, listingTitle);
@@ -80,7 +80,8 @@ export default function AddToCartButton({
       if (redirectToCart) {
         window.location.href = "/cart";
       } else {
-        toastAfter(confirmAdded());
+        confirmAdded();
+        showAddedToast();
       }
       return;
     }
@@ -108,7 +109,8 @@ export default function AddToCartButton({
       if (redirectToCart) {
         window.location.href = "/cart";
       } else {
-        toastAfter(confirmAdded());
+        confirmAdded();
+        showAddedToast();
       }
     } catch (e) {
       toast((e as Error).message, "error");

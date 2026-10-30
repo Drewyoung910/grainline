@@ -19,7 +19,7 @@ import { avatarInitial } from "@/lib/avatarInitials";
 export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const drawerItemHover = "hover:bg-[#EFEAE0]";
+  const drawerItemHover = "hover:bg-[#F7F5F0]";
   const drawerSectionText = "text-neutral-400";
   const drawerIconText = "text-neutral-500";
   const searchParams = useSearchParams();
@@ -498,7 +498,7 @@ export default function Header() {
               <ShoppingBag size={22} />
               <IconHoverTip label="Cart" />
               {cartCount != null && cartCount > 0 && (
-                <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
+                <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-medium leading-none ${clear ? "bg-[#FBF8F3] text-[#2C1F1A]" : "bg-[#2C1F1A] text-[#FBF8F3]"}${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                   {cartCount}
                 </span>
               )}
@@ -566,7 +566,7 @@ export default function Header() {
             <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]">
               <ShoppingBag size={20} />
               {cartCount != null && cartCount > 0 && (
-                <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
+                <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-medium leading-none ${clear ? "bg-[#FBF8F3] text-[#2C1F1A]" : "bg-[#2C1F1A] text-[#FBF8F3]"}${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                   {cartCount}
                 </span>
               )}
@@ -642,7 +642,7 @@ export default function Header() {
                 closeDrawer();
               }
             }}
-            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-var(--site-header-h)-1.5rem-env(safe-area-inset-top))] flex-col overflow-hidden overscroll-contain rounded-2xl bg-[#F7F5F0] text-neutral-900 shadow-2xl ring-1 ring-black/5 outline-none motion-reduce:animate-none ${
+            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-var(--site-header-h)-1.5rem-env(safe-area-inset-top))] flex-col overflow-hidden overscroll-contain rounded-[18px] bg-white text-neutral-900 popover-shadow outline-none motion-reduce:animate-none ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >
@@ -650,7 +650,7 @@ export default function Header() {
                 next to the hamburger); saves height so more menu rows are
                 visible before scrolling. */}
             <div
-              className="flex items-center justify-between border-b border-stone-200/60 bg-[#EFEAE0] py-1 pl-5 pr-2"
+              className="flex items-center justify-between border-b border-[#2C1F1A]/[0.08] py-1 pl-5 pr-2"
             >
               <span className="text-sm font-semibold">
                 Menu

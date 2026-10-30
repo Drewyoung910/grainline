@@ -303,7 +303,7 @@ export default async function ReviewsSection({
                 href={sortHref(k, edit)}
                 className={`whitespace-nowrap rounded-full px-3 py-1 font-medium transition-colors ${
                   active
-                    ? "bg-neutral-900 text-white hover:bg-neutral-700"
+                    ? "bg-[#2C1F1A] text-white hover:bg-[#3A2A24]"
                     : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
                 }`}
                 scroll={false}

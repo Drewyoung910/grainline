@@ -98,7 +98,7 @@ describe("admin navigation current-page state (#1296)", () => {
       );
     };
     assert.match(render("/admin/reviews", "/admin/reviews"), /aria-current="page"/);
-    assert.match(render("/admin/reviews", "/admin/reviews"), /bg-neutral-900 text-white/);
+    assert.match(render("/admin/reviews", "/admin/reviews"), /bg-\[#2C1F1A\] text-white/);
     assert.doesNotMatch(render("/admin/reviews", "/admin/review"), /aria-current/);
     assert.match(render("/admin/reviews", "/admin/review"), /text-neutral-700 hover:bg-neutral-100/);
 

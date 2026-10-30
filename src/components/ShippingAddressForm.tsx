@@ -260,7 +260,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
               setSaveAddress(e.target.checked);
               if (!e.target.checked) setSaveError(null);
             }}
-            className="h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300"
+            className="h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-[#2C1F1A] focus:ring-neutral-300"
           />
           Save this address for future orders
         </label>

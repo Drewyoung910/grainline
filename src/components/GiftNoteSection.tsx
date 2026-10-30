@@ -34,7 +34,7 @@ export default function GiftNoteSection({
           type="checkbox"
           checked={isGift}
           onChange={(e) => handleGiftToggle(e.target.checked)}
-          className="h-4 w-4 accent-neutral-900"
+          className="h-4 w-4 accent-[#2C1F1A]"
         />
         <span>This is a gift</span>
       </label>
@@ -66,7 +66,7 @@ export default function GiftNoteSection({
                 type="checkbox"
                 checked={giftWrapping}
                 onChange={(e) => onChange(giftNote, e.target.checked)}
-                className="h-4 w-4 accent-neutral-900"
+                className="h-4 w-4 accent-[#2C1F1A]"
               />
               <span>
                 Add gift wrapping
