@@ -9,6 +9,7 @@ import {
 import {
   PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS,
   collectPrivateTableRuntimeReadinessIssues,
+  privateTableRuntimeReadinessMigrationOverride,
   verifyPrivateTableRuntimeReadiness,
 } from "../scripts/private-table-preparation-runtime-readiness.mjs";
 
@@ -32,7 +33,11 @@ function sha256(value) {
 const sourceByIdentity = new Map(
   privateTablePreparationReleaseIds("owner_social_verification_v1")
     .flatMap((releaseId) => {
-      const verified = verifyPrivateTablePreparationSource(releaseId);
+      const verified = verifyPrivateTablePreparationSource(
+        releaseId,
+        process.cwd(),
+        privateTableRuntimeReadinessMigrationOverride(releaseId),
+      );
       return verified.release.functions.map((entry) => [
         `${entry.name}(${entry.arguments})`,
         verified.functionSources.get(entry.name),
