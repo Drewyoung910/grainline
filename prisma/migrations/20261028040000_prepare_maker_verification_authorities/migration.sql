@@ -140,6 +140,18 @@ SET search_path = pg_catalog
 AS $grainline_seller_guild_staff_transition$
 DECLARE
   target_seller_profile_id text;
+  source_verification_status public."VerificationStatus";
+  source_seller_guild_level public."GuildLevel";
+  source_seller_user_id text;
+  source_seller_display_name text;
+  transition_applied boolean;
+  transition_audit_id text;
+  transition_seller_profile_id text;
+  transition_seller_user_id text;
+  transition_seller_display_name text;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+  verification_changed integer;
 BEGIN
   -- The implementation repeats every authorization and input check. This
   -- envelope derives only the lock target and never treats it as authority.
@@ -171,14 +183,31 @@ BEGIN
       FROM public."SellerProfilePrivate" AS seller_private
      WHERE seller_private."sellerProfileId" = target_seller_profile_id
      FOR UPDATE;
+    SELECT verification.status,
+           seller."guildLevel",
+           seller."userId",
+           seller."displayName"::text
+      INTO source_verification_status,
+           source_seller_guild_level,
+           source_seller_user_id,
+           source_seller_display_name
+      FROM public."SellerProfile" AS seller
+      JOIN public."MakerVerification" AS verification
+        ON verification."sellerProfileId" = seller.id
+     WHERE seller.id = target_seller_profile_id
+       AND (p_verification_id IS NULL OR verification.id = p_verification_id);
   END IF;
 
-  RETURN QUERY
   SELECT transition.applied,
          transition."auditId",
          transition."sellerProfileId",
          transition."sellerUserId",
          transition."sellerDisplayName"
+    INTO transition_applied,
+         transition_audit_id,
+         transition_seller_profile_id,
+         transition_seller_user_id,
+         transition_seller_display_name
     FROM public.grainline_seller_guild_staff_transition_prepared_impl(
       p_actor_id,
       p_operation,
@@ -187,6 +216,74 @@ BEGIN
       p_review_notes,
       p_admin_override
     ) AS transition;
+
+  -- The predecessor rejected a Member revocation while that Member had a
+  -- pending Master application. The staff action is still authoritative: the
+  -- pending application is cancelled atomically with the Member badge, using
+  -- the same actor checks and canonical lifecycle locks the predecessor just
+  -- completed above.
+  IF p_operation = 'REVOKE_GUILD_MEMBER'
+     AND NOT COALESCE(transition_applied, false)
+     AND source_seller_guild_level = 'GUILD_MEMBER'::public."GuildLevel"
+     AND source_verification_status =
+       'GUILD_MASTER_PENDING'::public."VerificationStatus" THEN
+    UPDATE public."MakerVerification"
+       SET status = 'REJECTED'::public."VerificationStatus",
+           "reviewedById" = p_actor_id,
+           "reviewedAt" = source_now,
+           "reviewNotes" = 'Guild Member badge revoked by Grainline staff.',
+           "updatedAt" = source_now
+     WHERE "sellerProfileId" = target_seller_profile_id
+       AND status = 'GUILD_MASTER_PENDING'::public."VerificationStatus";
+    GET DIAGNOSTICS verification_changed = ROW_COUNT;
+
+    IF verification_changed = 1 THEN
+      UPDATE public."SellerProfilePrivate"
+         SET "guildMasterAppliedAt" = NULL,
+             "guildMasterReviewNotes" = NULL,
+             "consecutiveMetricFailures" = 0,
+             "metricWarningSentAt" = NULL,
+             "listingsBelowThresholdSince" = NULL,
+             "lastMetricCheckAt" = source_now,
+             "updatedAt" = source_now
+       WHERE "sellerProfileId" = target_seller_profile_id;
+      UPDATE public."SellerProfile"
+         SET "guildLevel" = 'NONE'::public."GuildLevel",
+             "isVerifiedMaker" = false,
+             "updatedAt" = source_now
+       WHERE id = target_seller_profile_id;
+
+      transition_audit_id := pg_catalog.gen_random_uuid()::text;
+      INSERT INTO public."AdminAuditLog" (
+        id, "adminId", action, "targetType", "targetId", reason, metadata,
+        undone, "createdAt"
+      ) VALUES (
+        transition_audit_id,
+        p_actor_id,
+        'REVOKE_GUILD_MEMBER',
+        'SELLER_PROFILE',
+        target_seller_profile_id,
+        'Guild Member badge revoked by Grainline staff.',
+        pg_catalog.jsonb_build_object(
+          'cancelledGuildMasterApplication', true
+        ),
+        false,
+        source_now
+      );
+
+      transition_applied := true;
+      transition_seller_profile_id := target_seller_profile_id;
+      transition_seller_user_id := source_seller_user_id;
+      transition_seller_display_name := source_seller_display_name;
+    END IF;
+  END IF;
+
+  RETURN QUERY
+  SELECT transition_applied,
+         transition_audit_id,
+         transition_seller_profile_id,
+         transition_seller_user_id,
+         transition_seller_display_name;
 END;
 $grainline_seller_guild_staff_transition$;
 

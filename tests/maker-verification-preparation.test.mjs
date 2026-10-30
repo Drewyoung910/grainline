@@ -183,6 +183,14 @@ test("MakerVerification complete-schema proof is wired into the full-chain job",
     "REVOKE_GUILD_MASTER",
     "REINSTATE_GUILD_MEMBER",
   ]) assert.match(scenario, new RegExp(`\\[\"[^\"]+\", \"${operation}\"`, "u"));
+  assert.match(
+    scenario,
+    /\["revoke_member_pending_master", "REVOKE_GUILD_MEMBER", false\]/u,
+  );
+  assert.match(
+    scenario,
+    /revoke_member_pending_master: \["REJECTED", "NONE"\]/u,
+  );
   assert.match(scenario, /Promise\.all/u);
   assert.match(scenario, /grainline_seller_guild_staff_transition_prepared_impl/u);
   assert.match(scenario, /grainline_seller_guild_member_revoke_prepared_impl/u);

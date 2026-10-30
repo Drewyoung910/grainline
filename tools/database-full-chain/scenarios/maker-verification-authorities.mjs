@@ -600,6 +600,7 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
     ["approve_member", "APPROVE_GUILD_MEMBER", true],
     ["reject_member", "REJECT_GUILD_MEMBER", false],
     ["revoke_member", "REVOKE_GUILD_MEMBER", false],
+    ["revoke_member_pending_master", "REVOKE_GUILD_MEMBER", false],
     ["approve_master", "APPROVE_GUILD_MASTER", false],
     ["reject_master", "REJECT_GUILD_MASTER", false],
     ["revoke_master", "REVOKE_GUILD_MASTER", false],
@@ -631,13 +632,24 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
             'Transition ' || source.key,
             'transition ' || source.key,
             CASE
-              WHEN source.key IN ('revoke_member', 'approve_master', 'reject_master')
+              WHEN source.key IN (
+                'revoke_member',
+                'revoke_member_pending_master',
+                'approve_master',
+                'reject_master'
+              )
                 THEN 'GUILD_MEMBER'::public."GuildLevel"
               WHEN source.key = 'revoke_master'
                 THEN 'GUILD_MASTER'::public."GuildLevel"
               ELSE 'NONE'::public."GuildLevel"
             END,
-            source.key IN ('revoke_member', 'approve_master', 'reject_master', 'revoke_master'),
+            source.key IN (
+              'revoke_member',
+              'revoke_member_pending_master',
+              'approve_master',
+              'reject_master',
+              'revoke_master'
+            ),
             true,
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP
@@ -667,7 +679,11 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
                 THEN 'PENDING'::public."VerificationStatus"
               WHEN source.key = 'revoke_member'
                 THEN 'APPROVED'::public."VerificationStatus"
-              WHEN source.key IN ('approve_master', 'reject_master')
+              WHEN source.key IN (
+                'revoke_member_pending_master',
+                'approve_master',
+                'reject_master'
+              )
                 THEN 'GUILD_MASTER_PENDING'::public."VerificationStatus"
               WHEN source.key = 'revoke_master'
                 THEN 'GUILD_MASTER_APPROVED'::public."VerificationStatus"
@@ -685,6 +701,12 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
             "guildMasterApprovedAt" = CASE
               WHEN seller_private."sellerProfileId" = $1 || 'revoke_master'
                 THEN CURRENT_TIMESTAMP - INTERVAL '31 days'
+              ELSE NULL
+            END,
+            "guildMasterAppliedAt" = CASE
+              WHEN seller_private."sellerProfileId" =
+                   $1 || 'revoke_member_pending_master'
+                THEN CURRENT_TIMESTAMP - INTERVAL '1 day'
               ELSE NULL
             END,
             "updatedAt" = CURRENT_TIMESTAMP
@@ -860,7 +882,8 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
             verification.status::text AS status,
             verification."reviewNotes" AS "reviewNotes",
             seller_private."guildMemberApprovedAt" AS "guildMemberApprovedAt",
-            seller_private."guildMasterApprovedAt" AS "guildMasterApprovedAt"
+            seller_private."guildMasterApprovedAt" AS "guildMasterApprovedAt",
+            seller_private."guildMasterAppliedAt" AS "guildMasterAppliedAt"
        FROM public."SellerProfile" AS seller
        JOIN public."SellerProfilePrivate" AS seller_private
          ON seller_private."sellerProfileId" = seller.id
@@ -881,14 +904,17 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
       reject_member: ["REJECTED", "NONE"],
       revoke_master: ["GUILD_MASTER_REJECTED", "GUILD_MEMBER"],
       revoke_member: ["REJECTED", "NONE"],
+      revoke_member_pending_master: ["REJECTED", "NONE"],
     },
   );
   assert.equal(byKey.approve_member.isVerifiedMaker, true);
   assert.equal(byKey.reinstate.isVerifiedMaker, true);
   assert.equal(byKey.revoke_member.isVerifiedMaker, false);
+  assert.equal(byKey.revoke_member_pending_master.isVerifiedMaker, false);
   assert.equal(byKey.approve_member.guildMemberApprovedAt instanceof Date, true);
   assert.equal(byKey.approve_master.guildMasterApprovedAt instanceof Date, true);
   assert.equal(byKey.revoke_master.guildMasterApprovedAt, null);
+  assert.equal(byKey.revoke_member_pending_master.guildMasterAppliedAt, null);
   assert.equal(byKey.reject_member.reviewNotes, "Matrix reason for reject_member");
   assert.equal(
     Number(rowsOf(await database.query(
@@ -898,7 +924,7 @@ async function proveStaffTransitionMatrix({ database, staffId, prefix }) {
           AND pg_catalog.left("targetId", pg_catalog.length($2)) = $2`,
       [staffId, sellerPrefix],
     ))[0]?.value),
-    7,
+    8,
   );
 
   await database.query(
