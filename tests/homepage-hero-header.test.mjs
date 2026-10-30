@@ -51,7 +51,10 @@ describe("homepage hero and header contracts", () => {
     assert.match(header, /const clear = isHome && !scrolled;/);
     assert.match(header, /setScrolled\(window\.scrollY > 24\)/);
     assert.match(header, /window\.addEventListener\("scroll", onScroll, \{ passive: true \}\)/);
-    assert.match(header, /\$\{isHome \? "fixed" : "sticky"\} inset-x-0 top-0 z-\[50\]/);
+    // Message threads keep their own pinned chat header, so the site header
+    // scrolls away there.
+    assert.match(header, /const pinned = !pathname\.startsWith\("\/messages\/"\);/);
+    assert.match(header, /\$\{isHome \? "fixed" : pinned \? "sticky" : "relative"\} inset-x-0 top-0 z-\[50\]/);
     assert.match(header, /data-header-state=\{clear \? "clear" : "frosted"\}/);
     // The frost is its own layer so the menu's fixed click-catcher is not
     // trapped inside a backdrop-filtered header box.

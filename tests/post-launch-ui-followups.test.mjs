@@ -271,7 +271,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/app/page.tsx"), /bg-\[#F7F5F0\]/);
     assert.match(source("src/app/browse/page.tsx"), /bg-\[#F7F5F0\]/);
     assert.match(source("src/app/listing/[id]/page.tsx"), /bg-\[#F7F5F0\]/);
-    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b/);
+    // The only header gradient is the small dark scrim over the homepage
+    // photo; no page-wide amber gradients.
+    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b[^"`]*from-amber/);
   });
 
   it("adds order timeline context without a redundant payment-confirmed step", () => {

@@ -262,7 +262,7 @@ export default function NewCommissionPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="rounded-md border border-neutral-200 px-6 py-2.5 text-sm hover:bg-neutral-50 transition-colors"
+            className="btn btn-secondary"
           >
             Cancel
           </button>

@@ -44,6 +44,9 @@ export default function Header() {
     };
   }, [isHome]);
   const clear = isHome && !scrolled;
+  // Message threads keep their own pinned chat header and composer, so the
+  // site header scrolls away there instead of eating a third of a phone.
+  const pinned = !pathname.startsWith("/messages/");
   const { signOut, openUserProfile } = useClerk();
   // Clerk auth state — used to re-fetch /api/me when the session appears or
   // disappears client-side. Without this, signing in could leave the header
@@ -408,31 +411,44 @@ export default function Header() {
       current ? "after:scale-x-100" : "after:scale-x-0"
     }`;
   };
-  const navLinkCurrent = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`) ? "page" as const : undefined;
+  const navLinkCurrent = (href: string) => (pathname === href ? ("page" as const) : undefined);
 
   return (
     <header
       data-header-state={clear ? "clear" : "frosted"}
-      className={`${isHome ? "fixed" : "sticky"} inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
-        clear ? "text-[#F5EFE6]" : "text-neutral-900"
+      className={`${isHome ? "fixed" : pinned ? "sticky" : "relative"} inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] ${
+        isHome ? "transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+      } ${
+        clear
+          ? "text-[#F5EFE6] [&_a:focus-visible]:outline-[#F5EFE6] [&_button:focus-visible]:outline-[#F5EFE6]"
+          : "text-neutral-900"
       }`}
     >
+      {/* Over the photo, a soft dark fade keeps the cream header text
+          readable on the bright parts of the image. */}
+      {isHome && (
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-x-0 top-0 -z-10 h-[150%] bg-gradient-to-b from-[#1c1410]/55 via-[#1c1410]/25 to-transparent transition-opacity duration-500 ${
+            clear ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
       {/* Frosted paper lives on its own layer: a backdrop-filter on the
           header itself would trap the menu's fixed click-catcher inside the
           header's box. It fades in as the homepage scrolls past the photo. */}
       <span
         aria-hidden="true"
         data-header-frost
-        className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] backdrop-blur-xl backdrop-saturate-150 transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
-          clear ? "opacity-0" : "opacity-100"
-        }`}
+        className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] backdrop-blur-xl backdrop-saturate-150 ${
+          isHome ? "transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+        } ${clear ? "opacity-0" : "opacity-100"}`}
       />
       <nav
         aria-label="Main navigation"
-        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 transition-[padding] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] sm:px-6 lg:gap-6 lg:px-8 xl:gap-8 ${
-          clear ? "py-4 lg:py-5" : "py-2.5 lg:py-3"
-        }`}
+        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 lg:gap-6 lg:px-8 xl:gap-8 ${
+          isHome ? "transition-[padding] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+        } ${clear ? "py-4 lg:py-5" : "py-2.5 lg:py-3"}`}
       >
         {/* Logo: one mask so its color can follow the header from cream over
             the photo to espresso on frosted paper. */}
@@ -444,7 +460,7 @@ export default function Header() {
           <span
             aria-hidden="true"
             data-site-logo-mark
-            className={`logo-mark block h-5 w-[92px] transition-[background-color] duration-500 min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px] ${
+            className={`logo-mark block h-5 w-[92px] ${isHome ? "transition-[background-color] duration-500" : ""} min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px] ${
               clear ? "bg-[#E5DFD2]" : "bg-[#2C1F1A]"
             }`}
           />
@@ -626,7 +642,7 @@ export default function Header() {
                 closeDrawer();
               }
             }}
-            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col overflow-hidden overscroll-contain rounded-2xl bg-[#F7F5F0] text-neutral-900 shadow-2xl ring-1 ring-black/5 outline-none motion-reduce:animate-none ${
+            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-var(--site-header-h)-1.5rem-env(safe-area-inset-top))] flex-col overflow-hidden overscroll-contain rounded-2xl bg-[#F7F5F0] text-neutral-900 shadow-2xl ring-1 ring-black/5 outline-none motion-reduce:animate-none ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >

@@ -76,7 +76,7 @@ export default function FavoriteButton({
       aria-label={saved ? "Remove from favorites" : "Save to favorites"}
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
-      className="group absolute right-0 top-0 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none"
+      className="group/fav absolute right-0 top-0 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none"
       style={{ lineHeight: 0 }}
     >
       {/* Solid white circle keeps the heart readable on any photo. It stays
@@ -85,7 +85,7 @@ export default function FavoriteButton({
           edges. */}
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_4px_14px_-6px_rgba(0,0,0,0.45)] transition-[background-color,scale] duration-150 ease-out group-hover:bg-white motion-safe:group-active:scale-[0.92] group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/40"
+        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_4px_14px_-6px_rgba(0,0,0,0.45)] transition-[background-color,scale] duration-150 ease-out group-hover/fav:bg-white motion-safe:group-active/fav:scale-[0.92] group-focus-visible/fav:ring-2 group-focus-visible/fav:ring-neutral-900 group-focus-visible/fav:ring-offset-2 group-focus-visible/fav:ring-offset-white"
       />
       {popCount > 0 && (
         <span key={`burst-${popCount}`} aria-hidden="true" className="pointer-events-none absolute inset-0">

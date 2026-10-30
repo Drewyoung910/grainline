@@ -201,6 +201,9 @@ export default function SearchBar({
     const v = e.target.value.slice(0, MAX_SEARCH_QUERY_LENGTH);
     const q = normalizeSearchQuery(v);
     setValue(v);
+    // Typing starts a fresh list, so a stale highlight can't be chosen by
+    // Enter while new results load.
+    setActiveIndex(-1);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     suggestionsAbortRef.current?.abort();

@@ -22,7 +22,7 @@ import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
-import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
@@ -551,7 +551,7 @@ async function BrowseContent({
       {clampedPage > 1 ? (
         <Link href={makePageHref(clampedPage - 1)} className="btn btn-sm btn-secondary">← Prev</Link>
       ) : (
-        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">← Prev</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary">← Prev</span>
       )}
       {totalPages > 1 && (
         <span className="px-2 text-neutral-500">
@@ -561,7 +561,7 @@ async function BrowseContent({
       {clampedPage < totalPages ? (
         <Link href={makePageHref(clampedPage + 1)} className="btn btn-sm btn-secondary">Next →</Link>
       ) : (
-        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">Next →</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary">Next →</span>
       )}
     </nav>
   );
@@ -701,7 +701,17 @@ async function BrowseContent({
     const query = p.toString();
     return query ? `/browse?${query}` : "/browse";
   }
-  const priceChipLabel = min && max ? `$${min}–$${max}` : min ? `$${min} and up` : max ? `Under $${max}` : "";
+  // Label the price chip from the amounts actually applied, not the raw URL
+  // text (?min=abc applies nothing and shows no chip).
+  const appliedMinLabel = priceFilter.gte !== undefined ? formatCurrencyCents(priceFilter.gte, DEFAULT_CURRENCY) : null;
+  const appliedMaxLabel = priceFilter.lte !== undefined ? formatCurrencyCents(priceFilter.lte, DEFAULT_CURRENCY) : null;
+  const priceChipLabel = appliedMinLabel && appliedMaxLabel
+    ? `${appliedMinLabel}–${appliedMaxLabel}`
+    : appliedMinLabel
+      ? `${appliedMinLabel} and up`
+      : appliedMaxLabel
+        ? `Under ${appliedMaxLabel}`
+        : "";
   const activeFilterChips: Array<{ key: string; label: string; href: string }> = [
     ...(categoryFilter
       ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]

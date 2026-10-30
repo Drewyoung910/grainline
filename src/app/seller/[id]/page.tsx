@@ -390,12 +390,12 @@ async function SellerPublicContent({
       <section className="mt-4">
         <div className="relative aspect-[3/1]">
           <div className="absolute inset-0 rounded-2xl overflow-hidden">
-            {/* Drawn taller than its frame so it can drift as the page scrolls. */}
+            {/* Shown exactly as the maker cropped it (no drift or zoom). */}
             <MediaImage
               src={seller.bannerImageUrl}
               alt={`${seller.displayName} banner`}
               fetchPriority="high"
-              className="photo-drift absolute inset-x-0 -top-[10%] h-[120%] w-full object-cover"
+              className="w-full h-full object-cover"
               fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
             />
           </div>
@@ -590,7 +590,7 @@ async function SellerPublicContent({
 
           {/* Shop first, as on Etsy: featured work, every listing, then what
               buyers received (customer photos). */}
-          <div id="shop" className="scroll-mt-[calc(var(--site-header-h)+3.5rem)] space-y-10">
+          <div id="shop" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
             {/* Featured Work: asymmetric grid */}
             {(() => {
               // Use seller-curated featured listings if set; otherwise fall back to
@@ -800,7 +800,7 @@ async function SellerPublicContent({
           </div>
 
           {hasAboutSection && (
-            <div id="about" className="scroll-mt-[calc(var(--site-header-h)+3.5rem)] space-y-10">
+            <div id="about" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
               {/* Story | Workshop two-column. The bio renders once, in the header above;
                   a story title with no body has nothing to show. */}
               {(seller.storyBody || seller.workshopImageUrl) && (
@@ -912,7 +912,7 @@ async function SellerPublicContent({
           )}
 
           {hasPolicySection && (
-            <div id="policies" className="scroll-mt-[calc(var(--site-header-h)+3.5rem)] space-y-10">
+            <div id="policies" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
               {/* Policies + FAQ two-column */}
               {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy || seller.faqs.length > 0) && (
                 <section className="smooth-details grid grid-cols-1 lg:grid-cols-2 gap-6">

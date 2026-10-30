@@ -1,7 +1,7 @@
 // src/components/MakersMapSection.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Navigation } from "@/components/icons";
@@ -42,13 +42,33 @@ export default function MakersMapSection({
   const [locating, setLocating] = useState(false);
   const router = useRouter();
 
+  const locatingRef = useRef(false);
+  const locatingResetRef = useRef<number | null>(null);
+  const stopLocating = () => {
+    locatingRef.current = false;
+    setLocating(false);
+    if (locatingResetRef.current !== null) {
+      window.clearTimeout(locatingResetRef.current);
+      locatingResetRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    if (locatingResetRef.current !== null) window.clearTimeout(locatingResetRef.current);
+  }, []);
+
   const onUseMyLocation = () => {
+    // One lookup at a time; a second click would push /map twice.
+    if (locatingRef.current) return;
     setGeoErr(null);
     if (!navigator.geolocation) {
       setGeoErr("Location not available in this browser.");
       return;
     }
+    locatingRef.current = true;
     setLocating(true);
+    // The browser's timeout only starts after permission is granted, so a
+    // dismissed or ignored prompt would leave the spinner going forever.
+    locatingResetRef.current = window.setTimeout(stopLocating, 15000);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const url = new URL("/map", window.location.origin);
@@ -57,7 +77,7 @@ export default function MakersMapSection({
         router.push(url.toString());
       },
       (err) => {
-        setLocating(false);
+        stopLocating();
         setGeoErr(err.message || "Could not get location.");
       },
       { enableHighAccuracy: true, timeout: 8000 }

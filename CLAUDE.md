@@ -2942,8 +2942,8 @@ first pass's rough edges. Behavior future agents must preserve:
   on client-side navigation only; the first page load is never animated.
   The header lives in the root layout, outside the template, so it stays put.
 - **Parallax**: the homepage hero photo (`.hero-parallax` wrapper) and the
-  maker spotlight photo (`.photo-drift`, drawn 120% tall inside an
-  `overflow-hidden` frame) drift with CSS scroll-driven animations only.
+  maker spotlight photo (`.photo-drift`, drawn 112% tall inside an
+  `overflow-clip` frame) drift with CSS scroll-driven animations only.
 - **Popovers** (menu card, search panel) open with a gentle spring.
 - **Batch two**: buttons press in slightly (`scale: 0.97` from the base
   layer, so any `scale-*` utility on a button wins). Add to cart confirms with
@@ -2967,6 +2967,21 @@ first pass's rough edges. Behavior future agents must preserve:
   until the map is on screen (`data-pins-visible`). Not yet done: browse
   filter chips, the card-to-gallery photo morph, and review rating bars (no
   rating breakdown UI exists yet).
+- **Audit fixes (2026-10-30, three-agent review of PR #715)**: the site
+  header is pinned on every page except message threads (`/messages/[id]`,
+  which pin their own chat header and composer); only the homepage animates
+  header padding/color, and over the photo it adds a dark scrim and cream
+  focus outlines for contrast. Maker banners render exactly as cropped (no
+  drift). Scroll-linked effects need `overflow-clip` (not `overflow-hidden`)
+  on their frames and page wrappers, or the timeline attaches to that box and
+  never runs. Section anchors rely on `html` scroll-padding for the header,
+  so page-level `scroll-mt-*` only adds the height of anything else pinned
+  (the maker tab bar uses `scroll-mt-14`); do not stack a header offset
+  again. `SectionTabs` moves focus into the chosen section and never writes
+  the URL hash (that re-syncs Next's router state). `btn` text may wrap
+  (`text-wrap: balance`) and its hover styles apply only on hover devices.
+  The popover pop-in/out classes are disabled under reduced motion. Listing
+  reviews use one `groupBy` for count, average and breakdown.
 - **Batch four**: the maker page (`/seller/[id]`) is one page with an
   Etsy-style sticky section bar (`SectionTabs`): three combined tabs, Shop
   (featured work, every listing, customer photos), About (story, workshop,
@@ -2975,9 +2990,10 @@ first pass's rough edges. Behavior future agents must preserve:
   the section being read, and tapping glides there (sections carry
   `scroll-mt` for the two bars). Drew asked for combined tabs, not one per
   block. Browse shows applied filters as removable espresso chips that pop in
-  (`.filter-chip-in`), with "Clear all". Listing reviews show a 5-to-1 star
-  breakdown whose bars fill on scroll (`.rating-bar-fill`); it counts the
-  same visible reviews as the average, rounding half stars up.
+  (`.filter-chip-in`), with "Clear all"; the price chip shows the amounts
+  actually applied. Listing reviews show a 5-to-1 star breakdown whose bars
+  fill on scroll (`.rating-bar-fill`); it counts the same visible reviews as
+  the average, and a half star counts toward the star below it.
 
 ## Pending Tasks
 

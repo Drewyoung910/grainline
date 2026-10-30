@@ -300,7 +300,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     <>
       {/* ── Desktop sidebar (md+) ── */}
       <aside className="hidden md:block w-52 lg:w-56 shrink-0">
-        <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm p-4 sticky top-[calc(var(--site-header-h)+1rem)]">
+        <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm p-4 sticky top-[calc(var(--site-header-h)+1rem)] max-h-[calc(100dvh-var(--site-header-h)-2rem)] overflow-y-auto overscroll-contain">
           {form}
           {tagsSection}
         </div>

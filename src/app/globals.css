@@ -140,7 +140,7 @@
   font-weight: 500;
   line-height: 1.25;
   text-align: center;
-  white-space: nowrap;
+  text-wrap: balance;
   text-decoration: none;
   cursor: pointer;
   transition:
@@ -168,17 +168,21 @@
 @utility btn-primary {
   background-color: #2C1F1A;
   color: #FBF8F3;
-  &:hover {
-    background-color: #45332B;
-    box-shadow: 0 8px 20px -10px rgba(44, 31, 26, 0.7);
+  @media (hover: hover) {
+    &:hover {
+      background-color: #45332B;
+      box-shadow: 0 8px 20px -10px rgba(44, 31, 26, 0.7);
+    }
   }
 }
 @utility btn-secondary {
   background-color: #FFFFFF;
   color: #1D1714;
   border-color: rgba(44, 31, 26, 0.24);
-  &:hover {
-    border-color: #2C1F1A;
+  @media (hover: hover) {
+    &:hover {
+      border-color: #2C1F1A;
+    }
   }
 }
 
@@ -188,6 +192,11 @@
 .logo-mark {
   -webkit-mask: url("/logo.svg") center / contain no-repeat;
   mask: url("/logo.svg") center / contain no-repeat;
+  /* Keep the tint when printing and in Windows High Contrast, where
+     backgrounds are otherwise dropped or replaced. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  forced-color-adjust: none;
 }
 
 /* Height of the pinned, frosted header. Other sticky elements sit below it
@@ -197,7 +206,7 @@
 }
 @media (min-width: 1024px) {
   :root {
-    --site-header-h: 4.25rem;
+    --site-header-h: 4.375rem;
   }
 }
 html {
@@ -386,10 +395,18 @@ input, textarea, select {
   .animate-slide-down {
     animation: none !important;
   }
-  .animate-pulse {
+  .animate-pulse,
+  .animate-menu-in,
+  .animate-menu-out,
+  .animate-search-pop-in,
+  .animate-search-pop-out,
+  .animate-backdrop-in,
+  .animate-backdrop-out {
     animation: none !important;
   }
-  * {
+  *,
+  *::before,
+  *::after {
     transition-duration: 0.01ms !important;
   }
 }
@@ -557,10 +574,14 @@ input, textarea, select {
     animation: photo-soft-in 0.5s var(--motion-ease-out) backwards;
   }
   .card-shimmer {
-    background:
-      linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0) 70%)
-      #EFEAE0;
-    background-size: 220% 100%;
+    overflow: hidden;
+    background: #EFEAE0;
+  }
+  .card-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0) 70%);
     animation: card-shimmer 1.3s linear infinite;
   }
 
@@ -593,12 +614,12 @@ input, textarea, select {
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes photo-soft-in {
-  from { opacity: 0; transform: scale(1.04); filter: blur(10px); }
-  to   { opacity: 1; transform: scale(1); filter: blur(0); }
+  from { opacity: 0; transform: scale(1.04); }
+  to   { opacity: 1; transform: scale(1); }
 }
 @keyframes card-shimmer {
-  from { background-position: 120% 0; }
-  to   { background-position: -120% 0; }
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }
 @keyframes heart-pop {
   0%   { transform: scale(1); }
@@ -721,6 +742,8 @@ input, textarea, select {
 }
 .smooth-details summary::after {
   content: "+";
+  content: "+" / "";
+  display: inline-block;
   flex: none;
   font-size: 1.25rem;
   font-weight: 300;
@@ -847,8 +870,8 @@ input, textarea, select {
   to   { transform: translateY(30vh); }
 }
 @keyframes photo-drift {
-  from { transform: translateY(-7%); }
-  to   { transform: translateY(7%); }
+  from { transform: translateY(-4.5%); }
+  to   { transform: translateY(4.5%); }
 }
 
 @keyframes search-option-in {

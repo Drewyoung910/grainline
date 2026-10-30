@@ -399,7 +399,7 @@ export default async function HomePage() {
   const weekEnd = sundayForPill.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
-    <main className="overflow-x-hidden">
+    <main className="overflow-x-clip">
       {/* JSON-LD: Organization */}
       <script
         type="application/ld+json"
@@ -764,15 +764,15 @@ export default async function HomePage() {
               </div>
 
               {/* Spotlight card — image half + story half */}
-              <article className="overflow-hidden rounded-3xl bg-[#EFEAE0] shadow-sm lg:grid lg:grid-cols-[1.05fr_1fr]">
+              <article className="overflow-clip rounded-3xl bg-[#EFEAE0] shadow-sm lg:grid lg:grid-cols-[1.05fr_1fr]">
                 {/* Workshop image */}
-                <div className="relative min-h-[240px] overflow-hidden sm:min-h-[300px] lg:min-h-[440px]">
+                <div className="relative min-h-[240px] overflow-clip sm:min-h-[300px] lg:min-h-[440px]">
                   {/* Taller than its frame so it can drift as the card scrolls by. */}
                   <MediaImage
                     src={spotlightImage}
                     alt={`${spotlight.displayName ?? "Maker"} workshop`}
                     loading="lazy"
-                    className="photo-drift absolute inset-x-0 -top-[10%] h-[120%] w-full object-cover"
+                    className="photo-drift absolute inset-x-0 -top-[6%] h-[112%] w-full object-cover"
                     fallbackClassName="absolute inset-0 h-full w-full bg-gradient-to-br from-neutral-800 to-neutral-600"
                   />
                   {/* Identity chip over the photo */}

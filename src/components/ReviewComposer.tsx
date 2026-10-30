@@ -235,7 +235,7 @@ export default function ReviewComposer(props: {
       <div className="pt-1">
         <button
           type="submit"
-          className="btn btn-primary"
+          className="btn btn-primary disabled:pointer-events-auto"
           disabled={submitting || locked}
           title={locked ? "This review is locked" : undefined}
         >

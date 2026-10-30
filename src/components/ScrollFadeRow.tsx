@@ -108,6 +108,11 @@ export default function ScrollFadeRow({
       <button
         type="button"
         aria-label="Scroll back"
+        // Pointer-only affordance: keyboard and screen-reader users move
+        // through the cards themselves, and a focused arrow would lose focus
+        // when it hides at the end of the row.
+        tabIndex={-1}
+        aria-hidden="true"
         onClick={() => scrollByPage(-1)}
         disabled={!canScrollBack}
         className={`${arrowClass} -left-3`}
@@ -117,6 +122,11 @@ export default function ScrollFadeRow({
       <button
         type="button"
         aria-label="Scroll forward"
+        // Pointer-only affordance: keyboard and screen-reader users move
+        // through the cards themselves, and a focused arrow would lose focus
+        // when it hides at the end of the row.
+        tabIndex={-1}
+        aria-hidden="true"
         onClick={() => scrollByPage(1)}
         disabled={!canScrollForward}
         className={`${arrowClass} -right-3`}

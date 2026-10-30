@@ -36,6 +36,12 @@ export default function AllSellersMap({
 }: Props) {
   const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  // Pins drop in the first time each maker appears on screen. Markers are
+  // rebuilt on every pan and source update, so remember which pins have
+  // already dropped; pins built while the map was still off screen keep
+  // their (paused) drop until it scrolls into view.
+  const droppedPinIdsRef = useRef(new Set<string>());
+  const pendingDropIdsRef = useRef(new Set<string>());
 
   // Pin drops wait until the map is on screen (the homepage map starts below
   // the fold); CSS keeps them paused until this attribute appears.
@@ -49,6 +55,8 @@ export default function AllSellersMap({
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
         element.setAttribute("data-pins-visible", "");
+        for (const id of pendingDropIdsRef.current) droppedPinIdsRef.current.add(id);
+        pendingDropIdsRef.current.clear();
         observer.disconnect();
       }
     }, { threshold: 0.25 });
@@ -161,10 +169,6 @@ export default function AllSellersMap({
     map.on("click", () => setSelectedPin(null));
 
     const markers: maplibregl.Marker[] = [];
-    // Pins drop in the first time each maker appears; markers are rebuilt on
-    // every pan, so already-shown pins never replay the drop.
-    const droppedPinIds = new Set<string>();
-    let dropOrder = 0;
 
     // map.resize() can fire moveend before the load handler adds the source;
     // isSourceLoaded() on a missing source logs "There is no tile manager".
@@ -183,6 +187,8 @@ export default function AllSellersMap({
 
       // Deduplicate by feature id since querySourceFeatures can return duplicates across tiles
       const seen = new Set<string>();
+      const pinsVisible = containerRef.current?.hasAttribute("data-pins-visible") ?? false;
+      let dropOrder = 0;
       for (const feature of features) {
         const id = feature.properties?.id as string;
         if (!id || seen.has(id)) continue;
@@ -198,8 +204,9 @@ export default function AllSellersMap({
         // which lives outside the map canvas and can't be clipped by it.
         const selectPin = () => setSelectedPin({ id, name: nameText, city: cityText, state: stateText });
         const pinElement = createMapPinElement();
-        if (!droppedPinIds.has(id)) {
-          droppedPinIds.add(id);
+        if (!droppedPinIdsRef.current.has(id)) {
+          if (pinsVisible) droppedPinIdsRef.current.add(id);
+          else pendingDropIdsRef.current.add(id);
           const pinGraphic = pinElement.firstElementChild as SVGElement | null;
           if (pinGraphic) {
             pinGraphic.classList.add("map-pin-drop");

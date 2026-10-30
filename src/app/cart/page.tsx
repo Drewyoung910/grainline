@@ -281,6 +281,19 @@ function CartPage() {
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
+  // The step entrance plays briefly when the step changes, not whenever the
+  // cart reloads (a quantity change swaps in the loading skeleton and back).
+  const [shownStep, setShownStep] = React.useState(step);
+  const [animateStep, setAnimateStep] = React.useState(false);
+  if (shownStep !== step) {
+    setShownStep(step);
+    setAnimateStep(true);
+  }
+  React.useEffect(() => {
+    if (!animateStep) return;
+    const timer = window.setTimeout(() => setAnimateStep(false), 700);
+    return () => window.clearTimeout(timer);
+  }, [animateStep]);
 
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
@@ -833,12 +846,12 @@ function CartPage() {
   }
 
   return (
-    <main data-cart-steps className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+    <main data-cart-steps={animateStep ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
       {/* Step indicator: the current step sits on a small white pill that
           springs in; each step's content rises in as it appears. */}
-      <div className="rounded-full bg-[#EFEAE0] px-4 py-2 inline-flex items-center gap-2 text-sm mb-6">
+      <div className="mb-6 inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-full bg-[#EFEAE0] px-2 py-1.5 text-sm sm:gap-x-2 sm:px-4 sm:py-2">
         {[
           { key: "review", label: "Cart" },
           { key: "address", label: "Address" },
@@ -849,9 +862,9 @@ function CartPage() {
             {i > 0 && <span className="text-neutral-500" aria-hidden="true">›</span>}
             <span
               aria-current={step === s.key ? "step" : undefined}
-              className={`rounded-full px-2.5 py-0.5 transition-colors duration-300 ${
+              className={`rounded-full px-1.5 py-0.5 transition-colors duration-300 sm:px-2.5 ${
                 step === s.key
-                  ? "step-pill-in bg-white font-semibold text-neutral-900 shadow-sm"
+                  ? `${animateStep ? "step-pill-in " : ""}bg-white font-semibold text-neutral-900 shadow-sm`
                   : "text-neutral-500"
               }`}
             >

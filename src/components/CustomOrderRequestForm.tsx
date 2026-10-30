@@ -152,7 +152,7 @@ export default function CustomOrderRequestForm({
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
+                    className="btn btn-secondary"
                   >
                     Close
                   </button>
@@ -236,7 +236,7 @@ export default function CustomOrderRequestForm({
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>

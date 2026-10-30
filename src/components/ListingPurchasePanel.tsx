@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import VariantSelector, { type VariantGroupForSelector } from "./VariantSelector";
 import BuyNowButton from "./BuyNowButton";
@@ -91,13 +91,15 @@ export default function ListingPurchasePanel({
     [basePriceCents, intentSelectedOptionIds, variantGroups],
   );
   const [totalPriceCents, setTotalPriceCents] = useState(initialPriceCents);
+  // Bump the roll key in the same render as the price change (React's
+  // "adjust state while rendering" pattern), so the new price never shows
+  // for a frame before it rolls in.
   const [priceChangeCount, setPriceChangeCount] = useState(0);
-  const shownPriceRef = useRef(initialPriceCents);
-  useEffect(() => {
-    if (shownPriceRef.current === totalPriceCents) return;
-    shownPriceRef.current = totalPriceCents;
+  const [shownPriceCents, setShownPriceCents] = useState(initialPriceCents);
+  if (shownPriceCents !== totalPriceCents) {
+    setShownPriceCents(totalPriceCents);
     setPriceChangeCount((count) => count + 1);
-  }, [totalPriceCents]);
+  }
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
   const variantRequired = hasVariants;
   const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
@@ -216,7 +218,7 @@ export default function ListingPurchasePanel({
               selectedVariantOptionIds={selectedOptionIds}
               variantRequired={variantRequired}
               autoOpen={shouldAutoOpenBuyNow}
-              className="btn btn-primary w-full min-h-[50px]"
+              className="btn btn-primary w-full min-h-[50px] disabled:opacity-100"
             >
               Buy now
             </BuyNowButton>

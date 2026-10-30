@@ -16,6 +16,7 @@ export default function SectionTabs({
 }) {
   const sectionKey = sections.map((section) => section.id).join("|");
   const [activeId, setActiveId] = React.useState(sections[0]?.id ?? "");
+  const navRef = React.useRef<HTMLElement>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const tabRefs = React.useRef(new Map<string, HTMLAnchorElement>());
   const [indicator, setIndicator] = React.useState<{ left: number; width: number } | null>(null);
@@ -34,14 +35,19 @@ export default function SectionTabs({
     const update = () => {
       frame = 0;
       if (Date.now() < spyPausedUntilRef.current) return;
+      // Only a page that actually scrolled to its end lights the last tab;
+      // a page too short to scroll keeps the first.
       const atBottom =
+        window.scrollY > 0 &&
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
       if (atBottom) {
         setActiveId(ids[ids.length - 1]);
         return;
       }
-      // The section whose top has passed the reading line under the bars.
-      const readingLine = window.innerHeight * 0.3;
+      // The section whose top has passed a reading line just under the
+      // pinned header and this bar.
+      const barBottom = navRef.current?.getBoundingClientRect().bottom ?? 0;
+      const readingLine = Math.max(barBottom + 24, window.innerHeight * 0.25);
       let current = ids[0];
       for (const element of elements) {
         if (element.getBoundingClientRect().top <= readingLine) current = element.id;
@@ -72,12 +78,21 @@ export default function SectionTabs({
       const tabStart = tab.offsetLeft;
       const tabEnd = tabStart + tab.offsetWidth;
       if (tabStart < list.scrollLeft || tabEnd > list.scrollLeft + list.clientWidth) {
-        list.scrollTo({ left: Math.max(0, tabStart - 16), behavior: "smooth" });
+        const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        list.scrollTo({ left: Math.max(0, tabStart - 16), behavior: reduceMotion ? "auto" : "smooth" });
       }
     };
     measure();
+    // Re-measure once the web font has loaded and changed the tab widths.
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) measure();
+    });
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("resize", measure);
+    };
   }, [activeId, sectionKey]);
 
   const goTo = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
@@ -88,13 +103,16 @@ export default function SectionTabs({
     spyPausedUntilRef.current = Date.now() + (reduceMotion ? 0 : 900);
     setActiveId(id);
     target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-    window.history.replaceState(null, "", `#${id}`);
+    // Move keyboard and screen-reader position into the section too. (The
+    // URL hash is left alone: updating it re-syncs Next's router state.)
+    target.focus({ preventScroll: true });
   };
 
   if (sections.length < 2) return null;
 
   return (
     <nav
+      ref={navRef}
       aria-label={label}
       className="sticky top-[var(--site-header-h)] z-30 -mx-2 border-b border-stone-200/70 bg-[#F7F5F0]/90 backdrop-blur-xl sm:-mx-4"
     >
@@ -112,7 +130,7 @@ export default function SectionTabs({
             href={`#${section.id}`}
             aria-current={activeId === section.id ? "location" : undefined}
             onClick={(event) => goTo(event, section.id)}
-            className={`shrink-0 whitespace-nowrap px-3 py-3 text-[15px] font-medium transition-colors duration-200 ${
+            className={`shrink-0 whitespace-nowrap px-3 py-3 text-[15px] font-medium transition-colors duration-200 focus-visible:outline-offset-[-3px] ${
               activeId === section.id ? "text-neutral-900" : "text-neutral-500 hover:text-neutral-900"
             }`}
           >

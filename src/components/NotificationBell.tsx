@@ -447,7 +447,7 @@ export default function NotificationBell({
           role="dialog"
           aria-label="Notifications"
           data-home-notification-surface={overlay ? "true" : undefined}
-          className={`fixed right-3 top-14 md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-2xl text-neutral-900 shadow-2xl motion-reduce:animate-none ${notificationSurfaceClass} ${
+          className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-2xl text-neutral-900 shadow-2xl motion-reduce:animate-none ${notificationSurfaceClass} ${
             closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
           }`}
         >

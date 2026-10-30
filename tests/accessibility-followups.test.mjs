@@ -394,7 +394,9 @@ describe("accessibility follow-ups", () => {
     const searchBar = source("src/components/SearchBar.tsx");
     const makersMap = source("src/components/MakersMapSection.tsx");
 
-    assert.match(home, /<main className="overflow-x-hidden">/);
+    // overflow-x-clip (not hidden) so scroll-driven effects inside the page
+    // attach to the page scroll, not to the main element.
+    assert.match(home, /<main className="overflow-x-clip">/);
     assert.equal((home.match(/<h1\b/g) ?? []).length, 1);
     assert.ok(home.indexOf("<h1") < home.indexOf("<h2"), "homepage h1 should precede section h2s");
     assert.doesNotMatch(home, /<h[4-6]\b/);
