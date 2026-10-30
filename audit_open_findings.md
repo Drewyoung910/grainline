@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-10-18
+Last updated: 2026-10-27
 
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 
@@ -4248,3 +4248,21 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 - **#659, #660, #676–#680, #655, #657, #665, #710–#714 VERIFIED/FIXED/PRODUCTION LIVE:** protected run `39113321452` applied `20261016010000_correct_case_refund_recovery_core` and `20261016011000_correct_case_refund_followup_deadends` on exact main `30f13665fb156a0639fdae3685fc04d714232d89`. The postflight verified all 15 reviewed functions, both exact migration checksums, zero repairable claims, zero unrepairable claims, and `issueCount=0`. The release performed no app deployment or Stripe operation.
 - **Still open and deliberately outside those migrations:** #338, #428, #662, #703–#705, and #715. #662 now has its own behavior-first source candidate above. No RLS expansion resumes until that named launch-blocking money correction is merged and live.
+
+## 2026-10-27 — C-1189 reported-thread staff authorship
+
+- **[VERIFIED/FIX PREPARED; NOT YET MERGED OR PRODUCTION]** PIN-authorized
+  staff could open a reported conversation without becoming a participant, but
+  `ThreadMessages` compared every sender only with the staff viewer. Both real
+  participants therefore rendered as the same left-aligned anonymous “other”
+  user, including ordinary messages and all three structured card shapes. The
+  candidate passes the conversation's two durable participants into a pure
+  presentation boundary, labels every staff-review message as
+  `name · Participant A/B`, aligns the two sides separately, uses each sender's
+  own avatar, and labels any impossible third sender `Unknown participant`
+  instead of silently misattributing it. Participant-facing threads retain
+  their existing labels, alignment, live updates, and actions. The
+  failing-first behavior test had no participant-aware presentation module on
+  the predecessor; 39 focused staff-thread and messaging-policy checks now
+  pass, followed by TypeScript, focused lint, disk-headroom, and diff-integrity
+  checks. Merge and deployment remain separate later actions.

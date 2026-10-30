@@ -15,6 +15,11 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
+import {
+  staffThreadMessagePresentation,
+  type StaffThreadMessagePresentation,
+  type StaffThreadReviewParticipant,
+} from "@/lib/staffThreadMessagePresentation";
 
 type Msg = {
   id: string;
@@ -95,6 +100,23 @@ function PdfChip({ url, name }: { url: string; name?: string | null }) {
   );
 }
 
+function ReviewAuthorLabel({
+  presentation,
+}: {
+  presentation: StaffThreadMessagePresentation | null;
+}) {
+  if (!presentation) return null;
+  return (
+    <div
+      className={`mb-1 text-[11px] font-semibold text-neutral-700 ${
+        presentation.alignRight ? "text-right" : "text-left"
+      }`}
+    >
+      {presentation.authorLabel}
+    </div>
+  );
+}
+
 export default function ThreadMessages({
   convoId,
   meId,
@@ -105,6 +127,7 @@ export default function ThreadMessages({
   refreshEventFormId,
   liveUpdates = true,
   canCreateCustomListings = true,
+  reviewParticipants,
 }: {
   convoId: string;
   meId: string;
@@ -115,6 +138,7 @@ export default function ThreadMessages({
   refreshEventFormId?: string;
   liveUpdates?: boolean;
   canCreateCustomListings?: boolean;
+  reviewParticipants?: readonly StaffThreadReviewParticipant[];
 }) {
   const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
   const [streamError, setStreamError] = React.useState<string | null>(null);
@@ -339,13 +363,14 @@ export default function ThreadMessages({
 
   const boxHeight = typeof height === "number" ? `${height}px` : height ?? "60vh";
 
-  // Pre-compute which messages are the last in each consecutive "other" run
-  // so we only show the avatar on the final bubble of a streak.
-  const isLastInOtherRun = React.useMemo(() => {
+  // Pre-compute the final message in each consecutive sender run. Participant
+  // views still use this only for the other party, while staff review can show
+  // both authors without pretending either participant is the staff viewer.
+  const isLastInSenderRun = React.useMemo(() => {
     const result = new Set<string>();
     for (let i = 0; i < msgs.length; i++) {
       if (msgs[i].senderId !== meId) {
-        const isLast = i === msgs.length - 1 || msgs[i + 1].senderId === meId;
+        const isLast = i === msgs.length - 1 || msgs[i + 1].senderId !== msgs[i].senderId;
         if (isLast) result.add(msgs[i].id);
       }
     }
@@ -393,13 +418,23 @@ export default function ThreadMessages({
       <ul className="min-w-0 space-y-3 pb-4">
         {msgs.map((m) => {
           const mine = m.senderId === meId;
+          const reviewPresentation = staffThreadMessagePresentation(
+            m.senderId,
+            reviewParticipants,
+          );
+          const alignRight = mine || reviewPresentation?.alignRight === true;
           const body = (m.body ?? "").toString().trim();
 
           // ── Commission interest card ────────────────────────────────────
           if (m.kind === "commission_interest_card") {
             const card = parseCommissionInterestMessageBody(body);
             return (
-              <li key={m.id} className="min-w-0 max-w-[90%]">
+              <li
+                key={m.id}
+                aria-label={reviewPresentation ? `Message from ${reviewPresentation.authorLabel}` : undefined}
+                className={`min-w-0 max-w-[90%] ${alignRight ? "ml-auto" : ""}`}
+              >
+                <ReviewAuthorLabel presentation={reviewPresentation} />
                 <div className="min-w-0 space-y-3 overflow-hidden break-words rounded-xl border border-teal-200 bg-teal-50/70 p-4 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-semibold uppercase tracking-wide text-teal-800">Commission Interest</div>
@@ -443,7 +478,12 @@ export default function ThreadMessages({
             const req = parseCustomOrderRequestMessageBody(body);
             const canCreateCustomListing = canCreateCustomListings && !mine;
             return (
-              <li key={m.id} className="min-w-0 max-w-[90%]">
+              <li
+                key={m.id}
+                aria-label={reviewPresentation ? `Message from ${reviewPresentation.authorLabel}` : undefined}
+                className={`min-w-0 max-w-[90%] ${alignRight ? "ml-auto" : ""}`}
+              >
+                <ReviewAuthorLabel presentation={reviewPresentation} />
                 <div className="min-w-0 space-y-2 overflow-hidden break-words rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <div className="text-sm font-semibold text-amber-800">Custom Order Request</div>
                   {req.description && (
@@ -485,7 +525,12 @@ export default function ThreadMessages({
           if (m.kind === "custom_order_link") {
             const link = parseCustomOrderLinkMessageBody(body);
             return (
-              <li key={m.id} className={`min-w-0 max-w-[90%] ${mine ? "ml-auto" : ""}`}>
+              <li
+                key={m.id}
+                aria-label={reviewPresentation ? `Message from ${reviewPresentation.authorLabel}` : undefined}
+                className={`min-w-0 max-w-[90%] ${alignRight ? "ml-auto" : ""}`}
+              >
+                <ReviewAuthorLabel presentation={reviewPresentation} />
                 <div className="min-w-0 space-y-2 overflow-hidden break-words rounded-xl border border-stone-200/60 bg-white p-4 shadow-sm">
                   <div className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900"><Logs size={15} /> Custom Piece Ready</div>
                   {link.title && (
@@ -588,22 +633,24 @@ export default function ThreadMessages({
             bubble = <div className="whitespace-pre-wrap break-words">{body}</div>;
           }
 
-          const showAvatar = !mine && isLastInOtherRun.has(m.id);
-          const avatarPlaceholder = !mine && !isLastInOtherRun.has(m.id);
+          const showAvatar = !mine && isLastInSenderRun.has(m.id);
+          const avatarPlaceholder = !mine && !isLastInSenderRun.has(m.id);
+          const senderAvatar = reviewPresentation?.imageUrl ?? otherAvatar;
 
           return (
             <li
               key={m.id}
-              className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
+              aria-label={reviewPresentation ? `Message from ${reviewPresentation.authorLabel}` : undefined}
+              className={`flex items-end gap-2 ${alignRight ? "justify-end" : "justify-start"}`}
             >
               {/* Avatar slot for other person's messages */}
               {!mine && (
                 <div className="shrink-0 w-8">
                   {showAvatar ? (
                     <div className="h-8 w-8 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
-                      {otherAvatar ? (
+                      {senderAvatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={otherAvatar} alt="" className="h-full w-full object-cover" />
+                        <img src={senderAvatar} alt="" className="h-full w-full object-cover" />
                       ) : null}
                     </div>
                   ) : (
@@ -615,7 +662,8 @@ export default function ThreadMessages({
                 </div>
               )}
 
-              <div className={`min-w-0 max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
+              <div className={`min-w-0 max-w-[75%] sm:max-w-[65%] ${alignRight ? "text-right" : ""}`}>
+                <ReviewAuthorLabel presentation={reviewPresentation} />
                 {m.contextListing ? (
                   <Link
                     href={publicListingPath(m.contextListing.id, m.contextListing.title)}
