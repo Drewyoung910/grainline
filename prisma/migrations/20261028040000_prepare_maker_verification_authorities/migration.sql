@@ -227,18 +227,19 @@ BEGIN
      AND source_seller_guild_level = 'GUILD_MEMBER'::public."GuildLevel"
      AND source_verification_status =
        'GUILD_MASTER_PENDING'::public."VerificationStatus" THEN
-    UPDATE public."MakerVerification"
+    UPDATE public."MakerVerification" AS verification
        SET status = 'REJECTED'::public."VerificationStatus",
            "reviewedById" = p_actor_id,
            "reviewedAt" = source_now,
            "reviewNotes" = 'Guild Member badge revoked by Grainline staff.',
            "updatedAt" = source_now
-     WHERE "sellerProfileId" = target_seller_profile_id
-       AND status = 'GUILD_MASTER_PENDING'::public."VerificationStatus";
+     WHERE verification."sellerProfileId" = target_seller_profile_id
+       AND verification.status =
+         'GUILD_MASTER_PENDING'::public."VerificationStatus";
     GET DIAGNOSTICS verification_changed = ROW_COUNT;
 
     IF verification_changed = 1 THEN
-      UPDATE public."SellerProfilePrivate"
+      UPDATE public."SellerProfilePrivate" AS seller_private
          SET "guildMasterAppliedAt" = NULL,
              "guildMasterReviewNotes" = NULL,
              "consecutiveMetricFailures" = 0,
@@ -246,12 +247,12 @@ BEGIN
              "listingsBelowThresholdSince" = NULL,
              "lastMetricCheckAt" = source_now,
              "updatedAt" = source_now
-       WHERE "sellerProfileId" = target_seller_profile_id;
-      UPDATE public."SellerProfile"
+       WHERE seller_private."sellerProfileId" = target_seller_profile_id;
+      UPDATE public."SellerProfile" AS seller
          SET "guildLevel" = 'NONE'::public."GuildLevel",
              "isVerifiedMaker" = false,
              "updatedAt" = source_now
-       WHERE id = target_seller_profile_id;
+       WHERE seller.id = target_seller_profile_id;
 
       transition_audit_id := pg_catalog.gen_random_uuid()::text;
       INSERT INTO public."AdminAuditLog" (
