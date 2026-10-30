@@ -104,7 +104,7 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
     ]),
   }),
   stock_notification_v1: Object.freeze({
-    minimumCompatibleAppCommit: "e57362b515f41f0f72d7d483dc79a651de6bb711",
+    minimumCompatibleAppCommit: "968315f775c86d84a547d0a6eb3abaeec4662f49",
     predecessorDeploymentId: "dpl_9WW7bJdjnmawMGt89i3SRJXrARPb",
     predecessorSourceCommit: "113f176c362bc136bf55fbc0d32fbc9b5b39a0a5",
     shape: "stock_notification",

@@ -183,7 +183,7 @@ test("StockNotification activation is the byte-sealed owner SELECT/DELETE shape"
   assert.equal(release.shape, "stock_notification");
   assert.equal(
     release.minimumCompatibleAppCommit,
-    "e57362b515f41f0f72d7d483dc79a651de6bb711",
+    "968315f775c86d84a547d0a6eb3abaeec4662f49",
   );
   assert.equal(verified.digest, release.migrationSha256);
   assert.equal(verified.retainedDigest, release.retainedFunctionMigrationSha256);
