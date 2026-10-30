@@ -25,6 +25,7 @@ import { syncSellerProfileDirectUploadReferences } from "@/lib/directUploadLifec
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { normalizeGiftWrappingProfilePrice } from "@/lib/checkoutLineItemContract";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
@@ -175,10 +176,12 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   const offersGiftWrapping = toBool(formData.get("offersGiftWrapping"));
   const giftWrappingPriceCentsRaw = parseMoneyInputToCents(formData.get("giftWrappingPriceCents"));
-  const giftWrappingPriceCents =
+  const giftWrappingPriceCents = normalizeGiftWrappingProfilePrice(
+    offersGiftWrapping,
     giftWrappingPriceCentsRaw !== null
       ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
-      : null;
+      : null,
+  );
 
   let duplicateDisplayName = false;
   await withDbUserContext(seller.userId, async (tx) => {
