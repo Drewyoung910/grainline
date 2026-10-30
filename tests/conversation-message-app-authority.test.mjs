@@ -146,14 +146,16 @@ describe("Conversation and Message application authority conversion", () => {
 
   it("keeps account export and report validation on actor-scoped projections", () => {
     const helper = source("src/lib/conversationMessageAuthority.ts");
+    const reportAccess = source("src/lib/userReportAccess.ts");
     const accountExport = source("src/app/api/account/export/route.ts");
     const report = source("src/app/api/users/[id]/report/route.ts");
 
     assert.match(accountExport, /exportActorMessages\(user\.id\)/);
     assert.match(accountExport, /message\.senderId === user\.id/);
     assert.match(accountExport, /message\.recipientId === user\.id/);
-    assert.match(report, /isActorMessageReportTarget\(/);
-    assert.match(helper, /message report-target RPC returned an invalid result/);
+    assert.match(report, /createUserReport\(\{/);
+    assert.match(reportAccess, /withDbUserContext\(actorUserId/);
+    assert.match(reportAccess, /public\.grainline_user_report_submit/);
     assert.doesNotMatch(accountExport, /prisma\.message\./);
     assert.doesNotMatch(report, /prisma\.(?:message|conversation)\./);
   });

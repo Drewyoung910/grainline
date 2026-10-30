@@ -135,6 +135,11 @@ import {
   BLOCK_PREPARATION_MIGRATION,
   proveBlockPreparedAuthorities,
 } from "../tools/database-full-chain/scenarios/block-authorities.mjs";
+import {
+  proveUserReportPreparedAuthorities,
+  seedUserReportPredecessorFixture,
+  USER_REPORT_PREPARATION_MIGRATION,
+} from "../tools/database-full-chain/scenarios/user-report-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -274,6 +279,8 @@ test(
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
       let blockPreparationPreflightPath;
+      let userReportFixture;
+      let userReportPreparationPreflightPath;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -556,6 +563,30 @@ test(
               0,
               "all five Block functions are new and must be absent before preparation",
             );
+          }
+          if (artifact.name === USER_REPORT_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before UserReport proof");
+            userReportPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "user-report-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "user_report_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  userReportPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
+            userReportFixture = await seedUserReportPredecessorFixture({
+              database: adapter,
+              seller: fixture,
+            });
           }
           if (artifact.name === FAVORITE_RLS_MIGRATION) {
             assert.ok(
@@ -1109,6 +1140,33 @@ test(
       assert.equal(blockPreparationPostflight.state, "applied");
       assert.equal(blockPreparationPostflight.catalog.functions.length, 5);
       await proveBlockPreparedAuthorities({ database: adapter });
+      assert.ok(
+        userReportPreparationPreflightPath,
+        "UserReport Production preflight must run before its preparation",
+      );
+      const userReportPreparationPostflight =
+        await inspectPrivateTablePreparationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "user_report_v1",
+            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              "user-report-preparation-postflight.json",
+            ),
+            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+              userReportPreparationPreflightPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+      assert.equal(userReportPreparationPostflight.state, "applied");
+      assert.equal(userReportPreparationPostflight.catalog.functions.length, 8);
+      assert.ok(userReportFixture, "UserReport predecessor fixture must be seeded");
+      await proveUserReportPreparedAuthorities({
+        database: adapter,
+        fixture: userReportFixture,
+      });
       assert.ok(
         stockNotificationActivationReadyEvidencePath,
         "StockNotification activation preflight must precede activation",

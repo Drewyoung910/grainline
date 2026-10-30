@@ -26,7 +26,8 @@ test("seller report targets require the isolated active-staff authority", () => 
 
 test("admin reports use the bounded staff projection after the PIN gate", () => {
   assert.match(page, /requireAdminPageAccess\(\)/u);
-  assert.match(page, /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/u);
+  assert.match(page, /const staffClient = getOrderStaffReadClient\(\)/u);
+  assert.match(page, /sellerProfileStaffReportTargets\(staffClient, \{/u);
   assert.match(page, /actorId: staff\.id/u);
   assert.doesNotMatch(page, /prisma\.sellerProfile\./u);
   assert.match(access, /grainline_seller_staff_report_targets/u);

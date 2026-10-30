@@ -84,7 +84,19 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
   assert.match(script, /maker_verification_candidate\(function_signature\)/u);
   assert.match(script, /candidate_state\.installed_count > 0/u);
   assert.match(script, /WHERE pg_catalog\.to_regprocedure\(function_signature\) IS NOT NULL;/u);
-  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 26);
+  for (const signature of [
+    'public."grainline_user_report_staff_open_count"(text)',
+    'public."grainline_user_report_staff_open_page"(text, timestamp without time zone, text, integer)',
+    'public."grainline_user_report_staff_top_reporters"(text, timestamp without time zone, integer)',
+    'public."grainline_user_report_staff_resolve"(text, text, text, text)',
+  ]) {
+    assert.match(
+      script,
+      new RegExp(signature.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"),
+    );
+  }
+  assert.match(script, /optional_user_report_staff/u);
+  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 27);
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

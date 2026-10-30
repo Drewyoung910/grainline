@@ -3601,3 +3601,16 @@ projections use fixed ownership. The reusable `block_v1` release catalog keeps
 this preparation byte-sealed and restart-safe. RLS and predecessor table grants
 remain unchanged; production preparation and activation remain separate exact
 approvals.
+
+### UserReport RLS direction (2026-10-29)
+
+Use policyless zero-direct Option B. UserReport is an asymmetric trust ledger:
+submission, received export, submitted export, staff investigation, resolution,
+notification validation, and deletion require different bounded projections.
+Compatible preparation must fix target attribution, oldest-first complete staff
+reachability, accepted-target staff context, and reviewed data invariants.
+Resolution storage splits participant-visible rationale from an internal staff
+note; staff UI labels each audience, participant exports never include the
+internal note, and the privacy-minimized audit witness remains. No purge,
+retention change, column drop, RLS activation, or production change is part of
+the preparation decision.

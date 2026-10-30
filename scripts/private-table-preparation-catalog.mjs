@@ -405,6 +405,71 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  user_report_v1: Object.freeze({
+    migration: "20261030020000_prepare_user_report_authorities",
+    migrationSha256: "f194866b13fd85848e9f15c43b85ca5ac05a00dfe70ec4efddbdb0b4f01e4944",
+    table: "UserReport",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([
+      Object.freeze({
+        name: "internalResolutionNote",
+        type: "character varying(1000)",
+        nullable: true,
+      }),
+    ]),
+    sourceTests: Object.freeze([
+      "tests/user-report-authority-preparation.test.mjs",
+      "tests/user-report-target-access.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_user_report_submit",
+        arguments: "text, text, text, text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_owner_submitted_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_owner_received_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_open_count",
+        arguments: "text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_open_page",
+        arguments: "text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_top_reporters",
+        arguments: "text, timestamp without time zone, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_resolve",
+        arguments: "text, text, text, text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_account_deletion_redact",
+        arguments: "text, bigint, uuid",
+      }),
+    ]),
+  }),
 });
 
 export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
