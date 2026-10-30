@@ -378,6 +378,8 @@ const {
   CART_ITEM_OWNER_COLUMN_PRIVILEGES,
   STOCK_NOTIFICATION_TABLE,
   STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
+  FAVORITE_TABLE,
+  FAVORITE_OWNER_TABLE_PRIVILEGES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -924,6 +926,12 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
+    const favoritePredecessorInventory = {
+      rlsPolicyTables: [],
+    };
+    const favoriteActivatedInventory = {
+      rlsPolicyTables: [FAVORITE_TABLE],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -1398,6 +1406,17 @@ describe("database grant inventory guardrails", () => {
           stockNotificationActivatedInventory,
         ),
         STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
+      );
+    }
+    if (Array.isArray(FAVORITE_OWNER_TABLE_PRIVILEGES)) {
+      assert.deepEqual(FAVORITE_OWNER_TABLE_PRIVILEGES, ["SELECT", "DELETE"]);
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(FAVORITE_TABLE, favoritePredecessorInventory),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(FAVORITE_TABLE, favoriteActivatedInventory),
+        FAVORITE_OWNER_TABLE_PRIVILEGES,
       );
     }
     assert.deepEqual(
@@ -5856,13 +5875,17 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationProvisioningPresent = provision.includes(
       "grainline_stock_notification_rls_active",
     );
+    const favoriteProvisioningPresent = provision.includes(
+      "grainline_favorite_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
         + Number(supportRequestProvisioningPresent)
         + Number(savedBlogPostProvisioningPresent)
         + Number(cartCartItemProvisioningPresent)
-        + Number(stockNotificationProvisioningPresent),
+        + Number(stockNotificationProvisioningPresent)
+        + Number(favoriteProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5915,6 +5938,16 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :grainline_stock_notification_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StockNotification"[\s\S]*GRANT SELECT, DELETE ON TABLE public\."StockNotification"/,
+      );
+    }
+    if (favoriteProvisioningPresent) {
+      assert.match(
+        provision,
+        /Favorite RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :grainline_favorite_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Favorite"[\s\S]*GRANT SELECT, DELETE ON TABLE public\."Favorite"/,
       );
     }
     assert.equal(

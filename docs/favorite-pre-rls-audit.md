@@ -2,7 +2,7 @@
 
 Date: 2026-10-28
 Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`
-Status: compatible preparation proved; no Favorite RLS or table-grant change is authorized yet
+Status: compatible preparation proved; isolated combined ENABLE/FORCE activation candidate proved; no Production activation is authorized
 
 ## Intended Product Behavior
 
