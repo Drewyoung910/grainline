@@ -12,7 +12,9 @@ import test from "node:test";
 
 import {
   PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION,
+  privateTablePreparationMigrationOverride,
   privateTableRlsActivation,
+  privateTableRlsActivationMigrationOverride,
   privateTableRlsActivationReleaseIds,
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
@@ -82,6 +84,62 @@ test("catalog orders and byte-seals the owner social verification activation bat
   }
 });
 
+test("batch source verification prefers each release's staged paths", () => {
+  const previous = new Map();
+  const staged = {
+    FAVORITE_PREPARATION_MIGRATION_PATH:
+      "prisma/migrations/20261028010000_prepare_favorite_authorities",
+    FAVORITE_RLS_ACTIVATION_MIGRATION_PATH:
+      "prisma/migrations/20261028050000_activate_favorite_rls/migration.sql",
+    FOLLOW_PREPARATION_MIGRATION_PATH:
+      "prisma/migrations/20261028020000_prepare_follow_authorities",
+    FOLLOW_RLS_ACTIVATION_MIGRATION_PATH:
+      "prisma/migrations/20261028060000_activate_follow_rls/migration.sql",
+    REVIEW_VOTE_PREPARATION_MIGRATION_PATH:
+      "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql",
+    REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH:
+      "prisma/migrations/20261028070000_activate_review_vote_rls/migration.sql",
+    MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH:
+      "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+    MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH:
+      "prisma/migrations/20261028080000_activate_maker_verification_rls/migration.sql",
+    PRIVATE_TABLE_PREPARATION_MIGRATION_PATH:
+      "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+    PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH:
+      "prisma/migrations/20261028080000_activate_maker_verification_rls/migration.sql",
+  };
+
+  try {
+    for (const [name, value] of Object.entries(staged)) {
+      previous.set(name, process.env[name]);
+      process.env[name] = value;
+    }
+    for (const id of privateTableRlsActivationReleaseIds(
+      "owner_social_verification_v1",
+    )) {
+      const entry = verifyPrivateTableRlsActivationSource(id);
+      assert.equal(entry.migrationDigest, entry.release.migrationSha256);
+      assert.equal(
+        entry.preparation.digest,
+        entry.preparation.release.migrationSha256,
+      );
+    }
+    assert.equal(
+      privateTablePreparationMigrationOverride("favorite_v1"),
+      `${staged.FAVORITE_PREPARATION_MIGRATION_PATH}/migration.sql`,
+    );
+    assert.equal(
+      privateTableRlsActivationMigrationOverride("review_vote_v1"),
+      staged.REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH,
+    );
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
 test("catalog binds all prepared operations into the activation preflight", () => {
   const activation = readFileSync(verified.migrationPath, "utf8");
   assert.equal(release.preparation.functions.length, 13);
@@ -128,10 +186,16 @@ test("catalog verifies isolated migration candidates through generic path overri
     process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH;
   const previousActivationPath =
     process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH;
+  const previousMakerPreparationPath =
+    process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH;
+  const previousMakerActivationPath =
+    process.env.MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH;
 
   try {
     mkdirSync(path.dirname(rollbackPath), { recursive: true });
     copyFileSync(verified.rollbackPath, rollbackPath);
+    delete process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH;
+    delete process.env.MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH;
     process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH =
       verified.preparation.migrationPath;
     process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH =
@@ -158,6 +222,18 @@ test("catalog verifies isolated migration candidates through generic path overri
     } else {
       process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH =
         previousActivationPath;
+    }
+    if (previousMakerPreparationPath === undefined) {
+      delete process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH;
+    } else {
+      process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH =
+        previousMakerPreparationPath;
+    }
+    if (previousMakerActivationPath === undefined) {
+      delete process.env.MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH;
+    } else {
+      process.env.MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH =
+        previousMakerActivationPath;
     }
     rmSync(isolatedRoot, { recursive: true, force: true });
   }

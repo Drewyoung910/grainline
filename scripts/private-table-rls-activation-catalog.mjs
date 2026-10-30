@@ -33,6 +33,18 @@ const NO_FUNCTION_CHANGES = Object.freeze({
   replacements: Object.freeze([]),
   additions: Object.freeze([]),
 });
+const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
+  favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
+  follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
+  review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
+  maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+});
+const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
+  favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
+  follow_v1: "FOLLOW_RLS_ACTIVATION_MIGRATION_PATH",
+  review_vote_v1: "REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH",
+  maker_verification_v1: "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH",
+});
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
   favorite_v1: Object.freeze({
@@ -244,6 +256,34 @@ export function privateTableRlsActivationMigrationPath(release) {
   return `prisma/migrations/${release.migration}/migration.sql`;
 }
 
+function migrationPathOverride(releaseId, envByRelease, genericEnvName) {
+  const releaseEnvName = envByRelease[releaseId];
+  const releasePath = releaseEnvName
+    ? process.env[releaseEnvName]?.trim()
+    : undefined;
+  const configured = releasePath || process.env[genericEnvName]?.trim();
+  if (!configured) return undefined;
+  return configured.endsWith("/migration.sql")
+    ? configured
+    : `${configured}/migration.sql`;
+}
+
+export function privateTablePreparationMigrationOverride(releaseId) {
+  return migrationPathOverride(
+    releaseId,
+    PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE,
+    "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH",
+  );
+}
+
+export function privateTableRlsActivationMigrationOverride(releaseId) {
+  return migrationPathOverride(
+    releaseId,
+    ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE,
+    "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH",
+  );
+}
+
 export function verifyPrivateTableRlsActivationSource(
   releaseId,
   rootDir = process.cwd(),
@@ -252,11 +292,11 @@ export function verifyPrivateTableRlsActivationSource(
   const preparation = verifyPrivateTablePreparationSource(
     release.preparationReleaseId,
     rootDir,
-    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
+    privateTablePreparationMigrationOverride(releaseId),
   );
   const activation = artifact(
     rootDir,
-    process.env.PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH?.trim()
+    privateTableRlsActivationMigrationOverride(releaseId)
       || privateTableRlsActivationMigrationPath(release),
     release.migrationSha256,
     "activation migration",
