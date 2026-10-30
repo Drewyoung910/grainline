@@ -169,6 +169,8 @@ BEGIN
       FROM public."Listing" AS listing
       JOIN public."SellerProfile" AS seller
         ON seller.id = listing."sellerId"
+      JOIN public."SellerProfilePrivate" AS seller_private
+        ON seller_private."sellerProfileId" = seller.id
       JOIN public."User" AS seller_user
         ON seller_user.id = seller."userId"
      WHERE listing.id = p_source_id
@@ -176,8 +178,8 @@ BEGIN
        AND listing."isPrivate" = false
        AND seller."chargesEnabled" = true
        AND seller."vacationMode" = false
-       AND (seller."stripeAccountVersion" IS NULL
-            OR seller."stripeAccountVersion" = 'v2')
+       AND (seller_private."stripeAccountVersion" IS NULL
+            OR seller_private."stripeAccountVersion" = 'v2')
        AND seller_user.banned = false
        AND seller_user."deletedAt" IS NULL;
   ELSE
@@ -186,6 +188,8 @@ BEGIN
       FROM public."BlogPost" AS post
       JOIN public."SellerProfile" AS seller
         ON seller.id = post."sellerProfileId"
+      JOIN public."SellerProfilePrivate" AS seller_private
+        ON seller_private."sellerProfileId" = seller.id
       JOIN public."User" AS seller_user
         ON seller_user.id = seller."userId"
      WHERE post.id = p_source_id
@@ -198,8 +202,8 @@ BEGIN
        AND post."authorAccountActive" = true
        AND seller."chargesEnabled" = true
        AND seller."vacationMode" = false
-       AND (seller."stripeAccountVersion" IS NULL
-            OR seller."stripeAccountVersion" = 'v2')
+       AND (seller_private."stripeAccountVersion" IS NULL
+            OR seller_private."stripeAccountVersion" = 'v2')
        AND seller_user.banned = false
        AND seller_user."deletedAt" IS NULL;
   END IF;
