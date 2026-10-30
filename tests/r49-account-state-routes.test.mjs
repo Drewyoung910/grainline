@@ -53,11 +53,12 @@ describe("R49 account-state route guardrails", () => {
     assert.doesNotMatch(text, /seller:\s*\{[\s\S]*?user:\s*\{/);
   });
 
-  it("logs block follow-cleanup failures through the shared server logger", () => {
+  it("keeps reciprocal block cleanup atomic and logs checkout cleanup failures", () => {
     const text = source("src/app/api/users/[id]/block/route.ts");
+    assert.match(text, /createUserBlock\(me\.id, blockedId\)/);
     assert.match(text, /logServerError\(error, \{/);
-    assert.match(text, /source: "block_follow_cleanup"/);
-    assert.doesNotMatch(text, /console\.error\("Failed to remove follow rows after block:/);
+    assert.match(text, /source: "block_checkout_session_expiry"/);
+    assert.doesNotMatch(text, /prisma\.(?:follow|favorite|stockNotification)\./);
     assert.equal(text.includes("catch { /* non-fatal */ }"), false);
   });
 
@@ -163,15 +164,13 @@ describe("R49 account-state route guardrails", () => {
   it("prevents blocked users from creating favorite notifications", () => {
     const text = source("src/app/api/favorites/route.ts");
 
-    assert.match(text, /prisma\.block\.findFirst/);
-    assert.match(text, /\{ blockerId: me\.id, blockedId: listing\.ownerUserId \}/);
-    assert.match(text, /\{ blockerId: listing\.ownerUserId, blockedId: me\.id \}/);
+    assert.match(text, /userBlockPairIsBlocked\(me\.id, listing\.ownerUserId\)/);
     assert.ok(
-      text.indexOf("prisma.block.findFirst") < text.indexOf("prisma.favorite.upsert"),
+      text.indexOf("userBlockPairIsBlocked(me.id, listing.ownerUserId)") < text.indexOf("prisma.favorite.upsert"),
       "favorite POST should check block state before writing the favorite",
     );
     assert.ok(
-      text.indexOf("prisma.block.findFirst") < text.indexOf("await createNotification"),
+      text.indexOf("userBlockPairIsBlocked(me.id, listing.ownerUserId)") < text.indexOf("await createNotification"),
       "favorite POST should check block state before notifying the seller",
     );
   });

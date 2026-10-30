@@ -17,6 +17,7 @@ import {
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { userBlockPairIsBlocked } from "@/lib/blockAccess";
 import { z } from "zod";
 
 const FavoriteSchema = z.object({
@@ -73,16 +74,9 @@ export async function POST(req: Request) {
   if (listing.ownerUserId === me.id) {
     return privateJson({ error: "Cannot favorite your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
   }
-  const blockExists = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: listing.ownerUserId },
-        { blockerId: listing.ownerUserId, blockedId: me.id },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blockExists) return privateJson({ error: "Blocked" }, { status: HTTP_STATUS.FORBIDDEN });
+  if (await userBlockPairIsBlocked(me.id, listing.ownerUserId)) {
+    return privateJson({ error: "Blocked" }, { status: HTTP_STATUS.FORBIDDEN });
+  }
 
   try {
     await prisma.favorite.upsert({

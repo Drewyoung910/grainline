@@ -110,6 +110,11 @@ import {
   proveStockNotificationRlsRollback,
   seedStockNotificationPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
+import {
+  BLOCK_PREPARATION_MIGRATION,
+  proveBlockPreparedAuthorities,
+} from
+  "../tools/database-full-chain/scenarios/block-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -232,6 +237,7 @@ test(
       let stockNotificationFixture;
       let stockNotificationPredecessorEvidence;
       let stockNotificationPreparationPreflightPath;
+      let blockPreparationPreflightPath;
       let stockNotificationPreparationPostflightClosed = false;
       let stockNotificationActivationReadyEvidencePath;
       class DisposableOwnerClient extends pg.Client {
@@ -437,6 +443,29 @@ test(
             assert.equal(activationReady.state, "ready");
             assert.equal(activationReady.policies.length, 0);
             assert.equal(activationReady.retainedFunctions.length, 10);
+          }
+          if (artifact.name === BLOCK_PREPARATION_MIGRATION) {
+            blockPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "block-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "block_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  blockPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(
+              preparationPreflight.catalog.functions.length,
+              0,
+              "all five Block functions are new and must be absent before preparation",
+            );
           }
         },
         onProgress: ({ index, total, name, retried }) => {
@@ -835,6 +864,29 @@ test(
         database: adapter,
         fixture: stockNotificationFixture,
       });
+      assert.ok(
+        blockPreparationPreflightPath,
+        "Block Production preflight must run before its preparation",
+      );
+      const blockPreparationPostflight =
+        await inspectPrivateTablePreparationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "block_v1",
+            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              "block-preparation-postflight.json",
+            ),
+            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+              blockPreparationPreflightPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+      assert.equal(blockPreparationPostflight.state, "applied");
+      assert.equal(blockPreparationPostflight.catalog.functions.length, 5);
+      await proveBlockPreparedAuthorities({ database: adapter });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),
         "utf8",

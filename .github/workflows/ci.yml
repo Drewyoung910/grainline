@@ -289,6 +289,13 @@ jobs:
           tests/stock-mutation-state.test.mjs
           tests/stock-notification-route.test.mjs
           tests/stock-notification-state.test.mjs
+      - name: Verify Block preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/block-authority-preparation.test.mjs
+          tests/block-preparation-production.test.mjs
+          tests/db-grant-inventory.test.mjs
       - name: Isolate email delivery-ledger preparation until historical release guards pass
         shell: bash
         run: |
@@ -366,6 +373,15 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Isolate Block preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/block-preparation"
+          migration=20261028050000_prepare_block_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6837,6 +6853,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Block preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/block-preparation"
+          migration=20261028050000_prepare_block_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
