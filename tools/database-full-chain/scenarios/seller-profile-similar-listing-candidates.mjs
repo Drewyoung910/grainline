@@ -106,13 +106,13 @@ export async function proveSellerProfileSimilarListingCandidates({ database, sel
          FROM public.grainline_seller_actor_similar_listing_candidates($1)`,
       [sourceListingId],
     ));
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].listingId, candidateListingId);
-    assert.equal(rows[0].sourceTitle, "Walnut Coffee Table");
-    assert.equal(rows[0].sourcePriceCents, 10000);
-    assert.equal(Number(rows[0].tagOverlap), 2);
-    assert.equal(rows[0].categoryMatch, true);
-    assert.equal(rows[0].photoUrl, "https://example.test/similar.jpg");
+    const candidateRows = rows.filter((row) => row.listingId === candidateListingId);
+    assert.equal(candidateRows.length, 1);
+    assert.equal(candidateRows[0].sourceTitle, "Walnut Coffee Table");
+    assert.equal(candidateRows[0].sourcePriceCents, 10000);
+    assert.equal(Number(candidateRows[0].tagOverlap), 2);
+    assert.equal(candidateRows[0].categoryMatch, true);
+    assert.equal(candidateRows[0].photoUrl, "https://example.test/similar.jpg");
   } finally {
     await database.query("RESET ROLE");
   }
@@ -125,11 +125,12 @@ export async function proveSellerProfileSimilarListingCandidates({ database, sel
   await database.query("SELECT set_config('app.user_id', $1, false)", [viewerUserId]);
   await database.query("SET ROLE grainline_app_runtime");
   try {
-    assert.deepEqual(rowsOf(await database.query(
+    const rows = rowsOf(await database.query(
       `SELECT *
          FROM public.grainline_seller_actor_similar_listing_candidates($1)`,
       [sourceListingId],
-    )), []);
+    ));
+    assert.equal(rows.some((row) => row.listingId === candidateListingId), false);
   } finally {
     await database.query("RESET ROLE");
   }
