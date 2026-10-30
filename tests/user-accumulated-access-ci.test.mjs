@@ -482,11 +482,39 @@ function makerVerificationMigrationSourcePath(migration) {
 }
 
 function favoriteActivationMigrationSourcePath() {
-  return path.join(
+  const stagedPath = process.env.FAVORITE_RLS_ACTIVATION_MIGRATION_PATH?.trim() ?? "";
+  if (stagedPath !== "") {
+    assert.ok(
+      path.isAbsolute(stagedPath) && existsSync(stagedPath),
+      "missing absolute isolated Favorite activation migration",
+    );
+    return path.dirname(stagedPath);
+  }
+  const livePath = path.join(
     "prisma",
     "migrations",
     favoriteActivationMigration,
   );
+  if (existsSync(livePath)) return livePath;
+  assert.fail("Favorite activation migration is unavailable");
+}
+
+function reviewVoteActivationMigrationSourcePath() {
+  const stagedPath = process.env.REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH?.trim() ?? "";
+  if (stagedPath !== "") {
+    assert.ok(
+      path.isAbsolute(stagedPath) && existsSync(stagedPath),
+      "missing absolute isolated ReviewVote activation migration",
+    );
+    return path.dirname(stagedPath);
+  }
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    reviewVoteActivationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  assert.fail("ReviewVote activation migration is unavailable");
 }
 
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
@@ -965,6 +993,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       cpSync(
         reviewVotePreparationMigrationSourcePath(),
         reviewVotePreparationTarget,
+        { recursive: true },
+      );
+    }
+    const reviewVoteActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      reviewVoteActivationMigration,
+    );
+    if (!existsSync(reviewVoteActivationTarget)) {
+      cpSync(
+        reviewVoteActivationMigrationSourcePath(),
+        reviewVoteActivationTarget,
         { recursive: true },
       );
     }
