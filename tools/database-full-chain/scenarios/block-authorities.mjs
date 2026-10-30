@@ -333,7 +333,7 @@ export async function proveBlockPreparedAuthorities({ database }) {
       database,
       actorId,
       "SELECT public.grainline_user_block_create($1)",
-      [outsiderId],
+      [targetId],
     ),
     (error) => error?.code === "42501",
     "a banned actor cannot create a new block",
