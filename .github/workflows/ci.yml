@@ -6915,7 +6915,7 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "FOLLOW_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore ReviewVote preparation after historical release guards
+      - name: Restore ReviewVote source packages after historical release guards
         shell: bash
         run: |
           set -euo pipefail
