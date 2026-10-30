@@ -10,7 +10,11 @@ import FavoriteButton from "@/components/FavoriteButton";
 import FilterSidebar from "@/components/FilterSidebar";
 import MobileFilterBar from "@/components/MobileFilterBar";
 import SaveSearchButton from "@/components/SaveSearchButton";
+import SegmentedControl from "@/components/SegmentedControl";
+import SortMenu from "@/components/SortMenu";
 import ClickTracker from "@/components/ClickTracker";
+import FilterChipLink from "@/components/FilterChipLink";
+import RollingNumber from "@/components/RollingNumber";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
 import RecentlyViewed from "@/components/RecentlyViewed";
@@ -21,7 +25,7 @@ import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
-import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
@@ -493,7 +497,7 @@ async function BrowseContent({
       <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
         <MobileFilterBar popularTags={visiblePopularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
-          <div className="sticky top-4 self-start">
+          <div className="sticky top-[calc(var(--site-header-h)+1rem)] self-start">
             <FilterSidebar popularTags={visiblePopularTags} />
           </div>
           <div className="flex-1 min-w-0 space-y-8">
@@ -534,7 +538,7 @@ async function BrowseContent({
               </div>
             )}
 
-            <Link href="/browse" className="inline-flex items-center rounded-md border px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href="/browse" className="btn btn-secondary">
               Browse all listings
             </Link>
           </div>
@@ -548,9 +552,9 @@ async function BrowseContent({
   const Pager = () => (
     <nav className="flex items-center gap-2 text-sm">
       {clampedPage > 1 ? (
-        <Link href={makePageHref(clampedPage - 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">← Prev</Link>
+        <Link href={makePageHref(clampedPage - 1)} className="btn btn-sm btn-secondary">← Prev</Link>
       ) : (
-        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">← Prev</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary">← Prev</span>
       )}
       {totalPages > 1 && (
         <span className="px-2 text-neutral-500">
@@ -558,9 +562,9 @@ async function BrowseContent({
         </span>
       )}
       {clampedPage < totalPages ? (
-        <Link href={makePageHref(clampedPage + 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">Next →</Link>
+        <Link href={makePageHref(clampedPage + 1)} className="btn btn-sm btn-secondary">Next →</Link>
       ) : (
-        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">Next →</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary">Next →</span>
       )}
     </nav>
   );
@@ -668,6 +672,78 @@ async function BrowseContent({
     );
   }
 
+  // Active filters as removable chips (motion prototype): each chip links to
+  // the same results without that filter; new chips pop in.
+  function currentBrowseParams() {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (min) p.set("min", min);
+    if (max) p.set("max", max);
+    if (sort !== (q ? "relevant" : "newest")) p.set("sort", sort);
+    if (categoryFilter) p.set("category", categoryFilter);
+    if (typeFilter) p.set("type", typeFilter);
+    if (shipsFilter) p.set("ships", String(shipsFilter));
+    if (ratingFilter) p.set("rating", String(ratingFilter));
+    if (hasLocationFilter) {
+      p.set("lat", String(latFilter));
+      p.set("lng", String(lngFilter));
+      p.set("radius", String(radiusFilter));
+    }
+    for (const t of selectedTags) p.append("tag", t);
+    if (view !== "grid") p.set("view", view);
+    return p;
+  }
+  function browseHrefWithout(keys: string[], tag?: string) {
+    const p = currentBrowseParams();
+    for (const key of keys) p.delete(key);
+    if (tag !== undefined) {
+      const remaining = p.getAll("tag").filter((t) => t !== tag);
+      p.delete("tag");
+      for (const t of remaining) p.append("tag", t);
+    }
+    const query = p.toString();
+    return query ? `/browse?${query}` : "/browse";
+  }
+  // Label the price chip from the amounts actually applied, not the raw URL
+  // text (?min=abc applies nothing and shows no chip).
+  const appliedMinLabel = priceFilter.gte !== undefined ? formatCurrencyCents(priceFilter.gte, DEFAULT_CURRENCY) : null;
+  const appliedMaxLabel = priceFilter.lte !== undefined ? formatCurrencyCents(priceFilter.lte, DEFAULT_CURRENCY) : null;
+  const priceChipLabel = appliedMinLabel && appliedMaxLabel
+    ? `${appliedMinLabel}–${appliedMaxLabel}`
+    : appliedMinLabel
+      ? `${appliedMinLabel} and up`
+      : appliedMaxLabel
+        ? `Under ${appliedMaxLabel}`
+        : "";
+  const activeFilterChips: Array<{ key: string; label: string; href: string }> = [
+    ...(categoryFilter
+      ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]
+      : []),
+    ...(typeFilter
+      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In Stock" : "Made to order", href: browseHrefWithout(["type"]) }]
+      : []),
+    ...(shipsFilter
+      ? [{ key: "ships", label: `Ships within ${shipsFilter} days`, href: browseHrefWithout(["ships"]) }]
+      : []),
+    ...(ratingFilter
+      ? [{ key: "rating", label: `${ratingFilter}+ stars`, href: browseHrefWithout(["rating"]) }]
+      : []),
+    ...(hasLocationFilter
+      ? [{ key: "location", label: `Within ${radiusFilter} mi`, href: browseHrefWithout(["lat", "lng", "radius"]) }]
+      : []),
+    ...(priceChipLabel
+      ? [{ key: "price", label: priceChipLabel, href: browseHrefWithout(["min", "max"]) }]
+      : []),
+    ...selectedTags.map((tag) => ({
+      key: `tag:${tag}`,
+      label: tag.replace(/[-_]/g, " "),
+      href: browseHrefWithout([], tag),
+    })),
+  ];
+  const clearFiltersHref = browseHrefWithout(
+    ["category", "type", "ships", "rating", "lat", "lng", "radius", "min", "max", "tag"],
+  );
+
   // ── Page render ────────────────────────────────────────────────────────────
   const activeFilterCount = [
     categoryFilter, typeFilter, shipsFilter, ratingFilter, hasLocationFilter ? "loc" : null,
@@ -680,7 +756,7 @@ async function BrowseContent({
       <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
-        <div className="sticky top-4 self-start">
+        <div className="sticky top-[calc(var(--site-header-h)+1rem)] self-start">
           <FilterSidebar popularTags={visiblePopularTags} />
         </div>
 
@@ -699,7 +775,8 @@ async function BrowseContent({
                 )}
               </h1>
               <p className="text-sm text-neutral-500 mt-0.5">
-                {total} {total === 1 ? "result" : "results"}
+                {/* The count rolls to the new total when filters change. */}
+                <RollingNumber value={total} /> {total === 1 ? "result" : "results"}
                 {activeFilterCount > 0 && (
                   <> · {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active</>
                 )}
@@ -707,36 +784,50 @@ async function BrowseContent({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {/* View toggle */}
-              <div className="flex rounded-md border border-neutral-200 bg-white overflow-hidden text-sm">
-                <Link
-                  href={viewToggleHref("grid")}
-                  className={`px-3 py-1.5 transition-colors ${view === "grid" ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
-                >
-                  Grid
-                </Link>
-                <Link
-                  href={viewToggleHref("list")}
-                  className={`px-3 py-1.5 transition-colors ${view === "list" ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
-                >
-                  List
-                </Link>
-              </div>
+              <SortMenu />
+              {/* View toggle: the white thumb slides between Grid and List
+                  (the control is kept across the navigation and moves as
+                  soon as it is clicked). */}
+              <SegmentedControl
+                label="View"
+                size="sm"
+                value={view === "list" ? "list" : "grid"}
+                options={[
+                  { value: "grid", label: "Grid", href: viewToggleHref("grid") },
+                  { value: "list", label: "List", href: viewToggleHref("list") },
+                ]}
+              />
 
               <SaveSearchButton signedIn={!!userId} />
               <Pager />
             </div>
           </div>
 
+          {activeFilterChips.length > 0 && (
+            <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
+              {activeFilterChips.map((chip) => (
+                <FilterChipLink key={chip.key} href={chip.href} label={chip.label} />
+              ))}
+              {activeFilterChips.length > 1 && (
+                <Link
+                  href={clearFiltersHref}
+                  className="text-[13.5px] text-neutral-600 underline underline-offset-[3px] hover:text-neutral-900"
+                >
+                  Clear all
+                </Link>
+              )}
+            </div>
+          )}
+
           {/* Listings */}
           {view === "grid" ? (
-            <ul className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
+            <ul className="results-stagger grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
               {listings.map((l) => (
                 <GridCard key={l.id} l={l} />
               ))}
             </ul>
           ) : (
-            <ul className="space-y-4">
+            <ul className="results-stagger space-y-4">
               {listings.map((l) => (
                 <ClickTracker key={l.id} listingId={l.id} className="card-listing">
                   <ListCard l={l} />

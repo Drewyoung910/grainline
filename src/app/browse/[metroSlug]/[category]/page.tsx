@@ -237,7 +237,7 @@ export default async function BrowseMetroCategoryPage({
             href={`/browse/${metroSlug}/${cat.toLowerCase()}`}
             className={`flex-none whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               cat === categoryKey
-                ? "bg-neutral-900 text-white"
+                ? "bg-[#2C1F1A] text-white"
                 : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >

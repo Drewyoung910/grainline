@@ -448,7 +448,7 @@ export default function SellerHandbookPage() {
         </p>
         <Link
           href="/become-a-maker"
-          className="inline-flex items-center rounded-md bg-neutral-900 text-white px-6 py-3 text-sm font-medium hover:bg-neutral-800 transition-colors"
+          className="inline-flex items-center rounded-md bg-[#2C1F1A] text-white px-6 py-3 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
         >
           Become a maker →
         </Link>

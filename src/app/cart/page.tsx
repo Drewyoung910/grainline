@@ -28,6 +28,8 @@ import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
+import RollingAmount from "@/components/RollingAmount";
+import { useToast } from "@/components/Toast";
 
 function CartLoadingSkeleton() {
   return (
@@ -84,7 +86,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
       <div className="p-10 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600">
+        <div className="float-gently mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-[#2C1F1A]">
           <ShoppingBag size={28} />
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
@@ -118,6 +120,8 @@ type CartItem = {
   variantUnavailable?: boolean;
   stockExceeded?: boolean;
   variantLabels?: string[];
+  // Used to put a removed line back exactly as it was (Undo).
+  selectedVariantOptionIds?: string[];
   listing: {
     id: string;
     title: string;
@@ -184,6 +188,7 @@ function cartItemsFromAnonymous(items: AnonymousCartItem[]): CartItem[] {
     variantUnavailable: false,
     stockExceeded: false,
     variantLabels: item.snapshot.variantLabels ?? [],
+    selectedVariantOptionIds: item.selectedVariantOptionIds,
     listing: {
       id: item.listingId,
       title: item.snapshot.title,
@@ -259,6 +264,13 @@ function CartPage() {
   const router = useRouter();
 
   const [items, setItems] = React.useState<CartItem[]>([]);
+  const { toast } = useToast();
+  // The full skeleton is for the first load only. Later reloads (quantity
+  // changes, price refreshes) keep the cart on screen so totals can roll to
+  // their new values instead of the whole page flashing.
+  const [hasLoadedCart, setHasLoadedCart] = React.useState(false);
+  // Rows fade out briefly before a removal is sent.
+  const [removingIds, setRemovingIds] = React.useState<ReadonlySet<string>>(() => new Set());
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
@@ -281,6 +293,19 @@ function CartPage() {
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
+  // The step entrance plays briefly when the step changes, not whenever the
+  // cart re-renders after a reload.
+  const [shownStep, setShownStep] = React.useState(step);
+  const [animateStep, setAnimateStep] = React.useState(false);
+  if (shownStep !== step) {
+    setShownStep(step);
+    setAnimateStep(true);
+  }
+  React.useEffect(() => {
+    if (!animateStep) return;
+    const timer = window.setTimeout(() => setAnimateStep(false), 700);
+    return () => window.clearTimeout(timer);
+  }, [animateStep]);
 
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
@@ -391,7 +416,6 @@ function CartPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    setNeedsSignIn(false);
     try {
       const anonymousItems = readAnonymousCartItems();
       const res = await fetch("/api/cart", { cache: "no-store" });
@@ -400,6 +424,9 @@ function CartPage() {
         setItems(cartItemsFromAnonymous(anonymousItems));
         return;
       }
+      // Cleared only once the server answers, so a reload never flashes the
+      // signed-in layout over a signed-out cart.
+      setNeedsSignIn(false);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || "Failed to load cart");
@@ -432,6 +459,7 @@ function CartPage() {
       setError((e as Error).message || "Failed to load cart");
     } finally {
       setLoading(false);
+      setHasLoadedCart(true);
     }
   }
 
@@ -445,7 +473,7 @@ function CartPage() {
       const result = updateAnonymousCartItem(cartItemId, quantity);
       if (!result.ok) {
         setError("Could not update your saved cart in this browser.");
-        return;
+        return false;
       }
       setItems(cartItemsFromAnonymous(result.items));
       notifyCartUpdated();
@@ -454,7 +482,7 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
-      return;
+      return true;
     }
 
     try {
@@ -473,8 +501,52 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
+    }
+  }
+
+  // Undo for a removed line: the saved browser cart gets the exact entry
+  // back in its old place; an account cart re-adds the same piece, options
+  // and quantity (at today's price).
+  async function restoreRemovedItem(
+    removed: CartItem,
+    anonymousEntry: { item: AnonymousCartItem; index: number } | null,
+  ) {
+    setError(null);
+    try {
+      if (anonymousEntry) {
+        const current = readAnonymousCartItems();
+        if (!current.some((entry) => entry.lineKey === anonymousEntry.item.lineKey)) {
+          const next = [...current];
+          next.splice(Math.min(anonymousEntry.index, next.length), 0, anonymousEntry.item);
+          if (!writeAnonymousCartItems(next)) throw new Error("Could not restore that item in this browser.");
+          setItems(cartItemsFromAnonymous(next));
+        }
+      } else {
+        const res = await fetch("/api/cart/add", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            listingId: removed.listing.id,
+            quantity: removed.quantity,
+            selectedVariantOptionIds: removed.selectedVariantOptionIds ?? [],
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Could not put that item back.");
+        await load();
+      }
+      notifyCartUpdated();
+      clearCartSessionStorage();
+      setSelectedRates({});
+      setClientSecrets([]);
+      setCurrentPaymentIndex(0);
+      clearCompletedCheckoutSessions();
+    } catch (e) {
+      toast((e as Error).message || "Could not put that item back.", "error");
     }
   }
 
@@ -504,20 +576,58 @@ function CartPage() {
     }
   }
 
-  if (loading) return <CartLoadingSkeleton />;
+  if (loading && !hasLoadedCart) return <CartLoadingSkeleton />;
+
+  // While a reload or a removal is in flight, quantity controls wait so two
+  // updates cannot race each other's reload.
+  const cartBusy = loading || removingIds.size > 0;
+
+  const removeItem = (cartItemId: string) => {
+    if (removingIds.has(cartItemId)) return;
+    const removed = items.find((item) => item.id === cartItemId);
+    let anonymousEntry: { item: AnonymousCartItem; index: number } | null = null;
+    if (needsSignIn) {
+      const saved = readAnonymousCartItems();
+      const index = saved.findIndex((entry) => entry.lineKey === cartItemId);
+      if (index >= 0) anonymousEntry = { item: saved[index], index };
+    }
+    const offerUndo = (ok: boolean) => {
+      if (!ok || !removed) return;
+      toast("Removed from your cart", "info", {
+        action: { label: "Undo", onClick: () => void restoreRemovedItem(removed, anonymousEntry) },
+      });
+    };
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      void setQuantity(cartItemId, 0).then(offerUndo);
+      return;
+    }
+    setRemovingIds((current) => new Set(current).add(cartItemId));
+    window.setTimeout(() => {
+      void setQuantity(cartItemId, 0)
+        .then(offerUndo)
+        .finally(() => {
+          setRemovingIds((current) => {
+            const next = new Set(current);
+            next.delete(cartItemId);
+            return next;
+          });
+        });
+    }, 240);
+  };
 
   if (needsSignIn && items.length === 0) {
     return (
       <CartEmptyState>
         <Link
           href="/browse"
-          className="rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800"
+          className="btn btn-primary"
         >
           Browse the workshop
         </Link>
         <Link
           href={signInPathForRedirect("/cart")}
-          className="rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          className="btn btn-secondary"
         >
           Sign in
         </Link>
@@ -530,7 +640,7 @@ function CartPage() {
       <CartEmptyState>
         <Link
           href="/browse"
-          className="rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800"
+          className="btn btn-primary"
         >
           Browse the workshop
         </Link>
@@ -580,7 +690,7 @@ function CartPage() {
             <span className="font-medium">{g.sellerName}</span>
           </div>
           <div className="text-sm">
-            Subtotal: <span className="font-semibold">{formatCurrencyCents(g.subtotalCents, g.currency)}</span>
+            Subtotal: <RollingAmount cents={g.subtotalCents} currency={g.currency} className="font-semibold" />
           </div>
         </header>
 
@@ -593,7 +703,11 @@ function CartPage() {
             const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
-              <li key={i.id} className="flex items-center gap-3 py-3">
+              <li
+                key={i.id}
+                className={`flex items-center gap-3 py-3${removingIds.has(i.id) ? " cart-row-leaving" : ""}`}
+                aria-busy={removingIds.has(i.id) || undefined}
+              >
                 {img ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
@@ -667,6 +781,7 @@ function CartPage() {
                             id={quantitySelectId}
                             className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
                             value={i.quantity}
+                            disabled={cartBusy}
                             onChange={(e) => setQuantity(i.id, Number(e.target.value))}
                           >
                             {Array.from({ length: maxQty }).map((_, idx) => {
@@ -682,8 +797,9 @@ function CartPage() {
 
                     <button
                       type="button"
-                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50"
-                      onClick={() => setQuantity(i.id, 0)}
+                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50 disabled:opacity-50"
+                      disabled={cartBusy}
+                      onClick={() => removeItem(i.id)}
                     >
                       Remove
                     </button>
@@ -691,7 +807,7 @@ function CartPage() {
                 </div>
 
                 <div className="text-sm font-medium shrink-0">
-                  {formatCurrencyCents(lineCents, i.listing.currency)}
+                  <RollingAmount cents={lineCents} currency={i.listing.currency} />
                 </div>
               </li>
             );
@@ -833,11 +949,12 @@ function CartPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+    <main data-cart-steps={animateStep ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
-      {/* Step indicator */}
-      <div className="rounded-full bg-[#EFEAE0] px-4 py-2 inline-flex items-center gap-2 text-sm mb-6">
+      {/* Step indicator: the current step sits on a small white pill that
+          springs in; each step's content rises in as it appears. */}
+      <div className="mb-6 inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-full bg-[#EFEAE0] px-2 py-1.5 text-sm sm:gap-x-2 sm:px-4 sm:py-2">
         {[
           { key: "review", label: "Cart" },
           { key: "address", label: "Address" },
@@ -846,11 +963,14 @@ function CartPage() {
         ].map((s, i) => (
           <span key={s.key} className="flex items-center gap-2">
             {i > 0 && <span className="text-neutral-500" aria-hidden="true">›</span>}
-            <span className={
-              step === s.key
-                ? "text-neutral-900 font-semibold"
-                : "text-neutral-500"
-            }>
+            <span
+              aria-current={step === s.key ? "step" : undefined}
+              className={`rounded-full px-1.5 py-0.5 transition-colors duration-300 sm:px-2.5 ${
+                step === s.key
+                  ? `${animateStep ? "step-pill-in " : ""}bg-white font-semibold text-neutral-900 shadow-sm`
+                  : "text-neutral-500"
+              }`}
+            >
               {s.label}
             </span>
           </span>
@@ -870,7 +990,9 @@ function CartPage() {
 
           <div className="flex items-center justify-end gap-4">
             <div className="text-sm text-neutral-600">Subtotal (items only)</div>
-            <div className="text-lg font-semibold">{formatCurrencyCents(grandTotal, cartCurrency)}</div>
+            <div className="text-lg font-semibold">
+              <RollingAmount cents={grandTotal} currency={cartCurrency} />
+            </div>
           </div>
 
           {hasUnavailable && (
@@ -915,7 +1037,7 @@ function CartPage() {
           {needsSignIn ? (
             <Link
               href={signInPathForRedirect("/cart")}
-              className="inline-flex w-full items-center justify-center rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
+              className="btn btn-primary w-full sm:w-auto"
             >
               Sign in to checkout →
             </Link>
@@ -926,7 +1048,7 @@ function CartPage() {
                 router.replace("/cart?step=address", { scroll: false });
               }}
               disabled={items.length === 0 || hasBlockingCartChange}
-              className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+              className="btn btn-primary mt-6 w-full sm:w-auto"
             >
               Continue to shipping →
             </button>
@@ -1019,16 +1141,14 @@ function CartPage() {
                 {groups.some((g) => giftBySeller[g.sellerId]?.giftWrapping) && (
                   <div className="flex justify-between text-sm text-neutral-600">
                     <span>Gift wrapping</span>
-                    <span>
-                      {formatCurrencyCents(totalGiftWrappingCents, cartCurrency)}
-                    </span>
+                    <RollingAmount cents={totalGiftWrappingCents} currency={cartCurrency} />
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Shipping</span>
                   <span className="font-medium">
                     {allRatesSelected
-                      ? formatCurrencyCents(totalShippingCents, cartCurrency)
+                      ? <RollingAmount cents={totalShippingCents} currency={cartCurrency} />
                       : "Selecting..."}
                   </span>
                 </div>
@@ -1041,7 +1161,7 @@ function CartPage() {
                   <span className="text-neutral-900">Estimated total</span>
                   <span className="font-semibold">
                     {allRatesSelected
-                      ? formatCurrencyCents(grandTotal + totalShippingCents + totalGiftWrappingCents, cartCurrency)
+                      ? <RollingAmount cents={grandTotal + totalShippingCents + totalGiftWrappingCents} currency={cartCurrency} />
                       : `${formatCurrencyCents(grandTotal + totalGiftWrappingCents, cartCurrency)}+`}
                   </span>
                 </div>
@@ -1050,7 +1170,7 @@ function CartPage() {
               <button
                 onClick={handleProceedToPayment}
                 disabled={!allRatesSelected || creatingSession || hasBlockingCartChange}
-                className="w-full rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary w-full"
               >
                 {creatingSession ? "Preparing checkout..." : "Continue to payment →"}
               </button>

@@ -486,7 +486,7 @@ export default async function ListingPage({
           : "Preview mode — this is how your listing appears to buyers. It is not yet published."}
       </div>
     )}
-    <main className="max-w-[1600px] mx-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 pb-16 pt-6">
+    <main className="max-w-[1600px] mx-auto overflow-x-clip px-4 sm:px-6 lg:px-8 pb-16 pt-6">
       <ListingViewTracker listingId={listingId} />
       <RecentlyViewedTracker listingId={listingId} />
       {/* JSON-LD */}
@@ -595,12 +595,12 @@ export default async function ListingPage({
                   listingId={listingId}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
+                  triggerClassName="btn btn-sm btn-secondary"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
-                  className="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
+                  className="btn btn-sm btn-secondary"
                 >
                   <Wrench size={15} />
                   Request Something Similar
@@ -688,14 +688,14 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
+                  className="btn btn-sm btn-secondary"
                 >
                   Message maker
                 </Link>
               )}
               <Link
                 href={sellerHref}
-                className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
+                className="btn btn-sm btn-secondary"
               >
                 Visit Shop
               </Link>

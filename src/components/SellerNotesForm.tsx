@@ -114,7 +114,7 @@ export default function SellerNotesForm({
           type="button"
           onClick={handleSave}
           disabled={isPending || !draft.trim()}
-          className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 disabled:opacity-50"
+          className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#3A2A24] disabled:opacity-50"
         >
           {isPending ? "Saving..." : "Add note"}
         </button>

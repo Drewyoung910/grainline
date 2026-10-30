@@ -56,7 +56,7 @@ export default function ProfileAvatarUploader({
           cropAspect={1}
           allowMultiple={false}
           appearance={{
-            button: "rounded-md bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-800",
+            button: "rounded-md bg-[#2C1F1A] px-3 py-2 text-sm text-white hover:bg-[#3A2A24]",
             container: "inline-block",
             allowedContent: "hidden",
           }}

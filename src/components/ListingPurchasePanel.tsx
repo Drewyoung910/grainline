@@ -6,6 +6,7 @@ import VariantSelector, { type VariantGroupForSelector } from "./VariantSelector
 import BuyNowButton from "./BuyNowButton";
 import AddToCartButton from "./AddToCartButton";
 import NotifyMeButton from "./NotifyMeButton";
+import RollingAmount from "./RollingAmount";
 import { Gift } from "./icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
@@ -94,6 +95,7 @@ export default function ListingPurchasePanel({
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
   const variantRequired = hasVariants;
   const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
+  const [blockedVariantAttempts, setBlockedVariantAttempts] = useState(0);
   const canPurchase = canBuy && sellerAcceptingNewOrders;
   const displayCurrency = currency ?? DEFAULT_CURRENCY;
   const selectedVariantLabels = useMemo(() => {
@@ -127,7 +129,8 @@ export default function ListingPurchasePanel({
       {/* Price + rating */}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <div className="min-w-0 text-3xl font-semibold">
-          {formatCurrencyCents(totalPriceCents, displayCurrency)}
+          {/* Rolls to the new total when an option changes the price. */}
+          <RollingAmount cents={totalPriceCents} currency={displayCurrency} />
           {hasVariants && totalPriceCents !== basePriceCents && (
             <span className="text-base font-normal text-neutral-500 ml-2 line-through">
               {formatCurrencyCents(basePriceCents, displayCurrency)}
@@ -151,6 +154,7 @@ export default function ListingPurchasePanel({
           currency={displayCurrency}
           onSelectionChange={handleSelectionChange}
           initialSelectedOptionIds={intentSelectedOptionIds}
+          blockedAttemptCount={blockedVariantAttempts}
         />
       )}
 
@@ -185,9 +189,16 @@ export default function ListingPurchasePanel({
         />
       )}
 
-      {/* Buy buttons */}
+      {/* Buy buttons. A click before every option is chosen also flags the
+          missing choice next to the options (the buttons show their own
+          message too). */}
       {canPurchase && (
-        <div className="flex flex-col gap-2">
+        <div
+          className="flex flex-col gap-2"
+          onClickCapture={() => {
+            if (!variantSelectionComplete) setBlockedVariantAttempts((count) => count + 1);
+          }}
+        >
           {userId ? (
             <BuyNowButton
               listingId={listingId}
@@ -202,7 +213,7 @@ export default function ListingPurchasePanel({
               selectedVariantOptionIds={selectedOptionIds}
               variantRequired={variantRequired}
               autoOpen={shouldAutoOpenBuyNow}
-              className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
+              className="btn btn-primary w-full min-h-[50px] disabled:opacity-100"
             >
               Buy now
             </BuyNowButton>
@@ -216,7 +227,7 @@ export default function ListingPurchasePanel({
                 }
                 window.location.href = signUpPathForRedirect(buyNowRedirectPath);
               }}
-              className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
+              className="btn btn-primary w-full min-h-[50px]"
             >
               Sign up to buy
             </button>
@@ -240,7 +251,7 @@ export default function ListingPurchasePanel({
               offersGiftWrapping,
               giftWrappingPriceCents,
             }}
-            className="w-full rounded-md bg-[#F7F5F0] px-4 py-3 text-sm font-medium text-neutral-900 min-h-[48px] hover:bg-white transition-colors"
+            className="btn btn-secondary w-full min-h-[50px]"
           />
         </div>
       )}

@@ -400,17 +400,17 @@ export default function NotificationBell({
   };
 
   const notificationSurfaceClass = overlay
-    ? "border border-white/30 bg-[#F7F5F0]/58 ring-1 ring-white/20 backdrop-blur-xl"
-    : "ring-1 ring-black/5 bg-white";
+    ? "border border-white/30 bg-[#F7F5F0]/58 backdrop-blur-xl"
+    : "bg-white";
   const notificationHeaderClass = overlay
     ? "border-b border-[#2C1F1A]/[0.12] bg-[#EFEAE0]/30"
-    : "bg-[#EFEAE0] border-b border-stone-200/60";
+    : "border-b border-[#2C1F1A]/[0.08]";
   const notificationDividerClass = overlay
     ? "divide-[#2C1F1A]/10"
     : "divide-neutral-100";
   const notificationRowHoverClass = overlay
     ? "hover:bg-white/20"
-    : "hover:bg-neutral-50";
+    : "hover:bg-[#F7F5F0]";
   const notificationUnreadClass = overlay
     ? "bg-[#EFEAE0]/55"
     : "bg-[#EFEAE0]/50";
@@ -426,7 +426,7 @@ export default function NotificationBell({
     <div className="relative flex" ref={containerRef}>
       <button
         onClick={handleOpen}
-        className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
+        className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out hover:bg-current/10 motion-safe:active:scale-[0.92]"
         aria-label="Notifications"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -447,7 +447,7 @@ export default function NotificationBell({
           role="dialog"
           aria-label="Notifications"
           data-home-notification-surface={overlay ? "true" : undefined}
-          className={`fixed right-3 top-14 md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-2xl text-neutral-900 shadow-2xl motion-reduce:animate-none ${notificationSurfaceClass} ${
+          className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-[18px] text-neutral-900 popover-shadow motion-reduce:animate-none ${notificationSurfaceClass} ${
             closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
           }`}
         >

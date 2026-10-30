@@ -260,7 +260,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
               setSaveAddress(e.target.checked);
               if (!e.target.checked) setSaveError(null);
             }}
-            className="h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300"
+            className="h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-[#2C1F1A] focus:ring-neutral-300"
           />
           Save this address for future orders
         </label>
@@ -285,7 +285,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         <button
           type="submit"
           disabled={saving}
-          className="rounded-md bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 w-full sm:w-auto"
+          className="btn btn-primary w-full sm:w-auto"
         >
           {saving ? "Saving..." : "Continue to shipping"}
         </button>

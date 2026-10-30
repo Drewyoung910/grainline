@@ -1,7 +1,7 @@
 // src/components/MakersMapSection.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Navigation } from "@/components/icons";
@@ -38,14 +38,37 @@ export default function MakersMapSection({
   compact?: boolean;
 }) {
   const [geoErr, setGeoErr] = useState<string | null>(null);
+  // The location icon spins while the browser looks up the position.
+  const [locating, setLocating] = useState(false);
   const router = useRouter();
 
+  const locatingRef = useRef(false);
+  const locatingResetRef = useRef<number | null>(null);
+  const stopLocating = () => {
+    locatingRef.current = false;
+    setLocating(false);
+    if (locatingResetRef.current !== null) {
+      window.clearTimeout(locatingResetRef.current);
+      locatingResetRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    if (locatingResetRef.current !== null) window.clearTimeout(locatingResetRef.current);
+  }, []);
+
   const onUseMyLocation = () => {
+    // One lookup at a time; a second click would push /map twice.
+    if (locatingRef.current) return;
     setGeoErr(null);
     if (!navigator.geolocation) {
       setGeoErr("Location not available in this browser.");
       return;
     }
+    locatingRef.current = true;
+    setLocating(true);
+    // The browser's timeout only starts after permission is granted, so a
+    // dismissed or ignored prompt would leave the spinner going forever.
+    locatingResetRef.current = window.setTimeout(stopLocating, 15000);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const url = new URL("/map", window.location.origin);
@@ -53,7 +76,10 @@ export default function MakersMapSection({
         url.searchParams.set("zoom", "12");
         router.push(url.toString());
       },
-      (err) => setGeoErr(err.message || "Could not get location."),
+      (err) => {
+        stopLocating();
+        setGeoErr(err.message || "Could not get location.");
+      },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
@@ -70,14 +96,15 @@ export default function MakersMapSection({
             <button
               type="button"
               onClick={onUseMyLocation}
-              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
+              aria-busy={locating || undefined}
+              className="btn btn-primary"
             >
-              <Navigation size={15} className="shrink-0" />
-              Use my location
+              <Navigation size={15} className={`shrink-0${locating ? " motion-safe:animate-spin" : ""}`} />
+              {locating ? "Finding you…" : "Use my location"}
             </button>
             <a
               href="/map"
-              className="inline-flex min-h-11 items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#EFEAE0] transition-colors"
+              className="btn btn-secondary"
             >
               Explore the full map
             </a>

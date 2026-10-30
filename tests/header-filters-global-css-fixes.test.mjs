@@ -75,7 +75,7 @@ describe("mobile filter and sort sheets (UI-17 / #1234)", () => {
   const header = source("src/components/Header.tsx");
 
   it("stack the backdrop and sheet above the site header", () => {
-    const headerZ = Number(header.match(/\} z-\[(\d+)\] text-neutral-900/)?.[1]);
+    const headerZ = Number(header.match(/"relative"\} inset-x-0 top-0 z-\[(\d+)\]/)?.[1]);
     assert.equal(headerZ, 50);
     const sheetZ = [...sheets.matchAll(/fixed inset-(?:0|x-0 bottom-0) z-\[(\d+)\]/g)].map((m) => Number(m[1]));
     assert.equal(sheetZ.length, 4, "two backdrops and two sheets");
@@ -153,7 +153,8 @@ describe("global CSS layering (UI-08, UI-11, #1270, #1275)", () => {
       if (rule.params === "font-display") utility = rule;
     });
     assert.ok(utility, "missing @utility font-display");
-    assert.match(utility.toString(), /font-family: Georgia, 'Times New Roman', serif;/);
+    // Newsreader from next/font (2026-10-30 font switch), Georgia as fallback.
+    assert.match(utility.toString(), /font-family: var\(--font-newsreader\), "Iowan Old Style", Georgia, serif;/);
   });
 
   it("hides the prose backticks around Seller Handbook code words (#1275)", () => {
@@ -204,10 +205,19 @@ describe("branded root error page (UI-09)", () => {
 });
 
 describe("variant selection reminder", () => {
-  it("waits until the buyer has started choosing", () => {
+  it("waits until the buyer has started choosing or tried to buy early", () => {
     const selector = source("src/components/VariantSelector.tsx");
     assert.match(selector, /const anySelected = groups\.some\(\(g\) => selected\[g\.id\]\);/);
-    assert.match(selector, /groups\.length > 0 && anySelected && !allSelected && \(/);
+    assert.match(
+      selector,
+      /groups\.length > 0 && \(anySelected \|\| blockedAttemptCount > 0\) && !allSelected && \(/,
+    );
+    // An early Buy or Add click restarts the shake through the key and
+    // announces the missing choice.
+    assert.match(selector, /key=\{blockedAttemptCount\}/);
+    assert.match(selector, /role=\{blockedAttemptCount > 0 \? "alert" : undefined\}/);
+    const panel = source("src/components/ListingPurchasePanel.tsx");
+    assert.match(panel, /onClickCapture=\{\(\) => \{\s*if \(!variantSelectionComplete\) setBlockedVariantAttempts/);
   });
 });
 

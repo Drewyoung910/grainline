@@ -20,7 +20,8 @@ describe("niche surfaces use the shared visual contract", () => {
 
     assert.match(
       source("src/components/SupportRequestForm.tsx"),
-      /min-h-11 items-center gap-2 rounded-md bg-neutral-900/,
+      // Shared prototype pill button (2026-10-30).
+      /className="btn btn-primary"/,
     );
   });
 

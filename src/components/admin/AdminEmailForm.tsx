@@ -122,7 +122,7 @@ export function AdminEmailForm({
           type="button"
           onClick={handleSend}
           disabled={status === "sending" || !subject.trim() || !body.trim() || (!userId && !toEmail.trim())}
-          className="px-3 py-1.5 bg-neutral-900 text-white text-xs rounded hover:bg-neutral-700 disabled:opacity-50"
+          className="px-3 py-1.5 bg-[#2C1F1A] text-white text-xs rounded hover:bg-[#3A2A24] disabled:opacity-50"
         >
           {status === "sending" ? "Sending..." : "Send"}
         </button>

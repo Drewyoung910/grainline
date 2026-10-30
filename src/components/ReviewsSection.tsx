@@ -102,14 +102,28 @@ export default async function ReviewsSection({
     ...blockedReviewerFilter,
   };
 
-  // Aggregate
-  const agg = await prisma.review.aggregate({
+  // One grouped query gives the count, the average and the star breakdown
+  // over the same visible reviews (no extra round trip for the breakdown).
+  const ratingGroups = await prisma.review.groupBy({
+    by: ["ratingX2"],
     where: visibleReviewWhere,
-    _avg: { ratingX2: true },
     _count: { _all: true },
   });
-  const avg = agg._avg.ratingX2 ? agg._avg.ratingX2 / 2 : null;
+  const totalReviewCount = ratingGroups.reduce((sum, group) => sum + group._count._all, 0);
+  const agg = { _count: { _all: totalReviewCount } };
+  const avg = totalReviewCount > 0
+    ? ratingGroups.reduce((sum, group) => sum + group.ratingX2 * group._count._all, 0) / totalReviewCount / 2
+    : null;
   const avgQuarter = avg != null ? quarterRound(avg) : null;
+
+  // Breakdown rows 5 to 1; a half star counts toward the whole star below it,
+  // so a row never overstates the rating.
+  const starCounts = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: ratingGroups
+      .filter((group) => Math.min(5, Math.max(1, Math.floor(group.ratingX2 / 2))) === star)
+      .reduce((sum, group) => sum + group._count._all, 0),
+  }));
 
   // Viewer's review (full)
   const mine = meId
@@ -170,7 +184,7 @@ export default async function ReviewsSection({
     (mine ? Date.now() - new Date(mine.createdAt).getTime() > 90 * 24 * 60 * 60 * 1000 : false);
 
   return (
-    <section id="reviews" className="space-y-4 mt-8 scroll-mt-20">
+    <section id="reviews" className="space-y-4 mt-8">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold font-display">Reviews</h2>
         {avgQuarter != null && (
@@ -181,6 +195,25 @@ export default async function ReviewsSection({
           </div>
         )}
       </div>
+
+      {agg._count._all > 1 && (
+        <dl aria-label="Rating breakdown" className="grid max-w-sm gap-1.5">
+          {starCounts.map(({ star, count }) => {
+            const pct = Math.round((count / agg._count._all) * 100);
+            return (
+              <div key={star} className="grid grid-cols-[3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5 text-[13px] text-neutral-500 tabular-nums">
+                <dt className="whitespace-nowrap">{star} star{star === 1 ? "" : "s"}</dt>
+                <dd className="h-1.5 overflow-clip rounded-full bg-[#EFEAE0]">
+                  {/* The bar fills as the breakdown scrolls into view. */}
+                  <span className="rating-bar-fill block h-full rounded-full bg-[#A8803A]" style={{ width: `${pct}%` }} />
+                  <span className="sr-only">{pct}%</span>
+                </dd>
+                <dd className="text-right">{count}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
 
       {/* My review block — cream inset so "yours" reads differently from other reviews */}
       {mine ? (
@@ -270,7 +303,7 @@ export default async function ReviewsSection({
                 href={sortHref(k, edit)}
                 className={`whitespace-nowrap rounded-full px-3 py-1 font-medium transition-colors ${
                   active
-                    ? "bg-neutral-900 text-white hover:bg-neutral-700"
+                    ? "bg-[#2C1F1A] text-white hover:bg-[#3A2A24]"
                     : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
                 }`}
                 scroll={false}

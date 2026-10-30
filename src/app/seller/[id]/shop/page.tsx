@@ -292,7 +292,7 @@ export default async function SellerShopPage({
             href={shopUrl({ category: null, page: 1 })}
             className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
               !category
-                ? "bg-neutral-900 text-white"
+                ? "bg-[#2C1F1A] text-white"
                 : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
@@ -304,7 +304,7 @@ export default async function SellerShopPage({
               href={shopUrl({ category: cat, page: 1 })}
               className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                 category === cat
-                  ? "bg-neutral-900 text-white"
+                  ? "bg-[#2C1F1A] text-white"
                   : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
               }`}
             >
@@ -344,7 +344,7 @@ export default async function SellerShopPage({
               href={shopUrl({ status: tab.value || null, page: 1 })}
               className={`inline-flex min-h-7 shrink-0 items-center rounded-full px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11 ${
                 statusFilter === tab.value
-                  ? "bg-neutral-900 text-white"
+                  ? "bg-[#2C1F1A] text-white"
                   : "bg-[#EFEAE0] text-neutral-700 hover:bg-[#E3DCCB]"
               }`}
             >

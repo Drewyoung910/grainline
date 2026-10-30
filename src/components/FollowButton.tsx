@@ -72,25 +72,14 @@ export default function FollowButton({
     }
   }
 
-  const base =
-    size === "sm"
-      ? "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60"
-      : "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60";
-
-  let style: string;
-  if (variant === "cream") {
-    style = following
-      ? `${base} bg-neutral-900 text-white hover:bg-neutral-700`
-      : `${base} bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]`;
-  } else {
-    // default variant — preserve legacy white-bordered look used in other surfaces
-    style = following
-      ? `${base} border border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-700`
-      : `${base} border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50`;
-  }
+  // Prototype pill buttons: Follow is the primary action; once following it
+  // settles into the quieter secondary pill. Both variants share the pills;
+  // `variant` is kept for callers that still pass it.
+  const base = size === "sm" ? "btn btn-sm" : "btn";
+  const style = following ? `${base} btn-secondary` : `${base} btn-primary`;
 
   return (
-    <button type="button" onClick={toggle} disabled={loading} aria-pressed={following} className={style}>
+    <button type="button" onClick={toggle} aria-busy={loading || undefined} aria-pressed={following} data-variant={variant} className={style}>
       {following ? <>Following <span aria-hidden="true">✓</span></> : "Follow"}
       <span className="text-xs opacity-70">· <RollingNumber value={count} /></span>
     </button>

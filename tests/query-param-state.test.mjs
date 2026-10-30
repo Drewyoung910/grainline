@@ -238,7 +238,10 @@ describe("query parameter parsing helpers", () => {
     assert.doesNotMatch(map, /Number\(latStr\)/);
     assert.doesNotMatch(map, /Number\(lngStr\)/);
     assert.doesNotMatch(map, /parseInt\(zoom/);
-    assert.match(filters, /name="ships"[\s\S]*max="365"/);
-    assert.match(filters, /name="radius"[\s\S]*max="500"/);
+    // The desktop filters offer fixed choices, all inside the server bounds.
+    const shipsChoices = JSON.parse(filters.match(/const SHIPS_WITHIN_OPTIONS = (\[[^\]]*\])/)[1]).map(Number);
+    const radiusChoices = JSON.parse(filters.match(/const RADIUS_OPTIONS = (\[[^\]]*\])/)[1]).map(Number);
+    assert.ok(shipsChoices.every((days) => days >= 1 && days <= 365));
+    assert.ok(radiusChoices.every((miles) => miles >= 1 && miles <= 500));
   });
 });

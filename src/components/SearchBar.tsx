@@ -23,7 +23,7 @@ type SearchOption =
   | { kind: "category"; key: string; section: "Categories"; value: string; label: string }
   | { kind: "item"; key: string; section: SuggestionSection; item: SearchSuggestionItem; label: string }
   | { kind: "blog"; key: string; section: "Stories"; slug: string; label: string }
-  | { kind: "query"; key: string; section: "No matches"; label: string };
+  | { kind: "query"; key: string; section: "No matches" | "Search"; label: string };
 const MAX_SEARCH_QUERY_LENGTH = 200;
 const FALLBACK_POPULAR_SEARCHES = ["furniture", "kitchen", "decor", "gifts", "woodworking"];
 
@@ -66,13 +66,24 @@ function isSuggestionItem(value: unknown): value is SearchSuggestionItem {
   );
 }
 
+// "glass" sits on the homepage photo while the header is clear; "solid" is
+// every other state. Either way the box turns solid white while focused, and
+// the suggestions panel is always solid so it reads over any background.
+export type SearchBarTone = "glass" | "solid";
+
+// How long the suggestions keep their entrance stagger after the panel opens.
+// Later result updates swap in place, so typing never replays the animation.
+const SUGGESTION_STAGGER_MS = 520;
+const SUGGESTION_DEBOUNCE_MS = 150;
+
 export default function SearchBar({
   autoFocus = false,
-  overlay = false,
+  tone = "solid",
 }: {
   autoFocus?: boolean;
-  overlay?: boolean;
+  tone?: SearchBarTone;
 }) {
+  const glass = tone === "glass";
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -94,6 +105,10 @@ export default function SearchBar({
   const [popularTags, setPopularTags] = React.useState<string[]>([]);
   const [popularLoaded, setPopularLoaded] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
+  // True only for the first moment after the panel opens, so the entrance
+  // stagger plays once instead of on every keystroke.
+  const [staggerItems, setStaggerItems] = React.useState(false);
+  const staggerTimerRef = React.useRef<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,6 +125,15 @@ export default function SearchBar({
     if (closeTimerRef.current !== null) {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
+    }
+    const wasVisible = dropdownStateRef.current.open && !dropdownStateRef.current.closing;
+    if (!wasVisible) {
+      if (staggerTimerRef.current !== null) window.clearTimeout(staggerTimerRef.current);
+      setStaggerItems(true);
+      staggerTimerRef.current = window.setTimeout(() => {
+        setStaggerItems(false);
+        staggerTimerRef.current = null;
+      }, SUGGESTION_STAGGER_MS);
     }
     setClosing(false);
     setOpen(true);
@@ -168,6 +192,7 @@ export default function SearchBar({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+      if (staggerTimerRef.current !== null) window.clearTimeout(staggerTimerRef.current);
       suggestionsAbortRef.current?.abort();
     };
   }, []);
@@ -176,6 +201,9 @@ export default function SearchBar({
     const v = e.target.value.slice(0, MAX_SEARCH_QUERY_LENGTH);
     const q = normalizeSearchQuery(v);
     setValue(v);
+    // Typing starts a fresh list, so a stale highlight can't be chosen by
+    // Enter while new results load.
+    setActiveIndex(-1);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     suggestionsAbortRef.current?.abort();
@@ -187,14 +215,11 @@ export default function SearchBar({
       setCategories([]);
       setNoMatches(false);
       setActiveIndex(-1);
-      if (v.length === 0) {
-        // Field cleared while still focused — bring the popular-searches
-        // panel back instead of leaving the dropdown dead until refocus.
-        void loadPopularTags();
-        openDropdown();
-      } else {
-        closeDropdown();
-      }
+      // Keep the panel open while typing the first letter: it narrows the
+      // recommended searches locally instead of closing and reopening,
+      // which made the dropdown flash between states.
+      void loadPopularTags();
+      openDropdown();
       return;
     }
 
@@ -224,18 +249,18 @@ export default function SearchBar({
       } catch (error) {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
         if (requestId !== suggestionsRequestRef.current) return;
+        // Fall back to the local "Search for" row instead of closing.
         setItems([]);
         setBlogs([]);
         setCategories([]);
         setNoMatches(false);
-        closeDropdown();
         setActiveIndex(-1);
       } finally {
         if (suggestionsAbortRef.current === controller) {
           suggestionsAbortRef.current = null;
         }
       }
-    }, 300);
+    }, SUGGESTION_DEBOUNCE_MS);
   }
 
   const hasItems = items.length > 0 || blogs.length > 0 || categories.length > 0;
@@ -243,31 +268,34 @@ export default function SearchBar({
     () => (popularTags.length > 0 ? popularTags : FALLBACK_POPULAR_SEARCHES),
     [popularTags],
   );
-  const showPopular = open && value.length === 0 && visiblePopularTags.length > 0;
+  const query = normalizeSearchQuery(value);
   const options = React.useMemo<SearchOption[]>(() => {
     if (!open) return [];
-    if (showPopular) {
-      return visiblePopularTags.map((tag) => ({
+    const prefix = query.toLowerCase();
+    const recommended = (tags: string[]): SearchOption[] =>
+      tags.map((tag) => ({
         kind: "tag",
         key: `tag:${tag}`,
         section: "Recommended searches",
         label: tag,
       }));
-    }
+    if (query.length === 0) return recommended(visiblePopularTags);
     if (!hasItems) {
-      const query = normalizeSearchQuery(value);
-      return noMatches && query.length >= 2
-        ? [{ kind: "query", key: "query", section: "No matches", label: query }]
-        : [];
+      if (noMatches && query.length >= 2) {
+        return [{ kind: "query", key: "query", section: "No matches", label: query }];
+      }
+      // First letter, or results still on their way: narrow the recommended
+      // searches locally and offer the typed search, so the panel stays put.
+      const matching = visiblePopularTags.filter((tag) =>
+        humanizeSearchTag(tag).toLowerCase().includes(prefix),
+      );
+      return [
+        { kind: "query", key: "query", section: "Search", label: query },
+        ...recommended(matching.slice(0, 5)),
+      ];
     }
+    // Pieces and shops first, then categories, then stories.
     return [
-      ...categories.map((cat) => ({
-        kind: "category" as const,
-        key: `category:${cat.value}`,
-        section: "Categories" as const,
-        value: cat.value,
-        label: cat.label,
-      })),
       ...ITEM_SECTION_ORDER.flatMap((type) =>
         items
           .filter((item) => item.type === type)
@@ -279,6 +307,13 @@ export default function SearchBar({
             label: item.label,
           })),
       ),
+      ...categories.map((cat) => ({
+        kind: "category" as const,
+        key: `category:${cat.value}`,
+        section: "Categories" as const,
+        value: cat.value,
+        label: cat.label,
+      })),
       ...blogs.map((blog) => ({
         kind: "blog" as const,
         key: `blog:${blog.slug}`,
@@ -287,7 +322,7 @@ export default function SearchBar({
         label: blog.title,
       })),
     ];
-  }, [blogs, categories, hasItems, items, noMatches, open, showPopular, value, visiblePopularTags]);
+  }, [blogs, categories, hasItems, items, noMatches, open, query, visiblePopularTags]);
 
   React.useEffect(() => {
     setActiveIndex((index) => {
@@ -405,24 +440,21 @@ export default function SearchBar({
           Search Grainline
         </label>
         <div
-          className={`flex min-h-[46px] items-stretch overflow-hidden rounded-2xl border shadow-sm transition-[border-color,box-shadow,background-color] ${
-            overlay
-              ? "border-white/25 bg-[#F7F5F0]/34 backdrop-blur-lg focus-within:border-white/45 focus-within:bg-[#F7F5F0]/48 focus-within:ring-2 focus-within:ring-white/20"
-              : "border-neutral-200 bg-white/90 focus-within:border-neutral-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-neutral-900/10"
+          data-search-tone={tone}
+          className={`flex min-h-[46px] items-stretch overflow-hidden rounded-full border transition-[background-color,border-color,box-shadow,color] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] focus-within:border-white focus-within:bg-white focus-within:text-neutral-900 focus-within:shadow-[0_14px_40px_-18px_rgba(0,0,0,0.45)] ${
+            glass
+              ? "border-white/35 bg-white/15 text-[#F5EFE6] backdrop-blur-md"
+              : "border-[#2C1F1A]/[0.18] bg-white text-neutral-900"
           }`}
         >
           <button
             type="submit"
             aria-label="Search"
-            className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-900 focus-visible:outline-none"
+            className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-current opacity-80 transition-opacity hover:opacity-100 focus-visible:outline-none"
           >
             <span
               aria-hidden="true"
-              className={`flex size-9 items-center justify-center rounded-full transition-colors ${
-                overlay
-                  ? "group-hover:bg-white/30 group-active:bg-white/40 group-focus-visible:ring-2 group-focus-visible:ring-white/45"
-                  : "group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
-              }`}
+              className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-current/10 group-active:bg-current/15 group-focus-visible:ring-2 group-focus-visible:ring-current/30"
             >
               <Search size={18} />
             </span>
@@ -434,15 +466,11 @@ export default function SearchBar({
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onFocus={() => {
-              if (value.length === 0) {
-                loadPopularTags();
-                openDropdown();
-              } else if (hasItems || noMatches) {
-                openDropdown();
-              }
+              void loadPopularTags();
+              openDropdown();
             }}
             placeholder="Search pieces, shops, and more…"
-            className="min-w-0 flex-1 bg-transparent py-2.5 pl-0 pr-2 text-neutral-900 placeholder:text-neutral-500 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
+            className="min-w-0 flex-1 bg-transparent py-2.5 pl-0 pr-2 text-[15px] text-current placeholder:text-current placeholder:opacity-70 focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
             autoComplete="off"
             enterKeyHint="search"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
@@ -462,15 +490,11 @@ export default function SearchBar({
               // opens in place instead of blurring the field.
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
-              className="group flex min-w-11 items-center justify-center rounded-full text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:outline-none"
+              className="group flex min-w-11 items-center justify-center rounded-full text-current opacity-60 transition-opacity hover:opacity-100 focus-visible:outline-none"
             >
               <span
                 aria-hidden="true"
-                className={`flex size-9 items-center justify-center rounded-full transition-colors ${
-                  overlay
-                    ? "group-hover:bg-white/30 group-active:bg-white/40 group-focus-visible:ring-2 group-focus-visible:ring-white/45"
-                    : "group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
-                }`}
+                className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-current/10 group-active:bg-current/15 group-focus-visible:ring-2 group-focus-visible:ring-current/30"
               >
                 <X size={15} />
               </span>
@@ -483,20 +507,17 @@ export default function SearchBar({
         <ul
           id={searchListboxId}
           role="listbox"
-          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border text-neutral-900 shadow-lg motion-reduce:animate-none ${
-            overlay
-              ? "border-white/30 bg-[#F7F5F0]/64 ring-1 ring-white/20 backdrop-blur-xl"
-              : "border-stone-200/60 bg-white/95 backdrop-blur-lg"
-          } ${closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"}`}
+          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] origin-top overflow-y-auto overscroll-contain rounded-2xl bg-white p-1.5 text-neutral-900 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-[#2C1F1A]/[0.12] motion-reduce:animate-none ${
+            closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
+          }`}
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>
-              {(index === 0 || options[index - 1].section !== option.section) && (
+              {option.section !== "Search"
+                && (index === 0 || options[index - 1].section !== option.section) && (
                 <li
                   role="presentation"
-                  className={`px-4 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500 ${
-                    index > 0 ? "border-t border-neutral-100" : ""
-                  }`}
+                  className="px-3 pb-1.5 pt-2.5 text-[11px] font-medium uppercase tracking-[0.1em] text-neutral-500"
                 >
                   {option.section}
                 </li>
@@ -505,7 +526,7 @@ export default function SearchBar({
                 id={`${searchListboxId}-${index}`}
                 role="option"
                 aria-selected={activeIndex === index}
-                className="search-option-in"
+                className={staggerItems ? "search-option-in" : undefined}
                 style={{ "--search-option-index": Math.min(index, 8) } as React.CSSProperties}
               >
                 <button
@@ -516,11 +537,9 @@ export default function SearchBar({
                     e.preventDefault();
                     chooseOption(option);
                   }}
-                  className={`w-full rounded-none px-4 py-2 text-left text-sm ${
-                    overlay ? "hover:bg-white/20" : "hover:bg-neutral-50"
-                  } ${
-                    activeIndex === index ? (overlay ? "bg-white/30" : "bg-neutral-100") : ""
-                  } ${option.kind === "item" && option.item.type === "search" ? "" : "flex items-center gap-2"}`}
+                  className={`w-full rounded-lg px-3 py-2 text-left text-[15px] transition-colors duration-150 hover:bg-[#F7F5F0] ${
+                    activeIndex === index ? "bg-[#F7F5F0]" : ""
+                  } ${option.kind === "item" && option.item.type === "search" ? "" : "flex items-center gap-2.5"}`}
                 >
                   {(option.kind === "tag" || option.kind === "query") && (
                     <Search size={12} className="text-neutral-500" />

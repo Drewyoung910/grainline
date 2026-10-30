@@ -187,7 +187,7 @@ export default function ReviewComposer(props: {
                   title="Remove"
                   aria-label="Remove photo"
                   onClick={() => setPhotoUrls(photoUrls.filter((u) => u !== url))}
-                  className="absolute -top-3 -right-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white text-lg shadow-sm hover:bg-neutral-800 transition-colors"
+                  className="absolute -top-3 -right-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#2C1F1A] text-white text-lg shadow-sm hover:bg-[#3A2A24] transition-colors"
                 >
                   ×
                 </button>
@@ -235,7 +235,7 @@ export default function ReviewComposer(props: {
       <div className="pt-1">
         <button
           type="submit"
-          className="inline-flex items-center rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] text-white px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+          className="btn btn-primary disabled:pointer-events-auto"
           disabled={submitting || locked}
           title={locked ? "This review is locked" : undefined}
         >

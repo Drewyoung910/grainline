@@ -114,7 +114,7 @@ export default function SellerGallery({
               src={allImages[lightboxIndex]?.url ?? ""}
               alt={allImages[lightboxIndex]?.alt || `Gallery image ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
-              fallbackClassName="h-[60vh] w-[80vw] max-w-full bg-neutral-900"
+              fallbackClassName="h-[60vh] w-[80vw] max-w-full bg-[#2C1F1A]"
             />
             {allImages.length > 1 && (
               <p className="text-center text-white text-sm mt-2 opacity-60">

@@ -169,7 +169,7 @@ export default function LabelSection({
           <button
             onClick={confirmRate}
             disabled={!selectedRate || confirming}
-            className="rounded bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="rounded-full bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50"
           >
             {confirming ? "Purchasing…" : "Purchase label"}
           </button>
@@ -196,7 +196,7 @@ export default function LabelSection({
       <button
         onClick={() => purchaseLabel()}
         disabled={loading}
-        className="rounded bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+        className="rounded-full bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50"
       >
         {loading ? "Purchasing…" : "Purchase Label"}
       </button>

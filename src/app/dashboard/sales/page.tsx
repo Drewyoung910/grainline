@@ -106,7 +106,7 @@ async function SalesContent({
           <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href="/dashboard/onboarding"
-              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
+              className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3A2A24]"
             >
               Continue setup →
             </Link>

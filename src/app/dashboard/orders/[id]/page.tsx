@@ -541,7 +541,7 @@ export default async function BuyerOrderDetailPage({
                 confirm={method === "PICKUP"
                   ? "Confirm that you picked up this order?"
                   : "Confirm that you received this order?"}
-                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
               >
                 {method === "PICKUP" ? "Confirm pickup" : "Confirm delivery"}
               </ConfirmButton>

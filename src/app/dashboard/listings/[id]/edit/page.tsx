@@ -918,7 +918,7 @@ export default async function EditListingPage(props: {
                 disabled={!chargesEnabled}
                 pendingLabel="Publishing..."
                 title={publishDisabledTitle}
-                className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-md bg-[#2C1F1A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {listing.status === "REJECTED" ? "Publish (Resubmit)" : "Publish"}
               </SubmitButton>

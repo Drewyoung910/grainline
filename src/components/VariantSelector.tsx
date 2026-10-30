@@ -30,12 +30,16 @@ export default function VariantSelector({
   currency = DEFAULT_CURRENCY,
   onSelectionChange,
   initialSelectedOptionIds = [],
+  blockedAttemptCount = 0,
 }: {
   groups: VariantGroupForSelector[];
   basePriceCents: number;
   currency?: string | null;
   onSelectionChange: (selectedOptionIds: string[], totalPriceCents: number) => void;
   initialSelectedOptionIds?: string[];
+  // Bumped each time the buyer tries to buy before choosing every option;
+  // the reminder then appears (even with nothing chosen yet) and shakes.
+  blockedAttemptCount?: number;
 }) {
   const baseId = useId();
   // Map of groupId -> selected optionId
@@ -160,7 +164,7 @@ export default function VariantSelector({
             {inks[group.id] && (
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute left-0 top-0 z-[1] rounded-md bg-neutral-900 motion-safe:transition-[translate,width,height] motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.2,0.7,0.2,1)]"
+                className="pointer-events-none absolute left-0 top-0 z-[1] rounded-md bg-[#2C1F1A] motion-safe:transition-[translate,width,height] motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.2,0.7,0.2,1)]"
                 style={{
                   width: inks[group.id].width,
                   height: inks[group.id].height,
@@ -204,7 +208,7 @@ export default function VariantSelector({
                     showsInk
                       ? "z-[2] border-transparent bg-transparent text-white duration-150 motion-safe:delay-[130ms] motion-safe:active:scale-[0.97]"
                       : isSelected
-                        ? "z-[2] border-neutral-900 bg-neutral-900 text-white duration-200 motion-safe:active:scale-[0.97]"
+                        ? "z-[2] border-[#2C1F1A] bg-[#2C1F1A] text-white duration-200 motion-safe:active:scale-[0.97]"
                         : opt.inStock
                           ? "border-neutral-200 bg-[#F7F5F0] text-neutral-700 duration-200 hover:border-neutral-400 hover:bg-white motion-safe:active:scale-[0.97]"
                           : "border-neutral-100 bg-[#F7F5F0] text-neutral-300 duration-200 cursor-not-allowed line-through"
@@ -223,8 +227,14 @@ export default function VariantSelector({
           </div>
         </div>
       ))}
-      {groups.length > 0 && anySelected && !allSelected && (
-        <p className="text-xs text-amber-700">Please select all options to continue</p>
+      {groups.length > 0 && (anySelected || blockedAttemptCount > 0) && !allSelected && (
+        <p
+          key={blockedAttemptCount}
+          role={blockedAttemptCount > 0 ? "alert" : undefined}
+          className={`text-xs text-amber-700${blockedAttemptCount > 0 ? " hint-shake" : ""}`}
+        >
+          Please select all options to continue
+        </p>
       )}
     </div>
   );

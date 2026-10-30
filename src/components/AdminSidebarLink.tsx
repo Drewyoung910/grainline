@@ -24,7 +24,7 @@ export default function AdminSidebarLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={`${className} ${
-        active ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-100"
+        active ? "bg-[#2C1F1A] text-white" : "text-neutral-700 hover:bg-neutral-100"
       }`}
     >
       {children}

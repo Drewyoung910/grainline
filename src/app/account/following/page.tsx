@@ -55,7 +55,7 @@ export default async function FollowingPage({
         <h1 className="text-2xl font-bold font-display">Makers You Follow</h1>
         <Link
           href="/account/feed"
-          className="inline-flex min-h-[38px] items-center rounded-md bg-[#2C1F1A] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24]"
+          className="btn btn-sm btn-primary"
         >
           View Feed →
         </Link>
@@ -64,7 +64,7 @@ export default async function FollowingPage({
       {follows.length === 0 ? (
         <div className="card-section p-10 text-center space-y-4">
           <p className="text-neutral-500">You&apos;re not following any makers yet.</p>
-          <Link href="/map" className="inline-flex min-h-[40px] items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24]">
+          <Link href="/map" className="btn btn-sm btn-primary">
             Find Makers to Follow
           </Link>
         </div>
@@ -148,7 +148,7 @@ export default async function FollowingPage({
           {page > 1 && (
             <Link
               href={`/account/following?page=${page - 1}`}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-sm btn-secondary"
             >
               Previous
             </Link>
@@ -159,7 +159,7 @@ export default async function FollowingPage({
           {page < totalPages && (
             <Link
               href={`/account/following?page=${page + 1}`}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-sm btn-secondary"
             >
               Next
             </Link>

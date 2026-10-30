@@ -95,7 +95,7 @@ export default function ListingTypeFields({
             onKeyDown={(event) => handleListingTypeKeyDown(event, "MADE_TO_ORDER")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "MADE_TO_ORDER"
-                ? "border-neutral-900 bg-neutral-900 text-white"
+                ? "border-[#2C1F1A] bg-[#2C1F1A] text-white"
                 : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
             }`}
           >
@@ -111,7 +111,7 @@ export default function ListingTypeFields({
             onKeyDown={(event) => handleListingTypeKeyDown(event, "IN_STOCK")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "IN_STOCK"
-                ? "border-neutral-900 bg-neutral-900 text-white"
+                ? "border-[#2C1F1A] bg-[#2C1F1A] text-white"
                 : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
             }`}
           >
