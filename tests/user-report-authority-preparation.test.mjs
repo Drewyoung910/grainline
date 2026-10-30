@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const migration = readFileSync(
-  "prisma/migrations/20261028060000_prepare_user_report_authorities/migration.sql",
-  "utf8",
-);
+const migrationDirectory =
+  process.env.USER_REPORT_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261028060000_prepare_user_report_authorities";
+const migration = readFileSync(`${migrationDirectory}/migration.sql`, "utf8");
 const adminPage = readFileSync("src/app/admin/reports/page.tsx", "utf8");
 const resolveRoute = readFileSync(
   "src/app/api/admin/reports/[id]/resolve/route.ts",

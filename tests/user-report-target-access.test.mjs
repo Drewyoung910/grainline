@@ -4,10 +4,10 @@ import { describe, it } from "node:test";
 
 const route = readFileSync("src/app/api/users/[id]/report/route.ts", "utf8");
 const access = readFileSync("src/lib/userReportAccess.ts", "utf8");
-const migration = readFileSync(
-  "prisma/migrations/20261028060000_prepare_user_report_authorities/migration.sql",
-  "utf8",
-);
+const migrationDirectory =
+  process.env.USER_REPORT_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261028060000_prepare_user_report_authorities";
+const migration = readFileSync(`${migrationDirectory}/migration.sql`, "utf8");
 
 describe("user report target access guardrails", () => {
   it("keeps categorical reasons, cleaned details, and one actor-bound write", () => {

@@ -73,10 +73,14 @@ describe("social interaction route hardening", () => {
     assert.match(docs, /Do not pass seller `userId` into this client component/);
   });
 
-  it("keeps commission-request reports limited to public open commission targets", () => {
+  it("keeps report target validation inside one actor-bound authority", () => {
     const route = source("src/app/api/users/[id]/report/route.ts");
+    const access = source("src/lib/userReportAccess.ts");
 
-    assert.match(route, /openCommissionWhere/);
-    assert.match(route, /openCommissionWhere\(\{ id: body\.targetId, buyerId: reportedId \}\)/);
+    assert.match(route, /createUserReport\(\{/);
+    assert.match(route, /z\.enum\(USER_REPORT_TARGET_TYPES\)/);
+    assert.match(access, /withDbUserContext\(actorUserId/);
+    assert.match(access, /public\.grainline_user_report_submit/);
+    assert.doesNotMatch(route, /prisma\.(?:commissionRequest|message|conversation)\./);
   });
 });

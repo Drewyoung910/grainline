@@ -4,10 +4,10 @@ import test from "node:test";
 
 const route = readFileSync("src/app/api/users/[id]/report/route.ts", "utf8");
 const access = readFileSync("src/lib/userReportAccess.ts", "utf8");
-const migration = readFileSync(
-  "prisma/migrations/20261028060000_prepare_user_report_authorities/migration.sql",
-  "utf8",
-);
+const migrationDirectory =
+  process.env.USER_REPORT_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261028060000_prepare_user_report_authorities";
+const migration = readFileSync(`${migrationDirectory}/migration.sql`, "utf8");
 
 test("listing and review reports use one actor-bound report authority", () => {
   assert.match(route, /createUserReport\(\{/u);
