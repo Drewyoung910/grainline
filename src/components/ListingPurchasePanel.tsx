@@ -216,7 +216,7 @@ export default function ListingPurchasePanel({
               selectedVariantOptionIds={selectedOptionIds}
               variantRequired={variantRequired}
               autoOpen={shouldAutoOpenBuyNow}
-              className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
+              className="btn btn-primary w-full min-h-[50px]"
             >
               Buy now
             </BuyNowButton>
@@ -230,7 +230,7 @@ export default function ListingPurchasePanel({
                 }
                 window.location.href = signUpPathForRedirect(buyNowRedirectPath);
               }}
-              className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
+              className="btn btn-primary w-full min-h-[50px]"
             >
               Sign up to buy
             </button>
@@ -254,7 +254,7 @@ export default function ListingPurchasePanel({
               offersGiftWrapping,
               giftWrappingPriceCents,
             }}
-            className="w-full rounded-md bg-[#F7F5F0] px-4 py-3 text-sm font-medium text-neutral-900 min-h-[48px] hover:bg-white transition-colors"
+            className="btn btn-secondary w-full min-h-[50px]"
           />
         </div>
       )}

@@ -111,6 +111,22 @@ export default async function ReviewsSection({
   const avg = agg._avg.ratingX2 ? agg._avg.ratingX2 / 2 : null;
   const avgQuarter = avg != null ? quarterRound(avg) : null;
 
+  // Rating breakdown (5 to 1 stars) over the same visible reviews; half
+  // stars round up to the next whole star.
+  const ratingGroups = agg._count._all > 0
+    ? await prisma.review.groupBy({
+        by: ["ratingX2"],
+        where: visibleReviewWhere,
+        _count: { _all: true },
+      })
+    : [];
+  const starCounts = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: ratingGroups
+      .filter((group) => Math.min(5, Math.max(1, Math.round(group.ratingX2 / 2))) === star)
+      .reduce((sum, group) => sum + group._count._all, 0),
+  }));
+
   // Viewer's review (full)
   const mine = meId
     ? await prisma.review.findFirst({
@@ -181,6 +197,24 @@ export default async function ReviewsSection({
           </div>
         )}
       </div>
+
+      {agg._count._all > 1 && (
+        <dl aria-label="Rating breakdown" className="grid max-w-sm gap-1.5">
+          {starCounts.map(({ star, count }) => {
+            const pct = Math.round((count / agg._count._all) * 100);
+            return (
+              <div key={star} className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5 text-[13px] text-neutral-500 tabular-nums">
+                <dt>{star} star{star === 1 ? "" : "s"}</dt>
+                <dd className="h-1.5 overflow-hidden rounded-full bg-[#EFEAE0]">
+                  {/* The bar fills as the breakdown scrolls into view. */}
+                  <span className="rating-bar-fill block h-full rounded-full bg-[#A8803A]" style={{ width: `${pct}%` }} />
+                </dd>
+                <dd className="text-right">{count}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
 
       {/* My review block — cream inset so "yours" reads differently from other reviews */}
       {mine ? (

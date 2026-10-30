@@ -206,8 +206,9 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 - **Contained cards**: `rounded-lg` (8px) via `.card-listing` / `.card-section`
 - **Product listing photos**: `rounded-2xl` (16px) in the shared floating `ListingCard`; this is a deliberate exception, not a general card radius
-- **Buttons & inputs**: `rounded-md` (6px) — enforced via `button { border-radius: 0.375rem }` global CSS base style in `globals.css`
-- **Pills & tags**: `rounded-full` only — never on buttons or cards
+- **Buttons (2026-10-30, motion prototype)**: shopper-facing actions use the shared pill utilities in `globals.css`: `btn` + `btn-primary` (espresso, deepens with a soft shadow on hover) or `btn-secondary` (white, thin espresso-tinted border), plus `btn-sm` for the compact size and `w-full` for full width. Converted so far: listing purchase panel and maker card, shop page, homepage map section, browse, cart and checkout, commission, account, makers, messages, review composer, newsletter, support form, Follow. Seller dashboard and admin forms still use the older `rounded-md` buttons; convert them with the same utilities rather than new ad hoc classes.
+- **Inputs**: `rounded-md` (6px). The `button { border-radius: 0.375rem }` base rule still applies to buttons without a radius class.
+- **Pills & tags**: `rounded-full` — tags, chips, and the `btn` buttons above; never on cards
 
 ### Typography
 
@@ -224,8 +225,8 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 ### Purchase Panel (listing detail)
 
 - Price: `text-3xl font-semibold`
-- Buy Now: full-width black button, `rounded-md`, `py-3 min-h-[44px]`
-- Add to Cart: full-width bordered button, `rounded-md`
+- Buy Now: `btn btn-primary w-full min-h-[50px]` (pill)
+- Add to Cart: `btn btn-secondary w-full min-h-[50px]` (pill); confirms with a drawn check and flies the photo to the header bag
 - Seller card: 56px avatar, display name + GuildBadge, tagline, star rating + count, city/state with MapPin icon, "Visit Shop" + Follow + Message in a row
 
 ### Icons
@@ -2966,6 +2967,17 @@ first pass's rough edges. Behavior future agents must preserve:
   until the map is on screen (`data-pins-visible`). Not yet done: browse
   filter chips, the card-to-gallery photo morph, and review rating bars (no
   rating breakdown UI exists yet).
+- **Batch four**: the maker page (`/seller/[id]`) is one page with an
+  Etsy-style sticky section bar (`SectionTabs`): three combined tabs, Shop
+  (featured work, every listing, customer photos), About (story, workshop,
+  gallery, pickup map, blog posts) and Policies & FAQ, shown only when they
+  have content. The bar sits under the pinned header, its underline slides to
+  the section being read, and tapping glides there (sections carry
+  `scroll-mt` for the two bars). Drew asked for combined tabs, not one per
+  block. Browse shows applied filters as removable espresso chips that pop in
+  (`.filter-chip-in`), with "Clear all". Listing reviews show a 5-to-1 star
+  breakdown whose bars fill on scroll (`.rating-bar-fill`); it counts the
+  same visible reviews as the average, rounding half stars up.
 
 ## Pending Tasks
 

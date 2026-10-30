@@ -511,13 +511,13 @@ function CartPage() {
       <CartEmptyState>
         <Link
           href="/browse"
-          className="rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800"
+          className="btn btn-primary"
         >
           Browse the workshop
         </Link>
         <Link
           href={signInPathForRedirect("/cart")}
-          className="rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          className="btn btn-secondary"
         >
           Sign in
         </Link>
@@ -530,7 +530,7 @@ function CartPage() {
       <CartEmptyState>
         <Link
           href="/browse"
-          className="rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800"
+          className="btn btn-primary"
         >
           Browse the workshop
         </Link>
@@ -919,7 +919,7 @@ function CartPage() {
           {needsSignIn ? (
             <Link
               href={signInPathForRedirect("/cart")}
-              className="inline-flex w-full items-center justify-center rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
+              className="btn btn-primary w-full sm:w-auto"
             >
               Sign in to checkout →
             </Link>
@@ -930,7 +930,7 @@ function CartPage() {
                 router.replace("/cart?step=address", { scroll: false });
               }}
               disabled={items.length === 0 || hasBlockingCartChange}
-              className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+              className="btn btn-primary mt-6 w-full sm:w-auto"
             >
               Continue to shipping →
             </button>
@@ -1054,7 +1054,7 @@ function CartPage() {
               <button
                 onClick={handleProceedToPayment}
                 disabled={!allRatesSelected || creatingSession || hasBlockingCartChange}
-                className="w-full rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary w-full"
               >
                 {creatingSession ? "Preparing checkout..." : "Continue to payment →"}
               </button>

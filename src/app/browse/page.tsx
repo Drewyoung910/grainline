@@ -11,6 +11,7 @@ import FilterSidebar from "@/components/FilterSidebar";
 import MobileFilterBar from "@/components/MobileFilterBar";
 import SaveSearchButton from "@/components/SaveSearchButton";
 import ClickTracker from "@/components/ClickTracker";
+import { X } from "@/components/icons";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
 import RecentlyViewed from "@/components/RecentlyViewed";
@@ -534,7 +535,7 @@ async function BrowseContent({
               </div>
             )}
 
-            <Link href="/browse" className="inline-flex items-center rounded-md border px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href="/browse" className="btn btn-secondary">
               Browse all listings
             </Link>
           </div>
@@ -548,7 +549,7 @@ async function BrowseContent({
   const Pager = () => (
     <nav className="flex items-center gap-2 text-sm">
       {clampedPage > 1 ? (
-        <Link href={makePageHref(clampedPage - 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">← Prev</Link>
+        <Link href={makePageHref(clampedPage - 1)} className="btn btn-sm btn-secondary">← Prev</Link>
       ) : (
         <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">← Prev</span>
       )}
@@ -558,7 +559,7 @@ async function BrowseContent({
         </span>
       )}
       {clampedPage < totalPages ? (
-        <Link href={makePageHref(clampedPage + 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">Next →</Link>
+        <Link href={makePageHref(clampedPage + 1)} className="btn btn-sm btn-secondary">Next →</Link>
       ) : (
         <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">Next →</span>
       )}
@@ -668,6 +669,68 @@ async function BrowseContent({
     );
   }
 
+  // Active filters as removable chips (motion prototype): each chip links to
+  // the same results without that filter; new chips pop in.
+  function currentBrowseParams() {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (min) p.set("min", min);
+    if (max) p.set("max", max);
+    if (sort !== (q ? "relevant" : "newest")) p.set("sort", sort);
+    if (categoryFilter) p.set("category", categoryFilter);
+    if (typeFilter) p.set("type", typeFilter);
+    if (shipsFilter) p.set("ships", String(shipsFilter));
+    if (ratingFilter) p.set("rating", String(ratingFilter));
+    if (hasLocationFilter) {
+      p.set("lat", String(latFilter));
+      p.set("lng", String(lngFilter));
+      p.set("radius", String(radiusFilter));
+    }
+    for (const t of selectedTags) p.append("tag", t);
+    if (view !== "grid") p.set("view", view);
+    return p;
+  }
+  function browseHrefWithout(keys: string[], tag?: string) {
+    const p = currentBrowseParams();
+    for (const key of keys) p.delete(key);
+    if (tag !== undefined) {
+      const remaining = p.getAll("tag").filter((t) => t !== tag);
+      p.delete("tag");
+      for (const t of remaining) p.append("tag", t);
+    }
+    const query = p.toString();
+    return query ? `/browse?${query}` : "/browse";
+  }
+  const priceChipLabel = min && max ? `$${min}–$${max}` : min ? `$${min} and up` : max ? `Under $${max}` : "";
+  const activeFilterChips: Array<{ key: string; label: string; href: string }> = [
+    ...(categoryFilter
+      ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]
+      : []),
+    ...(typeFilter
+      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In Stock" : "Made to order", href: browseHrefWithout(["type"]) }]
+      : []),
+    ...(shipsFilter
+      ? [{ key: "ships", label: `Ships within ${shipsFilter} days`, href: browseHrefWithout(["ships"]) }]
+      : []),
+    ...(ratingFilter
+      ? [{ key: "rating", label: `${ratingFilter}+ stars`, href: browseHrefWithout(["rating"]) }]
+      : []),
+    ...(hasLocationFilter
+      ? [{ key: "location", label: `Within ${radiusFilter} mi`, href: browseHrefWithout(["lat", "lng", "radius"]) }]
+      : []),
+    ...(priceChipLabel
+      ? [{ key: "price", label: priceChipLabel, href: browseHrefWithout(["min", "max"]) }]
+      : []),
+    ...selectedTags.map((tag) => ({
+      key: `tag:${tag}`,
+      label: tag.replace(/[-_]/g, " "),
+      href: browseHrefWithout([], tag),
+    })),
+  ];
+  const clearFiltersHref = browseHrefWithout(
+    ["category", "type", "ships", "rating", "lat", "lng", "radius", "min", "max", "tag"],
+  );
+
   // ── Page render ────────────────────────────────────────────────────────────
   const activeFilterCount = [
     categoryFilter, typeFilter, shipsFilter, ratingFilter, hasLocationFilter ? "loc" : null,
@@ -737,6 +800,30 @@ async function BrowseContent({
               <Pager />
             </div>
           </div>
+
+          {activeFilterChips.length > 0 && (
+            <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
+              {activeFilterChips.map((chip) => (
+                <Link
+                  key={chip.key}
+                  href={chip.href}
+                  aria-label={`Remove filter: ${chip.label}`}
+                  className="filter-chip-in inline-flex h-8 items-center gap-1.5 rounded-full bg-[#2C1F1A] pl-3 pr-2 text-[13.5px] text-[#FBF8F3] transition-colors hover:bg-[#45332B]"
+                >
+                  <span className="max-w-[16rem] truncate">{chip.label}</span>
+                  <X size={14} aria-hidden="true" className="shrink-0 opacity-80" />
+                </Link>
+              ))}
+              {activeFilterChips.length > 1 && (
+                <Link
+                  href={clearFiltersHref}
+                  className="text-[13.5px] text-neutral-600 underline underline-offset-[3px] hover:text-neutral-900"
+                >
+                  Clear all
+                </Link>
+              )}
+            </div>
+          )}
 
           {/* Listings */}
           {view === "grid" ? (

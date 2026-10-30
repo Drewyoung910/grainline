@@ -144,7 +144,7 @@ export default function CustomOrderRequestForm({
                     <button
                       type="button"
                       onClick={handleViewConversation}
-                      className="rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors"
+                      className="btn btn-primary"
                     >
                       View conversation
                     </button>
@@ -229,7 +229,7 @@ export default function CustomOrderRequestForm({
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                    className="btn btn-primary flex-1"
                   >
                     {submitting ? "Sending…" : "Send request"}
                   </button>

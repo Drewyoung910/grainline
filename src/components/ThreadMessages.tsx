@@ -468,7 +468,7 @@ export default function ThreadMessages({
                   {canCreateCustomListing && (
                     <Link
                       href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.senderId}`}
-                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-[#2C1F1A] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#3A2A24]"
+                      className="btn btn-sm btn-primary mt-1"
                     >
                       Create Custom Listing
                     </Link>
@@ -499,7 +499,7 @@ export default function ThreadMessages({
                   {link.listingId && (
                     <Link
                       href={publicListingPath(link.listingId, link.title)}
-                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
+                      className="btn btn-sm btn-primary mt-1"
                     >
                       View Custom Piece
                     </Link>

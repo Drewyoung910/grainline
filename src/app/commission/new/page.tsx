@@ -255,7 +255,7 @@ export default function NewCommissionPage() {
           <button
             type="submit"
             disabled={submitting || !title.trim() || !description.trim()}
-            className="rounded-md bg-[#2C1F1A] text-white px-6 py-2.5 text-sm font-medium hover:bg-[#3A2A24] transition-colors disabled:opacity-50"
+            className="btn btn-primary"
           >
             {submitting ? "Posting…" : "Post Request"}
           </button>

@@ -285,7 +285,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         <button
           type="submit"
           disabled={saving}
-          className="rounded-md bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 w-full sm:w-auto"
+          className="btn btn-primary w-full sm:w-auto"
         >
           {saving ? "Saving..." : "Continue to shipping"}
         </button>

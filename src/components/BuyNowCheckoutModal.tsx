@@ -485,7 +485,7 @@ export default function BuyNowCheckoutModal({
               <button
                 onClick={handleProceedToPayment}
                 disabled={!selectedRate || creatingSession}
-                className="w-full rounded-md bg-neutral-900 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary w-full"
               >
                 {creatingSession
                   ? "Preparing payment..."

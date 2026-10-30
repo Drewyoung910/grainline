@@ -77,14 +77,14 @@ export default function MakersMapSection({
               type="button"
               onClick={onUseMyLocation}
               aria-busy={locating || undefined}
-              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
+              className="btn btn-primary"
             >
               <Navigation size={15} className={`shrink-0${locating ? " motion-safe:animate-spin" : ""}`} />
               {locating ? "Finding you…" : "Use my location"}
             </button>
             <a
               href="/map"
-              className="inline-flex min-h-11 items-center rounded-md border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#EFEAE0] transition-colors"
+              className="btn btn-secondary"
             >
               Explore the full map
             </a>

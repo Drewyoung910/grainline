@@ -332,7 +332,7 @@ async function CommissionPageContent({
         </div>
         <Link
           href="/commission/new"
-          className="rounded-md bg-neutral-900 text-white text-sm px-4 py-2 hover:bg-neutral-700 transition-colors"
+          className="btn btn-primary"
         >
           Post a Request
         </Link>
@@ -406,7 +406,7 @@ async function CommissionPageContent({
           </p>
           <Link
             href="/commission/new"
-            className="inline-block rounded-md bg-neutral-900 text-white px-6 py-2 text-sm hover:bg-neutral-700"
+            className="btn btn-primary"
           >
             Post a Request →
           </Link>

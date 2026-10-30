@@ -688,14 +688,14 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
+                  className="btn btn-sm btn-secondary"
                 >
                   Message maker
                 </Link>
               )}
               <Link
                 href={sellerHref}
-                className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
+                className="btn btn-sm btn-secondary"
               >
                 Visit Shop
               </Link>

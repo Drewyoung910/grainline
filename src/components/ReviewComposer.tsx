@@ -235,7 +235,7 @@ export default function ReviewComposer(props: {
       <div className="pt-1">
         <button
           type="submit"
-          className="inline-flex items-center rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] text-white px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+          className="btn btn-primary"
           disabled={submitting || locked}
           title={locked ? "This review is locked" : undefined}
         >

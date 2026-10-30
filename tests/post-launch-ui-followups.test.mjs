@@ -500,7 +500,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(fallbackCall, /className="[^"]*h-full/);
     assert.match(fallbackCall, /className="[^"]*w-full/);
     assert.match(allSellersMap, /className="relative h-full"/);
-    assert.equal((mapSection.match(/min-h-11/g) ?? []).length, 2);
+    // Both map actions use the shared pill buttons (46px tall).
+    assert.equal((mapSection.match(/className="btn btn-(?:primary|secondary)"/g) ?? []).length, 2);
 
     assert.match(allSellersMap, /height = 520/);
     assert.doesNotMatch(fullMapCall, /\bheight=/);
@@ -576,7 +577,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(blogPost, /!viewerIsAuthor && \(/);
     assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfileId\}[\s\S]*initialCount=\{authorFollowerCount\}/);
     assert.match(blogPost, /<NewsletterSignup \/>/);
-    assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
+    assert.match(following, /href="\/account\/feed"[\s\S]*btn btn-sm btn-primary/);
     assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
     assert.match(docs, /In the Workshop spotlight[\s\S]*getCachedPublicSellerStats\(\)[\s\S]*FollowButton/);
     assert.match(docs, /The homepage stops here; it intentionally does not render `NewsletterSignup`/);
