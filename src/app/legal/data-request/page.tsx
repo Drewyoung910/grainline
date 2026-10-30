@@ -3,7 +3,7 @@ import Link from "next/link";
 import SupportRequestForm from "@/components/SupportRequestForm";
 
 export const metadata: Metadata = {
-  title: "Data Request — Grainline",
+  title: "Data Request",
   description: "Submit a Grainline privacy, account access, deletion, correction, portability, opt-out, or appeal request.",
   robots: { index: false, follow: true },
 };

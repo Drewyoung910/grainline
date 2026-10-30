@@ -13,6 +13,6 @@ test("listing suggestions delegate seller eligibility to an exact listing author
   assert.doesNotMatch(listingSuggestionSource, /JOIN "SellerProfile"/u);
   assert.equal(
     listingSuggestionSource.match(/grainline_seller_public_follower_listing_target/gu)?.length,
-    2,
+    1,
   );
 });

@@ -116,9 +116,12 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     ...selectedTags,
   ].filter(Boolean).length;
 
+  const filterFormId = `${baseId}-mobile-filters`;
+
   const form = (
     <form
       key={searchParams.toString()}
+      id={filterFormId}
       method="get"
       action="/browse"
       className="space-y-5 text-sm"
@@ -286,22 +289,28 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           />
         </div>
       </fieldset>
-
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          className="flex-1 rounded-md bg-neutral-900 text-white px-3 py-2 text-sm font-semibold hover:bg-neutral-800 min-h-[44px]"
-        >
-          Apply
-        </button>
-        <Link
-          href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
-          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px] flex items-center"
-        >
-          Reset
-        </Link>
-      </div>
     </form>
+  );
+
+  // Apply/Reset stay pinned at the bottom of the sheet (outside the scroll
+  // area) so they are reachable without scrolling past every filter. The
+  // submit button is tied to the form through its `form` attribute.
+  const filterActions = (
+    <div className="flex gap-2">
+      <button
+        type="submit"
+        form={filterFormId}
+        className="flex-1 rounded-md bg-neutral-900 text-white px-3 py-2 text-sm font-semibold hover:bg-neutral-800 min-h-[44px]"
+      >
+        Apply
+      </button>
+      <Link
+        href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
+        className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px] flex items-center"
+      >
+        Reset
+      </Link>
+    </div>
   );
 
   const tagsSection = popularTags.length > 0 && (
@@ -344,29 +353,28 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
   const sheet = mobileOpen ? (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — z-[60]/z-[61] sit above the site header (z-50) so the
+          header is dimmed and can't be tapped while this modal sheet is open */}
       <div
-        className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        className="fixed inset-0 z-[60] bg-black/40 md:hidden"
         onClick={() => setMobileOpen(false)}
         aria-hidden="true"
       />
 
-      {/* Sheet panel — rounded top only, max-h caps height but allows shorter content to show shorter sheet */}
+      {/* Sheet panel — rounded top only, max-h caps height but allows shorter
+          content to show shorter sheet. dvh tracks the visible viewport on
+          iOS; the white ::after strip keeps the sheet's colour under the
+          home indicator/toolbar area. */}
       <div
         ref={filterSheetRef}
         role="dialog"
         aria-modal="true"
         aria-label="Filters"
         tabIndex={-1}
-        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl"
+        className="fixed inset-x-0 bottom-0 z-[61] flex flex-col bg-white rounded-t-2xl max-h-[85dvh] md:hidden animate-slide-up shadow-2xl after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white"
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-2 shrink-0">
-          <div className="h-1 w-10 rounded-full bg-neutral-300" />
-        </div>
-
         {/* Header row */}
-        <div className="flex items-center justify-between px-4 pb-3 border-b border-neutral-100 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
           <span className="font-semibold text-sm">Filters</span>
           <button
             onClick={() => setMobileOpen(false)}
@@ -377,9 +385,14 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-4 py-4">
+        <div className="overflow-y-auto overscroll-contain flex-1 px-4 py-4">
           {form}
           {tagsSection}
+        </div>
+
+        {/* Pinned actions, padded clear of the iPhone home indicator */}
+        <div className="shrink-0 border-t border-neutral-100 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          {filterActions}
         </div>
       </div>
     </>
@@ -387,9 +400,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
   const sortSheet = sortOpen ? (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — above the site header, same as the filter sheet */}
       <div
-        className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        className="fixed inset-0 z-[60] bg-black/40 md:hidden"
         onClick={() => setSortOpen(false)}
         aria-hidden="true"
       />
@@ -401,15 +414,10 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-modal="true"
         aria-label="Sort listings"
         tabIndex={-1}
-        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[50vh] md:hidden animate-slide-up shadow-2xl"
+        className="fixed inset-x-0 bottom-0 z-[61] flex flex-col bg-white rounded-t-2xl max-h-[50dvh] md:hidden animate-slide-up shadow-2xl after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white"
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-2 shrink-0">
-          <div className="h-1 w-10 rounded-full bg-neutral-300" />
-        </div>
-
         {/* Header */}
-        <div className="flex items-center justify-between px-4 pb-3 border-b border-neutral-100 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
           <span className="font-semibold text-sm">Sort by</span>
           <button
             onClick={() => setSortOpen(false)}
@@ -419,8 +427,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           </button>
         </div>
 
-        {/* Sort options — each navigates and closes sheet */}
-        <div className="py-2">
+        {/* Sort options — each navigates and closes sheet. Bottom padding
+            keeps the last option clear of the iPhone home indicator. */}
+        <div className="overflow-y-auto overscroll-contain pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
           {q && (
             <Link
               href={sortHref("relevant")}

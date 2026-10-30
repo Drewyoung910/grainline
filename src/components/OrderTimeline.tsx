@@ -68,12 +68,18 @@ function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return formatCurrencyCents(cents, currency);
 }
 
-function processingWindowDetail(min?: number | null, max?: number | null): string | null {
+function processingWindowDetail(
+  min?: number | null,
+  max?: number | null,
+  isPickup = false,
+): string | null {
+  // Pickup orders are never shipped; the same window is when they're ready.
+  const verb = isPickup ? "Ready for pickup" : "Ships";
   if (typeof min === "number" && typeof max === "number") {
-    return min === max ? `Ships in ${min} days` : `Ships in ${min}-${max} days`;
+    return min === max ? `${verb} in ${min} days` : `${verb} in ${min}-${max} days`;
   }
-  if (typeof min === "number") return `Ships in ${min}+ days`;
-  if (typeof max === "number") return `Ships within ${max} days`;
+  if (typeof min === "number") return `${verb} in ${min}+ days`;
+  if (typeof max === "number") return `${verb} within ${max} days`;
   return null;
 }
 
@@ -99,7 +105,7 @@ function buildSteps(props: Props): Step[] {
   const orderPlaced: Step = {
     label: "Order placed",
     date: placedAt,
-    detail: processingWindowDetail(processingTimeMinDays, processingTimeMaxDays),
+    detail: processingWindowDetail(processingTimeMinDays, processingTimeMaxDays, isPickup),
     completed: true,
     current: false,
   };

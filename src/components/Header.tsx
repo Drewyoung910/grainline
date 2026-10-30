@@ -27,10 +27,27 @@ export default function Header() {
   // Clerk auth state — used to re-fetch /api/me when the session appears or
   // disappears client-side. Without this, signing in could leave the header
   // showing stale signed-out data (e.g. "Start Selling" for an established
-  // seller) until a hard refresh.
-  const { isSignedIn } = useUser();
+  // seller) until a hard refresh. It also gates the signed-in-only cart and
+  // notification requests: /api/me answers 200 for signed-out visitors, so
+  // its status alone cannot tell a guest from a member.
+  const { isLoaded, isSignedIn } = useUser();
 
   const [cartCount, setCartCount] = React.useState<number | null>(null);
+  // Bumps the cart badge when a cart change raises the count. Page loads and
+  // signing in or out reload the count without a bump.
+  const [cartBumpCount, setCartBumpCount] = React.useState(0);
+  const cartCountRef = React.useRef<number | null>(null);
+  const cartCountBeforeChangeRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    cartCountRef.current = cartCount;
+    const before = cartCountBeforeChangeRef.current;
+    if (before === null || cartCount === null || cartCount === before) return;
+    cartCountBeforeChangeRef.current = null;
+    if (cartCount > before) setCartBumpCount((count) => count + 1);
+  }, [cartCount]);
+  React.useEffect(() => {
+    cartCountBeforeChangeRef.current = null;
+  }, [isSignedIn]);
   const [role, setRole] = React.useState<string | null>(null);
   const [hasSeller, setHasSeller] = React.useState(false);
   const [name, setName] = React.useState<string | null>(null);
@@ -41,8 +58,18 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [searchClosing, setSearchClosing] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
+  const menuButtonRef = React.useRef<HTMLButtonElement>(null);
+  // Set when the menu closes while focus was inside it (or already dropped
+  // to <body>), so focus returns to the hamburger instead of being lost.
+  // Left unset when focus moved somewhere else on purpose (Tab out, Clerk's
+  // account modal).
+  const restoreMenuFocusRef = React.useRef(false);
+  const shouldRestoreMenuFocus = React.useCallback(() => {
+    if (typeof document === "undefined") return false;
+    const active = document.activeElement;
+    return !active || active === document.body || Boolean(drawerRef.current?.contains(active));
+  }, []);
   const drawerNavRef = React.useRef<HTMLElement>(null);
   const [drawerNavFade, setDrawerNavFade] = React.useState(false);
   // Bottom fade = "there's more below" affordance. Shown while the menu's
@@ -92,13 +119,14 @@ export default function Header() {
     setDrawerClosing((alreadyClosing) => {
       if (alreadyClosing) return alreadyClosing;
       drawerCloseTimerRef.current = window.setTimeout(() => {
+        restoreMenuFocusRef.current = shouldRestoreMenuFocus();
         setDrawerOpen(false);
         setDrawerClosing(false);
         drawerCloseTimerRef.current = null;
       }, 160);
       return true;
     });
-  }, [drawerOpen]);
+  }, [drawerOpen, shouldRestoreMenuFocus]);
   const openDrawer = React.useCallback(() => {
     clearDrawerCloseTimer();
     setDrawerClosing(false);
@@ -138,6 +166,14 @@ export default function Header() {
     if (!drawerOpen) return;
     const focusTimer = window.setTimeout(() => drawerRef.current?.focus(), 0);
     return () => window.clearTimeout(focusTimer);
+  }, [drawerOpen]);
+
+  // Every close path (X, Escape, click-catcher, link taps, navigation)
+  // returns focus to the hamburger once the menu has unmounted.
+  React.useEffect(() => {
+    if (drawerOpen || !restoreMenuFocusRef.current) return;
+    restoreMenuFocusRef.current = false;
+    menuButtonRef.current?.focus();
   }, [drawerOpen]);
 
   React.useEffect(() => {
@@ -184,13 +220,14 @@ export default function Header() {
 
   // Close drawer and search on navigation (instant — new page context)
   React.useEffect(() => {
+    if (drawerRef.current) restoreMenuFocusRef.current = shouldRestoreMenuFocus();
     clearDrawerCloseTimer();
     clearMobileSearchCloseTimer();
     setDrawerOpen(false);
     setDrawerClosing(false);
     setSearchOpen(false);
     setSearchClosing(false);
-  }, [pathname, searchParams, clearDrawerCloseTimer, clearMobileSearchCloseTimer]);
+  }, [pathname, searchParams, clearDrawerCloseTimer, clearMobileSearchCloseTimer, shouldRestoreMenuFocus]);
 
   // Escape closes both drawer and search
   React.useEffect(() => {
@@ -266,30 +303,46 @@ export default function Header() {
     loadAllAbortRef.current?.abort();
     const requestId = loadAllRequestRef.current + 1;
     loadAllRequestRef.current = requestId;
+    const showSignedOutState = () => {
+      notifCountAbortRef.current?.abort();
+      notifCountRequestRef.current += 1;
+      setRole(null);
+      setHasSeller(false);
+      setName(null);
+      setImageUrl(null);
+      setAvatarImageUrl(null);
+      loadAnonymousCartCount();
+      setUnreadNotifCount(0);
+    };
+    // Wait for Clerk before choosing which cart to count, and never call
+    // the signed-in-only /api/cart and /api/notifications for guests.
+    if (!isLoaded) return;
+    if (!isSignedIn) {
+      showSignedOutState();
+      return;
+    }
     const controller = new AbortController();
     loadAllAbortRef.current = controller;
     try {
       const res = await fetch("/api/me", { cache: "no-store", signal: controller.signal });
       if (requestId !== loadAllRequestRef.current || controller.signal.aborted) return;
       if (!res.ok) {
-        setRole(null);
-        setHasSeller(false);
-        setName(null);
-        setImageUrl(null);
-        setAvatarImageUrl(null);
-        loadAnonymousCartCount();
-        setUnreadNotifCount(0);
-        setIsLoggedIn(false);
+        showSignedOutState();
         return;
       }
       const data = await res.json().catch(() => ({ role: null, hasSeller: false }));
       if (requestId !== loadAllRequestRef.current || controller.signal.aborted) return;
+      // Every account has a role; a null role means the server saw no
+      // session yet, so the signed-in-only endpoints would answer 401.
+      if (!data?.role) {
+        showSignedOutState();
+        return;
+      }
       setRole(data?.role ?? null);
       setHasSeller(data?.hasSeller ?? false);
       setName(data?.name ?? null);
       setImageUrl(data?.imageUrl ?? null);
       setAvatarImageUrl(data?.avatarImageUrl ?? null);
-      setIsLoggedIn(true);
       // Only fetch cart and notifications when signed in
       loadCartCount();
       loadNotifCount();
@@ -298,17 +351,16 @@ export default function Header() {
       if (requestId !== loadAllRequestRef.current) return;
       setRole(null);
       setHasSeller(false);
-      setIsLoggedIn(false);
     } finally {
       if (loadAllAbortRef.current === controller) {
         loadAllAbortRef.current = null;
       }
     }
-  }, [loadAnonymousCartCount, loadCartCount, loadNotifCount]);
+  }, [isLoaded, isSignedIn, loadAnonymousCartCount, loadCartCount, loadNotifCount]);
 
   React.useEffect(() => {
     loadAll();
-  }, [loadAll, isSignedIn]);
+  }, [loadAll]);
 
   React.useEffect(() => {
     return () => {
@@ -320,11 +372,12 @@ export default function Header() {
 
   React.useEffect(() => {
     const onUpdated = () => {
-      if (isLoggedIn) loadCartCount();
+      cartCountBeforeChangeRef.current = cartCountRef.current;
+      if (isSignedIn) loadCartCount();
       else loadAnonymousCartCount();
     };
     return subscribeCartUpdated(onUpdated);
-  }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
+  }, [isSignedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
     <header
@@ -427,7 +480,7 @@ export default function Header() {
             <ShoppingBag size={22} />
             <IconHoverTip label="Cart" />
             {cartCount != null && cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
+              <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                 {cartCount}
               </span>
             )}
@@ -505,7 +558,7 @@ export default function Header() {
             <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors">
               <ShoppingBag size={20} />
               {cartCount != null && cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
+                <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                   {cartCount}
                 </span>
               )}
@@ -514,6 +567,7 @@ export default function Header() {
 
           {/* Hamburger */}
           <button
+            ref={menuButtonRef}
             onClick={openDrawer}
             aria-label="Open menu"
             aria-expanded={drawerOpen}
@@ -567,7 +621,7 @@ export default function Header() {
             data-home-menu-surface={isHome ? "true" : undefined}
             ref={drawerRef}
             role="dialog"
-            aria-label="Main navigation"
+            aria-label="Menu"
             tabIndex={-1}
             onBlur={(e) => {
               // Close when keyboard focus leaves the popover (popover
@@ -615,6 +669,7 @@ export default function Header() {
             <div className="relative flex min-h-0 flex-1 flex-col">
               <nav
                 ref={drawerNavRef}
+                aria-label="Site"
                 data-drawer-scroll-region
                 onScroll={updateDrawerNavFade}
                 className="flex-1 overflow-y-auto overscroll-contain px-2 py-3"

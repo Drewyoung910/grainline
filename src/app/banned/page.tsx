@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Account Suspended — Grainline",
+  title: "Account Suspended",
   robots: { index: false },
 };
 

@@ -61,6 +61,10 @@ export default function LocationPicker({
       return;
     }
     const [startLat, startLng] = start;
+    // On touch screens a one-finger swipe should scroll the settings page,
+    // not pan the map; cooperative gestures require two fingers to move it.
+    // Same query MapLibre uses to pick its mobile gesture message.
+    const touchPrimary = window.matchMedia("(hover: none), (pointer: coarse)").matches;
 
     let map: maplibregl.Map;
     try {
@@ -69,6 +73,7 @@ export default function LocationPicker({
         style: "https://tiles.openfreemap.org/styles/liberty",
         center: [startLng, startLat],
         zoom: 11,
+        cooperativeGestures: touchPrimary,
       });
     } catch {
       setMapUnavailable(true);
@@ -82,6 +87,9 @@ export default function LocationPicker({
       .setLngLat([startLng, startLat])
       .addTo(map);
     marker.getElement().style.display = savedPoint ? "" : "none";
+    // Cooperative gestures let the page scroll from the map canvas
+    // (touch-action: pan-x pan-y); keep a one-finger drag on the pin itself.
+    marker.getElement().style.touchAction = "none";
 
     markerRef.current = marker;
 

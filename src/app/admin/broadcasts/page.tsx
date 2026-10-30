@@ -156,19 +156,28 @@ export default async function AdminBroadcastsPage({
         <div className="space-y-3">
           {broadcasts.map((b) => {
             const sellerTarget = sellerTargetByBroadcastId.get(b.id);
+            // A missing maker or a deleted maker account has no public shop page,
+            // so the name renders as text instead of a "#" or 404 link.
+            const sellerShopLinkable = Boolean(
+              sellerTarget && !sellerLabelById.get(sellerTarget.sellerUserId)?.deletedAt,
+            );
             return (
               <div key={b.id} className="card-section p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Link
-                        href={sellerTarget
-                          ? publicSellerPath(sellerTarget.sellerProfileId, sellerTarget.sellerDisplayName)
-                          : "#"}
-                        className="text-sm font-medium text-neutral-800 hover:underline"
-                      >
-                        {sellerTarget?.sellerDisplayName ?? "Unknown maker"}
-                      </Link>
+                      {sellerTarget && sellerShopLinkable ? (
+                        <Link
+                          href={publicSellerPath(sellerTarget.sellerProfileId, sellerTarget.sellerDisplayName)}
+                          className="text-sm font-medium text-neutral-800 hover:underline"
+                        >
+                          {sellerTarget.sellerDisplayName}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium text-neutral-800">
+                          {sellerTarget?.sellerDisplayName ?? "Unknown maker"}
+                        </span>
+                      )}
                       <span className="text-xs text-neutral-500">
                         {sellerTarget
                           ? sellerLabelById.get(sellerTarget.sellerUserId)?.email ?? "Unknown"

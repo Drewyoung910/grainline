@@ -3915,11 +3915,15 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.equal(
       buildCommand,
-      "npm run guard:runtime-db-env && npm run guard:account-deletion-runtime-ready && npm run build",
+      "npm run guard:runtime-db-env && npm run guard:account-deletion-runtime-ready && npm run guard:private-table-runtime-ready && npm run build",
     );
     assert.equal(
       pkg.scripts["guard:account-deletion-runtime-ready"],
       "node scripts/account-deletion-runtime-readiness.mjs",
+    );
+    assert.equal(
+      pkg.scripts["guard:private-table-runtime-ready"],
+      "node scripts/private-table-preparation-runtime-readiness.mjs",
     );
     assert.doesNotMatch(buildCommand, /migrat|DIRECT_URL|MIGRATION_DB_ROLE/i);
     assert.equal(vercel.git.deploymentEnabled, false);

@@ -7,7 +7,7 @@ import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 import { getPublicActiveMemberCount } from "@/lib/userPublicIdentityAccess";
 
 export const metadata: Metadata = {
-  title: "About Grainline",
+  title: { absolute: "About Grainline" },
   description: "Grainline is a marketplace connecting buyers with independent woodworking makers across the country.",
   alternates: { canonical: "https://thegrainline.com/about" },
 };

@@ -484,7 +484,8 @@ export default function NotificationBell({
                       <Icon size={16} className={`mt-0.5 shrink-0 ${color}`} />
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium leading-tight">
-                          {overlay && !n.read && <span className="sr-only">Unread: </span>}
+                          {/* Unread rows differ only by tint, so name the state on every page. */}
+                          {!n.read && <span className="sr-only">Unread: </span>}
                           {n.title}
                         </p>
                         <p className={`mt-0.5 truncate text-xs ${notificationMutedTextClass}`}>

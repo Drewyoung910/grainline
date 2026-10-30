@@ -250,7 +250,10 @@ describe("public query determinism", () => {
     assert.match(searchSuggestions, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(searchSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
     assert.match(sellerPublicNameAuthority, /ORDER BY seller\."displayNameNormalized" ASC, seller\.id ASC\s+LIMIT p_limit/);
-    assert.match(searchSuggestions, /ORDER BY sim DESC, latest_created_at DESC, latest_id DESC\s*LIMIT 2/);
+    assert.match(
+      searchSuggestions,
+      /ORDER BY ranked\.sim DESC, ranked\.created_at DESC, ranked\.id DESC\s*LIMIT 2/,
+    );
     assert.match(searchSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 3/);
 
     assert.match(blogSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 5/);

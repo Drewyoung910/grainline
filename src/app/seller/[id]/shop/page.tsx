@@ -342,7 +342,7 @@ export default async function SellerShopPage({
             <Link
               key={tab.value}
               href={shopUrl({ status: tab.value || null, page: 1 })}
-              className={`shrink-0 rounded-full px-3 py-0.5 text-xs font-medium transition-colors ${
+              className={`inline-flex min-h-7 shrink-0 items-center rounded-full px-3 text-xs font-medium transition-colors pointer-coarse:min-h-11 ${
                 statusFilter === tab.value
                   ? "bg-neutral-900 text-white"
                   : "bg-[#EFEAE0] text-neutral-700 hover:bg-[#E3DCCB]"

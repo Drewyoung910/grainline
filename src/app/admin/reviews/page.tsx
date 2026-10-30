@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { DeleteReviewButton } from "@/components/admin/DeleteReviewButton";
+import ExpandableText from "@/components/ExpandableText";
 import { publicListingPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
@@ -63,7 +64,8 @@ export default async function AdminReviewsPage({
                     by {reviewerLabelById.get(r.reviewerId)?.name ?? reviewerLabelById.get(r.reviewerId)?.email ?? "Unknown"}
                   </span>
                   <span className="text-xs text-neutral-500">on</span>
-                  <Link href={publicListingPath(r.listing.id, r.listing.title)} className="text-xs text-neutral-600 hover:underline">
+                  {/* Staff preview, so reviews on hidden or held listings still open. */}
+                  <Link href={`${publicListingPath(r.listing.id, r.listing.title)}?preview=admin`} className="text-xs text-neutral-600 hover:underline">
                     {r.listing.title}
                   </Link>
                   <span className="text-xs text-neutral-500">
@@ -71,7 +73,13 @@ export default async function AdminReviewsPage({
                   </span>
                 </div>
                 {r.comment && (
-                  <p className="text-sm text-neutral-700 mt-1 line-clamp-3">{r.comment}</p>
+                  // Staff need the whole review before deciding to delete it.
+                  <ExpandableText
+                    text={r.comment}
+                    clampLines={3}
+                    className="mt-1"
+                    toggleClassName="mt-1 text-xs font-medium text-neutral-600 underline hover:text-neutral-900"
+                  />
                 )}
                 {r.photos.length > 0 && (
                   <div className="flex gap-1.5 mt-2">

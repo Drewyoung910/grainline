@@ -631,7 +631,17 @@ export default async function SellerSettingsPage({
             Send a message to all your followers — new projects, restocks, events, or anything you want to share.
           </p>
         </div>
-        <BroadcastComposer followerCount={followerCount} />
+        {/* The broadcast API rejects inactive shops; say so before the maker writes a message. */}
+        <BroadcastComposer
+          followerCount={followerCount}
+          disabledReason={
+            !currentRow?.chargesEnabled
+              ? "Connect Stripe payouts above to send shop updates to your followers."
+              : currentRow.vacationMode
+                ? "Shop updates are paused while vacation mode is on. Turn off vacation mode above to send one."
+                : null
+          }
+        />
       </section>
     </main>
   );
