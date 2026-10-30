@@ -63,6 +63,9 @@ import {
 import {
   isReviewedSuccessfulMigration,
 } from "./reviewed-manually-applied-migrations.mjs";
+import {
+  privateTableRlsActivation,
+} from "./private-table-rls-activation-catalog.mjs";
 
 const { Client } = pg;
 
@@ -116,6 +119,19 @@ export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 export const SUPPORT_REQUEST_TABLE = "SupportRequest";
 export const MAKER_VERIFICATION_TABLE = "MakerVerification";
 export const FOLLOW_TABLE = "Follow";
+const FOLLOW_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("follow_v1");
+export const FOLLOW_RLS_ACTIVATION_MIGRATION =
+  FOLLOW_RLS_ACTIVATION_RELEASE.migration;
+export const FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256 =
+  FOLLOW_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  FOLLOW_RLS_ACTIVATION_RELEASE.functionChanges.retained
+    .filter((entry) => (
+      entry.predecessorExecuteRole === "runtime"
+      && entry.activatedExecuteRole === "none"
+    ))
+    .map((entry) => entry.name),
+);
 export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
 export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
@@ -1555,6 +1571,10 @@ export function runtimePrivateFunctionNames(inventory) {
   const sellerProfilePrivatePredecessorPrepared =
     inventory?.sellerProfilePrivatePreparationApplied === true
     && inventory?.sellerProfilePrivatePredecessorRetirementApplied !== true;
+  const followActivated =
+    typeof inventory?.followRlsActivationApplied === "boolean"
+      ? inventory.followRlsActivationApplied
+      : followRlsActivationExpected(inventory);
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1562,6 +1582,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !orderPaymentEventActivated
     && !sellerEmailProjectionRetirementApplied
     && !sellerProfilePrivatePredecessorPrepared
+    && !followActivated
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -1587,6 +1608,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(sellerProfilePrivatePredecessorPrepared
       ? SELLER_PROFILE_PRIVATE_PREPARATION_FUNCTION_NAMES
+      : []),
+    ...(followActivated
+      ? FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -1726,6 +1750,14 @@ export async function readClerkWebhookEventActivationState(client) {
     migration: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
     checksum: CLERK_WEBHOOK_EVENT_ACTIVATION_MIGRATION_SHA256,
     label: "ClerkWebhookEvent activation",
+  });
+}
+
+export async function readFollowRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: FOLLOW_RLS_ACTIVATION_MIGRATION,
+    checksum: FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "Follow RLS activation",
   });
 }
 
@@ -3466,6 +3498,9 @@ export async function auditLiveDatabase({
   const clerkWebhookEventForce =
     await readClerkWebhookEventForceState(client);
   issues.push(...clerkWebhookEventForce.issues);
+  const followRlsActivation =
+    await readFollowRlsActivationState(client);
+  issues.push(...followRlsActivation.issues);
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -3593,6 +3628,7 @@ export async function auditLiveDatabase({
     sellerProfilePrivateRlsForced: sellerProfilePrivateForce.applied,
     sellerProfileRlsActivationApplied: sellerProfilePublicEnable.applied,
     sellerProfileRlsForceApplied: sellerProfilePublicForce.applied,
+    followRlsActivationApplied: followRlsActivation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,

@@ -422,6 +422,9 @@ const {
   USER_EMAIL_ADDRESS_TABLE,
   SUPPORT_REQUEST_TABLE,
   FOLLOW_TABLE,
+  FOLLOW_RLS_ACTIVATION_MIGRATION,
+  FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
+  FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
   CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
@@ -500,6 +503,7 @@ const {
   readAccountDeletionSideEffectForceState,
   readClerkWebhookEventActivationState,
   readClerkWebhookEventForceState,
+  readFollowRlsActivationState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -1164,6 +1168,25 @@ describe("database grant inventory guardrails", () => {
       assert.deepEqual(
         requiredRuntimeTablePrivileges(FOLLOW_TABLE, followActivatedInventory),
         [],
+      );
+      const retiredFollowerNotificationPage =
+        "grainline_user_follower_notification_page";
+      assert.deepEqual(FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES, [
+        retiredFollowerNotificationPage,
+      ]);
+      assert.equal(
+        runtimePrivateFunctionNames({
+          ...followActivatedInventory,
+          followRlsActivationApplied: false,
+        }).includes(retiredFollowerNotificationPage),
+        false,
+      );
+      assert.equal(
+        runtimePrivateFunctionNames({
+          ...followActivatedInventory,
+          followRlsActivationApplied: true,
+        }).includes(retiredFollowerNotificationPage),
+        true,
       );
       assert.equal(
         policylessServiceRlsTableNames(followActivatedInventory).includes(
@@ -5039,6 +5062,13 @@ describe("database grant inventory guardrails", () => {
       await readClerkWebhookEventForceState(exactClient(
         CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
         CLERK_WEBHOOK_EVENT_FORCE_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
+    assert.deepEqual(
+      await readFollowRlsActivationState(exactClient(
+        FOLLOW_RLS_ACTIVATION_MIGRATION,
+        FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
       )),
       { applied: true, issues: [] },
     );
