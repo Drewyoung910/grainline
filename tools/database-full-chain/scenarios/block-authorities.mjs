@@ -254,6 +254,68 @@ export async function proveBlockPreparedAuthorities({ database }) {
   await assert.rejects(
     runtimeQuery(
       database,
+      actorId,
+      "SELECT public.grainline_user_block_create($1)",
+      [actorId],
+    ),
+    (error) => error?.code === "22023",
+    "an actor cannot block themselves",
+  );
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_user_block_create($1) AS created",
+      [`${actorId}_missing`],
+    ),
+    [{ created: false }],
+    "a missing target must not create a block",
+  );
+
+  await database.query(
+    `UPDATE public."User"
+        SET banned = true, "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [targetId],
+  );
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_user_block_create($1) AS created",
+      [targetId],
+    ),
+    [{ created: true }],
+    "an active actor may preserve safety by blocking a suspended target",
+  );
+  await runtimeQuery(
+    database,
+    actorId,
+    "SELECT public.grainline_user_block_remove($1)",
+    [targetId],
+  );
+
+  await database.query(
+    `UPDATE public."User"
+        SET "deletedAt" = pg_catalog.clock_timestamp(),
+            "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [outsiderId],
+  );
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_user_block_create($1) AS created",
+      [outsiderId],
+    ),
+    [{ created: false }],
+    "a deleted target must not create a block",
+  );
+
+  await assert.rejects(
+    runtimeQuery(
+      database,
       null,
       "SELECT public.grainline_user_block_pair_is_blocked($1)",
       [actorId],
