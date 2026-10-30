@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-private-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
@@ -116,9 +117,7 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("removes only deleted-user-created blocks and keeps media cleanup scoped to the deleted sender", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const blockAccess = source("src/lib/blockAccess.ts");
-    const blockPreparation = source(
-      "prisma/migrations/20261028050000_prepare_block_authorities/migration.sql",
-    );
+    const blockPreparation = source(blockPreparationMigrationPath());
 
     assert.match(deletion, /deleteAllOwnerBlocks\(tx\)/);
     assert.match(blockAccess, /grainline_user_block_delete_owned\(\)/);
