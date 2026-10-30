@@ -15,6 +15,24 @@ import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
 const RELEASE_SELECTION = "owner_social_verification_v1";
+const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
+  favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
+  follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
+  review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
+  maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+});
+
+export function privateTableRuntimeReadinessMigrationOverride(
+  releaseId,
+  env = process.env,
+) {
+  const envName = MIGRATION_PATH_ENV_BY_RELEASE[releaseId];
+  const configured = envName ? env[envName] : undefined;
+  if (!configured) return undefined;
+  return configured.endsWith("/migration.sql")
+    ? configured
+    : `${configured}/migration.sql`;
+}
 
 function sourceSha256(source) {
   return createHash("sha256").update(source, "utf8").digest("hex");
@@ -23,7 +41,11 @@ function sourceSha256(source) {
 export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
   privateTablePreparationReleaseIds(RELEASE_SELECTION)
     .flatMap((releaseId) => {
-      const verified = verifyPrivateTablePreparationSource(releaseId);
+      const verified = verifyPrivateTablePreparationSource(
+        releaseId,
+        process.cwd(),
+        privateTableRuntimeReadinessMigrationOverride(releaseId),
+      );
       return verified.release.functions.map((entry) => Object.freeze({
         identity: `${entry.name}(${entry.arguments})`,
         executeRole: entry.executeRole ?? "runtime",
