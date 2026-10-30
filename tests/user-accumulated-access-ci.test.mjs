@@ -442,6 +442,19 @@ function reviewVotePreparationMigrationSourcePath() {
   return path.dirname(stagedPath);
 }
 
+function makerVerificationMigrationSourcePath(migration) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = migration === makerVerificationPreparationMigration
+    ? process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH ?? ""
+    : process.env.MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && existsSync(stagedPath),
+    `missing isolated MakerVerification migration ${migration}`,
+  );
+  return path.dirname(stagedPath);
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -914,6 +927,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         reviewVotePreparationTarget,
         { recursive: true },
       );
+    }
+    for (const migration of [
+      makerVerificationPreparationMigration,
+      makerVerificationActivationMigration,
+    ]) {
+      const target = path.join(root, "prisma", "migrations", migration);
+      if (!existsSync(target)) {
+        cpSync(
+          makerVerificationMigrationSourcePath(migration),
+          target,
+          { recursive: true },
+        );
+      }
     }
     const heldPaths = [...heldMigrations.map((migration) => `prisma/migrations/${migration}/migration.sql`), ...heldTests.map((file) => `tests/${file}`)];
     const sellerProfilePrivateBoundaryPaths = sellerProfilePrivateBoundaryMigrations.map(
