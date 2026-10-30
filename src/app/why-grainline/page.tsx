@@ -7,7 +7,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 
 export const metadata: Metadata = {
-  title: "Why Grainline | Real handmade woodworking, not factory imports",
+  title: { absolute: "Why Grainline | Real handmade woodworking, not factory imports" },
   description:
     "Grainline is a US marketplace exclusively for handmade woodworking. Sellers connect verified Stripe accounts, every listing is reviewed before it goes live, and factory imports, resellers, and anonymous shops are banned.",
   alternates: { canonical: "https://thegrainline.com/why-grainline" },

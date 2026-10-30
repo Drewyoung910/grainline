@@ -159,7 +159,7 @@ export default async function AccountSettingsPage() {
         {/* Email: buyer-facing */}
         <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-0.5">Messages &amp; Orders</h3>
-          <p className="text-xs text-neutral-500 mb-3">Email · Order confirmations and shipping updates are always sent</p>
+          <p className="text-xs text-neutral-500 mb-3">Email</p>
           <EmailRow
             type="EMAIL_NEW_MESSAGE"
             label="New messages"

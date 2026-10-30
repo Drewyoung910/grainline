@@ -63,7 +63,7 @@ export async function generateMetadata({
   const image = author.bannerImageUrl ?? author.avatarImageUrl ?? author.ownerImageUrl ?? undefined;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     openGraph: {
       title,

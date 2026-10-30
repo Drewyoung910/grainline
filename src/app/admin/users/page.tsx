@@ -12,6 +12,10 @@ import {
   userStaffDirectoryPage,
   userStaffExactEmailTarget,
 } from "@/lib/userStaffAccess";
+import {
+  isDeletedStaffDirectoryAccount,
+  userStaffDirectoryAccountState,
+} from "@/lib/userStaffDirectoryState";
 
 export const metadata: Metadata = { title: "Users — Admin" };
 
@@ -117,63 +121,92 @@ export default async function AdminUsersPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {users.map((u) => (
-              <tr key={u.id} className={u.banned ? "bg-red-50" : "hover:bg-neutral-50"}>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{u.name ?? "—"}</div>
-                  <div className="text-neutral-500 text-xs">{u.email}</div>
-                  {u.sellerDisplayName && (
-                    <div className="text-xs text-neutral-500">Shop: {u.sellerDisplayName}</div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    u.role === "ADMIN"
-                      ? "bg-purple-100 text-purple-800"
-                      : u.role === "EMPLOYEE"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-neutral-100 text-neutral-700"
-                  }`}>
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-neutral-500 text-xs">
-                  {new Date(u.createdAt).toLocaleDateString("en-US")}
-                </td>
-                <td className="px-4 py-3">
-                  {u.banned ? (
-                    <div>
-                      <span className="text-xs text-red-700 font-medium">Banned</span>
-                      {u.bannedAt && (
-                        <div className="text-xs text-neutral-500">
-                          {new Date(u.bannedAt).toLocaleDateString("en-US")}
-                        </div>
-                      )}
-                      {u.banReason && (
-                        <div className="text-xs text-neutral-500 max-w-xs truncate">{u.banReason}</div>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-green-700 font-medium">Active</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 space-y-1">
-                  {u.role !== "ADMIN" && (
-                    <BanUserButton
-                      userId={u.id}
-                      isBanned={u.banned}
-                      userName={u.name ?? u.email}
-                    />
-                  )}
-                  <Link
-                    href={`/admin/users?email=${encodeURIComponent(u.email)}`}
-                    className="text-xs text-blue-600 hover:underline"
-                  >
-                    Email
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {users.map((u) => {
+              const accountState = userStaffDirectoryAccountState(u);
+              const deleted = isDeletedStaffDirectoryAccount(accountState);
+              return (
+                <tr
+                  key={u.id}
+                  className={deleted ? "bg-neutral-50" : u.banned ? "bg-red-50" : "hover:bg-neutral-50"}
+                >
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{u.name ?? "—"}</div>
+                    <div className="text-neutral-500 text-xs">{u.email}</div>
+                    {u.sellerDisplayName && (
+                      <div className="text-xs text-neutral-500">Shop: {u.sellerDisplayName}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      u.role === "ADMIN"
+                        ? "bg-purple-100 text-purple-800"
+                        : u.role === "EMPLOYEE"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-neutral-100 text-neutral-700"
+                    }`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-neutral-500 text-xs">
+                    {new Date(u.createdAt).toLocaleDateString("en-US")}
+                  </td>
+                  <td className="px-4 py-3">
+                    {deleted ? (
+                      <div>
+                        <span className="text-xs text-neutral-700 font-medium">Deleted</span>
+                        {u.bannedAt && (
+                          <div className="text-xs text-neutral-500">
+                            {new Date(u.bannedAt).toLocaleDateString("en-US")}
+                          </div>
+                        )}
+                        {accountState === "deletion_pending" && (
+                          <div className="text-xs text-neutral-500 max-w-xs">
+                            Clerk account deleted; local cleanup is waiting on open orders or cases.
+                          </div>
+                        )}
+                      </div>
+                    ) : u.banned ? (
+                      <div>
+                        <span className="text-xs text-red-700 font-medium">Banned</span>
+                        {u.bannedAt && (
+                          <div className="text-xs text-neutral-500">
+                            {new Date(u.bannedAt).toLocaleDateString("en-US")}
+                          </div>
+                        )}
+                        {u.banReason && (
+                          <div className="text-xs text-neutral-500 max-w-xs truncate">{u.banReason}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-green-700 font-medium">Active</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 space-y-1">
+                    {/* Unban fails or re-opens a shop nobody can sign in to, and the email
+                        route refuses deleted and banned recipients, so deleted rows get no actions. */}
+                    {deleted ? (
+                      <span className="text-xs text-neutral-500">No actions</span>
+                    ) : (
+                      <>
+                        {u.role !== "ADMIN" && (
+                          <BanUserButton
+                            userId={u.id}
+                            isBanned={u.banned}
+                            userName={u.name ?? u.email}
+                          />
+                        )}
+                        <Link
+                          href={`/admin/users?email=${encodeURIComponent(u.email)}`}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Email
+                        </Link>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

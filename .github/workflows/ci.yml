@@ -744,6 +744,7 @@ jobs:
           tests/account-deletion-blocker-refund-state.test.mjs
           tests/account-deletion-timeout-fix.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
+          tests/admin-moderation-screen-ui.test.mjs
           tests/conversation-message-pre-rls-audit.test.mjs
           tests/conversation-message-recipient-rls.test.mjs
       - name: Isolate Clerk webhook event authority until historical release guards pass
@@ -817,6 +818,7 @@ jobs:
             tests/account-deletion-blocker-refund-state.test.mjs \
             tests/account-deletion-timeout-fix.test.mjs \
             tests/round9-account-deletion-pii-guardrails.test.mjs \
+            tests/admin-moderation-screen-ui.test.mjs \
             tests/conversation-message-pre-rls-audit.test.mjs \
             tests/conversation-message-recipient-rls.test.mjs
           do

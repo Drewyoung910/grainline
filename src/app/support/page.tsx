@@ -3,7 +3,7 @@ import Link from "next/link";
 import SupportRequestForm from "@/components/SupportRequestForm";
 
 export const metadata: Metadata = {
-  title: "Support — Grainline",
+  title: "Support",
   description: "Contact Grainline support about orders, accounts, seller issues, payments, or site problems.",
   alternates: { canonical: "https://thegrainline.com/support" },
 };

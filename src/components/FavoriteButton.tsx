@@ -1,8 +1,13 @@
 // src/components/FavoriteButton.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type CSSProperties } from "react";
 import { useToast } from "@/components/Toast";
+
+// Burst dot end positions (px from the heart's center), one ring of eight.
+const HEART_BURST_OFFSETS: ReadonlyArray<readonly [number, number]> = [
+  [0, -18], [13, -13], [18, 0], [13, 13], [0, 18], [-13, 13], [-18, 0], [-13, -13],
+];
 
 export default function FavoriteButton({
   listingId,
@@ -15,6 +20,8 @@ export default function FavoriteButton({
 }) {
   const [saved, setSaved] = useState(initialSaved);
   const [isPending, startTransition] = useTransition();
+  // Increments each time the visitor saves, restarting the pop and burst.
+  const [popCount, setPopCount] = useState(0);
   const { toast } = useToast();
 
   const toggle = () => {
@@ -22,6 +29,7 @@ export default function FavoriteButton({
 
     const next = !saved;
     setSaved(next); // optimistic
+    if (next) setPopCount((count) => count + 1);
 
     startTransition(async () => {
       try {
@@ -72,16 +80,28 @@ export default function FavoriteButton({
           hover circle so it has breathing room against the photo edges. */}
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full transition-colors group-hover:bg-black/10"
+        className="absolute h-9 w-9 rounded-full motion-safe:scale-90 transition-[background-color,scale] duration-200 ease-out motion-safe:group-hover:scale-100 group-hover:bg-black/10"
       />
+      {popCount > 0 && (
+        <span key={`burst-${popCount}`} aria-hidden="true" className="pointer-events-none absolute inset-0">
+          {HEART_BURST_OFFSETS.map(([x, y]) => (
+            <span
+              key={`${x},${y}`}
+              className="heart-burst-dot"
+              style={{ "--burst-x": `${x}px`, "--burst-y": `${y}px` } as CSSProperties}
+            />
+          ))}
+        </span>
+      )}
       {/* Heart icon — filled grey background for visibility on all photos.
           Heart shape is top-heavy (wide bumps, narrow point) so we shift it
           down 1px to make it look visually centered inside the hover circle. */}
       <svg
+        key={`heart-${popCount}`}
         width={size}
         height={size}
         viewBox="0 0 24 24"
-        className="relative drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] translate-y-[1px]"
+        className={`relative drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] translate-y-[1px]${popCount > 0 ? " heart-pop" : ""}`}
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Grey heart background for contrast on all photo backgrounds */}
