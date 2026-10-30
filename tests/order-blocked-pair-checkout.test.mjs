@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 
 function migrationSource(candidates, label) {
   const path = candidates.find((candidate) => candidate && fs.existsSync(candidate));
@@ -49,9 +50,7 @@ describe("blocked-pair checkout boundary", () => {
   it("uses one reciprocal application check on every pre-payment entry and ready-session resume", () => {
     const helper = source("src/lib/checkoutBlockState.ts");
     const blockAccess = source("src/lib/blockAccess.ts");
-    const blockPreparation = source(
-      "prisma/migrations/20261028050000_prepare_block_authorities/migration.sql",
-    );
+    const blockPreparation = source(blockPreparationMigrationPath());
     assert.match(helper, /userBlockPairIsBlocked\(buyerId, sellerUserId\)/u);
     assert.match(blockAccess, /grainline_user_block_pair_is_blocked/u);
     assert.match(blockPreparation, /relationship\."blockerId" = request_user_id[\s\S]*relationship\."blockedId" = p_target_user_id/u);
