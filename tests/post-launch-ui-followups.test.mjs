@@ -478,6 +478,7 @@ describe("post-launch UI follow-ups", () => {
   it("keeps the homepage map compact without shrinking the full map page", () => {
     const homepage = source("src/app/page.tsx");
     const mapSection = source("src/components/MakersMapSection.tsx");
+    const mapLayout = source("src/lib/homepageMapLayout.ts");
     const allSellersMap = source("src/components/AllSellersMap.tsx");
     const mapPage = source("src/app/map/page.tsx");
 
@@ -494,8 +495,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepageMapCall, /\bcompact\b/);
     assert.match(mapSection, /compact = false/);
     assert.match(mapSection, /compact\?: boolean/);
-    assert.match(mapSection, /h-\[300px\] sm:h-\[320px\] lg:h-\[340px\]/);
-    assert.match(mapSection, /h-\[420px\]/);
+    assert.match(mapLayout, /h-\[300px\] sm:h-\[320px\] lg:h-\[340px\]/);
+    assert.match(mapLayout, /h-\[420px\]/);
     assert.match(sectionMapCall, /height="100%"/);
     assert.match(fallbackCall, /className="[^"]*h-full/);
     assert.match(fallbackCall, /className="[^"]*w-full/);
