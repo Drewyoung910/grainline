@@ -1,6 +1,7 @@
 // src/app/page.tsx
 import Link from "next/link";
 import Image from "next/image";
+import type { CSSProperties } from "react";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Prisma } from "@prisma/client";
@@ -29,6 +30,7 @@ import { avatarInitial } from "@/lib/avatarInitials";
 import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 import { compareAccountFeedItemsDesc } from "@/lib/accountFeedCursor";
 import { formatCurrencyCents } from "@/lib/money";
+import { formatCityState } from "@/lib/locationDisplay";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
@@ -168,6 +170,11 @@ const CATEGORIES = [
   { key: "OUTDOOR",   label: "Outdoor",       Icon: TreePine  },
   { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
+
+// Staggers the hero load sequence (see .hero-rise in globals.css).
+function heroRiseDelay(ms: number): CSSProperties {
+  return { "--hero-rise-delay": `${ms}ms` } as CSSProperties;
+}
 
 export default async function HomePage() {
   const { userId } = await auth();
@@ -442,7 +449,7 @@ export default async function HomePage() {
           preload
           quality={88}
           sizes="(max-width: 639px) 150vw, 100vw"
-          className="object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+          className="hero-photo-settle object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
         />
         <div
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%)] lg:bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.60)_28%,rgba(44,31,26,0.18)_48%,rgba(44,31,26,0)_66%)]"
@@ -455,26 +462,30 @@ export default async function HomePage() {
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
           <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
-            <h1 className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
+            <h1 className="hero-lines font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
               <span className="block whitespace-nowrap">Buy handmade.</span>
               <span className="block whitespace-nowrap">Buy local.</span>
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-            <p className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
+            <p className="hero-rise relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg" style={heroRiseDelay(450)}>
               More than what&apos;s made for everyone.
             </p>
+            {/* Each button rises on its own: fading a parent would switch off the
+                buttons' frosted blur until the fade ends. */}
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
               <Link
                 href="/browse"
                 data-home-primary-cta
-                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
+                style={heroRiseDelay(550)}
+                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
               >
                 Browse
               </Link>
               <Link
                 href="/map"
                 data-home-secondary-cta
-                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
+                style={heroRiseDelay(620)}
+                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
               >
                 Find Shops Near You
               </Link>
@@ -492,28 +503,28 @@ export default async function HomePage() {
       >
         <dl
           data-home-stats-surface
-          className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+          className="hero-stats-rise mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
         >
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
-            <dt className="order-2 mt-1 text-[9px] leading-tight text-[#2C1F1A]/65 sm:text-xs">pieces listed</dt>
+            <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">pieces listed</dt>
             <dd className="order-1 text-lg font-semibold leading-none text-[#2C1F1A] sm:text-2xl">
               {homepageStats.pieces.toLocaleString("en-US")}
             </dd>
           </div>
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
-            <dt className="order-2 mt-1 text-[9px] leading-tight text-[#2C1F1A]/65 sm:text-xs">active makers</dt>
+            <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">active makers</dt>
             <dd className="order-1 text-lg font-semibold leading-none text-[#2C1F1A] sm:text-2xl">
               {homepageStats.makers.toLocaleString("en-US")}
             </dd>
           </div>
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
-            <dt className="order-2 mt-1 text-[9px] leading-tight text-[#2C1F1A]/65 sm:text-xs">members</dt>
+            <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">members</dt>
             <dd className="order-1 text-lg font-semibold leading-none text-[#2C1F1A] sm:text-2xl">
               {homepageStats.members.toLocaleString("en-US")}
             </dd>
           </div>
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
-            <dt className="order-2 mt-1 text-[9px] leading-tight text-[#2C1F1A]/65 sm:text-xs">orders fulfilled</dt>
+            <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">orders fulfilled</dt>
             <dd className="order-1 text-lg font-semibold leading-none text-[#2C1F1A] sm:text-2xl">
               {homepageStats.fulfilledOrders.toLocaleString("en-US")}
             </dd>
@@ -547,7 +558,7 @@ export default async function HomePage() {
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+              <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
@@ -599,17 +610,17 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-[background-color,scale] duration-300 ease-out motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
                 >
-                  <c.Icon size={28} className="text-neutral-900" />
+                  <c.Icon size={28} className="text-neutral-900 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-110" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-colors flex-none w-28 sm:w-auto"
+                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-[background-color,scale] duration-300 ease-out motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
               >
-                <span className="text-2xl text-neutral-900">→</span>
+                <span className="text-2xl text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
               </Link>
             </div>
@@ -629,7 +640,7 @@ export default async function HomePage() {
             </div>
           ) : (
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+              <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
@@ -681,10 +692,10 @@ export default async function HomePage() {
               </Link>
             </div>
             <ScrollFadeRow className="overflow-x-auto -mx-1 px-1">
-            <ul className="flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
+            <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
+                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg motion-safe:hover:-translate-y-1 motion-safe:transition-all motion-safe:duration-200">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
                       <div className="aspect-[4/5] bg-neutral-100 overflow-hidden">
                         <MediaImage
@@ -705,7 +716,7 @@ export default async function HomePage() {
                     </Link>
                   </ClickTracker>
                 ) : (
-                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
+                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg motion-safe:hover:-translate-y-1 motion-safe:transition-all motion-safe:duration-200">
                     <Link href={`/blog/${item.slug}`} className="block">
                       <div className="aspect-square bg-neutral-100 overflow-hidden">
                         <MediaImage
@@ -844,7 +855,7 @@ export default async function HomePage() {
                     {(spotlight.city || spotlight.state) && (
                       <span className="flex items-center gap-1 text-neutral-600">
                         <MapPin size={13} className="shrink-0" />
-                        {[spotlight.city, spotlight.state].filter(Boolean).join(", ")}
+                        {formatCityState(spotlight.city, spotlight.state)}
                       </span>
                     )}
                   </div>
@@ -940,7 +951,7 @@ export default async function HomePage() {
                           </span>
                         )}
                         {(also.city || also.state) && (
-                          <span>{[also.city, also.state].filter(Boolean).join(", ")}</span>
+                          <span>{formatCityState(also.city, also.state)}</span>
                         )}
                       </div>
                     </div>

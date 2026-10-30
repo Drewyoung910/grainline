@@ -138,6 +138,10 @@ async function deleteComment(commentId: string) {
   revalidatePath("/admin/blog");
 }
 
+// The admin menu's Blog badge counts every unapproved comment; this queue shows
+// the oldest PENDING_COMMENT_LIMIT, so the heading says when more are waiting.
+const PENDING_COMMENT_LIMIT = 30;
+
 export default async function AdminBlogPage() {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
@@ -151,16 +155,18 @@ export default async function AdminBlogPage() {
     },
   });
 
-  const pendingComments = await prisma.blogComment.findMany({
+  const pendingCommentRows = await prisma.blogComment.findMany({
     where: { approved: false },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: 30,
+    take: PENDING_COMMENT_LIMIT + 1,
     select: {
       id: true, body: true, createdAt: true,
       authorId: true,
       post: { select: { title: true, slug: true } },
     },
   });
+  const pendingCommentQueueFull = pendingCommentRows.length > PENDING_COMMENT_LIMIT;
+  const pendingComments = pendingCommentRows.slice(0, PENDING_COMMENT_LIMIT);
   const commentAuthorLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
     actorId: staff.id,
     userIds: [
@@ -169,6 +175,34 @@ export default async function AdminBlogPage() {
     ],
   });
   const commentAuthorById = new Map(commentAuthorLabels.map((label) => [label.id, label]));
+
+  const now = new Date();
+
+  // A PUBLISHED post still 404s publicly while it is scheduled or its author
+  // account is deleted, so those rows get a reason instead of a dead View link.
+  function postViewControl(post: {
+    slug: string;
+    status: string;
+    publishedAt: Date | null;
+    authorId: string | null;
+  }) {
+    if (post.status !== "PUBLISHED") return null;
+    const notPublicReason = !post.publishedAt
+      ? "Not public: no publish date"
+      : post.publishedAt > now
+        ? "Not public: scheduled"
+        : post.authorId && commentAuthorById.get(post.authorId)?.deletedAt
+          ? "Not public: author deleted"
+          : null;
+    if (notPublicReason) {
+      return <span className="text-xs text-neutral-500">{notPublicReason}</span>;
+    }
+    return (
+      <Link href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+        View
+      </Link>
+    );
+  }
 
   const STATUS_COLORS: Record<string, string> = {
     DRAFT: "bg-neutral-100 text-neutral-600",
@@ -188,9 +222,15 @@ export default async function AdminBlogPage() {
           <h2 className="text-lg font-semibold mb-3">
             Pending Comments
             <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-              {pendingComments.length}
+              {pendingCommentQueueFull ? `${PENDING_COMMENT_LIMIT}+` : pendingComments.length}
             </span>
           </h2>
+          {pendingCommentQueueFull && (
+            <p className="-mt-1 mb-3 text-sm text-neutral-500">
+              Showing the oldest {PENDING_COMMENT_LIMIT}. The Blog badge in the admin menu shows the full
+              count; approve or delete these to load more.
+            </p>
+          )}
           <div className="space-y-3">
             {pendingComments.map((c) => (
               <div key={c.id} className="card-section p-4 space-y-2">
@@ -258,11 +298,7 @@ export default async function AdminBlogPage() {
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  {p.status === "PUBLISHED" && (
-                    <Link href={`/blog/${p.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
-                      View
-                    </Link>
-                  )}
+                  {postViewControl(p)}
                 </div>
               </li>
             ))}

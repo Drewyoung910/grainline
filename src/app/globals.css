@@ -26,6 +26,19 @@
     background: #F7F5F0;
     color: #111827; /* neutral-900 */
   }
+
+  /* Tailwind v4 draws a bare `border`/`divide-*` in currentColor (the text
+     color), which reads as a harsh dark outline. Default every border to the
+     design-system light neutral instead (Tailwind's documented v3
+     compatibility rule). It lives in @layer base, so any border-color
+     utility, including border-current, still wins. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-neutral-200, currentColor);
+  }
 }
 
 /* minimal helpers (optional) */
@@ -44,6 +57,10 @@
   line-height: 1.1;
 }
 
+/* The card classes live in @layer components so Tailwind utilities on the
+   same element (bg-*, border-*, rounded-*, overflow-*, shadow-*, ring-*)
+   override them. Unlayered, they silently beat every utility. */
+@layer components {
 /* Listing/product cards — uses the darker cream accent so the card
    info section stands apart from the cream page bg. Don't switch
    back to #ffffff; the ListingCard component intentionally relies on
@@ -84,9 +101,12 @@
   background: #E5DFD2;
   box-shadow: 0 4px 14px rgba(28, 25, 23, 0.08);
 }
+}
 
-/* Serif display font for hero + section headings */
-.font-display {
+/* Serif display font for hero + section headings. Registered as a Tailwind
+   utility so variants work (e.g. `prose-headings:font-display` on the Help
+   and Seller Handbook pages); a plain class can't take a variant. */
+@utility font-display {
   font-family: Georgia, 'Times New Roman', serif;
   letter-spacing: -0.025em;
 }
@@ -384,4 +404,202 @@ input, textarea, select {
     mask-image: none;
     -webkit-mask-image: none;
   }
+}
+
+/* ── Motion (2026-10-27 polish pass) ─────────────────────────────────────
+   Every animation below only runs when the visitor has not asked for reduced
+   motion. Only opacity and transform animate, so nothing re-lays out the
+   page. Resting styles outside the media query keep each element fully
+   visible and correctly placed when motion is off. */
+:root {
+  --motion-ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --motion-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Listing card photos that had not started rendering at hydration stay
+   hidden until they load, then fade in (see ListingCard). */
+.listing-photo[data-photo-state="pending"] {
+  opacity: 0;
+}
+
+/* Heart-save burst dots stay invisible unless the animation runs. */
+.heart-burst-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 9999px;
+  background: #ef4444; /* red-500, matches the saved heart */
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Homepage hero load sequence */
+  .hero-photo-settle {
+    animation: hero-photo-settle 1.6s var(--motion-ease-out) backwards;
+  }
+  .hero-rise,
+  .hero-lines > span {
+    animation: hero-rise 0.8s var(--motion-ease-out) backwards;
+    animation-delay: var(--hero-rise-delay, 0ms);
+  }
+  .hero-lines > span:nth-child(1) { --hero-rise-delay: 100ms; }
+  .hero-lines > span:nth-child(2) { --hero-rise-delay: 200ms; }
+  .hero-lines > span:nth-child(3) { --hero-rise-delay: 300ms; }
+  .hero-stats-rise {
+    animation: hero-stats-rise 0.9s var(--motion-ease-out) 0.55s backwards;
+  }
+
+  /* Listing card photo: fades and settles in once it has loaded */
+  .listing-photo[data-photo-state="revealed"] {
+    animation: photo-soft-in 0.6s var(--motion-ease-out) backwards;
+  }
+
+  /* Favorite heart */
+  .heart-pop {
+    animation: heart-pop 0.5s var(--motion-ease-spring);
+  }
+  .heart-burst-dot {
+    animation: heart-burst 0.55s var(--motion-ease-out) forwards;
+  }
+
+  /* Cart count bump when an item is added */
+  .badge-bump {
+    animation: badge-bump 0.5s var(--motion-ease-spring);
+  }
+}
+
+@keyframes hero-photo-settle {
+  from { transform: scale(1.06); }
+  to   { transform: scale(1); }
+}
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes hero-stats-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes photo-soft-in {
+  from { opacity: 0; transform: scale(1.05); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes heart-pop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(0.72); }
+  65%  { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+@keyframes heart-burst {
+  0%   { opacity: 1; transform: translate(0, 0) scale(0.4); }
+  100% { opacity: 0; transform: translate(var(--burst-x), var(--burst-y)) scale(1); }
+}
+@keyframes badge-bump {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* Second motion batch: entrances and small feedback, same rules as above. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Search suggestions drop in with a short stagger */
+  .search-option-in {
+    animation: search-option-in 0.28s var(--motion-ease-out) backwards;
+    animation-delay: calc(var(--search-option-index, 0) * 25ms);
+  }
+
+  /* Listing photo viewer opens with a fade and a slight grow */
+  .lightbox-backdrop-in {
+    animation: lightbox-backdrop-in 0.22s ease-out backwards;
+  }
+  .lightbox-photo-in {
+    animation: lightbox-photo-in 0.38s var(--motion-ease-spring) backwards;
+  }
+
+  /* Mobile "Read more" text, rolling counts, badge popovers */
+  .text-reveal-in {
+    animation: text-reveal-in 0.4s var(--motion-ease-out) backwards;
+  }
+  .count-roll-in {
+    animation: count-roll-in 0.36s var(--motion-ease-out) backwards;
+  }
+  .popover-spring-in {
+    animation: popover-spring-in 0.32s var(--motion-ease-spring) backwards;
+    transform-origin: top center;
+  }
+  .guild-popup-motion {
+    transition:
+      opacity 0.18s ease-out,
+      transform 0.32s var(--motion-ease-spring);
+  }
+  .guild-popup-motion[data-positioned="false"] {
+    transform: translateY(-4px) scale(0.96);
+  }
+  .guild-popup-motion[data-positioned="true"] {
+    transform: none;
+  }
+
+  /* Homepage product rows: cards fade and settle in as their section
+     reveals (ScrollSection sets data-revealed). Scale, not translate, so
+     the clipping scroll row never cuts a card off mid-animation. */
+  [data-revealed="true"] .reveal-stagger > * {
+    animation: reveal-card-in 0.6s var(--motion-ease-out) backwards;
+  }
+  .reveal-stagger > :nth-child(2) { animation-delay: 60ms; }
+  .reveal-stagger > :nth-child(3) { animation-delay: 120ms; }
+  .reveal-stagger > :nth-child(4) { animation-delay: 180ms; }
+  .reveal-stagger > :nth-child(5) { animation-delay: 240ms; }
+  .reveal-stagger > :nth-child(6) { animation-delay: 300ms; }
+  .reveal-stagger > :nth-child(n + 7) { animation-delay: 360ms; }
+
+  /* Policy and FAQ accordions open and close smoothly where height can
+     animate to "auto"; other browsers keep the instant toggle. */
+  @supports (interpolate-size: allow-keywords) {
+    .smooth-details {
+      interpolate-size: allow-keywords;
+    }
+    .smooth-details details::details-content {
+      block-size: 0;
+      overflow: clip;
+      transition:
+        block-size 0.35s var(--motion-ease-out),
+        content-visibility 0.35s allow-discrete;
+    }
+    .smooth-details details[open]::details-content {
+      block-size: auto;
+    }
+  }
+}
+
+@keyframes search-option-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes lightbox-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes lightbox-photo-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes text-reveal-in {
+  from { opacity: 0.2; }
+  to   { opacity: 1; }
+}
+@keyframes count-roll-in {
+  from { opacity: 0; transform: translateY(60%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes popover-spring-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes reveal-card-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
 }

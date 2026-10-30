@@ -208,6 +208,9 @@ export default async function BuyerOrderDetailPage({
     paymentState,
     status,
   );
+  // A refund the provider has not confirmed yet is shown as pending and is not
+  // taken off the receipt total until it completes.
+  const refundPending = paymentState === "REFUND_PROCESSING";
   const canOfferReceiptConfirmation = canOfferBuyerReceiptConfirmation({
     fulfillmentMethod: method,
     fulfillmentStatus: status,
@@ -416,18 +419,25 @@ export default async function BuyerOrderDetailPage({
           )}
           <hr className="my-1 border-neutral-100" />
           {hasRefund && refundCents != null && (
-            <div className="flex items-center justify-between text-green-700">
-              <div>Refund issued</div>
-              <div className="font-medium">−{fmtMoney(refundCents, currency)}</div>
-            </div>
+            refundPending ? (
+              <div className="flex items-center justify-between text-neutral-600">
+                <div>Refund pending</div>
+                <div className="font-medium">{fmtMoney(refundCents, currency)}</div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-red-600">
+                <div>Refund issued</div>
+                <div className="font-medium">−{fmtMoney(refundCents, currency)}</div>
+              </div>
+            )
           )}
           <div className="flex items-center justify-between text-base">
             <div className="text-neutral-800">
-              {hasRefund ? "Net total" : "Total"}
+              {hasRefund && !refundPending ? "Net total" : "Total"}
             </div>
             <div className="font-semibold">
               {fmtMoney(
-                hasRefund && refundCents != null ? Math.max(0, total - refundCents) : total,
+                hasRefund && !refundPending && refundCents != null ? Math.max(0, total - refundCents) : total,
                 currency
               )}
             </div>
@@ -645,7 +655,8 @@ export default async function BuyerOrderDetailPage({
           {caseWindowClosedMessage(caseWindowClosedAt)}
         </div>
       ) : !isTerminal ? (
-        deliveryInFuture ? (
+        // Any refund blocks a new case, so don't promise one after delivery.
+        deliveryInFuture && !hasRefund ? (
           <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
             You can open a case if there&apos;s an issue with your order after the estimated
             delivery date of{" "}

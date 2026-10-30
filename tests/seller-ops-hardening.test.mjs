@@ -52,7 +52,7 @@ describe("seller operational route hardening", () => {
     const sellerShop = source("src/app/seller/[id]/shop/page.tsx");
 
     assert.match(localDate, /dateOnly = false/);
-    assert.match(localDate, /toLocaleDateString\("en-US", \{ month: "long", day: "numeric", year: "numeric" \}\)/);
+    assert.match(localDate, /toLocaleDateString\("en-US", \{ month: "long", day: "numeric", year: "numeric", timeZone \}\)/);
     assert.match(sellerProfile, /<LocalDate date=\{seller\.vacationReturnDate\} dateOnly \/>/);
     assert.match(sellerShop, /import LocalDate from "@\/components\/LocalDate"/);
     assert.match(sellerShop, /<LocalDate date=\{seller\.vacationReturnDate\} dateOnly \/>/);

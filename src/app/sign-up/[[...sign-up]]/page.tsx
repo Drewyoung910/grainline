@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { SignUp } from "@clerk/nextjs";
 import { acceptTermsPathForRedirect, safeInternalPath, signInPathForRedirect } from "@/lib/internalReturnUrl";
+
+export const metadata: Metadata = {
+  title: "Create your account",
+  robots: { index: false, follow: false },
+};
 
 export default async function Page({
   searchParams,
@@ -18,6 +24,14 @@ export default async function Page({
         signInUrl={signInPathForRedirect(postAuthUrl)}
         forceRedirectUrl={postAuthUrl}
         fallbackRedirectUrl={postAuthUrl}
+        appearance={{
+          variables: {
+            colorPrimary: "#2C1F1A",
+            colorBackground: "#ffffff",
+            fontFamily: "inherit",
+            borderRadius: "0.375rem",
+          },
+        }}
       />
     </main>
   );

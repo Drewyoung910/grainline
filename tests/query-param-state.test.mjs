@@ -156,7 +156,8 @@ describe("query parameter parsing helpers", () => {
     );
     assert.match(staffReadMigration, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT 50/);
 
-    assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 30/);
+    assert.match(blog, /const PENDING_COMMENT_LIMIT = 30;/);
+    assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: PENDING_COMMENT_LIMIT \+ 1/);
     assert.match(reports, /userReportStaffOpenPage\(staffClient, \{/);
     assert.match(reports, /cursor,[\s\S]*limit: REPORT_PAGE_SIZE/);
     assert.match(reports, /Oldest unresolved reports are shown first/);

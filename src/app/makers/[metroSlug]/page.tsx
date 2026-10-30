@@ -17,6 +17,7 @@ import {
   sellerPublicMetroStaticSlugs,
   sellerPublicNearbyMetros,
 } from "@/lib/sellerProfilePublicAccess";
+import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -43,12 +44,12 @@ export async function generateMetadata({
   });
   if (!metro) return {};
 
-  const cityName = `${metro.name}, ${metro.state}`;
+  const cityName = formatCityState(metro.name, metro.state);
   const title = `Woodworkers & Furniture Makers in ${cityName} | Grainline`;
   const description = `Meet local woodworkers and furniture makers in ${cityName}. Browse their handcrafted work, read reviews, and commission custom pieces directly.`;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/makers/${metroSlug}` },
     openGraph: { title, description, url: `${BASE_URL}/makers/${metroSlug}` },
@@ -79,7 +80,8 @@ export default async function MakersMetroPage({
   if (!metro) return notFound();
 
   const isMajorMetro = !metro.parentMetroId;
-  const cityName = `${metro.name}, ${metro.state}`;
+  const cityName = formatCityState(metro.name, metro.state);
+  const stateLabel = displayUsState(metro.state);
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
@@ -99,7 +101,7 @@ export default async function MakersMetroPage({
     "name": `Woodworkers & Furniture Makers in ${cityName}`,
     "description": `Local woodworking artisans in ${cityName}`,
     "url": `${BASE_URL}/makers/${metroSlug}`,
-    "areaServed": { "@type": "City", "name": metro.name, "containedInPlace": { "@type": "State", "name": metro.state } },
+    "areaServed": { "@type": "City", "name": metro.name, "containedInPlace": { "@type": "State", "name": stateLabel } },
     "numberOfItems": sellerCount,
     "itemListElement": sellers.slice(0, 10).map((s, i) => ({
       "@type": "ListItem",
@@ -110,7 +112,7 @@ export default async function MakersMetroPage({
         "description": s.tagline ?? `Handmade woodworking by ${s.displayName}`,
         "url": `${BASE_URL}${publicSellerPath(s.id, s.displayName)}`,
         "image": s.avatarImageUrl ?? s.ownerImageUrl,
-        ...(s.city && s.state ? { "address": { "@type": "PostalAddress", "addressLocality": s.city, "addressRegion": s.state } } : {}),
+        ...(s.city && s.state ? { "address": { "@type": "PostalAddress", "addressLocality": s.city, "addressRegion": displayUsState(s.state) } } : {}),
         "knowsAbout": "Handmade Woodworking",
       },
     })),
@@ -121,7 +123,7 @@ export default async function MakersMetroPage({
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
-      { "@type": "ListItem", "position": 2, "name": metro.state },
+      { "@type": "ListItem", "position": 2, "name": stateLabel },
       { "@type": "ListItem", "position": 3, "name": metro.name, "item": `${BASE_URL}/makers/${metroSlug}` },
     ],
   };
@@ -135,7 +137,7 @@ export default async function MakersMetroPage({
       <nav className="mb-5 text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link>
         <span className="mx-2">›</span>
-        <span className="text-neutral-500">{metro.state}</span>
+        <span className="text-neutral-500">{stateLabel}</span>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
@@ -190,7 +192,7 @@ export default async function MakersMetroPage({
                         <GuildBadge level={seller.guildLevel as GuildLevelValue} size={22} />
                       </div>
                       {seller.city && seller.state && (
-                        <p className="text-xs text-neutral-500">{seller.city}, {seller.state}</p>
+                        <p className="text-xs text-neutral-500">{formatCityState(seller.city, seller.state)}</p>
                       )}
                     </div>
                   </div>

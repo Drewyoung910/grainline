@@ -26,6 +26,7 @@ export default function ListingTypeFields({
 }) {
   const [type, setType] = React.useState<"MADE_TO_ORDER" | "IN_STOCK">(listingType);
   const listingTypeLabelId = React.useId();
+  const categoryId = React.useId();
   const madeToOrderRef = React.useRef<HTMLButtonElement>(null);
   const inStockRef = React.useRef<HTMLButtonElement>(null);
 
@@ -64,8 +65,9 @@ export default function ListingTypeFields({
     <div className="space-y-4">
       {/* Category */}
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">Category</label>
+        <label htmlFor={categoryId} className="block text-sm font-medium text-neutral-700 mb-1">Category</label>
         <select
+          id={categoryId}
           name="category"
           defaultValue={category ?? ""}
           className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
