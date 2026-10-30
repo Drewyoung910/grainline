@@ -254,6 +254,7 @@ test(
       let followFixture;
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
+      let followPreparationPostflightClosed = false;
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -523,6 +524,7 @@ test(
               );
             assert.equal(followPreparationPostflight.state, "applied");
             assert.equal(followPreparationPostflight.catalog.functions.length, 5);
+            followPreparationPostflightClosed = true;
             await proveFollowPreparedAuthorities({
               database: adapter,
               connectionString: proofDatabaseUrl,
@@ -564,23 +566,11 @@ test(
         followPreparationPreflightPath,
         "Follow Production preflight must run before its preparation",
       );
-      const followPreparationPostflight = await inspectPrivateTablePreparationProduction(
-        {
-          DIRECT_URL: proofDatabaseUrl,
-          PRIVATE_TABLE_PREPARATION_RELEASE_ID: "follow_v1",
-          PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
-          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
-            preparationEvidenceDirectory,
-            "follow-preparation-postflight.json",
-          ),
-          PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
-            followPreparationPreflightPath,
-          PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
-        },
-        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+      assert.equal(
+        followPreparationPostflightClosed,
+        true,
+        "Follow preparation postflight must close before activation",
       );
-      assert.equal(followPreparationPostflight.state, "applied");
-      assert.equal(followPreparationPostflight.catalog.functions.length, 5);
 
       await assertSellerProfilePrivateLayout(adapter);
       await proveSellerProfilePolicylessEnable({
