@@ -115,9 +115,24 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("removes only deleted-user-created blocks and keeps media cleanup scoped to the deleted sender", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const blockAccess = source("src/lib/blockAccess.ts");
+    const blockPreparation = source(
+      "prisma/migrations/20261028050000_prepare_block_authorities/migration.sql",
+    );
 
-    assert.match(deletion, /tx\.block\.deleteMany\(\{\s*where: \{ blockerId: user\.id \} \}\)/);
-    assert.doesNotMatch(deletion, /blockedId: user\.id/);
+    assert.match(deletion, /deleteAllOwnerBlocks\(tx\)/);
+    assert.match(blockAccess, /grainline_user_block_delete_owned\(\)/);
+    assert.match(
+      blockPreparation,
+      /DELETE FROM public\."Block" AS relationship\s+WHERE relationship\."blockerId" = request_user_id;/,
+    );
+    assert.doesNotMatch(
+      blockPreparation.slice(
+        blockPreparation.indexOf("CREATE FUNCTION public.grainline_user_block_delete_owned"),
+        blockPreparation.indexOf("$grainline_user_block_delete_owned$;", blockPreparation.indexOf("CREATE FUNCTION public.grainline_user_block_delete_owned")),
+      ),
+      /relationship\."blockedId"/,
+    );
     assert.match(deletion, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
     assert.doesNotMatch(deletion, /db\.message\./);
     assert.doesNotMatch(deletion, /where: \{ OR: \[\{ senderId: userId \}, \{ recipientId: userId \}\] \}/);
