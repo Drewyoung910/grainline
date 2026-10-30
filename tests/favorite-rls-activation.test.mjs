@@ -58,6 +58,10 @@ test("Favorite rollback restores the compatible predecessor without deleting pre
   );
   assert.equal((rollback.match(/\bDROP POLICY\b/gu) ?? []).length, 2);
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
+  assert.match(
+    rollback,
+    /migrate resolve --rolled-back 20261028050000_activate_favorite_rls/u,
+  );
 });
 
 test("runtime provisioning converges Favorite to the exact activated grant set", () => {

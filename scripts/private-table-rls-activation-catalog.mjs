@@ -43,7 +43,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "e338d85fd1e2a124ce0a32cb755836f35c565ce4fabc374d0df4cdc07f9fb358",
     rollbackPath: "docs/rls-drafts/favorite-activation-rollback.sql",
     rollbackSha256:
-      "58bb32267b836b8f920e9e9cfe4f786581ca5d14c5a08351b82a7b9b27f71e3d",
+      "dc0b04333dee53f3a729dc2de20f49a91d6117238ef97e0821acf42940b6a304",
     table: "Favorite",
     mode: "owner_policy_combined_enable_force",
     policies: Object.freeze([

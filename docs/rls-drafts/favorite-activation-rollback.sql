@@ -192,3 +192,6 @@ END
 $grainline_favorite_rollback_postflight$;
 
 COMMIT;
+
+-- Production ledger reconciliation is a separate owner-authorized operation:
+-- npx prisma migrate resolve --rolled-back 20261028050000_activate_favorite_rls
