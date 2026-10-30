@@ -261,10 +261,13 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
 test("Follow preparation is byte-sealed and remains compatible", () => {
   const follow = verifyPrivateTablePreparationSource("follow_v1");
   assert.equal(follow.release.table, "Follow");
-  assert.equal(follow.functionSources.size, 5);
+  assert.equal(follow.functionSources.size, 6);
   assert.deepEqual(follow.release.addedColumns, []);
   const sql = readFileSync(follow.migrationPath, "utf8");
   assert.match(sql, /grainline_follow_account_deletion_cleanup/u);
+  assert.match(sql, /grainline_follow_source_notification_page/u);
+  assert.match(sql, /p_source_type = 'followed_maker_new_listing'/u);
+  assert.match(sql, /p_source_type NOT IN \([\s\S]*'followed_maker_new_blog'/u);
   assert.match(sql, /effect\."claimGeneration" = p_claim_generation/u);
   assert.match(sql, /relationship\."createdAt" DESC, relationship\.id DESC/u);
   assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);

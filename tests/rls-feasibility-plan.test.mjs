@@ -1232,6 +1232,7 @@ describe("RLS feasibility plan guardrails", () => {
 
   it("centralizes Follow access before its separate RLS activation", () => {
     const access = source("src/lib/sellerFollowAccess.ts");
+    const followerAccess = source("src/lib/userFollowerAccess.ts");
     const homepage = source("src/app/page.tsx");
     const feed = source("src/app/api/account/feed/route.ts");
     const account = source("src/app/account/page.tsx");
@@ -1247,6 +1248,8 @@ describe("RLS feasibility plan guardrails", () => {
     ]) {
       assert.match(access, new RegExp(functionName, "u"));
     }
+    assert.match(followerAccess, /grainline_follow_source_notification_page/u);
+    assert.doesNotMatch(followerAccess, /grainline_user_follower_notification_page/u);
     assert.doesNotMatch(access, /\$queryRawUnsafe|Prisma\.raw/u);
     assert.match(homepage, /sellerPublicFollowStateBatch/u);
     assert.match(homepage, /ownerFollowedSellerIds\(meDbId, 50\)/u);

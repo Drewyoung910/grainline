@@ -186,7 +186,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   follow_v1: Object.freeze({
     migration: "20261028020000_prepare_follow_authorities",
-    migrationSha256: "98fb050499398e2acc32160d7a8c69f9c77a74319ae26bf2daa387967e076344",
+    migrationSha256: "24e7c08ab86af627602faed2a01df7248989979f53f93c3e9620fa4827fa17eb",
     table: "Follow",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -208,6 +208,10 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_follow_public_state_batch",
         arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_follow_source_notification_page",
+        arguments: "text, text, text, integer",
       }),
       Object.freeze({
         name: "grainline_follow_owner_target_ids",

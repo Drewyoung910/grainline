@@ -96,10 +96,14 @@ function deliberately hides unavailable sellers.
 
 ### Fanout and service reads
 
-- Listing and blog publication page through
-  `grainline_user_follower_notification_page(text,text,integer)`. It pages by
-  Follow ID, rejects inactive followers, excludes self-follow data and applies
-  reciprocal blocks.
+- The deployed predecessor pages listing and blog publication through
+  `grainline_user_follower_notification_page(text,text,integer)`. Compatible
+  preparation moves both callers to
+  `grainline_follow_source_notification_page(text,text,text,integer)`, which
+  first binds the page to the exact public listing or published maker post,
+  then pages by Follow ID, rejects inactive followers, excludes self-follow
+  data and applies reciprocal blocks. The predecessor function remains only
+  until activation so the already-deployed app stays compatible.
 - Seller broadcasts use the actor-bound
   `grainline_user_owner_broadcast_follower_page(text,text,integer,boolean)`,
   including preferences and the optional sellers-only filter.
@@ -138,7 +142,7 @@ runtime role.
 | Read feed target IDs | active owner | own latest 1,000 relationships | bounded actor operation |
 | Export | active owner | complete own history plus display name | retain actor-bound export |
 | Read seller follower count | verified seller | own incoming raw count | seller-owner aggregate operation |
-| Listing/blog fanout | service | eligible recipients for exact seller | retain bounded service page |
+| Listing/blog fanout | service | eligible recipients for exact public listing or published maker post | exact-source bounded service page; retire predecessor seller-id page at activation |
 | Seller broadcast audience | verified seller | eligible own audience | retain actor-bound audience page |
 | Block cleanup | blocker | both follow directions for locked pair | retain fixed cleanup operation |
 | Account deletion | deletion worker acting as target | outgoing plus incoming seller rows | target-context cleanup operation |

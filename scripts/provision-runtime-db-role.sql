@@ -2338,12 +2338,13 @@ SELECT format(
 \gexec
 
 -- Follow preparation keeps predecessor table CRUD available until activation.
--- Converge only the five new purpose-bound operations; the older follow,
--- fanout, export and block-cleanup functions are provisioned in their existing
--- authority families above and below.
+-- Converge the five new purpose-bound operations plus the exact-source fanout
+-- replacement; the older follow, export and block-cleanup functions are
+-- provisioned in their existing authority families above and below.
 WITH follow_service(function_signature) AS (
   VALUES
     ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_source_notification_page"(text, text, text, integer)'),
     ('public."grainline_follow_owner_target_ids"(integer)'),
     ('public."grainline_follow_owner_outgoing_count"()'),
     ('public."grainline_follow_seller_owner_incoming_count"()'),
@@ -2357,6 +2358,7 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 WITH follow_service(function_signature) AS (
   VALUES
     ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_source_notification_page"(text, text, text, integer)'),
     ('public."grainline_follow_owner_target_ids"(integer)'),
     ('public."grainline_follow_owner_outgoing_count"()'),
     ('public."grainline_follow_seller_owner_incoming_count"()'),
@@ -2374,6 +2376,7 @@ SELECT format(
 WITH follow_service(function_signature) AS (
   VALUES
     ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_source_notification_page"(text, text, text, integer)'),
     ('public."grainline_follow_owner_target_ids"(integer)'),
     ('public."grainline_follow_owner_outgoing_count"()'),
     ('public."grainline_follow_seller_owner_incoming_count"()'),

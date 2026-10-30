@@ -39,7 +39,8 @@ proofs. Rollback restores predecessor CRUD and original direct reads.
 Revoke direct runtime access, ENABLE and FORCE RLS without an ordinary table
 policy, and keep all access behind the reviewed operation-specific functions.
 Reuse the existing create/delete, public state, owner page/count/export,
-fanout, broadcast and block-cleanup operations. Add only:
+broadcast and block-cleanup operations. Replace the generic seller-id fanout
+projection with an exact listing/blog-source projection, and add:
 
 - a bounded public state batch for homepage counts/viewer state;
 - a bounded actor follow-ID page for homepage/feed selection;
@@ -49,7 +50,9 @@ fanout, broadcast and block-cleanup operations. Add only:
 
 Advantages:
 
-- smallest exposed SQL surface and no direct relationship-row disclosure;
+- smallest exposed SQL surface; the service fanout receives only the bounded
+  relationship cursor and recipient id required for delivery, after proving
+  the exact public source;
 - most complex operations already exist and have behavior tests;
 - product predicates stay atomic with writes;
 - public counts and delivery audiences remain distinct, explicit contracts;
@@ -58,7 +61,8 @@ Advantages:
 
 Costs and risks:
 
-- five purpose-bound operations must be added and maintained;
+- five new boundary operations plus the exact-source fanout replacement must
+  be added and maintained;
 - function ownership, fixed search paths and ACLs are security-critical;
 - a new product query needs a reviewed operation instead of arbitrary Prisma;
 - indexed `COUNT(*)` work grows with a maker's follower count.
@@ -122,7 +126,8 @@ does not need.
 Required safeguards:
 
 - preserve the shared Block/follow lock order and atomic create predicate;
-- add only the five bounded operations listed above;
+- add only the five bounded operations and the exact-source fanout replacement
+  listed above;
 - exact function-owner, SECURITY DEFINER, search-path and ACL checks;
 - full-chain PostgreSQL 17 behavior, race, cascade and rollback proofs;
 - a source inventory that rejects any remaining direct runtime Follow access;
@@ -130,7 +135,8 @@ Required safeguards:
 - no counter, column drop or count-semantics change in the security release.
 
 Option B was accepted for isolated compatible preparation on 2026-10-28. The
-preparation may add the five bounded operations and convert callers, but it
+preparation may add the five bounded operations, replace the generic fanout
+projection and convert callers, but it
 does not authorize RLS activation, grant revocation, merge order changes or any
 Production action. Favorite preparation releases first; Follow activation
 still requires its own exact approval and evidence.

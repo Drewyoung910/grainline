@@ -255,6 +255,7 @@ const FOLLOW_PREPARATION_MIGRATION =
   "prisma/migrations/20261028020000_prepare_follow_authorities/migration.sql";
 const FOLLOW_PREPARATION_FUNCTION_NAMES = [
   "grainline_follow_public_state_batch",
+  "grainline_follow_source_notification_page",
   "grainline_follow_owner_target_ids",
   "grainline_follow_owner_outgoing_count",
   "grainline_follow_seller_owner_incoming_count",

@@ -54,7 +54,8 @@ function fixture({ target = undefined } = {}) {
       userFollowerNotificationPage: async (_client, input) => {
         state.followerReads += 1;
         assert.equal(JSON.stringify(input), JSON.stringify({
-          sellerProfileId: "seller",
+          sourceType: "FOLLOWED_MAKER_NEW_LISTING",
+          sourceId: "listing",
           limit: 1000,
         }));
         assert.equal(input.afterFollowId, undefined);

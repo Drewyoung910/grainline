@@ -44,6 +44,11 @@ export async function seedFollowPredecessorFixture({ database }) {
     deletingSellerProfile: `${suffix}_deleting_seller_profile`,
     otherSellerUser: `${suffix}_seller_user`,
     otherSellerProfile: `${suffix}_seller_profile`,
+    listingSource: `${suffix}_listing_source`,
+    blogSource: `${suffix}_blog_source`,
+    draftBlogSource: `${suffix}_draft_blog_source`,
+    followADeleting: `${suffix}_a_deleting`,
+    followBDeleting: `${suffix}_b_deleting`,
     sideEffectId: `${suffix}_side_effect`,
     claimToken: "00000000-0000-4000-8000-000000000128",
     now: "2026-10-28 12:00:00",
@@ -89,6 +94,35 @@ export async function seedFollowPredecessorFixture({ database }) {
     );
   }
 
+  await database.query(
+    `INSERT INTO public."Listing"
+       (id, "sellerId", title, description, "priceCents", currency, status,
+        "listingType", "isPrivate", "sellerPubliclyOrderable", "createdAt", "updatedAt")
+     VALUES ($1, $2, 'Follow fanout listing', 'Exact-source fanout proof',
+             2500, 'usd', 'ACTIVE'::public."ListingStatus",
+             'MADE_TO_ORDER'::public."ListingType", false, true, $3, $3)`,
+    [fixture.listingSource, fixture.deletingSellerProfile, fixture.now],
+  );
+  await database.query(
+    `INSERT INTO public."BlogPost"
+       (id, slug, title, body, "authorId", "authorType", "sellerProfileId", status,
+        "authorAccountActive", "publishedAt", "createdAt", "updatedAt")
+     VALUES
+       ($1, $2, 'Follow fanout post', 'Published exact-source fanout proof',
+        $3, 'MAKER', $4, 'PUBLISHED', true, $5, $5, $5),
+       ($6, $7, 'Draft follow fanout post', 'Non-public source proof',
+        $3, 'MAKER', $4, 'DRAFT', true, NULL, $5, $5)`,
+    [
+      fixture.blogSource,
+      `${suffix}-follow-fanout-published`.slice(0, 255),
+      fixture.deletingSellerUser,
+      fixture.deletingSellerProfile,
+      fixture.now,
+      fixture.draftBlogSource,
+      `${suffix}-follow-fanout-draft`.slice(0, 255),
+    ],
+  );
+
   await insertFollow(
     database,
     `${suffix}_a_other`,
@@ -98,14 +132,14 @@ export async function seedFollowPredecessorFixture({ database }) {
   );
   await insertFollow(
     database,
-    `${suffix}_a_deleting`,
+    fixture.followADeleting,
     fixture.followerA,
     fixture.deletingSellerProfile,
     "2026-10-28 12:02:00",
   );
   await insertFollow(
     database,
-    `${suffix}_b_deleting`,
+    fixture.followBDeleting,
     fixture.followerB,
     fixture.deletingSellerProfile,
     "2026-10-28 12:03:00",
@@ -171,6 +205,54 @@ export async function proveFollowPreparedAuthorities({ database, fixture }) {
       WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
     [fixture.directBuyer, fixture.deletingSellerProfile],
   )).length, 0);
+
+  const listingRecipients = rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT * FROM public.grainline_follow_source_notification_page(
+       'followed_maker_new_listing', $1, NULL, 1000
+     )`,
+    [fixture.listingSource],
+  ));
+  assert.deepEqual(listingRecipients, [
+    { followId: fixture.followADeleting, followerId: fixture.followerA },
+    { followId: fixture.followBDeleting, followerId: fixture.followerB },
+  ]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT * FROM public.grainline_follow_source_notification_page(
+       'followed_maker_new_blog', $1, NULL, 1000
+     )`,
+    [fixture.blogSource],
+  )), listingRecipients);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT * FROM public.grainline_follow_source_notification_page(
+       'followed_maker_new_listing', $1, NULL, 1000
+     )`,
+    [fixture.deletingSellerProfile],
+  )), []);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT * FROM public.grainline_follow_source_notification_page(
+       'followed_maker_new_blog', $1, NULL, 1000
+     )`,
+    [fixture.draftBlogSource],
+  )), []);
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      `SELECT * FROM public.grainline_follow_source_notification_page(
+         'seller_profile', $1, NULL, 1000
+       )`,
+      [fixture.deletingSellerProfile],
+    ),
+    (error) => error?.code === "22023",
+  );
 
   await assert.rejects(
     runtimeQuery(

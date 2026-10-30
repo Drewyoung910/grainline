@@ -39,7 +39,8 @@ export async function fanOutBlogPostToFollowers({
 
   while (true) {
     const followers = await userFollowerNotificationPage(prisma, {
-      sellerProfileId,
+      sourceType: NOTIFICATION_SOURCE_TYPES.FOLLOWED_MAKER_NEW_BLOG,
+      sourceId: publicPost.id,
       afterFollowId: cursor,
       limit: BLOG_FOLLOWER_FANOUT_PAGE_SIZE,
     });
