@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import pg from "pg";
 
+import { runPsqlScript } from "./psql-script.mjs";
+
 export const FAVORITE_PREPARATION_MIGRATION =
   "20261028010000_prepare_favorite_authorities";
+export const FAVORITE_RLS_MIGRATION =
+  "20261028050000_activate_favorite_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -64,6 +70,7 @@ export async function seedFavoritePredecessorFixture({ database, seller }) {
     seller,
     buyerA: `${suffix}_buyer_a`,
     buyerB: `${suffix}_buyer_b`,
+    activationBuyer: `${suffix}_activation_buyer`,
     buyerCascade: `${suffix}_buyer_cascade`,
     predecessorBuyer: `${suffix}_predecessor_buyer`,
     admin: `${suffix}_admin`,
@@ -81,6 +88,7 @@ export async function seedFavoritePredecessorFixture({ database, seller }) {
       "blockFirstRace",
       "addFirstArchiveRace",
       "archiveFirstRace",
+      "activation",
     ].map((key) => [key, `${suffix}_${key}`])),
     now: "2026-10-28 10:00:00",
   };
@@ -88,6 +96,7 @@ export async function seedFavoritePredecessorFixture({ database, seller }) {
   const users = [
     [fixture.buyerA, "Favorite buyer A", "USER"],
     [fixture.buyerB, "Favorite buyer B", "USER"],
+    [fixture.activationBuyer, "Favorite activation buyer", "USER"],
     [fixture.buyerCascade, "Favorite cascade buyer", "USER"],
     [fixture.predecessorBuyer, "Favorite predecessor buyer", "USER"],
     [fixture.admin, "Favorite admin", "ADMIN"],
@@ -559,4 +568,281 @@ export async function proveFavoritePreparedAuthorities({
      WHERE listing."favoriteCount" <> actual.value
   `))[0]?.count ?? -1);
   assert.equal(drift, 0);
+}
+
+export async function proveFavoriteRlsAuthorities({ database, fixture }) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'Favorite'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: true,
+    rls_forced: true,
+    runtime_select: true,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: true,
+    policy_count: 2,
+  });
+
+  assert.deepEqual(
+    await callAdd(database, fixture.activationBuyer, fixture.listings.activation),
+    [{
+      resultStatus: "OK",
+      title: "Favorite activation",
+      ownerUserId: fixture.seller.userId,
+      created: true,
+    }],
+    "fixed add must remain usable without direct INSERT",
+  );
+  assert.equal(await projectedCount(database, fixture.listings.activation), 1);
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.activationBuyer,
+    `SELECT "userId", "listingId"
+       FROM public."Favorite"
+      WHERE "listingId" = $1`,
+    [fixture.listings.activation],
+  )), [{
+    userId: fixture.activationBuyer,
+    listingId: fixture.listings.activation,
+  }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.buyerB,
+    `SELECT "userId", "listingId"
+       FROM public."Favorite"
+      WHERE "listingId" = $1`,
+    [fixture.listings.activation],
+  )), [], "another user must not read the owner's row");
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT "userId", "listingId"
+       FROM public."Favorite"
+      WHERE "listingId" = $1`,
+    [fixture.listings.activation],
+  )), [], "a missing actor context must reveal no rows");
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.buyerB,
+    `DELETE FROM public."Favorite"
+      WHERE "listingId" = $1
+      RETURNING "userId"`,
+    [fixture.listings.activation],
+  )), [], "another user must not delete the owner's row");
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      fixture.buyerB,
+      `INSERT INTO public."Favorite" ("userId", "listingId", "createdAt")
+       VALUES ($1, $2, pg_catalog.clock_timestamp())`,
+      [fixture.buyerB, fixture.listings.activation],
+    ),
+    (error) => error?.code === "42501",
+    "runtime must not bypass the fixed add authority with direct INSERT",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      fixture.activationBuyer,
+      `UPDATE public."Favorite"
+          SET "createdAt" = pg_catalog.clock_timestamp()
+        WHERE "listingId" = $1`,
+      [fixture.listings.activation],
+    ),
+    (error) => error?.code === "42501",
+    "Favorite has no direct UPDATE contract",
+  );
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.activationBuyer,
+    `DELETE FROM public."Favorite"
+      WHERE "listingId" = $1
+      RETURNING "userId"`,
+    [fixture.listings.activation],
+  )), [{ userId: fixture.activationBuyer }]);
+  assert.equal(await projectedCount(database, fixture.listings.activation), 0);
+
+  const cascadeUser = `${fixture.listings.activation}_cascade_user`;
+  const cascadeListing = `${fixture.listings.activation}_cascade_listing`;
+  await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, role, banned, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, 'Favorite cascade user', 'USER', false, $4, $4)`,
+    [
+      cascadeUser,
+      `clerk_${cascadeUser}`,
+      `${cascadeUser}@example.test`,
+      fixture.now,
+    ],
+  );
+  await insertListing(
+    database,
+    cascadeListing,
+    fixture.seller.sellerProfileId,
+    "Favorite activation cascade",
+  );
+  await insertFavorite(database, cascadeUser, fixture.listings.activation);
+  await insertFavorite(database, fixture.activationBuyer, cascadeListing);
+  assert.equal(await projectedCount(database, fixture.listings.activation), 1);
+  assert.equal(await projectedCount(database, cascadeListing), 1);
+  await database.query(`DELETE FROM public."User" WHERE id = $1`, [cascadeUser]);
+  assert.equal(await projectedCount(database, fixture.listings.activation), 0);
+  await database.query(`DELETE FROM public."Listing" WHERE id = $1`, [cascadeListing]);
+  assert.equal(rowsOf(await database.query(
+    `SELECT 1 FROM public."Favorite" WHERE "listingId" = $1`,
+    [cascadeListing],
+  )).length, 0, "Listing deletion must cascade under FORCE");
+}
+
+export async function proveFavoriteProvisioningRejectsPolicylessPartial({
+  database,
+  repositoryRoot,
+}) {
+  await database.query("BEGIN");
+  try {
+    await database.query('DROP POLICY favorite_owner_select ON public."Favorite"');
+    await database.query('DROP POLICY favorite_owner_delete ON public."Favorite"');
+    const source = readFileSync(
+      join(repositoryRoot, "scripts/provision-runtime-db-role.sql"),
+      "utf8",
+    );
+    await assert.rejects(
+      runPsqlScript(database, source, {
+        runtime_role: "grainline_app_runtime",
+        migration_role: "ci",
+      }),
+      (error) => error?.code === "P0001"
+        && /runtime-role provisioning refused/u.test(error.message),
+      "runtime-role provisioning must reject RLS with no Favorite policies",
+    );
+  } finally {
+    await database.query("ROLLBACK").catch(() => {});
+  }
+
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'Favorite'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: true,
+    rls_forced: true,
+    policy_count: 2,
+  }, "the rejected provisioning attempt must leave the activated posture intact");
+}
+
+export async function proveFavoriteRlsRollback({ database, fixture }) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'Favorite'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+    policy_count: 0,
+  });
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.buyerB,
+    `INSERT INTO public."Favorite" ("userId", "listingId", "createdAt")
+     VALUES ($1, $2, pg_catalog.clock_timestamp())
+     RETURNING "userId", "listingId"`,
+    [fixture.activationBuyer, fixture.listings.activation],
+  )), [{
+    userId: fixture.activationBuyer,
+    listingId: fixture.listings.activation,
+  }]);
+  assert.equal(await projectedCount(database, fixture.listings.activation), 1);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.buyerB,
+    `SELECT "userId", "listingId"
+       FROM public."Favorite"
+      WHERE "listingId" = $1`,
+    [fixture.listings.activation],
+  )), [{
+    userId: fixture.activationBuyer,
+    listingId: fixture.listings.activation,
+  }], "rollback must restore the prepared predecessor read posture");
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      fixture.buyerB,
+      `UPDATE public."Favorite"
+          SET "createdAt" = pg_catalog.clock_timestamp()
+        WHERE "listingId" = $1`,
+      [fixture.listings.activation],
+    ),
+    (error) => error?.code === "42501",
+    "the preparation's immutable-row trigger must survive rollback",
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.buyerB,
+    `DELETE FROM public."Favorite"
+      WHERE "listingId" = $1
+      RETURNING "userId"`,
+    [fixture.listings.activation],
+  )), [{ userId: fixture.activationBuyer }]);
+  assert.equal(await projectedCount(database, fixture.listings.activation), 0);
 }

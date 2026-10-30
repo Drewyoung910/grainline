@@ -232,6 +232,8 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
 ];
 const FAVORITE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
+const FAVORITE_RLS_MIGRATION =
+  "prisma/migrations/20261028050000_activate_favorite_rls/migration.sql";
 const FAVORITE_PREPARATION_RUNTIME_FUNCTION_NAMES = [
   "grainline_favorite_owner_listing_ids",
   "grainline_favorite_owner_add",
@@ -376,6 +378,8 @@ const {
   CART_ITEM_OWNER_COLUMN_PRIVILEGES,
   STOCK_NOTIFICATION_TABLE,
   STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
+  FAVORITE_TABLE,
+  FAVORITE_OWNER_TABLE_PRIVILEGES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -922,6 +926,12 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
+    const favoritePredecessorInventory = {
+      rlsPolicyTables: [],
+    };
+    const favoriteActivatedInventory = {
+      rlsPolicyTables: [FAVORITE_TABLE],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -1396,6 +1406,17 @@ describe("database grant inventory guardrails", () => {
           stockNotificationActivatedInventory,
         ),
         STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
+      );
+    }
+    if (Array.isArray(FAVORITE_OWNER_TABLE_PRIVILEGES)) {
+      assert.deepEqual(FAVORITE_OWNER_TABLE_PRIVILEGES, ["SELECT", "DELETE"]);
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(FAVORITE_TABLE, favoritePredecessorInventory),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(FAVORITE_TABLE, favoriteActivatedInventory),
+        FAVORITE_OWNER_TABLE_PRIVILEGES,
       );
     }
     assert.deepEqual(
@@ -3523,6 +3544,13 @@ describe("database grant inventory guardrails", () => {
       source(FAVORITE_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
+      && source(FAVORITE_RLS_MIGRATION).includes(
+        "CREATE POLICY favorite_owner_select",
+      )
+      && source(FAVORITE_RLS_MIGRATION).includes(
+        "CREATE POLICY favorite_owner_delete",
+      );
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3779,6 +3807,7 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (accountDeletionClaimFencePrepared ? 13 : 0)
         + (accountDeletionSideEffectRlsActivationExpected(inventory) ? 6 : 0)
+        + (favoriteRlsActivationPresent ? 1 : 0)
         + (listingHideDeleteMigrationPresent ? 1 : 0)
         + (supportRequestAuthorityPrepared
           ? supportRequestAuthorityFunctionNames.length
@@ -4204,6 +4233,7 @@ describe("database grant inventory guardrails", () => {
           : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Conversation",
+        ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         "Message",
         "Notification",
         ...(savedBlogPostRlsActivationMigrationPresent
@@ -4236,6 +4266,7 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsActivationExpected(inventory) ? ["Order"] : []),
@@ -4291,6 +4322,7 @@ describe("database grant inventory guardrails", () => {
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
+        ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         "Message",
         "Notification",
         ...(coreOrderRlsForceExpected(inventory) ? ["Order"] : []),
@@ -5843,13 +5875,17 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationProvisioningPresent = provision.includes(
       "grainline_stock_notification_rls_active",
     );
+    const favoriteProvisioningPresent = provision.includes(
+      "grainline_favorite_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
         + Number(supportRequestProvisioningPresent)
         + Number(savedBlogPostProvisioningPresent)
         + Number(cartCartItemProvisioningPresent)
-        + Number(stockNotificationProvisioningPresent),
+        + Number(stockNotificationProvisioningPresent)
+        + Number(favoriteProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5902,6 +5938,16 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :grainline_stock_notification_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StockNotification"[\s\S]*GRANT SELECT, DELETE ON TABLE public\."StockNotification"/,
+      );
+    }
+    if (favoriteProvisioningPresent) {
+      assert.match(
+        provision,
+        /Favorite RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :grainline_favorite_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Favorite"[\s\S]*GRANT SELECT, DELETE ON TABLE public\."Favorite"/,
       );
     }
     assert.equal(
