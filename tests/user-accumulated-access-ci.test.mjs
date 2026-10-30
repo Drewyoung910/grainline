@@ -440,6 +440,22 @@ function reviewVotePreparationMigrationSourcePath() {
   return path.dirname(stagedPath);
 }
 
+function makerVerificationPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    makerVerificationPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath =
+    process.env.MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && existsSync(stagedPath),
+    "missing isolated MakerVerification preparation migration",
+  );
+  return path.dirname(stagedPath);
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -905,7 +921,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(makerVerificationPreparationTarget)) {
       cpSync(
-        path.join("prisma", "migrations", makerVerificationPreparationMigration),
+        makerVerificationPreparationMigrationSourcePath(),
         makerVerificationPreparationTarget,
         { recursive: true },
       );
