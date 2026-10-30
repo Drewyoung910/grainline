@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import pg from "pg";
+
+import { runPsqlScript } from "./psql-script.mjs";
+
+export const REVIEW_VOTE_PREPARATION_MIGRATION =
+  "20261028030000_prepare_review_vote_authorities";
+export const REVIEW_VOTE_RLS_MIGRATION =
+  "20261028070000_activate_review_vote_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -229,7 +238,170 @@ async function proveMixedVersionSerialization({
   }
 }
 
-export async function proveReviewVoteAuthorities({ connectionString, database, seller }) {
+async function proveConcurrentOwnerDeleteAll({
+  connectionString,
+  database,
+  firstActorId,
+  secondActorId,
+  reviewIds,
+}) {
+  const first = new pg.Client({ connectionString });
+  const second = new pg.Client({ connectionString });
+  await Promise.all([first.connect(), second.connect()]);
+  try {
+    await beginRuntime(first, firstActorId);
+    assert.deepEqual((await first.query(
+      "SELECT public.grainline_review_vote_owner_delete_all() AS value",
+    )).rows, [{ value: 2 }]);
+
+    await beginRuntime(second, secondActorId, "250ms");
+    await assert.rejects(
+      second.query(
+        "SELECT public.grainline_review_vote_owner_delete_all() AS value",
+      ),
+      (error) => error?.code === "55P03",
+      "bulk owner deletion must serialize on sorted affected Review locks",
+    );
+    await second.query("ROLLBACK");
+    await first.query("COMMIT");
+
+    assert.deepEqual(rowsOf(await runtimeQuery(
+      database,
+      secondActorId,
+      "SELECT public.grainline_review_vote_owner_delete_all() AS value",
+    )), [{ value: 2 }]);
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT id, "helpfulCount" AS count
+         FROM public."Review"
+        WHERE id = ANY($1::text[])
+        ORDER BY id`,
+      [reviewIds],
+    )), reviewIds
+      .map((id) => ({ id, count: 0 }))
+      .sort((a, b) => a.id.localeCompare(b.id)));
+  } finally {
+    await first.query("ROLLBACK").catch(() => {});
+    await second.query("ROLLBACK").catch(() => {});
+    await Promise.all([first.end(), second.end()]);
+  }
+}
+
+async function readReviewVotePosture(database) {
+  return rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.array_agg(
+                     policy.polname::text || ':' || policy.polcmd::text
+                     ORDER BY policy.polname
+                   )
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policies,
+           (SELECT pg_catalog.array_agg(
+                     trigger_state.tgname::text || ':' || trigger_state.tgtype::text
+                     ORDER BY trigger_state.tgname
+                   )
+              FROM pg_catalog.pg_trigger AS trigger_state
+             WHERE trigger_state.tgrelid = class.oid
+               AND NOT trigger_state.tgisinternal) AS triggers
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'ReviewVote'
+       AND class.relkind = 'r'
+  `))[0];
+}
+
+async function proveReviewVoteRollback({ database, repositoryRoot, actorId, reviewId }) {
+  const rollback = readFileSync(
+    join(repositoryRoot, "docs/rls-drafts/review-vote-activation-rollback.sql"),
+    "utf8",
+  );
+  await runPsqlScript(database, rollback, {
+    runtime_role: "grainline_app_runtime",
+    migration_role: "ci",
+  });
+  assert.deepEqual(await readReviewVotePosture(database), {
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+    policies: null,
+    triggers: [
+      "ReviewVote_insert_guard:7",
+      "ReviewVote_update_forbidden:19",
+    ],
+  });
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    actorId,
+    `INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
+     VALUES ($1, $2, 1)
+     RETURNING "reviewId", "userId"`,
+    [reviewId, actorId],
+  )), [{ reviewId, userId: actorId }]);
+  await database.query(
+    `UPDATE public."Review"
+        SET "helpfulCount" = "helpfulCount" + 1
+      WHERE id = $1`,
+    [reviewId],
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    "unrelated-predecessor-reader",
+    `SELECT "reviewId", "userId"
+       FROM public."ReviewVote"
+      WHERE "reviewId" = $1`,
+    [reviewId],
+  )), [{ reviewId, userId: actorId }]);
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      actorId,
+      `UPDATE public."ReviewVote" SET value = 1
+        WHERE "reviewId" = $1 AND "userId" = $2`,
+      [reviewId, actorId],
+    ),
+    (error) => error?.code === "42501",
+    "rollback must retain the preparation immutable-row trigger",
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    "unrelated-predecessor-writer",
+    `DELETE FROM public."ReviewVote"
+      WHERE "reviewId" = $1 AND "userId" = $2
+      RETURNING "userId"`,
+    [reviewId, actorId],
+  )), [{ userId: actorId }]);
+  await database.query(
+    `UPDATE public."Review"
+        SET "helpfulCount" = "helpfulCount" - 1
+      WHERE id = $1`,
+    [reviewId],
+  );
+}
+
+export async function proveReviewVoteAuthorities({
+  connectionString,
+  database,
+  repositoryRoot,
+  seller,
+}) {
   const suffix = `review_vote_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const actorId = `${suffix}_actor`;
   const reviewerId = `${suffix}_reviewer`;
@@ -257,11 +429,12 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        pg_catalog.to_regprocedure('public.grainline_review_vote_owner_export()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_owner_delete_all()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_insert_guard()'),
-       pg_catalog.to_regprocedure('public.grainline_review_vote_update_forbidden()')
+       pg_catalog.to_regprocedure('public.grainline_review_vote_update_forbidden()'),
+       pg_catalog.to_regprocedure('public.grainline_review_vote_count_after_delete()')
      )
      ORDER BY signature
   `));
-  assert.equal(catalog.length, 5);
+  assert.equal(catalog.length, 6);
   assert.ok(catalog.every((row) => (
     row.securityDefiner === true
     && row.config?.includes("search_path=pg_catalog")
@@ -278,9 +451,25 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        AND NOT tgisinternal
      ORDER BY tgname
   `)), [
+    { name: "ReviewVote_count_after_delete", type: 8 },
     { name: "ReviewVote_insert_guard", type: 7 },
     { name: "ReviewVote_update_forbidden", type: 19 },
   ]);
+  const activatedPosture = {
+    rls_enabled: true,
+    rls_forced: true,
+    runtime_select: true,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: false,
+    policies: ["review_vote_owner_select:r"],
+    triggers: [
+      "ReviewVote_count_after_delete:8",
+      "ReviewVote_insert_guard:7",
+      "ReviewVote_update_forbidden:19",
+    ],
+  };
+  assert.deepEqual(await readReviewVotePosture(database), activatedPosture);
   const constraints = rowsOf(await database.query(`
     SELECT constraint_entry.conname AS name,
            constraint_entry.convalidated AS validated,
@@ -424,20 +613,68 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
     voted: true,
     helpfulCount: 1,
   }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    actorId,
+    `SELECT "reviewId", "userId", value
+       FROM public."ReviewVote"
+      WHERE "reviewId" = $1`,
+    [reviewId],
+  )), [{ reviewId, userId: actorId, value: 1 }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    reviewerId,
+    `SELECT "reviewId", "userId", value
+       FROM public."ReviewVote"
+      WHERE "reviewId" = $1`,
+    [reviewId],
+  )), []);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT "reviewId", "userId", value
+       FROM public."ReviewVote"
+      WHERE "reviewId" = $1`,
+    [reviewId],
+  )), []);
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      actorId,
+      `INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
+       VALUES ($1, $2, 1)`,
+      [secondReviewId, actorId],
+    ),
+    (error) => error?.code === "42501",
+    "activated ReviewVote must deny direct runtime INSERT",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      actorId,
+      `UPDATE public."ReviewVote" SET value = 1
+        WHERE "reviewId" = $1 AND "userId" = $2`,
+      [reviewId, actorId],
+    ),
+    (error) => error?.code === "42501",
+    "activated ReviewVote must deny direct runtime UPDATE",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      actorId,
+      `DELETE FROM public."ReviewVote"
+        WHERE "reviewId" = $1 AND "userId" = $2`,
+      [reviewId, actorId],
+    ),
+    (error) => error?.code === "42501",
+    "activated ReviewVote must deny direct runtime DELETE",
+  );
   assert.deepEqual(await callToggle(database, actorId, reviewId), [{
     resultStatus: "OK",
     voted: false,
     helpfulCount: 0,
   }]);
-  await proveMixedVersionSerialization({
-    connectionString,
-    database,
-    actorId,
-    reviewId,
-    reviewerId,
-    sellerProfileId: seller.sellerProfileId,
-    sellerUserId: seller.userId,
-  });
 
   await database.query(
     `UPDATE public."Listing" SET "archivedAt" = $2 WHERE id = $1`,
@@ -541,21 +778,15 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
   assert.deepEqual(exported.map((row) => row.reviewId).sort(), [reviewId, secondReviewId].sort());
   assert.ok(exported.every((row) => row.value === 1));
 
-  assert.deepEqual(rowsOf(await runtimeQuery(
+  assert.equal((await callToggle(database, cascadeActorId, reviewId))[0]?.voted, true);
+  assert.equal((await callToggle(database, cascadeActorId, secondReviewId))[0]?.voted, true);
+  await proveConcurrentOwnerDeleteAll({
+    connectionString,
     database,
-    actorId,
-    "SELECT public.grainline_review_vote_owner_delete_all() AS value",
-  )), [{ value: 2 }]);
-  assert.deepEqual(rowsOf(await database.query(
-    `SELECT id, "helpfulCount" AS count
-       FROM public."Review"
-      WHERE id = ANY($1::text[])
-      ORDER BY id`,
-    [[reviewId, secondReviewId]],
-  )), [
-    { id: reviewId, count: 0 },
-    { id: secondReviewId, count: 0 },
-  ].sort((a, b) => a.id.localeCompare(b.id)));
+    firstActorId: actorId,
+    secondActorId: cascadeActorId,
+    reviewIds: [reviewId, secondReviewId],
+  });
 
   await database.query(
     `UPDATE public."User" SET banned = true WHERE id = $1`,
@@ -608,7 +839,23 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
     `SELECT "helpfulCount" AS count FROM public."Review" WHERE id = $1`,
     [cascadeReviewId],
   ))[0]?.count), 0);
+
+  assert.deepEqual(await callToggle(database, cascadeActorId, cascadeReviewId), [{
+    resultStatus: "OK",
+    voted: true,
+    helpfulCount: 1,
+  }]);
   await database.query(`DELETE FROM public."User" WHERE id = $1`, [cascadeActorId]);
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT "helpfulCount" AS count FROM public."Review" WHERE id = $1`,
+    [cascadeReviewId],
+  ))[0]?.count), 0);
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."ReviewVote"
+      WHERE "reviewId" = $1`,
+    [cascadeReviewId],
+  ))[0]?.count), 0);
 
   await database.query(
     `INSERT INTO public."ReviewVote" ("reviewId", "userId", value, "createdAt")
@@ -635,6 +882,44 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        AND review.id = ANY($1::text[])
   `, [[reviewId, secondReviewId, selfReviewId]]));
   assert.deepEqual(drift, []);
+
+  await proveReviewVoteRollback({
+    database,
+    repositoryRoot,
+    actorId,
+    reviewId,
+  });
+  await proveMixedVersionSerialization({
+    connectionString,
+    database,
+    actorId,
+    reviewId,
+    reviewerId,
+    sellerProfileId: seller.sellerProfileId,
+    sellerUserId: seller.userId,
+  });
+  await runPsqlScript(
+    database,
+    readFileSync(
+      join(
+        repositoryRoot,
+        "prisma/migrations/20261028070000_activate_review_vote_rls/migration.sql",
+      ),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(await readReviewVotePosture(database), activatedPosture);
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      actorId,
+      `INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
+       VALUES ($1, $2, 1)`,
+      [reviewId, actorId],
+    ),
+    (error) => error?.code === "42501",
+    "reactivated ReviewVote must deny direct runtime writes",
+  );
 
   await database.query(
     `DELETE FROM public."Review" WHERE id = ANY($1::text[])`,

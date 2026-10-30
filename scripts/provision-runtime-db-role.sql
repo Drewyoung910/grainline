@@ -5247,15 +5247,92 @@ SELECT format(
 \endif
 \unset order_payment_event_rls_active
 
--- ReviewVote compatible preparation keeps predecessor table grants in place,
--- but its new owner operations must survive role convergence while trigger
+-- ReviewVote keeps predecessor CRUD while RLS is off. Once the reviewed owner
+-- policy is active, convergence must reduce the runtime role to SELECT only.
+-- Refuse every partial RLS/policy posture instead of guessing which side of
+-- the activation boundary the database intended to hold.
+WITH posture AS (
+  SELECT class.relrowsecurity AS rls_enabled,
+         class.relforcerowsecurity AS rls_forced,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid
+             AND policy.polname = 'review_vote_owner_select'
+             AND policy.polpermissive
+             AND policy.polroles = ARRAY[
+               (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = :'runtime_role')
+             ]::oid[]
+             AND policy.polcmd = 'r'
+             AND pg_catalog.pg_get_expr(policy.polqual, policy.polrelid) =
+                 '("userId" = NULLIF(current_setting(''app.user_id''::text, true), ''''::text))'
+             AND policy.polwithcheck IS NULL) AS owner_policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'ReviewVote'
+     AND class.relkind = 'r'
+), state AS (
+  SELECT rls_enabled,
+         rls_forced,
+         policy_count,
+         owner_policy_count,
+         (
+           rls_enabled AND rls_forced
+           AND policy_count = 1
+           AND owner_policy_count = 1
+         ) AS active,
+         (
+           NOT rls_enabled AND NOT rls_forced
+           AND policy_count = 0
+         ) AS clean_predecessor
+    FROM posture
+), failure AS (
+  SELECT
+    'ReviewVote RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM state
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM state), false)
+    AS review_vote_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_review_vote_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_review_vote_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :review_vote_rls_active
+REVOKE ALL ON TABLE public."ReviewVote"
+  FROM PUBLIC, :"runtime_role";
+GRANT SELECT ON TABLE public."ReviewVote"
+  TO :"runtime_role";
+\endif
+\unset review_vote_rls_active
+
+-- ReviewVote owner operations must survive role convergence while trigger
 -- helpers remain private. The existence guards keep this script valid before
--- the preparation migration is installed and fail closed on every present
--- function.
+-- the preparation/activation migrations are installed and fail closed on
+-- every present function.
 WITH review_vote_private(function_signature) AS (
   VALUES
     ('public."grainline_review_vote_insert_guard"()'),
-    ('public."grainline_review_vote_update_forbidden"()')
+    ('public."grainline_review_vote_update_forbidden"()'),
+    ('public."grainline_review_vote_count_after_delete"()')
 )
 SELECT pg_catalog.format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
