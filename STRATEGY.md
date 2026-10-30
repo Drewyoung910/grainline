@@ -85,14 +85,21 @@ by protected run `38837514490`. Follow
 `docs/seller-profile-private-boundary-pre-rls-audit.md` for the completed split
 and retained evidence.
 
-The next RLS domain is the remaining public `SellerProfile` table. It still
-mixes anonymous catalog data with raw coordinates, owner settings and
-staff/system-controlled state, while the runtime role retains broad CRUD.
-Drew selected Option B on 2026-10-18: keep the schema intact, expose bounded
-public projections, move non-public reads and all writes behind fixed
-operations, prove zero direct base-table callers, then revoke grants and apply
-ENABLE and FORCE as separate releases. No security release drops another
-column. See `docs/seller-profile-public-rls-options.md`.
+The public `SellerProfile` conversion is now complete: Production is policyless
+FORCE with zero direct runtime/staff/`PUBLIC` table authority. Drew selected
+Option B on 2026-10-18: keep the schema intact, expose bounded public
+projections, move non-public reads and all writes behind fixed operations, and
+never drop columns in the security release. See
+`docs/seller-profile-public-rls-options.md`.
+
+The 2026-10-29 child-table audit selected the same zero-direct pattern for
+`SellerFaq`, rather than duplicating the complete parent visibility and block
+contract in a broad public policy. Compatible preparation converts the four
+direct caller families to actor-bound create/remove/export and claim-bound
+deletion while retaining the existing public-profile and owner-editor readers.
+After that app is live, one separately approved activation may combine
+policyless ENABLE and FORCE. See `docs/seller-faq-pre-rls-audit.md` and
+`docs/seller-faq-rls-options.md`.
 
 Phase 0 closed on 2026-10-19. The schema-aware AST inventory on exact main
 `e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` finds 99 direct operations, 103

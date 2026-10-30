@@ -140,6 +140,10 @@ import {
   seedUserReportPredecessorFixture,
   USER_REPORT_PREPARATION_MIGRATION,
 } from "../tools/database-full-chain/scenarios/user-report-authorities.mjs";
+import {
+  SELLER_FAQ_PREPARATION_MIGRATION,
+  proveSellerFaqPreparedAuthorities,
+} from "../tools/database-full-chain/scenarios/seller-faq-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -281,6 +285,7 @@ test(
       let blockPreparationPreflightPath;
       let userReportFixture;
       let userReportPreparationPreflightPath;
+      let sellerFaqPreparationPreflightPath;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -587,6 +592,25 @@ test(
               database: adapter,
               seller: fixture,
             });
+          }
+          if (artifact.name === SELLER_FAQ_PREPARATION_MIGRATION) {
+            sellerFaqPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-faq-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_faq_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  sellerFaqPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
           }
           if (artifact.name === FAVORITE_RLS_MIGRATION) {
             assert.ok(
@@ -1166,6 +1190,32 @@ test(
       await proveUserReportPreparedAuthorities({
         database: adapter,
         fixture: userReportFixture,
+      });
+      assert.ok(
+        sellerFaqPreparationPreflightPath,
+        "SellerFaq Production preflight must run before its preparation",
+      );
+      const sellerFaqPreparationPostflight =
+        await inspectPrivateTablePreparationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_faq_v1",
+            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              "seller-faq-preparation-postflight.json",
+            ),
+            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+              sellerFaqPreparationPreflightPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+      assert.equal(sellerFaqPreparationPostflight.state, "applied");
+      assert.equal(sellerFaqPreparationPostflight.catalog.functions.length, 4);
+      await proveSellerFaqPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
       });
       assert.ok(
         stockNotificationActivationReadyEvidencePath,

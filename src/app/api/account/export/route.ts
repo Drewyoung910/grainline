@@ -56,6 +56,7 @@ import {
   exportReceivedUserReports,
   exportSubmittedUserReports,
 } from "@/lib/userReportAccess";
+import { ownerSellerFaqExportRows } from "@/lib/sellerFaqAccess";
 
 export const runtime = "nodejs";
 
@@ -273,13 +274,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     ownerStockNotificationExportRows(user.id),
     exportCheckoutStockReservations(user.id),
     sellerProfile ? exportOwnerMakerVerification(user.id) : null,
-    sellerProfile
-      ? prisma.sellerFaq.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, question: true, answer: true, sortOrder: true, createdAt: true },
-        })
-      : [],
+    ownerSellerFaqExportRows(user.id),
     accountEmailSuppressionKeys.length > 0
       ? prisma.newsletterSubscriber.findMany({
           where: { email: { in: accountEmailSuppressionKeys } },

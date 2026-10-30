@@ -353,6 +353,14 @@ jobs:
           tests/private-table-preparation-production.test.mjs
           tests/user-report-authority-preparation.test.mjs
           tests/user-report-target-access.test.mjs
+      - name: Verify SellerFaq preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/seller-faq-authority-preparation.test.mjs
+          tests/seller-ops-hardening.test.mjs
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
@@ -504,6 +512,15 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "USER_REPORT_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Isolate SellerFaq preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-faq-preparation"
+          migration=20261030030000_prepare_seller_faq_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -7050,6 +7067,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "USER_REPORT_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerFaq preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-faq-preparation"
+          migration=20261030030000_prepare_seller_faq_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |

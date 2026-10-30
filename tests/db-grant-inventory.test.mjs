@@ -251,6 +251,14 @@ const USER_REPORT_PREPARATION_FUNCTION_NAMES = [
   "grainline_user_report_staff_resolve",
   "grainline_user_report_account_deletion_redact",
 ];
+const SELLER_FAQ_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030030000_prepare_seller_faq_authorities/migration.sql";
+const SELLER_FAQ_PREPARATION_FUNCTION_NAMES = [
+  "grainline_seller_faq_owner_create",
+  "grainline_seller_faq_owner_remove",
+  "grainline_seller_faq_owner_export",
+  "grainline_seller_faq_account_deletion_cleanup",
+];
 const FAVORITE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
 const FAVORITE_RLS_MIGRATION =
@@ -3701,6 +3709,12 @@ describe("database grant inventory guardrails", () => {
       source(USER_REPORT_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const sellerFaqAuthorityPrepared = existsSync(
+      SELLER_FAQ_PREPARATION_MIGRATION,
+    ) && SELLER_FAQ_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_FAQ_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const favoriteAuthorityPrepared = existsSync(
       FAVORITE_PREPARATION_MIGRATION,
     ) && FAVORITE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -3965,6 +3979,9 @@ describe("database grant inventory guardrails", () => {
       ...(userReportAuthorityPrepared
         ? USER_REPORT_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(reviewVoteRlsActivationPresent
         ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
         : []),
@@ -4038,6 +4055,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (userReportAuthorityPrepared
           ? USER_REPORT_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (sellerFaqAuthorityPrepared
+          ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (favoriteAuthorityPrepared
           ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
@@ -4185,6 +4205,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(userReportAuthorityPrepared
         ? USER_REPORT_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES

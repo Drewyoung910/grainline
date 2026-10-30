@@ -77,7 +77,6 @@ describe("account export privacy coverage", () => {
       "emailSuppression",
       "emailOutbox",
       "emailFailureCount",
-      "sellerFaq",
       "newsletterSubscriber",
       "sellerBroadcast",
     ]) {
@@ -105,6 +104,12 @@ describe("account export privacy coverage", () => {
       "account export must query received reports through its owner authority",
     );
     assert.doesNotMatch(route, /prisma\.userReport\./);
+    assert.match(
+      route,
+      /ownerSellerFaqExportRows\(user\.id\)/,
+      "account export must query seller FAQs through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.sellerFaq\./);
     assert.match(
       route,
       /exportOwnerSupportRequests\(user\.id\)/,

@@ -313,6 +313,25 @@ test("owner social and verification preparation batch is exact and ordered", () 
   );
 });
 
+test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", () => {
+  const releaseIds = privateTablePreparationReleaseIds(
+    "block_report_seller_faq_v1",
+  );
+  assert.deepEqual(releaseIds, [
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
+  ]);
+  assert.deepEqual(
+    releaseIds.map((releaseId) => privateTablePreparation(releaseId).migration),
+    [
+      "20261030010000_prepare_block_authorities",
+      "20261030020000_prepare_user_report_authorities",
+      "20261030030000_prepare_seller_faq_authorities",
+    ],
+  );
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -420,6 +439,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "review_vote_v1",
       "maker_verification_v1",
       "owner_social_verification_v1",
+      "block_report_seller_faq_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");

@@ -2645,6 +2645,52 @@ $grainline_follow_provisioning_abort$;
 REVOKE ALL ON TABLE public."Follow" FROM PUBLIC, :"runtime_role";
 \endif
 
+-- SellerFaq preparation is additive and keeps predecessor table CRUD until
+-- activation. Converge only the four reviewed actor/claim-bound operations.
+WITH seller_faq_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_faq_owner_create"(text, text, text)'),
+    ('public."grainline_seller_faq_owner_remove"(text)'),
+    ('public."grainline_seller_faq_owner_export"()'),
+    ('public."grainline_seller_faq_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM seller_faq_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_faq_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_faq_owner_create"(text, text, text)'),
+    ('public."grainline_seller_faq_owner_remove"(text)'),
+    ('public."grainline_seller_faq_owner_export"()'),
+    ('public."grainline_seller_faq_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_faq_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_faq_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_faq_owner_create"(text, text, text)'),
+    ('public."grainline_seller_faq_owner_remove"(text)'),
+    ('public."grainline_seller_faq_owner_export"()'),
+    ('public."grainline_seller_faq_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_faq_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
 -- When its functions exist, converge every helper away from PUBLIC/runtime
