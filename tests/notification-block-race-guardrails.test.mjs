@@ -17,10 +17,10 @@ describe("Notification reciprocal-block serialization", () => {
   );
 
   it("serializes ordinary block and unblock mutations on a sorted user pair", () => {
-    assert.equal((blockAccess.match(/withDbUserContext\(blockerId, async \(tx\) =>/g) ?? []).length, 3);
+    assert.equal((blockAccess.match(/withDbUserContext\(blockerId, async \(tx\) =>/g) ?? []).length, 2);
     assert.equal(
       (blockAccess.match(/isolationLevel: Prisma\.TransactionIsolationLevel\.ReadCommitted/g) ?? []).length,
-      3,
+      2,
     );
     assert.match(blockAccess, /grainline_user_block_pair_lock\(\$\{blockedId\}::text\)/);
     assert.match(userBlockSql, /current_setting\('transaction_isolation'\) <> 'read committed'/);

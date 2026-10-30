@@ -1,9 +1,12 @@
 # ReviewVote pre-RLS domain audit
 
 Date: 2026-10-28  
-Source: failing-first reproduction on `94c6d3bf74e13d5d19bc30433b1d6a0eda12fbc2`
-Decision: **A2 compatible preparation candidate is implemented and proven on
-the complete PostgreSQL 17 chain; NO-GO remains for RLS or grant activation.**
+Source: compatible preparation live from exact main
+`3492eed2008d4272f91da3426568ce2881a14cca`; activation candidate reconciled
+to that source and its delete-lock correction
+Decision: **A2 activation candidate is implemented in isolation; NO-GO remains
+for merge, deployment, or Production activation until exact-head CI and the
+protected release gates accept the reconciled bytes.**
 
 This is a product, functionality, authority, privacy, concurrency, lifecycle,
 scale, recovery, and rollback audit. It is not Production authorization.
@@ -290,13 +293,21 @@ app deployment. The candidate instead makes each reviewed writer reconcile the
 exact scalar; activation may add cascade maintenance only after the predecessor
 is no longer eligible to serve traffic.
 
-Status: `COMPATIBLE_CANDIDATE`. The preparation fixes RV-RLS-1, RV-RLS-2,
-RV-RLS-3, RV-RLS-5, RV-RLS-6, RV-RLS-9, RV-RLS-10, and the executed-proof
-portion of RV-RLS-7.
-RV-RLS-4 remains an activation gate for hard User-delete cascade maintenance.
-Activation also still needs the owner policy, direct runtime mutation denial,
-cross-owner proof, rollback/reactivation proof, and the remaining availability
-race matrix. The additive compatible preparation may proceed only through its
-exact-head protected batch workflow and before the converted application
-deploys. `NO-GO` remains for ReviewVote RLS/grant activation.
+Status: `ACTIVATION_CANDIDATE`. The compatible preparation fixes RV-RLS-1,
+RV-RLS-2, RV-RLS-3, RV-RLS-5, RV-RLS-6, RV-RLS-9, RV-RLS-10, and the
+executed-proof portion of RV-RLS-7. The isolated activation candidate closes
+RV-RLS-4 with an exact delete-side count-maintenance trigger installed only
+after predecessor traffic is drained. It retains the preparation delete-lock
+guard, adds one owner-only `SELECT` policy, removes direct runtime mutation
+authority, and retains the three actor-bound fixed operations.
+
+The candidate proof now covers owner, cross-owner and missing-context reads;
+direct runtime `INSERT`, `UPDATE` and `DELETE` denial; hard User-delete and
+Review-delete cascades; exact catalog and function-owner posture; emergency
+rollback to predecessor CRUD; predecessor mixed-version serialization after
+rollback; and clean reactivation. The exact activation, rollback and
+reactivation SQL also executes on pinned PGlite 0.4.3. Exact-head full-chain
+PostgreSQL 17 CI and independent diff review remain required before this can
+be considered releasable. `NO-GO` remains for merge, deployment, Production
+activation, or any Production operation outside the protected workflow.
 

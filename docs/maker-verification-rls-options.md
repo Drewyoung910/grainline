@@ -2,11 +2,13 @@
 
 Date: 2026-10-28
 
-Status: **Option B selected for isolated compatible preparation.** This
-decision authorizes audit-backed candidate work only. The compatible candidate
-is now implemented and proven on the complete PostgreSQL 17 chain without an
-RLS or predecessor table-grant change. It does not authorize a Production
-migration, grant change, deployment, or RLS activation.
+Status: **Option B selected; compatible preparation and a separate activation
+candidate exist in isolated branches.** This decision authorizes audit-backed
+candidate work only. The activation candidate combines policyless ENABLE plus
+FORCE, revokes all direct table authority, adds provisioning convergence, and
+includes a database-first predecessor rollback. Exact-head PostgreSQL 16/17
+acceptance remains pending. It does not authorize a Production migration,
+grant change, deployment, or RLS activation.
 
 Reviewed source baseline:
 `857bc94706913a4d5c4368afa99de0a55bb2437c`.
@@ -126,11 +128,13 @@ canonical lock order. Its complete-schema proof covers the primary owner/staff
 lifecycle, exact ACLs, deletion, cross-owner denial, 55-row pagination, and both
 owner/staff and owner/cron winner orders.
 
-Activation remains blocked on direct-table denial after ENABLE+FORCE and tested
-predecessor rollback. The staff/service transition matrix and the full
-input/inactive-user matrix are now part of the complete-schema proof but remain
-provisional until exact-head PostgreSQL 16/17 CI accepts them. The candidate is
-additive preparation only.
+The isolated activation candidate now exercises direct runtime/staff denial,
+fixed-operation behavior under policyless FORCE, database-first rollback to
+the exact predecessor CRUD posture, predecessor statement compatibility, and
+reactivation. The staff/service transition matrix and the full input/inactive-
+user matrix are also part of the complete-schema proof. All remain provisional
+until exact-head PostgreSQL 16/17 CI accepts them. Production authorization is
+still absent.
 
 ## Decision record
 

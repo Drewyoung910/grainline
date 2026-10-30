@@ -114,19 +114,27 @@ import {
 } from "../tools/database-full-chain/scenarios/stock-notification-authorities.mjs";
 import {
   FAVORITE_PREPARATION_MIGRATION,
+  FAVORITE_RLS_MIGRATION,
   proveFavoritePredecessorGap,
   proveFavoritePreparedAuthorities,
+  proveFavoriteProvisioningRejectsPolicylessPartial,
+  proveFavoriteRlsAuthorities,
+  proveFavoriteRlsRollback,
   seedFavoritePredecessorFixture,
 } from "../tools/database-full-chain/scenarios/favorite-authorities.mjs";
 import {
   FOLLOW_PREPARATION_MIGRATION,
+  FOLLOW_RLS_MIGRATION,
   proveFollowPredecessorCompatibility,
   proveFollowPreparedAuthorities,
+  proveFollowRlsAuthorities,
+  proveFollowRlsRollback,
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
+import { inspectPrivateTableRlsActivationProduction } from "../scripts/private-table-rls-activation-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
   SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -138,6 +146,12 @@ import { DISPUTE_FIRST_EVENT_CASE_MIGRATION } from "../scripts/build-dispute-fir
 
 const proofDatabaseUrl = process.env.DATABASE_FULL_CHAIN_PROOF_DATABASE_URL;
 const expectedPostgresMajor = process.env.DATABASE_FULL_CHAIN_POSTGRES_MAJOR?.trim() || "16";
+const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
+  ["20261028050000_activate_favorite_rls", "favorite_v1"],
+  ["20261028060000_activate_follow_rls", "follow_v1"],
+  ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
+  ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
   const accountDeletionClient = new pg.Client({ connectionString });
@@ -254,6 +268,8 @@ test(
       let followFixture;
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
+      let followPreparationPostflightClosed = false;
+      const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
           super({ connectionString: proofDatabaseUrl });
@@ -513,6 +529,147 @@ test(
               fixture: followFixture,
             });
           }
+          if (artifact.name === FAVORITE_RLS_MIGRATION) {
+            assert.ok(
+              favoriteFixture,
+              "Favorite fixture must exist before its activation proof",
+            );
+            assert.ok(
+              favoritePreparationPreflightPath,
+              "Favorite Production preflight must run before its preparation",
+            );
+            const favoritePostflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                  preparationEvidenceDirectory,
+                  "favorite-preparation-postflight.json",
+                ),
+                PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                  favoritePreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(favoritePostflight.state, "applied");
+            assert.equal(favoritePostflight.catalog.functions.length, 8);
+
+            // Prove restart recovery while the table still has the preparation
+            // posture. Once activation runs, this inspector must no longer
+            // pretend that the preparation-only table posture remains current.
+            const favoriteLedgerRows = (await adapter.query(
+              `SELECT id, checksum, finished_at, migration_name, logs,
+                      rolled_back_at, started_at, applied_steps_count
+                 FROM public."_prisma_migrations"
+                WHERE migration_name = $1`,
+              [FAVORITE_PREPARATION_MIGRATION],
+            )).rows;
+            assert.equal(favoriteLedgerRows.length, 1);
+            const favoriteLedger = favoriteLedgerRows[0];
+            await adapter.query(
+              `DELETE FROM public."_prisma_migrations" WHERE migration_name = $1`,
+              [FAVORITE_PREPARATION_MIGRATION],
+            );
+            try {
+              const favoriteInterrupted = await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "favorite-preparation-applied-unrecorded.json",
+                  ),
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+              assert.equal(favoriteInterrupted.state, "applied_unrecorded");
+              assert.equal(favoriteInterrupted.catalog.functions.length, 8);
+            } finally {
+              await adapter.query(
+                `INSERT INTO public."_prisma_migrations"
+                   (id, checksum, finished_at, migration_name, logs,
+                    rolled_back_at, started_at, applied_steps_count)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                  favoriteLedger.id,
+                  favoriteLedger.checksum,
+                  favoriteLedger.finished_at,
+                  favoriteLedger.migration_name,
+                  favoriteLedger.logs,
+                  favoriteLedger.rolled_back_at,
+                  favoriteLedger.started_at,
+                  favoriteLedger.applied_steps_count,
+                ],
+              );
+            }
+            await proveFavoritePreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+              fixture: favoriteFixture,
+            });
+          }
+          if (artifact.name === FOLLOW_RLS_MIGRATION) {
+            assert.ok(
+              followFixture,
+              "Follow fixture must exist before its activation proof",
+            );
+            assert.ok(
+              followPreparationPreflightPath,
+              "Follow Production preflight must run before its preparation",
+            );
+            const followPreparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "follow_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "follow-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    followPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(followPreparationPostflight.state, "applied");
+            assert.equal(followPreparationPostflight.catalog.functions.length, 6);
+            followPreparationPostflightClosed = true;
+            await proveFollowPreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+              fixture: followFixture,
+            });
+          }
+          const privateActivationReleaseId = PRIVATE_TABLE_ACTIVATION_RELEASES.get(
+            artifact.name,
+          );
+          if (privateActivationReleaseId) {
+            const evidencePath = join(
+              preparationEvidenceDirectory,
+              `${privateActivationReleaseId}-activation-preflight.json`,
+            );
+            const activationPreflight = await inspectPrivateTableRlsActivationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID: privateActivationReleaseId,
+                PRIVATE_TABLE_RLS_ACTIVATION_PHASE: "preflight",
+                PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH: evidencePath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "9".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(activationPreflight.state, "ready");
+            privateActivationPreflightPaths.set(
+              privateActivationReleaseId,
+              evidencePath,
+            );
+          }
         },
         onProgress: ({ index, total, name, retried }) => {
           if (index === total || index % 50 === 0 || retried) {
@@ -535,74 +692,24 @@ test(
         ],
       );
 
-      assert.ok(
-        favoritePreparationPreflightPath,
-        "Favorite Production preflight must run before its preparation",
-      );
-      const favoritePostflight = await inspectPrivateTablePreparationProduction(
-        {
-          DIRECT_URL: proofDatabaseUrl,
-          PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
-          PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
-          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
-            preparationEvidenceDirectory,
-            "favorite-preparation-postflight.json",
-          ),
-          PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
-            favoritePreparationPreflightPath,
-          PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
-        },
-        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
-      );
-      assert.equal(favoritePostflight.state, "applied");
-      assert.equal(favoritePostflight.catalog.functions.length, 8);
-
-      const favoriteLedgerRows = (await adapter.query(
-        `SELECT id, checksum, finished_at, migration_name, logs,
-                rolled_back_at, started_at, applied_steps_count
-           FROM public."_prisma_migrations"
-          WHERE migration_name = $1`,
-        [FAVORITE_PREPARATION_MIGRATION],
-      )).rows;
-      assert.equal(favoriteLedgerRows.length, 1);
-      const favoriteLedger = favoriteLedgerRows[0];
-      await adapter.query(
-        `DELETE FROM public."_prisma_migrations" WHERE migration_name = $1`,
-        [FAVORITE_PREPARATION_MIGRATION],
-      );
-      try {
-        const favoriteInterrupted = await inspectPrivateTablePreparationProduction(
+      for (const releaseId of PRIVATE_TABLE_ACTIVATION_RELEASES.values()) {
+        const previousPath = privateActivationPreflightPaths.get(releaseId);
+        assert.ok(previousPath, `${releaseId} activation preflight did not run`);
+        const activationPostflight = await inspectPrivateTableRlsActivationProduction(
           {
             DIRECT_URL: proofDatabaseUrl,
-            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "favorite_v1",
-            PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
-            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+            PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID: releaseId,
+            PRIVATE_TABLE_RLS_ACTIVATION_PHASE: "postflight",
+            PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH: join(
               preparationEvidenceDirectory,
-              "favorite-preparation-applied-unrecorded.json",
+              `${releaseId}-activation-postflight.json`,
             ),
-            PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+            PRIVATE_TABLE_RLS_ACTIVATION_PREVIOUS_EVIDENCE_PATH: previousPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "9".repeat(40),
           },
           { Client: DisposableOwnerClient, rootDir: repositoryRoot },
         );
-        assert.equal(favoriteInterrupted.state, "applied_unrecorded");
-        assert.equal(favoriteInterrupted.catalog.functions.length, 8);
-      } finally {
-        await adapter.query(
-          `INSERT INTO public."_prisma_migrations"
-             (id, checksum, finished_at, migration_name, logs,
-              rolled_back_at, started_at, applied_steps_count)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            favoriteLedger.id,
-            favoriteLedger.checksum,
-            favoriteLedger.finished_at,
-            favoriteLedger.migration_name,
-            favoriteLedger.logs,
-            favoriteLedger.rolled_back_at,
-            favoriteLedger.started_at,
-            favoriteLedger.applied_steps_count,
-          ],
-        );
+        assert.equal(activationPostflight.state, "active");
       }
 
       assert.ok(
@@ -618,24 +725,11 @@ test(
         followPreparationPreflightPath,
         "Follow Production preflight must run before its preparation",
       );
-      const followPreparationPostflight = await inspectPrivateTablePreparationProduction(
-        {
-          DIRECT_URL: proofDatabaseUrl,
-          PRIVATE_TABLE_PREPARATION_RELEASE_ID: "follow_v1",
-          PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
-          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
-            preparationEvidenceDirectory,
-            "follow-preparation-postflight.json",
-          ),
-          PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
-            followPreparationPreflightPath,
-          PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
-        },
-        { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+      assert.equal(
+        followPreparationPostflightClosed,
+        true,
+        "Follow preparation postflight must close before activation",
       );
-      assert.equal(followPreparationPostflight.state, "applied");
-      assert.equal(followPreparationPostflight.catalog.functions.length, 6);
-
       await assertSellerProfilePrivateLayout(adapter);
       await proveSellerProfilePolicylessEnable({
         database: adapter,
@@ -682,6 +776,7 @@ test(
       await proveReviewVoteAuthorities({
         connectionString: proofDatabaseUrl,
         database: adapter,
+        repositoryRoot,
         seller: fixture,
       });
       await proveSellerProfileActorReviewListingTarget({
@@ -1018,9 +1113,31 @@ test(
         favoriteFixture,
         "Favorite predecessor fixture must be seeded before preparation",
       );
-      await proveFavoritePreparedAuthorities({
+      await proveFavoriteRlsAuthorities({
         database: adapter,
-        connectionString: proofDatabaseUrl,
+        fixture: favoriteFixture,
+      });
+      await proveFavoriteProvisioningRejectsPolicylessPartial({
+        database: adapter,
+        repositoryRoot,
+      });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/favorite-activation-rollback.sql"),
+        "utf8",
+      ));
+      await proveFavoriteRlsRollback({
+        database: adapter,
+        fixture: favoriteFixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${FAVORITE_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveFavoriteRlsAuthorities({
+        database: adapter,
         fixture: favoriteFixture,
       });
       assert.deepEqual(followPredecessorEvidence, {
@@ -1030,7 +1147,26 @@ test(
         followFixture,
         "Follow predecessor fixture must be seeded before preparation",
       );
-      await proveFollowPreparedAuthorities({
+      await proveFollowRlsAuthorities({
+        database: adapter,
+        fixture: followFixture,
+      });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/follow-activation-rollback.sql"),
+        "utf8",
+      ));
+      await proveFollowRlsRollback({
+        database: adapter,
+        fixture: followFixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${FOLLOW_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveFollowRlsAuthorities({
         database: adapter,
         fixture: followFixture,
       });

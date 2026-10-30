@@ -481,6 +481,66 @@ REVOKE ALL ON TABLE public."SupportRequest"
 \endif
 \unset support_request_rls_active
 
+-- MakerVerification keeps compatible predecessor CRUD only while RLS is
+-- cleanly off. The reviewed activation is policyless ENABLE plus FORCE, so a
+-- provisioning replay must preserve zero direct table authority afterwards.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'MakerVerification'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(
+        relrowsecurity AND relforcerowsecurity AND policy_count = 0
+      ) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'MakerVerification RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS maker_verification_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_maker_verification_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_maker_verification_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :maker_verification_rls_active
+REVOKE ALL ON TABLE public."MakerVerification"
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset maker_verification_rls_active
+
 -- OrderItem and OrderShippingRateQuote remain separate from the Core Order RLS
 -- release, but the application no longer needs ordinary table access. Preserve
 -- predecessor grants until the exact runtime-lock migration is durably applied;
@@ -822,7 +882,8 @@ WITH table_state AS (
     'StockNotification RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
       AS message
     FROM posture
-   WHERE NOT active AND NOT clean_predecessor
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
 )
 SELECT
   EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
@@ -849,6 +910,97 @@ GRANT SELECT, DELETE ON TABLE public."StockNotification"
   TO :"runtime_role";
 \endif
 \unset grainline_stock_notification_rls_active
+
+-- Favorite keeps direct owner SELECT/DELETE after activation. New saves and
+-- every cross-owner operation remain behind the prepared SECURITY DEFINER
+-- authorities, so provisioning must never restore INSERT or UPDATE once the
+-- two owner policies are active.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.array_agg(
+              policy.polname::text || ':' || policy.polcmd::text
+              ORDER BY policy.polname
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_shape,
+    (SELECT pg_catalog.bool_and(
+              policy.polpermissive
+              AND policy.polroles = ARRAY[
+                (SELECT role.oid
+                   FROM pg_catalog.pg_roles AS role
+                  WHERE role.rolname = :'runtime_role')
+              ]::oid[]
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_roles_valid,
+    (SELECT pg_catalog.bool_and(
+              pg_catalog.pg_get_expr(policy.polqual, policy.polrelid) =
+                '("userId" = NULLIF(current_setting(''app.user_id''::text, true), ''''::text))'
+              AND policy.polwithcheck IS NULL
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_expressions_valid
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'Favorite'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(
+        relrowsecurity
+        AND relforcerowsecurity
+        AND policy_shape = ARRAY[
+          'favorite_owner_delete:d',
+          'favorite_owner_select:r'
+        ]::text[]
+        AND policy_roles_valid
+        AND policy_expressions_valid
+      ) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_shape IS NULL
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'Favorite RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS grainline_favorite_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_favorite_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_favorite_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_favorite_rls_active
+REVOKE ALL ON TABLE public."Favorite"
+  FROM PUBLIC, :"runtime_role";
+GRANT SELECT, DELETE ON TABLE public."Favorite"
+  TO :"runtime_role";
+\endif
+\unset grainline_favorite_rls_active
 
 -- StripeWebhookEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
@@ -2390,6 +2542,60 @@ SELECT format(
   FROM follow_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
+
+-- Follow has no generic runtime table contract after its policyless
+-- activation. All reads and writes use the purpose-bound functions above and
+-- the previously reviewed follow/fanout authority families. Refuse partial
+-- RLS state so a provisioning replay cannot silently reopen the table.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'Follow'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND relforcerowsecurity AND policy_count = 0)
+      AS active,
+    COUNT(*) = 1
+      AND bool_and(NOT relrowsecurity AND NOT relforcerowsecurity AND policy_count = 0)
+      AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'Follow RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false) AS grainline_follow_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_follow_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_follow_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_follow_rls_active
+REVOKE ALL ON TABLE public."Follow" FROM PUBLIC, :"runtime_role";
+\endif
 
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
@@ -5019,6 +5225,15 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Once Follow is activated, the source-bound preparation function supersedes
+-- the broader seller-id-only predecessor. Revoke it after the generic User
+-- relationship convergence above so a provisioning replay cannot reopen it.
+\if :grainline_follow_rls_active
+REVOKE ALL ON FUNCTION public.grainline_user_follower_notification_page(text,text,integer)
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_follow_rls_active
+
 -- UserEmailAddress authority is prepared before its policyless RLS activation.
 -- Converge the exact source-bound runtime operations whenever that preparation
 -- exists; helpers used only by account-deletion flows remain governed by their
@@ -5306,16 +5521,93 @@ SELECT format(
 \endif
 \unset order_payment_event_rls_active
 
--- ReviewVote compatible preparation keeps predecessor table grants in place,
--- but its new owner operations must survive role convergence while trigger
+-- ReviewVote keeps predecessor CRUD while RLS is off. Once the reviewed owner
+-- policy is active, convergence must reduce the runtime role to SELECT only.
+-- Refuse every partial RLS/policy posture instead of guessing which side of
+-- the activation boundary the database intended to hold.
+WITH posture AS (
+  SELECT class.relrowsecurity AS rls_enabled,
+         class.relforcerowsecurity AS rls_forced,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid
+             AND policy.polname = 'review_vote_owner_select'
+             AND policy.polpermissive
+             AND policy.polroles = ARRAY[
+               (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = :'runtime_role')
+             ]::oid[]
+             AND policy.polcmd = 'r'
+             AND pg_catalog.pg_get_expr(policy.polqual, policy.polrelid) =
+                 '("userId" = NULLIF(current_setting(''app.user_id''::text, true), ''''::text))'
+             AND policy.polwithcheck IS NULL) AS owner_policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'ReviewVote'
+     AND class.relkind = 'r'
+), state AS (
+  SELECT rls_enabled,
+         rls_forced,
+         policy_count,
+         owner_policy_count,
+         (
+           rls_enabled AND rls_forced
+           AND policy_count = 1
+           AND owner_policy_count = 1
+         ) AS active,
+         (
+           NOT rls_enabled AND NOT rls_forced
+           AND policy_count = 0
+         ) AS clean_predecessor
+    FROM posture
+), failure AS (
+  SELECT
+    'ReviewVote RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM state
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM state), false)
+    AS review_vote_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_review_vote_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_review_vote_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :review_vote_rls_active
+REVOKE ALL ON TABLE public."ReviewVote"
+  FROM PUBLIC, :"runtime_role";
+GRANT SELECT ON TABLE public."ReviewVote"
+  TO :"runtime_role";
+\endif
+\unset review_vote_rls_active
+
+-- ReviewVote owner operations must survive role convergence while trigger
 -- helpers remain private. The existence guards keep this script valid before
--- the preparation migration is installed and fail closed on every present
--- function.
+-- the preparation/activation migrations are installed and fail closed on
+-- every present function.
 WITH review_vote_private(function_signature) AS (
   VALUES
     ('public."grainline_review_vote_insert_guard"()'),
     ('public."grainline_review_vote_delete_lock_guard"()'),
-    ('public."grainline_review_vote_update_forbidden"()')
+    ('public."grainline_review_vote_update_forbidden"()'),
+    ('public."grainline_review_vote_count_after_delete"()')
 )
 SELECT pg_catalog.format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

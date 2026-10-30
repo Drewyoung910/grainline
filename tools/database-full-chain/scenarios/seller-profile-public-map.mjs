@@ -766,13 +766,12 @@ export async function proveSellerProfilePublicMapAuthority({ database, seller })
     const followTimestamp = rowsOf(await database.query(
       `SELECT ABS(EXTRACT(
                 epoch FROM (
-                  follower."createdAt" -
-                  (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+                  exported."createdAt" - pg_catalog.clock_timestamp()
                 )
               ))::double precision AS "utcDriftSeconds"
-         FROM public."Follow" AS follower
-        WHERE follower.id = $1`,
-      [followId],
+         FROM public.grainline_seller_owner_follow_export() AS exported
+        WHERE exported."sellerProfileId" = $1`,
+      [seller.sellerProfileId],
     ));
     assert.equal(followTimestamp.length, 1);
     assert.equal(followTimestamp[0].utcDriftSeconds < 15, true);

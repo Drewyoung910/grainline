@@ -3518,6 +3518,13 @@ deployment. RLS activation, direct-grant revocation and Production execution
 remain separate reviewed gates; no security release drops the additive count
 column.
 
+The final activation authority shape is owner-direct SELECT and DELETE only.
+Do not grant direct INSERT: the prepared `grainline_favorite_owner_add(text)`
+operation is the atomic boundary for active-account, public-target,
+self-favorite, reciprocal-block and race checks. Direct UPDATE remains absent.
+The combined ENABLE/FORCE candidate must preserve the maintained public count,
+both FK cascades and a database-first rollback to the compatible predecessor.
+
 ### ReviewVote RLS direction (2026-10-28)
 
 Treat vote identities as private owner data and keep only the existing
@@ -3543,6 +3550,13 @@ route cannot double-update the scalar. Activation remains separately blocked
 on policy/grant denial, hard User-delete cascade, cross-owner/race coverage,
 rollback, and explicit release authorization.
 
+The separate isolated activation candidate adds the delete-side maintenance
+trigger only after predecessor traffic is drained, retains owner-only `SELECT`,
+removes direct mutations, and exercises hard-delete, denial, rollback,
+predecessor concurrency and reactivation behavior. Exact-head PostgreSQL 17 CI,
+independent review and explicit release authorization remain separate gates;
+no Production workflow is part of the candidate.
+
 ### MakerVerification compatible RLS preparation (2026-10-28)
 
 MakerVerification uses policyless Option B because applicant evidence, staff
@@ -3554,3 +3568,16 @@ order. The complete PostgreSQL 17 proof covers primary Member/Master behavior,
 ACLs, deletion and two-session owner/staff plus owner/cron races. Activation
 remains separate and blocked on the full transition/queue/denial matrix and
 tested predecessor rollback; no current candidate changes RLS or table grants.
+
+### Follow RLS fixed-operation boundary (2026-10-28)
+
+Use zero ordinary runtime table authority for `Follow`, rather than generic
+owner policies or a maintained public counter. Preserve raw current-row counts
+as a distinct contract from eligible notification/broadcast audiences, retain
+the shared Block/follow pair-lock order, and expose only bounded public, owner,
+seller-owner, fanout, broadcast, cleanup and export operations. Compatible
+preparation releases before the application. The isolated activation combines
+policyless ENABLE plus FORCE and must preserve database-first rollback,
+account-deletion cleanup and User/SellerProfile cascades. Preparation,
+compatible deployment, skew drain and Production activation remain separate
+reviewed gates; this decision is not standing Production authorization.
