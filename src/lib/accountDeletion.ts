@@ -88,6 +88,7 @@ import {
 } from "@/lib/emailOutboxContentLifecycle";
 import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess";
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
+import { cleanupSellerFaqsForAccountDeletion } from "@/lib/sellerFaqAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -1379,8 +1380,11 @@ export async function anonymizeUserAccount(
       await tx.sellerBroadcast.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await tx.sellerFaq.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupSellerFaqsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await anonymizeSellerForAccountDeletion(tx, {
         sellerProfileId: user.sellerProfile.id,

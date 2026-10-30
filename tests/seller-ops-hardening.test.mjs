@@ -167,6 +167,7 @@ describe("seller operational route hardening", () => {
 
   it("keeps seller profile FAQ and featured listing writes concurrency-safe and capped", () => {
     const profile = source("src/app/dashboard/profile/page.tsx");
+    const faqAccess = source("src/lib/sellerFaqAccess.ts");
     const addFaq = profile.slice(profile.indexOf("async function addFaq"), profile.indexOf("async function deleteFaq"));
     const toggleFeatured = profile.slice(
       profile.indexOf("async function toggleFeaturedListing"),
@@ -175,11 +176,10 @@ describe("seller operational route hardening", () => {
 
     assert.match(profile, /const SELLER_FAQ_LIMIT = 20/);
     assert.match(profile, /const SELLER_FEATURED_LISTING_LIMIT = 6/);
-    assert.match(addFaq, /withSerializableRetry\(\(\) => prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(addFaq, /tx\.sellerFaq\.count\(\{\s*where: \{ sellerProfileId: seller\.id \},\s*\}\)/s);
-    assert.match(addFaq, /if \(faqCount >= SELLER_FAQ_LIMIT\) return/);
-    assert.match(addFaq, /tx\.sellerFaq\.create\(\{/);
-    assert.match(addFaq, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.match(addFaq, /createOwnerSellerFaq\(me\.id, question, answer\)/);
+    assert.doesNotMatch(addFaq, /prisma\.|tx\.sellerFaq/);
+    assert.match(faqAccess, /withSerializableDbUserContext\(userId, async \(client\) =>/);
+    assert.match(faqAccess, /grainline_seller_faq_owner_create\(/);
     assert.match(profile, /fullSeller\.faqs\.length >= SELLER_FAQ_LIMIT/);
 
     assert.match(toggleFeatured, /toggleSellerOwnerFeaturedListing\(seller\.userId, \{/);

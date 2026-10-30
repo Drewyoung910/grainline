@@ -127,6 +127,44 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  seller_faq_v1: Object.freeze({
+    migration: "20261029010000_prepare_seller_faq_authorities",
+    migrationSha256: "b0961444c13c8c357898d3121440c436591f38b64f99e0bce680caaebe226dea",
+    table: "SellerFaq",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-faq-authority-preparation.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_faq_owner_create",
+        arguments: "text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_faq_owner_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_faq_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_seller_faq_account_deletion_cleanup",
+        arguments: "text, text, bigint, uuid",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {
