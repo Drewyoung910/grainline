@@ -3499,6 +3499,18 @@ zero direct runtime/PUBLIC authority and purpose-bound operations. Preparation
 must close the Server Action PIN gap and malformed-intake handling before a
 separate activation. Production activation remains separately authorized.
 
+The 2026-10-29 owner/social preparation wave groups Favorite, Follow,
+ReviewVote and MakerVerification into one immutable catalog selection after
+all four table audits and full-chain proofs are accepted. The batch preserves
+each migration's independent transaction, exact digest, inspector and
+applied-but-unrecorded recovery while using one protected Production run and
+one compatible application deploy. Later activation may use the same fixed
+batch pattern only after every table-specific activation blocker is closed;
+it remains a separate explicitly authorized Production operation. Production
+builds containing the converted callers must fail closed until every reviewed
+runtime and staff function in the preparation batch is installed with its
+exact source body and EXECUTE role.
+
 ### Favorite RLS aggregate boundary (2026-10-28)
 
 Use a transactionally maintained raw-current-row favorite count on `Listing`

@@ -8,6 +8,7 @@ import yaml from "js-yaml";
 import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
   privateTablePreparation,
+  privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
@@ -260,6 +261,27 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("owner social and verification preparation batch is exact and ordered", () => {
+  const releaseIds = privateTablePreparationReleaseIds(
+    "owner_social_verification_v1",
+  );
+  assert.deepEqual(releaseIds, [
+    "favorite_v1",
+    "follow_v1",
+    "review_vote_v1",
+    "maker_verification_v1",
+  ]);
+  assert.deepEqual(
+    releaseIds.map((releaseId) => privateTablePreparation(releaseId).migration),
+    [
+      "20261028010000_prepare_favorite_authorities",
+      "20261028020000_prepare_follow_authorities",
+      "20261028030000_prepare_review_vote_authorities",
+      "20261028040000_prepare_maker_verification_authorities",
+    ],
+  );
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -338,6 +360,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "favorite_v1",
     "follow_v1",
     "review_vote_v1",
+    "maker_verification_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -365,10 +388,13 @@ test("Production workflow is exact-main bound and fails on another red push work
       "follow_v1",
       "review_vote_v1",
       "maker_verification_v1",
+      "owner_social_verification_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(PRIVATE_TABLE_PREPARATION_CONFIRMATION, "u"));
+  assert.match(workflow, /private-table-preparation-catalog\.mjs --release-ids/u);
+  assert.match(workflow, /private-table-preparation-catalog\.mjs --migrations/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --tests/u);
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
@@ -381,17 +407,18 @@ test("Production workflow keeps preparation additive, restart-safe, and sole-pen
   assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
   assert.match(workflow, /psql "\$DIRECT_URL"/u);
   assert.match(workflow, /npx prisma migrate resolve --applied "\$migration"/u);
-  assert.match(workflow, /steps\.preflight\.outputs\.state == 'pending'/u);
-  assert.match(workflow, /steps\.preflight\.outputs\.state == 'applied_unrecorded'/u);
-  assert.match(workflow, /PRIVATE_TABLE_PREPARATION_PHASE: postflight/u);
+  assert.match(workflow, /pending\|applied_unrecorded\) pending\+=\("\$migration"\)/u);
+  assert.match(workflow, /\[ "\$state" = pending \] \|\| \[ "\$state" = applied_unrecorded \]/u);
+  assert.match(workflow, /private-table-preparation-state\.tsv/u);
+  assert.match(workflow, /PRIVATE_TABLE_PREPARATION_PHASE=postflight/u);
   assert.match(workflow, /audit:db-grants -- --require-direct-url/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   const sourceCheck = workflow.indexOf("Verify reviewed preparation source before owner access");
   const boundary = workflow.indexOf("Verify owner connection boundary");
   const preflight = workflow.indexOf("Inspect restart-safe preparation state");
-  const apply = workflow.indexOf("Apply reviewed preparation transaction outside Prisma's ledger");
-  const record = workflow.indexOf("Record the committed preparation in Prisma's ledger");
-  const postflight = workflow.indexOf("Read back exact compatible preparation catalog");
+  const apply = workflow.indexOf("Apply reviewed preparation transactions outside Prisma's ledger");
+  const record = workflow.indexOf("Record the committed preparations in Prisma's ledger");
+  const postflight = workflow.indexOf("Read back exact compatible preparation catalogs");
   assert.ok(sourceCheck >= 0 && sourceCheck < boundary && boundary < preflight);
   assert.ok(preflight < apply && apply < record && record < postflight);
 });

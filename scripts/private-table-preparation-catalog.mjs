@@ -358,6 +358,15 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
 });
 
+export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
+  owner_social_verification_v1: Object.freeze([
+    "favorite_v1",
+    "follow_v1",
+    "review_vote_v1",
+    "maker_verification_v1",
+  ]),
+});
+
 function stopped(message) {
   return new Error(`private-table preparation stopped: ${message}`);
 }
@@ -369,6 +378,29 @@ export function privateTablePreparation(releaseId) {
   const release = PRIVATE_TABLE_PREPARATIONS[releaseId];
   if (!release) throw stopped("release id is not reviewed");
   return release;
+}
+
+export function privateTablePreparationReleaseIds(selectionId) {
+  if (typeof selectionId !== "string" || !RELEASE_ID_PATTERN.test(selectionId)) {
+    throw stopped("release id is invalid");
+  }
+  if (PRIVATE_TABLE_PREPARATIONS[selectionId]) {
+    return Object.freeze([selectionId]);
+  }
+  const batch = PRIVATE_TABLE_PREPARATION_BATCHES[selectionId];
+  if (!batch) throw stopped("release id is not reviewed");
+  for (const releaseId of batch) privateTablePreparation(releaseId);
+  const migrations = batch.map((releaseId) => (
+    PRIVATE_TABLE_PREPARATIONS[releaseId].migration
+  ));
+  if (new Set(batch).size !== batch.length || new Set(migrations).size !== migrations.length) {
+    throw stopped("batch contains duplicate releases");
+  }
+  const sortedMigrations = [...migrations].sort((left, right) => left.localeCompare(right));
+  if (migrations.join("|") !== sortedMigrations.join("|")) {
+    throw stopped("batch migrations are not ordered");
+  }
+  return batch;
 }
 
 export function privateTablePreparationMigrationPath(release) {
@@ -443,12 +475,21 @@ export function verifyPrivateTablePreparationSource(
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
-    const releaseId = process.env.PRIVATE_TABLE_PREPARATION_RELEASE_ID ?? "";
-    const verified = verifyPrivateTablePreparationSource(releaseId);
+    const selectionId = process.env.PRIVATE_TABLE_PREPARATION_RELEASE_ID ?? "";
+    const releaseIds = privateTablePreparationReleaseIds(selectionId);
+    const verified = releaseIds.map((releaseId) => (
+      verifyPrivateTablePreparationSource(releaseId)
+    ));
     if (process.argv[2] === "--tests") {
-      process.stdout.write(`${verified.release.sourceTests.join("\n")}\n`);
+      const tests = [...new Set(verified.flatMap((entry) => entry.release.sourceTests))];
+      process.stdout.write(`${tests.join("\n")}\n`);
+    } else if (process.argv[2] === "--release-ids") {
+      process.stdout.write(`${releaseIds.join("\n")}\n`);
+    } else if (process.argv[2] === "--migrations") {
+      process.stdout.write(`${verified.map((entry) => entry.release.migration).join("\n")}\n`);
     } else {
-      process.stdout.write(`${verified.release.migration}\n`);
+      if (verified.length !== 1) throw stopped("batch output requires an explicit mode");
+      process.stdout.write(`${verified[0].release.migration}\n`);
     }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
