@@ -433,19 +433,22 @@ function reviewVotePreparationMigrationSourcePath() {
   const livePath = path.join(
     "prisma",
     "migrations",
-    migration,
+    reviewVotePreparationMigration,
   );
   if (existsSync(livePath)) return livePath;
   const stagedPath = process.env.REVIEW_VOTE_PREPARATION_MIGRATION_PATH ?? "";
   assert.ok(
     stagedPath && existsSync(stagedPath),
-    `missing isolated ReviewVote source package for ${migration}`,
+    `missing isolated ReviewVote source package for ${reviewVotePreparationMigration}`,
   );
   const stagedMigrations = path.dirname(path.dirname(stagedPath));
-  const candidatePath = path.join(stagedMigrations, migration);
+  const candidatePath = path.join(
+    stagedMigrations,
+    reviewVotePreparationMigration,
+  );
   assert.ok(
     existsSync(candidatePath),
-    `missing isolated ReviewVote migration ${migration}`,
+    `missing isolated ReviewVote migration ${reviewVotePreparationMigration}`,
   );
   return candidatePath;
 }
