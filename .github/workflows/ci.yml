@@ -245,6 +245,7 @@ jobs:
         run: >-
           node --test --test-concurrency=1
           tests/owner-table-rls-activation-production.test.mjs
+          tests/stock-notification-rls-activation-production.test.mjs
           tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs
       - name: Isolate SavedBlogPost RLS candidate until historical release guards pass
         shell: bash
@@ -254,13 +255,15 @@ jobs:
           mkdir -p "$holding/migrations" "$holding/tests"
           for migration in \
             20261023070000_activate_saved_blog_post_rls \
-            20261023080000_activate_cart_cart_item_rls
+            20261023080000_activate_cart_cart_item_rls \
+            20261027040000_activate_stock_notification_rls
           do
             mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           done
           for test_file in \
             tests/owner-table-rls-activation-production.test.mjs \
-            tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs
+            tests/seller-profile-owner-saved-blog-post-authority-postgres.test.mjs \
+            tests/stock-notification-rls-activation-production.test.mjs
           do
             mv "$test_file" "$holding/tests/$(basename "$test_file")"
           done
@@ -6878,7 +6881,8 @@ jobs:
           holding="$RUNNER_TEMP/saved-blog-post-rls-candidate"
           for migration in \
             20261023070000_activate_saved_blog_post_rls \
-            20261023080000_activate_cart_cart_item_rls
+            20261023080000_activate_cart_cart_item_rls \
+            20261027040000_activate_stock_notification_rls
           do
             mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           done

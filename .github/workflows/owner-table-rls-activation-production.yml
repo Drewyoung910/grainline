@@ -10,6 +10,7 @@ on:
         options:
           - saved_blog_post_v1
           - cart_cart_item_v1
+          - stock_notification_v1
       release_commit:
         description: Exact reviewed main commit
         required: true
@@ -81,11 +82,20 @@ jobs:
           token: ""
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Read reviewed minimum compatible application commit
+        id: catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          minimum="$(node scripts/owner-table-rls-activation-catalog.mjs --minimum-compatible-app-commit)"
+          test "${#minimum}" -eq 40
+          echo "minimum_compatible_app_commit=$minimum" >> "$GITHUB_OUTPUT"
       - name: Bind activation to exact main, green checks, and compatible app
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
           REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT: ${{ steps.catalog.outputs.minimum_compatible_app_commit }}
           REVIEWED_COMPATIBLE_APP_COMMIT: ${{ inputs.compatible_app_commit }}
           REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
           REVIEWED_SUPERSEDED_DEPLOYMENT_ID: ${{ inputs.superseded_app_deployment_id }}
@@ -94,11 +104,13 @@ jobs:
           script: |
             const sha = process.env.REVIEWED_RELEASE_COMMIT;
             const ciValue = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            const minimumCompatibleAppCommit = process.env.REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT;
             const compatibleAppCommit = process.env.REVIEWED_COMPATIBLE_APP_COMMIT;
             const deploymentId = process.env.REVIEWED_PRODUCTION_DEPLOYMENT_ID;
             const supersededDeploymentId = process.env.REVIEWED_SUPERSEDED_DEPLOYMENT_ID;
             const supersededAppCommit = process.env.REVIEWED_SUPERSEDED_APP_COMMIT;
             if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[0-9a-f]{40}$/.test(minimumCompatibleAppCommit ?? '') ||
                 !/^[0-9a-f]{40}$/.test(compatibleAppCommit ?? '') ||
                 !/^[0-9a-f]{40}$/.test(supersededAppCommit ?? '') ||
                 !/^dpl_[A-Za-z0-9]{20,64}$/.test(deploymentId ?? '') ||
@@ -119,11 +131,21 @@ jobs:
                 ci.status !== 'completed' || ci.conclusion !== 'success') {
               throw new Error('Owner-table RLS main/CI readback drifted');
             }
-            const {data: appComparison} = await github.rest.repos.compareCommits({
-              ...context.repo,
-              base: compatibleAppCommit,
-              head: sha,
-            });
+            const [{data: minimumComparison}, {data: appComparison}] = await Promise.all([
+              github.rest.repos.compareCommits({
+                ...context.repo,
+                base: minimumCompatibleAppCommit,
+                head: compatibleAppCommit,
+              }),
+              github.rest.repos.compareCommits({
+                ...context.repo,
+                base: compatibleAppCommit,
+                head: sha,
+              }),
+            ]);
+            if (!['ahead', 'identical'].includes(minimumComparison.status)) {
+              throw new Error('Compatible app predates the reviewed release minimum');
+            }
             if (!['ahead', 'identical'].includes(appComparison.status)) {
               throw new Error('Compatible app commit is not an ancestor of release');
             }
@@ -191,6 +213,12 @@ jobs:
                 tests/cart-add-mutation.test.mjs \
                 tests/listing-delete.test.mjs
               ;;
+            stock_notification_v1)
+              node --test \
+                tests/stock-notification-rls-activation-production.test.mjs \
+                tests/stock-notification-route.test.mjs \
+                tests/stock-notification-state.test.mjs
+              ;;
             *) exit 1 ;;
           esac
       - name: Verify exact compatible deployment is live and predecessor skew is closed
@@ -214,7 +242,7 @@ jobs:
           set -euo pipefail
           state="$(node scripts/owner-table-rls-activation-production-inspect.mjs)"
           case "$state" in
-            ready)
+            ready|record)
               migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
               echo "pending=$migration" >> "$GITHUB_OUTPUT"
               ;;
@@ -227,11 +255,39 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
-      - name: Apply only the reviewed owner-table activation
-        if: steps.preflight.outputs.state == 'ready'
+      - name: Apply the reviewed existing owner-table activation
+        if: >-
+          steps.preflight.outputs.state == 'ready' &&
+          inputs.release_id != 'stock_notification_v1'
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: npx prisma migrate deploy
+      - name: Apply only the reviewed StockNotification activation transaction
+        if: >-
+          steps.preflight.outputs.state == 'ready' &&
+          inputs.release_id == 'stock_notification_v1'
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
+          psql "$DIRECT_URL" \
+            --set=ON_ERROR_STOP=on \
+            --file="prisma/migrations/$migration/migration.sql"
+      - name: Record the committed StockNotification activation in Prisma's ledger
+        if: >-
+          inputs.release_id == 'stock_notification_v1' &&
+          (steps.preflight.outputs.state == 'ready' ||
+           steps.preflight.outputs.state == 'record')
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/owner-table-rls-activation-catalog.mjs)"
+          npx prisma migrate resolve --applied "$migration"
       - name: Read back exact owner-table RLS catalog
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
