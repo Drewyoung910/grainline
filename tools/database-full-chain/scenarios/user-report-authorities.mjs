@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 
 export const USER_REPORT_PREPARATION_MIGRATION =
   "20261028060000_prepare_user_report_authorities";
@@ -278,4 +279,81 @@ export async function proveUserReportPreparedAuthorities({ database, fixture }) 
     await setActor(database, null);
     await database.query("RESET ROLE");
   }
+
+  const deletionSideEffectId = `${fixture.suffix}_deletion`;
+  const deletionClaimToken = randomUUID();
+  await database.query(
+    `INSERT INTO public."AccountDeletionSideEffect" (
+       id, "userId", kind, "dedupKey", payload, status, attempts,
+       "claimGeneration", "claimToken", "processingStartedAt",
+       "createdAt", "updatedAt"
+     ) VALUES (
+       $1, $2, 'LOCAL_ANONYMIZE', $3, '{}'::jsonb, 'PROCESSING', 1,
+       1, $4::uuid, pg_catalog.clock_timestamp(),
+       pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+     )`,
+    [
+      deletionSideEffectId,
+      fixture.reviewAuthorId,
+      `account-delete:local:${fixture.reviewAuthorId}`,
+      deletionClaimToken,
+    ],
+  );
+
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await setActor(database, fixture.reviewAuthorId);
+    await assert.rejects(
+      database.query(
+        `SELECT * FROM public.grainline_user_report_account_deletion_redact(
+           $1, 2, $2::uuid
+         )`,
+        [deletionSideEffectId, deletionClaimToken],
+      ),
+      /claim is not authorized/u,
+      "a stale deletion generation must not redact report evidence",
+    );
+    assert.deepEqual(rowsOf(await database.query(
+      `SELECT * FROM public.grainline_user_report_account_deletion_redact(
+         $1, 1, $2::uuid
+       )`,
+      [deletionSideEffectId, deletionClaimToken],
+    )), [{
+      userId: fixture.reviewAuthorId,
+      detailsRedacted: 1,
+      resolvedNotesRedacted: 1,
+      reportsAutoResolved: 1,
+    }]);
+  } finally {
+    await setActor(database, null);
+    await database.query("RESET ROLE");
+  }
+
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT id, details, resolved, "resolutionNote", "internalResolutionNote"
+       FROM public."UserReport"
+      WHERE id = ANY($1::text[])
+      ORDER BY id`,
+    [[firstReport.reportId, secondReport.reportId]],
+  )), [
+    {
+      id: secondReport.reportId,
+      details: null,
+      resolved: true,
+      resolutionNote: "Auto-resolved after the reported account was deleted.",
+      internalResolutionNote: null,
+    },
+    {
+      id: firstReport.reportId,
+      details: null,
+      resolved: true,
+      resolutionNote: "Resolution note removed after an involved account was deleted.",
+      internalResolutionNote: null,
+    },
+  ].sort((left, right) => left.id.localeCompare(right.id)));
+
+  await database.query(
+    `DELETE FROM public."AccountDeletionSideEffect" WHERE id = $1`,
+    [deletionSideEffectId],
+  );
 }
