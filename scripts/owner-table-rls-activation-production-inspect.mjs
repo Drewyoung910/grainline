@@ -13,6 +13,9 @@ import {
 import {
   inspectCartCartItemRlsActivationProduction,
 } from "./cart-cartitem-rls-production-inspect.mjs";
+import {
+  inspectStockNotificationRlsActivationProduction,
+} from "./stock-notification-rls-production-inspect.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const PHASES = new Set(["preflight", "postflight"]);
@@ -311,6 +314,12 @@ export async function inspectOwnerTableRlsActivationProduction(
   const release = ownerTableRlsActivation(releaseId);
   if (release.shape === "cart_cart_item") {
     return inspectCartCartItemRlsActivationProduction(env, { Client, rootDir });
+  }
+  if (release.shape === "stock_notification") {
+    return inspectStockNotificationRlsActivationProduction(
+      env,
+      { Client, rootDir },
+    );
   }
   const verified = verifyOwnerTableRlsActivationSource(releaseId, rootDir);
   const parsed = new URL(directUrl);

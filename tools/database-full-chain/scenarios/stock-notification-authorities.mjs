@@ -7,6 +7,8 @@ import { seedSellerProfilePrivateFixture } from "./seller-profile-private-fixtur
 
 export const STOCK_NOTIFICATION_PREPARATION_MIGRATION =
   "20261026010000_prepare_stock_notification_authorities";
+export const STOCK_NOTIFICATION_RLS_MIGRATION =
+  "20261027040000_activate_stock_notification_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -105,6 +107,7 @@ export async function seedStockNotificationPredecessorFixture({ database, seller
       subscribeBanRace: `${suffix}_subscribe_ban_race_listing`,
       claimRaceA: `${suffix}_claim_race_a_listing`,
       claimRaceB: `${suffix}_claim_race_b_listing`,
+      activation: `${suffix}_activation_listing`,
     },
     subscriptions: Object.fromEntries(
       [
@@ -163,6 +166,7 @@ export async function seedStockNotificationPredecessorFixture({ database, seller
     [fixture.listings.subscribeBanRace, seller.sellerProfileId, "Subscribe ban race"],
     [fixture.listings.claimRaceA, seller.sellerProfileId, "Claim race A"],
     [fixture.listings.claimRaceB, seller.sellerProfileId, "Claim race B"],
+    [fixture.listings.activation, seller.sellerProfileId, "Activation boundary"],
   ];
   for (const [id, sellerProfileId, title] of listingRows) {
     await database.query(
@@ -356,9 +360,13 @@ async function proveSubscribeBanSerialization({ connectionString, database, fixt
 
     await beginRuntime(subscribeSecond, fixture.subscriberA, "2s");
     let subscribeSettled = false;
-    const subscribeResult = subscribeSecond.query(
-      `SELECT * FROM public.grainline_stock_notification_owner_subscribe($1, $2)`,
-      [randomUUID(), fixture.listings.subscribeBanRace],
+    const subscribeResult = assert.rejects(
+      subscribeSecond.query(
+        `SELECT * FROM public.grainline_stock_notification_owner_subscribe($1, $2)`,
+        [randomUUID(), fixture.listings.subscribeBanRace],
+      ),
+      (error) => error?.code === "42501",
+      "subscription must recheck actor activity after the user lock is acquired",
     ).finally(() => {
       subscribeSettled = true;
     });
@@ -370,11 +378,7 @@ async function proveSubscribeBanSerialization({ connectionString, database, fixt
     );
 
     await banFirst.query("COMMIT");
-    await assert.rejects(
-      subscribeResult,
-      (error) => error?.code === "42501",
-      "subscription must recheck actor activity after the user lock is acquired",
-    );
+    await subscribeResult;
     await subscribeSecond.query("ROLLBACK");
     assert.equal(Number(rowsOf(await database.query(
       `SELECT pg_catalog.count(*)::integer AS count
@@ -697,4 +701,255 @@ export async function proveStockNotificationPreparedAuthorities({
   );
   await proveSubscribeBlockSerialization({ connectionString, database, fixture });
   await proveSubscribeBanSerialization({ connectionString, database, fixture });
+}
+
+export async function proveStockNotificationRlsAuthorities({ database, fixture }) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'StockNotification'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: true,
+    rls_forced: true,
+    runtime_select: true,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: true,
+    policy_count: 2,
+  });
+
+  await database.query(
+    `DELETE FROM public."Block"
+      WHERE ("blockerId" = $1 AND "blockedId" IN ($2, $3))
+         OR ("blockedId" = $1 AND "blockerId" IN ($2, $3))`,
+    [fixture.seller.userId, fixture.subscriberA, fixture.subscriberB],
+  );
+  assert.deepEqual(
+    await callSubscribe(database, fixture.subscriberA, fixture.listings.activation),
+    [{ resultStatus: "OK", subscribed: true }],
+    "SECURITY DEFINER subscribe must remain usable without direct INSERT",
+  );
+
+  const ownerRows = rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberA,
+    `SELECT "userId", "listingId"
+       FROM public."StockNotification"
+      WHERE "listingId" = $1`,
+    [fixture.listings.activation],
+  ));
+  assert.deepEqual(ownerRows, [{
+    userId: fixture.subscriberA,
+    listingId: fixture.listings.activation,
+  }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberB,
+    `SELECT "userId", "listingId"
+       FROM public."StockNotification"
+      WHERE "listingId" = $1`,
+    [fixture.listings.activation],
+  )), [], "another subscriber must not read the owner's row");
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT "userId", "listingId"
+       FROM public."StockNotification"
+      WHERE "listingId" = $1`,
+    [fixture.listings.activation],
+  )), [], "a missing actor context must reveal no rows");
+
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberB,
+    `DELETE FROM public."StockNotification"
+      WHERE "listingId" = $1
+      RETURNING id`,
+    [fixture.listings.activation],
+  )), [], "another subscriber must not delete the owner's row");
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      fixture.subscriberB,
+      `INSERT INTO public."StockNotification"
+         (id, "listingId", "userId", "createdAt")
+       VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
+      [randomUUID(), fixture.listings.activation, fixture.subscriberB],
+    ),
+    (error) => error?.code === "42501",
+    "runtime must not bypass the fixed subscribe authority with direct INSERT",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      fixture.subscriberA,
+      `UPDATE public."StockNotification"
+          SET "createdAt" = pg_catalog.clock_timestamp()
+        WHERE "listingId" = $1`,
+      [fixture.listings.activation],
+    ),
+    (error) => error?.code === "42501",
+    "StockNotification has no direct UPDATE contract",
+  );
+
+  assert.deepEqual(
+    await callSubscribe(database, fixture.subscriberB, fixture.listings.activation),
+    [{ resultStatus: "OK", subscribed: true }],
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberA,
+    `DELETE FROM public."StockNotification"
+      WHERE "listingId" = $1
+      RETURNING "userId"`,
+    [fixture.listings.activation],
+  )), [{ userId: fixture.subscriberA }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberB,
+    `DELETE FROM public."StockNotification"
+      WHERE "listingId" = $1
+      RETURNING "userId"`,
+    [fixture.listings.activation],
+  )), [{ userId: fixture.subscriberB }]);
+
+  const cascadeUser = `${fixture.listings.activation}_cascade_user`;
+  const cascadeListing = `${fixture.listings.activation}_cascade_listing`;
+  const now = "2026-10-27 12:00:00";
+  await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, role, banned, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, 'Stock cascade user', 'USER', false, $4, $4)`,
+    [cascadeUser, `clerk_${cascadeUser}`, `${cascadeUser}@example.test`, now],
+  );
+  await database.query(
+    `INSERT INTO public."Listing"
+       (id, "sellerId", title, description, "priceCents", currency, status,
+        "listingType", "stockQuantity", "isPrivate", "sellerPubliclyOrderable",
+        "createdAt", "updatedAt")
+     VALUES (
+       $1, $2, 'Stock cascade listing', 'RLS cascade proof', 2500, 'usd',
+       'SOLD_OUT'::public."ListingStatus", 'IN_STOCK'::public."ListingType", 0,
+       false, true, $3, $3
+     )`,
+    [cascadeListing, fixture.seller.sellerProfileId, now],
+  );
+  await database.query(
+    `INSERT INTO public."StockNotification" (id, "listingId", "userId", "createdAt")
+     VALUES
+       ($1, $2, $3, $5),
+       ($4, $6, $7, $5)`,
+    [
+      randomUUID(), fixture.listings.activation, cascadeUser,
+      randomUUID(), now, cascadeListing, fixture.subscriberA,
+    ],
+  );
+  await database.query(`DELETE FROM public."User" WHERE id = $1`, [cascadeUser]);
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."StockNotification"
+      WHERE "userId" = $1`,
+    [cascadeUser],
+  ))[0]?.count ?? -1), 0, "User deletion must cascade under FORCE");
+  await database.query(`DELETE FROM public."Listing" WHERE id = $1`, [cascadeListing]);
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."StockNotification"
+      WHERE "listingId" = $1`,
+    [cascadeListing],
+  ))[0]?.count ?? -1), 0, "Listing deletion must cascade under FORCE");
+}
+
+export async function proveStockNotificationRlsRollback({ database, fixture }) {
+  const posture = rowsOf(await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'StockNotification'
+       AND class.relkind = 'r'
+  `))[0];
+  assert.deepEqual(posture, {
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+    policy_count: 0,
+  });
+
+  const subscriptionId = randomUUID();
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberB,
+    `INSERT INTO public."StockNotification"
+       (id, "listingId", "userId", "createdAt")
+     VALUES ($1, $2, $3, pg_catalog.clock_timestamp())
+     RETURNING id, "userId"`,
+    [subscriptionId, fixture.listings.activation, fixture.subscriberA],
+  )), [{ id: subscriptionId, userId: fixture.subscriberA }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberB,
+    `UPDATE public."StockNotification"
+        SET "createdAt" = "createdAt" + interval '1 second'
+      WHERE id = $1
+      RETURNING id`,
+    [subscriptionId],
+  )), [{ id: subscriptionId }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberB,
+    `SELECT id, "userId"
+       FROM public."StockNotification"
+      WHERE id = $1`,
+    [subscriptionId],
+  )), [{ id: subscriptionId, userId: fixture.subscriberA }]);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    fixture.subscriberB,
+    `DELETE FROM public."StockNotification"
+      WHERE id = $1
+      RETURNING id`,
+    [subscriptionId],
+  )), [{ id: subscriptionId }]);
 }
