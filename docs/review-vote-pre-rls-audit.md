@@ -182,10 +182,13 @@ the foreign-key cascade deletes `ReviewVote`. If those operations raced, each
 transaction retained one row lock while waiting for the other and PostgreSQL
 aborted one with `40P01`.
 
-The corrected toggle takes `User`, then `Review`, then `ReviewVote`. A private
-`BEFORE DELETE` compatibility guard makes the still-deployable predecessor
-route take the same parent-first order, so the fix does not trade the permanent
-race for an app-version-skew race.
+The corrected toggle takes `User`, then `Review`, then `ReviewVote`. PostgreSQL
+already owns the child tuple before a row-level `BEFORE DELETE` trigger runs,
+so that trigger cannot reorder the predecessor path. Its private compatibility
+guard instead takes the parent with `NOWAIT`: if parent deletion already owns
+`Review`, the predecessor request fails with `55P03`, releases the child lock,
+and can be retried without forming a deadlock. This bounded fail-fast behavior
+exists only while predecessor application traffic is still eligible to serve.
 
 ### RV-RLS-10 / C-1469: account cleanup and Review deletion invert locks
 
@@ -239,7 +242,9 @@ The complete migrated PostgreSQL 17 schema must prove at least:
 15. toggle removal racing parent Review deletion completes without `40P01` and
     leaves no vote/count residue; and
 16. owner vote cleanup racing parent Review deletion completes without
-    `40P01` and leaves no vote/count residue.
+    `40P01` and leaves no vote/count residue; and
+17. predecessor direct deletion behind parent deletion fails fast with `55P03`,
+    not `40P01`, and the cascade leaves no child residue.
 
 ## Audit decision
 
@@ -262,19 +267,21 @@ The compatible preparation candidate now:
   and only then re-reads and locks `Review` plus target eligibility, preventing
   stale reviewer-state writes, the seller-deletion
   `User`/`SellerProfile` inversion, and parent-delete inversion;
-- locks `Review` before `ReviewVote` in both fixed mutation functions and adds
-  predecessor-compatible insert/delete guards that enforce the same order
-  during application-version skew, while deliberately deferring a general
-  count trigger until predecessor traffic is drained; and
+- locks `Review` before `ReviewVote` in both fixed mutation functions, adds a
+  predecessor insert guard with the same order, and adds a predecessor delete
+  guard whose `NOWAIT` parent fence prevents the child-first legacy statement
+  from entering a cycle during application-version skew, while deliberately
+  deferring a general count trigger until predecessor traffic is drained; and
 - fails its own transaction unless every new function remains owned by a
   superuser/BYPASSRLS role, uses `SECURITY DEFINER` with the fixed
   `pg_catalog` search path, and denies `PUBLIC` execution; and
 - passes the complete 443-migration PostgreSQL 17 build plus executed
   runtime-role behavior and mixed predecessor/new-operation concurrency proof,
-  including reviewer-state transition, seller account-deletion, and both
-  parent-Review-deletion races. The two new race scenarios first failed on the
-  uncorrected exact-main candidate with `40P01`, then passed after the lock-order
-  correction.
+  including reviewer-state transition, seller account-deletion, both fixed
+  parent-Review-deletion races, and the predecessor direct-delete skew path.
+  The fixed-operation race scenarios first failed on the uncorrected exact-main
+  candidate with `40P01`; the predecessor path is proven to stop with `55P03`
+  rather than enter the same cycle.
 
 The mixed-version proof is important: the predecessor route still updates
 `Review.helpfulCount` itself. Installing a general insert/delete count trigger

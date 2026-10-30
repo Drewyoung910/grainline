@@ -61,6 +61,10 @@ describe("review vote visibility guardrails", () => {
     assert.match(migration, /INSERT INTO public\."ReviewVote"/);
     assert.match(migration, /CREATE TRIGGER "ReviewVote_insert_guard"/);
     assert.match(migration, /CREATE TRIGGER "ReviewVote_delete_lock_guard"/);
+    assert.match(
+      migration,
+      /grainline_review_vote_delete_lock_guard[\s\S]*FOR NO KEY UPDATE NOWAIT/u,
+    );
     const reviewLock = toggle.indexOf(
       'FROM public."Review" AS review\n   WHERE review.id = p_review_id\n   FOR NO KEY UPDATE',
     );

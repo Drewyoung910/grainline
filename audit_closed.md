@@ -20061,8 +20061,10 @@ operations.
   mutation could deadlock with parent deletion. Two deterministic tests on the
   complete 443-migration PostgreSQL 17 schema failed first with `40P01`.
 - The corrected candidate takes canonical `User -> Review -> ReviewVote` locks
-  in fixed mutations. Private insert/delete compatibility guards make the
-  predecessor route use the same order during application-version skew. The
-  same PostgreSQL 17 scenarios now pass, including exact count reconciliation
-  and parent-cascade cleanup. ReviewVote RLS/grant activation remains a separate
+  in fixed mutations. The predecessor insert guard takes the same order. A
+  predecessor direct delete cannot be reordered by a row trigger because
+  PostgreSQL already owns the child tuple; its private guard therefore uses
+  `NOWAIT` and proves `55P03` rather than allowing `40P01`. The PostgreSQL 17
+  scenarios cover all three paths, exact count reconciliation and
+  parent-cascade cleanup. ReviewVote RLS/grant activation remains a separate
   unapproved operation.

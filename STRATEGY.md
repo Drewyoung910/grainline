@@ -11,8 +11,10 @@ merged as one immutable ordered batch. The protected preparation release applies
 the four independent transactions before the converted application deploys;
 it does not enable/force RLS or revoke predecessor grants. ReviewVote's
 failing-first PostgreSQL 17 proof exposed two parent-delete lock inversions in
-the merged candidate, so the batch must use the corrected migration bytes that
-standardize `User -> Review -> ReviewVote` across fixed and predecessor callers.
+the merged candidate, so the batch must use corrected migration bytes. Fixed
+callers standardize `User -> Review -> ReviewVote`; a predecessor delete that
+already holds the child fails fast with `55P03` rather than waiting into a
+parent-delete cycle during the short deployment-skew window.
 After the corrected exact-main CI and required proof workflows pass, release the
 preparation batch once, then deploy its compatible app. The later four-table
 activation remains a distinct approval and must not be inferred from preparation

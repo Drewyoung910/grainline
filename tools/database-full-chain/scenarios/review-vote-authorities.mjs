@@ -233,6 +233,7 @@ async function proveParentDeleteSerialization({
   connectionString,
   database,
   actorId,
+  predecessorDeleteReviewId,
   toggleReviewId,
   deleteAllReviewId,
 }) {
@@ -240,6 +241,42 @@ async function proveParentDeleteSerialization({
   const owner = new pg.Client({ connectionString });
   await Promise.all([parent.connect(), owner.connect()]);
   try {
+    assert.deepEqual(await callToggle(database, actorId, predecessorDeleteReviewId), [{
+      resultStatus: "OK",
+      voted: true,
+      helpfulCount: 1,
+    }]);
+
+    await parent.query("BEGIN");
+    await parent.query("SET LOCAL statement_timeout = '8s'");
+    await parent.query(
+      `SELECT 1 FROM public."Review" WHERE id = $1 FOR UPDATE`,
+      [predecessorDeleteReviewId],
+    );
+    await beginRuntime(owner, actorId);
+    await owner.query("SET LOCAL statement_timeout = '8s'");
+    await assert.rejects(
+      owner.query(
+        `DELETE FROM public."ReviewVote"
+          WHERE "reviewId" = $1 AND "userId" = $2`,
+        [predecessorDeleteReviewId, actorId],
+      ),
+      (error) => error?.code === "55P03",
+      "a predecessor child-first delete must fail fast behind parent deletion",
+    );
+    await owner.query("ROLLBACK");
+    await parent.query(
+      `DELETE FROM public."Review" WHERE id = $1`,
+      [predecessorDeleteReviewId],
+    );
+    await parent.query("COMMIT");
+    assert.equal(Number(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS value
+         FROM public."ReviewVote"
+        WHERE "reviewId" = $1`,
+      [predecessorDeleteReviewId],
+    ))[0]?.value), 0);
+
     assert.deepEqual(await callToggle(database, actorId, toggleReviewId), [{
       resultStatus: "OK",
       voted: true,
@@ -329,12 +366,14 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
   const listingId = `${suffix}_listing`;
   const secondListingId = `${suffix}_listing_two`;
   const cascadeListingId = `${suffix}_listing_cascade`;
+  const predecessorDeleteRaceListingId = `${suffix}_listing_predecessor_delete_race`;
   const toggleDeleteRaceListingId = `${suffix}_listing_toggle_delete_race`;
   const deleteAllRaceListingId = `${suffix}_listing_delete_all_race`;
   const reviewId = `${suffix}_review`;
   const secondReviewId = `${suffix}_review_two`;
   const selfReviewId = `${suffix}_self_review`;
   const cascadeReviewId = `${suffix}_cascade_review`;
+  const predecessorDeleteRaceReviewId = `${suffix}_predecessor_delete_race`;
   const toggleDeleteRaceReviewId = `${suffix}_toggle_delete_race`;
   const deleteAllRaceReviewId = `${suffix}_delete_all_race`;
   const now = "2026-10-28 12:00:00";
@@ -451,9 +490,11 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
         'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
        ($5, $3, 'Review vote cascade listing', 'Full-chain review vote fixture', 1000,
         'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
-       ($6, $3, 'Review vote toggle/delete race', 'Full-chain review vote fixture', 1000,
+       ($6, $3, 'Review vote predecessor/delete race', 'Full-chain review vote fixture', 1000,
         'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
-       ($7, $3, 'Review vote delete-all race', 'Full-chain review vote fixture', 1000,
+       ($7, $3, 'Review vote toggle/delete race', 'Full-chain review vote fixture', 1000,
+        'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
+       ($8, $3, 'Review vote delete-all race', 'Full-chain review vote fixture', 1000,
         'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4)`,
     [
       listingId,
@@ -461,6 +502,7 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
       seller.sellerProfileId,
       now,
       cascadeListingId,
+      predecessorDeleteRaceListingId,
       toggleDeleteRaceListingId,
       deleteAllRaceListingId,
     ],
@@ -474,8 +516,9 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        ($2, $6, $7, true, 8, true, 0, $9, $9),
        ($3, $6, $8, true, 8, true, 0, $9, $9),
        ($4, $10, $7, true, 8, true, 0, $9, $9),
-       ($11, $13, $7, true, 8, true, 0, $9, $9),
-       ($12, $14, $7, true, 8, true, 0, $9, $9)`,
+       ($11, $12, $7, true, 8, true, 0, $9, $9),
+       ($13, $15, $7, true, 8, true, 0, $9, $9),
+       ($14, $16, $7, true, 8, true, 0, $9, $9)`,
     [
       reviewId,
       secondReviewId,
@@ -487,6 +530,8 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
       actorId,
       now,
       cascadeListingId,
+      predecessorDeleteRaceReviewId,
+      predecessorDeleteRaceListingId,
       toggleDeleteRaceReviewId,
       deleteAllRaceReviewId,
       toggleDeleteRaceListingId,
@@ -558,6 +603,7 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
     connectionString,
     database,
     actorId,
+    predecessorDeleteReviewId: predecessorDeleteRaceReviewId,
     toggleReviewId: toggleDeleteRaceReviewId,
     deleteAllReviewId: deleteAllRaceReviewId,
   });
@@ -775,6 +821,7 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
       listingId,
       secondListingId,
       cascadeListingId,
+      predecessorDeleteRaceListingId,
       toggleDeleteRaceListingId,
       deleteAllRaceListingId,
     ]],

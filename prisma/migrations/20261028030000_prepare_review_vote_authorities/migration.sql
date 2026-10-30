@@ -232,15 +232,17 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_review_vote_delete_lock_guard$
 BEGIN
-  -- The predecessor route deletes ReviewVote before updating Review. Locking
-  -- the parent in this BEFORE trigger gives old and new callers the canonical
-  -- Review-before-ReviewVote order. During an ON DELETE CASCADE the parent row
-  -- is already locked and may no longer be visible to this transaction; that
-  -- is expected and the child delete may continue.
+  -- PostgreSQL locks the child tuple before firing a row-level DELETE trigger,
+  -- so a blocking parent lock here would preserve the predecessor's
+  -- ReviewVote-before-Review inversion. Fail fast instead: if parent deletion
+  -- already owns Review, the predecessor transaction receives 55P03 and
+  -- releases its child lock without forming a deadlock. Fixed callers already
+  -- own Review and pass. During an ON DELETE CASCADE the parent row may no
+  -- longer be visible to this transaction; that is expected.
   PERFORM 1
     FROM public."Review" AS review
    WHERE review.id = OLD."reviewId"
-   FOR NO KEY UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
   RETURN OLD;
 END;
 $grainline_review_vote_delete_lock_guard$;
