@@ -25,7 +25,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "7868277f03b599768784c0f3a44a3c7bb28c8b64772a24f6183c538ec6f3401c",
     rollbackPath: "docs/rls-drafts/maker-verification-activation-rollback.sql",
     rollbackSha256:
-      "510bdc3b31a07c9cf2c6bd02bf01d3964448a3a4e68091d2efc579712d7ed251",
+      "b0deed025ab8d21daa57818f66f9324cfa5a71c353230a49d2d97003a4a867d0",
     table: "MakerVerification",
     mode: "policyless_combined_enable_force",
     expectedPolicyCount: 0,

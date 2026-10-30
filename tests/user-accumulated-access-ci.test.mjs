@@ -119,6 +119,10 @@ const followPreparationMigration =
   "20261028020000_prepare_follow_authorities";
 const reviewVotePreparationMigration =
   "20261028030000_prepare_review_vote_authorities";
+const makerVerificationPreparationMigration =
+  "20261028040000_prepare_maker_verification_authorities";
+const makerVerificationActivationMigration =
+  "20261028080000_activate_maker_verification_rls";
 const sellerProfilePrivateBoundaryMigrations = [
   "20261013120000_prepare_seller_profile_private_boundary",
   "20261013130000_move_seller_supported_snapshot_sql_callers",
@@ -595,6 +599,22 @@ test("owner-table candidates are isolated before exact-latest historical release
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
+test("MakerVerification candidates are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify MakerVerification preparation source package";
+  const isolateName = "Isolate MakerVerification candidates until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore MakerVerification candidates after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  assert.match(isolate, new RegExp(makerVerificationPreparationMigration));
+  assert.match(isolate, new RegExp(makerVerificationActivationMigration));
+  assert.match(restore, new RegExp(makerVerificationPreparationMigration));
+  assert.match(restore, new RegExp(makerVerificationActivationMigration));
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
 test("email delivery-ledger preparation is proved, isolated, and restored around historical guards", () => {
   const verifyName = "Verify email delivery-ledger preparation source package";
   const isolateName = "Isolate email delivery-ledger preparation until historical release guards pass";
@@ -927,6 +947,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${followPreparationMigration}/migration.sql`;
     const reviewVotePreparationPath =
       `prisma/migrations/${reviewVotePreparationMigration}/migration.sql`;
+    const makerVerificationCandidatePaths = [
+      makerVerificationPreparationMigration,
+      makerVerificationActivationMigration,
+    ].map((migration) => `prisma/migrations/${migration}/migration.sql`);
     const trackedPaths = [
       ...heldPaths,
       ...sellerProfilePrivateBoundaryPaths,
@@ -946,6 +970,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       favoritePreparationPath,
       followPreparationPath,
       reviewVotePreparationPath,
+      ...makerVerificationCandidatePaths,
       "prisma/schema.prisma",
       staffScript,
       grantAuditScript,
@@ -982,6 +1007,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate Favorite preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate Follow preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate ReviewVote preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate MakerVerification candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1012,6 +1038,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, favoritePreparationPath)), false);
     assert.equal(existsSync(path.join(root, followPreparationPath)), false);
     assert.equal(existsSync(path.join(root, reviewVotePreparationPath)), false);
+    assert.ok(makerVerificationCandidatePaths.every(
+      (relative) => !existsSync(path.join(root, relative)),
+    ));
     assert.ok(emailDeliveryLedgerCandidateTests.every(
       (file) => !existsSync(path.join(root, "tests", file)),
     ));
@@ -1075,6 +1104,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore Favorite preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore Follow preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore ReviewVote preparation after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore MakerVerification candidates after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/account-deletion fence after historical release guards")], { cwd: root, env: scriptEnv });
