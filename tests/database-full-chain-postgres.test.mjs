@@ -634,7 +634,7 @@ test(
         { Client: DisposableOwnerClient, rootDir: repositoryRoot },
       );
       assert.equal(followPreparationPostflight.state, "applied");
-      assert.equal(followPreparationPostflight.catalog.functions.length, 5);
+      assert.equal(followPreparationPostflight.catalog.functions.length, 6);
 
       await assertSellerProfilePrivateLayout(adapter);
       await proveSellerProfilePolicylessEnable({
