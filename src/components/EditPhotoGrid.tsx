@@ -272,7 +272,7 @@ export default function EditPhotoGrid({
       {/* Alt text modal */}
       {altModalIdx !== null && photos[altModalIdx] && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/40 py-6"
           onClick={() => setAltModalIdx(null)}
         >
           <div
@@ -281,7 +281,7 @@ export default function EditPhotoGrid({
             aria-modal="true"
             aria-labelledby="edit-photo-alt-dialog-title"
             tabIndex={-1}
-            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5 space-y-3"
+            className="my-auto bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="edit-photo-alt-dialog-title" className="text-sm font-semibold text-neutral-800">
