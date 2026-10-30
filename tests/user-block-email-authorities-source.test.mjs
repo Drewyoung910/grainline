@@ -51,7 +51,7 @@ describe("User block and email authority source boundary", () => {
     }
   });
 
-  it("moves block identity reads and pair locking behind owner context", () => {
+  it("moves block identity reads and atomic mutations behind owner context", () => {
     const blocks = read("src/lib/blocks.ts");
     const mutations = read("src/lib/blockMutationAccess.ts");
     const page = read("src/app/account/blocked/page.tsx");
@@ -61,7 +61,9 @@ describe("User block and email authority source boundary", () => {
     assert.match(blocks, /grainline_user_blocked_account_page\(\)/);
     assert.doesNotMatch(blocks, /prisma\.(?:user|block)\./);
     assert.match(mutations, /withDbUserContext\(blockerId/);
-    assert.match(mutations, /grainline_user_block_pair_lock\(\$\{blockedId\}::text\)/);
+    assert.match(mutations, /grainline_user_block_create\(\$\{blockedId\}::text\)/);
+    assert.match(mutations, /grainline_user_block_remove\(\$\{blockedId\}::text\)/);
+    assert.doesNotMatch(mutations, /grainline_user_block_pair_lock/);
     assert.match(mutations, /TransactionIsolationLevel\.ReadCommitted/);
     assert.doesNotMatch(mutations, /(?:tx|prisma)\.user\./);
     assert.match(page, /getBlockedAccountsFor\(me\.id\)/);
