@@ -106,6 +106,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Bold"
           onClick={() => editor.chain().focus().toggleBold().run()}
+          aria-pressed={editor.isActive("bold")}
           className={btnClass(editor.isActive("bold"))}
         >
           <span className="font-bold">B</span>
@@ -114,6 +115,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Italic"
           onClick={() => editor.chain().focus().toggleItalic().run()}
+          aria-pressed={editor.isActive("italic")}
           className={btnClass(editor.isActive("italic"))}
         >
           <span className="italic">I</span>
@@ -122,6 +124,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Strikethrough"
           onClick={() => editor.chain().focus().toggleStrike().run()}
+          aria-pressed={editor.isActive("strike")}
           className={btnClass(editor.isActive("strike"))}
         >
           <span className="line-through">S</span>
@@ -133,6 +136,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Heading 2"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          aria-pressed={editor.isActive("heading", { level: 2 })}
           className={btnClass(editor.isActive("heading", { level: 2 }))}
         >
           H2
@@ -141,6 +145,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Heading 3"
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          aria-pressed={editor.isActive("heading", { level: 3 })}
           className={btnClass(editor.isActive("heading", { level: 3 }))}
         >
           H3
@@ -152,6 +157,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Bullet list"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
+          aria-pressed={editor.isActive("bulletList")}
           className={btnClass(editor.isActive("bulletList"))}
         >
           &bull;
@@ -160,6 +166,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Numbered list"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          aria-pressed={editor.isActive("orderedList")}
           className={btnClass(editor.isActive("orderedList"))}
         >
           1.
@@ -168,6 +175,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Blockquote"
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          aria-pressed={editor.isActive("blockquote")}
           className={btnClass(editor.isActive("blockquote"))}
         >
           &ldquo;
@@ -176,6 +184,7 @@ export default function MarkdownToolbar({
           type="button"
           title="Code block"
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          aria-pressed={editor.isActive("codeBlock")}
           className={btnClass(editor.isActive("codeBlock"))}
         >
           {"</>"}
@@ -190,6 +199,9 @@ export default function MarkdownToolbar({
             setShowLinkInput((open) => !open);
             setLinkUrl(editor.getAttributes("link").href ?? "");
           }}
+          // Opens the URL form rather than toggling the mark, so state is in the name.
+          aria-label={editor.isActive("link") ? "Edit link" : "Link"}
+          aria-expanded={showLinkInput}
           className={btnClass(editor.isActive("link"))}
         >
           Link

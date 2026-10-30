@@ -174,10 +174,8 @@ export function CommissionRoomSkeleton() {
         </div>
         <Pulse className="h-10 w-32 shrink-0" />
       </div>
-      <div className="mb-6 flex gap-2 border-b border-neutral-100 pb-2">
-        <Pulse className="h-8 w-28" />
-        <Pulse className="h-8 w-24" />
-      </div>
+      {/* No tab placeholder: the board shows tabs only for makers with a
+          location, so most visitors would see it jump away. */}
       <section className="card-section mb-6 space-y-2 border-amber-200/60 bg-amber-50 p-4">
         <Pulse className="h-5 w-56" />
         <Pulse className="h-4 w-full" />

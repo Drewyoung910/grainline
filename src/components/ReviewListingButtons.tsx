@@ -25,6 +25,17 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
         body: JSON.stringify({ action, reason: trimmedReason }),
       });
       if (res.ok) {
+        // The route answers 200 with `skipped` when another tab or staff member
+        // already moved the listing out of review; say so instead of failing silently.
+        const data = await res.json().catch(() => null);
+        if (data?.skipped) {
+          toast(
+            typeof data.reason === "string" && data.reason
+              ? data.reason
+              : "Listing is no longer pending review.",
+            "info",
+          );
+        }
         setShowRejectReason(false);
         setReason("");
         router.refresh();

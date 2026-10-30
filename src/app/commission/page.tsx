@@ -20,7 +20,7 @@ import { CommissionRoomSkeleton } from "@/components/RouteSkeletons";
 import { commissionDistanceBucket } from "@/lib/locationPrivacy";
 
 export const metadata: Metadata = {
-  title: "Custom Woodworking Commissions — Find a Maker | Grainline",
+  title: "Custom Woodworking Commissions — Find a Maker",
   description: "Post a custom woodworking commission request and get matched with skilled local and national makers. Describe your vision, set your budget, and let makers come to you.",
 };
 
@@ -338,19 +338,20 @@ async function CommissionPageContent({
         </Link>
       </div>
 
-      {/* Tab strip */}
-      <div className="flex gap-1 mb-6 border-b border-neutral-100">
-        <Link
-          href={buildHref({ tab: "", page: "" })}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === "all"
-              ? "border-neutral-900 text-neutral-900"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          }`}
-        >
-          All Requests
-        </Link>
-        {hasLocation && (
+      {/* Tab strip — only when there is a second tab ("Near Me" needs a
+          seller location); a lone "All Requests" tab looks broken. */}
+      {hasLocation && (
+        <div className="flex gap-1 mb-6 border-b border-neutral-100">
+          <Link
+            href={buildHref({ tab: "", page: "" })}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === "all"
+                ? "border-neutral-900 text-neutral-900"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            All Requests
+          </Link>
           <Link
             href={buildHref({ tab: "near", page: "" })}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
@@ -361,8 +362,8 @@ async function CommissionPageContent({
           >
             <span className="flex items-center gap-1"><MapPin size={13} /> Near Me</span>
           </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* How it works explainer */}
       <div className="bg-amber-50 border border-amber-200/60 rounded-lg p-4 mb-6">
@@ -377,8 +378,8 @@ async function CommissionPageContent({
       <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto">
         <Link
           href={buildHref({ category: "", page: "" })}
-          className={`rounded-full px-3 py-1 text-sm border whitespace-nowrap transition-colors ${
-            !categoryFilter ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+          className={`rounded-full px-3 py-1 text-sm whitespace-nowrap transition-colors ${
+            !categoryFilter ? "bg-neutral-900 text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
           }`}
         >
           All
@@ -387,8 +388,8 @@ async function CommissionPageContent({
           <Link
             key={cat}
             href={buildHref({ category: cat, page: "" })}
-            className={`rounded-full px-3 py-1 text-sm border whitespace-nowrap transition-colors ${
-              categoryFilter === cat ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+            className={`rounded-full px-3 py-1 text-sm whitespace-nowrap transition-colors ${
+              categoryFilter === cat ? "bg-neutral-900 text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
             {CATEGORY_LABELS[cat]}

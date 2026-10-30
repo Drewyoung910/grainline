@@ -455,6 +455,6 @@ describe("accessibility follow-ups", () => {
     assert.match(hook, /return \{ ref, hasObserved, inView \}/);
     assert.match(section, /const \{ ref, hasObserved, inView \} = useInView/);
     assert.match(section, /const shouldReveal = !hasObserved \|\| inView/);
-    assert.match(section, /shouldReveal \? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"/);
+    assert.match(section, /shouldReveal \? "opacity-100 translate-y-0" : "motion-safe:opacity-0 motion-safe:translate-y-6"/);
   });
 });

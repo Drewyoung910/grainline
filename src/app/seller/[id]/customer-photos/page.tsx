@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!seller) return {};
   const name = seller.displayName ?? "Maker";
   return {
-    title: `Customer photos from ${name} | Grainline`,
+    title: `Customer photos from ${name}`,
     description: `Real customer photos from buyers of ${name}'s handmade woodworking pieces.`,
     alternates: { canonical: `https://thegrainline.com${publicSellerPath(seller.id, name)}/customer-photos` },
   };

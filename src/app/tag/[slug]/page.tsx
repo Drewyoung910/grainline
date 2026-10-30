@@ -87,7 +87,7 @@ export async function generateMetadata({
   const canonical = `${BASE_URL}${publicTagPath(tag)}${page > 1 ? `?page=${page}` : ""}`;
 
   return {
-    title,
+    title: { absolute: title },
     description,
     openGraph: { title, description, url: canonical },
     alternates: { canonical },

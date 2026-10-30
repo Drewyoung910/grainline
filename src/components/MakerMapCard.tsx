@@ -7,6 +7,7 @@
 // persisting public seller snapshots longer than the current map mount.
 import * as React from "react";
 import { publicSellerPath } from "@/lib/publicPaths";
+import { formatCityState } from "@/lib/locationDisplay";
 import { X } from "@/components/icons";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
@@ -94,9 +95,10 @@ export default function MakerMapCard({
   const loading = data === null;
   const name = loaded?.name ?? fallbackName;
   const path = loaded?.path ?? publicSellerPath(sellerId, fallbackName);
-  const location = [loaded?.city ?? fallbackCity, loaded?.state ?? fallbackState]
-    .filter(Boolean)
-    .join(", ");
+  const location = formatCityState(
+    loaded?.city ?? fallbackCity,
+    loaded?.state ?? fallbackState,
+  );
   const photoUrl = safeHttpsUrl(loaded?.photoUrl);
   const avatarUrl = safeHttpsUrl(loaded?.avatarUrl);
   const guildLevel = loaded?.guildLevel ?? null;

@@ -258,32 +258,35 @@ export default async function ReviewsSection({
 
       {/* Sort pills — flex-wrap allows wrapping on narrow viewports without
           stretching individual pills to two lines. whitespace-nowrap keeps
-          each label on one line so all pills are the same height. */}
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        {(["top", "new", "rating", "photos"] as const).map((k) => {
-          const active = sort === k;
-          return (
-            <Link
-              key={k}
-              href={sortHref(k, edit)}
-              className={`whitespace-nowrap rounded-full px-3 py-1 font-medium transition-colors ${
-                active
-                  ? "bg-neutral-900 text-white hover:bg-neutral-700"
-                  : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-              }`}
-              scroll={false}
-            >
-              {k === "top"
-                ? "Top"
-                : k === "new"
-                ? "Newest"
-                : k === "rating"
-                ? "Highest rated"
-                : "With photos"}
-            </Link>
-          );
-        })}
-      </div>
+          each label on one line so all pills are the same height. Hidden
+          when there are no other reviews to sort. */}
+      {others.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          {(["top", "new", "rating", "photos"] as const).map((k) => {
+            const active = sort === k;
+            return (
+              <Link
+                key={k}
+                href={sortHref(k, edit)}
+                className={`whitespace-nowrap rounded-full px-3 py-1 font-medium transition-colors ${
+                  active
+                    ? "bg-neutral-900 text-white hover:bg-neutral-700"
+                    : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+                }`}
+                scroll={false}
+              >
+                {k === "top"
+                  ? "Top"
+                  : k === "new"
+                  ? "Newest"
+                  : k === "rating"
+                  ? "Highest rated"
+                  : "With photos"}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       {/* Others */}
       {others.length === 0 ? (

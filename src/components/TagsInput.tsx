@@ -75,10 +75,11 @@ export default function TagsInput({
             className="inline-flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-xs"
           >
             #{t}
+            {/* The 24px button keeps the chip compact; on touch an invisible ::after grows its hit area to 44px. */}
             <button
               type="button"
               onClick={() => remove(t)}
-              className="rounded-full px-1 hover:bg-neutral-200"
+              className="relative -my-1 -mr-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm leading-none hover:bg-neutral-200 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5"
               aria-label={`Remove ${t}`}
               title="Remove"
             >

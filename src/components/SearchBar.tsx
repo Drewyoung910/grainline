@@ -2,16 +2,28 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, X } from "@/components/icons";
+import { Package, Search, Store, Tag, X } from "@/components/icons";
+import { safeInternalPath } from "@/lib/internalReturnUrl";
+import {
+  humanizeSearchTag,
+  type SearchSuggestionItem,
+  type SearchSuggestionItemType,
+} from "@/lib/searchSuggestionResults";
 
 type BlogResult = { slug: string; title: string };
 type CategoryResult = { value: string; label: string };
-type SuggestionsResponse = { suggestions: string[]; blogs?: BlogResult[]; categories?: CategoryResult[] };
+type SuggestionsResponse = {
+  items?: unknown;
+  blogs?: BlogResult[];
+  categories?: CategoryResult[];
+};
+type SuggestionSection = "Pieces" | "Suggestions" | "Makers" | "Tags";
 type SearchOption =
   | { kind: "tag"; key: string; section: "Recommended searches"; label: string }
   | { kind: "category"; key: string; section: "Categories"; value: string; label: string }
-  | { kind: "suggestion"; key: string; section: "Suggestions"; label: string }
-  | { kind: "blog"; key: string; section: "Stories"; slug: string; label: string };
+  | { kind: "item"; key: string; section: SuggestionSection; item: SearchSuggestionItem; label: string }
+  | { kind: "blog"; key: string; section: "Stories"; slug: string; label: string }
+  | { kind: "query"; key: string; section: "No matches"; label: string };
 const MAX_SEARCH_QUERY_LENGTH = 200;
 const FALLBACK_POPULAR_SEARCHES = ["furniture", "kitchen", "decor", "gifts", "woodworking"];
 
@@ -33,10 +45,25 @@ function blogPostPath(slug: string): string {
   return `/blog/${encodeURIComponent(slug)}`;
 }
 
-// Humanize a tag/slug for display only. Storage and search queries still use
-// the raw value with dashes/underscores preserved.
-function humanizeTag(raw: string): string {
-  return raw.replace(/[-_]+/g, " ").trim();
+// Typed suggestions render grouped by section, in this order.
+const ITEM_SECTIONS: Record<SearchSuggestionItemType, SuggestionSection> = {
+  listing: "Pieces",
+  search: "Suggestions",
+  maker: "Makers",
+  tag: "Tags",
+};
+const ITEM_SECTION_ORDER: SearchSuggestionItemType[] = ["listing", "search", "maker", "tag"];
+
+function isSuggestionItem(value: unknown): value is SearchSuggestionItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.type === "string"
+    && ITEM_SECTION_ORDER.includes(item.type as SearchSuggestionItemType)
+    && typeof item.label === "string"
+    && item.label.length > 0
+    && typeof item.href === "string"
+  );
 }
 
 export default function SearchBar({
@@ -56,9 +83,12 @@ export default function SearchBar({
   const [value, setValue] = React.useState(
     pathname === "/browse" ? (searchParams.get("q") ?? "") : "",
   );
-  const [suggestions, setSuggestions] = React.useState<string[]>([]);
+  const [items, setItems] = React.useState<SearchSuggestionItem[]>([]);
   const [blogs, setBlogs] = React.useState<BlogResult[]>([]);
   const [categories, setCategories] = React.useState<CategoryResult[]>([]);
+  // True when the latest suggestions request succeeded with no results, so
+  // the dropdown can say so instead of silently closing.
+  const [noMatches, setNoMatches] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const [popularTags, setPopularTags] = React.useState<string[]>([]);
@@ -152,9 +182,10 @@ export default function SearchBar({
 
     if (q.length < 2) {
       suggestionsRequestRef.current += 1;
-      setSuggestions([]);
+      setItems([]);
       setBlogs([]);
       setCategories([]);
+      setNoMatches(false);
       setActiveIndex(-1);
       if (v.length === 0) {
         // Field cleared while still focused — bring the popular-searches
@@ -177,26 +208,26 @@ export default function SearchBar({
           cache: "no-store",
           signal: controller.signal,
         });
+        // A failed request (rate limit, server error) is not "no matches".
+        if (!res.ok) throw new Error(`Search suggestions failed (${res.status})`);
         const data: SuggestionsResponse = await res.json();
         if (controller.signal.aborted || requestId !== suggestionsRequestRef.current) return;
-        const suggs = data.suggestions ?? [];
+        const itemResults = Array.isArray(data.items) ? data.items.filter(isSuggestionItem) : [];
         const blogResults = data.blogs ?? [];
         const cats = data.categories ?? [];
-        setSuggestions(suggs);
+        setItems(itemResults);
         setBlogs(blogResults);
         setCategories(cats);
-        if (suggs.length > 0 || blogResults.length > 0 || cats.length > 0) {
-          openDropdown();
-        } else {
-          closeDropdown();
-        }
+        setNoMatches(itemResults.length === 0 && blogResults.length === 0 && cats.length === 0);
+        openDropdown();
         setActiveIndex(-1);
       } catch (error) {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
         if (requestId !== suggestionsRequestRef.current) return;
-        setSuggestions([]);
+        setItems([]);
         setBlogs([]);
         setCategories([]);
+        setNoMatches(false);
         closeDropdown();
         setActiveIndex(-1);
       } finally {
@@ -207,7 +238,7 @@ export default function SearchBar({
     }, 300);
   }
 
-  const hasItems = suggestions.length > 0 || blogs.length > 0 || categories.length > 0;
+  const hasItems = items.length > 0 || blogs.length > 0 || categories.length > 0;
   const visiblePopularTags = React.useMemo(
     () => (popularTags.length > 0 ? popularTags : FALLBACK_POPULAR_SEARCHES),
     [popularTags],
@@ -223,7 +254,12 @@ export default function SearchBar({
         label: tag,
       }));
     }
-    if (!hasItems) return [];
+    if (!hasItems) {
+      const query = normalizeSearchQuery(value);
+      return noMatches && query.length >= 2
+        ? [{ kind: "query", key: "query", section: "No matches", label: query }]
+        : [];
+    }
     return [
       ...categories.map((cat) => ({
         kind: "category" as const,
@@ -232,12 +268,17 @@ export default function SearchBar({
         value: cat.value,
         label: cat.label,
       })),
-      ...suggestions.map((suggestion) => ({
-        kind: "suggestion" as const,
-        key: `suggestion:${suggestion}`,
-        section: "Suggestions" as const,
-        label: suggestion,
-      })),
+      ...ITEM_SECTION_ORDER.flatMap((type) =>
+        items
+          .filter((item) => item.type === type)
+          .map((item) => ({
+            kind: "item" as const,
+            key: `${item.type}:${item.href}`,
+            section: ITEM_SECTIONS[type],
+            item,
+            label: item.label,
+          })),
+      ),
       ...blogs.map((blog) => ({
         kind: "blog" as const,
         key: `blog:${blog.slug}`,
@@ -246,7 +287,7 @@ export default function SearchBar({
         label: blog.title,
       })),
     ];
-  }, [blogs, categories, hasItems, open, showPopular, suggestions, visiblePopularTags]);
+  }, [blogs, categories, hasItems, items, noMatches, open, showPopular, value, visiblePopularTags]);
 
   React.useEffect(() => {
     setActiveIndex((index) => {
@@ -298,9 +339,10 @@ export default function SearchBar({
     suggestionsAbortRef.current?.abort();
     suggestionsRequestRef.current += 1;
     setValue("");
-    setSuggestions([]);
+    setItems([]);
     setBlogs([]);
     setCategories([]);
+    setNoMatches(false);
     setActiveIndex(-1);
     void loadPopularTags();
     openDropdown();
@@ -328,8 +370,18 @@ export default function SearchBar({
   function chooseOption(option: SearchOption) {
     switch (option.kind) {
       case "tag":
-      case "suggestion":
+      case "query":
         pick(option.label);
+        return;
+      case "item":
+        if (option.item.type === "search") {
+          pick(option.item.label);
+          return;
+        }
+        // Pieces, makers and tags open their own page.
+        setValue("");
+        closeDropdown();
+        router.push(safeInternalPath(option.item.href, browseSearchUrl(option.item.label)));
         return;
       case "category":
         setValue("");
@@ -385,7 +437,7 @@ export default function SearchBar({
               if (value.length === 0) {
                 loadPopularTags();
                 openDropdown();
-              } else if (hasItems) {
+              } else if (hasItems || noMatches) {
                 openDropdown();
               }
             }}
@@ -453,6 +505,8 @@ export default function SearchBar({
                 id={`${searchListboxId}-${index}`}
                 role="option"
                 aria-selected={activeIndex === index}
+                className="search-option-in"
+                style={{ "--search-option-index": Math.min(index, 8) } as React.CSSProperties}
               >
                 <button
                   type="button"
@@ -466,9 +520,20 @@ export default function SearchBar({
                     overlay ? "hover:bg-white/20" : "hover:bg-neutral-50"
                   } ${
                     activeIndex === index ? (overlay ? "bg-white/30" : "bg-neutral-100") : ""
-                  } ${option.kind === "tag" || option.kind === "category" || option.kind === "blog" ? "flex items-center gap-2" : ""}`}
+                  } ${option.kind === "item" && option.item.type === "search" ? "" : "flex items-center gap-2"}`}
                 >
-                  {option.kind === "tag" && <Search size={12} className="text-neutral-500" />}
+                  {(option.kind === "tag" || option.kind === "query") && (
+                    <Search size={12} className="text-neutral-500" />
+                  )}
+                  {option.kind === "item" && option.item.type === "listing" && (
+                    <Package size={14} className="shrink-0 text-neutral-500" />
+                  )}
+                  {option.kind === "item" && option.item.type === "maker" && (
+                    <Store size={14} className="shrink-0 text-neutral-500" />
+                  )}
+                  {option.kind === "item" && option.item.type === "tag" && (
+                    <Tag size={14} className="shrink-0 text-neutral-500" />
+                  )}
                   {option.kind === "category" && (
                     <span className="text-xs text-neutral-500 border border-neutral-200 rounded px-1.5 py-0.5 shrink-0">
                       Category
@@ -480,7 +545,11 @@ export default function SearchBar({
                     </span>
                   )}
                   <span className={option.kind === "blog" ? "truncate text-neutral-700" : ""}>
-                    {option.kind === "tag" ? humanizeTag(option.label) : option.label}
+                    {option.kind === "tag"
+                      ? humanizeSearchTag(option.label)
+                      : option.kind === "query"
+                        ? `Search for “${option.label}”`
+                        : option.label}
                   </span>
                 </button>
               </li>

@@ -27,8 +27,9 @@ export default function ListingTypeVariantSection({
 
   return (
     <>
+      {/* ListingTypeFields labels its own Category and Listing type fields, so
+          the card carries no extra "Listing type" heading above Category. */}
       <div className="card-section p-4">
-        <div className="text-sm font-medium text-neutral-700 mb-2">Listing type</div>
         <ListingTypeFields
           listingType={type}
           minDays={minDays}

@@ -196,7 +196,7 @@ async function DashboardBlogContent({
                 {p.status === "PUBLISHED" && (
                   <Link
                     href={`/blog/${p.slug}`}
-                    className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                    className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 pointer-coarse:min-h-11"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -205,7 +205,7 @@ async function DashboardBlogContent({
                 )}
                 <Link
                   href={`/dashboard/blog/${p.id}/edit`}
-                  className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 pointer-coarse:min-h-11"
                 >
                   Edit
                 </Link>
@@ -214,7 +214,7 @@ async function DashboardBlogContent({
                     <BlogStatusButton
                       confirm="Unarchive this post?"
                       pendingLabel="Unarchiving…"
-                      className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                      className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 pointer-coarse:min-h-11"
                     >
                       Unarchive
                     </BlogStatusButton>
@@ -224,7 +224,7 @@ async function DashboardBlogContent({
                     <BlogStatusButton
                       confirm="Archive this post?"
                       pendingLabel="Archiving…"
-                      className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                      className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 pointer-coarse:min-h-11"
                     >
                       Archive
                     </BlogStatusButton>
