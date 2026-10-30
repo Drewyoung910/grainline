@@ -328,6 +328,7 @@ const REVIEW_VOTE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql";
 const REVIEW_VOTE_PREPARATION_FUNCTION_NAMES = [
   "grainline_review_vote_insert_guard",
+  "grainline_review_vote_delete_lock_guard",
   "grainline_review_vote_update_forbidden",
   "grainline_review_vote_owner_toggle",
   "grainline_review_vote_owner_export",
@@ -1320,6 +1321,13 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_complete",
       "grainline_seller_owner_public_state_bind",
       "grainline_user_public_seller_state_sync",
+      ...(existsSync(REVIEW_VOTE_PREPARATION_MIGRATION)
+        ? [
+            "grainline_review_vote_insert_guard",
+            "grainline_review_vote_delete_lock_guard",
+            "grainline_review_vote_update_forbidden",
+          ]
+        : []),
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,

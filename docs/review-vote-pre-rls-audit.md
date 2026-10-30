@@ -1,7 +1,7 @@
 # ReviewVote pre-RLS domain audit
 
 Date: 2026-10-28  
-Source: `857bc94706913a4d5c4368afa99de0a55bb2437c`  
+Source: failing-first reproduction on `94c6d3bf74e13d5d19bc30433b1d6a0eda12fbc2`
 Decision: **A2 compatible preparation candidate is implemented and proven on
 the complete PostgreSQL 17 chain; NO-GO remains for RLS or grant activation.**
 
@@ -171,6 +171,35 @@ affect top-review ordering. This is not an RLS bypass, but moderation should
 decide whether prior votes remain. Preparation must preserve today's behavior
 unless a separately reviewed product decision changes it.
 
+### RV-RLS-9 / C-1468: toggle and Review deletion invert locks
+
+Classification: `FIX_BEFORE_PRODUCTION_PREPARATION`. **Closed in the corrected
+candidate.**
+
+The first compatible toggle deleted `ReviewVote` before locking `Review`.
+Deleting the parent review does the reverse: PostgreSQL locks `Review`, then
+the foreign-key cascade deletes `ReviewVote`. If those operations raced, each
+transaction retained one row lock while waiting for the other and PostgreSQL
+aborted one with `40P01`.
+
+The corrected toggle takes `User`, then `Review`, then `ReviewVote`. PostgreSQL
+already owns the child tuple before a row-level `BEFORE DELETE` trigger runs,
+so that trigger cannot reorder the predecessor path. Its private compatibility
+guard instead takes the parent with `NOWAIT`: if parent deletion already owns
+`Review`, the predecessor request fails with `55P03`, releases the child lock,
+and can be retried without forming a deadlock. This bounded fail-fast behavior
+exists only while predecessor application traffic is still eligible to serve.
+
+### RV-RLS-10 / C-1469: account cleanup and Review deletion invert locks
+
+Classification: `FIX_BEFORE_PRODUCTION_PREPARATION`. **Closed in the corrected
+candidate.**
+
+The first owner cleanup deleted every owned vote and only then locked the
+affected reviews. It could deadlock with the same parent-delete cascade. The
+corrected function locks the bounded review-id set in stable order before
+deleting the actor's vote rows.
+
 ## Concurrency, recovery, and scale requirements
 
 - Toggle must serialize on the exact review and actor pair. Concurrent double
@@ -209,7 +238,13 @@ The complete migrated PostgreSQL 17 schema must prove at least:
 12. public top-review ordering still follows the repaired scalar count;
 13. the inventory/reconciliation check is empty after backfill and mutations;
 14. rollback restores predecessor statements and a later reactivation passes
-    the same behavior proof.
+    the same behavior proof;
+15. toggle removal racing parent Review deletion completes without `40P01` and
+    leaves no vote/count residue; and
+16. owner vote cleanup racing parent Review deletion completes without
+    `40P01` and leaves no vote/count residue; and
+17. predecessor direct deletion behind parent deletion fails fast with `55P03`,
+    not `40P01`, and the cascade leaves no child residue.
 
 ## Audit decision
 
@@ -229,17 +264,24 @@ The compatible preparation candidate now:
 - serializes actor, reviewer, maker, listing visibility, blocks, and the vote
   mutation without changing RLS or predecessor table grants; the predecessor
   insert guard discovers identities, takes the canonical sorted `User` locks,
-  and only then re-reads and locks target eligibility, preventing both stale
-  reviewer-state writes and the seller-deletion `User`/`SellerProfile` lock
-  inversion;
-- adds a predecessor-compatible insert guard, while deliberately deferring a
-  general count trigger until predecessor application traffic is drained; and
+  and only then re-reads and locks `Review` plus target eligibility, preventing
+  stale reviewer-state writes, the seller-deletion
+  `User`/`SellerProfile` inversion, and parent-delete inversion;
+- locks `Review` before `ReviewVote` in both fixed mutation functions, adds a
+  predecessor insert guard with the same order, and adds a predecessor delete
+  guard whose `NOWAIT` parent fence prevents the child-first legacy statement
+  from entering a cycle during application-version skew, while deliberately
+  deferring a general count trigger until predecessor traffic is drained; and
 - fails its own transaction unless every new function remains owned by a
   superuser/BYPASSRLS role, uses `SECURITY DEFINER` with the fixed
   `pg_catalog` search path, and denies `PUBLIC` execution; and
-- passes the complete 437-migration PostgreSQL 17 build plus executed
+- passes the complete 443-migration PostgreSQL 17 build plus executed
   runtime-role behavior and mixed predecessor/new-operation concurrency proof,
-  including reviewer-state transition and seller account-deletion races.
+  including reviewer-state transition, seller account-deletion, both fixed
+  parent-Review-deletion races, and the predecessor direct-delete skew path.
+  The fixed-operation race scenarios first failed on the uncorrected exact-main
+  candidate with `40P01`; the predecessor path is proven to stop with `55P03`
+  rather than enter the same cycle.
 
 The mixed-version proof is important: the predecessor route still updates
 `Review.helpfulCount` itself. Installing a general insert/delete count trigger
@@ -249,10 +291,12 @@ exact scalar; activation may add cascade maintenance only after the predecessor
 is no longer eligible to serve traffic.
 
 Status: `COMPATIBLE_CANDIDATE`. The preparation fixes RV-RLS-1, RV-RLS-2,
-RV-RLS-3, RV-RLS-5, RV-RLS-6, and the executed-proof portion of RV-RLS-7.
+RV-RLS-3, RV-RLS-5, RV-RLS-6, RV-RLS-9, RV-RLS-10, and the executed-proof
+portion of RV-RLS-7.
 RV-RLS-4 remains an activation gate for hard User-delete cascade maintenance.
 Activation also still needs the owner policy, direct runtime mutation denial,
 cross-owner proof, rollback/reactivation proof, and the remaining availability
-race matrix. `NO-GO` remains for an RLS/grant migration, merge, deployment, or
-any Production operation.
+race matrix. The additive compatible preparation may proceed only through its
+exact-head protected batch workflow and before the converted application
+deploys. `NO-GO` remains for ReviewVote RLS/grant activation.
 

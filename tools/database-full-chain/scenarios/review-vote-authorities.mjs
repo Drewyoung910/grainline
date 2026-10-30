@@ -229,6 +229,135 @@ async function proveMixedVersionSerialization({
   }
 }
 
+async function proveParentDeleteSerialization({
+  connectionString,
+  database,
+  actorId,
+  predecessorDeleteReviewId,
+  toggleReviewId,
+  deleteAllReviewId,
+}) {
+  const parent = new pg.Client({ connectionString });
+  const owner = new pg.Client({ connectionString });
+  await Promise.all([parent.connect(), owner.connect()]);
+  try {
+    assert.deepEqual(await callToggle(database, actorId, predecessorDeleteReviewId), [{
+      resultStatus: "OK",
+      voted: true,
+      helpfulCount: 1,
+    }]);
+
+    await parent.query("BEGIN");
+    await parent.query("SET LOCAL statement_timeout = '8s'");
+    await parent.query(
+      `SELECT 1 FROM public."Review" WHERE id = $1 FOR UPDATE`,
+      [predecessorDeleteReviewId],
+    );
+    await beginRuntime(owner, actorId);
+    await owner.query("SET LOCAL statement_timeout = '8s'");
+    await assert.rejects(
+      owner.query(
+        `DELETE FROM public."ReviewVote"
+          WHERE "reviewId" = $1 AND "userId" = $2`,
+        [predecessorDeleteReviewId, actorId],
+      ),
+      (error) => error?.code === "55P03",
+      "a predecessor child-first delete must fail fast behind parent deletion",
+    );
+    await owner.query("ROLLBACK");
+    await parent.query(
+      `DELETE FROM public."Review" WHERE id = $1`,
+      [predecessorDeleteReviewId],
+    );
+    await parent.query("COMMIT");
+    assert.equal(Number(rowsOf(await database.query(
+      `SELECT pg_catalog.count(*)::integer AS value
+         FROM public."ReviewVote"
+        WHERE "reviewId" = $1`,
+      [predecessorDeleteReviewId],
+    ))[0]?.value), 0);
+
+    assert.deepEqual(await callToggle(database, actorId, toggleReviewId), [{
+      resultStatus: "OK",
+      voted: true,
+      helpfulCount: 1,
+    }]);
+
+    await parent.query("BEGIN");
+    await parent.query("SET LOCAL statement_timeout = '8s'");
+    await parent.query(
+      `SELECT 1 FROM public."Review" WHERE id = $1 FOR UPDATE`,
+      [toggleReviewId],
+    );
+    const togglePid = Number((await owner.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0]?.pid);
+    await beginRuntime(owner, actorId);
+    await owner.query("SET LOCAL statement_timeout = '8s'");
+    const toggleOutcome = owner.query(
+      "SELECT * FROM public.grainline_review_vote_owner_toggle($1)",
+      [toggleReviewId],
+    ).then(
+      (result) => ({ result, error: null }),
+      (error) => ({ result: null, error }),
+    );
+    await waitForBackendLock(
+      database,
+      togglePid,
+      "ReviewVote toggle behind parent Review deletion",
+    );
+    await parent.query(`DELETE FROM public."Review" WHERE id = $1`, [toggleReviewId]);
+    await parent.query("COMMIT");
+    const toggleResult = await toggleOutcome;
+    if (toggleResult.error) throw toggleResult.error;
+    assert.deepEqual(toggleResult.result?.rows, [{
+      resultStatus: "NOT_FOUND",
+      voted: false,
+      helpfulCount: 0,
+    }]);
+    await owner.query("COMMIT");
+
+    assert.deepEqual(await callToggle(database, actorId, deleteAllReviewId), [{
+      resultStatus: "OK",
+      voted: true,
+      helpfulCount: 1,
+    }]);
+
+    await parent.query("BEGIN");
+    await parent.query("SET LOCAL statement_timeout = '8s'");
+    await parent.query(
+      `SELECT 1 FROM public."Review" WHERE id = $1 FOR UPDATE`,
+      [deleteAllReviewId],
+    );
+    const deleteAllPid = Number((await owner.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0]?.pid);
+    await beginRuntime(owner, actorId);
+    await owner.query("SET LOCAL statement_timeout = '8s'");
+    const deleteAllOutcome = owner.query(
+      "SELECT public.grainline_review_vote_owner_delete_all() AS value",
+    ).then(
+      (result) => ({ result, error: null }),
+      (error) => ({ result: null, error }),
+    );
+    await waitForBackendLock(
+      database,
+      deleteAllPid,
+      "ReviewVote owner deletion behind parent Review deletion",
+    );
+    await parent.query(`DELETE FROM public."Review" WHERE id = $1`, [deleteAllReviewId]);
+    await parent.query("COMMIT");
+    const deleteAllResult = await deleteAllOutcome;
+    if (deleteAllResult.error) throw deleteAllResult.error;
+    assert.deepEqual(deleteAllResult.result?.rows, [{ value: 0 }]);
+    await owner.query("COMMIT");
+  } finally {
+    await parent.query("ROLLBACK").catch(() => {});
+    await owner.query("ROLLBACK").catch(() => {});
+    await Promise.all([parent.end(), owner.end()]);
+  }
+}
+
 export async function proveReviewVoteAuthorities({ connectionString, database, seller }) {
   const suffix = `review_vote_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const actorId = `${suffix}_actor`;
@@ -237,10 +366,16 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
   const listingId = `${suffix}_listing`;
   const secondListingId = `${suffix}_listing_two`;
   const cascadeListingId = `${suffix}_listing_cascade`;
+  const predecessorDeleteRaceListingId = `${suffix}_listing_predecessor_delete_race`;
+  const toggleDeleteRaceListingId = `${suffix}_listing_toggle_delete_race`;
+  const deleteAllRaceListingId = `${suffix}_listing_delete_all_race`;
   const reviewId = `${suffix}_review`;
   const secondReviewId = `${suffix}_review_two`;
   const selfReviewId = `${suffix}_self_review`;
   const cascadeReviewId = `${suffix}_cascade_review`;
+  const predecessorDeleteRaceReviewId = `${suffix}_predecessor_delete_race`;
+  const toggleDeleteRaceReviewId = `${suffix}_toggle_delete_race`;
+  const deleteAllRaceReviewId = `${suffix}_delete_all_race`;
   const now = "2026-10-28 12:00:00";
 
   const catalog = rowsOf(await database.query(`
@@ -257,11 +392,12 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        pg_catalog.to_regprocedure('public.grainline_review_vote_owner_export()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_owner_delete_all()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_insert_guard()'),
+       pg_catalog.to_regprocedure('public.grainline_review_vote_delete_lock_guard()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_update_forbidden()')
      )
      ORDER BY signature
   `));
-  assert.equal(catalog.length, 5);
+  assert.equal(catalog.length, 6);
   assert.ok(catalog.every((row) => (
     row.securityDefiner === true
     && row.config?.includes("search_path=pg_catalog")
@@ -278,6 +414,7 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        AND NOT tgisinternal
      ORDER BY tgname
   `)), [
+    { name: "ReviewVote_delete_lock_guard", type: 11 },
     { name: "ReviewVote_insert_guard", type: 7 },
     { name: "ReviewVote_update_forbidden", type: 19 },
   ]);
@@ -352,8 +489,23 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        ($2, $3, 'Review vote listing two', 'Full-chain review vote fixture', 1000,
         'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
        ($5, $3, 'Review vote cascade listing', 'Full-chain review vote fixture', 1000,
+        'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
+       ($6, $3, 'Review vote predecessor/delete race', 'Full-chain review vote fixture', 1000,
+        'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
+       ($7, $3, 'Review vote toggle/delete race', 'Full-chain review vote fixture', 1000,
+        'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4),
+       ($8, $3, 'Review vote delete-all race', 'Full-chain review vote fixture', 1000,
         'usd', 'ACTIVE', 'IN_STOCK', 1, false, NULL, $4, $4)`,
-    [listingId, secondListingId, seller.sellerProfileId, now, cascadeListingId],
+    [
+      listingId,
+      secondListingId,
+      seller.sellerProfileId,
+      now,
+      cascadeListingId,
+      predecessorDeleteRaceListingId,
+      toggleDeleteRaceListingId,
+      deleteAllRaceListingId,
+    ],
   );
   await database.query(
     `INSERT INTO public."Review"
@@ -363,7 +515,10 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
        ($1, $5, $7, true, 10, true, 0, $9, $9),
        ($2, $6, $7, true, 8, true, 0, $9, $9),
        ($3, $6, $8, true, 8, true, 0, $9, $9),
-       ($4, $10, $7, true, 8, true, 0, $9, $9)`,
+       ($4, $10, $7, true, 8, true, 0, $9, $9),
+       ($11, $12, $7, true, 8, true, 0, $9, $9),
+       ($13, $15, $7, true, 8, true, 0, $9, $9),
+       ($14, $16, $7, true, 8, true, 0, $9, $9)`,
     [
       reviewId,
       secondReviewId,
@@ -375,6 +530,12 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
       actorId,
       now,
       cascadeListingId,
+      predecessorDeleteRaceReviewId,
+      predecessorDeleteRaceListingId,
+      toggleDeleteRaceReviewId,
+      deleteAllRaceReviewId,
+      toggleDeleteRaceListingId,
+      deleteAllRaceListingId,
     ],
   );
 
@@ -437,6 +598,14 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
     reviewerId,
     sellerProfileId: seller.sellerProfileId,
     sellerUserId: seller.userId,
+  });
+  await proveParentDeleteSerialization({
+    connectionString,
+    database,
+    actorId,
+    predecessorDeleteReviewId: predecessorDeleteRaceReviewId,
+    toggleReviewId: toggleDeleteRaceReviewId,
+    deleteAllReviewId: deleteAllRaceReviewId,
   });
 
   await database.query(
@@ -648,7 +817,14 @@ export async function proveReviewVoteAuthorities({ connectionString, database, s
   );
   await database.query(
     `DELETE FROM public."Listing" WHERE id = ANY($1::text[])`,
-    [[listingId, secondListingId, cascadeListingId]],
+    [[
+      listingId,
+      secondListingId,
+      cascadeListingId,
+      predecessorDeleteRaceListingId,
+      toggleDeleteRaceListingId,
+      deleteAllRaceListingId,
+    ]],
   );
   await database.query(
     `DELETE FROM public."User" WHERE id = ANY($1::text[])`,

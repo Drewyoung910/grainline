@@ -283,6 +283,7 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   const sql = readFileSync(reviewVote.migrationPath, "utf8");
   assert.match(sql, /grainline_review_vote_owner_toggle/u);
   assert.match(sql, /grainline_review_vote_insert_guard/u);
+  assert.match(sql, /grainline_review_vote_delete_lock_guard/u);
   assert.match(sql, /grainline_review_vote_update_forbidden/u);
   assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
   assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
