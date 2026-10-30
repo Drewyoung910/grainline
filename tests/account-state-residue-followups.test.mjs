@@ -89,11 +89,13 @@ describe("account-state residue hardening", () => {
 
   it("removes deleted seller FAQs from retained seller profiles", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const faqDelete = deletion.indexOf("await tx.sellerFaq.deleteMany");
+    const faqDelete = deletion.indexOf("await cleanupSellerFaqsForAccountDeletion(tx");
     const profileUpdate = deletion.indexOf("await anonymizeSellerForAccountDeletion(tx");
 
     assert.ok(faqDelete >= 0, "account deletion should remove seller FAQs");
-    assert.match(deletion.slice(faqDelete, profileUpdate), /where: \{ sellerProfileId: user\.sellerProfile\.id \}/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /expectedUserId: user\.id/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /claimGeneration: localClaimGeneration/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /claimToken: localClaimToken/);
     assert.ok(faqDelete < profileUpdate, "FAQ deletion should happen before the retained seller profile is anonymized");
   });
 
