@@ -1,13 +1,15 @@
 // src/app/api/favorites/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { sellerPublicFavoriteTarget } from "@/lib/sellerProfilePublicAccess";
 import { publicListingPath } from "@/lib/publicPaths";
+import {
+  addOwnerFavorite,
+  FAVORITE_LISTING_ID_PATTERN,
+} from "@/lib/favoriteAccess";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   isInvalidJsonBodyError,
@@ -20,7 +22,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { z } from "zod";
 
 const FavoriteSchema = z.object({
-  listingId: z.string().min(1),
+  listingId: z.string().regex(FAVORITE_LISTING_ID_PATTERN),
 });
 const FAVORITE_BODY_MAX_BYTES = 8 * 1024;
 
@@ -68,47 +70,37 @@ export async function POST(req: Request) {
   }
   if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const listing = await sellerPublicFavoriteTarget(listingId);
-  if (!listing) return privateJson({ error: "Listing not found." }, { status: HTTP_STATUS.NOT_FOUND });
-  if (listing.ownerUserId === me.id) {
-    return privateJson({ error: "Cannot favorite your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
-  }
-  const blockExists = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: listing.ownerUserId },
-        { blockerId: listing.ownerUserId, blockedId: me.id },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blockExists) return privateJson({ error: "Blocked" }, { status: HTTP_STATUS.FORBIDDEN });
-
+  let favorite;
   try {
-    await prisma.favorite.upsert({
-      where: { userId_listingId: { userId: me.id, listingId } },
-      update: {},
-      create: { userId: me.id, listingId },
-    });
+    favorite = await addOwnerFavorite(me.id, listingId);
   } catch (e) {
     logServerError(e, {
-      source: "favorite_upsert",
+      source: "favorite_add",
       extra: { listingId, dbUserId: me.id },
     });
     return privateJson({ error: "DB error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
   }
+  if (favorite.resultStatus === "NOT_FOUND") {
+    return privateJson({ error: "Listing not found." }, { status: HTTP_STATUS.NOT_FOUND });
+  }
+  if (favorite.resultStatus === "SELF") {
+    return privateJson({ error: "Cannot favorite your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+  if (favorite.resultStatus === "BLOCKED") {
+    return privateJson({ error: "Blocked" }, { status: HTTP_STATUS.FORBIDDEN });
+  }
 
   // Notify listing owner (non-fatal; createNotification handles exact duplicate suppression)
   try {
-    const ownerUserId = listing.ownerUserId;
+    const ownerUserId = favorite.ownerUserId;
     if (ownerUserId && ownerUserId !== me.id) {
       const favName = me.name ?? "Someone";
       await createNotification({
         userId: ownerUserId,
         type: "NEW_FAVORITE",
         title: `${favName} hearted your listing`,
-        body: listing.title,
-        link: publicListingPath(listingId, listing.title),
+        body: favorite.title ?? "Saved listing",
+        link: publicListingPath(listingId, favorite.title ?? undefined),
         dedupScope: me.id,
         relatedUserId: me.id,
         sourceType: NOTIFICATION_SOURCE_TYPES.FAVORITE,
@@ -119,7 +111,7 @@ export async function POST(req: Request) {
     logServerError(e, {
       source: "favorite_notification",
       level: "warning",
-      extra: { listingId, dbUserId: me.id, sellerUserId: listing.ownerUserId },
+      extra: { listingId, dbUserId: me.id, sellerUserId: favorite.ownerUserId },
     });
   }
 

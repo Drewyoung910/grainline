@@ -16,6 +16,14 @@ function getMethodSource(path, method) {
 }
 
 describe("public query determinism", () => {
+  it("keeps the materialized favorite ordering index aligned with public sorts", () => {
+    const schema = source("prisma/schema.prisma");
+    assert.match(
+      schema,
+      /@@index\(\[favoriteCount\(sort: Desc\), createdAt\(sort: Desc\), id\(sort: Desc\)\]\)/,
+    );
+  });
+
   it("applies blog relevant-search filters before the raw ranked cap", () => {
     const blogPage = source("src/app/blog/page.tsx");
     const blogSearch = source("src/app/api/blog/search/route.ts");
@@ -87,9 +95,9 @@ describe("public query determinism", () => {
     assert.match(browse, /\[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /sort === "price_asc" \? \[\{ priceCents: "asc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /sort === "price_desc" \? \[\{ priceCents: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /sort === "popular" \? \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(browse, /sort === "popular" \? \[\{ favoriteCount: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /const featuredRows = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(browse, /const featuredRows = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favoriteCount: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(browse, /const featured = await hydrateSellerCards\(meDbId, featuredRows\)/);
     assert.match(browse, /b\.listing\.createdAt\.getTime\(\) - a\.listing\.createdAt\.getTime\(\)/);
     assert.match(browse, /b\.listing\.id\.localeCompare\(a\.listing\.id\)/);
@@ -97,7 +105,7 @@ describe("public query determinism", () => {
     for (const text of [sellerShop]) {
       assert.match(text, /sort === "price_asc" \? \[\{ priceCents: "asc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
       assert.match(text, /sort === "price_desc" \? \[\{ priceCents: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-      assert.match(text, /sort === "popular" \? \[\{ favorites: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+      assert.match(text, /sort === "popular" \? \[\{ favoriteCount: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
       assert.match(text, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     }
 
@@ -127,11 +135,11 @@ describe("public query determinism", () => {
     assert.doesNotMatch(metroCategoryPage, /for \(const metro of metros\)[\s\S]*await prisma\.listing\.groupBy/);
     for (const metroText of [metroPage, metroCategoryPage]) {
       assert.ok(
-        metroText.indexOf("const [listings") < metroText.indexOf("const favs = await prisma.favorite.findMany"),
+        metroText.indexOf("const [listings") < metroText.indexOf("ownerFavoriteListingIds(meDbId, listingIds)"),
         "metro favorites should be scoped after the capped page listings are known",
       );
       assert.match(metroText, /const listingIds = listings\.map\(\(listing\) => listing\.id\)/);
-      assert.match(metroText, /where: \{ userId: meDbId, listingId: \{ in: listingIds \} \}/);
+      assert.match(metroText, /ownerFavoriteListingIds\(meDbId, listingIds\)/);
     }
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(makersMetro, /sellerPublicMetroStaticSlugs\(\)/);
@@ -374,7 +382,7 @@ describe("public query determinism", () => {
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
     assert.match(
       browse,
-      /const listingRows = await fetchListings\(\s*where,\s*orderBy,\s*PAGE_SIZE,\s*\(standardPage - 1\) \* PAGE_SIZE,\s*false,?\s*\)/s,
+      /const listingRows = await fetchListings\(\s*where,\s*orderBy,\s*PAGE_SIZE,\s*\(standardPage - 1\) \* PAGE_SIZE,?\s*\)/s,
     );
     assert.match(browse, /listings = await hydrateSellerCards\(meDbId, listingRows\)/);
 

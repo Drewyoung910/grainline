@@ -162,17 +162,21 @@ describe("R49 account-state route guardrails", () => {
 
   it("prevents blocked users from creating favorite notifications", () => {
     const text = source("src/app/api/favorites/route.ts");
-
-    assert.match(text, /prisma\.block\.findFirst/);
-    assert.match(text, /\{ blockerId: me\.id, blockedId: listing\.ownerUserId \}/);
-    assert.match(text, /\{ blockerId: listing\.ownerUserId, blockedId: me\.id \}/);
-    assert.ok(
-      text.indexOf("prisma.block.findFirst") < text.indexOf("prisma.favorite.upsert"),
-      "favorite POST should check block state before writing the favorite",
+    const migrationRoot = process.env.FAVORITE_PREPARATION_MIGRATION_PATH;
+    const migration = source(
+      migrationRoot
+        ? `${migrationRoot}/migration.sql`
+        : "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql",
     );
+
+    assert.match(text, /addOwnerFavorite\(me\.id, listingId\)/);
+    assert.match(text, /favorite\.resultStatus === "BLOCKED"/);
+    assert.doesNotMatch(text, /prisma\.block|prisma\.favorite/);
+    assert.match(migration, /grainline_user_block_pair_lock\(target_user_id\)/);
+    assert.match(migration, /FROM public\."Block" AS relationship/);
     assert.ok(
-      text.indexOf("prisma.block.findFirst") < text.indexOf("await createNotification"),
-      "favorite POST should check block state before notifying the seller",
+      text.indexOf("favorite.resultStatus === \"BLOCKED\"") < text.indexOf("await createNotification"),
+      "favorite POST should refuse a blocked atomic result before notifying the seller",
     );
   });
 });

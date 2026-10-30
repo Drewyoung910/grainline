@@ -13,6 +13,7 @@ export const OWNER_TABLE_RLS_CONFIRMATION = "activate-reviewed-owner-table-rls";
 
 export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
   saved_blog_post_v1: Object.freeze({
+    minimumCompatibleAppCommit: "e77792ff3bd3a5c540c64db7a6996b75790cb64e",
     predecessorDeploymentId: "dpl_9P14wnz14RfsVfaiALkUhR4eejph",
     predecessorSourceCommit: "18bdcb7e59a435001e8a8c903606ff8b78819249",
     shape: "saved_blog_post",
@@ -42,6 +43,7 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
     ]),
   }),
   cart_cart_item_v1: Object.freeze({
+    minimumCompatibleAppCommit: "b29e41a5287b5d5f43f54ff29da23210f18001e9",
     predecessorDeploymentId: "dpl_CQzwxpZQzyxn4d9zHJy5o9JMN1Y1",
     predecessorSourceCommit: "a0524648ec37b397d004e9b816eb933f55ab385a",
     shape: "cart_cart_item",
@@ -98,6 +100,82 @@ export const OWNER_TABLE_RLS_ACTIVATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_stripe_checkout_order_create",
         arguments: "text, bigint, text, text, timestamp without time zone, jsonb",
+      }),
+    ]),
+  }),
+  stock_notification_v1: Object.freeze({
+    minimumCompatibleAppCommit: "e57362b515f41f0f72d7d483dc79a651de6bb711",
+    predecessorDeploymentId: "dpl_9WW7bJdjnmawMGt89i3SRJXrARPb",
+    predecessorSourceCommit: "113f176c362bc136bf55fbc0d32fbc9b5b39a0a5",
+    shape: "stock_notification",
+    migration: "20261027040000_activate_stock_notification_rls",
+    migrationSha256: "c771b5c6caed905ce00515969e461a5f9de7c65b626d1eaa6c80916d4b6d7942",
+    table: "StockNotification",
+    policies: Object.freeze([
+      Object.freeze({
+        name: "stock_notification_owner_delete",
+        command: "d",
+        usingExpression:
+          '("userId" = NULLIF(current_setting(\'app.user_id\'::text, true), \'\'::text))',
+      }),
+      Object.freeze({
+        name: "stock_notification_owner_select",
+        command: "r",
+        usingExpression:
+          '("userId" = NULLIF(current_setting(\'app.user_id\'::text, true), \'\'::text))',
+      }),
+    ]),
+    retainedFunctionMigration:
+      "20261026010000_prepare_stock_notification_authorities",
+    retainedFunctionMigrationSha256:
+      "3c77aed31571f7e4adb942bea15611ee97d75e8183f76899cc634749ab2955ce",
+    sharedFunctionMigration:
+      "20260905170000_correct_order_authority_composition",
+    sharedFunctionMigrationSha256:
+      "00e13c339320584780164cdf0b234f2005d698e8df0fd567480f53d2f8b23cff",
+    retainedFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_stock_notification_owner_subscribe",
+        arguments: "text, text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_seller_counts",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_seller_range_count",
+        arguments:
+          "timestamp without time zone, timestamp without time zone, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_restock_candidates",
+        arguments: "text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_seller_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_admin_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_block_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_stock_notification_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_notification_claim_back_in_stock",
+        arguments: "text, text, text",
+      }),
+    ]),
+    sharedFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_order_seller_analytics_top_listings",
+        arguments: "text, bigint, bigint, boolean, boolean",
       }),
     ]),
   }),
@@ -205,6 +283,89 @@ export function verifyOwnerTableRlsActivationSource(
       serviceFunctionSources,
     });
   }
+  if (release.shape === "stock_notification") {
+    const retained = migrationArtifact(
+      rootDir,
+      release.retainedFunctionMigration,
+      release.retainedFunctionMigrationSha256,
+    );
+    const shared = migrationArtifact(
+      rootDir,
+      release.sharedFunctionMigration,
+      release.sharedFunctionMigrationSha256,
+    );
+    const tablePattern = 'public\\."StockNotification"';
+    if (
+      !new RegExp(
+        `ALTER\\s+TABLE\\s+${tablePattern}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+        "iu",
+      ).test(activation.sql)
+      || !new RegExp(
+        `ALTER\\s+TABLE\\s+${tablePattern}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+        "iu",
+      ).test(activation.sql)
+      || (activation.sql.match(/\bCREATE\s+POLICY\b/giu) ?? []).length
+        !== release.policies.length
+      || !/REVOKE\s+ALL\s+ON\s+TABLE\s+public\."StockNotification"/iu.test(
+        activation.sql,
+      )
+      || !/GRANT\s+SELECT,\s*DELETE\s+ON\s+TABLE\s+public\."StockNotification"/iu.test(
+        activation.sql,
+      )
+      || /GRANT\s+(?:INSERT|UPDATE)[\s\S]{0,120}public\."StockNotification"/iu.test(
+        activation.sql,
+      )
+      || /\bCREATE\s+TRIGGER\b/iu.test(activation.sql)
+      || /\bDROP\s+(?:TABLE|COLUMN)\b/iu.test(activation.sql)
+    ) {
+      throw stopped("migration is not the reviewed StockNotification owner-policy shape");
+    }
+    for (const policy of release.policies) {
+      const command = policy.command === "r"
+        ? "SELECT"
+        : policy.command === "d"
+          ? "DELETE"
+          : null;
+      if (
+        command === null
+        || !new RegExp(
+          `CREATE\\s+POLICY\\s+${policy.name}\\s+ON\\s+${tablePattern}[\\s\\S]*?FOR\\s+${command}[\\s\\S]*?TO\\s+grainline_app_runtime`,
+          "iu",
+        ).test(activation.sql)
+      ) {
+        throw stopped(`migration policy ${policy.name} drifted`);
+      }
+    }
+    if (
+      (activation.sql.match(/current_setting\('app\.user_id',\s*true\)/gu) ?? [])
+        .length !== 2
+    ) {
+      throw stopped("StockNotification owner context boundary drifted");
+    }
+    const retainedFunctionSources = new Map(
+      [
+        ...release.retainedFunctions.map((entry) => [
+          entry.name,
+          functionSourceFromMigration(retained.sql, entry.name),
+        ]),
+        ...release.sharedFunctions.map((entry) => [
+          entry.name,
+          functionSourceFromMigration(shared.sql, entry.name),
+        ]),
+      ],
+    );
+    return Object.freeze({
+      releaseId,
+      release,
+      migrationPath: activation.migrationPath,
+      digest: activation.digest,
+      retainedMigrationPath: retained.migrationPath,
+      retainedDigest: retained.digest,
+      sharedMigrationPath: shared.migrationPath,
+      sharedDigest: shared.digest,
+      retainedFunctionSources,
+    });
+  }
   const retained = migrationArtifact(
     rootDir,
     release.retainedFunctionMigration,
@@ -282,10 +443,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         process.env.OWNER_TABLE_RLS_REVIEWED_PREDECESSOR_SOURCE_COMMIT,
       );
     }
-    const verified = verifyOwnerTableRlsActivationSource(
-      releaseId,
-    );
-    process.stdout.write(`${verified.release.migration}\n`);
+    const verified = verifyOwnerTableRlsActivationSource(releaseId);
+    const output = process.argv[2] ?? "--migration";
+    if (output === "--migration") {
+      process.stdout.write(`${verified.release.migration}\n`);
+    } else if (output === "--minimum-compatible-app-commit") {
+      process.stdout.write(`${verified.release.minimumCompatibleAppCommit}\n`);
+    } else {
+      throw stopped("output selector is invalid");
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

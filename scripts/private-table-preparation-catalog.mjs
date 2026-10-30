@@ -127,6 +127,63 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  favorite_v1: Object.freeze({
+    migration: "20261028010000_prepare_favorite_authorities",
+    migrationSha256: "d35ae9c5b2d90758d0f665bd246b60fe8fa8753cb10d5f8d72a6d573712b11e9",
+    table: "Favorite",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    // Listing.favoriteCount is sealed and verified by the migration itself;
+    // this table-scoped catalog intentionally records only Favorite additions.
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-profile-favorite-target-route.test.mjs",
+      "tests/public-visibility-followups.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_favorite_owner_listing_ids",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_add",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_delete_all",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_range_count",
+        arguments: "timestamp without time zone, timestamp without time zone, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_admin_listing_cleanup",
+        arguments: "text",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {

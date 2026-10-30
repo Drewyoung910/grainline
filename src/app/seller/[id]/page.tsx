@@ -41,6 +41,7 @@ import { isFirstPartyMediaUrl, normalizePublicHttpsUrl } from "@/lib/urlValidati
 import { getCachedPublicSellerStats } from "@/lib/publicSellerStats";
 import { getCachedPublicSellerTopTags } from "@/lib/popularTags";
 import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
+import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -268,14 +269,9 @@ async function SellerPublicContent({
   ]));
 
   // Saved set for current viewer
-  const savedSet = new Set<string>();
-  if (meId && listingIds.length > 0) {
-    const favs = await prisma.favorite.findMany({
-      where: { userId: meId, listingId: { in: listingIds } },
-      select: { listingId: true },
-    });
-    for (const f of favs) savedSet.add(f.listingId);
-  }
+  const savedSet = meId && listingIds.length > 0
+    ? await ownerFavoriteListingIds(meId, listingIds)
+    : new Set<string>();
 
   const shopRating = sellerRatingMap.get(seller.id) ?? null;
   const { soldCount, avgShipDays } = publicSellerStats;

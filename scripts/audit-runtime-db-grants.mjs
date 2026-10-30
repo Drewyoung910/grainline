@@ -117,6 +117,8 @@ export const SUPPORT_REQUEST_TABLE = "SupportRequest";
 export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
 export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
+export const STOCK_NOTIFICATION_TABLE = "StockNotification";
+export const STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const CART_OWNER_COLUMN_PRIVILEGES = ["\"updatedAt\":UPDATE"];
 export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
   "\"priceCents\":UPDATE",
@@ -566,6 +568,9 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_seller_public_blog_state_sync",
   "grainline_seller_rating_listing_state_sync",
   "grainline_saved_blog_post_insert_guard",
+  "grainline_favorite_count_maintain",
+  "grainline_favorite_update_forbidden",
+  "grainline_listing_favorite_count_guard",
   "grainline_review_reviewer_public_state_bind",
   "grainline_commission_buyer_public_state_bind",
   "grainline_user_public_review_commission_state_sync",
@@ -2958,6 +2963,12 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     && rlsPolicyTables.includes(tableName)
   ) {
     return CART_CART_ITEM_OWNER_TABLE_PRIVILEGES;
+  }
+  if (
+    tableName === STOCK_NOTIFICATION_TABLE
+    && rlsPolicyTables.includes(STOCK_NOTIFICATION_TABLE)
+  ) {
+    return STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES;
   }
   return REQUIRED_TABLE_PRIVILEGES;
 }

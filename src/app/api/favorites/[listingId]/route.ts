@@ -1,11 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { rateLimitResponse, safeRateLimit, saveRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import {
+  isFavoriteListingId,
+  removeOwnerFavorite,
+} from "@/lib/favoriteAccess";
 
 type Params = { listingId: string };
 
@@ -22,7 +25,9 @@ export async function DELETE(req: Request, ctx: { params: Promise<Params> }) {
   if (!rlOk) return privateResponse(rateLimitResponse(reset, "Too many save actions."));
 
   const { listingId } = await ctx.params;
-  if (!listingId) return privateJson({ error: "listingId required" }, { status: 400 });
+  if (!isFavoriteListingId(listingId)) {
+    return privateJson({ error: "Invalid listing id" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
 
   let me;
   try {
@@ -35,7 +40,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<Params> }) {
   }
 
   try {
-    await prisma.favorite.deleteMany({ where: { userId: me.id, listingId } });
+    await removeOwnerFavorite(me.id, listingId);
   } catch (error) {
     logServerError(error, {
       source: "favorite_delete",
