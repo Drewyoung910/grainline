@@ -215,6 +215,7 @@ jobs:
               ;;
             stock_notification_v1)
               node --test \
+                tests/stock-notification-rls-activation-production.test.mjs \
                 tests/stock-notification-route.test.mjs \
                 tests/stock-notification-state.test.mjs
               ;;
