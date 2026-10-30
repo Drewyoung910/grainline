@@ -218,6 +218,8 @@ const CART_CART_ITEM_RUNTIME_FUNCTION_NAMES = [
 ];
 const STOCK_NOTIFICATION_PREPARATION_MIGRATION =
   "prisma/migrations/20261026010000_prepare_stock_notification_authorities/migration.sql";
+const STOCK_NOTIFICATION_RLS_MIGRATION =
+  "prisma/migrations/20261027040000_activate_stock_notification_rls/migration.sql";
 const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_owner_subscribe",
   "grainline_stock_notification_seller_counts",
@@ -363,6 +365,8 @@ const {
   CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
   CART_OWNER_COLUMN_PRIVILEGES,
   CART_ITEM_OWNER_COLUMN_PRIVILEGES,
+  STOCK_NOTIFICATION_TABLE,
+  STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -900,6 +904,15 @@ describe("database grant inventory guardrails", () => {
     const cartActivatedInventory = {
       rlsPolicyTables: ["Cart", "CartItem"],
     };
+    const stockNotificationPredecessorInventory = {
+      rlsPolicyTables: [],
+    };
+    const stockNotificationActivatedInventory = {
+      rlsPolicyTables: [STOCK_NOTIFICATION_TABLE],
+    };
+    const stockNotificationRlsActivationPresent = existsSync(
+      STOCK_NOTIFICATION_RLS_MIGRATION,
+    );
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -1356,6 +1369,26 @@ describe("database grant inventory guardrails", () => {
         CART_ITEM_OWNER_COLUMN_PRIVILEGES,
       );
     }
+    if (stockNotificationRlsActivationPresent) {
+      assert.deepEqual(
+        STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
+        ["SELECT", "DELETE"],
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          STOCK_NOTIFICATION_TABLE,
+          stockNotificationPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          STOCK_NOTIFICATION_TABLE,
+          stockNotificationActivatedInventory,
+        ),
+        STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges(
         "Conversation",
@@ -1478,6 +1511,31 @@ describe("database grant inventory guardrails", () => {
           "table CartItem runtime role has unexpected table privileges: UPDATE",
           "table CartItem runtime role has unexpected column privileges: listingId:UPDATE",
         ],
+      );
+    }
+    if (stockNotificationRlsActivationPresent) {
+      const exactStockNotificationRow = {
+        ...exactPhaseARow,
+        runtime_privileges: STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
+      };
+      assert.deepEqual(
+        collectTablePrivilegeAllowlistIssues(
+          exactStockNotificationRow,
+          "table StockNotification",
+          { requiredPrivileges: STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES },
+        ),
+        [],
+      );
+      assert.deepEqual(
+        collectTablePrivilegeAllowlistIssues(
+          {
+            ...exactStockNotificationRow,
+            runtime_privileges: ["DELETE", "INSERT", "SELECT"],
+          },
+          "table StockNotification",
+          { requiredPrivileges: STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES },
+        ),
+        ["table StockNotification runtime role has unexpected table privileges: INSERT"],
       );
     }
   });
@@ -3453,6 +3511,9 @@ describe("database grant inventory guardrails", () => {
       source(USER_REPORT_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const stockNotificationRlsActivationPresent = existsSync(
+      STOCK_NOTIFICATION_RLS_MIGRATION,
+    );
     const emailDeliveryLedgerPrepared = existsSync(
       EMAIL_DELIVERY_LEDGER_MIGRATION,
     ) && EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.every((functionName) =>
@@ -3726,6 +3787,7 @@ describe("database grant inventory guardrails", () => {
         + (userReportAuthorityPrepared
           ? USER_REPORT_PREPARATION_FUNCTION_NAMES.length
           : 0)
+        + (stockNotificationRlsActivationPresent ? 1 : 0)
         + (emailDeliveryLedgerPrepared
           ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES.length
           : 0)
@@ -4139,6 +4201,9 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(stockNotificationRlsActivationPresent
+          ? ["StockNotification"]
+          : []),
       ],
     );
     assert.deepEqual(
@@ -4182,6 +4247,9 @@ describe("database grant inventory guardrails", () => {
         ...(sellerProfilePublicCandidatePresent ? ["SellerProfile"] : []),
         ...(sellerProfilePrivateEnableMigrationPresent
           ? ["SellerProfilePrivate"]
+          : []),
+        ...(stockNotificationRlsActivationPresent
+          ? ["StockNotification"]
           : []),
         "StripeWebhookEvent",
         ...(supportRequestRlsEnabled
@@ -4236,6 +4304,9 @@ describe("database grant inventory guardrails", () => {
           : []),
         ...(sellerProfilePrivateForceMigrationPresent
           ? ["SellerProfilePrivate"]
+          : []),
+        ...(stockNotificationRlsActivationPresent
+          ? ["StockNotification"]
           : []),
         "StripeWebhookEvent",
         ...(supportRequestForceMigrationPresent
@@ -5760,12 +5831,16 @@ describe("database grant inventory guardrails", () => {
     const cartCartItemProvisioningPresent = provision.includes(
       "grainline_cart_rls_active",
     );
+    const stockNotificationProvisioningPresent = provision.includes(
+      "grainline_stock_notification_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
         + Number(supportRequestProvisioningPresent)
         + Number(savedBlogPostProvisioningPresent)
-        + Number(cartCartItemProvisioningPresent),
+        + Number(cartCartItemProvisioningPresent)
+        + Number(stockNotificationProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -5809,6 +5884,16 @@ describe("database grant inventory guardrails", () => {
           ),
         );
       }
+    }
+    if (stockNotificationProvisioningPresent) {
+      assert.match(
+        provision,
+        /StockNotification RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :grainline_stock_notification_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StockNotification"[\s\S]*GRANT SELECT, DELETE ON TABLE public\."StockNotification"/,
+      );
     }
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,

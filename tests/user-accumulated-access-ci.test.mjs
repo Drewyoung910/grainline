@@ -92,10 +92,12 @@ const supportRequestCandidateTests = [
 const ownerTableCandidateMigrations = [
   "20261023070000_activate_saved_blog_post_rls",
   "20261023080000_activate_cart_cart_item_rls",
+  "20261027040000_activate_stock_notification_rls",
 ];
 const ownerTableCandidateTests = [
   "owner-table-rls-activation-production.test.mjs",
   "seller-profile-owner-saved-blog-post-authority-postgres.test.mjs",
+  "stock-notification-rls-activation-production.test.mjs",
 ];
 const emailDeliveryLedgerCandidateMigration =
   "20261025010000_prepare_email_delivery_ledger";
