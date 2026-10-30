@@ -70,7 +70,22 @@ function postureFromRow(row) {
   });
 }
 
-function assertReadyPosture(posture, expected) {
+function hasPrivilege(privileges, privilege) {
+  return privileges.includes(privilege.toUpperCase());
+}
+
+function assertRolePrivileges(posture, role, expectedPrivileges) {
+  for (const privilege of TABLE_PRIVILEGES) {
+    assert.equal(
+      posture[`${role}${privilege}`],
+      hasPrivilege(expectedPrivileges, privilege),
+      `${role}${privilege} drifted`,
+    );
+  }
+}
+
+function assertReadyPosture(posture, release) {
+  const expected = release.preparation.expectedPredecessorPosture;
   for (const [key, value] of Object.entries(expected)) {
     assert.equal(posture[key], value, `${key} drifted before activation`);
   }
@@ -85,24 +100,55 @@ function assertReadyPosture(posture, expected) {
   assert.equal(posture.runtimeAnyColumn, true, "runtime predecessor column authority drifted");
   assert.equal(posture.staffAnyColumn, false, "staff predecessor column authority drifted");
   assert.equal(posture.publicAnyColumn, false, "PUBLIC predecessor column authority drifted");
-  assert.equal(posture.nonOwnerTableAclCount, 4, "table ACL drifted before activation");
+  assert.equal(
+    posture.nonOwnerTableAclCount,
+    release.predecessorRuntimePrivileges.length,
+    "table ACL drifted before activation",
+  );
   assert.equal(posture.nonOwnerColumnAclCount, 0, "column ACL drifted before activation");
 }
 
-function assertActivePosture(posture) {
+function assertActivePosture(posture, release) {
   assert.equal(posture.rlsEnabled, true, "RLS is not enabled");
   assert.equal(posture.rlsForced, true, "RLS is not forced");
-  assert.equal(posture.policyCount, 0, "policyless posture drifted");
-  for (const role of ["runtime", "staff", "public"]) {
-    for (const privilege of TABLE_PRIVILEGES) {
-      assert.equal(posture[`${role}${privilege}`], false, `${role}${privilege} drifted`);
-    }
-  }
-  assert.equal(posture.runtimeAnyColumn, false, "runtime column authority remains");
+  assert.equal(posture.policyCount, release.policies.length, "policy count drifted");
+  assertRolePrivileges(posture, "runtime", release.activatedRuntimePrivileges);
+  assertRolePrivileges(posture, "staff", release.activatedStaffPrivileges);
+  assertRolePrivileges(posture, "public", release.activatedPublicPrivileges);
+  assert.equal(
+    posture.runtimeAnyColumn,
+    release.activatedRuntimePrivileges.some((privilege) => (
+      ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(privilege)
+    )),
+    "runtime column authority drifted",
+  );
   assert.equal(posture.staffAnyColumn, false, "staff column authority remains");
   assert.equal(posture.publicAnyColumn, false, "PUBLIC column authority remains");
-  assert.equal(posture.nonOwnerTableAclCount, 0, "non-owner table ACL remains");
+  assert.equal(
+    posture.nonOwnerTableAclCount,
+    release.activatedRuntimePrivileges.length
+      + release.activatedStaffPrivileges.length
+      + release.activatedPublicPrivileges.length,
+    "non-owner table ACL drifted",
+  );
   assert.equal(posture.nonOwnerColumnAclCount, 0, "non-owner column ACL remains");
+}
+
+function assertPolicies(rows, release, active) {
+  const expected = active ? release.policies : [];
+  assert.equal(rows.length, expected.length, "policy row count drifted");
+  const expectedByName = new Map(expected.map((policy) => [policy.name, policy]));
+  for (const row of rows) {
+    const policy = expectedByName.get(row.name);
+    assert.ok(policy, `unexpected policy ${row.name}`);
+    assert.equal(row.command, policy.command, `${row.name} command drifted`);
+    assert.equal(row.permissive, policy.permissive, `${row.name} permissiveness drifted`);
+    assert.deepEqual(row.roles, policy.roles, `${row.name} roles drifted`);
+    assert.equal(row.using, policy.using, `${row.name} USING drifted`);
+    assert.equal(row.with_check, policy.withCheck, `${row.name} WITH CHECK drifted`);
+    expectedByName.delete(row.name);
+  }
+  assert.equal(expectedByName.size, 0, "reviewed policy is absent");
 }
 
 function assertRestrictedRole(row, name) {
@@ -117,8 +163,56 @@ function assertRestrictedRole(row, name) {
   assert.equal(row.rolbypassrls, false, `${name} bypasses RLS`);
 }
 
-async function readFunctions(client, verified, tableOwner) {
-  const expectedEntries = verified.preparation.release.functions;
+function expectedFunctions(verified, active) {
+  const entries = verified.preparation.release.functions.map((entry) => ({
+    name: entry.name,
+    arguments: entry.arguments,
+    executeRole: entry.executeRole ?? "runtime",
+    source: verified.preparation.functionSources.get(entry.name),
+  }));
+  for (const retained of verified.release.functionChanges.retained) {
+    entries.push({
+      name: retained.name,
+      arguments: retained.arguments,
+      executeRole: active
+        ? retained.activatedExecuteRole
+        : retained.predecessorExecuteRole,
+      sourceMd5: retained.sourceMd5,
+    });
+  }
+  if (active) {
+    for (const replacement of verified.release.functionChanges.replacements) {
+      const predecessorIndex = entries.findIndex((entry) => (
+        entry.name === replacement.name && entry.arguments === replacement.arguments
+      ));
+      assert.notEqual(predecessorIndex, -1, `${replacement.name} predecessor is absent`);
+      const predecessor = entries.splice(predecessorIndex, 1)[0];
+      entries.push({
+        ...predecessor,
+        name: replacement.compatibilityName,
+        executeRole: "none",
+      });
+      entries.push({
+        name: replacement.name,
+        arguments: replacement.arguments,
+        executeRole: predecessor.executeRole,
+        source: verified.activeFunctionSources.get(replacement.name),
+      });
+    }
+    for (const addition of verified.release.functionChanges.additions) {
+      entries.push({
+        name: addition.name,
+        arguments: addition.arguments,
+        executeRole: addition.executeRole,
+        source: verified.activeFunctionSources.get(addition.name),
+      });
+    }
+  }
+  return entries;
+}
+
+async function readFunctions(client, verified, tableOwner, active) {
+  const expectedEntries = expectedFunctions(verified, active);
   const names = expectedEntries.map((entry) => entry.name);
   const rows = (await client.query(`
     SELECT procedure.proname AS function_name,
@@ -159,7 +253,7 @@ async function readFunctions(client, verified, tableOwner) {
     assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
     assert.equal(
       row.runtime_execute,
-      entry.executeRole !== "staff",
+      entry.executeRole === "runtime",
       `${identity} runtime EXECUTE drifted`,
     );
     assert.equal(
@@ -168,11 +262,15 @@ async function readFunctions(client, verified, tableOwner) {
       `${identity} staff EXECUTE drifted`,
     );
     assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
-    assert.equal(
-      row.source,
-      verified.preparation.functionSources.get(row.function_name),
-      `${identity} body drifted`,
-    );
+    if (entry.source !== undefined) {
+      assert.equal(row.source, entry.source, `${identity} body drifted`);
+    } else {
+      assert.equal(
+        createHash("md5").update(row.source, "utf8").digest("hex"),
+        entry.sourceMd5,
+        `${identity} body drifted`,
+      );
+    }
     expected.delete(identity);
   }
   assert.equal(expected.size, 0, "reviewed function is absent");
@@ -296,6 +394,25 @@ export async function inspectPrivateTableRlsActivationProduction(
       "grainline_staff_read_runtime",
     );
 
+    const policies = (await client.query(`
+      SELECT policy.polname AS name,
+             policy.polcmd AS command,
+             policy.polpermissive AS permissive,
+             ARRAY(
+               SELECT CASE
+                        WHEN role_oid = 0 THEN 'PUBLIC'
+                        ELSE pg_catalog.pg_get_userbyid(role_oid)
+                      END
+                 FROM pg_catalog.unnest(policy.polroles) AS role_oid
+                ORDER BY 1
+             ) AS roles,
+             pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, true) AS "using",
+             pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, true) AS with_check
+        FROM pg_catalog.pg_policy AS policy
+       WHERE policy.polrelid = $1::pg_catalog.regclass
+       ORDER BY policy.polname
+    `, [`public."${release.table}"`])).rows;
+
     const ledger = (await client.query(`
       SELECT migration_name, checksum, finished_at, rolled_back_at,
              applied_steps_count::integer AS applied_steps_count
@@ -312,11 +429,13 @@ export async function inspectPrivateTableRlsActivationProduction(
     const posture = postureFromRow(row);
     let activeCatalog = false;
     try {
-      assertActivePosture(posture);
+      assertActivePosture(posture, release);
+      assertPolicies(policies, release, true);
       activeCatalog = true;
     } catch (activeError) {
       try {
-        assertReadyPosture(posture, release.preparation.expectedPredecessorPosture);
+        assertReadyPosture(posture, release);
+        assertPolicies(policies, release, false);
       } catch {
         throw activeError;
       }
@@ -329,7 +448,12 @@ export async function inspectPrivateTableRlsActivationProduction(
         : "ready";
     if (phase === "postflight") assert.equal(state, "active", "activation is not applied");
 
-    const functions = await readFunctions(client, verified, row.table_owner_name);
+    const functions = await readFunctions(
+      client,
+      verified,
+      row.table_owner_name,
+      activeCatalog,
+    );
     await client.query("COMMIT");
     const evidence = Object.freeze({
       releaseId,
@@ -345,6 +469,7 @@ export async function inspectPrivateTableRlsActivationProduction(
       table: release.table,
       roles: roles.map((entry) => Object.freeze({ ...entry })),
       posture,
+      policies: policies.map((entry) => Object.freeze({ ...entry })),
       functions,
       productionChanged: false,
       containsRowData: false,
@@ -361,7 +486,18 @@ export async function inspectPrivateTableRlsActivationProduction(
         true,
       );
       assert.deepEqual(previous.roles, evidence.roles, "restricted roles changed during activation");
-      assert.deepEqual(previous.functions, evidence.functions, "function boundary changed during activation");
+      const changes = release.functionChanges;
+      if (
+        changes.retained.length === 0
+        && changes.replacements.length === 0
+        && changes.additions.length === 0
+      ) {
+        assert.deepEqual(
+          previous.functions,
+          evidence.functions,
+          "function boundary changed during activation",
+        );
+      }
     }
     writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, {
       mode: 0o600,

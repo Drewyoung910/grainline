@@ -57,7 +57,7 @@ async function runBinding({
   const compatible = "b".repeat(40);
   const predecessor = "c".repeat(40);
   const preparationHead = "d".repeat(40);
-  const minimumCompatible = "f2a23fd301ce5ba8c3968eccd6a2e9cb7b798799";
+  const minimumCompatible = "0c0e9e67081c2ad7b27d97bc3f5956ecd2090549";
   const listJobsForWorkflowRun = () => {};
   const listWorkflowRunsForRepo = () => {};
   const github = {
@@ -192,19 +192,23 @@ async function runPreparationEvidenceDownload({ artifacts } = {}) {
   }
 }
 
-test("workflow binds one reviewed activation to exact main and Production", async () => {
+test("workflow binds reviewed activations to exact main and Production", async () => {
   assert.ok(parsed.on.workflow_dispatch);
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.equal(parsed.jobs.activate.environment, "Production");
   assert.deepEqual(parsed.on.workflow_dispatch.inputs.release_id.options, [
+    "favorite_v1",
+    "follow_v1",
+    "review_vote_v1",
     "maker_verification_v1",
+    "owner_social_verification_v1",
   ]);
   assert.match(workflow, new RegExp(PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION, "u"));
   assert.match(workflow, /PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID/u);
   assert.match(workflow, /minimum-compatible-app-commit/u);
   assert.match(workflow, /REVIEWED_MINIMUM_COMPATIBLE_APP_COMMIT/u);
   assert.match(workflow, /minimumToPreparation\.data\.status/u);
-  assert.match(workflow, /PRIVATE_TABLE_RLS_ACTIVATION_PHASE: postflight/u);
+  assert.match(workflow, /PRIVATE_TABLE_RLS_ACTIVATION_PHASE=postflight/u);
   assert.match(workflow, /private-table-rls-activation-production-inspect\.mjs/u);
   assert.match(workflow, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(workflow, /REVIEWED_SUPERSEDED_DEPLOYMENT_ID/u);
@@ -249,12 +253,14 @@ test("workflow is sole-pending, restart-aware, readback-bound, and evidence-reta
   assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
   assert.match(workflow, /psql "\$DIRECT_URL"/u);
   assert.match(workflow, /npx prisma migrate resolve --applied "\$migration"/u);
-  assert.match(workflow, /steps\.preflight\.outputs\.state == 'ready'/u);
   assert.match(
     workflow,
-    /case "\$state" in[\s\S]*ready\)[\s\S]*active_unrecorded\)[\s\S]*active\)/u,
+    /case "\$state" in[\s\S]*ready\|active_unrecorded\)[\s\S]*active\)/u,
   );
-  assert.match(workflow, /state == 'active_unrecorded'/u);
+  assert.match(workflow, /private-table-rls-activation-state\.tsv/u);
+  assert.match(workflow, /owner_social_verification_v1/u);
+  assert.match(workflow, /--release-ids/u);
+  assert.match(workflow, /--migrations/u);
   assert.match(workflow, /audit:db-grants -- --require-direct-url/u);
   assert.match(workflow, /if: always\(\)[\s\S]*actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);

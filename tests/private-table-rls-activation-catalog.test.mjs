@@ -13,6 +13,7 @@ import test from "node:test";
 import {
   PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION,
   privateTableRlsActivation,
+  privateTableRlsActivationReleaseIds,
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
 
@@ -28,11 +29,11 @@ test("catalog byte-seals the combined policyless activation and rollback", () =>
   assert.equal(release.table, "MakerVerification");
   assert.equal(
     release.minimumCompatibleAppCommit,
-    "f2a23fd301ce5ba8c3968eccd6a2e9cb7b798799",
+    "0c0e9e67081c2ad7b27d97bc3f5956ecd2090549",
   );
   assert.equal(release.preparation.table, release.table);
   assert.equal(release.mode, "policyless_combined_enable_force");
-  assert.equal(release.expectedPolicyCount, 0);
+  assert.deepEqual(release.policies, []);
   assert.deepEqual(release.predecessorRuntimePrivileges, [
     "SELECT",
     "INSERT",
@@ -48,6 +49,37 @@ test("catalog byte-seals the combined policyless activation and rollback", () =>
     () => verifyPrivateTableRlsActivationSource("unreviewed_release"),
     /release id is not reviewed/u,
   );
+});
+
+test("catalog orders and byte-seals the owner social verification activation batch", () => {
+  const releaseIds = privateTableRlsActivationReleaseIds(
+    "owner_social_verification_v1",
+  );
+  assert.deepEqual(releaseIds, [
+    "favorite_v1",
+    "follow_v1",
+    "review_vote_v1",
+    "maker_verification_v1",
+  ]);
+  const releases = releaseIds.map((id) => privateTableRlsActivation(id));
+  assert.deepEqual(releases.map((entry) => entry.table), [
+    "Favorite",
+    "Follow",
+    "ReviewVote",
+    "MakerVerification",
+  ]);
+  assert.deepEqual(releases.map((entry) => entry.policies.length), [2, 0, 1, 0]);
+  assert.deepEqual(releases.map((entry) => entry.activatedRuntimePrivileges), [
+    ["SELECT", "DELETE"],
+    [],
+    ["SELECT"],
+    [],
+  ]);
+  for (const id of releaseIds) {
+    const entry = verifyPrivateTableRlsActivationSource(id);
+    assert.equal(entry.migrationDigest, entry.release.migrationSha256);
+    assert.equal(entry.rollbackDigest, entry.release.rollbackSha256);
+  }
 });
 
 test("catalog binds all prepared operations into the activation preflight", () => {

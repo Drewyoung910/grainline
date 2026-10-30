@@ -70,13 +70,21 @@ export function verifyAcceptedPrivateTablePreparationEvidence({
   assert.match(preparationCommit, COMMIT, "preparation commit is invalid");
   const activation = privateTableRlsActivation(releaseId);
   const expectedNames = ["preflight", "postflight"].map(
-    (phase) => `private-table-preparation-${preparationCommit}-${phase}.json`,
+    (phase) => (
+      `private-table-preparation-${preparationCommit}-${activation.preparationReleaseId}-${phase}.json`
+    ),
   );
   const actualNames = readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() || entry.isSymbolicLink())
     .map((entry) => entry.name)
     .sort();
-  assert.deepEqual(actualNames, [...expectedNames].sort(), "preparation evidence files drifted");
+  for (const expectedName of expectedNames) {
+    assert.equal(
+      actualNames.includes(expectedName),
+      true,
+      `preparation evidence file is absent: ${expectedName}`,
+    );
+  }
   const preflight = readEvidence(directory, expectedNames[0]);
   const postflight = readEvidence(directory, expectedNames[1]);
   const expectation = {
@@ -89,7 +97,7 @@ export function verifyAcceptedPrivateTablePreparationEvidence({
   verifyEvidence(preflight.value, { ...expectation, phase: "preflight" });
   verifyEvidence(postflight.value, { ...expectation, phase: "postflight" });
   assert.ok(
-    ["pending", "applied"].includes(preflight.value.state),
+    ["pending", "applied_unrecorded", "applied"].includes(preflight.value.state),
     "preflight preparation state drifted",
   );
   assert.equal(postflight.value.state, "applied", "preparation was not applied");

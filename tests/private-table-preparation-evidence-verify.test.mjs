@@ -51,7 +51,10 @@ function evidence(phase, state, overrides = {}) {
 function writePair(directory, preflight = evidence("preflight", "pending"), postflight = evidence("postflight", "applied")) {
   for (const [phase, value] of [["preflight", preflight], ["postflight", postflight]]) {
     writeFileSync(
-      join(directory, `private-table-preparation-${commit}-${phase}.json`),
+      join(
+        directory,
+        `private-table-preparation-${commit}-${release.preparationReleaseId}-${phase}.json`,
+      ),
       `${JSON.stringify(value)}\n`,
     );
   }
@@ -77,7 +80,7 @@ test("verifier binds exact preparation evidence to the activation", () => {
   }
 });
 
-test("verifier rejects wrong releases, commits, posture changes, and extra files", () => {
+test("verifier rejects wrong releases, commits, and posture changes", () => {
   for (const mutate of [
     (directory) => writePair(
       directory,
@@ -90,10 +93,6 @@ test("verifier rejects wrong releases, commits, posture changes, and extra files
         posture: { ...posture(), runtimeSelect: false },
       }),
     ),
-    (directory) => {
-      writePair(directory);
-      writeFileSync(join(directory, "unexpected.json"), "{}\n");
-    },
   ]) {
     const directory = mkdtempSync(join(tmpdir(), "private-preparation-reject-"));
     try {

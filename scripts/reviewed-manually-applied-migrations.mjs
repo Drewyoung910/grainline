@@ -66,6 +66,18 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "5ffda4a709672ba39633dab4a596a7b6c96a54d25d8b7ba4e97a96557ef1066c",
   ],
   [
+    "20261028050000_activate_favorite_rls",
+    "f3539711b0d5882309d32d5855ba7cd8019c0e8d54f22880af656cd5ca4008d0",
+  ],
+  [
+    "20261028060000_activate_follow_rls",
+    "bb4abeaf52787b5c4002d132ca4a7fc6b3b6321128bc287cb2e706556514d8b7",
+  ],
+  [
+    "20261028070000_activate_review_vote_rls",
+    "600dd452c4af2a2cdcd393637057af8761ac7e4cc794600eb3e04a30333ff486",
+  ],
+  [
     "20261028080000_activate_maker_verification_rls",
     "7868277f03b599768784c0f3a44a3c7bb28c8b64772a24f6183c538ec6f3401c",
   ],

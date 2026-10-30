@@ -8,7 +8,11 @@ on:
         required: true
         type: choice
         options:
+          - favorite_v1
+          - follow_v1
+          - review_vote_v1
           - maker_verification_v1
+          - owner_social_verification_v1
       release_commit:
         description: Exact reviewed main commit
         required: true
@@ -89,12 +93,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          migration="$(node scripts/private-table-rls-activation-catalog.mjs)"
+          mapfile -t release_ids < <(
+            node scripts/private-table-rls-activation-catalog.mjs --release-ids
+          )
+          mapfile -t migrations < <(
+            node scripts/private-table-rls-activation-catalog.mjs --migrations
+          )
+          test "${#release_ids[@]}" -gt 0
+          test "${#release_ids[@]}" -eq "${#migrations[@]}"
           minimum_compatible_app_commit="$(
             node scripts/private-table-rls-activation-catalog.mjs \
               --minimum-compatible-app-commit
           )"
-          echo "migration=$migration" >> "$GITHUB_OUTPUT"
           echo "minimum_compatible_app_commit=$minimum_compatible_app_commit" >> "$GITHUB_OUTPUT"
       - name: Bind activation to exact main, preparation, green checks, and compatible app
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
@@ -292,36 +302,50 @@ jobs:
           expected="$RUNNER_TEMP/private-table-preparation-${GITHUB_RUN_ID}-expected.txt"
           install -d -m 0700 "$directory"
           unzip -Z1 "$PRIVATE_TABLE_PREPARATION_ARCHIVE" | LC_ALL=C sort > "$actual"
-          printf '%s\n' \
-            "private-table-preparation-${PRIVATE_TABLE_PREPARATION_ACCEPTED_COMMIT}-postflight.json" \
-            "private-table-preparation-${PRIVATE_TABLE_PREPARATION_ACCEPTED_COMMIT}-preflight.json" \
-            | LC_ALL=C sort > "$expected"
+          : > "$expected"
+          mapfile -t release_ids < <(
+            node scripts/private-table-rls-activation-catalog.mjs --release-ids
+          )
+          mapfile -t preparation_release_ids < <(
+            node scripts/private-table-rls-activation-catalog.mjs --preparation-release-ids
+          )
+          test "${#release_ids[@]}" -eq "${#preparation_release_ids[@]}"
+          for preparation_release_id in "${preparation_release_ids[@]}"
+          do
+            printf '%s\n' \
+              "private-table-preparation-${PRIVATE_TABLE_PREPARATION_ACCEPTED_COMMIT}-${preparation_release_id}-postflight.json" \
+              "private-table-preparation-${PRIVATE_TABLE_PREPARATION_ACCEPTED_COMMIT}-${preparation_release_id}-preflight.json" \
+              >> "$expected"
+          done
+          LC_ALL=C sort -o "$expected" "$expected"
           cmp "$expected" "$actual"
           unzip -qq "$PRIVATE_TABLE_PREPARATION_ARCHIVE" -d "$directory"
-          PRIVATE_TABLE_PREPARATION_ACCEPTED_EVIDENCE_DIRECTORY="$directory" \
-            node scripts/private-table-preparation-evidence-verify.mjs
+          for release_id in "${release_ids[@]}"
+          do
+            PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID="$release_id" \
+            PRIVATE_TABLE_PREPARATION_ACCEPTED_EVIDENCE_DIRECTORY="$directory" \
+            PRIVATE_TABLE_PREPARATION_BINDING_EVIDENCE_PATH="$RUNNER_TEMP/private-table-rls-${GITHUB_SHA}-${release_id}-preparation-binding.json" \
+              node scripts/private-table-preparation-evidence-verify.mjs
+          done
       - name: Verify reviewed private-table activation source before owner access
         shell: bash
         run: |
           set -euo pipefail
-          migration="$(node scripts/private-table-rls-activation-catalog.mjs)"
+          mapfile -t migrations < <(
+            node scripts/private-table-rls-activation-catalog.mjs --migrations
+          )
           latest="$(ls -1d prisma/migrations/*/ | sed 's#/$##; s#.*/##' | LC_ALL=C sort | tail -n 1)"
-          test "$latest" = "$migration"
+          test "${#migrations[@]}" -gt 0
+          test "$latest" = "${migrations[-1]}"
+          mapfile -t release_tests < <(
+            node scripts/private-table-rls-activation-catalog.mjs --tests
+          )
+          test "${#release_tests[@]}" -gt 0
           node --test \
             tests/private-table-rls-activation-catalog.test.mjs \
             tests/private-table-rls-activation-production.test.mjs \
-            tests/reviewed-pending-migrations.test.mjs
-          case "$PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID" in
-            maker_verification_v1)
-              node --test \
-                tests/account-export-privacy.test.mjs \
-                tests/admin-action-guardrails.test.mjs \
-                tests/maker-verification-preparation.test.mjs \
-                tests/round10-state-machine-guardrails.test.mjs \
-                tests/round9-account-deletion-pii-guardrails.test.mjs
-              ;;
-            *) exit 1 ;;
-          esac
+            tests/reviewed-pending-migrations.test.mjs \
+            "${release_tests[@]}"
       - name: Verify exact compatible deployment is live and predecessor skew is closed
         env:
           REVIEWED_PRODUCTION_DEPLOYMENT_ID: ${{ inputs.production_deployment_id }}
@@ -337,59 +361,86 @@ jobs:
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          PRIVATE_TABLE_RLS_ACTIVATION_PHASE: preflight
-          PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH: ${{ runner.temp }}/private-table-rls-${{ github.sha }}-preflight.json
         run: |
           set -euo pipefail
-          state="$(node scripts/private-table-rls-activation-production-inspect.mjs)"
-          case "$state" in
-            ready)
-              migration="$(node scripts/private-table-rls-activation-catalog.mjs)"
-              echo "pending=$migration" >> "$GITHUB_OUTPUT"
-              ;;
-            active_unrecorded)
-              migration="$(node scripts/private-table-rls-activation-catalog.mjs)"
-              echo "pending=$migration" >> "$GITHUB_OUTPUT"
-              ;;
-            active) echo "pending=" >> "$GITHUB_OUTPUT" ;;
-            *) exit 1 ;;
-          esac
-          echo "state=$state" >> "$GITHUB_OUTPUT"
+          selection="$PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID"
+          state_file="$RUNNER_TEMP/private-table-rls-activation-state.tsv"
+          : > "$state_file"
+          chmod 600 "$state_file"
+          pending=()
+          mapfile -t release_ids < <(
+            node scripts/private-table-rls-activation-catalog.mjs --release-ids
+          )
+          for release_id in "${release_ids[@]}"
+          do
+            migration="$(
+              PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID="$release_id" \
+                node scripts/private-table-rls-activation-catalog.mjs
+            )"
+            evidence="$RUNNER_TEMP/private-table-rls-${GITHUB_SHA}-${release_id}-preflight.json"
+            state="$(
+              PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID="$release_id" \
+              PRIVATE_TABLE_RLS_ACTIVATION_PHASE=preflight \
+              PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH="$evidence" \
+                node scripts/private-table-rls-activation-production-inspect.mjs
+            )"
+            case "$state" in
+              ready|active_unrecorded) pending+=("$migration") ;;
+              active) ;;
+              *) exit 1 ;;
+            esac
+            printf '%s\t%s\t%s\n' "$release_id" "$migration" "$state" >> "$state_file"
+          done
+          pending_csv="$(IFS=,; echo "${pending[*]}")"
+          echo "pending=$pending_csv" >> "$GITHUB_OUTPUT"
       - name: Require only the reviewed private-table activation pending
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
         run: node scripts/assert-reviewed-pending-migrations.mjs
       - name: Apply reviewed private-table activation outside Prisma's ledger
-        if: steps.preflight.outputs.state == 'ready'
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           PGSSLROOTCERT: system
         run: |
           set -euo pipefail
-          migration="$(node scripts/private-table-rls-activation-catalog.mjs)"
-          psql "$DIRECT_URL" \
-            --set=ON_ERROR_STOP=on \
-            --file="prisma/migrations/$migration/migration.sql"
+          while IFS=$'\t' read -r release_id migration state
+          do
+            if [ "$state" = ready ]
+            then
+              psql "$DIRECT_URL" \
+                --set=ON_ERROR_STOP=on \
+                --file="prisma/migrations/$migration/migration.sql"
+            fi
+          done < "$RUNNER_TEMP/private-table-rls-activation-state.tsv"
       - name: Record the committed private-table activation in Prisma's ledger
-        if: >-
-          steps.preflight.outputs.state == 'ready' ||
-          steps.preflight.outputs.state == 'active_unrecorded'
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: |
           set -euo pipefail
-          migration="$(node scripts/private-table-rls-activation-catalog.mjs)"
-          npx prisma migrate resolve --applied "$migration"
+          while IFS=$'\t' read -r release_id migration state
+          do
+            if [ "$state" = ready ] || [ "$state" = active_unrecorded ]
+            then
+              npx prisma migrate resolve --applied "$migration"
+            fi
+          done < "$RUNNER_TEMP/private-table-rls-activation-state.tsv"
       - name: Read back exact private-table RLS catalog
+        shell: bash
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          PRIVATE_TABLE_RLS_ACTIVATION_PHASE: postflight
-          PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH: ${{ runner.temp }}/private-table-rls-${{ github.sha }}-postflight.json
-          PRIVATE_TABLE_RLS_ACTIVATION_PREVIOUS_EVIDENCE_PATH: ${{ runner.temp }}/private-table-rls-${{ github.sha }}-preflight.json
-        run: node scripts/private-table-rls-activation-production-inspect.mjs
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r release_id migration state
+          do
+            PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID="$release_id" \
+            PRIVATE_TABLE_RLS_ACTIVATION_PHASE=postflight \
+            PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH="$RUNNER_TEMP/private-table-rls-${GITHUB_SHA}-${release_id}-postflight.json" \
+            PRIVATE_TABLE_RLS_ACTIVATION_PREVIOUS_EVIDENCE_PATH="$RUNNER_TEMP/private-table-rls-${GITHUB_SHA}-${release_id}-preflight.json" \
+              node scripts/private-table-rls-activation-production-inspect.mjs
+          done < "$RUNNER_TEMP/private-table-rls-activation-state.tsv"
       - name: Require no migrations pending after activation
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

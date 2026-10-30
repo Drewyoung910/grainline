@@ -30,7 +30,10 @@ function migrationRow(entry, appliedStepsCount = 1) {
   };
 }
 
-function tableRow(active, overrides = {}) {
+function tableRow(active, overrides = {}, selectedRelease = release) {
+  const privileges = active
+    ? selectedRelease.activatedRuntimePrivileges
+    : selectedRelease.predecessorRuntimePrivileges;
   return {
     database_name: "grainline",
     current_user_name: "neondb_owner",
@@ -39,11 +42,11 @@ function tableRow(active, overrides = {}) {
     owner_bypasses_rls: true,
     rls_enabled: active,
     rls_forced: active,
-    policy_count: 0,
-    runtime_select: !active,
-    runtime_insert: !active,
-    runtime_update: !active,
-    runtime_delete: !active,
+    policy_count: active ? selectedRelease.policies.length : 0,
+    runtime_select: privileges.includes("SELECT"),
+    runtime_insert: privileges.includes("INSERT"),
+    runtime_update: privileges.includes("UPDATE"),
+    runtime_delete: privileges.includes("DELETE"),
     runtime_truncate: false,
     runtime_references: false,
     runtime_trigger: false,
@@ -61,10 +64,12 @@ function tableRow(active, overrides = {}) {
     public_truncate: false,
     public_references: false,
     public_trigger: false,
-    runtime_any_column: !active,
+    runtime_any_column: privileges.some((privilege) => (
+      ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(privilege)
+    )),
     staff_any_column: false,
     public_any_column: false,
-    non_owner_table_acl_count: active ? 0 : 4,
+    non_owner_table_acl_count: privileges.length,
     non_owner_column_acl_count: 0,
     ...overrides,
   };
@@ -83,8 +88,62 @@ function roleRows() {
   }));
 }
 
-function functionRows() {
-  return release.preparation.functions
+function policyRows(selectedRelease) {
+  return selectedRelease.policies.map((policy) => ({
+    name: policy.name,
+    command: policy.command,
+    permissive: policy.permissive,
+    roles: [...policy.roles],
+    using: policy.using,
+    with_check: policy.withCheck,
+  }));
+}
+
+function functionRows(selectedRelease = release, selectedVerified = verified, active = false) {
+  const entries = selectedRelease.preparation.functions.map((entry) => ({
+    name: entry.name,
+    arguments: entry.arguments,
+    executeRole: entry.executeRole ?? "runtime",
+    source: selectedVerified.preparation.functionSources.get(entry.name),
+  }));
+  for (const retained of selectedRelease.functionChanges.retained) {
+    entries.push({
+      name: retained.name,
+      arguments: retained.arguments,
+      executeRole: active
+        ? retained.activatedExecuteRole
+        : retained.predecessorExecuteRole,
+      source: "retained source",
+    });
+  }
+  if (active) {
+    for (const replacement of selectedRelease.functionChanges.replacements) {
+      const index = entries.findIndex((entry) => (
+        entry.name === replacement.name && entry.arguments === replacement.arguments
+      ));
+      const predecessor = entries.splice(index, 1)[0];
+      entries.push({
+        ...predecessor,
+        name: replacement.compatibilityName,
+        executeRole: "none",
+      });
+      entries.push({
+        name: replacement.name,
+        arguments: replacement.arguments,
+        executeRole: predecessor.executeRole,
+        source: selectedVerified.activeFunctionSources.get(replacement.name),
+      });
+    }
+    for (const addition of selectedRelease.functionChanges.additions) {
+      entries.push({
+        name: addition.name,
+        arguments: addition.arguments,
+        executeRole: addition.executeRole,
+        source: selectedVerified.activeFunctionSources.get(addition.name),
+      });
+    }
+  }
+  return entries
     .map((entry) => ({
       function_name: entry.name,
       identity_arguments: entry.arguments,
@@ -92,8 +151,8 @@ function functionRows() {
       owner_bypasses_rls: true,
       security_definer: true,
       configuration: ["search_path=pg_catalog"],
-      source: verified.preparation.functionSources.get(entry.name),
-      runtime_execute: entry.executeRole !== "staff",
+      source: entry.source,
+      runtime_execute: entry.executeRole === "runtime",
       staff_execute: entry.executeRole === "staff",
       public_execute: false,
     }))
@@ -108,6 +167,9 @@ function fakeClientClass({
   recorded = active,
   tableOverrides = {},
   roleOverrides = {},
+  selectedRelease = release,
+  selectedVerified = verified,
+  policyRows = [],
 }) {
   return class FakeClient {
     async connect() {}
@@ -117,7 +179,7 @@ function fakeClientClass({
       const sql = String(statement);
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
       if (sql.includes("current_database() AS database_name")) {
-        return { rows: [tableRow(active, tableOverrides)] };
+        return { rows: [tableRow(active, tableOverrides, selectedRelease)] };
       }
       if (sql.includes("rolname, rolsuper, rolinherit")) {
         return {
@@ -131,22 +193,25 @@ function fakeClientClass({
       if (sql.includes("FROM public._prisma_migrations")) {
         return {
           rows: recorded
-            ? [migrationRow(release.preparation), migrationRow(release, 0)]
-            : [migrationRow(release.preparation)],
+            ? [migrationRow(selectedRelease.preparation), migrationRow(selectedRelease, 0)]
+            : [migrationRow(selectedRelease.preparation)],
         };
       }
+      if (sql.includes("FROM pg_catalog.pg_policy AS policy")) {
+        return { rows: policyRows };
+      }
       if (sql.includes("procedure.prosrc AS source")) {
-        return { rows: functionRows() };
+        return { rows: functionRows(selectedRelease, selectedVerified, active) };
       }
       throw new Error(`unexpected query: ${sql.slice(0, 120)}`);
     }
   };
 }
 
-function environment(directory, phase, previousPath) {
+function environment(directory, phase, previousPath, selectedReleaseId = releaseId) {
   return {
     DIRECT_URL: "postgresql://example.invalid/grainline",
-    PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID: releaseId,
+    PRIVATE_TABLE_RLS_ACTIVATION_RELEASE_ID: selectedReleaseId,
     PRIVATE_TABLE_RLS_ACTIVATION_PHASE: phase,
     PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH: join(directory, `${phase}.json`),
     PRIVATE_TABLE_RLS_ACTIVATION_PREVIOUS_EVIDENCE_PATH: previousPath,
@@ -186,6 +251,52 @@ test("inspector proves ready and active states without row data", async () => {
     assert.equal(active.functions.filter((entry) => entry.staffExecute).length, 7);
   } finally {
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector proves exact owner policies and ReviewVote function transitions", async () => {
+  for (const selectedReleaseId of ["favorite_v1", "review_vote_v1"]) {
+    const selectedRelease = privateTableRlsActivation(selectedReleaseId);
+    const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
+    const directory = mkdtempSync(join(tmpdir(), `private-table-${selectedReleaseId}-`));
+    try {
+      const preEnv = environment(directory, "preflight", undefined, selectedReleaseId);
+      await inspectPrivateTableRlsActivationProduction(
+        preEnv,
+        {
+          Client: fakeClientClass({
+            active: false,
+            selectedRelease,
+            selectedVerified,
+          }),
+        },
+      );
+      const postEnv = environment(
+        directory,
+        "postflight",
+        preEnv.PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH,
+        selectedReleaseId,
+      );
+      const active = await inspectPrivateTableRlsActivationProduction(
+        postEnv,
+        {
+          Client: fakeClientClass({
+            active: true,
+            selectedRelease,
+            selectedVerified,
+            policyRows: policyRows(selectedRelease),
+          }),
+        },
+      );
+      assert.equal(active.state, "active");
+      assert.equal(active.policies.length, selectedRelease.policies.length);
+      assert.equal(
+        active.functions.length,
+        selectedReleaseId === "review_vote_v1" ? 6 : selectedRelease.preparation.functions.length,
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   }
 });
 
