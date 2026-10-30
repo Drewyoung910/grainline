@@ -54,6 +54,10 @@ export async function createUserBlock(blockerId: string, blockedId: string) {
       create: { blockerId, blockedId },
       update: {},
     });
+    // The Block and reciprocal Follow cleanup are one durable decision. If the
+    // cleanup fails, roll the Block back instead of leaving a blocked pair
+    // visible in follower counts until a later retry happens to repair it.
+    await cleanupBlockFollows(tx, blockedId);
     await deleteStockNotificationsForBlockedPair(tx, blockedId);
     return true;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
