@@ -1,6 +1,6 @@
 BEGIN;
 
-SET LOCAL lock_timeout = '10s';
+SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 
 -- Compatible preparation only. Favorite RLS and predecessor table grants stay
@@ -128,6 +128,9 @@ SECURITY INVOKER
 SET search_path = pg_catalog
 AS $grainline_listing_favorite_count_guard$
 BEGIN
+  IF TG_OP = 'INSERT' AND NEW."favoriteCount" = 0 THEN
+    RETURN NEW;
+  END IF;
   IF NOT EXISTS (
     SELECT 1
       FROM pg_catalog.pg_roles AS role_state
@@ -142,7 +145,7 @@ END;
 $grainline_listing_favorite_count_guard$;
 
 CREATE TRIGGER "Listing_favoriteCount_guard"
-BEFORE UPDATE OF "favoriteCount" ON public."Listing"
+BEFORE INSERT OR UPDATE OF "favoriteCount" ON public."Listing"
 FOR EACH ROW EXECUTE FUNCTION public.grainline_listing_favorite_count_guard();
 
 CREATE TRIGGER "Favorite_count_after_insert"
@@ -715,7 +718,7 @@ BEGIN
       FROM pg_catalog.pg_trigger AS trigger_state
      WHERE trigger_state.tgrelid = 'public."Listing"'::pg_catalog.regclass
        AND trigger_state.tgname = 'Listing_favoriteCount_guard'
-       AND trigger_state.tgtype = 19
+       AND trigger_state.tgtype = 23
        AND trigger_state.tgenabled = 'O'
        AND NOT trigger_state.tgisinternal
        AND (
