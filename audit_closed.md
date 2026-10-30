@@ -20050,3 +20050,19 @@ operations.
   the full staff/service transition matrix, remaining queue pagination, denial
   and input boundaries, direct-table denial, and predecessor rollback. See
   `docs/maker-verification-pre-rls-audit.md`.
+
+## 2026-10-30 ReviewVote parent-delete lock-order correction
+
+- **Claude C-1468 and C-1469 — verified and corrected before Production
+  preparation.** On exact main
+  `94c6d3bf74e13d5d19bc30433b1d6a0eda12fbc2`, the prepared owner toggle and
+  owner cleanup both mutated `ReviewVote` before locking `Review`. Parent Review
+  deletion locks `Review` first and then cascades into `ReviewVote`, so either
+  mutation could deadlock with parent deletion. Two deterministic tests on the
+  complete 443-migration PostgreSQL 17 schema failed first with `40P01`.
+- The corrected candidate takes canonical `User -> Review -> ReviewVote` locks
+  in fixed mutations. Private insert/delete compatibility guards make the
+  predecessor route use the same order during application-version skew. The
+  same PostgreSQL 17 scenarios now pass, including exact count reconciliation
+  and parent-cascade cleanup. ReviewVote RLS/grant activation remains a separate
+  unapproved operation.

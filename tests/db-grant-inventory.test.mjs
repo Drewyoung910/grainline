@@ -328,6 +328,7 @@ const REVIEW_VOTE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql";
 const REVIEW_VOTE_PREPARATION_FUNCTION_NAMES = [
   "grainline_review_vote_insert_guard",
+  "grainline_review_vote_delete_lock_guard",
   "grainline_review_vote_update_forbidden",
   "grainline_review_vote_owner_toggle",
   "grainline_review_vote_owner_export",

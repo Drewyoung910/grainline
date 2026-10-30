@@ -5314,6 +5314,7 @@ SELECT format(
 WITH review_vote_private(function_signature) AS (
   VALUES
     ('public."grainline_review_vote_insert_guard"()'),
+    ('public."grainline_review_vote_delete_lock_guard"()'),
     ('public."grainline_review_vote_update_forbidden"()')
 )
 SELECT pg_catalog.format(
