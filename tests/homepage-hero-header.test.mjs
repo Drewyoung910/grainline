@@ -41,42 +41,51 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(home, /HeroMosaic|mosaicListings|heroCollagePhotos/);
   });
 
-  it("overlays the header only on the homepage and keeps other pages in normal cream flow", () => {
+  it("pins one frosted header: clear over the homepage photo, frosted paper everywhere else", () => {
     const header = source("src/components/Header.tsx");
     const globals = source("src/app/globals.css");
-    const headerSurface = openingTagWith(header, "data-home-header-surface");
 
     assert.match(header, /const isHome = pathname === "\/"/);
-    assert.match(header, /isHome \? "absolute inset-x-0 top-0 bg-transparent" : "relative bg-\[#F7F5F0\]"/);
-    assert.match(header, /data-home-overlay=\{isHome \? "true" : undefined\}/);
-    assert.match(header, /data-home-logo-mark/);
-    assert.equal((header.match(/data-home-logo-mark/g) ?? []).length, 1);
-    assert.equal((header.match(/src="\/logo-espresso\.svg"/g) ?? []).length, 2);
-    assert.match(globals, /\.hero-logo-mark \{[\s\S]*background-color: #E5DFD2;[\s\S]*mask: url\("\/logo\.svg"\) center \/ contain no-repeat;/);
-    assert.doesNotMatch(globals, /\.hero-logo-mark \{[^}]*display:\s*block/);
-    assert.match(header, /hero-logo-mark block h-5 w-\[92px\][^"\n]*lg:h-8 lg:w-\[148px\]/);
+    // Clear only at the top of the homepage; frosted on scroll and on every
+    // other page (Drew, 2026-10-30: "frosted on other pages same as home").
+    assert.match(header, /const clear = isHome && !scrolled;/);
+    assert.match(header, /setScrolled\(window\.scrollY > 24\)/);
+    assert.match(header, /window\.addEventListener\("scroll", onScroll, \{ passive: true \}\)/);
+    assert.match(header, /\$\{isHome \? "fixed" : "sticky"\} inset-x-0 top-0 z-\[50\]/);
+    assert.match(header, /data-header-state=\{clear \? "clear" : "frosted"\}/);
+    // The frost is its own layer so the menu's fixed click-catcher is not
+    // trapped inside a backdrop-filtered header box.
+    const frost = openingTagWith(header, "data-header-frost");
+    assert.match(frost, /absolute inset-0 -z-10 bg-\[#F7F5F0\]\/85[^"]*backdrop-blur-xl/);
+    assert.match(frost, /clear \? "opacity-0" : "opacity-100"/);
+    const headerTag = openingTagWith(header, "data-header-state");
+    assert.doesNotMatch(headerTag, /backdrop-blur/);
+    // One masked logo tinted cream over the photo and espresso on paper.
+    assert.equal((header.match(/data-site-logo-mark/g) ?? []).length, 1);
+    assert.match(header, /logo-mark block h-5 w-\[92px\][^`]*lg:h-8 lg:w-\[148px\]/);
+    assert.match(header, /clear \? "bg-\[#E5DFD2\]" : "bg-\[#2C1F1A\]"/);
+    assert.match(globals, /\.logo-mark \{[\s\S]*mask: url\("\/logo\.svg"\) center \/ contain no-repeat;/);
+    assert.doesNotMatch(globals, /\.hero-logo-mark|\.logo-mark \{[^}]*background-color/);
     assert.match(header, /aria-label="Grainline home"/);
-    assert.match(header, /rounded-2xl border border-white\/25 bg-\[#F7F5F0\]\/26/);
-    assert.match(header, /rounded-2xl border border-white\/20 bg-\[#F7F5F0\]\/22/);
-    assert.match(header, /backdrop-blur-lg/);
-    assert.match(header, /lg:gap-12/);
-    assert.match(header, /xl:gap-16/);
-    assert.match(header, /lg:pl-10/);
-    assert.match(headerSurface, /relative isolate p-2/);
-    assert.doesNotMatch(headerSurface, /pl-3/);
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] flex-1"/);
-    assert.match(header, /data-header-actions className="flex items-center gap-1 xl:gap-2"/);
-    assert.doesNotMatch(header, /max-w-\[820px\]|data-header-actions className="ml-auto/);
-    assert.match(header, /<SearchBar overlay=\{isHome\} \/>/);
-    assert.equal((header.match(/<NotificationBell[^>]*overlay=\{isHome\}/g) ?? []).length, 2);
-    assert.match(header, /<UserAvatarMenu[\s\S]*?overlay=\{isHome\}/);
-    assert.match(header, /href="\/browse"[\s\S]*?rounded-full/);
-    assert.match(header, /href="\/blog"[\s\S]*?rounded-full/);
-    assert.match(header, /href="\/commission"[\s\S]*?rounded-full/);
+    // Desktop: search, then text nav with a sliding underline, then tools.
+    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    assert.match(header, /<SearchBar tone=\{clear \? "glass" : "solid"\} \/>/);
+    assert.match(header, /after:origin-left after:bg-current/);
+    assert.match(header, /hover:after:scale-x-100/);
+    for (const href of ["/browse", "/blog", "/commission"]) {
+      assert.match(header, new RegExp(`href="${href}" aria-current=\\{navLinkCurrent\\("${href}"\\)\\}`));
+    }
+    assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
+    assert.match(header, /border border-current\/35 px-4 text-sm font-medium/);
+    // Popovers are solid in every state.
+    assert.doesNotMatch(header, /overlay=\{/);
+    assert.doesNotMatch(header, /data-home-(overlay|header-surface|logo-mark|menu-surface)/);
+    // Header icon buttons follow the header color.
+    assert.match(header, /text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
     assert.match(header, /lg:hidden/);
-    assert.match(header, /className="h-5 w-auto min-\[360px\]:h-6 sm:h-7 lg:hidden"/);
     assert.match(header, /min-h-\[44px\]/);
     assert.match(header, /min-w-\[44px\]/);
+    // Mobile search popup.
     assert.match(header, /const mobileSearchId = React\.useId\(\)/);
     assert.match(header, /const \[searchClosing, setSearchClosing\] = React\.useState\(false\)/);
     assert.match(header, /const mobileSearchCloseTimerRef = React\.useRef<number \| null>\(null\)/);
@@ -86,11 +95,13 @@ describe("homepage hero and header contracts", () => {
     assert.match(header, /aria-controls=\{mobileSearchId\}/);
     assert.match(header, /id=\{mobileSearchId\}/);
     assert.match(header, /data-mobile-search-popup/);
-    assert.match(header, /left-3 right-3 top-\[calc\(100%\+0\.25rem\)\]/);
-    assert.match(header, /bg-transparent p-0 shadow-none/);
+    assert.match(header, /left-3 right-3 top-\[calc\(100%\+0\.5rem\)\]/);
     assert.match(header, /onClick=\{closeMobileSearch\}/);
     assert.match(header, /searchClosing \? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"/);
-    assert.match(header, /<SearchBar autoFocus overlay=\{isHome\} \/>/);
+    assert.match(header, /<SearchBar autoFocus tone="solid" \/>/);
+    // Sticky elements and anchors clear the pinned header.
+    assert.match(globals, /--site-header-h: 4rem;/);
+    assert.match(globals, /scroll-padding-top: calc\(var\(--site-header-h\) \+ 0\.75rem\);/);
   });
 
   it("uses the deeper cream and touch-safe frosted CTA states", () => {
@@ -187,65 +198,74 @@ describe("homepage hero and header contracts", () => {
     );
   });
 
-  it("keeps homepage popovers translucent while retaining opaque defaults", () => {
+  it("keeps header popovers opaque in every header state", () => {
     const header = source("src/components/Header.tsx");
     const bell = source("src/components/NotificationBell.tsx");
     const account = source("src/components/UserAvatarMenu.tsx");
 
+    // The header no longer asks for translucent popovers; the components'
+    // opaque defaults apply on every page.
+    assert.doesNotMatch(header, /overlay=\{/);
     for (const text of [bell, account]) {
       assert.match(text, /overlay = false/);
-      assert.match(text, /border border-white\/30 bg-\[#F7F5F0\]\/58/);
-      assert.match(text, /backdrop-blur-xl/);
-      assert.match(text, /bg-\[#EFEAE0\]\/30/);
-      assert.match(text, /hover:bg-white\/20/);
       assert.match(text, /ring-1 ring-black\/5 bg-white/);
     }
-    assert.match(bell, /data-home-notification-surface=\{overlay \? "true" : undefined\}/);
-    assert.match(account, /data-home-account-surface=\{overlay \? "true" : undefined\}/);
-    assert.match(header, /data-home-menu-surface=\{isHome \? "true" : undefined\}/);
-    assert.match(header, /bg-\[#F7F5F0\]\/58[\s\S]*backdrop-blur-xl/);
-    assert.match(header, /from-\[#F7F5F0\]\/70 via-\[#F7F5F0\]\/35/);
-    assert.match(header, /bg-\[#F7F5F0\] ring-1 ring-black\/5/);
+    assert.match(header, /rounded-2xl bg-\[#F7F5F0\] text-neutral-900 shadow-2xl ring-1 ring-black\/5/);
+    assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.doesNotMatch(header, /fixed inset-0[^\n]*backdrop-blur/);
-    assert.match(bell, /notificationUnreadClass[\s\S]*\? "bg-\[#EFEAE0\]\/55"[\s\S]*: "bg-\[#EFEAE0\]\/50"/);
-    assert.match(bell, /notificationRowShapeClass = overlay \? "rounded-none" : ""/);
     assert.match(bell, /className="text-\[13px\] font-medium leading-tight"/);
     assert.doesNotMatch(bell, /border-amber-200|bg-amber-50\/80|text-amber-700/);
     assert.match(bell, /<span className="sr-only">Unread: <\/span>/);
-    assert.match(bell, /notificationMutedTextClass[\s\S]*\? "text-neutral-800"/);
   });
 
-  it("keeps site search visually quiet without weakening its interaction contract", () => {
+  it("turns the search box solid on focus and keeps its interaction contract", () => {
     const search = source("src/components/SearchBar.tsx");
 
     assert.match(search, /placeholder="Search pieces, shops, and more…"/);
     assert.match(search, /role="search"/);
     assert.match(search, /aria-label="Search Grainline"/);
-    assert.match(search, /autoFocus = false,[\s\S]*overlay = false,[\s\S]*autoFocus\?: boolean;[\s\S]*overlay\?: boolean;/);
+    assert.match(search, /autoFocus = false,[\s\S]*tone = "solid",[\s\S]*autoFocus\?: boolean;[\s\S]*tone\?: SearchBarTone;/);
+    assert.match(search, /export type SearchBarTone = "glass" \| "solid";/);
     assert.match(search, /autoFocus=\{autoFocus\}/);
     assert.match(search, /if \(autoFocus && value\.length === 0\) openDropdown\(\)/);
     assert.match(search, /section: "Recommended searches"/);
     assert.match(search, /role="combobox"/);
     assert.match(search, /role="listbox"/);
     assert.match(search, /min-h-\[46px\]/);
-    assert.match(search, /rounded-2xl border shadow-sm/);
-    assert.match(search, /border-white\/25 bg-\[#F7F5F0\]\/34 backdrop-blur-lg/);
-    assert.match(search, /focus-within:bg-\[#F7F5F0\]\/48/);
-    assert.match(search, /border-neutral-200 bg-white\/90/);
-    assert.match(search, /border-white\/30 bg-\[#F7F5F0\]\/64 ring-1 ring-white\/20 backdrop-blur-xl/);
-    assert.match(search, /border-stone-200\/60 bg-white\/95 backdrop-blur-lg/);
-    assert.match(search, /overlay \? "hover:bg-white\/20" : "hover:bg-neutral-50"/);
-    assert.match(search, /w-full rounded-none px-4 py-2/);
+    // Pill box: frosted glass over the photo, white elsewhere, solid white
+    // while focused. No "/" keyboard hint.
+    assert.match(search, /rounded-full border transition-\[background-color,border-color,box-shadow,color\]/);
+    assert.match(search, /focus-within:border-white focus-within:bg-white focus-within:text-neutral-900/);
+    assert.match(search, /border-white\/35 bg-white\/15 text-\[#F5EFE6\] backdrop-blur-md/);
+    assert.match(search, /border-\[#2C1F1A\]\/\[0\.18\] bg-white text-neutral-900/);
+    assert.doesNotMatch(search, /<kbd/);
+    // Suggestions panel is always solid white.
+    assert.match(search, /rounded-2xl bg-white p-1\.5 text-neutral-900/);
+    assert.doesNotMatch(search, /overlay/);
+    assert.match(search, /w-full rounded-lg px-3 py-2 text-left/);
     assert.match(search, /type="submit"[\s\S]*min-w-11[\s\S]*<Search size=\{18\}/);
     assert.match(search, /aria-label="Clear search"[\s\S]*min-w-11/);
     assert.match(search, /group flex min-w-11[\s\S]*flex size-9 items-center justify-center rounded-full/);
-    assert.match(search, /group-hover:bg-white\/30[\s\S]*group-hover:bg-neutral-100/);
-    assert.doesNotMatch(search, /variant === "glass"|bg-neutral-900 text-white|rounded-full border-2/);
+    assert.doesNotMatch(search, /bg-neutral-900 text-white|rounded-full border-2/);
     assert.match(search, /maxLength=\{MAX_SEARCH_QUERY_LENGTH\}/);
     assert.match(search, /encodeURIComponent\(normalized\)/);
     assert.match(search, /ArrowDown/);
     assert.match(search, /ArrowUp/);
     assert.match(search, /Escape/);
+  });
+
+  it("keeps the suggestions panel steady while typing", () => {
+    const search = source("src/components/SearchBar.tsx");
+
+    // The first letter narrows the panel locally instead of closing it, and
+    // the entrance stagger plays only when the panel opens.
+    assert.doesNotMatch(search, /\} else \{\s*closeDropdown\(\);\s*\}\s*return;/);
+    assert.match(search, /const SUGGESTION_STAGGER_MS = 520;/);
+    assert.match(search, /className=\{staggerItems \? "search-option-in" : undefined\}/);
+    assert.match(search, /const SUGGESTION_DEBOUNCE_MS = 150;/);
+    assert.match(search, /\{ kind: "query", key: "query", section: "Search", label: query \}/);
+    // Pieces and shops before categories.
+    assert.ok(search.indexOf("...ITEM_SECTION_ORDER.flatMap") < search.indexOf("...categories.map"));
   });
 
   it("restores a semantic marketplace stat bar at an exact half overlap", () => {

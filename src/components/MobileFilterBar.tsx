@@ -469,7 +469,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
       {/* top-[2px] + pt-3 pulls bar 2px below viewport top so button outlines aren't clipped */}
-      <div className="md:hidden sticky top-[2px] z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-3 pb-3 flex items-center gap-3">
+      <div className="md:hidden sticky top-[var(--site-header-h)] z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-3 pb-3 flex items-center gap-3">
           <button
             onClick={() => setMobileOpen(true)}
             className="mt-[2px] inline-flex items-center gap-2 rounded-md border border-neutral-200 bg-[#EFEAE0] px-4 py-2.5 text-sm font-medium text-neutral-800 hover:bg-[#E5DFD2] transition-colors min-h-[44px]"

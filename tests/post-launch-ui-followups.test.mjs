@@ -371,10 +371,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
     assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // The search consumes all remaining room, and parent gap-3 is the exact
-    // search-to-actions spacing instead of a variable ml-auto spacer.
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] flex-1"/);
-    assert.match(header, /data-header-actions className="flex items-center gap-1 xl:gap-2"/);
+    // Search grows to a 640px cap, the text nav follows it, and the tools
+    // sit at the far right (motion prototype layout, 2026-10-30).
+    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 
   it("keeps metro SEO page widths matched to their content density", () => {
@@ -671,11 +671,13 @@ describe("post-launch UI follow-ups", () => {
     assert.match(messageIconLink, /<IconHoverTip label="Messages" \/>/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /clearCloseTimer\(\);[\s\S]*setClosing\(false\);[\s\S]*setOpen\(true\);/);
-    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    // Icon buttons follow the header color: cream over the homepage photo,
+    // dark on frosted paper.
+    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 hover:bg-current\/10/);
     assert.match(header, /border-stone-200\/60 bg-\[#EFEAE0\]/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
-    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
-    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
+    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
     assert.match(bell, /<div className="relative flex" ref=\{containerRef\}>/);
     for (const text of [header, bell, unreadBadge]) {
       assert.match(text, /absolute -top-1 -right-1 inline-flex h-5 min-w-5/);

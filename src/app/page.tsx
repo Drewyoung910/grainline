@@ -433,16 +433,19 @@ export default async function HomePage() {
         data-home-hero
         className="relative isolate h-[clamp(520px,68svh,600px)] overflow-hidden bg-[#18201f] sm:h-[clamp(600px,78svh,760px)]"
       >
-        <Image
-          src="/hero-maple-cabinets.jpg"
-          alt=""
-          aria-hidden="true"
-          fill
-          preload
-          quality={88}
-          sizes="(max-width: 639px) 150vw, 100vw"
-          className="hero-photo-settle object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
-        />
+        {/* The photo drifts slower than the page as it scrolls away. */}
+        <div aria-hidden="true" className="hero-parallax absolute inset-0">
+          <Image
+            src="/hero-maple-cabinets.jpg"
+            alt=""
+            aria-hidden="true"
+            fill
+            preload
+            quality={88}
+            sizes="(max-width: 639px) 150vw, 100vw"
+            className="hero-photo-settle object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+          />
+        </div>
         <div
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.62)_44%,rgba(44,31,26,0.24)_76%,rgba(44,31,26,0.04)_100%)] lg:bg-[linear-gradient(90deg,rgba(44,31,26,0.78)_0%,rgba(44,31,26,0.60)_28%,rgba(44,31,26,0.18)_48%,rgba(44,31,26,0)_66%)]"
           aria-hidden="true"
@@ -549,7 +552,7 @@ export default async function HomePage() {
               <Link href="/browse?sort=popular" className="text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more →</Link>
             </div>
 
-            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <ScrollFadeRow arrows className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
@@ -596,21 +599,21 @@ export default async function HomePage() {
         <ScrollSection>
           <h2 data-home-categories className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
           {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
-          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:overflow-visible sm:px-0">
             <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
               {CATEGORIES.map((c) => (
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-[background-color,scale] duration-300 ease-out motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center will-change-transform transition-[background-color,translate,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:hover:-translate-y-[3px] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
                 >
-                  <c.Icon size={28} className="text-neutral-900 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-110" />
+                  <c.Icon size={28} className="text-neutral-900 will-change-transform transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-[1.08]" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center hover:bg-[#E3DCCB] transition-[background-color,scale] duration-300 ease-out motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center will-change-transform transition-[background-color,translate,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:hover:-translate-y-[3px] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
               >
                 <span className="text-2xl text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
@@ -631,7 +634,7 @@ export default async function HomePage() {
               Nothing listed yet — check back soon.
             </div>
           ) : (
-            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <ScrollFadeRow arrows className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   return (
@@ -683,7 +686,7 @@ export default async function HomePage() {
                 See full feed →
               </Link>
             </div>
-            <ScrollFadeRow className="overflow-x-auto -mx-1 px-1">
+            <ScrollFadeRow arrows className="overflow-x-auto -mx-1 px-1">
             <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
@@ -763,12 +766,13 @@ export default async function HomePage() {
               {/* Spotlight card — image half + story half */}
               <article className="overflow-hidden rounded-3xl bg-[#EFEAE0] shadow-sm lg:grid lg:grid-cols-[1.05fr_1fr]">
                 {/* Workshop image */}
-                <div className="relative min-h-[240px] sm:min-h-[300px] lg:min-h-[440px]">
+                <div className="relative min-h-[240px] overflow-hidden sm:min-h-[300px] lg:min-h-[440px]">
+                  {/* Taller than its frame so it can drift as the card scrolls by. */}
                   <MediaImage
                     src={spotlightImage}
                     alt={`${spotlight.displayName ?? "Maker"} workshop`}
                     loading="lazy"
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className="spot-parallax absolute inset-x-0 -top-[10%] h-[120%] w-full object-cover"
                     fallbackClassName="absolute inset-0 h-full w-full bg-gradient-to-br from-neutral-800 to-neutral-600"
                   />
                   {/* Identity chip over the photo */}

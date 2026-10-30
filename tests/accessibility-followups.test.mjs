@@ -349,8 +349,7 @@ describe("accessibility follow-ups", () => {
     assert.match(header, /data-drawer-scroll-region/);
     assert.match(header, /scrollRegion\.scrollHeight > scrollRegion\.clientHeight \+ 1/);
     assert.match(header, /drawerNavFade &&/);
-    assert.match(header, /bg-gradient-to-t to-transparent/);
-    assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
+    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);
     assert.match(header, /drawerRef\.current\?\.focus\(\)/);
     assert.match(header, /onBlur=\{/);
     assert.match(header, /!drawerRef\.current\.contains\(e\.relatedTarget\)/);

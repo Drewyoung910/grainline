@@ -493,7 +493,7 @@ async function BrowseContent({
       <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
         <MobileFilterBar popularTags={visiblePopularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
-          <div className="sticky top-4 self-start">
+          <div className="sticky top-[calc(var(--site-header-h)+1rem)] self-start">
             <FilterSidebar popularTags={visiblePopularTags} />
           </div>
           <div className="flex-1 min-w-0 space-y-8">
@@ -680,7 +680,7 @@ async function BrowseContent({
       <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
-        <div className="sticky top-4 self-start">
+        <div className="sticky top-[calc(var(--site-header-h)+1rem)] self-start">
           <FilterSidebar popularTags={visiblePopularTags} />
         </div>
 

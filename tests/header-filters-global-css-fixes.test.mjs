@@ -75,7 +75,7 @@ describe("mobile filter and sort sheets (UI-17 / #1234)", () => {
   const header = source("src/components/Header.tsx");
 
   it("stack the backdrop and sheet above the site header", () => {
-    const headerZ = Number(header.match(/\} z-\[(\d+)\] text-neutral-900/)?.[1]);
+    const headerZ = Number(header.match(/"sticky"\} inset-x-0 top-0 z-\[(\d+)\]/)?.[1]);
     assert.equal(headerZ, 50);
     const sheetZ = [...sheets.matchAll(/fixed inset-(?:0|x-0 bottom-0) z-\[(\d+)\]/g)].map((m) => Number(m[1]));
     assert.equal(sheetZ.length, 4, "two backdrops and two sheets");

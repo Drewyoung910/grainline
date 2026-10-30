@@ -84,10 +84,11 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
         data-photo-state={photoState}
         onLoad={() => finishPhoto(true)}
         onError={() => finishPhoto(false)}
-        className="w-full aspect-[4/5] object-cover listing-photo backface-hidden transition-transform duration-700 ease-out motion-safe:group-hover:scale-[1.04]"
+        className="w-full aspect-[4/5] object-cover listing-photo backface-hidden transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:scale-[1.035]"
         fallbackClassName="w-full aspect-[4/5] bg-gradient-to-br from-amber-50 to-stone-100"
       />
-      {/* Second photo: requested on first hover, then cross-fades in while hovered. */}
+      {/* Second photo: requested on first hover, then swaps in quickly
+          (a short fade, not a slow dissolve) while hovered. */}
       {altRequested && altSrc && (
         <MediaImage
           alt=""
@@ -95,7 +96,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           src={altSrc}
           data-ready={altReady ? "true" : "false"}
           onLoad={() => setAltReady(true)}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden motion-safe:transition motion-safe:duration-700 motion-safe:ease-out motion-safe:group-hover:scale-[1.04] group-hover:data-[ready=true]:opacity-100"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden motion-safe:[transition:opacity_150ms_ease-out,scale_600ms_cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:scale-[1.035] group-hover:data-[ready=true]:opacity-100"
           fallbackClassName="hidden"
         />
       )}
@@ -108,11 +109,16 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       <div
         ref={photoRef}
         className="relative isolate rounded-2xl overflow-hidden bg-[#EFEAE0]"
+        data-photo-state={photoState}
         onPointerEnter={(event) => {
           // Touch devices never show the hover photo, so don't download it.
           if (event.pointerType === "mouse" && altSrc && !altRequested) setAltRequested(true);
         }}
       >
+        {/* A soft shimmer holds the space until a late photo arrives. */}
+        {photoState === "pending" && (
+          <span aria-hidden="true" className="card-shimmer pointer-events-none absolute inset-0" />
+        )}
         {listingHref ? (
           <Link href={listingHref} className="block">
             {photo}

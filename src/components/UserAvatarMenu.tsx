@@ -150,7 +150,7 @@ export default function UserAvatarMenu({
       {!open && <IconHoverTip label="Account" />}
       <button
         onClick={() => (open ? closeMenu() : openMenu())}
-        className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-neutral-200 hover:ring-2 hover:ring-neutral-300 shadow-sm hover:shadow-md transition-all"
+        className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-current/25 shadow-sm transition-[box-shadow,scale] duration-200 hover:ring-2 hover:ring-current/40 hover:shadow-md motion-safe:active:scale-[0.94]"
         style={{ borderRadius: "9999px" }}
         aria-label="Account menu"
         aria-expanded={open}

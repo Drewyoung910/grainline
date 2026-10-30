@@ -19,10 +19,31 @@ import { avatarInitial } from "@/lib/avatarInitials";
 export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const drawerItemHover = isHome ? "hover:bg-white/20" : "hover:bg-[#EFEAE0]";
-  const drawerSectionText = isHome ? "text-neutral-700" : "text-neutral-400";
-  const drawerIconText = isHome ? "text-neutral-700" : "text-neutral-500";
+  const drawerItemHover = "hover:bg-[#EFEAE0]";
+  const drawerSectionText = "text-neutral-400";
+  const drawerIconText = "text-neutral-500";
   const searchParams = useSearchParams();
+  // The header is clear over the homepage photo until the visitor scrolls,
+  // then settles into the same frosted paper every other page uses.
+  const [scrolled, setScrolled] = React.useState(false);
+  React.useEffect(() => {
+    if (!isHome) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      setScrolled(window.scrollY > 24);
+    };
+    const onScroll = () => {
+      if (frame === 0) frame = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+    };
+  }, [isHome]);
+  const clear = isHome && !scrolled;
   const { signOut, openUserProfile } = useClerk();
   // Clerk auth state — used to re-fetch /api/me when the session appears or
   // disappears client-side. Without this, signing in could leave the header
@@ -379,150 +400,120 @@ export default function Header() {
     return subscribeCartUpdated(onUpdated);
   }, [isSignedIn, loadAnonymousCartCount, loadCartCount]);
 
+  const iconButtonClass =
+    "group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out hover:bg-current/10 motion-safe:active:scale-[0.92]";
+  const navLinkClass = (href: string) => {
+    const current = pathname === href || pathname.startsWith(`${href}/`);
+    return `relative py-1 text-[15px] font-medium text-current after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[1.5px] after:origin-left after:bg-current after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:after:scale-x-100 ${
+      current ? "after:scale-x-100" : "after:scale-x-0"
+    }`;
+  };
+  const navLinkCurrent = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`) ? "page" as const : undefined;
+
   return (
     <header
-      className={`${isHome ? "absolute inset-x-0 top-0 bg-transparent" : "relative bg-[#F7F5F0]"} z-[50] text-neutral-900`}
-      data-home-overlay={isHome ? "true" : undefined}
+      data-header-state={clear ? "clear" : "frosted"}
+      className={`${isHome ? "fixed" : "sticky"} inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
+        clear ? "text-[#F5EFE6]" : "text-neutral-900"
+      }`}
     >
+      {/* Frosted paper lives on its own layer: a backdrop-filter on the
+          header itself would trap the menu's fixed click-catcher inside the
+          header's box. It fades in as the homepage scrolls past the photo. */}
+      <span
+        aria-hidden="true"
+        data-header-frost
+        className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] backdrop-blur-xl backdrop-saturate-150 transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] ${
+          clear ? "opacity-0" : "opacity-100"
+        }`}
+      />
       <nav
         aria-label="Main navigation"
-        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 ${
-          isHome
-            ? "pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-4 sm:pt-[calc(1rem+env(safe-area-inset-top))] lg:gap-12 lg:pb-5 lg:pl-10 lg:pr-8 lg:pt-[calc(1.25rem+env(safe-area-inset-top))] xl:gap-16 xl:pl-14 xl:pr-10"
-            : "py-3 sm:py-4 lg:gap-5 lg:px-8 lg:py-5"
+        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 transition-[padding] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)] sm:px-6 lg:gap-6 lg:px-8 xl:gap-8 ${
+          clear ? "py-4 lg:py-5" : "py-2.5 lg:py-3"
         }`}
       >
-        {/* Logo */}
+        {/* Logo: one mask so its color can follow the header from cream over
+            the photo to espresso on frosted paper. */}
         <Link
           href="/"
-          className={`flex min-h-[44px] shrink-0 items-center ${isHome ? "drop-shadow-[0_2px_12px_rgba(0,0,0,0.28)]" : ""}`}
+          className="flex min-h-[44px] shrink-0 items-center"
           aria-label="Grainline home"
         >
-          {isHome ? (
-            <span
-              aria-hidden="true"
-              data-home-logo-mark
-              className="hero-logo-mark block h-5 w-[92px] min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px]"
-            />
-          ) : (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/logo-espresso.svg"
-                alt="Grainline"
-                className="h-5 w-auto min-[360px]:h-6 sm:h-7 lg:hidden"
-              />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/logo-espresso.svg"
-                alt="Grainline"
-                className="hidden h-8 w-auto lg:block"
-              />
-            </>
-          )}
+          <span
+            aria-hidden="true"
+            data-site-logo-mark
+            className={`logo-mark block h-5 w-[92px] transition-[background-color] duration-500 min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px] ${
+              clear ? "bg-[#E5DFD2]" : "bg-[#2C1F1A]"
+            }`}
+          />
         </Link>
 
-        {/* Search and navigation share one quiet floating surface on the
-            homepage. Other pages keep the same controls in normal flow. */}
-        <div
-          data-home-header-surface={isHome ? "true" : undefined}
-          className={`hidden min-w-0 flex-1 items-center gap-3 lg:flex ${
-            isHome
-              ? "relative isolate p-2"
-              : ""
-          }`}
-        >
-          {isHome && (
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/25 bg-[#F7F5F0]/26 shadow-[0_16px_50px_rgba(12,10,9,0.12)] backdrop-blur-lg"
-            />
-          )}
-          <span data-header-search-slot className="flex min-w-[220px] flex-1">
-            <SearchBar overlay={isHome} />
+        {/* ── Desktop (lg+): search, nav, tools ─────────────────────────── */}
+        <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex xl:gap-8">
+          <span data-header-search-slot className="flex min-w-[220px] max-w-[640px] flex-1">
+            <SearchBar tone={clear ? "glass" : "solid"} />
           </span>
 
-          {/* ── Desktop nav (lg+) ──────────────────────────────────────── */}
-          <div data-header-actions className="flex items-center gap-1 xl:gap-2">
-          <Link
-            href="/browse"
-            className="inline-flex items-center rounded-full px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
-          >
-            Browse
-          </Link>
-          <Link
-            href="/blog"
-            className="inline-flex items-center rounded-full px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
-          >
-            Blog
-          </Link>
-          <Link
-            href="/commission"
-            className="inline-flex items-center rounded-full px-2 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/10 hover:text-black xl:px-3"
-          >
-            Commission Room
-          </Link>
+          <div data-header-nav className="flex shrink-0 items-center gap-6">
+            <Link href="/browse" aria-current={navLinkCurrent("/browse")} className={navLinkClass("/browse")}>
+              Browse
+            </Link>
+            <Link href="/blog" aria-current={navLinkCurrent("/blog")} className={navLinkClass("/blog")}>
+              Blog
+            </Link>
+            <Link href="/commission" aria-current={navLinkCurrent("/commission")} className={navLinkClass("/commission")}>
+              Commission Room
+            </Link>
+          </div>
 
-          <Show when="signed-in">
-            <NotificationBell initialUnreadCount={0} overlay={isHome} />
-          </Show>
+          <div data-header-actions className="ml-auto flex shrink-0 items-center gap-1">
+            <Show when="signed-in">
+              <NotificationBell initialUnreadCount={0} />
+            </Show>
 
-          <Show when="signed-in">
-            <MessageIconLink />
-          </Show>
+            <Show when="signed-in">
+              <MessageIconLink />
+            </Show>
 
-          {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
-          <Link
-            href="/cart"
-            className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
-            aria-label="Cart"
-          >
-            <ShoppingBag size={22} />
-            <IconHoverTip label="Cart" />
-            {cartCount != null && cartCount > 0 && (
-              <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
-                {cartCount}
+            {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
+            <Link href="/cart" className={iconButtonClass} aria-label="Cart">
+              <ShoppingBag size={22} />
+              <IconHoverTip label="Cart" />
+              {cartCount != null && cartCount > 0 && (
+                <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+
+            <Show
+              when="signed-in"
+              fallback={
+                <Link
+                  href="/sign-in"
+                  className="ml-1.5 inline-flex h-10 items-center rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
+                >
+                  Sign in
+                </Link>
+              }
+            >
+              <span className="ml-1.5 inline-flex">
+                <UserAvatarMenu
+                  name={name}
+                  imageUrl={imageUrl}
+                  avatarImageUrl={avatarImageUrl}
+                  role={role}
+                  hasSeller={hasSeller}
+                />
               </span>
-            )}
-          </Link>
-
-          <Show
-            when="signed-in"
-            fallback={
-              <Link
-                href="/sign-in"
-                className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
-              >
-                Sign in
-              </Link>
-            }
-          >
-            <UserAvatarMenu
-              name={name}
-              imageUrl={imageUrl}
-              avatarImageUrl={avatarImageUrl}
-              role={role}
-              hasSeller={hasSeller}
-              overlay={isHome}
-            />
-          </Show>
+            </Show>
           </div>
         </div>
 
         {/* ── Mobile/tablet right: search | bell | cart | menu (< lg) ───── */}
-        <div
-          className={`ml-auto flex items-center gap-0.5 lg:hidden ${
-            isHome
-              ? "relative isolate p-0.5"
-              : ""
-          }`}
-        >
-          {isHome && (
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 -z-10 rounded-2xl border border-white/20 bg-[#F7F5F0]/22 shadow-[0_10px_32px_rgba(12,10,9,0.12)] backdrop-blur-lg"
-            />
-          )}
+        <div className="ml-auto flex items-center gap-0.5 lg:hidden">
           {/* Search toggle */}
           <button
             onClick={() => {
@@ -532,7 +523,7 @@ export default function Header() {
             aria-label={searchOpen ? "Close search" : "Search"}
             aria-expanded={searchOpen}
             aria-controls={mobileSearchId}
-            className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]"
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
@@ -540,7 +531,7 @@ export default function Header() {
           {/* Notification bell */}
           <Show when="signed-in">
             <span className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
-              <NotificationBell initialUnreadCount={unreadNotifCount} overlay={isHome} />
+              <NotificationBell initialUnreadCount={unreadNotifCount} />
             </span>
           </Show>
 
@@ -555,7 +546,7 @@ export default function Header() {
             className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
             aria-label="Cart"
           >
-            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors">
+            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]">
               <ShoppingBag size={20} />
               {cartCount != null && cartCount > 0 && (
                 <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white${cartBumpCount > 0 ? " badge-bump" : ""}`}>
@@ -573,7 +564,7 @@ export default function Header() {
             aria-expanded={drawerOpen}
             aria-haspopup="dialog"
             aria-controls={drawerOpen ? drawerId : undefined}
-            className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]"
           >
             <Menu size={24} />
           </button>
@@ -592,11 +583,11 @@ export default function Header() {
           <div
             id={mobileSearchId}
             data-mobile-search-popup
-            className={`absolute left-3 right-3 top-[calc(100%+0.25rem)] z-50 bg-transparent p-0 shadow-none lg:hidden motion-reduce:animate-none sm:left-6 sm:right-6 ${
+            className={`absolute left-3 right-3 top-[calc(100%+0.5rem)] z-50 lg:hidden motion-reduce:animate-none sm:left-6 sm:right-6 ${
               searchClosing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
             }`}
           >
-            <SearchBar autoFocus overlay={isHome} />
+            <SearchBar autoFocus tone="solid" />
           </div>
         </>
       )}
@@ -618,7 +609,6 @@ export default function Header() {
           {/* Panel — floating card anchored top-right, sized to content */}
           <div
             id={drawerId}
-            data-home-menu-surface={isHome ? "true" : undefined}
             ref={drawerRef}
             role="dialog"
             aria-label="Menu"
@@ -635,11 +625,7 @@ export default function Header() {
                 closeDrawer();
               }
             }}
-            className={`fixed right-3 top-14 z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col overflow-hidden overscroll-contain rounded-2xl shadow-2xl outline-none motion-reduce:animate-none ${
-              isHome
-                ? "border border-white/30 bg-[#F7F5F0]/58 ring-1 ring-white/20 backdrop-blur-xl"
-                : "bg-[#F7F5F0] ring-1 ring-black/5"
-            } ${
+            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] flex-col overflow-hidden overscroll-contain rounded-2xl bg-[#F7F5F0] text-neutral-900 shadow-2xl ring-1 ring-black/5 outline-none motion-reduce:animate-none ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >
@@ -647,11 +633,7 @@ export default function Header() {
                 next to the hamburger); saves height so more menu rows are
                 visible before scrolling. */}
             <div
-              className={`flex items-center justify-between border-b pl-5 pr-2 py-1 ${
-                isHome
-                  ? "border-[#2C1F1A]/[0.12] bg-[#EFEAE0]/30"
-                  : "border-stone-200/60 bg-[#EFEAE0]"
-              }`}
+              className="flex items-center justify-between border-b border-stone-200/60 bg-[#EFEAE0] py-1 pl-5 pr-2"
             >
               <span className="text-sm font-semibold">
                 Menu
@@ -785,11 +767,7 @@ export default function Header() {
               {drawerNavFade && (
                 <div
                   aria-hidden="true"
-                  className={`pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t to-transparent ${
-                    isHome
-                      ? "from-[#F7F5F0]/70 via-[#F7F5F0]/35"
-                      : "from-[#F7F5F0] via-[#F7F5F0]/75"
-                  }`}
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#F7F5F0] via-[#F7F5F0]/75 to-transparent"
                 />
               )}
             </div>
@@ -797,11 +775,7 @@ export default function Header() {
             {/* Avatar + inline actions at bottom — no dropdown to avoid overflow-hidden clipping */}
             <Show when="signed-in">
               <div
-                className={`border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] ${
-                  isHome
-                    ? "border-[#2C1F1A]/[0.12] bg-[#F7F5F0]/38"
-                    : "border-stone-200/60 bg-white"
-                }`}
+                className="border-t border-stone-200/60 bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
               >
                 {/* Avatar + name row — display only */}
                 <div className="flex items-center gap-3 px-3 py-2">
@@ -826,9 +800,7 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={handleOpenUserProfile}
-                  className={`flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-neutral-700 ${
-                    isHome ? "hover:bg-white/20" : "hover:bg-[#F7F5F0]"
-                  }`}
+                  className="flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-neutral-700 hover:bg-[#F7F5F0]"
                 >
                   Manage Account
                 </button>
@@ -839,9 +811,7 @@ export default function Header() {
                   onClick={() => {
                     void handleSignOut();
                   }}
-                  className={`flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-red-600 ${
-                    isHome ? "hover:bg-red-50/40" : "hover:bg-red-50"
-                  }`}
+                  className="flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                 >
                   Sign Out
                 </button>

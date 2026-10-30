@@ -645,7 +645,7 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 
 ### Badge placement with props
 
-Status badges (Made to order / Ready to ship / Out of stock) removed from listing cards — redundant noise. Only visible on listing detail page. Guild badge: 20px, inline after the maker name in the card's maker row (changed 2026-10-27 from a 40px right column; see Motion Polish Pass). No photo overlay. FavoriteButton heart wrapped in `bg-black/30 rounded-full p-1.5 backdrop-blur-sm` for visibility on all photo backgrounds. SimilarItems no longer shows a badge (too cluttered). Browse list-view ListCard keeps an inline 22px badge next to seller name.
+Status badges (Made to order / Ready to ship / Out of stock) removed from listing cards — redundant noise. Only visible on listing detail page. Guild badge: 20px, inline after the maker name in the card's maker row (changed 2026-10-27 from a 40px right column; see Motion Polish Pass). No photo overlay. FavoriteButton heart sits on a solid white circle for visibility on all photo backgrounds (see Motion Pass 2). SimilarItems no longer shows a badge (too cluttered). Browse list-view ListCard keeps an inline 22px badge next to seller name.
 
 LaurelWreathIcon and HammerChiselIcon default sizes both bumped to 32.
 
@@ -2904,16 +2904,45 @@ Legacy-styling cleanup + chrome green removal. Behavior contracts to preserve:
 
 Animation and styling only; page layout is unchanged. Behavior future agents must preserve:
 
-- **Motion rules**: every keyframe animation lives in `globals.css` under `@media (prefers-reduced-motion: no-preference)` and animates only `opacity` and `transform` (plus a short `filter` blur on the card photo fade). Resting styles outside that block keep every element visible and in place when motion is off. Entrance animations use `backwards` fill (not `both`), and each one's end frame equals the element's resting style, so finished animations leave no lingering transform or filter on the element. Do not add scroll-linked parallax or always-on transforms; they caused visible jitter in the prototype.
+- **Motion rules**: every keyframe animation lives in `globals.css` under `@media (prefers-reduced-motion: no-preference)` and animates only `opacity` and `transform` (plus a short `filter` blur on the card photo fade). Resting styles outside that block keep every element visible and in place when motion is off. Entrance animations use `backwards` fill (not `both`), and each one's end frame equals the element's resting style, so finished animations leave no lingering transform or filter on the element. Scroll-linked motion is allowed only as CSS scroll-driven animations inside `@supports (animation-timeline: scroll())` (they run on the compositor); never drive parallax from JavaScript scroll handlers, which jittered in the prototype.
 - **Homepage hero**: the photo settles from a slight zoom (`.hero-photo-settle`), the three headline lines rise in sequence from CSS (`.hero-lines > span:nth-child(n)`, so the pinned line markup stays untouched), then the subtitle and each button separately (`.hero-rise` with `--hero-rise-delay`; never fade the buttons' wrapper, because a fading parent switches off their frosted `backdrop-blur` until the fade ends), then the stats band (`.hero-stats-rise`). The band's half-overlap offset uses Tailwind's `translate` property, which composes with the animation's `transform`; keep those separate.
-- **Category tiles** press in slightly and their icon tilts on hover. They sit in a horizontally scrolling row that clips vertically, so do not add a hover lift or drop shadow there.
+- **Category tiles** lift 3px with a soft shadow on hover and their icon tilts (Motion Pass 2). The row only scrolls below `sm`, where there is no hover; from `sm` up it is `overflow-visible` so the lift and shadow are not clipped. Tiles and icons carry `will-change-transform` so one tile's hover does not re-rasterize its neighbours (the "every icon jiggles" bug).
 - **Shared `ListingCard`** (supersedes the older 40px right-column Guild badge notes): the info area is title (one line), price with shop rating, then maker name, a 20px `GuildBadge`, and location. The info area is a size container: below 15rem (phone grids and scroll rows) the location moves to its own line so maker names stay readable; wider cards keep one row, laid out as a grid (`minmax(0,max-content)` then `minmax(0,1fr)`) so the name gets its full width before the location gets any, and the location truncates first. The badge keeps an invisible 36px tap area (a `::before` on its button) so it is hard to miss next to the name link. The photo container carries the `#EFEAE0` placeholder tint. A photo that has not started rendering at hydration is hidden via `data-photo-state="pending"` and fades in on load; already-painted photos are never hidden. The second photo is requested on first hover and cross-fades in only after it has loaded (`data-ready`), so cards never download it up front. The main photo keeps `className="w-full aspect-[4/5] object-cover` as a static string. There is no "View piece" tag.
-- **`FavoriteButton`**: the 36px circle scales in only on card or button hover. Saving replays a heart pop and an eight-dot burst (`.heart-burst-dot`, invisible at rest). The 44px target and the pinned class strings are unchanged.
+- **`FavoriteButton`** (Motion Pass 2): a solid white 36px circle sits behind a dark outlined heart (red fill when saved) at all times, inside the unchanged 44px target. Only the heart pops (`.heart-pop`, a small ease-out press-and-pop, not a spring) with an eight-dot burst outside the circle; the circle itself never moves except a slight press. Pending saves ignore clicks instead of setting `disabled`, which restyled the button mid-tap.
 - **Header cart badge** bumps only when a cart-change event (`subscribeCartUpdated`) is followed by a higher count. Page loads and signing in or out reload the count without a bump.
 - **Map pins**: every maker map marker uses `createMapPinElement()` from `src/lib/mapPinElement.ts` with `anchor: "bottom"` instead of MapLibre's default marker. MapLibre only names its own default markers, so the pin sets `role="img"` and an `aria-label` itself; interactive maps override both, and `MapCard` marks a pin with a popup as a button. `LocationPicker` (seller drag pin) still uses the default marker. Clusters use the same espresso fill with a cream stroke.
 - **Variant options**: the selected option sits on a highlight (`VariantSelector`) that slides between choices; it is layered above unselected options and below the selected one. The slide uses a non-overshooting ease, and a slid-to option waits (`motion-safe:delay-[130ms]`) before turning see-through with white text, so its label is never white while off the highlight. Initial and first picks keep their own dark fill, so server-rendered markup looks identical. Resizes that rewrap the options move the highlight straight to its new spot (measured with `flushSync` before paint) instead of sliding.
 - **Counts and small entrances**: Follow and Helpful counts render through `RollingNumber`, which never animates on first render. Search suggestions stagger in (`.search-option-in`), the listing photo viewer fades and grows in, gallery photo changes cross-fade only after the new photo loads (the old one stays until then) and only when the viewer changed photo (thumbnail, arrows, swipe or keys), never on the first photo shown; Helpful counts pass `grouped={false}` so they keep plain digits, and the Guild/Founding badge explanations spring open.
 - **Reveals and accordions**: `ScrollSection` exposes `data-revealed`; homepage product rows (`.reveal-stagger`) settle in with a scale-only stagger when their section reveals, since the scroll rows clip vertically. Its transition list includes `translate` because Tailwind 4 translate utilities use that property. Policy and FAQ accordions inside `.smooth-details` open smoothly only inside `@supports (interpolate-size: allow-keywords)`; elsewhere they stay instant (a height that cannot interpolate would otherwise snap late). Only `content-visibility` is `allow-discrete`.
+
+## Motion Pass 2 (2026-10-30)
+
+Ports the motion prototype's header and the effects Drew named, and fixes the
+first pass's rough edges. Behavior future agents must preserve:
+
+- **Header**: see the hero/header contract above. Sticky elements below it
+  use `--site-header-h` (`4rem`, `4.25rem` from `lg`), and `html` has a
+  matching `scroll-padding-top` so in-page anchors clear it.
+- **Search suggestions**: the panel never closes and reopens while typing.
+  The first letter narrows the recommended searches locally and offers a
+  "Search for" row; while results load, that local panel stays up. The
+  entrance stagger plays only for `SUGGESTION_STAGGER_MS` after the panel
+  opens, so new results swap in place instead of replaying (the "jiggle").
+  Results list pieces and shops first, then categories, then stories.
+  Debounce is 150ms. The panel is solid white and springs open.
+- **Listing card photos**: a shimmer (`.card-shimmer`) holds the space while
+  a late photo loads; the photo then fades and sharpens in. The hover second
+  photo swaps with a 150ms fade (the zoom keeps its slower 600ms ease).
+- **Product rows**: `ScrollFadeRow arrows` shows previous/next buttons on
+  hover-capable devices that glide the row about one screen of cards; they
+  hide at either end and never appear on touch.
+- **Page changes**: `src/app/template.tsx` fades and lifts page content in
+  on client-side navigation only; the first page load is never animated.
+  The header lives in the root layout, outside the template, so it stays put.
+- **Parallax**: the homepage hero photo (`.hero-parallax` wrapper) and the
+  maker spotlight photo (`.spot-parallax`, drawn 120% tall inside an
+  `overflow-hidden` frame) drift with CSS scroll-driven animations only.
+- **Popovers** (menu card, search panel) open with a gentle spring.
 
 ## Pending Tasks
 
@@ -4018,7 +4047,7 @@ Full amber color pass on `src/app/page.tsx`:
 
 Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing detail (`src/app/listing/[id]/page.tsx`) pages: `bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen` on both `<main>` elements.
 
-### Homepage photo hero + floating glass header (current contract — supersedes 2026-07-12)
+### Homepage photo hero + pinned frosted header (current contract — supersedes 2026-07-12)
 
 The July 12 multi-tile collage contract is retired. Its anti-glass rule, its
 cream-page-surface header rule, and its permanent mobile homepage search-bar
@@ -4042,18 +4071,22 @@ Hero behavior:
   beneath the headline. The only hero actions are the frosted pill CTAs
   "Browse" and "Find Shops Near You". There is no search bar, trending-tag row,
   centered content card, or listing-data dependency inside the hero.
-- The homepage header is an absolute, transparent overlay on the photograph;
-  other routes keep the header in normal cream (`#F7F5F0`) document flow. The
-  homepage logo uses the light cream masked mark. On desktop, search and
-  navigation share a rounded translucent cream surface with a subtle white
-  border, shadow, and backdrop blur. On mobile/tablet, the compact header
-  controls use the matching translucent glass surface.
-- Homepage search uses `SearchBar`'s `overlay` treatment. Desktop search lives
-  inside the floating header surface. Mobile search is opened on demand by the
-  header search button and appears in the animated dropdown; it is not a
-  permanently visible bar in the hero. Homepage notification, account, search,
-  and menu popovers retain their translucent overlay variants, while their
-  non-homepage defaults remain opaque.
+- Header (superseded 2026-10-30 by the motion prototype header; see "Motion
+  Pass 2"): one pinned header on every page. On the homepage it is `fixed`
+  and clear over the photo (cream text, cream masked logo, frosted-glass
+  search pill) until the page scrolls 24px, then settles into the same
+  frosted cream paper every other page uses (`sticky`, `bg-[#F7F5F0]/85` +
+  backdrop blur on a separate `data-header-frost` layer, never on the header
+  itself, because a backdrop-filter there would trap the menu's fixed
+  click-catcher). The logo is one `.logo-mark` mask tinted by a `bg-*`
+  utility. Desktop order is search (grows to 640px), text nav with a sliding
+  underline (`aria-current` on the active section), then tools at the right.
+  Header icon buttons use `text-current` so they follow the header color.
+  Header popovers (notifications, account, menu, search suggestions) are
+  solid in every state; the translucent `overlay` variants are no longer
+  used by the header. `SearchBar` takes `tone="glass" | "solid"`; the box
+  turns solid white while focused and has no "/" hint. Mobile search opens
+  on demand from the header search button.
 - The semantic four-item stats `<dl>` sits exactly half inside and half below
   the hero via the zero-height anchor plus `-translate-y-1/2`. Its surface is a
   rounded translucent cream panel with backdrop blur, not an opaque white card.

@@ -439,7 +439,7 @@ export default async function ThreadPage({
 
         {/* Compact chat header — single row with all actions inline. Edge-to-edge
             on mobile, contained on desktop. */}
-        <header className="sticky top-0 z-10 bg-[#F7F5F0]/95 backdrop-blur-sm border-b border-neutral-200 px-4 sm:px-5 py-3 sm:rounded-t-2xl">
+        <header className="sticky top-[var(--site-header-h)] z-10 bg-[#F7F5F0]/95 backdrop-blur-sm border-b border-neutral-200 px-4 sm:px-5 py-3 sm:rounded-t-2xl">
           <div className="flex items-center gap-3 min-w-0">
             <Link
               href={isStaffReviewMode ? "/admin/reports" : "/messages"}
