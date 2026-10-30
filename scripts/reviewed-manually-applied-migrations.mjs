@@ -59,7 +59,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261028030000_prepare_review_vote_authorities",
-    "05a3203bc591cbf1dcdf357612d46b4f7f34671e211bebe3788e43abf9a5ebc2",
+    "cf81df5bacf0f2ca8a87eaf043f4e0b5baf70ae39815b346b3402e17adf6557a",
   ],
   [
     "20261028040000_prepare_maker_verification_authorities",
@@ -75,7 +75,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261028070000_activate_review_vote_rls",
-    "bfaee38486632365db0239804858d4c32cd93cbcd2d96a133411fbc7517eadbf",
+    "0d9a9081354a199f0ead4744ca2b8782a5e370c5fe95013c796ffde6ced6ff6a",
   ],
   [
     "20261028080000_activate_maker_verification_rls",

@@ -81,10 +81,8 @@ BEGIN
   FOR reviewed_function, expected_source_md5, expected_runtime_execute IN
     SELECT expected.identity, expected.source_md5, expected.runtime_execute
       FROM (VALUES
-        ('public.grainline_review_vote_owner_toggle(text)', '665aa85a9a1ef369045fd80cfb4174de', true),
-        ('public.grainline_review_vote_owner_delete_all()', '19d5b126b52eda84242168bbb58d7ba9', true),
-        ('public.grainline_review_vote_owner_toggle_compatible(text)', 'b1b42c31985f06069c7f608df728672e', false),
-        ('public.grainline_review_vote_owner_delete_all_compatible()', 'e0f3bcc6143107e6609cf3fe4a209410', false)
+        ('public.grainline_review_vote_owner_toggle(text)', '509a773c1aad9a59ba750b390e965880', true),
+        ('public.grainline_review_vote_owner_delete_all()', '0964f37eb811ab94f7032be279ec91f0', true)
       ) AS expected(identity, source_md5, runtime_execute)
   LOOP
     IF pg_catalog.to_regprocedure(reviewed_function) IS NULL OR NOT EXISTS (
@@ -126,7 +124,20 @@ BEGIN
       )
     ) AS acl
    WHERE acl.grantee = runtime_oid;
-  IF runtime_privileges IS DISTINCT FROM ARRAY['SELECT']::text[]
+  IF runtime_privileges IS DISTINCT FROM ARRAY['SELECT']::text[] OR (
+       SELECT pg_catalog.array_agg(
+                trigger_state.tgname::text || ':' || trigger_state.tgtype::text
+                ORDER BY trigger_state.tgname
+              )
+         FROM pg_catalog.pg_trigger AS trigger_state
+        WHERE trigger_state.tgrelid = table_oid
+          AND NOT trigger_state.tgisinternal
+     ) IS DISTINCT FROM ARRAY[
+       'ReviewVote_count_after_delete:8',
+       'ReviewVote_delete_lock_guard:11',
+       'ReviewVote_insert_guard:7',
+       'ReviewVote_update_forbidden:19'
+     ]::text[]
      OR pg_catalog.to_regprocedure(
           'public.grainline_review_vote_count_after_delete()'
         ) IS NULL OR NOT EXISTS (
@@ -220,21 +231,8 @@ $grainline_review_vote_rollback_preflight$;
 DROP TRIGGER "ReviewVote_count_after_delete" ON public."ReviewVote";
 DROP FUNCTION public.grainline_review_vote_count_after_delete();
 
-REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_toggle(text)
-  FROM PUBLIC, grainline_app_runtime;
-REVOKE ALL ON FUNCTION public.grainline_review_vote_owner_delete_all()
-  FROM PUBLIC, grainline_app_runtime;
-DROP FUNCTION public.grainline_review_vote_owner_toggle(text);
-DROP FUNCTION public.grainline_review_vote_owner_delete_all();
-ALTER FUNCTION public.grainline_review_vote_owner_toggle_compatible(text)
-  RENAME TO grainline_review_vote_owner_toggle;
-ALTER FUNCTION public.grainline_review_vote_owner_delete_all_compatible()
-  RENAME TO grainline_review_vote_owner_delete_all;
-GRANT EXECUTE ON FUNCTION public.grainline_review_vote_owner_toggle(text)
-  TO grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_review_vote_owner_delete_all()
-  TO grainline_app_runtime;
-
+-- The corrected preparation functions already use the canonical lock order.
+-- Rollback therefore preserves their exact bodies and runtime EXECUTE grants.
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."ReviewVote"
   TO grainline_app_runtime;
 ALTER TABLE public."ReviewVote" NO FORCE ROW LEVEL SECURITY;
@@ -274,19 +272,15 @@ BEGIN
      WHERE tgrelid = table_oid
        AND tgname = 'ReviewVote_count_after_delete'
        AND NOT tgisinternal
-  ) OR pg_catalog.to_regprocedure(
-    'public.grainline_review_vote_owner_toggle_compatible(text)'
-  ) IS NOT NULL OR pg_catalog.to_regprocedure(
-    'public.grainline_review_vote_owner_delete_all_compatible()'
-  ) IS NOT NULL THEN
+  ) THEN
     RAISE EXCEPTION 'ReviewVote rollback catalog did not converge';
   END IF;
 
   FOR reviewed_function, expected_source_md5 IN
     SELECT expected.identity, expected.source_md5
       FROM (VALUES
-        ('public.grainline_review_vote_owner_toggle(text)', 'b1b42c31985f06069c7f608df728672e'),
-        ('public.grainline_review_vote_owner_delete_all()', 'e0f3bcc6143107e6609cf3fe4a209410')
+        ('public.grainline_review_vote_owner_toggle(text)', '509a773c1aad9a59ba750b390e965880'),
+        ('public.grainline_review_vote_owner_delete_all()', '0964f37eb811ab94f7032be279ec91f0')
       ) AS expected(identity, source_md5)
   LOOP
     IF pg_catalog.to_regprocedure(reviewed_function) IS NULL OR NOT EXISTS (
@@ -359,6 +353,7 @@ BEGIN
      WHERE trigger_state.tgrelid = table_oid
        AND NOT trigger_state.tgisinternal
   ) IS DISTINCT FROM ARRAY[
+    'ReviewVote_delete_lock_guard:11',
     'ReviewVote_insert_guard:7',
     'ReviewVote_update_forbidden:19'
   ]::text[] THEN

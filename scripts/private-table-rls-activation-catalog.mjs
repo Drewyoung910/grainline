@@ -109,10 +109,10 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     minimumCompatibleAppCommit: OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT,
     migration: "20261028070000_activate_review_vote_rls",
     migrationSha256:
-      "bfaee38486632365db0239804858d4c32cd93cbcd2d96a133411fbc7517eadbf",
+      "0d9a9081354a199f0ead4744ca2b8782a5e370c5fe95013c796ffde6ced6ff6a",
     rollbackPath: "docs/rls-drafts/review-vote-activation-rollback.sql",
     rollbackSha256:
-      "3d63aba353e8223223089b91c765d359ab40ca06e898e70c1c415ce45ca6162a",
+      "3b8db98d85c6fb8309f13608d787775cc796a409afba99b60f51bc718c3cc6b3",
     table: "ReviewVote",
     mode: "owner_policy_combined_enable_force",
     policies: Object.freeze([
@@ -133,18 +133,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     rollbackTriggerDrops: Object.freeze(["ReviewVote_count_after_delete"]),
     functionChanges: Object.freeze({
       retained: Object.freeze([]),
-      replacements: Object.freeze([
-        Object.freeze({
-          name: "grainline_review_vote_owner_toggle",
-          arguments: "text",
-          compatibilityName: "grainline_review_vote_owner_toggle_compatible",
-        }),
-        Object.freeze({
-          name: "grainline_review_vote_owner_delete_all",
-          arguments: "",
-          compatibilityName: "grainline_review_vote_owner_delete_all_compatible",
-        }),
-      ]),
+      replacements: Object.freeze([]),
       additions: Object.freeze([
         Object.freeze({
           name: "grainline_review_vote_count_after_delete",

@@ -342,6 +342,7 @@ async function proveReviewVoteRollback({ database, repositoryRoot, actorId, revi
     runtime_delete: true,
     policies: null,
     triggers: [
+      "ReviewVote_delete_lock_guard:11",
       "ReviewVote_insert_guard:7",
       "ReviewVote_update_forbidden:19",
     ],
@@ -429,12 +430,13 @@ export async function proveReviewVoteAuthorities({
        pg_catalog.to_regprocedure('public.grainline_review_vote_owner_export()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_owner_delete_all()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_insert_guard()'),
+       pg_catalog.to_regprocedure('public.grainline_review_vote_delete_lock_guard()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_update_forbidden()'),
        pg_catalog.to_regprocedure('public.grainline_review_vote_count_after_delete()')
      )
      ORDER BY signature
   `));
-  assert.equal(catalog.length, 6);
+  assert.equal(catalog.length, 7);
   assert.ok(catalog.every((row) => (
     row.securityDefiner === true
     && row.config?.includes("search_path=pg_catalog")
@@ -452,6 +454,7 @@ export async function proveReviewVoteAuthorities({
      ORDER BY tgname
   `)), [
     { name: "ReviewVote_count_after_delete", type: 8 },
+    { name: "ReviewVote_delete_lock_guard", type: 11 },
     { name: "ReviewVote_insert_guard", type: 7 },
     { name: "ReviewVote_update_forbidden", type: 19 },
   ]);
@@ -465,6 +468,7 @@ export async function proveReviewVoteAuthorities({
     policies: ["review_vote_owner_select:r"],
     triggers: [
       "ReviewVote_count_after_delete:8",
+      "ReviewVote_delete_lock_guard:11",
       "ReviewVote_insert_guard:7",
       "ReviewVote_update_forbidden:19",
     ],

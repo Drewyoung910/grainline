@@ -60,6 +60,29 @@ describe("review vote visibility guardrails", () => {
     assert.match(migration, /DELETE FROM public\."ReviewVote"/);
     assert.match(migration, /INSERT INTO public\."ReviewVote"/);
     assert.match(migration, /CREATE TRIGGER "ReviewVote_insert_guard"/);
+    assert.match(migration, /CREATE TRIGGER "ReviewVote_delete_lock_guard"/);
+    assert.match(
+      migration,
+      /grainline_review_vote_delete_lock_guard[\s\S]*FOR NO KEY UPDATE NOWAIT/u,
+    );
+    const reviewLock = toggle.indexOf(
+      'FROM public."Review" AS review\n   WHERE review.id = p_review_id\n   FOR NO KEY UPDATE',
+    );
+    const voteDelete = toggle.indexOf('DELETE FROM public."ReviewVote"');
+    assert.notEqual(reviewLock, -1);
+    assert.ok(
+      reviewLock < voteDelete,
+      "the fixed toggle must lock Review before mutating ReviewVote",
+    );
+    const deleteAllStart = migration.indexOf(
+      "CREATE FUNCTION public.grainline_review_vote_owner_delete_all",
+    );
+    const deleteAll = migration.slice(deleteAllStart);
+    assert.ok(
+      deleteAll.indexOf('FROM public."Review" AS review')
+        < deleteAll.indexOf('DELETE FROM public."ReviewVote"'),
+      "owner deletion must lock affected Review rows before deleting votes",
+    );
     assert.match(migration, /SET "helpfulCount" = \(\s*SELECT pg_catalog\.count/);
     assert.doesNotMatch(migration, /ReviewVote_count_after_insert/);
     assert.doesNotMatch(migration, /ReviewVote_count_after_delete/);

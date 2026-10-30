@@ -34,30 +34,21 @@ test("ReviewVote activation retains only owner SELECT and fixed mutations", () =
   assert.match(migration, /ORDER BY review\.id\s+FOR UPDATE/u);
   assert.match(migration, /procedure\.prosrc = \$grainline_review_vote_count_expected\$/u);
   assert.match(migration, /\(owner\.rolsuper OR owner\.rolbypassrls\)/u);
-  assert.match(
+  assert.doesNotMatch(
     migration,
-    /ALTER FUNCTION public\.grainline_review_vote_owner_toggle\(text\)\s+RENAME TO grainline_review_vote_owner_toggle_compatible/u,
+    /grainline_review_vote_owner_(?:toggle|delete_all)_compatible/u,
   );
   assert.match(
     migration,
-    /FOR NO KEY UPDATE OF review FOR SHARE OF listing, seller/u,
+    /ReviewVote_delete_lock_guard:11/u,
   );
-  assert.match(
-    migration,
-    /Lock the parent rows in one stable order before deleting child votes[\s\S]*?ORDER BY review\.id\s+FOR UPDATE[\s\S]*?DELETE FROM public\."ReviewVote"/u,
-  );
-  for (const activatedSourceHash of [
-    "665aa85a9a1ef369045fd80cfb4174de",
-    "19d5b126b52eda84242168bbb58d7ba9",
-  ]) {
-    assert.match(migration, new RegExp(activatedSourceHash, "u"));
-  }
   for (const sourceHash of [
-    "f6c529e56b59735d36d7c78e1bcf45bc",
+    "0b00a5f1d054beacfe62fbd97547e0b9",
+    "9d1f581fc9700af36be4e60715c7d042",
     "30d3d3cb1d88e9206970c2f9f103e367",
-    "b1b42c31985f06069c7f608df728672e",
+    "509a773c1aad9a59ba750b390e965880",
     "f655fe4f4f6ef26db9588db34e9aece4",
-    "e0f3bcc6143107e6609cf3fe4a209410",
+    "0964f37eb811ab94f7032be279ec91f0",
   ]) {
     assert.match(migration, new RegExp(sourceHash, "u"));
   }
@@ -74,16 +65,13 @@ test("ReviewVote rollback removes activation-only maintenance before restoring C
   );
   assert.ok(dropTriggerAt >= 0 && dropTriggerAt < restoreCrudAt);
   assert.match(rollback, /DROP FUNCTION public\.grainline_review_vote_count_after_delete\(\)/u);
-  const restoreToggleAt = rollback.indexOf(
-    "ALTER FUNCTION public.grainline_review_vote_owner_toggle_compatible(text)",
-  );
-  assert.ok(restoreToggleAt >= 0 && restoreToggleAt < restoreCrudAt);
-  assert.match(
+  assert.doesNotMatch(
     rollback,
-    /DROP FUNCTION public\.grainline_review_vote_owner_toggle\(text\)[\s\S]*?RENAME TO grainline_review_vote_owner_toggle/u,
+    /grainline_review_vote_owner_(?:toggle|delete_all)_compatible/u,
   );
-  assert.match(rollback, /b1b42c31985f06069c7f608df728672e/u);
-  assert.match(rollback, /e0f3bcc6143107e6609cf3fe4a209410/u);
+  assert.match(rollback, /509a773c1aad9a59ba750b390e965880/u);
+  assert.match(rollback, /0964f37eb811ab94f7032be279ec91f0/u);
+  assert.match(rollback, /ReviewVote_delete_lock_guard:11/u);
   assert.match(rollback, /procedure\.prosrc = \$grainline_review_vote_count_expected\$/u);
   assert.match(rollback, /tgfoid = pg_catalog\.to_regprocedure/u);
   assert.match(rollback, /ALTER TABLE public\."ReviewVote" NO FORCE ROW LEVEL SECURITY/u);

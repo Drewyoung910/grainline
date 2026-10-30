@@ -31,6 +31,7 @@ BEGIN
      OR pg_catalog.to_regprocedure('public.grainline_review_vote_owner_export()') IS NOT NULL
      OR pg_catalog.to_regprocedure('public.grainline_review_vote_owner_delete_all()') IS NOT NULL
      OR pg_catalog.to_regprocedure('public.grainline_review_vote_insert_guard()') IS NOT NULL
+     OR pg_catalog.to_regprocedure('public.grainline_review_vote_delete_lock_guard()') IS NOT NULL
      OR pg_catalog.to_regprocedure('public.grainline_review_vote_update_forbidden()') IS NOT NULL THEN
     RAISE EXCEPTION 'ReviewVote preparation function already exists';
   END IF;
@@ -149,7 +150,9 @@ BEGIN
   -- This closes the predecessor trigger's account-state race: a reviewer ban
   -- or deletion that committed while the insert waited must make the target
   -- unavailable, not leave behind a vote for an inactive review. Locking the
-  -- target rows only now also preserves User -> SellerProfile lock ordering.
+  -- target rows only now also preserves User -> Review -> SellerProfile lock
+  -- ordering. The Review lock makes the predecessor INSERT compatible with
+  -- parent deletion and with the fixed owner operation during app-version skew.
   SELECT review."reviewerId",
          seller."userId"
     INTO target_reviewer_id,
@@ -179,6 +182,7 @@ BEGIN
      AND seller."chargesEnabled" = true
      AND seller."stripeAccountSupported" = true
      AND seller."vacationMode" = false
+   FOR NO KEY UPDATE OF review
    FOR SHARE OF listing, seller;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ReviewVote target is unavailable'
@@ -218,6 +222,34 @@ $grainline_review_vote_insert_guard$;
 CREATE TRIGGER "ReviewVote_insert_guard"
 BEFORE INSERT ON public."ReviewVote"
 FOR EACH ROW EXECUTE FUNCTION public.grainline_review_vote_insert_guard();
+
+CREATE FUNCTION public.grainline_review_vote_delete_lock_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_review_vote_delete_lock_guard$
+BEGIN
+  -- PostgreSQL locks the child tuple before firing a row-level DELETE trigger,
+  -- so a blocking parent lock here would preserve the predecessor's
+  -- ReviewVote-before-Review inversion. Fail fast instead: if parent deletion
+  -- already owns Review, the predecessor transaction receives 55P03 and
+  -- releases its child lock without forming a deadlock. Fixed callers already
+  -- own Review and pass. During an ON DELETE CASCADE the parent row may no
+  -- longer be visible to this transaction; that is expected.
+  PERFORM 1
+    FROM public."Review" AS review
+   WHERE review.id = OLD."reviewId"
+   FOR NO KEY UPDATE NOWAIT;
+  RETURN OLD;
+END;
+$grainline_review_vote_delete_lock_guard$;
+
+CREATE TRIGGER "ReviewVote_delete_lock_guard"
+BEFORE DELETE ON public."ReviewVote"
+FOR EACH ROW EXECUTE FUNCTION public.grainline_review_vote_delete_lock_guard();
 
 CREATE FUNCTION public.grainline_review_vote_update_forbidden()
 RETURNS trigger
@@ -332,10 +364,22 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  -- Review deletion locks the parent before its ReviewVote cascade. Lock the
+  -- same parent first so a toggle can never retain a child-row lock while it
+  -- waits on the parent. The compatibility insert/delete guards make the
+  -- predecessor route use this same order during application-version skew.
+  PERFORM 1
+    FROM public."Review" AS review
+   WHERE review.id = p_review_id
+   FOR NO KEY UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+    RETURN;
+  END IF;
+
   -- Removing the actor's own existing vote is always allowed. Block and
-  -- visibility rules govern adding a vote, not withdrawing one. This keeps a
-  -- block from trapping a historical vote while retaining the predecessor's
-  -- ReviewVote-before-Review lock order during the compatibility window.
+  -- visibility rules govern adding a vote, not withdrawing one, so a block
+  -- cannot trap a historical vote.
   DELETE FROM public."ReviewVote"
    WHERE "reviewId" = p_review_id
      AND "userId" = request_user_id;
@@ -347,22 +391,19 @@ BEGIN
   END IF;
 
   IF deleted_count = 0 THEN
-    -- Re-read the exact target after the User protocol. Lock Listing and
-    -- SellerProfile so add eligibility cannot change, but deliberately do not
-    -- lock Review yet: the predecessor route mutates ReviewVote before Review,
-    -- and matching that order prevents a mixed-version deployment deadlock.
-    SELECT review."reviewerId",
-           seller."userId",
-           review."helpfulCount"
-      INTO target_reviewer_id,
-           target_seller_user_id,
-           current_count
+    -- Re-read the exact target after the User and Review locks. Lock Listing
+    -- and SellerProfile so add eligibility cannot change, and require the
+    -- target identities to match the User rows already locked above.
+    SELECT review."helpfulCount"
+      INTO current_count
       FROM public."Review" AS review
       JOIN public."Listing" AS listing
         ON listing.id = review."listingId"
       JOIN public."SellerProfile" AS seller
         ON seller.id = listing."sellerId"
      WHERE review.id = p_review_id
+       AND review."reviewerId" = target_reviewer_id
+       AND seller."userId" = target_seller_user_id
        AND review."reviewerAccountActive" = true
        AND listing."archivedAt" IS NULL
        AND (
@@ -427,18 +468,9 @@ BEGIN
     END;
   END IF;
 
-  -- Serialize the scalar only after the row mutation, matching the
-  -- predecessor route. Recompute rather than increment/decrement so this
-  -- operation also repairs predecessor drift and remains retry-safe.
-  PERFORM 1
-    FROM public."Review" AS review
-   WHERE review.id = p_review_id
-   FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'ReviewVote count projection is unavailable'
-      USING ERRCODE = '23514';
-  END IF;
-
+  -- The Review row is already locked. Recompute rather than
+  -- increment/decrement so this operation also repairs predecessor drift and
+  -- remains retry-safe.
   UPDATE public."Review" AS review
      SET "helpfulCount" = (
        SELECT pg_catalog.count(*)::integer
@@ -545,18 +577,19 @@ BEGIN
     RETURN 0;
   END IF;
 
-  -- Match the predecessor ReviewVote-before-Review order. The User lock plus
-  -- the insert guard prevents this actor from adding another vote while the
-  -- account deletion is in flight.
-  DELETE FROM public."ReviewVote"
-   WHERE "userId" = request_user_id;
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-
+  -- Parent deletion and the owner toggle both lock Review before ReviewVote.
+  -- Lock the bounded affected set in stable order before removing child rows;
+  -- the User lock plus the insert guard prevents this actor from adding a vote
+  -- while account deletion is in flight.
   PERFORM 1
     FROM public."Review" AS review
    WHERE review.id = ANY (affected_review_ids)
    ORDER BY review.id
-   FOR UPDATE;
+   FOR NO KEY UPDATE;
+
+  DELETE FROM public."ReviewVote"
+   WHERE "userId" = request_user_id;
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
 
   -- Reconcile the bounded affected set so the deletion is exact and retries
   -- also close any predecessor drift. The final activation may install a
@@ -581,6 +614,8 @@ END;
 $grainline_review_vote_owner_delete_all$;
 
 REVOKE ALL ON FUNCTION public.grainline_review_vote_insert_guard()
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_review_vote_delete_lock_guard()
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_review_vote_update_forbidden()
   FROM PUBLIC, grainline_app_runtime;
@@ -627,6 +662,7 @@ BEGIN
     FROM (
       VALUES
         ('public.grainline_review_vote_insert_guard()'),
+        ('public.grainline_review_vote_delete_lock_guard()'),
         ('public.grainline_review_vote_update_forbidden()'),
         ('public.grainline_review_vote_owner_toggle(text)'),
         ('public.grainline_review_vote_owner_export()'),
@@ -639,6 +675,7 @@ BEGIN
 
   FOREACH reviewed_function IN ARRAY ARRAY[
     'public.grainline_review_vote_insert_guard()',
+    'public.grainline_review_vote_delete_lock_guard()',
     'public.grainline_review_vote_update_forbidden()',
     'public.grainline_review_vote_owner_toggle(text)',
     'public.grainline_review_vote_owner_export()',
@@ -667,13 +704,20 @@ BEGIN
 
   IF (SELECT pg_catalog.count(*) FROM pg_catalog.pg_trigger
        WHERE tgrelid = 'public."ReviewVote"'::pg_catalog.regclass
-         AND NOT tgisinternal) <> 2
+         AND NOT tgisinternal) <> 3
      OR NOT EXISTS (
        SELECT 1 FROM pg_catalog.pg_trigger
         WHERE tgrelid = 'public."ReviewVote"'::pg_catalog.regclass
           AND NOT tgisinternal
           AND tgname = 'ReviewVote_insert_guard'
           AND tgtype = 7
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_trigger
+        WHERE tgrelid = 'public."ReviewVote"'::pg_catalog.regclass
+          AND NOT tgisinternal
+          AND tgname = 'ReviewVote_delete_lock_guard'
+          AND tgtype = 11
      )
      OR NOT EXISTS (
        SELECT 1 FROM pg_catalog.pg_trigger

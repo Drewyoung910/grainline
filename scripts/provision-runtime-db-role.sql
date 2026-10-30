@@ -5605,10 +5605,9 @@ GRANT SELECT ON TABLE public."ReviewVote"
 WITH review_vote_private(function_signature) AS (
   VALUES
     ('public."grainline_review_vote_insert_guard"()'),
+    ('public."grainline_review_vote_delete_lock_guard"()'),
     ('public."grainline_review_vote_update_forbidden"()'),
-    ('public."grainline_review_vote_count_after_delete"()'),
-    ('public."grainline_review_vote_owner_toggle_compatible"(text)'),
-    ('public."grainline_review_vote_owner_delete_all_compatible"()')
+    ('public."grainline_review_vote_count_after_delete"()')
 )
 SELECT pg_catalog.format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

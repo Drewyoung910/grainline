@@ -4,26 +4,21 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Owner-relation RLS compatible sequence (2026-10-28)
+### Owner/social RLS compatible sequence (updated 2026-10-30)
 
-Favorite and Follow are being prepared as two distinct, ordered releases rather
-than one coupled activation. Favorite's isolated compatible candidate is draft
-PR #694. It adds the reviewed raw-count projection and bounded Favorite
-operations while keeping Favorite RLS off and retaining predecessor table
-authority. Follow's selected long-term boundary is Option B: zero ordinary
-runtime table authority after activation, with existing operation-specific
-functions plus five missing bounded operations for public batch state, owner
-target IDs, the raw account-overview count, seller-owner incoming count, and
-claim-bound account-deletion cleanup.
-
-The Follow compatible candidate is draft PR #695 and is deliberately based on
-Favorite so the full-chain proof includes both preparations. Release order is
-strict: Favorite preparation must merge and be applied by itself before Follow
-can merge or be applied. Follow
-preparation is additive and compatible only; it does not enable or force RLS,
-revoke predecessor table grants, or authorize Production. Its separate
-activation still requires direct runtime/no-context/cross-user denial, cascade,
-race, rollback, deployment-skew and exact-head release evidence.
+Favorite, Follow, ReviewVote and MakerVerification compatible preparations are
+merged as one immutable ordered batch. The protected preparation release applies
+the four independent transactions before the converted application deploys;
+it does not enable/force RLS or revoke predecessor grants. ReviewVote's
+failing-first PostgreSQL 17 proof exposed two parent-delete lock inversions in
+the merged candidate, so the batch must use corrected migration bytes. Fixed
+callers standardize `User -> Review -> ReviewVote`; a predecessor delete that
+already holds the child fails fast with `55P03` rather than waiting into a
+parent-delete cycle during the short deployment-skew window.
+After the corrected exact-main CI and required proof workflows pass, release the
+preparation batch once, then deploy its compatible app. The later four-table
+activation remains a distinct approval and must not be inferred from preparation
+success.
 
 ### Marketplace operating decisions (Drew, 2026-10-19)
 

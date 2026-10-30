@@ -292,7 +292,10 @@ test("inspector proves exact owner policies and ReviewVote function transitions"
       assert.equal(active.policies.length, selectedRelease.policies.length);
       assert.equal(
         active.functions.length,
-        selectedReleaseId === "review_vote_v1" ? 6 : selectedRelease.preparation.functions.length,
+        selectedRelease.preparation.functions.length
+          + selectedRelease.functionChanges.retained.length
+          + selectedRelease.functionChanges.replacements.length
+          + selectedRelease.functionChanges.additions.length,
       );
     } finally {
       rmSync(directory, { recursive: true, force: true });
