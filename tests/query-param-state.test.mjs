@@ -136,6 +136,11 @@ describe("query parameter parsing helpers", () => {
     );
     const blog = readFileSync("src/app/admin/blog/page.tsx", "utf8");
     const reports = readFileSync("src/app/admin/reports/page.tsx", "utf8");
+    const reportAccess = readFileSync("src/lib/userReportAccess.ts", "utf8");
+    const reportMigration = readFileSync(
+      "prisma/migrations/20261028060000_prepare_user_report_authorities/migration.sql",
+      "utf8",
+    );
 
     assert.match(review, /const REVIEW_QUEUE_LIMIT = 100/);
     assert.match(review, /prisma\.listing\.count\(\{ where: \{ status: "PENDING_REVIEW" \} \}\)/);
@@ -152,7 +157,12 @@ describe("query parameter parsing helpers", () => {
     assert.match(staffReadMigration, /ORDER BY verification\."appliedAt" ASC, verification\.id ASC[\s\S]*LIMIT 50/);
 
     assert.match(blog, /where: \{ approved: false \}[\s\S]*orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\][\s\S]*take: 30/);
-    assert.match(reports, /where: \{ resolved: false \}[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
+    assert.match(reports, /userReportStaffOpenPage\(staffClient, \{/);
+    assert.match(reports, /cursor,[\s\S]*limit: REPORT_PAGE_SIZE/);
+    assert.match(reports, /Oldest unresolved reports are shown first/);
+    assert.doesNotMatch(reports, /prisma\.userReport\./);
+    assert.match(reportAccess, /grainline_user_report_staff_open_page/);
+    assert.match(reportMigration, /ORDER BY report\."createdAt", report\.id[\s\S]*LIMIT p_limit/);
   });
 
   it("keeps private capped account lists stable on equal timestamps", () => {
