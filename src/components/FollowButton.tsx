@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
+import RollingNumber from "@/components/RollingNumber";
 
 type Props = {
   sellerProfileId: string;
@@ -91,7 +92,7 @@ export default function FollowButton({
   return (
     <button type="button" onClick={toggle} disabled={loading} aria-pressed={following} className={style}>
       {following ? <>Following <span aria-hidden="true">✓</span></> : "Follow"}
-      <span className="text-xs opacity-70">· {count.toLocaleString("en-US")}</span>
+      <span className="text-xs opacity-70">· <RollingNumber value={count} /></span>
     </button>
   );
 }

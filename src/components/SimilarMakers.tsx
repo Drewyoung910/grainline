@@ -1,5 +1,6 @@
 // src/components/SimilarMakers.tsx
-// Server component: "More makers near {place}" row for listing detail pages.
+// Server component: "More makers near {place}" (or "in {state name}") row for
+// listing detail pages.
 // Scope comes from the LISTING's maker (same metro first, then same state) —
 // it never depends on the buyer's location, so signed-out and no-location
 // viewers see it too. Cards are single links (no nested interactive
@@ -11,6 +12,8 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
 import { sellerPublicSimilarMakers } from "@/lib/sellerProfilePublicAccess";
+import { US_STATES, normalizeUsState } from "@/lib/usStates";
+import { formatCityState } from "@/lib/locationDisplay";
 
 const MAX_SIMILAR_MAKERS = 4;
 
@@ -34,7 +37,13 @@ export default async function SimilarMakers({
     MAX_SIMILAR_MAKERS,
   );
   let scopeLabel = metroName ?? city;
-  if (makers[0]?.scopeKind === "STATE" && state) scopeLabel = state.toUpperCase();
+  let scopePreposition = "near";
+  if (makers[0]?.scopeKind === "STATE" && state) {
+    // Full state name ("in Texas"), not the stored code ("near TX").
+    const stateCode = normalizeUsState(state);
+    scopeLabel = US_STATES.find((s) => s.code === stateCode)?.name ?? state.trim();
+    scopePreposition = "in";
+  }
 
   if (makers.length === 0) return null;
 
@@ -43,7 +52,7 @@ export default async function SimilarMakers({
   return (
     <section className="mb-10">
       <h2 className="font-semibold font-display text-neutral-900 mb-4">
-        {scopeLabel ? `More makers near ${scopeLabel}` : "More makers to explore"}
+        {scopeLabel ? `More makers ${scopePreposition} ${scopeLabel}` : "More makers to explore"}
       </h2>
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {makers.map((maker) => {
@@ -97,7 +106,7 @@ export default async function SimilarMakers({
                     )}
                     {(maker.city || maker.state) && (
                       <span className="truncate">
-                        {[maker.city, maker.state].filter(Boolean).join(", ")}
+                        {formatCityState(maker.city, maker.state)}
                       </span>
                     )}
                   </div>

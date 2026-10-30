@@ -15,6 +15,7 @@ import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { getPopularBlogTags } from "@/lib/popularBlogTags";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
+import { sellerNameSuggestionInputSupported } from "@/lib/searchSuggestionResults";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -94,8 +95,11 @@ export async function GET(req: NextRequest) {
         .map((tag) => ({ tag }))
     ),
 
-    // Author / seller display name matches
-    sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, false, 3),
+    // Author / seller display name matches. Input outside the lookup's
+    // supported range has no author suggestions instead of a 500.
+    sellerNameSuggestionInputSupported(q, normalizedDisplayNameQuery)
+      ? sellerPublicNameSuggestions(meDbId, q, normalizedDisplayNameQuery, false, 3)
+      : Promise.resolve([]),
   ]);
 
   const suggestions: BlogSuggestion[] = [];

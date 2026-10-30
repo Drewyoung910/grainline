@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
-import Link from "next/link";
 import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star, File } from "@/components/icons";
 import AdminMobileNav from "@/components/AdminMobileNav";
+import AdminSidebarLink from "@/components/AdminSidebarLink";
 import AdminPinGate from "@/components/AdminPinGate";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { getStaffActiveCaseCount } from "@/lib/caseReadAuthority";
@@ -64,9 +64,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </span>
         </div>
         <nav className="space-y-0.5">
-          <Link
+          <AdminSidebarLink
             href="/admin/flagged"
-            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm"
           >
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} className="shrink-0 text-amber-500" />
@@ -77,17 +77,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {reviewNeededOrderCount > 99 ? "99+" : reviewNeededOrderCount}
               </span>
             )}
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/orders"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
           >
             <Package size={16} className="shrink-0 text-neutral-500" />
             All Orders
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/cases"
-            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm"
           >
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} className="shrink-0 text-neutral-500" />
@@ -98,10 +98,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {openCaseCount}
               </span>
             )}
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/verification"
-            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm"
           >
             <div className="flex items-center gap-2">
               <Shield size={16} className="shrink-0 text-neutral-500" />
@@ -112,10 +112,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {pendingVerificationCount}
               </span>
             )}
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/blog"
-            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm"
           >
             <div className="flex items-center gap-2">
               <Edit size={16} className="shrink-0 text-neutral-500" />
@@ -126,17 +126,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {pendingCommentCount}
               </span>
             )}
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/broadcasts"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
           >
             <Rss size={16} className="shrink-0 text-neutral-500" />
             Broadcasts
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/review"
-            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm"
           >
             <div className="flex items-center gap-2">
               <Eye size={16} className="shrink-0 text-neutral-500" />
@@ -147,24 +147,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {pendingReviewCount}
               </span>
             )}
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/reviews"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
           >
             <Star size={16} className="shrink-0 text-neutral-500" />
             Reviews
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/reports"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
           >
             <AlertTriangle size={16} className="shrink-0 text-neutral-500" />
             Reports
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/support"
-            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm"
           >
             <div className="flex items-center gap-2">
               <File size={16} className="shrink-0 text-neutral-500" />
@@ -175,21 +175,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {openSupportRequestCount}
               </span>
             )}
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/users"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
           >
             <User size={16} className="shrink-0 text-neutral-500" />
             Users
-          </Link>
-          <Link
+          </AdminSidebarLink>
+          <AdminSidebarLink
             href="/admin/audit"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
           >
             <Shield size={16} className="shrink-0 text-neutral-500" />
             Audit Log
-          </Link>
+          </AdminSidebarLink>
         </nav>
       </aside>
 

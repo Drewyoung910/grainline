@@ -120,6 +120,8 @@ function GuildPopup({
   return createPortal(
     <div
       ref={popupRef}
+      className="guild-popup-motion"
+      data-positioned={isPositioned ? "true" : "false"}
       style={{
         position: "absolute",
         top: position.top,
@@ -132,7 +134,7 @@ function GuildPopup({
         padding: 14,
         boxShadow: "0 10px 30px rgba(28,25,23,0.12)",
         opacity: isPositioned ? 1 : 0,
-        transition: "opacity 0.1s ease-out",
+        transformOrigin: "top left",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>

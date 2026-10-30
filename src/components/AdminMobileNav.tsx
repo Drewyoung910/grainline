@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star, File } from "@/components/icons";
+import { isAdminNavItemActive } from "@/lib/adminNavState";
 
 const NAV_ITEMS = [
   { href: "/admin/orders",       label: "Orders",     Icon: Package },
@@ -35,7 +36,7 @@ export default function AdminMobileNav(counts: Counts) {
   return (
     <nav aria-label="Admin sections" className="md:hidden flex overflow-x-auto border-b bg-white px-1 py-1 gap-0.5 shrink-0">
       {NAV_ITEMS.map(({ href, label, Icon, badgeKey }) => {
-        const active = pathname.startsWith(href);
+        const active = isAdminNavItemActive(pathname, href);
         const badge = badgeKey ? counts[badgeKey] : 0;
         return (
           <Link

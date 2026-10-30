@@ -19,6 +19,10 @@ export default function ListingGallery({
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
+  // Set when the viewer moves to another photo, so only that photo's load gets
+  // the short cross-fade (never the first photo shown).
+  const mainSwapRef = useRef(false);
+  const lightboxSwapRef = useRef(false);
   // Lightbox swipe
   const touchStartX = useRef<number>(0);
   const touchStartY = useRef<number>(0);
@@ -36,8 +40,14 @@ export default function ListingGallery({
   useEffect(() => {
     if (!lightboxOpen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "ArrowRight") setLightboxIndex((i) => (i + 1) % photos.length);
-      if (e.key === "ArrowLeft") setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+      if (e.key === "ArrowRight") {
+        lightboxSwapRef.current = true;
+        setLightboxIndex((i) => (i + 1) % photos.length);
+      }
+      if (e.key === "ArrowLeft") {
+        lightboxSwapRef.current = true;
+        setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -70,16 +80,35 @@ export default function ListingGallery({
   const activeUrl = photos[activeIndex]?.url ?? "";
 
   function openLightbox(i: number) {
+    lightboxSwapRef.current = false;
     setLightboxIndex(i);
     setLightboxOpen(true);
   }
 
+  function showPhoto(i: number) {
+    if (i === activeIndex) return;
+    mainSwapRef.current = true;
+    setActiveIndex(i);
+  }
+
   function showPreviousPhoto() {
+    mainSwapRef.current = true;
     setActiveIndex((i) => (i - 1 + photos.length) % photos.length);
   }
 
   function showNextPhoto() {
+    mainSwapRef.current = true;
     setActiveIndex((i) => (i + 1) % photos.length);
+  }
+
+  function showPreviousLightboxPhoto() {
+    lightboxSwapRef.current = true;
+    setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+  }
+
+  function showNextLightboxPhoto() {
+    lightboxSwapRef.current = true;
+    setLightboxIndex((i) => (i + 1) % photos.length);
   }
 
   // Lightbox swipe handlers
@@ -92,8 +121,8 @@ export default function ListingGallery({
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 50) {
-      if (diff > 0) setLightboxIndex((i) => (i + 1) % photos.length);
-      else setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+      if (diff > 0) showNextLightboxPhoto();
+      else showPreviousLightboxPhoto();
     }
     lightboxHorizontalLocked.current = false;
   }
@@ -109,8 +138,8 @@ export default function ListingGallery({
     const diff = mainTouchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) >= 50) {
       mainSwiped.current = true;
-      if (diff > 0) setActiveIndex((i) => (i + 1) % photos.length);
-      else setActiveIndex((i) => (i - 1 + photos.length) % photos.length);
+      if (diff > 0) showNextPhoto();
+      else showPreviousPhoto();
     }
     mainHorizontalLocked.current = false;
   }
@@ -123,7 +152,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className="relative block w-full touch-pan-y overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        className="relative isolate block w-full touch-pan-y overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -143,6 +172,11 @@ export default function ListingGallery({
           alt={photos[activeIndex]?.altText ?? title}
           fetchPriority="high"
           className="w-full h-full object-cover"
+          onLoad={(e) => {
+            if (!mainSwapRef.current) return;
+            mainSwapRef.current = false;
+            playPhotoSwap(e.currentTarget);
+          }}
         />
         {photos.length > 1 && (
           <div className="absolute bottom-3 right-3 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full pointer-events-none">
@@ -211,7 +245,7 @@ export default function ListingGallery({
           {photos.map((p, i) => (
             <button
               key={p.id}
-              onClick={() => setActiveIndex(i)}
+              onClick={() => showPhoto(i)}
               className={`shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
                 i === activeIndex
                   ? "border-neutral-900"
@@ -234,7 +268,7 @@ export default function ListingGallery({
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black bg-opacity-90"
+          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black bg-opacity-90"
           onClick={() => setLightboxOpen(false)}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -252,7 +286,7 @@ export default function ListingGallery({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
+                  showPreviousLightboxPhoto();
                 }}
                 className="absolute left-[calc(1rem+env(safe-area-inset-left))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-white hover:text-neutral-300"
                 aria-label="Previous image"
@@ -262,7 +296,7 @@ export default function ListingGallery({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxIndex((i) => (i + 1) % photos.length);
+                  showNextLightboxPhoto();
                 }}
                 className="absolute right-[calc(1rem+env(safe-area-inset-right))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-white hover:text-neutral-300"
                 aria-label="Next image"
@@ -272,12 +306,17 @@ export default function ListingGallery({
             </>
           )}
 
-          <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85vh] mx-4">
+          <div onClick={(e) => e.stopPropagation()} className="lightbox-photo-in max-w-4xl max-h-[85vh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
+              onLoad={(e) => {
+                if (!lightboxSwapRef.current) return;
+                lightboxSwapRef.current = false;
+                playPhotoSwap(e.currentTarget);
+              }}
             />
             {photos.length > 1 && (
               <p className="text-center text-white text-sm mt-2 opacity-60">
@@ -288,6 +327,20 @@ export default function ListingGallery({
         </div>
       )}
     </>
+  );
+}
+
+// Short cross-fade when the shown photo changes. Runs after the new photo has
+// loaded, so the old one stays on screen until then (no blank flash).
+function playPhotoSwap(img: HTMLImageElement) {
+  if (typeof img.animate !== "function") return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  img.animate(
+    [
+      { opacity: 0.35, transform: "scale(1.015)" },
+      { opacity: 1, transform: "scale(1)" },
+    ],
+    { duration: 420, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
   );
 }
 
