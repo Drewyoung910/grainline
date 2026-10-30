@@ -11,6 +11,10 @@ import {
   verifyPrivateTablePreparationSource,
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
+  REVIEWED_MANUALLY_APPLIED_MIGRATIONS,
+  isReviewedSuccessfulMigration,
+} from "../scripts/reviewed-manually-applied-migrations.mjs";
+import {
   inspectPrivateTablePreparationProduction,
 } from "../scripts/private-table-preparation-production-inspect.mjs";
 
@@ -91,7 +95,7 @@ function acceptedMigration() {
   };
 }
 
-function fakeClientClass({ applied }) {
+function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
   return class FakeClient {
     async connect() {}
     async end() {}
@@ -119,10 +123,15 @@ function fakeClientClass({ applied }) {
         }] };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
-        return { rows: applied ? [acceptedMigration()] : [] };
+        return { rows: ledgerApplied ? [acceptedMigration()] : [] };
       }
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
-        return { rows: [{ columns: 0, functions: 0 }] };
+        return { rows: [{
+          columns: schemaApplied ? release.addedColumns.length : 0,
+          functions: schemaApplied
+            ? release.functions.length - (partial ? 1 : 0)
+            : 0,
+        }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
         return { rows: [{ name: "emailDeliveryToken", type: "uuid", nullable: true }] };
@@ -183,13 +192,81 @@ test("catalog admits only byte-sealed, additive reviewed preparations", () => {
   assert.doesNotMatch(sql, /DROP\s+COLUMN/iu);
 });
 
+test("Favorite preparation is byte-sealed and remains compatible", () => {
+  const favorite = verifyPrivateTablePreparationSource("favorite_v1");
+  assert.equal(favorite.release.table, "Favorite");
+  assert.equal(favorite.functionSources.size, 8);
+  assert.deepEqual(favorite.release.addedColumns, []);
+  const sql = readFileSync(favorite.migrationPath, "utf8");
+  assert.match(sql, /SET LOCAL lock_timeout = '10s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.match(sql, /ADD COLUMN "favoriteCount" integer NOT NULL DEFAULT 0/u);
+  assert.match(sql, /Favorite_count_after_insert/u);
+  assert.match(sql, /Favorite_update_forbidden/u);
+  assert.match(
+    sql,
+    /CREATE FUNCTION public\.grainline_listing_favorite_count_guard\(\)[\s\S]*SECURITY INVOKER[\s\S]*IF NOT EXISTS[\s\S]*role_state\.rolsuper OR role_state\.rolbypassrls[\s\S]*Listing favorite-count projection is database-managed/u,
+  );
+  assert.match(
+    sql,
+    /CREATE TRIGGER "Listing_favoriteCount_guard"[\s\S]*BEFORE UPDATE OF "favoriteCount" ON public\."Listing"[\s\S]*grainline_listing_favorite_count_guard\(\)/u,
+  );
+  assert.match(
+    sql,
+    /trigger_state\.tgattr::smallint\[\][\s\S]*ARRAY\['favoriteCount'\]::text\[\]/u,
+  );
+  assert.match(
+    sql,
+    /REVOKE ALL ON FUNCTION public\.grainline_listing_favorite_count_guard\(\)[\s\S]*FROM PUBLIC, grainline_app_runtime/u,
+  );
+  assert.doesNotMatch(sql, /grainline_favorite_block_cleanup/u);
+  assert.ok(
+    sql.indexOf('LOCK TABLE public."Listing" IN SHARE ROW EXCLUSIVE MODE')
+      < sql.indexOf('LOCK TABLE public."Favorite" IN SHARE ROW EXCLUSIVE MODE'),
+    "Favorite preparation must follow the predecessor listing-delete lock order",
+  );
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
+test("Follow preparation is byte-sealed and remains compatible", () => {
+  const follow = verifyPrivateTablePreparationSource("follow_v1");
+  assert.equal(follow.release.table, "Follow");
+  assert.equal(follow.functionSources.size, 5);
+  assert.deepEqual(follow.release.addedColumns, []);
+  const sql = readFileSync(follow.migrationPath, "utf8");
+  assert.match(sql, /grainline_follow_account_deletion_cleanup/u);
+  assert.match(sql, /effect\."claimGeneration" = p_claim_generation/u);
+  assert.match(sql, /relationship\."createdAt" DESC, relationship\.id DESC/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
+test("ReviewVote preparation is byte-sealed and remains compatible", () => {
+  const reviewVote = verifyPrivateTablePreparationSource("review_vote_v1");
+  assert.equal(reviewVote.release.table, "ReviewVote");
+  assert.equal(reviewVote.functionSources.size, 3);
+  assert.deepEqual(reviewVote.release.addedColumns, []);
+  const sql = readFileSync(reviewVote.migrationPath, "utf8");
+  assert.match(sql, /grainline_review_vote_owner_toggle/u);
+  assert.match(sql, /grainline_review_vote_insert_guard/u);
+  assert.match(sql, /grainline_review_vote_update_forbidden/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
     const pendingEnv = environment(directory, "preflight");
     const pending = await inspectPrivateTablePreparationProduction(
       pendingEnv,
-      { Client: fakeClientClass({ applied: false }) },
+      { Client: fakeClientClass({ ledgerApplied: false, schemaApplied: false }) },
     );
     assert.equal(pending.state, "pending");
     assert.equal(pending.containsRowData, false);
@@ -201,7 +278,7 @@ test("inspector proves pending and applied states without recording row data", a
     };
     const preApplied = await inspectPrivateTablePreparationProduction(
       preAppliedEnv,
-      { Client: fakeClientClass({ applied: true }) },
+      { Client: fakeClientClass({ ledgerApplied: true, schemaApplied: true }) },
     );
     assert.equal(preApplied.state, "applied");
     assert.equal(preApplied.catalog.functions.length, 9);
@@ -213,7 +290,7 @@ test("inspector proves pending and applied states without recording row data", a
     );
     const post = await inspectPrivateTablePreparationProduction(
       postEnv,
-      { Client: fakeClientClass({ applied: true }) },
+      { Client: fakeClientClass({ ledgerApplied: true, schemaApplied: true }) },
     );
     assert.equal(post.state, "applied");
     assert.deepEqual(post.posture, preApplied.posture);
@@ -222,11 +299,72 @@ test("inspector proves pending and applied states without recording row data", a
   }
 });
 
+test("inspector admits only an exact applied-but-unrecorded preparation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-restart-"));
+  try {
+    const restartEnv = environment(directory, "preflight");
+    const restart = await inspectPrivateTablePreparationProduction(
+      restartEnv,
+      { Client: fakeClientClass({ ledgerApplied: false, schemaApplied: true }) },
+    );
+    assert.equal(restart.state, "applied_unrecorded");
+    assert.equal(restart.catalog.functions.length, release.functions.length);
+
+    await assert.rejects(
+      inspectPrivateTablePreparationProduction(
+        {
+          ...environment(directory, "preflight"),
+          PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(directory, "partial.json"),
+        },
+        {
+          Client: fakeClientClass({
+            ledgerApplied: false,
+            schemaApplied: true,
+            partial: true,
+          }),
+        },
+      ),
+      /partially applied/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("all generic preparation releases admit only their exact manual ledger row", () => {
+  for (const releaseId of [
+    "support_request_v1",
+    "stock_notification_v1",
+    "favorite_v1",
+    "follow_v1",
+    "review_vote_v1",
+  ]) {
+    const candidate = privateTablePreparation(releaseId);
+    assert.equal(
+      REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(candidate.migration),
+      candidate.migrationSha256,
+    );
+    assert.equal(isReviewedSuccessfulMigration({
+      migration_name: candidate.migration,
+      checksum: candidate.migrationSha256,
+      finished_at: new Date("2026-10-28T00:00:00Z"),
+      rolled_back_at: null,
+      applied_steps_count: 0,
+    }), true);
+  }
+});
+
 test("Production workflow is exact-main bound and fails on another red push workflow", async () => {
   assert.ok(parsed.on.workflow_dispatch);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    ["support_request_v1", "stock_notification_v1"],
+    [
+      "support_request_v1",
+      "stock_notification_v1",
+      "favorite_v1",
+      "follow_v1",
+      "review_vote_v1",
+    ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
   assert.match(workflow, new RegExp(PRIVATE_TABLE_PREPARATION_CONFIRMATION, "u"));
@@ -239,16 +377,20 @@ test("Production workflow is exact-main bound and fails on another red push work
 test("Production workflow keeps preparation additive, restart-safe, and sole-pending", () => {
   assert.match(workflow, /guard-production-migration-runner\.mjs/u);
   assert.match(workflow, /assert-reviewed-pending-migrations\.mjs/u);
-  assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /npx prisma migrate deploy/u);
+  assert.match(workflow, /psql "\$DIRECT_URL"/u);
+  assert.match(workflow, /npx prisma migrate resolve --applied "\$migration"/u);
   assert.match(workflow, /steps\.preflight\.outputs\.state == 'pending'/u);
+  assert.match(workflow, /steps\.preflight\.outputs\.state == 'applied_unrecorded'/u);
   assert.match(workflow, /PRIVATE_TABLE_PREPARATION_PHASE: postflight/u);
   assert.match(workflow, /audit:db-grants -- --require-direct-url/u);
   assert.doesNotMatch(workflow, /vercel\s+(?:deploy|alias|promote)/iu);
   const sourceCheck = workflow.indexOf("Verify reviewed preparation source before owner access");
   const boundary = workflow.indexOf("Verify owner connection boundary");
   const preflight = workflow.indexOf("Inspect restart-safe preparation state");
-  const apply = workflow.indexOf("Apply only the reviewed private-table preparation");
+  const apply = workflow.indexOf("Apply reviewed preparation transaction outside Prisma's ledger");
+  const record = workflow.indexOf("Record the committed preparation in Prisma's ledger");
   const postflight = workflow.indexOf("Read back exact compatible preparation catalog");
   assert.ok(sourceCheck >= 0 && sourceCheck < boundary && boundary < preflight);
-  assert.ok(preflight < apply && apply < postflight);
+  assert.ok(preflight < apply && apply < record && record < postflight);
 });

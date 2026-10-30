@@ -760,6 +760,96 @@ GRANT EXECUTE ON FUNCTION public.grainline_cart_item_seller_listing_cleanup(text
 \endif
 \unset grainline_cart_rls_active
 
+-- StockNotification keeps direct owner SELECT/DELETE after activation. New
+-- subscriptions and every cross-owner operation stay behind the prepared
+-- SECURITY DEFINER authorities, so provisioning must never restore direct
+-- INSERT or UPDATE once the two owner policies are active.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.array_agg(
+              policy.polname::text || ':' || policy.polcmd::text
+              ORDER BY policy.polname
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_shape,
+    (SELECT pg_catalog.bool_and(
+              policy.polpermissive
+              AND policy.polroles = ARRAY[
+                (SELECT role.oid
+                   FROM pg_catalog.pg_roles AS role
+                  WHERE role.rolname = :'runtime_role')
+              ]::oid[]
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_roles_valid,
+    (SELECT pg_catalog.bool_and(
+              pg_catalog.pg_get_expr(policy.polqual, policy.polrelid) =
+                '("userId" = NULLIF(current_setting(''app.user_id''::text, true), ''''::text))'
+              AND policy.polwithcheck IS NULL
+            )
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_expressions_valid
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'StockNotification'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(
+        relrowsecurity
+        AND relforcerowsecurity
+        AND policy_shape = ARRAY[
+          'stock_notification_owner_delete:d',
+          'stock_notification_owner_select:r'
+        ]::text[]
+        AND policy_roles_valid
+        AND policy_expressions_valid
+      ) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_shape IS NULL
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'StockNotification RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS grainline_stock_notification_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_stock_notification_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_stock_notification_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_stock_notification_rls_active
+REVOKE ALL ON TABLE public."StockNotification"
+  FROM PUBLIC, :"runtime_role";
+GRANT SELECT, DELETE ON TABLE public."StockNotification"
+  TO :"runtime_role";
+\endif
+\unset grainline_stock_notification_rls_active
+
 -- StripeWebhookEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
 -- removes all direct runtime authority. FORCE may be either off (initial
@@ -2159,6 +2249,142 @@ SELECT format(
   :'runtime_role'
 )
   FROM stock_notification_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Favorite preparation is additive and keeps predecessor table CRUD available
+-- until activation. When present, converge only the reviewed fixed operations;
+-- trigger functions remain private to the table owner.
+WITH favorite_private(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_count_maintain"()'),
+    ('public."grainline_favorite_update_forbidden"()'),
+    ('public."grainline_listing_favorite_count_guard"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM favorite_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_private(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_count_maintain"()'),
+    ('public."grainline_favorite_update_forbidden"()'),
+    ('public."grainline_listing_favorite_count_guard"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM favorite_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_service(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_owner_listing_ids"(text[])'),
+    ('public."grainline_favorite_owner_add"(text)'),
+    ('public."grainline_favorite_owner_remove"(text)'),
+    ('public."grainline_favorite_owner_delete_all"(text)'),
+    ('public."grainline_favorite_owner_export"()'),
+    ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_favorite_seller_listing_cleanup"(text)'),
+    ('public."grainline_favorite_admin_listing_cleanup"(text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM favorite_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_service(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_owner_listing_ids"(text[])'),
+    ('public."grainline_favorite_owner_add"(text)'),
+    ('public."grainline_favorite_owner_remove"(text)'),
+    ('public."grainline_favorite_owner_delete_all"(text)'),
+    ('public."grainline_favorite_owner_export"()'),
+    ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_favorite_seller_listing_cleanup"(text)'),
+    ('public."grainline_favorite_admin_listing_cleanup"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM favorite_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH favorite_service(function_signature) AS (
+  VALUES
+    ('public."grainline_favorite_owner_listing_ids"(text[])'),
+    ('public."grainline_favorite_owner_add"(text)'),
+    ('public."grainline_favorite_owner_remove"(text)'),
+    ('public."grainline_favorite_owner_delete_all"(text)'),
+    ('public."grainline_favorite_owner_export"()'),
+    ('public."grainline_favorite_seller_range_count"(timestamp without time zone, timestamp without time zone, boolean)'),
+    ('public."grainline_favorite_seller_listing_cleanup"(text)'),
+    ('public."grainline_favorite_admin_listing_cleanup"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM favorite_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Follow preparation keeps predecessor table CRUD available until activation.
+-- Converge only the five new purpose-bound operations; the older follow,
+-- fanout, export and block-cleanup functions are provisioned in their existing
+-- authority families above and below.
+WITH follow_service(function_signature) AS (
+  VALUES
+    ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_owner_target_ids"(integer)'),
+    ('public."grainline_follow_owner_outgoing_count"()'),
+    ('public."grainline_follow_seller_owner_incoming_count"()'),
+    ('public."grainline_follow_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM follow_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH follow_service(function_signature) AS (
+  VALUES
+    ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_owner_target_ids"(integer)'),
+    ('public."grainline_follow_owner_outgoing_count"()'),
+    ('public."grainline_follow_seller_owner_incoming_count"()'),
+    ('public."grainline_follow_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM follow_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH follow_service(function_signature) AS (
+  VALUES
+    ('public."grainline_follow_public_state_batch"(text[])'),
+    ('public."grainline_follow_owner_target_ids"(integer)'),
+    ('public."grainline_follow_owner_outgoing_count"()'),
+    ('public."grainline_follow_seller_owner_incoming_count"()'),
+    ('public."grainline_follow_account_deletion_cleanup"(text, text, bigint, uuid)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM follow_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
@@ -5020,6 +5246,55 @@ SELECT format(
 \gexec
 \endif
 \unset order_payment_event_rls_active
+
+-- ReviewVote compatible preparation keeps predecessor table grants in place,
+-- but its new owner operations must survive role convergence while trigger
+-- helpers remain private. The existence guards keep this script valid before
+-- the preparation migration is installed and fail closed on every present
+-- function.
+WITH review_vote_private(function_signature) AS (
+  VALUES
+    ('public."grainline_review_vote_insert_guard"()'),
+    ('public."grainline_review_vote_update_forbidden"()')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM review_vote_private
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH review_vote_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_review_vote_owner_toggle"(text)'),
+    ('public."grainline_review_vote_owner_export"()'),
+    ('public."grainline_review_vote_owner_delete_all"()')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM review_vote_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH review_vote_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_review_vote_owner_toggle"(text)'),
+    ('public."grainline_review_vote_owner_export"()'),
+    ('public."grainline_review_vote_owner_delete_all"()')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM review_vote_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
 
 WITH failure AS (
   SELECT 'required extension pg_trgm is not installed' AS message

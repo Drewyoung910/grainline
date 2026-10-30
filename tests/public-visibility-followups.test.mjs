@@ -13,10 +13,10 @@ describe("public visibility follow-ups", () => {
     assert.doesNotMatch(accountPage, /prisma\.favorite|savedListingFavoriteWhere|blockedSellerIds/);
   });
 
-  it("validates favorite targets through the bounded public favorite authority", () => {
+  it("validates and writes favorites through the atomic owner authority", () => {
     const favoritesRoute = read("src/app/api/favorites/route.ts");
-    assert.match(favoritesRoute, /sellerPublicFavoriteTarget\(listingId\)/);
-    assert.doesNotMatch(favoritesRoute, /publicListingDetailWhere|select:\s*\{[^}]*seller:/u);
+    assert.match(favoritesRoute, /addOwnerFavorite\(me\.id, listingId\)/);
+    assert.doesNotMatch(favoritesRoute, /prisma\.favorite|prisma\.block|sellerPublicFavoriteTarget/);
   });
 
   it("keeps listing detail related listings and review aggregates on public visibility filters", () => {

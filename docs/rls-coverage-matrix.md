@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-10-24
+Last updated: 2026-10-28
 
 ## Purpose And Scope
 
@@ -8,13 +8,14 @@ This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Candidate-source snapshot scope: 70 Prisma models.
 
 Current candidate source contains 70 Prisma models. The matrix records
-thirty-three with retained Production FORCE evidence and thirty-seven without a
+thirty-four with retained Production FORCE evidence and thirty-six without a
 live RLS activation. Both the public
 `SellerProfile` table and its private companion are policyless FORCE in
 Production with zero direct runtime, staff or `PUBLIC` authority.
 `SupportRequest` is policyless FORCE in Production with zero direct runtime,
-staff or `PUBLIC` authority. `Cart` and `CartItem` are FORCE-hardened with
-owner policies and narrow column-level update grants. The earlier
+staff or `PUBLIC` authority. `Cart`, `CartItem`, and `SavedBlogPost` are
+FORCE-hardened with owner policies and deliberately narrow mutation grants.
+The earlier
 protected-table inventory is in
 `docs/remaining-rls-table-prioritization-audit-20261012.md`.
 
@@ -259,12 +260,12 @@ completed alternative.
 | `FoundingMakerGrant` | `ALTERNATIVE_REVIEW` | Service and allocation ledgers | System allocation and badge state; allocation job, staff and public badge consumers | Revoke ordinary writes and choose service-only mutation plus minimal read projection |
 | `Listing` | `BLOCKED_DESIGN` | Catalog public-private split | Public inventory mixed with drafts, private reservations and review state; public, seller, reserved buyer, staff and cron | Model visibility states, participant access and private moderation fields before base-table RLS |
 | `Photo` | `BLOCKED_DESIGN` | Catalog public-private split | Listing media; public readers, listing owner and cleanup jobs | Parent listing visibility and seller ownership policy with cleanup path |
-| `Favorite` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner save history plus cross-user ranking and seller analytics | Denormalize or explicitly serve public aggregates before owner-scoped reads |
+| `Favorite` | `COMPATIBLE_CANDIDATE` | Aggregate and fanout | Owner save history plus cross-user ranking and seller analytics | The 2026-10-28 audit selected the maintained raw-count projection from Option B while preserving the stricter quality-score eligibility aggregate. The isolated compatible candidate adds `Listing.favoriteCount`, exact backfill/maintenance and eight bounded operations; converts every direct read, write, count, order, export and cleanup caller; forbids row UPDATE; and keeps RLS plus predecessor table grants unchanged. The full 437-migration PostgreSQL 16 proof reproduces the predecessor add-after-block gap, then proves prepared behavior, an in-flight actor-ban recheck, cascades/count reconciliation and both winner orders of add-vs-block and add-vs-archive. Preparation must release before the compatible app. A separate activation still needs final ACL/policy choice, runtime/no-context/cross-user denial, rollback and skew-drain proof. See `docs/favorite-pre-rls-audit.md` and `docs/favorite-rls-options.md`. |
 | `Review` | `BLOCKED_DESIGN` | Review and UGC | Public review, reviewer content, seller reply and staff moderation | Actor-specific read and write rules that preserve public approved content and moderation |
 | `Conversation` | `RLS_LIVE_FORCE` | Conversation and message | Private participant thread state; two participants, exact reported-staff exception and deletion flows | ENABLE plus FORCE, one participant/reported-staff SELECT policy, SELECT-only runtime grant and fixed write authority are live. Retain protected run `30207825683`, actual pooled-runtime postflight and `docs/rls-conversation-message-plan.md` |
 | `Message` | `RLS_LIVE_FORCE` | Conversation and message | Private message bodies and attachment references; sender, recipient, exact reported-staff exception and structured service messages. Ordinary attachment bytes currently remain public bearer-link objects outside PostgreSQL | ENABLE plus FORCE, one parent-derived SELECT policy, SELECT-only runtime grant and fixed write authority are live with the Conversation release and retained pooled-runtime proof. CM-A20 separately requires private object storage, participant-authorized reads and legacy-object classification before claiming byte confidentiality |
 | `ReviewPhoto` | `BLOCKED_DESIGN` | Review and UGC | Review media; public readers, reviewer and moderation cleanup | Parent review visibility and author-control policy |
-| `ReviewVote` | `BLOCKED_DESIGN` | Review and UGC | User vote history plus public helpful counts | Preserve aggregate counts while restricting per-user rows and writes |
+| `ReviewVote` | `COMPATIBLE_CANDIDATE` | Review and UGC | Private user vote history plus a public cached helpful-count projection | The A2 candidate converts toggle/export/deletion, repairs drift, enforces `value = 1`, adds the owner-leading index and insert/update guards, and passes the complete PostgreSQL 17 chain plus mixed predecessor/new-operation serialization without changing RLS or predecessor grants. Activation still needs the owner policy, direct-mutation denial, hard User-delete cascade maintenance, cross-owner/availability race proof, and rollback/reactivation proof. See `docs/review-vote-rls-options.md` and `docs/review-vote-pre-rls-audit.md`. |
 | `Order` | `RLS_LIVE_FORCE` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, durable Order seller, staff, Stripe, Shippo and jobs | Policyless ENABLE and FORCE are live with zero direct runtime/PUBLIC table or column authority. Accepted fixed operations cover participant reads, checkout, fulfillment, refunds, labels, staff actions, account deletion and service lifecycles. The activation sequence is recorded by `20260927090000_enable_order_rls` and `20260929160000_force_order_rls`; see `docs/order-core-pre-rls-audit.md`, `docs/order-release-readiness-20260908.md`, and `docs/order-authenticated-route-smoke-plan-20260902.md`. |
 | `OrderShippingRateQuote` | `RLS_LIVE_FORCE` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Policyless ENABLE and FORCE are live with zero direct runtime/PUBLIC table or column authority through `20261001050000_enable_order_shipping_rate_quote_rls` and `20261001060000_force_order_shipping_rate_quote_rls`. Quote access remains limited to the reviewed parent-bound and service operations. |
 | `OrderDisputeRecovery` | `RLS_LIVE_FORCE` | Order Stripe-dispute provider recovery | Private generation-fenced transfer-reversal and restoration state; signed Stripe events and the isolated recovery worker only | Created policyless ENABLE plus FORCE with zero direct runtime/PUBLIC table authority in `20260930040000_prepare_order_dispute_recovery`; only the reviewed source-validating recovery operations retain access. |
@@ -288,7 +289,7 @@ completed alternative.
 | `CaseMessage` | `RLS_LIVE_FORCE` | Case and case message | Private dispute discussion; buyer, seller and staff | Policyless ENABLE plus FORCE and zero direct runtime table/column authority are live with parent-bound fixed reads/writes, invariant triggers and pooled-runtime denial proof in the accepted Case-family release |
 | `CaseMessageAttachment` | `RLS_LIVE_FORCE` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Policyless ENABLE plus FORCE and zero direct runtime table/column authority are live with the Case family. Case evidence stays disabled; signed-read promotion and cleanup scheduling remain separate operational releases rather than RLS gaps |
 | `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
-| `StockNotification` | `COMPATIBLE_CANDIDATE` | Stock notification | Private subscriber-owned relationship with seller-only aggregates, listing-wide fanout and cross-owner cleanup | The 2026-10-26 audit selected Option A2: owner SELECT/DELETE policies, no direct INSERT/UPDATE, a race-safe fixed subscribe operation, and bounded functions for seller aggregates, restock candidates, listing cleanup and Block cleanup. Isolated candidate source fixes C-759, C-708 and self-subscription; centralizes all direct callers; and passes the full 435-migration PostgreSQL 16 proof, including predecessor blocked-alert reproduction, prepared authority behavior and both winner orders of subscribe-vs-block and claim-vs-block races. RLS and predecessor grants remain unchanged. Activation still requires a later owner-policy migration, cascade/direct-denial/rollback proof, compatible preparation release and live-app drain. See `docs/stock-notification-rls-options.md` and `docs/stock-notification-pre-rls-audit.md`. |
+| `StockNotification` | `ACTIVATION_CANDIDATE` | Stock notification | Private subscriber-owned relationship with seller-only aggregates, listing-wide fanout and cross-owner cleanup | The 2026-10-26 audit selected Option A2: owner SELECT/DELETE policies, no direct INSERT/UPDATE, a race-safe fixed subscribe operation, and bounded functions for seller aggregates, restock candidates, listing cleanup and Block cleanup. The additive compatible application and preparation source fix C-759, C-708 and self-subscription and centralize all direct callers. The separate activation candidate combines ENABLE plus FORCE, keeps only owner SELECT/DELETE table authority, and passed the complete 437-migration PostgreSQL 17 chain with exact catalog inspection, cross-user/no-context denial, direct INSERT/UPDATE denial, User/Listing cascades, provisioning replay, executed database-first rollback, predecessor CRUD, and exact reactivation. Production remains unchanged: apply the preparation, deploy and drain the compatible app, independently review and merge the activation, then obtain Drew's exact-run approval. See `docs/stock-notification-rls-options.md` and `docs/stock-notification-pre-rls-audit.md`. |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |
 | `BlogPost` | `BLOCKED_DESIGN` | Blog public-private split | Public posts mixed with drafts and staff or seller authoring | Public published view plus author and staff controls for draft, publish and archive states |
 | `BlogComment` | `BLOCKED_DESIGN` | Blog public-private split | Public approved comments mixed with pending moderation; author, public and staff | Approved-public read path plus author create and staff moderation policy |
@@ -311,8 +312,8 @@ completed alternative.
 | `Notification` | `RLS_LIVE_PHASE_B` | Bucket B Notification | Direct user-owned reads and mark-read updates with cross-user and system creation | `ENABLE` plus `FORCE`, two policies, narrow runtime grants, production catalog/direct-denial proof, and authenticated route postflight are live and retained. Preserve the policy, RPC, and grant contract; retain protected backup `br-hidden-tree-aa337i8v` through the rollback window |
 | `ListingViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private listing analytics with public event ingestion and aggregation jobs | Seller-through-profile reads plus service-only counter writes and hot-path plan review |
 | `SellerProfileViewDaily` | `BLOCKED_DESIGN` | Seller analytics | Seller-private profile analytics with public event ingestion and aggregation jobs | Seller ownership reads plus service-only counter writes and hot-path plan review |
-| `Follow` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | Denormalized count and explicit fanout service path before owner-row policies |
-| `SavedBlogPost` | `ACTIVATION_CANDIDATE` | Saved blog post | Owner-only saved state, with public-blog eligibility checked atomically when a save is created | The full domain audit selected simple owner policies. Candidate source centralizes all owner reads/writes/export/deletion, sets transaction-local `app.user_id`, preserves bounded public projections, and adds an owner-bound insert guard for active users and currently public/orderable posts. One combined ENABLE plus FORCE migration retains SELECT/INSERT/DELETE only, removes UPDATE, adds three owner policies, and is covered by current-schema PostgreSQL behavior, concurrency, rollback, source-seal, catalog and protected-release checks. The release also requires Vercel's skew threshold at the compatible deployment and proves a request pinned to the exact predecessor can no longer reach predecessor code. Production remains unchanged until exact-head review, merge and the generic owner-table activation workflow succeed. |
+| `Follow` | `COMPATIBLE_CANDIDATE` | Aggregate and fanout | Owner relationship plus public follower counts and cross-user fanout | The 2026-10-28 audit selected Option B: zero ordinary runtime table authority after activation, retaining the reviewed create/delete, owner history/export, fanout, broadcast and block-cleanup operations. The dependent compatible candidate converts all nine direct callers and adds five bounded operations for public batch state, owner target IDs, raw owner count, seller-owner incoming count and deletion-claim cleanup. It keeps RLS off and predecessor CRUD intact. The full 438-migration PostgreSQL 16 and 17 proofs preserve predecessor direct access, raw-count and unavailable-shop behavior, actor isolation, function ownership/ACLs and exact account-deletion cleanup. Favorite preparation must release first. Separate activation still requires direct denial, race/cascade, rollback and deployment-skew proofs. See `docs/follow-pre-rls-audit.md` and `docs/follow-rls-options.md`. |
+| `SavedBlogPost` | `RLS_LIVE_FORCE` | Saved blog post | Owner-only saved state, with public-blog eligibility checked atomically when a save is created | Combined ENABLE plus FORCE migration `20261023070000_activate_saved_blog_post_rls` is live from exact main `5b48f9dc5f67ec002e16929f40b09be7055f9be6` through protected run `40087080209`. Production retains owner SELECT, INSERT and DELETE only, no UPDATE authority, exactly three owner policies, and the runtime-private insert guard for active owners and currently public/orderable posts. The release completed its exact-deployment, predecessor-drain, current-schema PostgreSQL behavior, concurrency, rollback, source-seal, catalog and postflight checks. |
 | `SellerBroadcast` | `BLOCKED_DESIGN` | Aggregate and fanout | Seller-authored broadcast and recipient fanout metadata | Seller ownership, follower fanout service path and recipient visibility decision |
 | `CommissionRequest` | `BLOCKED_DESIGN` | Commission | Buyer request and location or reference media mixed with seller discovery | Public discovery projection, buyer ownership, location privacy and lifecycle states |
 | `CommissionInterest` | `BLOCKED_DESIGN` | Commission | Seller interest connected to buyer request and optional conversation | Buyer and interested-seller participant rules plus conversation and fanout side effects |
@@ -834,8 +835,7 @@ preparation evidence, not a live-status change.
 
 ## Verified Source Preparation
 
-The current source already centralizes ordinary owner operations for three
-future groups:
+The current source centralizes ordinary owner operations for three groups:
 
 - `Notification` owner reads and mark-read updates use
   `src/lib/notificationOwnerAccess.ts`.
@@ -850,11 +850,11 @@ Notification and Cart helpers require branded transaction-local user context,
 and their cross-user or service paths target fixed-purpose functions. The Cart
 candidate also removes the mutable CartItem fallback from legacy stock restore;
 durable CheckoutStockReservation state remains the recovery authority.
-SavedBlogPost still remains an unapplied candidate. Notification prelaunch inspection and the
-atomic activation purge,
-recipient RPC real-table/provider proof, policy/grant activation, and every later group's
-service paths remain explicit work. Centralization and draft wiring are
-preparation, not active RLS or staging proof.
+SavedBlogPost's combined ENABLE plus FORCE activation is live. Notification's
+prelaunch inspection, atomic activation purge, recipient RPC real-table/provider
+proof, policy/grant activation, and every later group's service paths remain
+explicit work. For groups that are not yet live, centralization and draft wiring
+are preparation, not active RLS or staging proof.
 
 ## Future Saved-Search Match Alerts
 
@@ -1001,7 +1001,6 @@ preclude a later reviewed policy or grant migration.
    deployment and smoke plus conversion of every remaining direct consumer
    precede predecessor drain and separate ENABLE/FORCE releases.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
-   retains high sensitive-data priority; Cart/CartItem,
-   SavedBlogPost, aggregate/fanout, public/private split and service-ledger
+   retains high sensitive-data priority; aggregate/fanout, public/private split and service-ledger
    groups remain required and must not be silently dropped or bundled into the
    messaging activation.

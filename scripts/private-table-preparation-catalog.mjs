@@ -127,6 +127,142 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  favorite_v1: Object.freeze({
+    migration: "20261028010000_prepare_favorite_authorities",
+    migrationSha256: "ec921aa2eb31d2b6a63a22682e753d7ec2a54e80be84c0a1f4c9b4749bb4537e",
+    table: "Favorite",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    // Listing.favoriteCount is sealed and verified by the migration itself;
+    // this table-scoped catalog intentionally records only Favorite additions.
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-profile-favorite-target-route.test.mjs",
+      "tests/public-visibility-followups.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_favorite_owner_listing_ids",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_add",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_delete_all",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_range_count",
+        arguments: "timestamp without time zone, timestamp without time zone, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_seller_listing_cleanup",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_favorite_admin_listing_cleanup",
+        arguments: "text",
+      }),
+    ]),
+  }),
+  follow_v1: Object.freeze({
+    migration: "20261028020000_prepare_follow_authorities",
+    migrationSha256: "98fb050499398e2acc32160d7a8c69f9c77a74319ae26bf2daa387967e076344",
+    table: "Follow",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-profile-follow-authority-conversion.test.mjs",
+      "tests/user-follower-authorities-source.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_follow_public_state_batch",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_follow_owner_target_ids",
+        arguments: "integer",
+      }),
+      Object.freeze({
+        name: "grainline_follow_owner_outgoing_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_follow_seller_owner_incoming_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_follow_account_deletion_cleanup",
+        arguments: "text, text, bigint, uuid",
+      }),
+    ]),
+  }),
+  review_vote_v1: Object.freeze({
+    migration: "20261028030000_prepare_review_vote_authorities",
+    migrationSha256: "05a3203bc591cbf1dcdf357612d46b4f7f34671e211bebe3788e43abf9a5ebc2",
+    table: "ReviewVote",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/review-vote-access.test.mjs",
+      "tests/review-vote-route.test.mjs",
+      "tests/review-vote-visibility.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_review_vote_owner_toggle",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_review_vote_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_review_vote_owner_delete_all",
+        arguments: "",
+      }),
+    ]),
+  }),
 });
 
 function stopped(message) {

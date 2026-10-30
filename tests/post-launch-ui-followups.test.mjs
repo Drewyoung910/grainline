@@ -557,8 +557,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /spotlight\.isFoundingMaker/);
     assert.match(homepage, /spotlight\.foundingMakerNumber/);
     assert.match(homepage, /const featuredMakerIds = featuredMakers\.map\(\(\{ maker \}\) => maker\.id\)/);
-    assert.match(homepage, /prisma\.follow\.groupBy\(\{/);
-    assert.match(homepage, /where: \{ followerId: meDbId, sellerProfileId: \{ in: featuredMakerIds \} \}/);
+    assert.match(homepage, /sellerPublicFollowStateBatch\(\s*featuredMakerIds,\s*meDbId \?\? undefined,\s*\)/);
+    assert.match(homepage, /followStates\.map\(\(state\) => \[state\.sellerProfileId, state\.followerCount\]\)/);
+    assert.match(homepage, /followStates\.filter\(\(state\) => state\.following\)\.map\(\(state\) => state\.sellerProfileId\)/);
     assert.match(homepage, /getCachedPublicSellerStats\(featuredMakers\[0\]\.maker\.id\)/);
     assert.match(homepage, /<h2 className="text-xl font-semibold font-display">In the Workshop<\/h2>/);
     assert.match(homepage, /href=\{publicSellerPath\(spotlight\.id, spotlight\.displayName\)\}[\s\S]*absolute bottom-4 left-4/);

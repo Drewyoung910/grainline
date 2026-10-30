@@ -15,6 +15,7 @@ import { withSerializableDbUserContext } from "@/lib/dbUserContext";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { deleteCartItemsForSellerListing } from "@/lib/cartServiceAccess";
 import { deleteStockNotificationsForSellerListing } from "@/lib/stockNotificationAccess";
+import { deleteFavoritesForSellerListing } from "@/lib/favoriteAccess";
 
 export const LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 
@@ -139,7 +140,7 @@ export async function deleteListingWithCleanup(
           throw new ListingDeleteError("Listing state changed; refresh and try again.");
         }
 
-        await tx.favorite.deleteMany({ where: { listingId: normalizedListingId } });
+        await deleteFavoritesForSellerListing(tx, normalizedListingId);
         await deleteStockNotificationsForSellerListing(tx, normalizedListingId);
         await deleteCartItemsForSellerListing(tx, normalizedListingId);
         return "archived";

@@ -18,6 +18,10 @@ const C715_CHECKSUM =
 const C1150 = "20261023050000_correct_support_request_email_reuse_privacy";
 const C1150_CHECKSUM =
   "9db6f9bf2db0dc1d8b96199e4381a33cea51233521e0a59ba9328caa59d337a1";
+const STOCK_NOTIFICATION_RLS =
+  "20261027040000_activate_stock_notification_rls";
+const STOCK_NOTIFICATION_RLS_CHECKSUM =
+  "c771b5c6caed905ce00515969e461a5f9de7c65b626d1eaa6c80916d4b6d7942";
 
 test("accepts only the exact reviewed pending migration set", () => {
   const directories = ["20261001000000_first", "20261002000000_second"];
@@ -105,6 +109,31 @@ test("accepts only the exact reviewed Prisma-resolved C-1150 row", () => {
   ]) {
     assert.notDeepEqual(collectReviewedPendingMigrationIssues({
       directoryNames: [C1150],
+      rows: [row],
+      expectedPending: [],
+    }), []);
+  }
+});
+
+test("accepts only the exact reviewed Prisma-resolved StockNotification activation", () => {
+  const resolved = {
+    ...applied(STOCK_NOTIFICATION_RLS),
+    checksum: STOCK_NOTIFICATION_RLS_CHECKSUM,
+    applied_steps_count: "0",
+  };
+  assert.deepEqual(collectReviewedPendingMigrationIssues({
+    directoryNames: [STOCK_NOTIFICATION_RLS],
+    rows: [resolved],
+    expectedPending: [],
+  }), []);
+  for (const row of [
+    { ...resolved, checksum: "0".repeat(64) },
+    { ...resolved, finished_at: null },
+    { ...resolved, rolled_back_at: new Date("2026-10-27T12:01:00Z") },
+    { ...resolved, applied_steps_count: "2" },
+  ]) {
+    assert.notDeepEqual(collectReviewedPendingMigrationIssues({
+      directoryNames: [STOCK_NOTIFICATION_RLS],
       rows: [row],
       expectedPending: [],
     }), []);

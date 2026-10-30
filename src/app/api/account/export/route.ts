@@ -29,6 +29,7 @@ import { ownerNotificationExportRows } from "@/lib/notificationOwnerAccess";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { ownerSavedBlogPostExportRows } from "@/lib/savedBlogPostOwnerAccess";
 import { ownerCartExportRows } from "@/lib/cartOwnerAccess";
+import { ownerFavoriteExportRows } from "@/lib/favoriteAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { exportOwnedDirectUploads } from "@/lib/directUploadLifecycle";
 import { exportParticipantCases } from "@/lib/caseAccountExportAuthority";
@@ -48,6 +49,7 @@ import {
 import { sellerOwnerExportProfile } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAccess";
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
+import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 
 export const runtime = "nodejs";
 
@@ -203,11 +205,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       select: { id: true, postId: true, body: true, approved: true, parentId: true, createdAt: true },
     }),
     ownerCartExportRows(user.id),
-    prisma.favorite.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
-    }),
+    ownerFavoriteExportRows(user.id),
     listOwnerSavedSearches(user.id, prisma),
     sellerOwnerFollowExportRows(user.id),
     ownerSavedBlogPostExportRows(user.id),
@@ -350,11 +348,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       : [],
     sellerProfile ? exportSellerPayoutEvents(user.id) : [],
     exportOwnedDirectUploads(user.id),
-    prisma.reviewVote.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { reviewId: true, value: true, createdAt: true, review: { select: { listingId: true } } },
-    }),
+    exportOwnerReviewVotes(user.id),
   ]);
   const messagesSent = messageRows
     .filter((message) => message.senderId === user.id)
