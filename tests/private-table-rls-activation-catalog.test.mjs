@@ -85,28 +85,32 @@ test("catalog orders and byte-seals the owner social verification activation bat
 });
 
 test("batch source verification prefers each release's staged paths", () => {
+  const sourceByRelease = Object.fromEntries(
+    privateTableRlsActivationReleaseIds("owner_social_verification_v1")
+      .map((id) => [id, verifyPrivateTableRlsActivationSource(id)]),
+  );
   const previous = new Map();
   const staged = {
     FAVORITE_PREPARATION_MIGRATION_PATH:
-      "prisma/migrations/20261028010000_prepare_favorite_authorities",
+      sourceByRelease.favorite_v1.preparation.migrationPath,
     FAVORITE_RLS_ACTIVATION_MIGRATION_PATH:
-      "prisma/migrations/20261028050000_activate_favorite_rls/migration.sql",
+      sourceByRelease.favorite_v1.migrationPath,
     FOLLOW_PREPARATION_MIGRATION_PATH:
-      "prisma/migrations/20261028020000_prepare_follow_authorities",
+      sourceByRelease.follow_v1.preparation.migrationPath,
     FOLLOW_RLS_ACTIVATION_MIGRATION_PATH:
-      "prisma/migrations/20261028060000_activate_follow_rls/migration.sql",
+      sourceByRelease.follow_v1.migrationPath,
     REVIEW_VOTE_PREPARATION_MIGRATION_PATH:
-      "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql",
+      sourceByRelease.review_vote_v1.preparation.migrationPath,
     REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH:
-      "prisma/migrations/20261028070000_activate_review_vote_rls/migration.sql",
+      sourceByRelease.review_vote_v1.migrationPath,
     MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH:
-      "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+      sourceByRelease.maker_verification_v1.preparation.migrationPath,
     MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH:
-      "prisma/migrations/20261028080000_activate_maker_verification_rls/migration.sql",
+      sourceByRelease.maker_verification_v1.migrationPath,
     PRIVATE_TABLE_PREPARATION_MIGRATION_PATH:
-      "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql",
+      sourceByRelease.maker_verification_v1.preparation.migrationPath,
     PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH:
-      "prisma/migrations/20261028080000_activate_maker_verification_rls/migration.sql",
+      sourceByRelease.maker_verification_v1.migrationPath,
   };
 
   try {
@@ -126,7 +130,7 @@ test("batch source verification prefers each release's staged paths", () => {
     }
     assert.equal(
       privateTablePreparationMigrationOverride("favorite_v1"),
-      `${staged.FAVORITE_PREPARATION_MIGRATION_PATH}/migration.sql`,
+      staged.FAVORITE_PREPARATION_MIGRATION_PATH,
     );
     assert.equal(
       privateTableRlsActivationMigrationOverride("review_vote_v1"),
