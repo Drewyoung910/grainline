@@ -79,6 +79,9 @@ $grainline_follow_rollback_preflight$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."Follow"
   TO grainline_app_runtime;
 
+GRANT EXECUTE ON FUNCTION public.grainline_user_follower_notification_page(text,text,integer)
+  TO grainline_app_runtime;
+
 ALTER TABLE public."Follow" NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE public."Follow" DISABLE ROW LEVEL SECURITY;
 

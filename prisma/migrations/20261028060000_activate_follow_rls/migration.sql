@@ -190,6 +190,7 @@ BEGIN
         ('public.grainline_follow_owner_target_ids(integer)', '01a14940a6dd29f877828737b8f7635a', 's'::"char", true),
         ('public.grainline_follow_public_state_batch(text[])', '356fba4afac454f4d2bace4a02fadca7', 's'::"char", true),
         ('public.grainline_follow_seller_owner_incoming_count()', 'a413e9faf1a31784b151973b69a6a38d', 's'::"char", true),
+        ('public.grainline_follow_source_notification_page(text,text,text,integer)', 'f61e608939f69b2567071a7e318628c5', 's'::"char", true),
         ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", false),
         ('public.grainline_seller_actor_account_feed_cards(text[])', '566d9d330a5be2c09833f3a71c5b686d', 's'::"char", true),
         ('public.grainline_seller_owner_follow_export()', '7c86080194edaf57ee2dabbd5bc5278d', 's'::"char", true),
@@ -245,6 +246,7 @@ BEGIN
          pg_catalog.to_regprocedure('public.grainline_follow_owner_target_ids(integer)'),
          pg_catalog.to_regprocedure('public.grainline_follow_public_state_batch(text[])'),
          pg_catalog.to_regprocedure('public.grainline_follow_seller_owner_incoming_count()'),
+        pg_catalog.to_regprocedure('public.grainline_follow_source_notification_page(text,text,text,integer)'),
          pg_catalog.to_regprocedure('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)'),
          pg_catalog.to_regprocedure('public.grainline_seller_actor_account_feed_cards(text[])'),
          pg_catalog.to_regprocedure('public.grainline_seller_owner_follow_export()'),
@@ -305,6 +307,13 @@ END
 $grainline_follow_rls_preflight$;
 
 REVOKE ALL ON TABLE public."Follow"
+  FROM PUBLIC, grainline_app_runtime;
+
+-- The compatible predecessor app used a seller-id-only audience lookup. The
+-- deployed successor is bound to an exact public listing or published maker
+-- post, so retire the broader entry point only after the compatible app and
+-- preparation postflight have both closed.
+REVOKE ALL ON FUNCTION public.grainline_user_follower_notification_page(text,text,integer)
   FROM PUBLIC, grainline_app_runtime;
 
 ALTER TABLE public."Follow" ENABLE ROW LEVEL SECURITY;
@@ -399,6 +408,7 @@ BEGIN
         ('public.grainline_follow_owner_target_ids(integer)', '01a14940a6dd29f877828737b8f7635a', 's'::"char", true),
         ('public.grainline_follow_public_state_batch(text[])', '356fba4afac454f4d2bace4a02fadca7', 's'::"char", true),
         ('public.grainline_follow_seller_owner_incoming_count()', 'a413e9faf1a31784b151973b69a6a38d', 's'::"char", true),
+        ('public.grainline_follow_source_notification_page(text,text,text,integer)', 'f61e608939f69b2567071a7e318628c5', 's'::"char", true),
         ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", false),
         ('public.grainline_seller_actor_account_feed_cards(text[])', '566d9d330a5be2c09833f3a71c5b686d', 's'::"char", true),
         ('public.grainline_seller_owner_follow_export()', '7c86080194edaf57ee2dabbd5bc5278d', 's'::"char", true),
@@ -410,7 +420,7 @@ BEGIN
         ('public.grainline_seller_public_metro_makers(text,boolean,integer)', 'b71ce80b7fc475ebcf58d284ddb0a617', 's'::"char", true),
         ('public.grainline_seller_public_similar_makers(text,integer)', 'befb22f0f5371a03804d884db7de40b6', 's'::"char", true),
         ('public.grainline_user_block_follow_cleanup(text)', '3a7518030c42294660ce9a8be79f24ee', 'v'::"char", true),
-        ('public.grainline_user_follower_notification_page(text,text,integer)', '471b1caf9907d6d370ec1cb8ea5aa718', 's'::"char", true),
+        ('public.grainline_user_follower_notification_page(text,text,integer)', '471b1caf9907d6d370ec1cb8ea5aa718', 's'::"char", false),
         ('public.grainline_user_owner_broadcast_follower_page(text,text,integer,boolean)', '0986f9362622c2c1e4caaf27ca083308', 's'::"char", true)
       ) AS expected(identity, source_md5, volatility, runtime_execute)
   LOOP
@@ -451,6 +461,7 @@ BEGIN
          pg_catalog.to_regprocedure('public.grainline_follow_owner_target_ids(integer)'),
          pg_catalog.to_regprocedure('public.grainline_follow_public_state_batch(text[])'),
          pg_catalog.to_regprocedure('public.grainline_follow_seller_owner_incoming_count()'),
+        pg_catalog.to_regprocedure('public.grainline_follow_source_notification_page(text,text,text,integer)'),
          pg_catalog.to_regprocedure('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)'),
          pg_catalog.to_regprocedure('public.grainline_seller_actor_account_feed_cards(text[])'),
          pg_catalog.to_regprocedure('public.grainline_seller_owner_follow_export()'),

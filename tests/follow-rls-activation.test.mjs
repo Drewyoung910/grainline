@@ -38,6 +38,7 @@ test("Follow activation pins every installed cross-domain reader", () => {
     "grainline_follow_owner_target_ids",
     "grainline_follow_public_state_batch",
     "grainline_follow_seller_owner_incoming_count",
+    "grainline_follow_source_notification_page",
     "grainline_notification_create_core",
     "grainline_seller_actor_account_feed_cards",
     "grainline_seller_owner_follow_export",
@@ -63,6 +64,10 @@ test("Follow activation pins every installed cross-domain reader", () => {
     (migration.match(/pg_catalog\.md5\(procedure\.prosrc\)/gu) ?? []).length,
     2,
   );
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION public\.grainline_user_follower_notification_page\(text,text,integer\)\s+FROM PUBLIC, grainline_app_runtime/u,
+  );
 });
 
 test("Follow rollback restores compatible CRUD before disabling RLS", () => {
@@ -78,6 +83,10 @@ test("Follow rollback restores compatible CRUD before disabling RLS", () => {
   assert.equal(grantIndex >= 0, true);
   assert.equal(grantIndex < noForceIndex, true);
   assert.equal(noForceIndex < disableIndex, true);
+  assert.match(
+    rollback,
+    /GRANT EXECUTE ON FUNCTION public\.grainline_user_follower_notification_page\(text,text,integer\)\s+TO grainline_app_runtime/u,
+  );
   assert.equal((rollback.match(/\bDROP POLICY\b/gu) ?? []).length, 0);
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
   assert.match(rollback, /migrate resolve --rolled-back 20261028060000_activate_follow_rls/u);
@@ -91,5 +100,9 @@ test("runtime provisioning preserves policyless Follow activation", () => {
   assert.match(
     provisioning,
     /REVOKE ALL ON TABLE public\."Follow" FROM PUBLIC, :"runtime_role"/u,
+  );
+  assert.match(
+    provisioning,
+    /\\if :grainline_follow_rls_active[\s\S]*REVOKE ALL ON FUNCTION public\.grainline_user_follower_notification_page\(text,text,integer\)\s+FROM PUBLIC, :"runtime_role"/u,
   );
 });

@@ -2596,7 +2596,6 @@ $grainline_follow_provisioning_abort$;
 \if :grainline_follow_rls_active
 REVOKE ALL ON TABLE public."Follow" FROM PUBLIC, :"runtime_role";
 \endif
-\unset grainline_follow_rls_active
 
 -- The email delivery-ledger preparation is additive and keeps predecessor
 -- table CRUD available until the worker and producer cutovers are complete.
@@ -5225,6 +5224,15 @@ SELECT format(
   FROM user_relationship_runtime
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
+
+-- Once Follow is activated, the source-bound preparation function supersedes
+-- the broader seller-id-only predecessor. Revoke it after the generic User
+-- relationship convergence above so a provisioning replay cannot reopen it.
+\if :grainline_follow_rls_active
+REVOKE ALL ON FUNCTION public.grainline_user_follower_notification_page(text,text,integer)
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_follow_rls_active
 
 -- UserEmailAddress authority is prepared before its policyless RLS activation.
 -- Converge the exact source-bound runtime operations whenever that preparation
