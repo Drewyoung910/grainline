@@ -438,7 +438,7 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "REVIEW_VOTE_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
-      - name: Isolate MakerVerification preparation until historical release guards pass
+      - name: Isolate MakerVerification candidates until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
@@ -6949,7 +6949,7 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "REVIEW_VOTE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore MakerVerification preparation after historical release guards
+      - name: Restore MakerVerification candidates after historical release guards
         shell: bash
         run: |
           set -euo pipefail
