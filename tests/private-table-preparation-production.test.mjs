@@ -253,6 +253,8 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.match(sql, /grainline_review_vote_owner_toggle/u);
   assert.match(sql, /grainline_review_vote_insert_guard/u);
   assert.match(sql, /grainline_review_vote_update_forbidden/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
   assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
   assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);

@@ -44,6 +44,19 @@ describe("review vote visibility guardrails", () => {
       "the predecessor guard must re-read reviewer eligibility after the User locks",
     );
     assert.match(migration, /FROM public\."Block" AS relationship/);
+    assert.match(
+      migration,
+      /Removing the actor's own existing vote is always allowed/,
+    );
+    const toggleStart = migration.indexOf(
+      "CREATE FUNCTION public.grainline_review_vote_owner_toggle",
+    );
+    const toggle = migration.slice(toggleStart);
+    assert.ok(
+      toggle.indexOf('DELETE FROM public."ReviewVote"')
+        < toggle.indexOf('FROM public."Block" AS relationship'),
+      "an existing owner vote must be removable before add-only block checks",
+    );
     assert.match(migration, /DELETE FROM public\."ReviewVote"/);
     assert.match(migration, /INSERT INTO public\."ReviewVote"/);
     assert.match(migration, /CREATE TRIGGER "ReviewVote_insert_guard"/);

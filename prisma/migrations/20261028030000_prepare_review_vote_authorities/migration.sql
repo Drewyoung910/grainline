@@ -1,5 +1,11 @@
 BEGIN;
 
+-- Fail closed instead of queueing public listing reads behind the constraint
+-- and index preparation if a long-lived transaction already holds Review or
+-- ReviewVote. The protected release can be retried after the blocker drains.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '60s';
+
 -- Compatible preparation only. ReviewVote RLS and predecessor table grants
 -- remain unchanged until every caller, race proof and rollback proof passes.
 DO $grainline_review_vote_preflight$
@@ -326,81 +332,90 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  -- Re-read the exact target after the User protocol. Lock Listing and
-  -- SellerProfile so visibility cannot change, but deliberately do not lock
-  -- Review yet: the predecessor route mutates ReviewVote before Review, and
-  -- matching that order prevents a mixed-version deployment deadlock.
-  SELECT review."reviewerId",
-         seller."userId",
-         review."helpfulCount"
-    INTO target_reviewer_id,
-         target_seller_user_id,
-         current_count
-    FROM public."Review" AS review
-    JOIN public."Listing" AS listing
-      ON listing.id = review."listingId"
-    JOIN public."SellerProfile" AS seller
-      ON seller.id = listing."sellerId"
-   WHERE review.id = p_review_id
-     AND review."reviewerAccountActive" = true
-     AND listing."archivedAt" IS NULL
-     AND (
-       (
-         listing."isPrivate" = true
-         AND listing.status::text IN ('ACTIVE', 'SOLD')
-         AND listing."reservedForUserId" = request_user_id
-       )
-       OR (
-         listing."isPrivate" = false
-         AND listing.status::text IN ('ACTIVE', 'SOLD_OUT')
-       )
-     )
-     AND seller."ownerAccountActive" = true
-     AND seller."chargesEnabled" = true
-     AND seller."stripeAccountSupported" = true
-     AND seller."vacationMode" = false
-   FOR SHARE OF listing, seller;
-  IF NOT FOUND THEN
-    RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
-    RETURN;
-  END IF;
-
-  IF target_reviewer_id = request_user_id THEN
-    RETURN QUERY SELECT 'SELF'::text, false, current_count;
-    RETURN;
-  END IF;
-  IF target_seller_user_id = request_user_id THEN
-    RETURN QUERY SELECT 'OWN_LISTING'::text, false, current_count;
-    RETURN;
-  END IF;
-
-  IF EXISTS (
-    SELECT 1
-      FROM public."Block" AS relationship
-     WHERE (
-       relationship."blockerId" = request_user_id
-       AND relationship."blockedId" IN (
-         target_reviewer_id,
-         target_seller_user_id
-       )
-     ) OR (
-       relationship."blockedId" = request_user_id
-       AND relationship."blockerId" IN (
-         target_reviewer_id,
-         target_seller_user_id
-       )
-     )
-  ) THEN
-    RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
-    RETURN;
-  END IF;
-
+  -- Removing the actor's own existing vote is always allowed. Block and
+  -- visibility rules govern adding a vote, not withdrawing one. This keeps a
+  -- block from trapping a historical vote while retaining the predecessor's
+  -- ReviewVote-before-Review lock order during the compatibility window.
   DELETE FROM public."ReviewVote"
    WHERE "reviewId" = p_review_id
      AND "userId" = request_user_id;
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
 
+  IF deleted_count > 1 THEN
+    RAISE EXCEPTION 'ReviewVote toggle changed an invalid number of rows'
+      USING ERRCODE = '23514';
+  END IF;
+
   IF deleted_count = 0 THEN
+    -- Re-read the exact target after the User protocol. Lock Listing and
+    -- SellerProfile so add eligibility cannot change, but deliberately do not
+    -- lock Review yet: the predecessor route mutates ReviewVote before Review,
+    -- and matching that order prevents a mixed-version deployment deadlock.
+    SELECT review."reviewerId",
+           seller."userId",
+           review."helpfulCount"
+      INTO target_reviewer_id,
+           target_seller_user_id,
+           current_count
+      FROM public."Review" AS review
+      JOIN public."Listing" AS listing
+        ON listing.id = review."listingId"
+      JOIN public."SellerProfile" AS seller
+        ON seller.id = listing."sellerId"
+     WHERE review.id = p_review_id
+       AND review."reviewerAccountActive" = true
+       AND listing."archivedAt" IS NULL
+       AND (
+         (
+           listing."isPrivate" = true
+           AND listing.status::text IN ('ACTIVE', 'SOLD')
+           AND listing."reservedForUserId" = request_user_id
+         )
+         OR (
+           listing."isPrivate" = false
+           AND listing.status::text IN ('ACTIVE', 'SOLD_OUT')
+         )
+       )
+       AND seller."ownerAccountActive" = true
+       AND seller."chargesEnabled" = true
+       AND seller."stripeAccountSupported" = true
+       AND seller."vacationMode" = false
+     FOR SHARE OF listing, seller;
+    IF NOT FOUND THEN
+      RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+      RETURN;
+    END IF;
+
+    IF target_reviewer_id = request_user_id THEN
+      RETURN QUERY SELECT 'SELF'::text, false, current_count;
+      RETURN;
+    END IF;
+    IF target_seller_user_id = request_user_id THEN
+      RETURN QUERY SELECT 'OWN_LISTING'::text, false, current_count;
+      RETURN;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+        FROM public."Block" AS relationship
+       WHERE (
+         relationship."blockerId" = request_user_id
+         AND relationship."blockedId" IN (
+           target_reviewer_id,
+           target_seller_user_id
+         )
+       ) OR (
+         relationship."blockedId" = request_user_id
+         AND relationship."blockerId" IN (
+           target_reviewer_id,
+           target_seller_user_id
+         )
+       )
+    ) THEN
+      RETURN QUERY SELECT 'NOT_FOUND'::text, false, 0;
+      RETURN;
+    END IF;
+
     BEGIN
       INSERT INTO public."ReviewVote" ("reviewId", "userId", value)
       VALUES (p_review_id, request_user_id, 1);
@@ -410,9 +425,6 @@ BEGIN
         -- transaction has committed before PostgreSQL reports this exception.
         NULL;
     END;
-  ELSIF deleted_count <> 1 THEN
-    RAISE EXCEPTION 'ReviewVote toggle changed an invalid number of rows'
-      USING ERRCODE = '23514';
   END IF;
 
   -- Serialize the scalar only after the row mutation, matching the
