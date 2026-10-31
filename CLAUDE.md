@@ -1101,7 +1101,7 @@ Card containers use `<div className="relative">` wrapping the photo Link; `Favor
 
 - **Files**: `src/app/seller/[id]/shop/page.tsx` (server component), `src/app/seller/[id]/shop/SortSelect.tsx` ("use client" dropdown)
 - **URL params**: `?category=` (filter by Category enum), `?sort=newest|price_asc|price_desc|popular`, `?page=` (1-based, 20/page)
-- **Category tabs** — "All" + one pill per category the seller actually has ACTIVE listings in (via `groupBy`); active tab is filled `bg-neutral-900 text-white`; horizontal scroll on mobile
+- **Category tabs** — "All" + one pill per category the seller actually has ACTIVE listings in (via `groupBy`); active tab is filled espresso (`bg-[#2C1F1A] text-white`); horizontal scroll on mobile
 - **Sort dropdown** (`SortSelect.tsx`) — client component; on change, pushes new URL preserving current category; options: Newest / Price: Low to High / Price: High to Low / Most Popular
 - **Grid** — `grid-cols-2 md:grid-cols-3 lg:grid-cols-4`; cards: `border border-neutral-200`, `bg-stone-50` info section, `FavoriteButton` with `savedSet` server query
 - **Pagination** — Prev / `Page X of Y` / Next links; only shown when `totalPages > 1`
@@ -2702,7 +2702,7 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 
 ### Components
 - **`VariantEditor`** (`src/components/VariantEditor.tsx`) — `"use client"` form component for create/edit pages; manages groups + options in local state; card-section per group; "Add variant group" button (max 3); per-option: label input, price adjustment ($), in-stock checkbox, remove button; serializes to hidden `variantGroupsJson` input
-- **`VariantSelector`** (`src/components/VariantSelector.tsx`) — `"use client"` buyer-facing pill selector; per-group row of option buttons (selected = `border-neutral-900 bg-neutral-900 text-white`, out-of-stock = strikethrough + disabled); shows price adjustment inline (e.g. "+$50.00"); fires `onSelectionChange(ids, totalPriceCents)`
+- **`VariantSelector`** (`src/components/VariantSelector.tsx`) — `"use client"` buyer-facing pill selector; per-group row of option buttons (selected = espresso fill, out-of-stock = strikethrough + disabled); shows price adjustment inline (e.g. "+$50.00"); fires `onSelectionChange(ids, totalPriceCents)`
 - **`ListingPurchasePanel`** (`src/components/ListingPurchasePanel.tsx`) — `"use client"` wrapper for listing detail page; manages variant selection state; displays live price (base + adjustments, shows strikethrough base when adjusted); render prop pattern passes `{ totalPriceCents, selectedOptionIds, allVariantsSelected }` to children (buy buttons)
 
 ### Create listing flow
@@ -2878,21 +2878,21 @@ The seller-handbook content (`#shipping`, `#disputes`) stays — it's still the 
 
 Legacy-styling cleanup + chrome green removal. Behavior contracts to preserve:
 
-- **Modern pill language**: interactive/status pills are cream-filled, borderless — `rounded-full bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]` (active state `bg-neutral-900 text-white`). Applied to blog share pills (`blog/[slug]/page.tsx`) and `BlogCopyLinkButton`. Do not reintroduce bare `rounded-full border` pills.
+- **Modern pill language**: interactive/status pills are cream-filled, borderless — `rounded-full bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]` (active state espresso, `bg-[#2C1F1A]` with cream or white text). Applied to blog share pills (`blog/[slug]/page.tsx`) and `BlogCopyLinkButton`. Do not reintroduce bare `rounded-full border` pills.
 - **Pills inside cream cards** use white fill with a soft ring (`bg-white ring-1 ring-stone-200/60`) so they stay visible on `#EFEAE0` — see the Locked and Verified pills in the "My review" block.
 - **My review block** (`ReviewsSection.tsx`) is a cream inset card (`rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0]`) so the viewer's own review reads differently from other reviews (white `card-section`).
 - **Blog comment form** (`BlogCommentForm.tsx`) uses the design-system textarea (`rounded-md border-neutral-200`) and espresso submit button, matching `SellerReplyForm`; it inherits the sitewide text-field focus treatment from `globals.css` instead of adding per-field `focus:*` overrides.
 - **Blog post loading skeleton**: `src/app/blog/[slug]/loading.tsx` mirrors the article layout (breadcrumb, badge/meta, title, author card, cover, body lines). Without it, post navigation fell back to the blog-index grid skeleton — keep a per-segment skeleton whenever a child route's layout differs from its parent's.
 - **OrderTimeline connectors**: rows are `flex` with a `self-stretch` dot column and a `flex-1 min-h-4` connector line so lines always reach the next dot regardless of step content height. Do not restore fixed-height connector lines.
-- **GiftNoteSection**: checkboxes use `accent-neutral-900` (never browser-default blue); textarea uses the design-system input style, has a programmatic label (`htmlFor`/`id`), `maxLength={200}`, and connects its live counter with `aria-describedby` + `aria-live="polite"`.
+- **GiftNoteSection**: checkboxes use the espresso accent `accent-[#2C1F1A]` (never browser-default blue); textarea uses the design-system input style, has a programmatic label (`htmlFor`/`id`), `maxLength={200}`, and connects its live counter with `aria-describedby` + `aria-live="polite"`.
 - **Mobile drawer** (`Header.tsx`): `w-64 max-w-[80vw]`, white popover card (`rounded-[18px] popover-shadow`), hairline header row with compact "Menu" label, grouped nav ("Explore" / "Your account") with uppercase section labels, icon-led rows with `rounded-md hover:bg-[#EFEAE0]`, espresso rounded-full Sign in CTA for signed-out, white account footer. The current header menu is a non-modal popover: the hamburger exposes `aria-expanded`/`aria-controls`, focus moves to the panel itself on open, and blur outside closes it. Preserve the detailed "Mobile menu popover behavior" rule below.
 - **Avatar rings**: the header avatar TRIGGER BUTTON is the only place that uses a hairline (`ring-1 ring-black/10 hover:ring-black/20`) — it doubles as the button's hover affordance. Content avatars (maker map card, similar-makers cards, spotlight strips, overlap avatars) use NO hairline: thick borders match their card background (cream cutout look, e.g. `border-[3px] border-[#F7F5F0]` on a cream card, `ring-4 ring-[#F7F5F0] shadow-sm` on the page bg). Drew explicitly rejected hairlines on content avatars — do not re-add them for "visibility"; fix blend-in with card background color instead.
 - **Chrome green removed**: no `#3F5D3A` / `#D9E2D5` / `#C7D4C2` / `#345030` outside GuildBadge artwork. Footer is `#EFEAE0`; former green buttons (StripeConnectButton, BroadcastComposer send) are espresso. Guarded by `tests/chrome-color-guardrails.test.mjs`.
-- **Metro/city SEO pages modernized**: `/browse/[metroSlug]`, `/browse/[metroSlug]/[category]`, and `/makers/[metroSlug]` use `max-w-[1600px]` containers, while the metro branch of `/commission/[param]` intentionally stays `max-w-4xl` because it is a single-column request list. These pages use `font-display text-3xl` h1s, rounded-full cream category/nearby pills (active `bg-neutral-900 text-white`), `card-section`/`card-listing` surfaces, and espresso CTAs. Do not reintroduce square bordered tabs/chips or `bg-amber-500` buttons on these pages.
-- **Field focus standard (2026-07-11)**: text-entry fields (input/textarea/select, excluding checkbox/radio/range/file) get ONE sitewide focus treatment from `globals.css` `@layer base` — `outline: none; border-color: #2C1F1A; box-shadow: 0 0 0 3px rgb(44 31 26 / 0.12)` (espresso since 2026-10-30; was stone-400). The old amber glow + dark outline on fields is gone, and ~32 components had their per-field `focus:ring-*` / `focus:border-*` overrides stripped so the base rule owns it. Do NOT add per-field focus rings to new components. Links/buttons/toggle inputs keep the 2px dark keyboard outline. Borderless inputs inside pill containers (SearchBar, TagsInput, messages search) keep `focus-visible:outline-none focus-visible:shadow-none` and put the ring on the container via `focus-within:` — do not remove those opt-outs.
+- **Metro/city SEO pages modernized**: `/browse/[metroSlug]`, `/browse/[metroSlug]/[category]`, and `/makers/[metroSlug]` use `max-w-[1600px]` containers, while the metro branch of `/commission/[param]` intentionally stays `max-w-4xl` because it is a single-column request list. These pages use `font-display text-3xl` h1s, rounded-full cream category/nearby pills (active espresso), `card-section`/`card-listing` surfaces, and espresso CTAs. Do not reintroduce square bordered tabs/chips or `bg-amber-500` buttons on these pages.
+- **Field focus standard (2026-07-11)**: text-entry fields (input/textarea/select, excluding checkbox/radio/range/file) get ONE sitewide focus treatment from `globals.css`: `outline: none` plus a `0 0 0 3px rgb(44 31 26 / 0.12)` halo in `@layer base`, and the espresso `border-color: #2C1F1A` (since 2026-10-30; was stone-400) in a separate `@layer utilities` rule with `:where()` selectors. The border must stay in the utilities layer: a base-layer border always loses to the plain `border-neutral-200`-style utilities most fields carry, which left only the faint halo. The zero-specificity selector still loses to an explicit `focus-visible:border-*` on a field. The old amber glow + dark outline on fields is gone, and ~32 components had their per-field `focus:ring-*` / `focus:border-*` overrides stripped so the base rule owns it. Do NOT add per-field focus rings to new components. Links/buttons/toggle inputs keep the 2px dark keyboard outline. Borderless inputs inside pill containers (SearchBar, TagsInput, messages search) keep `focus-visible:outline-none focus-visible:shadow-none` and put the ring on the container via `focus-within:` — do not remove those opt-outs.
 - **Mobile menu (2026-07-11)**: the hamburger opens a floating card (`fixed right-3 top-14 w-64 max-h-[calc(100dvh-4.5rem)] rounded-2xl`), NOT a full-height sheet. It uses a transparent full-screen click-catcher instead of a painted backdrop; open/close is animated (`animate-menu-in` / `animate-menu-out`), and all close paths go through `closeDrawer()` so the pop-out animation runs before unmount — do not close by calling `setDrawerOpen(false)` directly from UI handlers (navigation-effect instant close is the exception).
 - **NotificationBell dropdown**: shares the chrome language with the mobile menu; the dropdown header uses a hairline `border-b border-[#2C1F1A]/[0.08]` on white, and unread rows use `bg-[#EFEAE0]/50` instead of amber highlight.
-- **Empty-state icon circles** use `bg-[#EFEAE0] text-neutral-600` (cart empty state, message thread empty state) — not amber.
+- **Empty-state icon circles** use `bg-[#EFEAE0]` with an espresso icon (`text-[#2C1F1A]`; cart empty state, message thread empty state) — not amber.
 - **Amber is highlight-only**: amber-50/200/700 stays for badges, warning banners, and semantic highlights. Action buttons and "View more"-style CTAs must be espresso, neutral-900, or cream pills — never `bg-amber-500/600/800` buttons or `text-amber-700` action links (homepage View more links are cream pills; following/verification/thread CTAs are espresso).
 - **Homepage newsletter removed**: `NewsletterSignup` no longer renders on `/`. Blog posts by makers end with a card-section Follow-the-maker CTA (FollowButton + follower count; hidden when the viewer is the author); staff posts keep the generic `NewsletterSignup`. Blog index keeps the newsletter.
 - **Block feedback behavior (2026-07-11)**: `BlockReportButton` toasts "Blocked {name}" / "Unblocked {name}" on success and calls `router.refresh()`; pages that 404 for blocked targets (seller profile, listing detail) pass `afterBlockHref="/browse"` so a successful block navigates away instead of stranding the user. Do not remove the toast/refresh path.
@@ -3005,8 +3005,7 @@ first pass's rough edges. Behavior future agents must preserve:
   first load, so a quantity change no longer flashes the page, and quantity
   controls wait while a reload or removal is in flight (`cartBusy`) so two
   updates cannot race. A removed cart row slides out for 240ms before the
-  request (`.cart-row-leaving`); there is no Undo because the toast has no
-  action slot. The gift-note options ease open, shipping-rate radios fill
+  request (`.cart-row-leaving`); batch six added an Undo toast. The gift-note options ease open, shipping-rate radios fill
   with a spring (`radio-spring` utility; native control in forced-colors
   mode), and the Stripe payment step shows a shimmer until its iframe has
   drawn (a `ResizeObserver` on the form wrapper, with a 10s give-up); no
@@ -3016,15 +3015,33 @@ first pass's rough edges. Behavior future agents must preserve:
   are full navigations), and zooming the homepage map in place.
 - **Batch six (Drew's picks from the motion study)**:
   - **Toasts** (`Toast.tsx`, built on Codex PR #627's timing and dismissal
-    logic, whose tests pass against it): espresso pills at the bottom
-    centre that spring up, pause while hovered or focused, and slide back
-    down when dismissed (removed on `animationend`, at once under reduced
-    motion, so no timer outlives a toast). Errors keep `role="alert"`, stay
-    until dismissed and carry a red dot. `toast(message, type, { action })`
-    adds one action: Add to cart offers "View cart"; removing a cart row
-    offers "Undo" (re-adds the same options and quantity; the saved browser
-    cart restores the exact entry; `/api/cart` now returns each line's
-    `selectedVariantOptionIds` for this).
+    logic; its test is ported as `tests/toast-behavior.test.mjs` with extra
+    cases): espresso pills (`rounded-3xl`, so wrapped text stays inside),
+    just below the header on phones (clear of bottom-pinned composers and
+    sheet buttons) and springing up at the bottom centre from `sm`. They
+    pause while hovered or focused and slide away when dismissed (removed on
+    `animationend`, at once under reduced motion, so no timer outlives a
+    toast). Errors keep `role="alert"`, stay until dismissed and carry a red
+    dot. Each pill is its own status/alert region; the container is not an
+    `aria-live` region too, so nothing is announced twice. At most three
+    show; a fourth pushes out the oldest. `toast(message, type, { action })`
+    adds one action, and such toasts live 12s instead of 6s; using a toast
+    button returns focus to where it was before entering the toast. Add to
+    cart offers "View cart"; removing a cart row offers "Undo" (re-adds the
+    same options and quantity; the saved browser cart restores the exact
+    entry; `/api/cart` now returns each line's `selectedVariantOptionIds`).
+    Undo belongs to the Cart step: leaving it dismisses the Undo toast
+    (`toast()` returns an id and `useToast()` exposes `dismiss`), because a
+    re-added line would not match the payment sessions checkout opens.
+  - **Cart quantity**: the select shows the picked quantity while it saves
+    (`pendingQuantities`), and uses `aria-disabled` rather than `disabled`
+    while the cart is busy so keyboard focus stays on it. `cartBusy` covers
+    reloads, quantity saves and removals, so two updates cannot overlap and
+    an older reload cannot bring back a removed line.
+  - **Early purchase clicks**: the listing panel counts only clicks on the
+    purchase buttons (`data-purchase-action`), not clicks inside the inline
+    Buy now dialog, and the inline option reminder replaces the old
+    "select all options" error toasts.
   - **Popups**: menus, the notification list, badge explanations and the
     report menu are white cards (`rounded-[18px]`/`[14px]`, `popover-shadow`,
     items `rounded-[10px] hover:bg-[#F7F5F0]`); dialogs use `modal-card`
@@ -3038,11 +3055,26 @@ first pass's rough edges. Behavior future agents must preserve:
   - **Number rolls** (`RollingText`, behind `RollingNumber` and
     `RollingAmount`): the old value slides out as the new one slides in,
     upward when it grows and downward when it shrinks; the outgoing copy is
-    out of flow and hidden under reduced motion. Used for the listing price,
+    out of flow, removed when its roll ends, and never rendered under
+    reduced motion, so it cannot widen the page or match find-in-page. Used for the listing price,
     cart totals, browse count, follower and helpful counts.
   - **Filters**: see the FilterSidebar entry under Search & Browse. Desktop
     keeps an always-visible floating column (recommended to Drew over a
-    full-width grid with a slide-in panel; his call is pending).
+    full-width grid with a slide-in panel; his call is pending). The
+    desktop price fields are controlled and never re-keyed, apply on Enter
+    or when focus leaves both fields (moving Min to Max does not navigate),
+    accept "$1,250"-style input with an inline error otherwise, and every
+    other filter link carries a typed price along. Full-width
+    `SegmentedControl` tracks size options to their labels and let a long
+    label wrap rather than overflow; `labelledBy` names the group from a
+    visible legend. Availability reads All / In stock / Made to order.
+  - **Header in the first HTML flush**: `Header` and `SearchBar` must not
+    call `useSearchParams` (it suspends during prerender, which kept the
+    header out of the server HTML and shifted every page by its height once
+    it streamed in). They read the query string through
+    `SearchParamsListener`, a null-rendering child in its own Suspense
+    boundary, and the root layout renders `<Header />` without a Suspense
+    wrapper. Guarded by `tests/search-ui-regressions.test.mjs`.
 
 ## Pending Tasks
 
@@ -4346,7 +4378,7 @@ All three order list pages (buyer dashboard, seller sales, account orders) now s
 - **OrderTimeline** — `card-section` container
 - **Order/sales item photos** — removed black border outline (kept rounded + object-cover)
 - **Saved page** — "Back to My Account" link with ArrowLeft icon
-- **Browse FilterSidebar** — consistent `rounded-md border border-neutral-200` on all inputs/selects, `accent-neutral-900` on radios, proper Apply/Reset button styling
+- **Browse FilterSidebar** — consistent `rounded-md border border-neutral-200` on all inputs/selects, `accent-neutral-900` on radios, proper Apply/Reset button styling (historical; superseded by the 2026-10-30 floating filter column)
 - **List view thumbnails** — forced a stable thumbnail aspect on containers (now `aspect-[4/5]` as of 2026-05-09; was non-square)
 - **Featured blog card** — `aspect-[16/9] overflow-hidden` (was using original image proportions)
 - **Cart mobile** — `flex-wrap gap-2` on price/qty/remove row + `shrink-0` on prices. Prevents overlap on large amounts.

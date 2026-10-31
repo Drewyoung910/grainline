@@ -10,7 +10,6 @@ import RollingAmount from "./RollingAmount";
 import { Gift } from "./icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
-import { useToast } from "@/components/Toast";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 function selectedOptionIdsFromIntent(groups: VariantGroupForSelector[], rawValue: string | null) {
@@ -81,7 +80,6 @@ export default function ListingPurchasePanel({
   ratingCount: number;
 }) {
   const searchParams = useSearchParams();
-  const { toast } = useToast();
   const hasVariants = variantGroups.length > 0;
   const intentSelectedOptionIds = useMemo(
     () => selectedOptionIdsFromIntent(variantGroups, searchParams.get("variant_options")),
@@ -189,14 +187,16 @@ export default function ListingPurchasePanel({
         />
       )}
 
-      {/* Buy buttons. A click before every option is chosen also flags the
-          missing choice next to the options (the buttons show their own
-          message too). */}
+      {/* Buy buttons. A click on one before every option is chosen flags the
+          missing choice next to the options. Only the buttons count, not
+          clicks inside the Buy now dialog, which renders in this wrapper. */}
       {canPurchase && (
         <div
           className="flex flex-col gap-2"
-          onClickCapture={() => {
-            if (!variantSelectionComplete) setBlockedVariantAttempts((count) => count + 1);
+          onClickCapture={(event) => {
+            if (variantSelectionComplete) return;
+            if (!(event.target as Element).closest?.("[data-purchase-action]")) return;
+            setBlockedVariantAttempts((count) => count + 1);
           }}
         >
           {userId ? (
@@ -220,11 +220,9 @@ export default function ListingPurchasePanel({
           ) : (
             <button
               type="button"
+              data-purchase-action=""
               onClick={() => {
-                if (!variantSelectionComplete) {
-                  toast("Please select all variant options first.", "error");
-                  return;
-                }
+                if (!variantSelectionComplete) return;
                 window.location.href = signUpPathForRedirect(buyNowRedirectPath);
               }}
               className="btn btn-primary w-full min-h-[50px]"

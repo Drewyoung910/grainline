@@ -17,7 +17,15 @@ const SHIPS_WITHIN_OPTIONS = ["3", "7", "14", "30"];
 const RATING_OPTIONS = ["4", "3", "2"];
 const RADIUS_OPTIONS = ["10", "25", "50", "100"];
 
-const legendClass = "mb-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-neutral-500";
+const legendClass = "mb-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-neutral-600";
+
+// Accepts what shoppers type ("$1,250", "49.99") and returns the plain
+// number, "" for an empty field, or null when it is not a price.
+function cleanPrice(raw: string): string | null {
+  const value = raw.replace(/[\s$,]/g, "");
+  if (value === "") return "";
+  return /^(\d+(\.\d{1,2})?|\.\d{1,2})$/.test(value) ? value : null;
+}
 
 function chipClass(active: boolean) {
   return `inline-flex h-9 items-center rounded-full border px-3.5 text-sm transition-[background-color,border-color,color,scale] duration-200 motion-safe:active:scale-95 ${
@@ -50,9 +58,27 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   const lat = geo?.lat ?? urlLat;
   const lng = geo?.lng ?? urlLng;
 
+  // The price fields are controlled so a typed price survives the page
+  // refreshing around it, and so every other filter link carries it along:
+  // clicking a category right after typing a price keeps both.
+  const minRef = React.useRef<HTMLInputElement>(null);
+  const maxRef = React.useRef<HTMLInputElement>(null);
+  const [minInput, setMinInput] = React.useState(currentMin);
+  const [maxInput, setMaxInput] = React.useState(currentMax);
+  const [priceError, setPriceError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (document.activeElement !== minRef.current) setMinInput(currentMin);
+    if (document.activeElement !== maxRef.current) setMaxInput(currentMax);
+  }, [currentMin, currentMax]);
+  const pendingMin = cleanPrice(minInput);
+  const pendingMax = cleanPrice(maxInput);
+
   function hrefWith(changes: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(changes)) {
+    const price: Record<string, string | null> = {};
+    if (pendingMin !== null) price.min = pendingMin;
+    if (pendingMax !== null) price.max = pendingMax;
+    for (const [key, value] of Object.entries({ ...price, ...changes })) {
       if (value === null || value === "") params.delete(key);
       else params.set(key, value);
     }
@@ -67,7 +93,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   }
 
   function tagToggleHref(tag: string) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(hrefWith({}).split("?")[1] ?? "");
     const current = params.getAll("tag");
     params.delete("tag");
     params.delete("page");
@@ -88,6 +114,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        focusDistanceRef.current = true;
         setGeo({ lat: pos.coords.latitude.toFixed(5), lng: pos.coords.longitude.toFixed(5) });
         setLocating(false);
       },
@@ -103,16 +130,33 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     );
   }
 
-  // Price applies on Enter or when a field is left with a new value.
+  // Once "Use my location" succeeds its button is gone, so focus moves to
+  // the distance choices that replace it.
+  const focusDistanceRef = React.useRef(false);
+  const distanceGroupRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!geo || !focusDistanceRef.current) return;
+    focusDistanceRef.current = false;
+    distanceGroupRef.current?.querySelector<HTMLElement>("a")?.focus();
+  }, [geo]);
+
+  // Price applies on Enter, or when focus leaves both price fields with a new
+  // value. Moving from Min to Max does not navigate.
   const priceFormRef = React.useRef<HTMLFormElement>(null);
   const applyPrice = () => {
-    const form = priceFormRef.current;
-    if (!form || !form.reportValidity()) return;
-    const data = new FormData(form);
-    const min = String(data.get("min") ?? "").trim();
-    const max = String(data.get("max") ?? "").trim();
-    if (min === currentMin && max === currentMax) return;
-    go(hrefWith({ min, max }));
+    if (pendingMin === null || pendingMax === null) {
+      setPriceError("Enter a price like 50 or 49.99.");
+      return;
+    }
+    setPriceError(null);
+    if (pendingMin !== minInput) setMinInput(pendingMin);
+    if (pendingMax !== maxInput) setMaxInput(pendingMax);
+    if (pendingMin === currentMin && pendingMax === currentMax) return;
+    go(hrefWith({ min: pendingMin, max: pendingMax }));
+  };
+  const onPriceBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (priceFormRef.current?.contains(event.relatedTarget as Node | null)) return;
+    applyPrice();
   };
 
   const linkProps = { scroll: false, onClick: scrollResultsToTop } as const;
@@ -120,10 +164,11 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
   return (
     <aside aria-label="Filters" className="hidden md:block w-56 lg:w-60 shrink-0">
-      <div className="max-h-[calc(100dvh-var(--site-header-h)-2rem)] space-y-7 overflow-y-auto overscroll-contain pb-6 pr-2 text-sm [scrollbar-width:thin]">
+      {/* The small inset keeps focus rings clear of the scroll edge. */}
+      <div className="-ml-1 max-h-[calc(100dvh-var(--site-header-h)-2rem)] space-y-7 overflow-y-auto overscroll-contain pb-6 pl-1 pr-2 pt-1 text-sm [scrollbar-width:thin]">
         {/* Category */}
         <nav aria-labelledby={`${baseId}-category`}>
-          <h2 id={`${baseId}-category`} className={legendClass}>Category</h2>
+          <p id={`${baseId}-category`} className={legendClass}>Category</p>
           <ul className="space-y-0.5">
             {[{ value: "", label: "All categories" }, ...CATEGORY_VALUES.map((value) => ({ value, label: CATEGORY_LABELS[value] }))].map(
               ({ value, label }) => {
@@ -151,15 +196,16 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
         {/* Availability */}
         <fieldset>
-          <legend className={legendClass}>Availability</legend>
+          <legend className={legendClass} id={`${baseId}-availability`}>Availability</legend>
           <SegmentedControl
             label="Availability"
+            labelledBy={`${baseId}-availability`}
             fullWidth
             value={currentType}
             onChange={(value) => go(hrefWith({ type: value }))}
             options={[
               { value: "", label: "All" },
-              { value: "IN_STOCK", label: "Ready" },
+              { value: "IN_STOCK", label: "In stock" },
               { value: "MADE_TO_ORDER", label: "Made to order" },
             ]}
           />
@@ -169,8 +215,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Price (USD)</legend>
           <form
-            key={`${currentMin}|${currentMax}`}
             ref={priceFormRef}
+            noValidate
             onSubmit={(event) => {
               event.preventDefault();
               applyPrice();
@@ -179,32 +225,43 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           >
             <label htmlFor={`${baseId}-min`} className="sr-only">Minimum price</label>
             <input
+              ref={minRef}
               id={`${baseId}-min`}
               name="min"
               type="text"
               inputMode="decimal"
-              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
-              defaultValue={currentMin}
+              value={minInput}
+              onChange={(event) => setMinInput(event.target.value)}
               placeholder="$ Min"
-              onBlur={applyPrice}
+              onBlur={onPriceBlur}
+              aria-invalid={pendingMin === null || undefined}
+              aria-describedby={priceError ? `${baseId}-price-error` : undefined}
               className="h-11 w-full min-w-0 rounded-[10px] border border-[#2C1F1A]/25 bg-white px-3 text-sm"
             />
             <span className="shrink-0 text-neutral-400" aria-hidden="true">–</span>
             <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
             <input
+              ref={maxRef}
               id={`${baseId}-max`}
               name="max"
               type="text"
               inputMode="decimal"
-              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
-              defaultValue={currentMax}
+              value={maxInput}
+              onChange={(event) => setMaxInput(event.target.value)}
               placeholder="$ Max"
-              onBlur={applyPrice}
+              onBlur={onPriceBlur}
+              aria-invalid={pendingMax === null || undefined}
+              aria-describedby={priceError ? `${baseId}-price-error` : undefined}
               className="h-11 w-full min-w-0 rounded-[10px] border border-[#2C1F1A]/25 bg-white px-3 text-sm"
             />
-            {/* Lets Enter submit from either field. */}
-            <button type="submit" className="sr-only">Apply price</button>
+            {/* Lets Enter submit from either field; not a Tab stop. */}
+            <button type="submit" tabIndex={-1} className="sr-only">Apply price</button>
           </form>
+          {priceError && (
+            <p id={`${baseId}-price-error`} role="alert" className="mt-1.5 text-xs text-red-700">
+              {priceError}
+            </p>
+          )}
         </fieldset>
 
         {/* Ships within */}
@@ -262,7 +319,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                 {locating ? "Finding you…" : "Use my location"}
               </button>
             ) : (
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Distance from you">
+              <div ref={distanceGroupRef} className="flex flex-wrap gap-2" role="group" aria-label="Distance from you">
                 {RADIUS_OPTIONS.map((miles) => (
                   <Link
                     key={miles}
@@ -278,6 +335,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                   <span aria-current="true" className={chipClass(true)}>{currentRadius} mi</span>
                 )}
               </div>
+            )}
+            {hasLocation && !currentRadius && (
+              <p className="text-xs text-neutral-600">Pick a distance from you.</p>
             )}
             {hasLocation && currentRadius && (
               <Link href={hrefWith({ lat: null, lng: null, radius: null })} {...linkProps} className="inline-block text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800">

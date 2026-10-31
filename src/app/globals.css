@@ -170,7 +170,7 @@
   width: 1.125rem;
   height: 1.125rem;
   border-radius: 9999px;
-  border: 1.5px solid #a8a29e;
+  border: 1.5px solid #78716c; /* stone-500: 3:1 against white and cream */
   background: #ffffff;
   cursor: pointer;
   &::before {
@@ -178,11 +178,11 @@
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 9999px;
-    background: #1c1917;
+    background: #2C1F1A;
     scale: 0;
   }
   &:checked {
-    border-color: #1c1917;
+    border-color: #2C1F1A;
   }
   &:checked::before {
     scale: 1;
@@ -335,8 +335,17 @@ input, textarea, select {
      rings in components — delete them and let this rule own it. */
   :where(input, textarea, select):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus-visible {
     outline: none;
-    border-color: #2C1F1A; /* espresso, as in the motion study */
     box-shadow: 0 0 0 3px rgb(44 31 26 / 0.12);
+  }
+}
+/* The espresso field-focus border lives in the utilities layer: a base-layer
+   rule always loses to plain border utilities such as border-neutral-200,
+   which most fields carry. Zero specificity outside :focus-visible, and later
+   in the layer than Tailwind's own utilities, so it beats those plain border
+   colours yet still loses to an explicit focus-visible:border-* on a field. */
+@layer utilities {
+  :where(input, textarea, select):where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"])):focus-visible {
+    border-color: #2C1F1A; /* espresso, as in the motion study */
   }
 }
 
@@ -423,6 +432,14 @@ input, textarea, select {
    reduced motion they are removed at once). */
 .toast-pill {
   box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.7);
+  /* Phones drop toasts in from the top; larger screens raise them from the
+     bottom (see Toast.tsx). */
+  --toast-from: -140%;
+}
+@media (min-width: 640px) {
+  .toast-pill {
+    --toast-from: 140%;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   .toast-pill {
@@ -433,12 +450,12 @@ input, textarea, select {
   }
 }
 @keyframes toast-in {
-  from { transform: translateY(140%); opacity: 0; }
+  from { transform: translateY(var(--toast-from)); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
 @keyframes toast-out {
   from { transform: translateY(0); opacity: 1; }
-  to   { transform: translateY(140%); opacity: 0; }
+  to   { transform: translateY(var(--toast-from)); opacity: 0; }
 }
 
 

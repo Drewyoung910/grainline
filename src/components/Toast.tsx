@@ -19,8 +19,10 @@ type Toast = {
 };
 
 const ToastContext = createContext<{
-  toast: (message: string, type?: ToastType, options?: ToastOptions) => void;
-}>({ toast: () => {} });
+  // Returns the toast's id, for `dismiss`.
+  toast: (message: string, type?: ToastType, options?: ToastOptions) => number;
+  dismiss: (id: number) => void;
+}>({ toast: () => -1, dismiss: () => {} });
 
 export function useToast() {
   return useContext(ToastContext);
@@ -28,6 +30,11 @@ export function useToast() {
 
 const TOAST_EVENT = "grainline:toast";
 const AUTO_DISMISS_MS = 6000;
+// A toast with a button ("Undo") stays longer, so a keyboard or screen-reader
+// user has time to reach it.
+const ACTION_AUTO_DISMISS_MS = 12000;
+// The oldest toast leaves when a fourth would stack up.
+const MAX_VISIBLE_TOASTS = 3;
 
 type ToastTimer = {
   timeout: ReturnType<typeof setTimeout> | null;
@@ -57,12 +64,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(0);
   const timers = useRef<Map<number, ToastTimer>>(new Map());
+  // Ids of toasts on screen and not yet leaving, oldest first.
+  const activeIds = useRef<number[]>([]);
+  // Where focus was before it entered each toast, to return it there when a
+  // toast button removes the toast (otherwise focus drops to the page body).
+  const returnFocus = useRef<Map<number, HTMLElement>>(new Map());
 
   const removeToast = useCallback((id: number) => {
+    returnFocus.current.delete(id);
     setToasts((prev) => prev.filter((toastItem) => toastItem.id !== id));
   }, []);
 
   const dismissToast = useCallback((id: number) => {
+    activeIds.current = activeIds.current.filter((activeId) => activeId !== id);
     const timer = timers.current.get(id);
     if (timer?.timeout !== null && timer?.timeout !== undefined) {
       clearTimeout(timer.timeout);
@@ -110,8 +124,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toast = useCallback((message: string, type: ToastType = "info", options?: ToastOptions) => {
     const id = nextId.current++;
     setToasts((prev) => [...prev, { id, message, type, action: options?.action }]);
-    if (type !== "error") scheduleDismiss(id, AUTO_DISMISS_MS);
-  }, [scheduleDismiss]);
+    activeIds.current.push(id);
+    if (type !== "error") scheduleDismiss(id, options?.action ? ACTION_AUTO_DISMISS_MS : AUTO_DISMISS_MS);
+    while (activeIds.current.length > MAX_VISIBLE_TOASTS) dismissToast(activeIds.current[0]);
+    return id;
+  }, [scheduleDismiss, dismissToast]);
+
+  // A toast button is about to remove its toast: if focus is inside it, send
+  // focus back to where it came from.
+  const releaseFocus = useCallback((id: number, toastElement: Element | null) => {
+    const target = returnFocus.current.get(id);
+    returnFocus.current.delete(id);
+    if (!toastElement?.contains(document.activeElement)) return;
+    if (target?.isConnected) target.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     const activeTimers = timers.current;
@@ -133,18 +159,22 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(TOAST_EVENT, onToast);
   }, [toast]);
 
-  const value = useMemo(() => ({ toast }), [toast]);
+  // Dismissing a toast that is already gone does nothing.
+  const dismiss = useCallback((id: number) => {
+    if (activeIds.current.includes(id)) dismissToast(id);
+  }, [dismissToast]);
+
+  const value = useMemo(() => ({ toast, dismiss }), [toast, dismiss]);
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {/* Espresso pills that spring up at the bottom centre, newest nearest
-          the edge. Errors stay until dismissed and carry a red marker. */}
-      <div
-        className="pointer-events-none fixed inset-x-0 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] z-[9999] flex flex-col items-center gap-2 px-4"
-        aria-live="polite"
-        aria-atomic="false"
-      >
+      {/* Espresso pills, newest nearest the edge. Phones show them just below
+          the header, clear of bottom-pinned composers and sheet buttons;
+          larger screens spring them up at the bottom centre. Errors stay
+          until dismissed and carry a red marker. Each pill is its own
+          status/alert region, so the container is not a live region too. */}
+      <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--site-header-h)+0.5rem+env(safe-area-inset-top))] z-[9999] flex flex-col-reverse items-center gap-2 px-4 sm:top-auto sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:flex-col">
         {toasts.map((t) =>
           t.leaving ? (
             <div
@@ -153,7 +183,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               onAnimationEnd={(event) => {
                 if (event.target === event.currentTarget) removeToast(t.id);
               }}
-              className="toast-pill toast-pill-leaving pointer-events-none flex max-w-full items-center gap-1 rounded-full bg-[#2C1F1A] py-[3px] pl-[18px] pr-[3px] text-[15px] text-[#FBF8F3]"
+              className="toast-pill toast-pill-leaving pointer-events-none flex max-w-full items-center gap-1 rounded-3xl bg-[#2C1F1A] py-[3px] pl-[18px] pr-[3px] text-[15px] text-[#FBF8F3]"
             >
               <span className="min-w-0 flex-1 py-[9px]">{t.message}</span>
               <span className="h-11 w-11 shrink-0" />
@@ -164,11 +194,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               role={t.type === "error" ? "alert" : "status"}
               onMouseEnter={() => pauseDismiss(t.id, "hover")}
               onMouseLeave={() => resumeDismiss(t.id, "hover")}
-              onFocus={() => pauseDismiss(t.id, "focus")}
+              data-toast-id={t.id}
+              onFocus={(event) => {
+                const from = event.relatedTarget as HTMLElement | null;
+                if (from && !event.currentTarget.contains(from)) returnFocus.current.set(t.id, from);
+                pauseDismiss(t.id, "focus");
+              }}
               onBlur={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget)) resumeDismiss(t.id, "focus");
               }}
-              className="toast-pill pointer-events-auto flex max-w-full items-center gap-1 rounded-full bg-[#2C1F1A] py-[3px] pl-[18px] pr-[3px] text-[15px] text-[#FBF8F3]"
+              className="toast-pill pointer-events-auto flex max-w-full items-center gap-1 rounded-3xl bg-[#2C1F1A] py-[3px] pl-[18px] pr-[3px] text-[15px] text-[#FBF8F3]"
             >
               <span
                 className={`min-w-0 flex-1 py-[9px] ${
@@ -182,7 +217,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               {t.action && (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(event) => {
+                    releaseFocus(t.id, event.currentTarget.closest("[data-toast-id]"));
                     t.action?.onClick();
                     dismissToast(t.id);
                   }}
@@ -195,7 +231,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               )}
               <button
                 type="button"
-                onClick={() => dismissToast(t.id)}
+                onClick={(event) => {
+                  releaseFocus(t.id, event.currentTarget.closest("[data-toast-id]"));
+                  dismissToast(t.id);
+                }}
                 className="group/toast-close grid h-11 w-11 shrink-0 place-items-center focus-visible:outline-none"
                 aria-label="Dismiss message"
               >

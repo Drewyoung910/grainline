@@ -2,12 +2,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Show, useClerk, useUser } from "@clerk/nextjs";
 import * as React from "react";
 import MessageIconLink from "@/components/MessageIconLink";
 import IconHoverTip from "@/components/IconHoverTip";
 import SearchBar from "@/components/SearchBar";
+import SearchParamsListener from "@/components/SearchParamsListener";
 import NotificationBell from "@/components/NotificationBell";
 import UserAvatarMenu from "@/components/UserAvatarMenu";
 import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User, Store, Shield, Edit, Wrench } from "@/components/icons";
@@ -22,7 +23,9 @@ export default function Header() {
   const drawerItemHover = "hover:bg-[#F7F5F0]";
   const drawerSectionText = "text-neutral-400";
   const drawerIconText = "text-neutral-500";
-  const searchParams = useSearchParams();
+  // The query string arrives through SearchParamsListener so the header can
+  // render in the first HTML flush (see that component).
+  const [searchQuery, setSearchQuery] = React.useState("");
   // The header is clear over the homepage photo until the visitor scrolls,
   // then settles into the same frosted paper every other page uses.
   const [scrolled, setScrolled] = React.useState(false);
@@ -251,7 +254,7 @@ export default function Header() {
     setDrawerClosing(false);
     setSearchOpen(false);
     setSearchClosing(false);
-  }, [pathname, searchParams, clearDrawerCloseTimer, clearMobileSearchCloseTimer, shouldRestoreMenuFocus]);
+  }, [pathname, searchQuery, clearDrawerCloseTimer, clearMobileSearchCloseTimer, shouldRestoreMenuFocus]);
 
   // Escape closes both drawer and search
   React.useEffect(() => {
@@ -424,6 +427,7 @@ export default function Header() {
           : "text-neutral-900"
       }`}
     >
+      <SearchParamsListener onChange={setSearchQuery} />
       {/* Over the photo, a soft dark fade keeps the cream header text
           readable on the bright parts of the image. */}
       {isHome && (

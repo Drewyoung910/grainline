@@ -7,7 +7,13 @@ import { useState } from "react";
 // when it shrinks. The first render never animates. Roll state moves in the
 // same render as the value (React's "adjust state while rendering" pattern),
 // so the new text never flashes before it rolls; Object.is keeps a NaN from
-// re-rendering forever. Under reduced motion the outgoing copy stays hidden.
+// re-rendering forever. The outgoing copy is removed once its roll ends, and
+// is never rendered under reduced motion, so an invisible old value cannot
+// widen the page or turn up in find-in-page.
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+}
+
 export default function RollingText({
   value,
   text,
@@ -18,6 +24,8 @@ export default function RollingText({
   className?: string;
 }) {
   const [roll, setRoll] = useState({ value, text, previousText: "", direction: "up" as "up" | "down", count: 0 });
+  // The roll whose outgoing copy has finished leaving.
+  const [settledCount, setSettledCount] = useState(0);
   if (!Object.is(roll.value, value)) {
     setRoll({
       value,
@@ -35,11 +43,14 @@ export default function RollingText({
     // The outgoing copy is out of flow, so a shorter new value never keeps
     // the old width.
     <span className={`relative inline-block tabular-nums${className ? ` ${className}` : ""}`}>
-      {roll.count > 0 && (
+      {/* roll.count > 0 only after a client-side change, so reading
+          matchMedia here never affects hydration. */}
+      {roll.count > 0 && settledCount !== roll.count && !prefersReducedMotion() && (
         <span
           key={`out-${roll.count}`}
           aria-hidden="true"
           data-dir={roll.direction}
+          onAnimationEnd={() => setSettledCount(roll.count)}
           className="count-roll-out pointer-events-none absolute left-0 top-0 select-none whitespace-nowrap"
         >
           {roll.previousText}

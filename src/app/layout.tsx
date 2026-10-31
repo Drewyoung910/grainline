@@ -3,7 +3,6 @@ import "./globals.css";
 import Header from "@/components/Header";
 import { Providers } from "@/components/Providers";
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import Link from "next/link";
 import { getFooterMetros } from "@/lib/footerMetros";
 import { Geist, Newsreader } from "next/font/google";
@@ -95,9 +94,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Skip to content
         </a>
         <Providers>
-          <Suspense fallback={null}>
-            <Header />
-          </Suspense>
+          {/* No Suspense here: the header reads the query string through
+              SearchParamsListener, so it renders in the first HTML flush
+              instead of appearing after paint and shifting the page. */}
+          <Header />
           <div id="main-content" className="flex-1 bg-[#F7F5F0]">
           {children}
           </div>
@@ -116,7 +116,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* Shop */}
                 <nav aria-label="Shop">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Shop</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Shop</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/browse" className="text-neutral-600 hover:text-neutral-900 hover:underline">Browse all</Link></li>
                     <li><Link href="/why-grainline" className="text-neutral-600 hover:text-neutral-900 hover:underline">Why Grainline</Link></li>
@@ -128,7 +128,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* Sell */}
                 <nav aria-label="Sell">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Sell</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Sell</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/why-sell-on-grainline" className="text-neutral-600 hover:text-neutral-900 hover:underline">Why sell on Grainline</Link></li>
                     <li><Link href="/become-a-maker" className="text-neutral-600 hover:text-neutral-900 hover:underline">Become a maker</Link></li>
@@ -140,7 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* Help */}
                 <nav aria-label="Help">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Help</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Help</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/support" className="text-neutral-600 hover:text-neutral-900 hover:underline">Contact support</Link></li>
                     <li><Link href="/help/shipping-and-returns" className="text-neutral-600 hover:text-neutral-900 hover:underline">Shipping &amp; returns</Link></li>
@@ -151,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* About / Legal */}
                 <nav aria-label="Grainline">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Grainline</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Grainline</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/about" className="text-neutral-600 hover:text-neutral-900 hover:underline">About</Link></li>
                     <li><Link href="/terms" className="text-neutral-600 hover:text-neutral-900 hover:underline">Terms of Service</Link></li>

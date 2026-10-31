@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import SearchParamsListener from "@/components/SearchParamsListener";
 import { Package, Search, Store, Tag, X } from "@/components/icons";
 import { safeInternalPath } from "@/lib/internalReturnUrl";
 import {
@@ -86,7 +87,10 @@ export default function SearchBar({
   const glass = tone === "glass";
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // Read through SearchParamsListener so the header around this search bar
+  // still renders on the server (see that component). Empty until mounted.
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const searchParams = React.useMemo(() => new URLSearchParams(searchQuery), [searchQuery]);
   const reactId = React.useId();
   const searchInputId = `${reactId}-site-search-input`;
   const searchListboxId = `${reactId}-site-search-listbox`;
@@ -435,6 +439,7 @@ export default function SearchBar({
 
   return (
     <div ref={containerRef} className="relative w-full min-w-0">
+      <SearchParamsListener onChange={setSearchQuery} />
       <form onSubmit={handleSubmit} role="search">
         <label htmlFor={searchInputId} className="sr-only">
           Search Grainline
@@ -507,6 +512,9 @@ export default function SearchBar({
         <ul
           id={searchListboxId}
           role="listbox"
+          // Scrollable, so browsers would make it a Tab stop; arrow keys on
+          // the input drive it instead.
+          tabIndex={-1}
           className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] origin-top overflow-y-auto overscroll-contain rounded-2xl bg-white p-1.5 text-neutral-900 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-[#2C1F1A]/[0.12] motion-reduce:animate-none ${
             closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
           }`}

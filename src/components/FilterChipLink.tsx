@@ -11,6 +11,12 @@ import { X } from "@/components/icons";
 export default function FilterChipLink({ href, label }: { href: string; label: string }) {
   const router = useRouter();
   const [leaving, setLeaving] = React.useState(false);
+  // The navigation waits for the shrink; if the chip goes away first (the
+  // shopper clicked elsewhere), the pending navigation is dropped with it.
+  const timerRef = React.useRef<number | null>(null);
+  React.useEffect(() => () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+  }, []);
 
   const onClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -21,7 +27,10 @@ export default function FilterChipLink({ href, label }: { href: string; label: s
     event.preventDefault();
     if (leaving) return;
     setLeaving(true);
-    window.setTimeout(() => router.push(href), 180);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      router.push(href);
+    }, 180);
   };
 
   return (

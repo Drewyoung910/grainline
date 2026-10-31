@@ -134,7 +134,9 @@ describe("accessibility follow-ups", () => {
     assert.match(shippingRates, /<fieldset className="space-y-2">/);
     assert.match(shippingRates, /<legend className="text-sm font-medium text-neutral-500">Shipping from/);
     assert.match(filters, /<fieldset>/);
-    assert.match(filters, /<legend className=\{legendClass\}>Availability<\/legend>/);
+    // The legend names the availability radiogroup, so it is not named twice.
+    assert.match(filters, /<legend className=\{legendClass\} id=\{`\$\{baseId\}-availability`\}>Availability<\/legend>/);
+    assert.match(filters, /labelledBy=\{`\$\{baseId\}-availability`\}/);
     assert.match(filters, /<legend className=\{legendClass\}>Price \(USD\)<\/legend>/);
     assert.match(filters, /<legend className=\{legendClass\}>Near location<\/legend>/);
     assert.match(filters, /htmlFor=\{`\$\{baseId\}-min`\}/);
@@ -144,6 +146,7 @@ describe("accessibility follow-ups", () => {
     const segmented = source("src/components/SegmentedControl.tsx");
     assert.match(segmented, /role=\{linkMode \? "group" : "radiogroup"\}/);
     assert.match(segmented, /role="radio"\s+aria-checked=\{selected\}/);
+    assert.match(segmented, /aria-label=\{labelledBy \? undefined : label\}\s+aria-labelledby=\{labelledBy\}/);
 
     assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-category`\}/);
     assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-category`\}/);

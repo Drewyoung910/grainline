@@ -216,8 +216,17 @@ describe("variant selection reminder", () => {
     // announces the missing choice.
     assert.match(selector, /key=\{blockedAttemptCount\}/);
     assert.match(selector, /role=\{blockedAttemptCount > 0 \? "alert" : undefined\}/);
+    // Only clicks on the purchase buttons count, not clicks inside the Buy
+    // now dialog, which renders inside the same wrapper.
     const panel = source("src/components/ListingPurchasePanel.tsx");
-    assert.match(panel, /onClickCapture=\{\(\) => \{\s*if \(!variantSelectionComplete\) setBlockedVariantAttempts/);
+    assert.match(
+      panel,
+      /onClickCapture=\{\(event\) => \{\s*if \(variantSelectionComplete\) return;\s*if \(!\(event\.target as Element\)\.closest\?\.\("\[data-purchase-action\]"\)\) return;\s*setBlockedVariantAttempts/,
+    );
+    for (const file of ["src/components/BuyNowButton.tsx", "src/components/AddToCartButton.tsx"]) {
+      assert.match(source(file), /data-purchase-action=""/);
+    }
+    assert.match(panel, /data-purchase-action=""/);
   });
 });
 

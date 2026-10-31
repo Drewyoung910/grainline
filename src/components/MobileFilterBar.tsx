@@ -165,7 +165,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           value={currentType}
           options={[
             { value: "", label: "All" },
-            { value: "IN_STOCK", label: "Ready" },
+            { value: "IN_STOCK", label: "In stock" },
             { value: "MADE_TO_ORDER", label: "Made to order" },
           ]}
         />

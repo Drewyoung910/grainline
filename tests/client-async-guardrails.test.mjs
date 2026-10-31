@@ -313,7 +313,10 @@ describe("client async guardrails", () => {
     const toast = source("src/components/Toast.tsx");
 
     assert.match(toast, /useMemo/);
-    assert.match(toast, /const value = useMemo\(\(\) => \(\{ toast \}\), \[toast\]\)/);
+    assert.match(toast, /const value = useMemo\(\(\) => \(\{ toast, dismiss \}\), \[toast, dismiss\]\)/);
+    // Both context functions are stable callbacks.
+    assert.match(toast, /const toast = useCallback\(/);
+    assert.match(toast, /const dismiss = useCallback\(/);
     assert.match(toast, /<ToastContext\.Provider value=\{value\}>/);
     assert.doesNotMatch(toast, /<ToastContext\.Provider value=\{\{ toast \}\}>/);
   });

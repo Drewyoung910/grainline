@@ -264,13 +264,16 @@ function CartPage() {
   const router = useRouter();
 
   const [items, setItems] = React.useState<CartItem[]>([]);
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
   // The full skeleton is for the first load only. Later reloads (quantity
   // changes, price refreshes) keep the cart on screen so totals can roll to
   // their new values instead of the whole page flashing.
   const [hasLoadedCart, setHasLoadedCart] = React.useState(false);
   // Rows fade out briefly before a removal is sent.
   const [removingIds, setRemovingIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  // Lines whose quantity change is still being saved, mapped to the value
+  // picked, so the select shows it instead of snapping back meanwhile.
+  const [pendingQuantities, setPendingQuantities] = React.useState<ReadonlyMap<string, number>>(() => new Map());
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
@@ -310,6 +313,15 @@ function CartPage() {
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
   }, [clientSecrets]);
+  // Undo for a removed line only makes sense on the Cart step: once checkout
+  // moves on, a re-added line would not match the payment sessions it opens.
+  // Leaving the step takes any Undo toast with it.
+  const [undoToastIds, setUndoToastIds] = React.useState<number[]>([]);
+  React.useEffect(() => {
+    if (step === "review" || undoToastIds.length === 0) return;
+    undoToastIds.forEach(dismiss);
+    setUndoToastIds([]);
+  }, [step, undoToastIds, dismiss]);
 
   const clearCompletedCheckoutSessions = React.useCallback(() => {
     setCompletedSessionIds(new Set());
@@ -485,6 +497,7 @@ function CartPage() {
       return true;
     }
 
+    setPendingQuantities((current) => new Map(current).set(cartItemId, quantity));
     try {
       const res = await fetch("/api/cart/update", {
         method: "POST",
@@ -505,6 +518,12 @@ function CartPage() {
     } catch (e) {
       setError((e as Error).message);
       return false;
+    } finally {
+      setPendingQuantities((current) => {
+        const next = new Map(current);
+        next.delete(cartItemId);
+        return next;
+      });
     }
   }
 
@@ -578,9 +597,9 @@ function CartPage() {
 
   if (loading && !hasLoadedCart) return <CartLoadingSkeleton />;
 
-  // While a reload or a removal is in flight, quantity controls wait so two
-  // updates cannot race each other's reload.
-  const cartBusy = loading || removingIds.size > 0;
+  // While a reload, a quantity change or a removal is in flight, quantity
+  // and Remove controls wait, so two updates (and their reloads) cannot race.
+  const cartBusy = loading || removingIds.size > 0 || pendingQuantities.size > 0;
 
   const removeItem = (cartItemId: string) => {
     if (removingIds.has(cartItemId)) return;
@@ -593,9 +612,10 @@ function CartPage() {
     }
     const offerUndo = (ok: boolean) => {
       if (!ok || !removed) return;
-      toast("Removed from your cart", "info", {
+      const id = toast("Removed from your cart", "info", {
         action: { label: "Undo", onClick: () => void restoreRemovedItem(removed, anonymousEntry) },
       });
+      setUndoToastIds((ids) => [...ids, id]);
     };
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
@@ -779,10 +799,15 @@ function CartPage() {
                           </label>
                           <select
                             id={quantitySelectId}
-                            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
-                            value={i.quantity}
-                            disabled={cartBusy}
-                            onChange={(e) => setQuantity(i.id, Number(e.target.value))}
+                            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm aria-disabled:cursor-wait aria-disabled:opacity-60"
+                            value={pendingQuantities.get(i.id) || i.quantity}
+                            // aria-disabled rather than disabled, so a keyboard
+                            // user keeps focus on the select while it saves.
+                            aria-disabled={cartBusy || undefined}
+                            onChange={(e) => {
+                              if (cartBusy) return;
+                              void setQuantity(i.id, Number(e.target.value));
+                            }}
                           >
                             {Array.from({ length: maxQty }).map((_, idx) => {
                               const n = idx + 1;

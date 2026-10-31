@@ -720,7 +720,7 @@ async function BrowseContent({
       ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]
       : []),
     ...(typeFilter
-      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In Stock" : "Made to order", href: browseHrefWithout(["type"]) }]
+      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In stock" : "Made to order", href: browseHrefWithout(["type"]) }]
       : []),
     ...(shipsFilter
       ? [{ key: "ships", label: `Ships within ${shipsFilter} days`, href: browseHrefWithout(["ships"]) }]

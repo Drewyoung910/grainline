@@ -57,10 +57,8 @@ export default function AddToCartButton({
   const listingPath = publicListingPath(listingId, listingTitle);
 
   async function add() {
-    if (variantRequired && selectedVariantOptionIds.length === 0) {
-      toast("Please select all variant options first.", "error");
-      return;
-    }
+    // The listing panel flags the missing option next to the options.
+    if (variantRequired && selectedVariantOptionIds.length === 0) return;
     if (!signedIn) {
       if (!anonymousSnapshot) {
         window.location.href = signInPathForRedirect(listingPath);
@@ -122,6 +120,7 @@ export default function AddToCartButton({
   return (
     <button
       type="button"
+      data-purchase-action=""
       disabled={loading}
       onClick={add}
       className={className || "rounded border px-3 py-1.5 text-sm"}

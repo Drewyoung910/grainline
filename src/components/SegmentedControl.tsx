@@ -21,6 +21,7 @@ export default function SegmentedControl({
   value,
   onChange,
   label,
+  labelledBy,
   name,
   size = "md",
   fullWidth = false,
@@ -32,6 +33,9 @@ export default function SegmentedControl({
   value: string;
   onChange?: (value: string) => void;
   label: string;
+  // Id of a visible label (such as a fieldset legend). When set, the group is
+  // named by it instead of `label`, so it is not announced twice.
+  labelledBy?: string;
   // Form use: submit the chosen value under this name.
   name?: string;
   size?: "sm" | "md";
@@ -97,21 +101,29 @@ export default function SegmentedControl({
   };
 
   const linkMode = options.some((option) => option.href);
-  const height = size === "sm" ? "h-8" : "h-[34px]";
+  // When the value matches no option, the first option takes the Tab stop so
+  // the group can still be reached.
+  const hasSelection = options.some((option) => option.value === activeValue);
+  // Full-width tracks size each option to its label and share out the rest,
+  // and a label too long for a narrow column wraps instead of spilling out.
+  const height = fullWidth
+    ? size === "sm" ? "min-h-8 py-1" : "min-h-[34px] py-1"
+    : size === "sm" ? "h-8" : "h-[34px]";
   const text = size === "sm" ? "text-[13px]" : "text-[13.5px]";
 
   return (
     <div
       ref={trackRef}
       role={linkMode ? "group" : "radiogroup"}
-      aria-label={label}
+      aria-label={labelledBy ? undefined : label}
+      aria-labelledby={labelledBy}
       onKeyDown={linkMode ? undefined : onKeyDown}
-      className={`relative ${fullWidth ? "grid w-full grid-flow-col auto-cols-fr" : "inline-grid grid-flow-col auto-cols-auto"} rounded-full bg-[#EFEAE0] p-1 ${className}`}
+      className={`relative ${fullWidth ? "grid w-full grid-flow-col auto-cols-auto rounded-[20px]" : "inline-grid grid-flow-col auto-cols-auto rounded-full"} bg-[#EFEAE0] p-1 ${className}`}
     >
       {thumb && (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute bottom-1 left-0 top-1 rounded-full bg-white shadow-[0_2px_8px_-3px_rgba(0,0,0,0.25)] ${
+          className={`pointer-events-none absolute bottom-1 left-0 top-1 ${fullWidth ? "rounded-[16px]" : "rounded-full"} bg-white shadow-[0_2px_8px_-3px_rgba(0,0,0,0.25)] ${
             thumb.animate
               ? "transition-[translate,width] duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
               : ""
@@ -124,7 +136,9 @@ export default function SegmentedControl({
         // Before the thumb is measured (first paint), the chosen option
         // carries the white fill itself so nothing flashes.
         const fallbackFill = selected && !thumb ? " bg-white shadow-[0_2px_8px_-3px_rgba(0,0,0,0.25)]" : "";
-        const optionClass = `relative z-[1] inline-flex ${height} items-center justify-center whitespace-nowrap rounded-full px-3 ${text} font-medium transition-colors duration-300 focus-visible:outline-offset-[-2px] ${
+        const optionClass = `relative z-[1] inline-flex ${height} items-center justify-center ${
+          fullWidth ? "rounded-[16px] px-2.5 text-center leading-[1.15]" : "whitespace-nowrap rounded-full px-3"
+        } ${text} font-medium transition-colors duration-300 focus-visible:outline-offset-[-2px] ${
           selected ? "text-neutral-900" : "text-neutral-600 hover:text-neutral-900"
         }${fallbackFill}`;
         const setRef = (element: HTMLElement | null) => {
@@ -159,7 +173,7 @@ export default function SegmentedControl({
             role="radio"
             aria-checked={selected}
             aria-label={option.ariaLabel}
-            tabIndex={selected ? 0 : -1}
+            tabIndex={selected || (!hasSelection && option === options[0]) ? 0 : -1}
             onClick={() => choose(option.value)}
             className={optionClass}
           >

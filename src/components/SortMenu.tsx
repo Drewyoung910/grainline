@@ -19,7 +19,9 @@ export default function SortMenu() {
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
-  const options = SORT_OPTIONS.filter((option) => !option.needsQuery || q);
+  // "Most relevant" is offered with a search, and stays labelled (and
+  // ticked) when the URL already asks for it without one.
+  const options = SORT_OPTIONS.filter((option) => !option.needsQuery || q || currentSort === option.value);
   const currentLabel = options.find((option) => option.value === currentSort)?.label ?? "Newest";
 
   const [open, setOpen] = React.useState(false);

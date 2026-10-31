@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
-import { useToast } from "@/components/Toast";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 
@@ -50,7 +49,6 @@ export default function BuyNowButton({
   const [hasOpened, setHasOpened] = useState(false);
   const openedFromRedirect = useRef(false);
   const { isSignedIn, isLoaded } = useUser();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (!autoOpen || openedFromRedirect.current || !isLoaded || !isSignedIn) return;
@@ -64,12 +62,11 @@ export default function BuyNowButton({
     <>
       <button
         type="button"
+        data-purchase-action=""
         disabled={!isLoaded}
         onClick={() => {
-          if (variantRequired && selectedVariantOptionIds.length === 0) {
-            toast("Please select all variant options first.", "error");
-            return;
-          }
+          // The listing panel flags the missing option next to the options.
+          if (variantRequired && selectedVariantOptionIds.length === 0) return;
           if (!isSignedIn) {
             window.location.href = signUpPathForRedirect(window.location.pathname + window.location.search);
             return;
