@@ -314,7 +314,10 @@ async function proveSellerAnalyticsQueryPlans({ database, seller, otherSeller, s
       [seller.sellerProfileId, rangeStart, rangeEnd],
     ), {
       relation: "SellerProfileViewDaily",
-      indexes: ["SellerProfileViewDaily_sellerProfileId_date_idx"],
+      indexes: [
+        "SellerProfileViewDaily_sellerProfileId_date_key",
+        "SellerProfileViewDaily_sellerProfileId_date_idx",
+      ],
     });
 
     const cutoff = rowsOf(await database.query(
