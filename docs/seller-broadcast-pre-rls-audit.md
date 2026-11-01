@@ -258,7 +258,7 @@ The isolated candidate has the following current evidence:
   exact 11-runtime/3-staff function split; and
 - the source consumer inventory is zero direct operations.
 
-This is preparation evidence only. Queued-email eligibility remains a verified
-activation blocker, and no activation migration or emergency rollback has been
-accepted.
+This is preparation evidence only. The queued-email eligibility defect blocks
+activation until this compatible preparation is accepted in Production, and no
+activation migration or emergency rollback has been accepted.
 
