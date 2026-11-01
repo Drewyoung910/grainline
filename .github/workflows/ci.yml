@@ -289,6 +289,16 @@ jobs:
           tests/stock-mutation-state.test.mjs
           tests/stock-notification-route.test.mjs
           tests/stock-notification-state.test.mjs
+      - name: Verify SellerAnalyticsDaily preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/account-state-residue-followups.test.mjs
+          tests/listing-analytics-guardrails.test.mjs
+          tests/listing-analytics-route.test.mjs
+          tests/retention-and-ops-followups.test.mjs
+          tests/seller-analytics-daily-preparation.test.mjs
+          tests/seller-ops-hardening.test.mjs
       - name: Verify Favorite source packages
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -443,6 +453,15 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+      - name: Isolate SellerAnalyticsDaily preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-analytics-daily-preparation"
+          migration=20261101010000_prepare_seller_analytics_daily_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate ReviewVote source packages until historical release guards pass
         shell: bash
         run: |
@@ -6943,6 +6962,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "STOCK_NOTIFICATION_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerAnalyticsDaily preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-analytics-daily-preparation"
+          migration=20261101010000_prepare_seller_analytics_daily_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore Favorite source packages after historical release guards
         shell: bash
         run: |
