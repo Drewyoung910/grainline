@@ -455,12 +455,13 @@ BEGIN
       ON seller.id = broadcast."sellerProfileId"
     JOIN public."User" AS seller_user
       ON seller_user.id = seller."userId"
-    JOIN LATERAL public.grainline_follow_public_state_batch(
-      ARRAY[seller.id]::text[]
-    ) AS follow_state
-      ON follow_state."sellerProfileId" = seller.id
-     AND follow_state.following
    WHERE broadcast."sellerProfileId" = ANY(p_seller_profile_ids)
+     AND EXISTS (
+       SELECT 1
+         FROM public."Follow" AS relationship
+        WHERE relationship."sellerProfileId" = seller.id
+          AND relationship."followerId" = actor_id
+     )
      AND seller."ownerAccountActive" = true
      AND seller."chargesEnabled" = true
      AND seller."stripeAccountSupported" = true
