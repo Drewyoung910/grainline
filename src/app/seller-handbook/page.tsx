@@ -6,6 +6,7 @@
 // so footer + dashboard links can deep-link straight to the section.
 import Link from "next/link";
 import type { Metadata } from "next";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = {
   title: "Seller Handbook",
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
       "How to sell handmade woodworking on Grainline. Fees, photos, shipping, Guild verification, and trust & safety.",
     url: "https://thegrainline.com/seller-handbook",
     type: "article",
+    images: defaultOpenGraphImages(),
   },
 };
 

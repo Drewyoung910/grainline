@@ -47,6 +47,7 @@ const isPublic = createRouteMatcher([
   "/accept-terms(.*)",    // full-page terms gate; page redirects signed-out users to sign-in
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
+  "/opengraph-image(.*)", // generated root social preview image — public crawler asset
   "/account/deleted",     // terminal account deletion page after Clerk sign-out
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session

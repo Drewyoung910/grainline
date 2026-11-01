@@ -14,6 +14,18 @@ Last updated: 2026-10-18
   private seller API URL remains protected; the existing public-route inventory
   and bounded-authority tests remain green.
 
+## 2026-11-01 — Public social preview image regressions
+
+- **[CLAUDE #213/#465 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  Next's file-based root Open Graph image is served at `/opengraph-image`, but
+  middleware treated that generated crawler asset as private and redirected it
+  to sign-in. Public browse, metro, maker, tag, map, handbook, and commission
+  pages also replace the root `openGraph` object without an `images` value, so
+  they lose the inherited preview. The candidate makes only the generated image
+  route public and uses one shared complete fallback image on every affected
+  metadata producer. Executed tests cover the real Clerk matcher and the shared
+  metadata value; a source guard inventories all affected page producers.
+
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 
 - **[#702 VERIFIED/FIXED/PRODUCTION LIVE]** The signed

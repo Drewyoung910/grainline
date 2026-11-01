@@ -28,6 +28,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { Suspense } from "react";
 import {
@@ -88,7 +89,12 @@ export async function generateMetadata({
       title: { absolute: title },
       description,
       alternates: { canonical: `https://thegrainline.com/commission/${param}` },
-      openGraph: { title, description, url: `https://thegrainline.com/commission/${param}` },
+      openGraph: {
+        title,
+        description,
+        url: `https://thegrainline.com/commission/${param}`,
+        images: defaultOpenGraphImages(),
+      },
     };
   }
 
@@ -126,7 +132,12 @@ export async function generateMetadata({
     title,
     description: truncateText(description, 160),
     alternates: { canonical: `https://thegrainline.com/commission/${param}` },
-    openGraph: { title, description: truncateText(description, 160), url: `https://thegrainline.com/commission/${param}` },
+    openGraph: {
+      title,
+      description: truncateText(description, 160),
+      url: `https://thegrainline.com/commission/${param}`,
+      images: defaultOpenGraphImages(),
+    },
   };
 }
 
