@@ -5,6 +5,7 @@ import { sellerProfilePrivateMigrationPath } from "./helpers/seller-profile-priv
 import {
   buildStripeConnectV2AccountCreateParams,
   STRIPE_CONNECT_ACCOUNT_VERSION,
+  STRIPE_CONNECT_COUNTRY,
   STRIPE_CONNECT_CONTROLLER_SUMMARY,
   STRIPE_CONNECT_V2_ACCOUNT_EVENT_PREFIX,
   STRIPE_CONNECT_V2_API_VERSION,
@@ -26,6 +27,7 @@ describe("Stripe Connect v2 migration guardrails", () => {
     });
 
     assert.equal(STRIPE_CONNECT_ACCOUNT_VERSION, "v2");
+    assert.equal(STRIPE_CONNECT_COUNTRY, "US");
     assert.equal(isSupportedStripeConnectAccountVersion("v2"), true);
     assert.equal(isSupportedStripeConnectAccountVersion(null), true);
     assert.equal(isSupportedStripeConnectAccountVersion("v1"), false);
@@ -75,6 +77,10 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.equal(
       "contact_email" in buildStripeConnectV2AccountCreateParams({ email: " ", country: "ca" }),
       false,
+    );
+    assert.deepEqual(
+      buildStripeConnectV2AccountCreateParams({ email: "maker@example.com", country: "CA" }).identity,
+      { country: "US" },
     );
   });
 

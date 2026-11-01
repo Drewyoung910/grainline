@@ -83,7 +83,7 @@ test("Stripe Connect creation uses authenticated owner email without a nested Us
     "@/lib/sellerStripePrivateAccess": {
       sellerStripeOwnerState: async (userId) => {
         assert.equal(userId, "local_owner");
-        return { id: "seller", stripeAccountId: null, stripeAccountVersion: null, chargesEnabled: false, shipFromCountry: "US" };
+        return { id: "seller", stripeAccountId: null, stripeAccountVersion: null, chargesEnabled: false, shipFromCountry: "CA" };
       },
       bindSellerStripeAccount: async (client, input) => {
         assert.equal(client, db);
@@ -95,8 +95,9 @@ test("Stripe Connect creation uses authenticated owner email without a nested Us
     "@/lib/internalReturnUrl": { safeInternalReturnUrl: () => null },
     "@/lib/stripeConnectV2": {
       STRIPE_CONNECT_ACCOUNT_VERSION: "v2",
+      STRIPE_CONNECT_COUNTRY: "US",
       STRIPE_CONNECT_CONTROLLER_SUMMARY: "controller",
-      createStripeConnectV2Account: async (input) => { operations.push(["create", input.email, input.idempotencyKey]); return { id: "acct_test" }; },
+      createStripeConnectV2Account: async (input) => { operations.push(["create", input.email, input.country, input.idempotencyKey]); return { id: "acct_test" }; },
     },
     "@/lib/stripe": { stripe: { accountLinks: { create: async (input) => { operations.push(["link", input.account]); return { url: "https://test.example/onboarding" }; } } } },
     "@/lib/appBaseUrl": { APP_BASE_URL: "https://app.example" },
@@ -104,7 +105,7 @@ test("Stripe Connect creation uses authenticated owner email without a nested Us
   });
   const result = await loaded.POST({});
   assert.equal(result.url, "https://test.example/onboarding");
-  assert.deepEqual(operations, [["create", "owner@example.com", "connect-v2-account:seller"], ["persist", "acct_test"], ["link", "acct_test"]]);
+  assert.deepEqual(operations, [["create", "owner@example.com", "US", "connect-v2-account:seller"], ["persist", "acct_test"], ["link", "acct_test"]]);
 });
 
 test("converted owner and cart surfaces have no remaining statically visible User relation", () => {

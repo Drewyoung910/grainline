@@ -8,6 +8,7 @@ import { stripeConnectRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/
 import {
   createStripeConnectV2Account,
   STRIPE_CONNECT_ACCOUNT_VERSION,
+  STRIPE_CONNECT_COUNTRY,
   STRIPE_CONNECT_CONTROLLER_SUMMARY,
   isSupportedStripeConnectAccountVersion,
 } from "@/lib/stripeConnectV2";
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
   if (!accountId) {
     const account = await createStripeConnectV2Account({
       email: me.email,
-      country: seller.shipFromCountry,
+      country: STRIPE_CONNECT_COUNTRY,
       idempotencyKey: `connect-v2-account:${seller.id}`,
     });
     await bindSellerStripeAccount(prisma, {
