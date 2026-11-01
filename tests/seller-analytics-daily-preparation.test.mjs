@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import { describe, it } from "node:test";
 
 function source(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  return readFileSync(isAbsolute(path) ? path : new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-const migrationPath =
-  "prisma/migrations/20261101030000_prepare_seller_analytics_daily_authorities/migration.sql";
+const migrationPath = process.env.SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH
+  ?? "prisma/migrations/20261101030000_prepare_seller_analytics_daily_authorities/migration.sql";
 
 describe("seller analytics daily compatible preparation", () => {
   it("adds validated invariants and purpose-bound functions without activating RLS", () => {
