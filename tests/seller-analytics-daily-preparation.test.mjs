@@ -42,6 +42,8 @@ describe("seller analytics daily compatible preparation", () => {
     assert.match(migration, /Seller analytics daily RLS changed during compatible preparation/);
     assert.match(migration, /Seller analytics daily postflight inventory drifted/);
     assert.match(migration, /Seller analytics predecessor runtime CRUD drifted/);
+    assert.match(migration, /NOT EXISTS \(\s*SELECT 1\s*FROM public\."ListingViewDaily"/s);
+    assert.match(migration, /NOT EXISTS \(\s*SELECT 1\s*FROM public\."SellerProfileViewDaily"/s);
     assert.doesNotMatch(migration, /ALTER TABLE public\."(?:ListingViewDaily|SellerProfileViewDaily)"\s+(?:ENABLE|FORCE|DISABLE|NO FORCE) ROW LEVEL SECURITY/);
     assert.doesNotMatch(migration, /REVOKE [^;]* ON TABLE public\."(?:ListingViewDaily|SellerProfileViewDaily)"/s);
     assert.doesNotMatch(migration, /CREATE POLICY/);

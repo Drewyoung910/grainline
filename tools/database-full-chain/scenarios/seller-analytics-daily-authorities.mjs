@@ -402,6 +402,49 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
     [oldProfileRowId, secondOldProfileRowId, recentProfileRowId],
   )).some((row) => row.id === recentProfileRowId), true);
 
+  const lockedOldProfileRowId = `${suffix}_locked_old_profile`;
+  await database.query(
+    `INSERT INTO public."SellerProfileViewDaily"
+       (id, "sellerProfileId", date, views)
+     VALUES (
+       $1, $2, pg_catalog.date_trunc(
+         'day', (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - INTERVAL '731 days'
+       ), 1
+     )`,
+    [lockedOldProfileRowId, otherSeller.sellerProfileId],
+  );
+  const retentionLocker = new pg.Client({ connectionString });
+  await retentionLocker.connect();
+  try {
+    await retentionLocker.query("BEGIN");
+    await retentionLocker.query(
+      `SELECT id FROM public."SellerProfileViewDaily" WHERE id = $1 FOR UPDATE`,
+      [lockedOldProfileRowId],
+    );
+    const skippedLockedRetention = rowsOf(await runtimeQuery(
+      database,
+      null,
+      "SELECT * FROM public.grainline_seller_analytics_retention_prune(1)",
+    ));
+    assert.equal(skippedLockedRetention.length, 1);
+    assert.equal(skippedLockedRetention[0].profile_deleted, 0);
+    assert.equal(
+      skippedLockedRetention[0].profile_complete,
+      false,
+      "a skipped locked row must keep retention incomplete",
+    );
+  } finally {
+    await retentionLocker.query("ROLLBACK").catch(() => {});
+    await retentionLocker.end();
+  }
+  const unlockedRetention = rowsOf(await runtimeQuery(
+    database,
+    null,
+    "SELECT * FROM public.grainline_seller_analytics_retention_prune(5000)",
+  ));
+  assert.equal(unlockedRetention[0]?.profile_deleted, 1);
+  assert.equal(unlockedRetention[0]?.profile_complete, true);
+
   const claimId = `${suffix}_claim`;
   const claimToken = "11111111-2222-4333-8444-555555555555";
   await database.query(

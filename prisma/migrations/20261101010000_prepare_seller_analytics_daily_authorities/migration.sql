@@ -473,8 +473,16 @@ BEGIN
   RETURN QUERY SELECT
     removed_listing,
     removed_profile,
-    removed_listing < p_batch_size,
-    removed_profile < p_batch_size;
+    NOT EXISTS (
+      SELECT 1
+        FROM public."ListingViewDaily" AS daily
+       WHERE daily.date < cutoff
+    ),
+    NOT EXISTS (
+      SELECT 1
+        FROM public."SellerProfileViewDaily" AS daily
+       WHERE daily.date < cutoff
+    );
 END
 $grainline_seller_analytics_retention_prune$;
 
