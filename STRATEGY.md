@@ -3581,3 +3581,25 @@ policyless ENABLE plus FORCE and must preserve database-first rollback,
 account-deletion cleanup and User/SellerProfile cascades. Preparation,
 compatible deployment, skew drain and Production activation remain separate
 reviewed gates; this decision is not standing Production authorization.
+
+### Seller daily analytics RLS boundary (2026-11-01)
+
+Treat `ListingViewDaily` and `SellerProfileViewDaily` as private aggregate
+service tables, not owner-authored rows. Use policyless Option B with zero
+ordinary runtime, staff or `PUBLIC` table/column authority. Public listing and
+shop telemetry stays behind the existing application abuse controls and one
+atomic database recorder; seller dashboards receive only actor-bound totals
+and grouped buckets; retention and account deletion use bounded, source-bound
+operations. Retain and pin the existing profile-view and top-listings
+functions.
+
+Before compatible preparation, inventory and reject negative counters,
+non-midnight dates, listing/seller mismatches and exhausted counters. Add the
+data invariants, convert all eight direct daily-table operations, aggregate
+chart data in PostgreSQL, and prove parent-first lock ordering, cascades,
+retention, rollback and reactivation on the complete PostgreSQL 17 chain.
+Activation later combines ENABLE and FORCE with zero policies only after the
+compatible app is live and every predecessor deployment is drained. This
+decision authorizes isolated preparation only, not a merge, deployment, grant
+change or Production action. See `docs/seller-analytics-daily-pre-rls-audit.md`
+and `docs/seller-analytics-daily-rls-options.md`.
