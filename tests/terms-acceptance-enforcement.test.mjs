@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { describe, it } from "node:test";
+
+const require = createRequire(import.meta.url);
+const { createRouteMatcher } = require("@clerk/nextjs/server");
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -11,6 +15,10 @@ function publicBlock() {
   const match = middleware.match(/const isPublic = createRouteMatcher\(\[([\s\S]*?)\]\);/);
   assert.ok(match, "middleware should define isPublic matcher");
   return match[1];
+}
+
+function publicRoutePatterns() {
+  return [...publicBlock().matchAll(/"([^"]+)"/gu)].map((match) => match[1]);
 }
 
 function termsAllowedBlock() {
@@ -63,6 +71,18 @@ describe("terms acceptance enforcement", () => {
     assert.match(publicRoutes, /"\/cart\(\.\*\)"/);
     assert.match(publicRoutes, /"\/accept-terms\(\.\*\)"/);
     assert.equal(allowed.includes('"/cart(.*)"'), false, "signed-in users missing terms must not use cart");
+
+    const isPublicPath = createRouteMatcher(publicRoutePatterns());
+    assert.equal(
+      isPublicPath({ nextUrl: { pathname: "/api/seller/seller_123/map-card" } }),
+      true,
+      "signed-out map visitors must be able to load the bounded public maker card",
+    );
+    assert.equal(
+      isPublicPath({ nextUrl: { pathname: "/api/seller/seller_123/private" } }),
+      false,
+      "the narrow map-card exception must not expose other seller API routes",
+    );
   });
 
   it("keeps accept-terms as a non-dismissible full page, not an overlay modal", () => {

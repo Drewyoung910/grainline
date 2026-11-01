@@ -2,6 +2,18 @@
 
 Last updated: 2026-10-18
 
+## 2026-11-01 — Signed-out public map-card middleware regression
+
+- **[CLAUDE #218/#344 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  The public map pages fetch `GET /api/seller/[id]/map-card`, and that route
+  already owns a bounded public projection plus an IP rate limit. The route was
+  present in the public API inventory but absent from middleware's signed-out
+  public matcher, so signed-out visitors received `401` instead of the maker
+  card. The candidate adds only the exact map-card route pattern. An executed
+  Clerk matcher test proves that the intended URL is public while a sibling
+  private seller API URL remains protected; the existing public-route inventory
+  and bounded-authority tests remain green.
+
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 
 - **[#702 VERIFIED/FIXED/PRODUCTION LIVE]** The signed
