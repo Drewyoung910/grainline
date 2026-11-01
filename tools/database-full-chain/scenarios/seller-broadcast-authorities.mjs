@@ -657,6 +657,15 @@ export async function proveSellerBroadcastPreparedAuthorities({
     connectionString,
     seller,
   });
+  await database.query(
+    `DELETE FROM public."SellerProfile"
+      WHERE id = ANY($1::text[])`,
+    [[
+      seller.sellerProfileId,
+      otherSeller.sellerProfileId,
+      concurrencySeller.sellerProfileId,
+    ]],
+  );
   return Object.freeze({
     ownerCreateSerialized: true,
     unsupportedStripeAccountRejected: true,
