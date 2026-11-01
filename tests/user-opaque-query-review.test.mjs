@@ -37,19 +37,20 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
 
   // The provider/eligibility fence replaces three direct Prisma
   // EmailSuppression write arguments with one fixed SQL authority. The
-  // StockNotification subscribe authority also removes one reviewed
-  // publicListingDetailWhere call from the application frontier.
-  assert.equal(report.opaqueShapes.length, 146);
-  assert.equal(reviewedFactories.length, 111);
-  assert.equal(reviewedResidual.length, 35);
+  // StockNotification subscribe removes one reviewed public-listing factory.
+  // SellerBroadcast preparation removes one reviewed outbox factory and one
+  // residual direct broadcast relation from the application frontier.
+  assert.equal(report.opaqueShapes.length, 144);
+  assert.equal(reviewedFactories.length, 110);
+  assert.equal(reviewedResidual.length, 34);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 90,
-    sha256: "b6292589e8c18026b1b6ac0f7403e56b0439546ea9849958cb05f591eecae845",
+    unique: 89,
+    sha256: "4d53b85420836898b9eb27582739e2087cf9c846c77f7cb5248e85c5626d6b5e",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 29,
-    sha256: "34ab3fdcdd1d88f8f02b8670b9c41065b017808d5dcdccd5cdac0e58ce8eb456",
+    unique: 28,
+    sha256: "cc71e52698ed3d361f49cb32a63a12a2cefbbb5e0f3712b14f2a2cb4fe2725fd",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,

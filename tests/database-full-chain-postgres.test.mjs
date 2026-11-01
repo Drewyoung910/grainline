@@ -131,6 +131,8 @@ import {
   proveFollowRlsRollback,
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
+import { proveSellerBroadcastPreparedAuthorities } from
+  "../tools/database-full-chain/scenarios/seller-broadcast-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -842,6 +844,10 @@ test(
       await proveMakerVerificationPreparedAuthorities({
         database: adapter,
         seller: fixture,
+        connectionString: proofDatabaseUrl,
+      });
+      await proveSellerBroadcastPreparedAuthorities({
+        database: adapter,
         connectionString: proofDatabaseUrl,
       });
       await proveSellerProfileOwnerBootstrapAuthority({

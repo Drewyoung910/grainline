@@ -82,6 +82,10 @@ import {
 } from "@/lib/sellerAccountDeletionPrivateAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import {
+  accountDeletionSellerBroadcastIds,
+  cleanupAccountSellerBroadcasts,
+} from "@/lib/sellerBroadcastAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import {
@@ -370,19 +374,15 @@ async function redactEmailOutboxRowsForDeletedMaker(
 }
 
 async function cleanupDeletedSellerFanoutRows(
-  tx: Prisma.TransactionClient,
+  tx: DbUserContextTransactionClient,
   sellerProfileId: string,
   now: Date,
 ) {
-  const broadcasts = await tx.sellerBroadcast.findMany({
-    where: { sellerProfileId },
-    select: { id: true },
-  });
+  const broadcastIds = await accountDeletionSellerBroadcastIds(tx, sellerProfileId);
   const listings = await tx.listing.findMany({
     where: { sellerId: sellerProfileId },
     select: { id: true },
   });
-  const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
   const listingIds = listings.map((listing) => listing.id);
   await redactEmailOutboxRowsForDeletedMaker(
     tx,
@@ -1365,9 +1365,7 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await tx.sellerBroadcast.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
-      });
+      await cleanupAccountSellerBroadcasts(tx, user.sellerProfile.id);
       await tx.sellerFaq.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });

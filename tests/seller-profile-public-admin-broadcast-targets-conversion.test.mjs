@@ -6,7 +6,7 @@ const page = readFileSync("src/app/admin/broadcasts/page.tsx", "utf8");
 
 test("admin broadcasts resolve seller presentation through the isolated staff authority", () => {
   const listStart = page.indexOf(
-    "const broadcasts = await prisma.sellerBroadcast.findMany",
+    "const broadcasts = await staffSellerBroadcastPage",
   );
   const listEnd = page.indexOf("function buildHref", listStart);
   assert.ok(
@@ -17,7 +17,7 @@ test("admin broadcasts resolve seller presentation through the isolated staff au
   assert.doesNotMatch(listSource, /sellerProfile:\s*\{\s*select:/u);
   assert.match(
     listSource,
-    /sellerProfileStaffBroadcastTargets\(getOrderStaffReadClient\(\), \{/u,
+    /sellerProfileStaffBroadcastTargets\(staffClient, \{/u,
   );
   assert.match(listSource, /actorId: staff\.id/u);
   assert.match(

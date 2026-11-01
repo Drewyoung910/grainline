@@ -83,7 +83,7 @@ const pages = [
   ["cases/page.tsx", "getStaffCaseQueue("],
   ["cases/[id]/page.tsx", "getVisibleCaseById("],
   ["blog/page.tsx", "prisma.blogPost.findMany("],
-  ["broadcasts/page.tsx", "prisma.sellerBroadcast.count("],
+  ["broadcasts/page.tsx", "staffSellerBroadcastCount("],
   ["verification/page.tsx", "makerVerificationStaffPendingPage("],
   ["audit/page.tsx", "prisma.adminAuditLog.count("],
   ["users/page.tsx", "userStaffDirectoryCount("],

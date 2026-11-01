@@ -51,6 +51,7 @@ import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAcces
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
+import { ownerSellerBroadcastExport } from "@/lib/sellerBroadcastAccess";
 
 export const runtime = "nodejs";
 
@@ -322,13 +323,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           },
         })
       : [],
-    sellerProfile
-      ? prisma.sellerBroadcast.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sentAt: "desc" },
-          select: { id: true, message: true, imageUrl: true, sentAt: true, recipientCount: true },
-        })
-      : [],
+    sellerProfile ? ownerSellerBroadcastExport(user.id) : [],
     sellerProfile ? exportSellerPayoutEvents(user.id) : [],
     exportOwnedDirectUploads(user.id),
     exportOwnerReviewVotes(user.id),

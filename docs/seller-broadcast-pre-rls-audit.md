@@ -2,9 +2,11 @@
 
 Date: 2026-11-01
 
-Status: source and design audit in progress on exact public main
+Status: compatible preparation candidate based on exact public main
 `12a4dfc492412ff52ff94d921e20e7026c4cff38`. Option B is selected in
-`docs/seller-broadcast-rls-options.md`. This document authorizes no Production
+`docs/seller-broadcast-rls-options.md`. The isolated candidate installs 14
+bounded functions and converts every application caller while leaving RLS off
+and predecessor table grants intact. This document authorizes no Production
 operation, merge, deployment, grant change, or RLS activation.
 
 ## Domain and data classification
@@ -27,7 +29,8 @@ public catalog relation.
 
 ## Exact application caller inventory
 
-Six source files perform 16 direct Prisma operations:
+On the audited main baseline, six source files performed 16 direct Prisma
+operations:
 
 The machine-checked inventory runs with:
 
@@ -45,6 +48,11 @@ npm run audit:seller-broadcast-consumers
 | `src/lib/accountDeletion.ts` | `findMany`, `deleteMany` | Deletion service; source outbox redaction before exact seller broadcast deletion |
 
 No other `src/` file directly queries the delegate on this baseline.
+
+The compatible candidate converts all six callers. Its machine-checked current
+inventory is zero source files, zero direct delegate operations, and zero raw
+SQL callers outside `src/lib/sellerBroadcastAccess.ts`. The fixed-operation
+module is excluded by exact path rather than by query text.
 
 ## Installed database dependencies
 
@@ -178,8 +186,8 @@ notification, and upload rows are untouched.
 | --- | --- | --- |
 | Queued broadcast email ignores later unfollow/block | Medium privacy/trust | **FIX_BEFORE_ACTIVATION**; behavior test and shared email eligibility correction |
 | Generic recipient label counts in-app deliveries only | Low product accuracy | Deferred product copy/metric decision; preserve field semantics during RLS |
-| Staff CRUD uses ordinary runtime while labels use isolated staff role | Medium security boundary | **FIX_BEFORE_ACTIVATION** as part of staff operation conversion |
-| Zod's `.max(500)` counts UTF-16 units while storage sanitization truncates by code point | Low input inconsistency | Fix during caller conversion so valid emoji-heavy text is rejected or accepted consistently; no stored overlength path found |
+| Staff CRUD uses ordinary runtime while labels use isolated staff role | Medium security boundary | **FIXED_IN_PREPARATION**: count/page/delete now use the isolated staff role, recheck staff and PIN at the action, and co-commit cleanup plus audit |
+| Zod's `.max(500)` counts UTF-16 units while storage sanitization truncates by code point | Low input inconsistency | **FIXED_IN_PREPARATION** with code-point validation matching SQL/storage semantics |
 | Post-response fanout is best-effort rather than a durable job | Medium reliability, pre-existing | Documented; not silently expanded into the RLS release. Consider a later durable fanout ledger design |
 
 No column deletion, historical content rewrite, or behavior-broadening public
@@ -222,4 +230,24 @@ but activation remains serialized and exact:
 - migration-ledger recovery instructions for partial workflow failure.
 
 No production or merge action is authorized by this audit.
+
+## Compatible preparation evidence
+
+The isolated candidate has the following current evidence:
+
+- the complete 448-migration chain passes on disposable PostgreSQL 17;
+- owner create/cooldown/history/export, public latest, actor feed, delivery
+  update, isolated staff read/delete, account deletion, reciprocal blocks and
+  concurrent create behavior execute against the full schema;
+- exactly one of two concurrent owner creates succeeds inside the seven-day
+  window;
+- the shared private-table preparation catalog byte-seals the migration and
+  assigns only the three staff operations to `grainline_staff_read_runtime`;
+- runtime/staff provisioning and global grant inventory tests agree on the
+  exact 11-runtime/3-staff function split; and
+- the source consumer inventory is zero direct operations.
+
+This is preparation evidence only. Queued-email eligibility remains a verified
+activation blocker, and no activation migration or emergency rollback has been
+accepted.
 

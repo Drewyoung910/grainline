@@ -32,7 +32,6 @@ describe("admin audit durability", () => {
   it("co-commits high-risk admin mutations with their audit rows", () => {
     for (const path of [
       "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
       "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/reports/[id]/resolve/route.ts",
       "src/app/api/admin/reviews/[id]/route.ts",
@@ -45,6 +44,18 @@ describe("admin audit durability", () => {
         `${path} must audit inside the mutation transaction`,
       );
     }
+
+    const broadcastPage = source("src/app/admin/broadcasts/page.tsx");
+    const broadcastTransition = source(
+      "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
+    );
+    assert.match(broadcastPage, /deleteStaffSellerBroadcast\(/);
+    assert.match(
+      broadcastTransition,
+      /DELETE FROM public\."SellerBroadcast"[\s\S]*INSERT INTO public\."AdminAuditLog"/,
+      "broadcast deletion must co-commit its mutation and audit witness",
+    );
+    assert.match(broadcastTransition, /BEGIN;[\s\S]*COMMIT;/);
 
     const supportActions = source("src/app/admin/support/actions.ts");
     const supportTransition = source(supportRequestPreparationMigrationPath());
