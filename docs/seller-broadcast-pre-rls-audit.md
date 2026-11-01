@@ -261,4 +261,3 @@ The isolated candidate has the following current evidence:
 This is preparation evidence only. The queued-email eligibility defect blocks
 activation until this compatible preparation is accepted in Production, and no
 activation migration or emergency rollback has been accepted.
-

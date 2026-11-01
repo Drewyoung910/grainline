@@ -129,4 +129,3 @@ they do not count as behavior proof.
   standing safety/scalability direction (2026-11-01).
 - [ ] Authorize merge or Production preparation release.
 - [ ] Authorize RLS activation.
-
