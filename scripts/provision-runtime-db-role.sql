@@ -541,6 +541,78 @@ REVOKE ALL ON TABLE public."MakerVerification"
 \endif
 \unset maker_verification_rls_active
 
+-- Block, UserReport and SellerFaq share one reviewed policyless activation
+-- batch. A provisioning replay may preserve predecessor CRUD only while each
+-- table is cleanly unprotected; after activation it must restore zero direct
+-- authority. Refuse every partial posture before changing grants.
+DO $grainline_block_report_seller_faq_provisioning_posture$
+DECLARE
+  expected_table text;
+  row_security boolean;
+  force_row_security boolean;
+  policy_count bigint;
+BEGIN
+  FOREACH expected_table IN ARRAY ARRAY['Block', 'UserReport', 'SellerFaq']
+  LOOP
+    SELECT
+      class.relrowsecurity,
+      class.relforcerowsecurity,
+      (SELECT pg_catalog.count(*)
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = class.oid)
+      INTO row_security, force_row_security, policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = expected_table
+       AND class.relkind = 'r';
+
+    IF NOT FOUND OR NOT (
+      (
+        NOT row_security
+        AND NOT force_row_security
+        AND policy_count = 0
+      )
+      OR (
+        row_security
+        AND force_row_security
+        AND policy_count = 0
+      )
+    ) THEN
+      RAISE EXCEPTION
+        '% RLS is partially or unexpectedly configured; refusing runtime-role provisioning',
+        expected_table;
+    END IF;
+  END LOOP;
+END
+$grainline_block_report_seller_faq_provisioning_posture$;
+
+WITH activated(table_name) AS (
+  SELECT class.relname
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = ANY (ARRAY['Block', 'UserReport', 'SellerFaq'])
+     AND class.relkind = 'r'
+     AND class.relrowsecurity
+     AND class.relforcerowsecurity
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = class.oid
+     )
+)
+SELECT format(
+  'REVOKE ALL ON TABLE public.%I FROM PUBLIC, %I',
+  table_name,
+  :'runtime_role'
+)
+  FROM activated
+ ORDER BY table_name;
+\gexec
+
 -- OrderItem and OrderShippingRateQuote remain separate from the Core Order RLS
 -- release, but the application no longer needs ordinary table access. Preserve
 -- predecessor grants until the exact runtime-lock migration is durably applied;
