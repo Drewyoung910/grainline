@@ -682,12 +682,15 @@ BEGIN
    WHERE notification."sourceType" = 'seller_broadcast'
      AND notification."sourceId" = source_row.id;
   DELETE FROM public."EmailOutbox" AS outbox
-   WHERE (outbox."sourceType" = 'seller_broadcast' AND outbox."sourceId" = source_row.id)
-      OR (
+   WHERE outbox.status IN ('PENDING', 'FAILED')
+     AND (
+       (outbox."sourceType" = 'seller_broadcast' AND outbox."sourceId" = source_row.id)
+       OR (
         outbox."templateName" = 'seller_broadcast'
         AND outbox."preferenceKey" = 'EMAIL_SELLER_BROADCAST'
         AND outbox."dedupKey" LIKE 'seller-broadcast:' || source_row.id || ':%'
-      );
+       )
+     );
   DELETE FROM public."SellerBroadcast" WHERE id = source_row.id;
 
   INSERT INTO public."AdminAuditLog" (
