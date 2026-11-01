@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, extname, isAbsolute, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +11,9 @@ import {
   readServiceReferenceLeastPrivilegeState,
   requiredRuntimeTablePrivileges,
 } from "../scripts/audit-runtime-db-grants.mjs";
+import {
+  REVIEWED_MANUALLY_APPLIED_MIGRATIONS,
+} from "../scripts/reviewed-manually-applied-migrations.mjs";
 
 const inventory = Object.freeze({
   rlsPolicyTables: [],
@@ -31,16 +34,26 @@ function sourceTree(directory) {
     .join("\n");
 }
 
+function migrationSourcePath() {
+  const livePath = join(
+    repositoryRoot,
+    "prisma/migrations",
+    SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION,
+    "migration.sql",
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath =
+    process.env.SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated service/reference least-privilege migration",
+  );
+  return stagedPath;
+}
+
 describe("service and reference table least privilege", () => {
   it("pins the migration and changes provisioning only after its exact ledger row", () => {
-    const migration = readFileSync(
-      join(
-        repositoryRoot,
-        "prisma/migrations",
-        SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION,
-        "migration.sql",
-      ),
-    );
+    const migration = readFileSync(migrationSourcePath());
     assert.equal(
       createHash("sha256").update(migration).digest("hex"),
       SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256,
@@ -58,6 +71,13 @@ describe("service and reference table least privilege", () => {
     assert.match(
       provisioning,
       /\\if :grainline_service_reference_least_privilege_applied[\s\S]*REVOKE ALL ON TABLE[\s\S]*\\endif/u,
+    );
+    assert.match(provisioning, /applied_steps_count IN \(0, 1\)/u);
+    assert.equal(
+      REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(
+        SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION,
+      ),
+      SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256,
     );
   });
 
@@ -84,6 +104,21 @@ describe("service and reference table least privilege", () => {
       },
     });
     assert.deepEqual(exact, { applied: true, issues: [] });
+
+    const manuallyRecorded = await readServiceReferenceLeastPrivilegeState({
+      async query(sql, params) {
+        if (sql.includes("to_regclass")) return { rows: [{ migration_table: "_prisma_migrations" }] };
+        assert.deepEqual(params, [SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION]);
+        return { rows: [{
+          migration_name: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION,
+          checksum: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256,
+          finished_at: new Date(),
+          rolled_back_at: null,
+          applied_steps_count: 0,
+        }] };
+      },
+    });
+    assert.deepEqual(manuallyRecorded, { applied: true, issues: [] });
 
     const drifted = await readServiceReferenceLeastPrivilegeState({
       async query(sql) {

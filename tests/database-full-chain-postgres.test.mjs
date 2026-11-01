@@ -1229,6 +1229,7 @@ test(
       assert.deepEqual(
         await proveServiceReferenceLeastPrivilege({
           connectionString: proofDatabaseUrl,
+          database: adapter,
           ownerClient: client,
           repositoryRoot,
         }),
