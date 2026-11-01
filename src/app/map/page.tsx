@@ -11,6 +11,7 @@ import {
   sellerPublicMapMetros,
   sellerPublicMapPoints,
 } from "@/lib/sellerProfilePublicAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = {
   title: { absolute: "Find Local Woodworkers Near You | Grainline Makers Map" },
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
     title: "Find Local Woodworkers Near You | Grainline",
     description: "Discover handmade woodworking makers in your area.",
     type: "website",
+    images: defaultOpenGraphImages(),
   },
 };
 

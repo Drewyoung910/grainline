@@ -83,6 +83,11 @@ describe("terms acceptance enforcement", () => {
       false,
       "the narrow map-card exception must not expose other seller API routes",
     );
+    assert.equal(
+      isPublicPath({ nextUrl: { pathname: "/opengraph-image" } }),
+      true,
+      "social crawlers must be able to fetch the generated root preview image",
+    );
   });
 
   it("keeps accept-terms as a non-dismissible full page, not an overlay modal", () => {

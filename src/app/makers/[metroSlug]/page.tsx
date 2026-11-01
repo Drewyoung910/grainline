@@ -18,6 +18,7 @@ import {
   sellerPublicNearbyMetros,
 } from "@/lib/sellerProfilePublicAccess";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -52,7 +53,7 @@ export async function generateMetadata({
     title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/makers/${metroSlug}` },
-    openGraph: { title, description, url: `${BASE_URL}/makers/${metroSlug}` },
+    openGraph: { title, description, url: `${BASE_URL}/makers/${metroSlug}`, images: defaultOpenGraphImages() },
   };
 }
 
