@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import Image from "next/image";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 
@@ -166,11 +167,12 @@ export default function ListingGallery({
           }
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={activeUrl}
           alt={photos[activeIndex]?.altText ?? title}
-          fetchPriority="high"
+          fill
+          sizes="(max-width: 1023px) 100vw, 50vw"
+          preload={activeIndex === 0}
           data-fly-to-cart-source=""
           className="w-full h-full object-cover"
           onLoad={(e) => {
@@ -247,15 +249,20 @@ export default function ListingGallery({
             <button
               key={p.id}
               onClick={() => showPhoto(i)}
-              className={`shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
+              className={`relative shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
                 i === activeIndex
                   ? "border-neutral-900"
                   : "border-neutral-200 hover:border-neutral-400"
               }`}
               aria-label={`View photo ${i + 1}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt={p.altText ?? `${title} — photo ${i + 1}`} className="w-full h-full object-cover" />
+              <Image
+                src={p.url}
+                alt={p.altText ?? `${title} — photo ${i + 1}`}
+                fill
+                sizes="64px"
+                className="object-cover"
+              />
             </button>
           ))}
         </div>
