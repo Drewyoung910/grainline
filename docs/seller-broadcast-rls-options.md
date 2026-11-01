@@ -88,7 +88,8 @@ Preparation remains additive and reversible:
 1. Install the fixed operations while predecessor grants stay intact.
 2. Convert callers and prove behavior on the complete PostgreSQL 17 migration
    chain, including concurrency and predecessor compatibility.
-3. Fix the queued-email eligibility drift documented in the pre-RLS audit.
+3. Retain the preparation's queued-email provider fence, which rechecks the
+   current Follow and reciprocal-block relationship immediately before send.
 4. Deploy the compatible application before activation.
 5. Activate with the shared batch workflow only after zero-direct-caller,
    catalog, grant, rollback, and exact-production-inventory gates pass.

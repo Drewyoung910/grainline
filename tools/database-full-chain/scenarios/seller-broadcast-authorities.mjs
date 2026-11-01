@@ -36,6 +36,173 @@ async function createUser(database, id, role = "USER") {
   );
 }
 
+async function seedProviderClaim(database, {
+  followerId,
+  followerEmail,
+  sourceType,
+  sourceId,
+}) {
+  const jobId = `seller_broadcast_provider_${randomUUID()}`;
+  const claimToken = randomUUID();
+  await database.query(
+    `INSERT INTO public."EmailOutbox" (
+       id, "recipientEmail", "userId", "preferenceKey", "templateName",
+       "templateVersion", "sourceType", "sourceId", subject, html, "dedupKey",
+       status, attempts, "claimGeneration", "claimToken", "processingStartedAt",
+       "nextAttemptAt", "createdAt", "updatedAt"
+     ) VALUES (
+       $1, $2, $3, $4, $5, 1, $6, $7,
+       'Seller relationship proof', '<p>Seller relationship proof</p>', $8,
+       'PROCESSING', 1, 1, $9::uuid, pg_catalog.clock_timestamp(),
+       NULL, pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp()
+     )`,
+    [
+      jobId,
+      followerEmail,
+      followerId,
+      null,
+      sourceType,
+      sourceType,
+      sourceId,
+      `relationship-proof:${randomUUID()}`,
+      claimToken,
+    ],
+  );
+  return Object.freeze({ jobId, claimGeneration: 1, claimToken });
+}
+
+async function beginProviderAttempt(database, actorId, claim) {
+  const [result] = await runtimeQuery(
+    database,
+    actorId,
+    `SELECT public.grainline_email_outbox_begin_provider_attempt(
+       $1, $2::bigint, $3::uuid
+     ) AS result`,
+    [claim.jobId, claim.claimGeneration, claim.claimToken],
+  );
+  return result?.result;
+}
+
+async function assertProviderSkipped(database, claim) {
+  const row = (await database.query(
+    `SELECT status, "claimToken", "processingStartedAt", "lastError"
+       FROM public."EmailOutbox"
+      WHERE id = $1`,
+    [claim.jobId],
+  )).rows[0];
+  assert.deepEqual(
+    {
+      status: row?.status,
+      claimToken: row?.claimToken,
+      processingStartedAt: row?.processingStartedAt,
+      lastError: row?.lastError,
+    },
+    {
+      status: "SKIPPED",
+      claimToken: null,
+      processingStartedAt: null,
+      lastError: "Email source relationship became ineligible before provider attempt",
+    },
+  );
+}
+
+export async function seedSellerBroadcastPredecessorEligibilityGap({
+  database,
+  seller,
+}) {
+  const suffix = `broadcast_predecessor_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const followerId = `${suffix}_follower`;
+  await createUser(database, followerId);
+  await database.query(
+    `INSERT INTO public."Follow" (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
+    [randomUUID(), followerId, seller.sellerProfileId],
+  );
+  const broadcastId = randomUUID();
+  await database.query(
+    `INSERT INTO public."SellerBroadcast"
+       (id, "sellerProfileId", message, "sentAt", "recipientCount")
+     VALUES ($1, $2, 'Predecessor eligibility gap', pg_catalog.clock_timestamp(), 1)`,
+    [broadcastId, seller.sellerProfileId],
+  );
+  const claim = await seedProviderClaim(database, {
+    followerId,
+    followerEmail: `${followerId}@example.test`,
+    sourceType: "seller_broadcast",
+    sourceId: broadcastId,
+  });
+  await database.query(
+    `DELETE FROM public."Follow"
+      WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
+    [followerId, seller.sellerProfileId],
+  );
+  const predecessorResult = (await database.query(
+    `SELECT public.grainline_email_outbox_begin_provider_attempt(
+       $1, $2::bigint, $3::uuid
+     ) AS result`,
+    [claim.jobId, claim.claimGeneration, claim.claimToken],
+  )).rows[0]?.result;
+  assert.equal(
+    predecessorResult,
+    "ready",
+    "the predecessor must reproduce the queued-email eligibility gap",
+  );
+  return Object.freeze({ followerId, broadcastId, claim });
+}
+
+export async function proveSellerBroadcastEligibilityGapClosed({
+  database,
+  predecessor,
+}) {
+  const replayResult = (await database.query(
+    `SELECT public.grainline_email_outbox_begin_provider_attempt(
+       $1, $2::bigint, $3::uuid
+     ) AS result`,
+    [
+      predecessor.claim.jobId,
+      predecessor.claim.claimGeneration,
+      predecessor.claim.claimToken,
+    ],
+  )).rows[0]?.result;
+  assert.equal(
+    replayResult,
+    "ready",
+    "an already-marked provider attempt must retain its ambiguous generation",
+  );
+  const completion = (await database.query(
+    `SELECT public.grainline_email_outbox_complete(
+       $1, $2::bigint, $3::uuid, $4
+     ) AS result`,
+    [
+      predecessor.claim.jobId,
+      predecessor.claim.claimGeneration,
+      predecessor.claim.claimToken,
+      `provider-${predecessor.claim.jobId}`,
+    ],
+  )).rows[0]?.result;
+  assert.equal(completion, "applied");
+
+  const freshClaim = await seedProviderClaim(database, {
+    followerId: predecessor.followerId,
+    followerEmail: `${predecessor.followerId}@example.test`,
+    sourceType: "seller_broadcast",
+    sourceId: predecessor.broadcastId,
+  });
+  const result = (await database.query(
+    `SELECT public.grainline_email_outbox_begin_provider_attempt(
+       $1, $2::bigint, $3::uuid
+     ) AS result`,
+    [freshClaim.jobId, freshClaim.claimGeneration, freshClaim.claimToken],
+  )).rows[0]?.result;
+  assert.equal(result, "ineligible");
+  await assertProviderSkipped(database, freshClaim);
+  return Object.freeze({
+    predecessorReproduced: true,
+    ambiguousGenerationPreserved: true,
+    candidateClosed: true,
+  });
+}
+
 async function proveConcurrentOwnerCreate({ connectionString, seller }) {
   const clients = [
     new pg.Client({ connectionString }),
@@ -64,6 +231,122 @@ async function proveConcurrentOwnerCreate({ connectionString, seller }) {
       await client.query("RESET SESSION AUTHORIZATION").catch(() => {});
       await client.end().catch(() => {});
     }));
+  }
+}
+
+async function waitForLockWait(database, pid, label) {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    const result = await database.query(
+      `SELECT wait_event_type AS "waitEventType", wait_event AS "waitEvent"
+         FROM pg_catalog.pg_stat_activity
+        WHERE pid = $1`,
+      [pid],
+    );
+    if (result.rows[0]?.waitEventType === "Lock") return result.rows[0].waitEvent;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail(`${label} never reached a database lock wait`);
+}
+
+async function proveAccountDeletionProviderLockOrder({
+  database,
+  connectionString,
+  seller,
+}) {
+  const followerId = `broadcast_delete_race_${randomUUID()}`;
+  await createUser(database, followerId);
+  await database.query(
+    `INSERT INTO public."Follow" (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
+    [randomUUID(), followerId, seller.sellerProfileId],
+  );
+  const broadcastId = randomUUID();
+  await database.query(
+    `INSERT INTO public."SellerBroadcast"
+       (id, "sellerProfileId", message, "sentAt", "recipientCount")
+     VALUES ($1, $2, 'Deletion lock-order proof', pg_catalog.clock_timestamp(), 1)`,
+    [broadcastId, seller.sellerProfileId],
+  );
+  const claim = await seedProviderClaim(database, {
+    followerId,
+    followerEmail: `${followerId}@example.test`,
+    sourceType: "seller_broadcast",
+    sourceId: broadcastId,
+  });
+
+  const deletionClient = new pg.Client({ connectionString });
+  const providerClient = new pg.Client({ connectionString });
+  await Promise.all([deletionClient.connect(), providerClient.connect()]);
+  let deletionCommitted = false;
+  try {
+    await deletionClient.query("BEGIN");
+    await deletionClient.query(
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'",
+    );
+    await deletionClient.query("SET LOCAL ROLE grainline_app_runtime");
+    await deletionClient.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [seller.userId],
+    );
+    const lockedIds = await deletionClient.query(
+      `SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids($1)`,
+      [seller.sellerProfileId],
+    );
+    assert.ok(lockedIds.rows.some((row) => row.id === broadcastId));
+
+    await providerClient.query("BEGIN");
+    await providerClient.query(
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'",
+    );
+    await providerClient.query("SET LOCAL ROLE grainline_app_runtime");
+    await providerClient.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [followerId],
+    );
+    const providerPid = Number((await providerClient.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0].pid);
+    const providerAttempt = providerClient.query(
+      `SELECT public.grainline_email_outbox_begin_provider_attempt(
+         $1, $2::bigint, $3::uuid
+       ) AS result`,
+      [claim.jobId, claim.claimGeneration, claim.claimToken],
+    );
+    await waitForLockWait(
+      database,
+      providerPid,
+      "seller-broadcast provider attempt behind account deletion",
+    );
+
+    await deletionClient.query(
+      `UPDATE public."EmailOutbox"
+          SET status = 'SKIPPED', "sentAt" = pg_catalog.clock_timestamp(),
+              "nextAttemptAt" = NULL, "claimToken" = NULL,
+              "processingStartedAt" = NULL,
+              "lastError" = 'Skipped because the source maker account was deleted.',
+              "updatedAt" = pg_catalog.clock_timestamp()
+        WHERE id = $1`,
+      [claim.jobId],
+    );
+    const deleted = await deletionClient.query(
+      `SELECT public.grainline_seller_broadcast_account_deletion_cleanup($1)::integer
+         AS count`,
+      [seller.sellerProfileId],
+    );
+    assert.ok(Number(deleted.rows[0]?.count ?? 0) >= 1);
+    await deletionClient.query("COMMIT");
+    deletionCommitted = true;
+
+    assert.equal((await providerAttempt).rows[0]?.result, "already_terminal");
+    await providerClient.query("COMMIT");
+    return Object.freeze({ providerWaitedForSource: true, noDeadlock: true });
+  } finally {
+    if (!deletionCommitted) await deletionClient.query("ROLLBACK").catch(() => {});
+    await providerClient.query("ROLLBACK").catch(() => {});
+    await Promise.all([
+      deletionClient.end().catch(() => {}),
+      providerClient.end().catch(() => {}),
+    ]);
   }
 }
 
@@ -174,11 +457,55 @@ export async function proveSellerBroadcastPreparedAuthorities({
   );
   assert.equal(feed[0]?.id, proposedId);
 
+  const unfollowClaim = await seedProviderClaim(database, {
+    followerId,
+    followerEmail: `${followerId}@example.test`,
+    sourceType: "seller_broadcast",
+    sourceId: proposedId,
+  });
+  await database.query(
+    `DELETE FROM public."Follow"
+      WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
+    [followerId, seller.sellerProfileId],
+  );
+  assert.equal(
+    await beginProviderAttempt(database, followerId, unfollowClaim),
+    "ineligible",
+  );
+  await assertProviderSkipped(database, unfollowClaim);
+  await database.query(
+    `INSERT INTO public."Follow" (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
+    [randomUUID(), followerId, seller.sellerProfileId],
+  );
+
+  const listingId = randomUUID();
+  await database.query(
+    `INSERT INTO public."Listing"
+       (id, "sellerId", title, description, "priceCents", status, "isPrivate",
+        "createdAt", "updatedAt")
+     VALUES ($1, $2, 'Relationship proof listing', 'Relationship proof listing',
+             1200, 'ACTIVE', false,
+             pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
+    [listingId, seller.sellerProfileId],
+  );
+  const blockedListingClaim = await seedProviderClaim(database, {
+    followerId,
+    followerEmail: `${followerId}@example.test`,
+    sourceType: "followed_maker_new_listing",
+    sourceId: listingId,
+  });
+
   await database.query(
     `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
      VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
     [randomUUID(), seller.userId, followerId],
   );
+  assert.equal(
+    await beginProviderAttempt(database, followerId, blockedListingClaim),
+    "ineligible",
+  );
+  await assertProviderSkipped(database, blockedListingClaim);
   assert.equal((await runtimeQuery(
     database,
     followerId,
@@ -288,5 +615,14 @@ export async function proveSellerBroadcastPreparedAuthorities({
   )).rows.length, 1);
 
   await proveConcurrentOwnerCreate({ connectionString, seller: concurrencySeller });
-  return Object.freeze({ ownerCreateSerialized: true, staffBoundaryProven: true });
+  await proveAccountDeletionProviderLockOrder({
+    database,
+    connectionString,
+    seller,
+  });
+  return Object.freeze({
+    ownerCreateSerialized: true,
+    staffBoundaryProven: true,
+    accountDeletionProviderLockOrderProven: true,
+  });
 }

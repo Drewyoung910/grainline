@@ -317,12 +317,21 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
 test("SellerBroadcast preparation is byte-sealed and remains compatible", () => {
   const broadcast = verifyPrivateTablePreparationSource("seller_broadcast_v1");
   assert.equal(broadcast.release.table, "SellerBroadcast");
-  assert.equal(broadcast.functionSources.size, 14);
+  assert.equal(broadcast.functionSources.size, 15);
   assert.deepEqual(broadcast.release.addedColumns, []);
   const sql = readFileSync(broadcast.migrationPath, "utf8");
   assert.match(sql, /grainline_seller_broadcast_owner_create/u);
   assert.match(sql, /grainline_seller_broadcast_actor_feed_page/u);
   assert.match(sql, /grainline_seller_broadcast_staff_delete/u);
+  assert.match(sql, /grainline_email_outbox_begin_provider_attempt/u);
+  assert.match(sql, /source_recipient_eligible/u);
+  assert.match(sql, /JOIN public\."Follow" AS source_follow/u);
+  assert.match(sql, /FROM public\."Block" AS source_block/u);
+  assert.match(sql, /Email source relationship became ineligible before provider attempt/u);
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_ids[\s\S]*FOR UPDATE OF broadcast/u,
+  );
   assert.match(sql, /SESSION_USER <> 'grainline_staff_read_runtime'/u);
   assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
   assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
