@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import pg from "pg";
 
-const EXPECTED_DENIAL_CODE = "42501";
-const RUNTIME_PROOF_PASSWORD = "grainline-ci-service-reference-proof";
+import { runPsqlScript } from "./psql-script.mjs";
 
-function runtimeConnectionString(connectionString) {
+const EXPECTED_DENIAL_CODE = "42501";
+
+function runtimeConnectionString(connectionString, runtimeProofPassword) {
   const value = new URL(connectionString);
   value.username = "grainline_app_runtime";
-  value.password = RUNTIME_PROOF_PASSWORD;
+  value.password = runtimeProofPassword;
   return value.toString();
 }
 
@@ -57,15 +59,17 @@ async function restoreReviewedGrants(ownerClient) {
 
 export async function proveServiceReferenceLeastPrivilege({
   connectionString,
+  database,
   ownerClient,
   repositoryRoot,
 }) {
   const suffix = `service-reference-${Date.now()}`;
+  const runtimeProofPassword = randomBytes(24).toString("base64url");
   await ownerClient.query(
-    `ALTER ROLE grainline_app_runtime PASSWORD '${RUNTIME_PROOF_PASSWORD}'`,
+    `ALTER ROLE grainline_app_runtime PASSWORD '${runtimeProofPassword}'`,
   );
   const runtime = new pg.Client({
-    connectionString: runtimeConnectionString(connectionString),
+    connectionString: runtimeConnectionString(connectionString, runtimeProofPassword),
   });
   let runtimeConnected = false;
 
@@ -233,6 +237,50 @@ export async function proveServiceReferenceLeastPrivilege({
        ) VALUES ($1, 'seller', NULL, 'GRANTED', 1, repeat('a', 64), repeat('b', 64), NULL,
                  CURRENT_TIMESTAMP)`,
       [`${suffix}:consent`],
+    );
+
+    const ledgerMigration =
+      "20261101020000_narrow_service_reference_runtime_privileges";
+    const ledgerChecksum =
+      "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c";
+    const manualLedger = await ownerClient.query(
+      `UPDATE public._prisma_migrations
+          SET applied_steps_count = 0
+        WHERE migration_name = $1
+          AND checksum = $2
+          AND finished_at IS NOT NULL
+          AND rolled_back_at IS NULL
+      RETURNING migration_name`,
+      [ledgerMigration, ledgerChecksum],
+    );
+    assert.deepEqual(manualLedger.rows, [{ migration_name: ledgerMigration }]);
+    try {
+      await runPsqlScript(
+        database,
+        readFileSync(
+          join(repositoryRoot, "scripts/provision-runtime-db-role.sql"),
+          "utf8",
+        ),
+        { runtime_role: "grainline_app_runtime", migration_role: "ci" },
+      );
+    } finally {
+      await ownerClient.query(
+        `UPDATE public._prisma_migrations
+            SET applied_steps_count = 1
+          WHERE migration_name = $1
+            AND checksum = $2`,
+        [ledgerMigration, ledgerChecksum],
+      );
+    }
+    const manualLedgerConfig = await runtime.query(
+      'SELECT id FROM public."SiteConfig" WHERE id = $1',
+      [siteConfigId],
+    );
+    assert.deepEqual(manualLedgerConfig.rows, [{ id: siteConfigId }]);
+    await assertDenied(
+      runtime,
+      'UPDATE public."SiteConfig" SET "fallbackShippingCents" = 1600 WHERE id = $1',
+      [siteConfigId],
     );
 
     const rollbackSql = readFileSync(
