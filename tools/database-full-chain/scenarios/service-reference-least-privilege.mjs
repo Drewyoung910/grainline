@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import pg from "pg";
 
 const EXPECTED_DENIAL_CODE = "42501";
+const RUNTIME_PROOF_PASSWORD = "grainline-ci-service-reference-proof";
 
 function runtimeConnectionString(connectionString) {
   const value = new URL(connectionString);
   value.username = "grainline_app_runtime";
-  value.password = "";
+  value.password = RUNTIME_PROOF_PASSWORD;
   return value.toString();
 }
 
@@ -18,15 +19,52 @@ async function assertDenied(client, sql, params = []) {
   );
 }
 
+const TARGET_TABLES = `
+  public."FoundingMakerGrant",
+  public."Metro",
+  public."SiteConfig",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+`;
+
+async function restoreReviewedGrants(ownerClient) {
+  await ownerClient.query(`REVOKE ALL ON TABLE ${TARGET_TABLES} FROM grainline_app_runtime`);
+  await ownerClient.query(`
+    GRANT SELECT ON TABLE
+      public."FoundingMakerGrant",
+      public."Metro",
+      public."SiteConfig",
+      public."SiteMetricsSnapshot",
+      public."SystemAuditLog"
+    TO grainline_app_runtime
+  `);
+  await ownerClient.query(`
+    GRANT INSERT ON TABLE
+      public."Metro",
+      public."SiteMetricsSnapshot",
+      public."SystemAuditLog"
+    TO grainline_app_runtime
+  `);
+  await ownerClient.query(`
+    GRANT UPDATE ON TABLE
+      public."Metro",
+      public."SiteMetricsSnapshot"
+    TO grainline_app_runtime
+  `);
+}
+
 export async function proveServiceReferenceLeastPrivilege({
   connectionString,
   ownerClient,
 }) {
   const suffix = `service-reference-${Date.now()}`;
+  await ownerClient.query(
+    `ALTER ROLE grainline_app_runtime PASSWORD '${RUNTIME_PROOF_PASSWORD}'`,
+  );
   const runtime = new pg.Client({
     connectionString: runtimeConnectionString(connectionString),
   });
-  await runtime.connect();
+  let runtimeConnected = false;
 
   const auditId = `${suffix}:audit`;
   const metroId = `${suffix}:metro`;
@@ -37,8 +75,19 @@ export async function proveServiceReferenceLeastPrivilege({
   const siteConfigId = 2_147_483_000;
   const deniedSiteConfigId = 2_147_483_001;
   const siteMetricsId = 2_147_483_000;
+  let rollbackStarted = false;
 
   try {
+    await runtime.connect();
+    runtimeConnected = true;
+    const identity = (await runtime.query(
+      "SELECT current_user, session_user",
+    )).rows[0];
+    assert.deepEqual(identity, {
+      current_user: "grainline_app_runtime",
+      session_user: "grainline_app_runtime",
+    });
+
     await ownerClient.query(
       `INSERT INTO public."FoundingMakerGrant" (
          id, "sellerProfileId", "foundingMakerNumber", "grantedAt", "createdAt", "updatedAt"
@@ -183,6 +232,31 @@ export async function proveServiceReferenceLeastPrivilege({
       [`${suffix}:consent`],
     );
 
+    rollbackStarted = true;
+    await ownerClient.query(`
+      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${TARGET_TABLES}
+      TO grainline_app_runtime
+    `);
+    await runtime.query(
+      'INSERT INTO public."SiteConfig" (id, "fallbackShippingCents") VALUES ($1, 1600)',
+      [deniedSiteConfigId],
+    );
+    await runtime.query(
+      'UPDATE public."SiteConfig" SET "fallbackShippingCents" = 1700 WHERE id = $1',
+      [deniedSiteConfigId],
+    );
+    await runtime.query(
+      'DELETE FROM public."SiteConfig" WHERE id = $1',
+      [deniedSiteConfigId],
+    );
+    await restoreReviewedGrants(ownerClient);
+    rollbackStarted = false;
+    await assertDenied(
+      runtime,
+      'INSERT INTO public."SiteConfig" (id, "fallbackShippingCents") VALUES ($1, 1500)',
+      [deniedSiteConfigId],
+    );
+
     return Object.freeze({
       siteConfig: ["SELECT"],
       systemAuditLog: ["INSERT", "SELECT"],
@@ -192,7 +266,13 @@ export async function proveServiceReferenceLeastPrivilege({
       sellerExactMapConsentEvent: [],
     });
   } finally {
-    await runtime.end().catch(() => {});
+    if (rollbackStarted) {
+      await restoreReviewedGrants(ownerClient).catch(() => {});
+    }
+    if (runtimeConnected) await runtime.end().catch(() => {});
+    await ownerClient.query(
+      "ALTER ROLE grainline_app_runtime PASSWORD NULL",
+    ).catch(() => {});
     await ownerClient.query(
       'DELETE FROM public."SystemAuditLog" WHERE id = $1',
       [auditId],
