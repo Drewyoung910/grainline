@@ -4091,7 +4091,29 @@ SELECT format(
   :'runtime_role'
 )
   FROM conversation_message_public_authority
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND NOT (
+     function_signature IN (
+       'public."grainline_message_unread_count"(text)',
+       'public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'
+     )
+     AND EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_class AS class
+         JOIN pg_catalog.pg_namespace AS namespace
+           ON namespace.oid = class.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND class.relname = 'Block'
+          AND class.relkind = 'r'
+          AND class.relrowsecurity
+          AND class.relforcerowsecurity
+          AND NOT EXISTS (
+            SELECT 1
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid
+          )
+     )
+   );
 \gexec
 \unset conversation_message_rls_active
 

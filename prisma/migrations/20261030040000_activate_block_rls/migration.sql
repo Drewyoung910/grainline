@@ -129,6 +129,26 @@ BEGIN
 
   IF EXISTS (
     SELECT 1
+      FROM (VALUES
+        ('public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)'),
+        ('public.grainline_message_unread_count(text)')
+      ) AS predecessor(signature)
+      LEFT JOIN pg_catalog.pg_proc AS procedure
+        ON procedure.oid = pg_catalog.to_regprocedure(predecessor.signature)
+     WHERE procedure.oid IS NULL
+        OR procedure.prosecdef
+        OR NOT pg_catalog.has_function_privilege(
+          runtime_oid, procedure.oid, 'EXECUTE'
+        )
+        OR pg_catalog.has_function_privilege(
+          staff_oid, procedure.oid, 'EXECUTE'
+        )
+  ) THEN
+    RAISE EXCEPTION 'Block predecessor messaging grants drifted';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
       FROM pg_catalog.pg_proc AS procedure
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = procedure.pronamespace
@@ -136,6 +156,10 @@ BEGIN
         ON owner_role.oid = procedure.proowner
      WHERE namespace.nspname = 'public'
        AND pg_catalog.strpos(procedure.prosrc, '"Block"') > 0
+       AND procedure.oid NOT IN (
+         'public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure,
+         'public.grainline_message_unread_count(text)'::pg_catalog.regprocedure
+       )
        AND (
          NOT procedure.prosecdef
          OR procedure.proconfig IS DISTINCT FROM
@@ -148,6 +172,20 @@ BEGIN
 END;
 $grainline_block_activation_preflight$;
 
+-- The compatible app now calls actor-bound SECURITY DEFINER wrappers. Retire
+-- the two caller-supplied predecessor entry points before policyless FORCE;
+-- their owner-only bodies remain as implementation helpers for the wrappers.
+REVOKE ALL ON FUNCTION public.grainline_conversation_inbox(
+  text,
+  boolean,
+  text,
+  timestamp,
+  text,
+  integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+REVOKE ALL ON FUNCTION public.grainline_message_unread_count(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+
 REVOKE ALL PRIVILEGES ON TABLE public."Block"
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 
@@ -158,6 +196,14 @@ DO $grainline_block_activation_postflight$
 DECLARE
   table_oid oid := 'public."Block"'::pg_catalog.regclass;
   table_owner oid;
+  runtime_oid oid := (
+    SELECT role.oid FROM pg_catalog.pg_roles AS role
+     WHERE role.rolname = 'grainline_app_runtime'
+  );
+  staff_oid oid := (
+    SELECT role.oid FROM pg_catalog.pg_roles AS role
+     WHERE role.rolname = 'grainline_staff_read_runtime'
+  );
 BEGIN
   SELECT class.relowner INTO table_owner
     FROM pg_catalog.pg_class AS class
@@ -187,6 +233,18 @@ BEGIN
        AND attribute.attnum > 0
        AND NOT attribute.attisdropped
        AND acl.grantee <> table_owner
+  ) OR EXISTS (
+    SELECT 1
+      FROM (VALUES
+        ('public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)'),
+        ('public.grainline_message_unread_count(text)')
+      ) AS retired(signature)
+     WHERE pg_catalog.has_function_privilege(
+       runtime_oid, pg_catalog.to_regprocedure(retired.signature), 'EXECUTE'
+     )
+        OR pg_catalog.has_function_privilege(
+          staff_oid, pg_catalog.to_regprocedure(retired.signature), 'EXECUTE'
+        )
   ) THEN
     RAISE EXCEPTION 'Block activation did not reach policyless zero-direct FORCE';
   END IF;
