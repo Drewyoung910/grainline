@@ -2737,6 +2737,7 @@ export function collectConversationMessageFunctionIssues(
   );
   const expectedFunctions = conversationMessageAuthorityFunctionsForState({
     blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
+    blockActivationApplied: blockRlsActivationExpected(inventory),
   }).flatMap(
     (entry) => {
       if (entry.name !== "grainline_message_redact_for_account_deletion") {
@@ -4451,6 +4452,7 @@ export async function auditLiveDatabase({
   const conversationMessageFunctionNames = new Set(
     conversationMessageAuthorityFunctionsForState({
       blockPreparationApplied: blockPreparation.applied,
+      blockActivationApplied: blockRlsActivation.applied,
     }).map((entry) => entry.name),
   );
   if (
