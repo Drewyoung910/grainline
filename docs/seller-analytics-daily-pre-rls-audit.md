@@ -376,7 +376,10 @@ hardens the retained profile recorder, and adds fixed telemetry, owner
 aggregation, retention, and exact deletion-claim operations. Runtime-role
 provisioning replay now retains only those reviewed function grants.
 
-Focused caller/guardrail tests pass 45/45. A disposable PostgreSQL 17 proof
+Focused caller/guardrail and executed route tests pass 61/61. The route suite
+proves bot, global-rate-limit, per-listing-dedup, tracking-cookie, daily-cap,
+and unresolved-identity requests stop before the database authority. A
+disposable PostgreSQL 17 proof
 applied the exact migration and exercised representative public view/click,
 owner self-exclusion, scalar/daily parity, seller isolation, bounded retention,
 and exact deletion-claim behavior. The complete migrated PostgreSQL 17 and 16
