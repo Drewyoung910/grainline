@@ -72,6 +72,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
+  // Keep canonical, robots and social metadata inside <head> for every
+  // crawler. Next's default HTML-limited list does not include the generic
+  // Googlebot user agent, so streamed metadata can otherwise arrive after the
+  // document head has closed on dynamic listing and seller pages.
+  htmlLimitedBots: /.*/,
   images: {
     // Keep responsive image optimization while preserving fine wood grain in
     // the full-bleed homepage photograph. Other images retain quality 75.
