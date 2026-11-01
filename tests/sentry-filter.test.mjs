@@ -62,6 +62,26 @@ describe("Sentry beforeSend filtering", () => {
     assert.deepEqual(event.user, { id: "user_123" });
   });
 
+  it("redacts percent-encoded email query values", () => {
+    const event = beforeSend({
+      message: "Request failed for /legal/data-request?email=buyer%2Btag%40example.com",
+      request: {
+        query_string: "email=buyer%2Btag%40example.com&safe=value",
+        url: "https://thegrainline.com/legal/data-request?email=buyer%2Btag%40example.com",
+      },
+    });
+
+    assert.equal(
+      event.message,
+      "Request failed for /legal/data-request?email=[redacted-email]",
+    );
+    assert.equal(event.request.query_string, "email=[redacted-email]&safe=value");
+    assert.equal(
+      event.request.url,
+      "https://thegrainline.com/legal/data-request?email=[redacted-email]",
+    );
+  });
+
   it("redacts address autocomplete query text from request context", () => {
     const event = beforeSend({
       transaction: "GET /api/address/autocomplete?q=123%20Main%20St&safe=1",
