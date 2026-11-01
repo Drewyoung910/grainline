@@ -387,6 +387,25 @@ export async function proveSellerBroadcastPreparedAuthorities({
   assert.equal(created[0]?.created, true);
   assert.equal(created[0]?.broadcastId, proposedId);
 
+  await database.query(
+    `UPDATE public."SellerProfilePrivate"
+        SET "stripeAccountVersion" = 'legacy'
+      WHERE "sellerProfileId" = $1`,
+    [otherSeller.sellerProfileId],
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      otherSeller.userId,
+      `SELECT * FROM public.grainline_seller_broadcast_owner_create(
+         $1, 'Unsupported Stripe account', NULL, 0
+       )`,
+      [randomUUID()],
+    ),
+    (error) => error?.code === "42501",
+    "a seller whose Stripe account version is unsupported must not create a hidden broadcast",
+  );
+
   const cooldown = await runtimeQuery(
     database,
     seller.userId,
@@ -622,6 +641,7 @@ export async function proveSellerBroadcastPreparedAuthorities({
   });
   return Object.freeze({
     ownerCreateSerialized: true,
+    unsupportedStripeAccountRejected: true,
     staffBoundaryProven: true,
     accountDeletionProviderLockOrderProven: true,
   });

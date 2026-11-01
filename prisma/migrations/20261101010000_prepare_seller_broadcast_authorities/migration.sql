@@ -165,6 +165,7 @@ BEGIN
      AND actor.banned = false
      AND actor."deletedAt" IS NULL
      AND seller."chargesEnabled" = true
+     AND seller."stripeAccountSupported" = true
      AND seller."vacationMode" = false
    FOR UPDATE OF actor, seller;
   IF seller_id IS NULL THEN

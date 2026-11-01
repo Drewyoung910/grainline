@@ -43,6 +43,7 @@ import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { canDeliverSellerBroadcast } from "@/lib/sellerBroadcastDeliveryState";
 import { isTextWithinCodePointRange } from "@/lib/textLength";
 import { withSerializableDbUserContext } from "@/lib/dbUserContext";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import {
   createOwnerSellerBroadcast,
   ownerSellerBroadcastCooldown,
@@ -195,21 +196,32 @@ export async function POST(req: NextRequest) {
 
   // Create broadcast record, rechecking the durable DB cooldown inside the
   // transaction so the Redis weekly limiter is not the only concurrency guard.
-  const broadcastResult = await withSerializableDbUserContext(me.id, async (tx) => {
-    const created = await createOwnerSellerBroadcast(tx, {
+  let broadcastResult: Awaited<ReturnType<typeof createOwnerSellerBroadcast>>;
+  try {
+    broadcastResult = await withSerializableDbUserContext(me.id, async (tx) => {
+      const created = await createOwnerSellerBroadcast(tx, {
         message,
         imageUrl,
         provisionalRecipientCount: notificationFollowers.length,
+      });
+      if (!created.created) return created;
+      await syncSellerBroadcastDirectUploadReferences({
+        client: tx,
+        userId: me.id,
+        sellerBroadcastId: created.id,
+        requireAllTracked: Boolean(imageUrl),
+      });
+      return created;
     });
-    if (!created.created) return created;
-    await syncSellerBroadcastDirectUploadReferences({
-      client: tx,
-      userId: me.id,
-      sellerBroadcastId: created.id,
-      requireAllTracked: Boolean(imageUrl),
-    });
-    return created;
-  });
+  } catch (error) {
+    if (getPrismaRawSqlState(error) === "42501") {
+      return privateJson(
+        { error: "Your shop must be active before sending broadcasts." },
+        { status: 403 },
+      );
+    }
+    throw error;
+  }
 
   if (!broadcastResult.created) {
     return privateJson(

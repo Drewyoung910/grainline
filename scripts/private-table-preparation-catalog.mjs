@@ -362,7 +362,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   seller_broadcast_v1: Object.freeze({
     migration: "20261101010000_prepare_seller_broadcast_authorities",
-    migrationSha256: "ad4a72ae8c1efa54c0873027758636dcf0784a705248a7587478ad073f2ea563",
+    migrationSha256: "3086f03a8ae50a07e89adea3ab5a6ef15ddadf20aab79fd933722e92ab96d884",
     table: "SellerBroadcast",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
