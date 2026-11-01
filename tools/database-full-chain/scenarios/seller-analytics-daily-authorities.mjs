@@ -202,14 +202,14 @@ async function proveSellerAnalyticsQueryPlans({ database, seller, otherSeller, s
          (id, "listingId", "sellerProfileId", date, views, clicks)
        SELECT $1 || '_' || source.ordinal::text || '_' || day.day_offset::text,
               source.listing_id,
-              source.seller_profile_id,
+              ($3::text[])[source.ordinal],
               pg_catalog.date_trunc(
                 'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
               ) - day.day_offset * INTERVAL '1 day',
               1,
               1
-         FROM pg_catalog.unnest($2::text[], $3::text[])
-                WITH ORDINALITY AS source(listing_id, seller_profile_id, ordinal)
+         FROM pg_catalog.unnest($2::text[])
+                WITH ORDINALITY AS source(listing_id, ordinal)
         CROSS JOIN pg_catalog.generate_series(0, 179) AS day(day_offset)`,
       [
         `${suffix}_plan_daily`,
