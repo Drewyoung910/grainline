@@ -41,7 +41,7 @@ BEGIN
         ('SystemAuditLog'::text, ARRAY['INSERT', 'SELECT']::text[])
       ) AS expected(table_name, privileges)
   LOOP
-    SELECT pg_catalog.coalesce(
+    SELECT coalesce(
       pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
         ORDER BY pg_catalog.upper(acl.privilege_type)),
       ARRAY[]::text[]
@@ -51,7 +51,7 @@ BEGIN
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = class.relnamespace
       CROSS JOIN LATERAL pg_catalog.aclexplode(
-        pg_catalog.coalesce(class.relacl, pg_catalog.acldefault('r', class.relowner))
+        coalesce(class.relacl, pg_catalog.acldefault('r', class.relowner))
       ) AS acl
      WHERE namespace.nspname = 'public'
        AND class.relname = target.table_name
