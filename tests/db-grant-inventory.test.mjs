@@ -4412,6 +4412,7 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (sellerBroadcastAuthorityPrepared
           ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
+            + 1 // reasserted provider-attempt PUBLIC/runtime revoke
           : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length

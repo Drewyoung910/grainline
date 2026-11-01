@@ -4,9 +4,10 @@ Date: 2026-11-01
 
 Status: compatible preparation candidate based on exact public main
 `12a4dfc492412ff52ff94d921e20e7026c4cff38`. Option B is selected in
-`docs/seller-broadcast-rls-options.md`. The isolated candidate installs 14
-bounded functions and converts every application caller while leaving RLS off
-and predecessor table grants intact. This document authorizes no Production
+`docs/seller-broadcast-rls-options.md`. The isolated candidate installs 14 new
+bounded SellerBroadcast functions, hardens the existing provider-attempt
+authority, and converts every application caller while leaving RLS off and
+predecessor table grants intact. This document authorizes no Production
 operation, merge, deployment, grant change, or RLS activation.
 
 ## Domain and data classification
@@ -110,21 +111,31 @@ email-only recipients, even though the UI labels it generically as
 table access; the fixed operation should preserve existing semantics until a
 separate product change is approved.
 
-### Queued-email eligibility drift — fix before activation
+### Queued-email eligibility drift — fixed in preparation
 
-The email enqueue and provider-attempt functions re-check that the source row
-exists, that the source account remains active, and that the recipient remains
-email-eligible. They do **not** re-check that the recipient still follows the
-seller or that the recipient and seller remain unblocked. Therefore a queued
-broadcast email can still be sent after an unfollow or reciprocal block. This
-independently confirms the previously reported queued-maker-email finding.
+The predecessor email enqueue and provider-attempt functions rechecked source
+existence, source-account activity, and recipient email eligibility, but did
+not recheck the live follower/block relationship. The compatible preparation
+therefore replaces the existing provider-attempt function without changing its
+signature or grant. For `seller_broadcast` and
+`followed_maker_new_listing`, it now locks the sorted user pair, exact source,
+seller, source account, and exact `Follow` before the outbox row; requires an
+active public source and seller plus reciprocal `Block` absence; and marks the
+claimed job `SKIPPED` before any provider work if that relationship is no
+longer eligible. If that claim generation already carries a provider-attempt
+marker, the function preserves the ambiguous generation instead of incorrectly
+declaring it skipped.
 
-Required correction: the source-eligibility function used immediately before
-provider attempt must bind `seller_broadcast` to the current source seller,
-current recipient user, current `Follow`, reciprocal `Block` absence, and
-active-shop/source-account state under the same lock-order protocol as
-notification creation. A behavior test must queue first, then unfollow/block,
-and prove the job becomes `SKIPPED` before provider work.
+The complete-chain PostgreSQL scenario queues a claimed broadcast email, then
+unfollows and proves the predecessor incorrectly reaches `ready`; after the
+candidate it proves an already-marked generation remains recoverable, while a
+fresh claim becomes `ineligible` plus `SKIPPED`. It separately queues a
+followed-listing email, creates a reciprocal block, and proves the same
+pre-provider result. The user-pair lock order matches block mutation, while
+source-before-outbox matches staff cleanup. Account deletion's source-id
+authority now takes the same ordered source-row locks before its outbox
+redaction, and a two-session PostgreSQL proof requires provider start to wait
+behind deletion without a deadlock.
 
 ### Public latest and follower feed
 
@@ -184,7 +195,7 @@ notification, and upload rows are untouched.
 
 | Finding | Severity | RLS disposition |
 | --- | --- | --- |
-| Queued broadcast email ignores later unfollow/block | Medium privacy/trust | **FIX_BEFORE_ACTIVATION**; behavior test and shared email eligibility correction |
+| Queued broadcast email ignores later unfollow/block | Medium privacy/trust | **FIXED_IN_PREPARATION**: provider-attempt relationship fence plus complete-chain unfollow and reciprocal-block behavior proof |
 | Generic recipient label counts in-app deliveries only | Low product accuracy | Deferred product copy/metric decision; preserve field semantics during RLS |
 | Staff CRUD uses ordinary runtime while labels use isolated staff role | Medium security boundary | **FIXED_IN_PREPARATION**: count/page/delete now use the isolated staff role, recheck staff and PIN at the action, and co-commit cleanup plus audit |
 | Zod's `.max(500)` counts UTF-16 units while storage sanitization truncates by code point | Low input inconsistency | **FIXED_IN_PREPARATION** with code-point validation matching SQL/storage semantics |

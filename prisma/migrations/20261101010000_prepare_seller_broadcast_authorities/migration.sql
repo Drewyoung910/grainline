@@ -59,6 +59,18 @@ BEGIN
       RAISE EXCEPTION 'SellerBroadcast preparation function % already exists', expected_name;
     END IF;
   END LOOP;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_proc AS procedure
+     WHERE procedure.oid =
+       'public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)'::pg_catalog.regprocedure
+       AND pg_catalog.md5(procedure.prosrc) =
+         'c1c8e556ba5a5da2c4cf176fc4397060'
+  ) THEN
+    RAISE EXCEPTION
+      'SellerBroadcast email provider-attempt predecessor drifted';
+  END IF;
 END
 $grainline_seller_broadcast_preflight$;
 
@@ -700,7 +712,7 @@ CREATE FUNCTION public.grainline_seller_broadcast_account_deletion_ids(
 )
 RETURNS TABLE (id text)
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 PARALLEL UNSAFE
 SECURITY DEFINER
 SET search_path = pg_catalog
@@ -722,7 +734,8 @@ BEGIN
   SELECT broadcast.id::text
     FROM public."SellerBroadcast" AS broadcast
    WHERE broadcast."sellerProfileId" = p_seller_profile_id
-   ORDER BY broadcast.id;
+   ORDER BY broadcast.id
+   FOR UPDATE OF broadcast;
 END
 $grainline_seller_broadcast_account_deletion_ids$;
 
@@ -757,6 +770,228 @@ BEGIN
 END
 $grainline_seller_broadcast_account_deletion_cleanup$;
 
+-- Re-check the live social relationship at the last database boundary before
+-- provider delivery. User-pair locks serialize reciprocal Block creation;
+-- source and Follow row locks serialize deletion and visibility changes with
+-- the later EmailOutbox lock. This keeps queued broadcasts/listing notices
+-- from being delivered after an unfollow or reciprocal block.
+CREATE OR REPLACE FUNCTION public.grainline_email_outbox_begin_provider_attempt(
+  p_job_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_email_outbox_begin_provider_attempt$
+DECLARE
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+  identity_row record;
+  locked_row record;
+  initial_source_user_id text;
+  locked_source_user_id text;
+  source_active boolean;
+  source_recipient_eligible boolean := true;
+  effective_lane text;
+  account_state text;
+BEGIN
+  SELECT id, "userId", "recipientEmail", "sourceType", "sourceId"
+    INTO identity_row
+    FROM public."EmailOutbox"
+   WHERE id = p_job_id;
+  IF NOT FOUND THEN RETURN 'missing'; END IF;
+
+  initial_source_user_id := public.grainline_email_outbox_source_owner(
+    identity_row."sourceType"::text,
+    identity_row."sourceId"::text
+  );
+  PERFORM public.grainline_email_outbox_lock_keys(
+    ARRAY[identity_row."userId"::text, initial_source_user_id],
+    ARRAY[identity_row."recipientEmail"::text]
+  );
+
+  IF identity_row."sourceType" IN (
+    'seller_broadcast',
+    'followed_maker_new_listing'
+  ) THEN
+    -- Block writers lock this same sorted pair before changing Block rows.
+    PERFORM 1
+      FROM public."User" AS pair_user
+     WHERE pair_user.id = identity_row."userId"
+        OR pair_user.id = initial_source_user_id
+     ORDER BY pair_user.id
+     FOR SHARE;
+
+    IF identity_row."sourceType" = 'seller_broadcast' THEN
+      SELECT true
+        INTO source_recipient_eligible
+        FROM public."SellerBroadcast" AS source_broadcast
+        JOIN public."SellerProfile" AS source_seller
+          ON source_seller.id = source_broadcast."sellerProfileId"
+        JOIN public."User" AS source_user
+          ON source_user.id = source_seller."userId"
+        JOIN public."Follow" AS source_follow
+          ON source_follow."sellerProfileId" = source_seller.id
+         AND source_follow."followerId" = identity_row."userId"
+       WHERE source_broadcast.id = identity_row."sourceId"
+         AND source_seller."userId" = initial_source_user_id
+         AND source_seller."chargesEnabled" = true
+         AND source_seller."vacationMode" = false
+         AND source_seller."stripeAccountSupported" = true
+         AND source_user.banned = false
+         AND source_user."deletedAt" IS NULL
+         AND NOT EXISTS (
+           SELECT 1
+             FROM public."Block" AS source_block
+            WHERE (
+              source_block."blockerId" = identity_row."userId"
+              AND source_block."blockedId" = initial_source_user_id
+            ) OR (
+              source_block."blockerId" = initial_source_user_id
+              AND source_block."blockedId" = identity_row."userId"
+            )
+         )
+       FOR SHARE OF source_broadcast, source_seller, source_user, source_follow;
+    ELSE
+      SELECT true
+        INTO source_recipient_eligible
+        FROM public."Listing" AS source_listing
+        JOIN public."SellerProfile" AS source_seller
+          ON source_seller.id = source_listing."sellerId"
+        JOIN public."User" AS source_user
+          ON source_user.id = source_seller."userId"
+        JOIN public."Follow" AS source_follow
+          ON source_follow."sellerProfileId" = source_seller.id
+         AND source_follow."followerId" = identity_row."userId"
+       WHERE source_listing.id = identity_row."sourceId"
+         AND source_listing.status = 'ACTIVE'
+         AND source_listing."isPrivate" = false
+         AND source_seller."userId" = initial_source_user_id
+         AND source_seller."chargesEnabled" = true
+         AND source_seller."vacationMode" = false
+         AND source_seller."stripeAccountSupported" = true
+         AND source_user.banned = false
+         AND source_user."deletedAt" IS NULL
+         AND NOT EXISTS (
+           SELECT 1
+             FROM public."Block" AS source_block
+            WHERE (
+              source_block."blockerId" = identity_row."userId"
+              AND source_block."blockedId" = initial_source_user_id
+            ) OR (
+              source_block."blockerId" = initial_source_user_id
+              AND source_block."blockedId" = identity_row."userId"
+            )
+         )
+       FOR SHARE OF source_listing, source_seller, source_user, source_follow;
+    END IF;
+
+    source_recipient_eligible := COALESCE(source_recipient_eligible, false);
+  END IF;
+
+  SELECT * INTO locked_row
+    FROM public."EmailOutbox"
+   WHERE id = p_job_id
+   FOR UPDATE;
+  IF NOT FOUND THEN RETURN 'missing'; END IF;
+  IF locked_row."userId" IS DISTINCT FROM identity_row."userId"
+     OR locked_row."recipientEmail" IS DISTINCT FROM identity_row."recipientEmail"
+     OR locked_row."sourceType" IS DISTINCT FROM identity_row."sourceType"
+     OR locked_row."sourceId" IS DISTINCT FROM identity_row."sourceId" THEN
+    RETURN 'stale_claim';
+  END IF;
+  IF locked_row.status IN ('SENT','SKIPPED','DEAD') THEN RETURN 'already_terminal'; END IF;
+  IF locked_row.status <> 'PROCESSING'
+     OR locked_row."claimGeneration" <> p_claim_generation
+     OR locked_row."claimToken" IS DISTINCT FROM p_claim_token THEN
+    RETURN 'stale_claim';
+  END IF;
+
+  locked_source_user_id := public.grainline_email_outbox_source_owner(
+    locked_row."sourceType"::text,
+    locked_row."sourceId"::text
+  );
+  IF locked_source_user_id IS DISTINCT FROM initial_source_user_id THEN
+    RETURN 'stale_claim';
+  END IF;
+  IF locked_row."sourceType" IN (
+    'seller_broadcast',
+    'followed_maker_new_listing'
+  )
+     AND NOT source_recipient_eligible
+     AND locked_row."providerAttemptGeneration" IS DISTINCT FROM p_claim_generation THEN
+    UPDATE public."EmailOutbox"
+       SET status = 'SKIPPED', "sentAt" = source_now, "nextAttemptAt" = NULL,
+           "claimToken" = NULL, "processingStartedAt" = NULL,
+           "lastError" =
+             'Email source relationship became ineligible before provider attempt',
+           "updatedAt" = source_now
+     WHERE id = p_job_id;
+    RETURN 'ineligible';
+  END IF;
+  IF locked_row."sourceType" IN ('seller_broadcast', 'followed_maker_new_listing') THEN
+    SELECT NOT account_user.banned AND account_user."deletedAt" IS NULL
+      INTO source_active
+      FROM public."User" AS account_user
+     WHERE account_user.id = locked_source_user_id;
+    IF locked_source_user_id IS NULL OR COALESCE(source_active, false) = false THEN
+      UPDATE public."EmailOutbox"
+         SET status = 'SKIPPED', "sentAt" = source_now, "nextAttemptAt" = NULL,
+             "claimToken" = NULL, "processingStartedAt" = NULL,
+             "lastError" = 'Email source became unavailable before provider attempt',
+             "updatedAt" = source_now
+       WHERE id = p_job_id;
+      RETURN 'ineligible';
+    END IF;
+  END IF;
+
+  effective_lane := public.grainline_email_outbox_effective_lane(
+    locked_row."templateName"::text,
+    locked_row.lane::text
+  );
+  account_state := public.grainline_email_outbox_recipient_state(
+    locked_row."userId"::text,
+    locked_row."recipientEmail"::text,
+    locked_row."preferenceKey"::text,
+    effective_lane
+  );
+  IF account_state <> 'active' THEN
+    UPDATE public."EmailOutbox"
+       SET status = 'SKIPPED', "sentAt" = source_now, "nextAttemptAt" = NULL,
+           "claimToken" = NULL, "processingStartedAt" = NULL,
+           "lastError" = public.grainline_email_outbox_safe_error(
+             CASE WHEN account_state = 'hard_suppression'
+               THEN 'Recipient email is hard-suppressed before provider attempt'
+               ELSE 'Recipient became ineligible before provider attempt: ' || account_state
+             END
+           ),
+           "updatedAt" = source_now
+     WHERE id = p_job_id;
+    RETURN 'ineligible';
+  END IF;
+  IF locked_row."firstProviderAttemptAt" IS NOT NULL
+     AND locked_row."firstProviderAttemptAt" <= source_now - INTERVAL '23 hours' THEN
+    UPDATE public."EmailOutbox"
+       SET status = 'DEAD', "nextAttemptAt" = NULL, "claimToken" = NULL,
+           "processingStartedAt" = NULL,
+           "lastError" = 'Provider idempotency window expired; manual review required',
+           "updatedAt" = source_now
+     WHERE id = p_job_id;
+    RETURN 'expired';
+  END IF;
+  UPDATE public."EmailOutbox"
+     SET "firstProviderAttemptAt" = COALESCE("firstProviderAttemptAt", source_now),
+         "providerAttemptGeneration" = p_claim_generation,
+         "updatedAt" = source_now
+   WHERE id = p_job_id;
+  RETURN 'ready';
+END
+$grainline_email_outbox_begin_provider_attempt$;
+
 REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_owner_cooldown()
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_owner_create(text,text,text,integer)
@@ -778,6 +1013,8 @@ REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_owner_record_delivery(t
 REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_account_deletion_ids(text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_account_deletion_cleanup(text)
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)
   FROM PUBLIC, grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_owner_cooldown()
@@ -801,6 +1038,8 @@ GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_owner_record_deliver
 GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_account_deletion_ids(text)
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_account_deletion_cleanup(text)
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)
   TO grainline_app_runtime;
 
 REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_staff_count(text,text)
