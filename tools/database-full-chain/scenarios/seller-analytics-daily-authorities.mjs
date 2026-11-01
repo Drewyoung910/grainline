@@ -1174,7 +1174,8 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
          (id, "sellerProfileId", date, views)
        VALUES (
          $1, $2,
-         pg_catalog.date_trunc('day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'),
+         pg_catalog.date_trunc('day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+           - interval '1 day',
          1
        )`,
       [`${suffix}_direct_profile`, seller.sellerProfileId],
