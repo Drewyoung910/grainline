@@ -557,7 +557,7 @@ test(
                 { Client: DisposableOwnerClient, rootDir: repositoryRoot },
               );
             assert.equal(preparationPreflight.state, "pending");
-            assert.equal(preparationPreflight.catalog.functions.length, 5);
+            assert.equal(preparationPreflight.catalog.functions.length, 1);
           }
           if (artifact.name === FAVORITE_RLS_MIGRATION) {
             assert.ok(
