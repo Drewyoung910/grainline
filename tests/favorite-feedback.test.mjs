@@ -9,6 +9,14 @@ const button = readFileSync("src/components/FavoriteButton.tsx", "utf8");
 
 describe("favorite failure feedback", () => {
   it("keeps unavailable-listing and rate-limit guidance specific", () => {
+    assert.equal(
+      favoriteErrorMessage(403, "ACCOUNT_SUSPENDED"),
+      "Your account has been suspended. Contact support@thegrainline.com.",
+    );
+    assert.equal(
+      favoriteErrorMessage(403, "ACCOUNT_DELETED"),
+      "This account has been deleted. Contact support@thegrainline.com.",
+    );
     assert.equal(favoriteErrorMessage(403), "This listing isn’t available.");
     assert.equal(favoriteErrorMessage(404), "This listing isn’t available.");
     assert.equal(favoriteErrorMessage(429), "Too many save attempts. Try again shortly.");
@@ -18,7 +26,7 @@ describe("favorite failure feedback", () => {
     assert.equal(favoriteErrorMessage(400), "Couldn’t update saved items. Please try again.");
     assert.equal(favoriteErrorMessage(500), "Couldn’t update saved items. Please try again.");
     assert.equal(favoriteErrorMessage(503), "Couldn’t update saved items. Please try again.");
-    assert.match(button, /toast\(favoriteErrorMessage\(res\.status\), "error"\)/u);
+    assert.match(button, /toast\(favoriteErrorMessage\(res\.status, data\?\.code\), "error"\)/u);
     assert.doesNotMatch(button, /toast\(data\?\.error/u);
   });
 

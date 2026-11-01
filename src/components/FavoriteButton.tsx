@@ -54,9 +54,9 @@ export default function FavoriteButton({
         if (!res.ok) {
           // revert on error
           setSaved(!next);
-          const data = await res.json().catch(() => null) as { error?: string } | null;
+          const data = await res.json().catch(() => null) as { error?: string; code?: string } | null;
           console.error("Favorite failed:", data?.error ?? res.statusText);
-          toast(favoriteErrorMessage(res.status), "error");
+          toast(favoriteErrorMessage(res.status, data?.code), "error");
         }
       } catch (err) {
         setSaved(!next);

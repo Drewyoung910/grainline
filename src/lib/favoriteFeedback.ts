@@ -1,4 +1,10 @@
-export function favoriteErrorMessage(status: number) {
+export function favoriteErrorMessage(status: number, code?: string) {
+  if (code === "ACCOUNT_SUSPENDED") {
+    return "Your account has been suspended. Contact support@thegrainline.com.";
+  }
+  if (code === "ACCOUNT_DELETED") {
+    return "This account has been deleted. Contact support@thegrainline.com.";
+  }
   if (status === 403 || status === 404) {
     return "This listing isn’t available.";
   }
