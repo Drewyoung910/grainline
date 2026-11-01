@@ -411,6 +411,9 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
