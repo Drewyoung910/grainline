@@ -11,6 +11,7 @@ import { Gift } from "./icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { isListingVariantSelectionComplete } from "@/lib/listingVariantSelection";
 
 function selectedOptionIdsFromIntent(groups: VariantGroupForSelector[], rawValue: string | null) {
   if (!rawValue) return [];
@@ -91,8 +92,7 @@ export default function ListingPurchasePanel({
   );
   const [totalPriceCents, setTotalPriceCents] = useState(initialPriceCents);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
-  const variantRequired = hasVariants;
-  const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
+  const variantSelectionComplete = isListingVariantSelectionComplete(variantGroups, selectedOptionIds);
   const [blockedVariantAttempts, setBlockedVariantAttempts] = useState(0);
   const canPurchase = canBuy && sellerAcceptingNewOrders;
   const displayCurrency = currency ?? DEFAULT_CURRENCY;
@@ -211,7 +211,7 @@ export default function ListingPurchasePanel({
               offersGiftWrapping={offersGiftWrapping}
               giftWrappingPriceCents={giftWrappingPriceCents}
               selectedVariantOptionIds={selectedOptionIds}
-              variantRequired={variantRequired}
+              variantSelectionComplete={variantSelectionComplete}
               autoOpen={shouldAutoOpenBuyNow}
               className="btn btn-primary w-full min-h-[50px] disabled:opacity-100"
             >
@@ -235,7 +235,7 @@ export default function ListingPurchasePanel({
             listingTitle={listingTitle}
             signedIn={!!userId}
             selectedVariantOptionIds={selectedOptionIds}
-            variantRequired={variantRequired}
+            variantSelectionComplete={variantSelectionComplete}
             anonymousSnapshot={{
               title: listingTitle,
               sellerId,

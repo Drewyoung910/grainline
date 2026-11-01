@@ -22,7 +22,7 @@ type Props = {
   offersGiftWrapping?: boolean;
   giftWrappingPriceCents?: number | null;
   selectedVariantOptionIds?: string[];
-  variantRequired?: boolean;
+  variantSelectionComplete?: boolean;
   autoOpen?: boolean;
   className?: string;
   children?: React.ReactNode;
@@ -40,7 +40,7 @@ export default function BuyNowButton({
   offersGiftWrapping = false,
   giftWrappingPriceCents = null,
   selectedVariantOptionIds = [],
-  variantRequired = false,
+  variantSelectionComplete = true,
   autoOpen = false,
   className = "",
   children,
@@ -52,11 +52,11 @@ export default function BuyNowButton({
 
   useEffect(() => {
     if (!autoOpen || openedFromRedirect.current || !isLoaded || !isSignedIn) return;
-    if (variantRequired && selectedVariantOptionIds.length === 0) return;
+    if (!variantSelectionComplete) return;
     openedFromRedirect.current = true;
     setHasOpened(true);
     setIsOpen(true);
-  }, [autoOpen, isLoaded, isSignedIn, selectedVariantOptionIds.length, variantRequired]);
+  }, [autoOpen, isLoaded, isSignedIn, variantSelectionComplete]);
 
   return (
     <>
@@ -66,7 +66,7 @@ export default function BuyNowButton({
         disabled={!isLoaded}
         onClick={() => {
           // The listing panel flags the missing option next to the options.
-          if (variantRequired && selectedVariantOptionIds.length === 0) return;
+          if (!variantSelectionComplete) return;
           if (!isSignedIn) {
             window.location.href = signUpPathForRedirect(window.location.pathname + window.location.search);
             return;

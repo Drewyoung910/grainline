@@ -16,7 +16,7 @@ export default function AddToCartButton({
   className = "",
   redirectToCart = false,
   selectedVariantOptionIds = [],
-  variantRequired = false,
+  variantSelectionComplete = true,
   anonymousSnapshot,
 }: {
   listingId: string;
@@ -25,7 +25,7 @@ export default function AddToCartButton({
   className?: string;
   redirectToCart?: boolean;
   selectedVariantOptionIds?: string[];
-  variantRequired?: boolean;
+  variantSelectionComplete?: boolean;
   anonymousSnapshot?: AnonymousCartSnapshot;
 }) {
   const [loading, setLoading] = React.useState(false);
@@ -58,7 +58,7 @@ export default function AddToCartButton({
 
   async function add() {
     // The listing panel flags the missing option next to the options.
-    if (variantRequired && selectedVariantOptionIds.length === 0) return;
+    if (!variantSelectionComplete) return;
     if (!signedIn) {
       if (!anonymousSnapshot) {
         window.location.href = signInPathForRedirect(listingPath);
