@@ -47,6 +47,17 @@ Last updated: 2026-10-18
   metadata producer. Executed tests cover the real Clerk matcher and the shared
   metadata value; a source guard inventories all affected page producers.
 
+## 2026-11-01 — Streamed crawler metadata outside the document head
+
+- **[CLAUDE #1519/C-03 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  Dynamic listing and seller metadata can be streamed after the document head
+  for a generic Googlebot request because that user agent is not in Next.js's
+  default HTML-limited bot expression. That can leave canonical, robots and
+  social metadata outside the location some crawlers require. The candidate
+  uses Next's documented `htmlLimitedBots: /.*/` setting to keep generated
+  metadata in the head for every crawler. The focused configuration guard,
+  public-route regression suite, lint and TypeScript all pass.
+
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 
 - **[#702 VERIFIED/FIXED/PRODUCTION LIVE]** The signed
