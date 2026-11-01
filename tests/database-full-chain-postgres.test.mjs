@@ -1488,6 +1488,7 @@ test(
         await proveServiceReferenceLeastPrivilege({
           connectionString: proofDatabaseUrl,
           ownerClient: client,
+          repositoryRoot,
         }),
         {
           siteConfig: ["SELECT"],

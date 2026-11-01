@@ -20,6 +20,9 @@ DECLARE
   runtime_oid oid;
   target record;
   actual_runtime text[];
+  public_privileges text[];
+  runtime_grant_options text[];
+  runtime_column_privileges text[];
 BEGIN
   SELECT oid
     INTO runtime_oid
@@ -41,12 +44,26 @@ BEGIN
         ('SystemAuditLog'::text, ARRAY['INSERT', 'SELECT']::text[])
       ) AS expected(table_name, privileges)
   LOOP
-    SELECT coalesce(
-      pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
-        ORDER BY pg_catalog.upper(acl.privilege_type)),
-      ARRAY[]::text[]
-    )
-      INTO actual_runtime
+    SELECT
+      coalesce(
+        pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+          ORDER BY pg_catalog.upper(acl.privilege_type))
+          FILTER (WHERE acl.grantee = runtime_oid),
+        ARRAY[]::text[]
+      ),
+      coalesce(
+        pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+          ORDER BY pg_catalog.upper(acl.privilege_type))
+          FILTER (WHERE acl.grantee = 0),
+        ARRAY[]::text[]
+      ),
+      coalesce(
+        pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+          ORDER BY pg_catalog.upper(acl.privilege_type))
+          FILTER (WHERE acl.grantee = runtime_oid AND acl.is_grantable),
+        ARRAY[]::text[]
+      )
+      INTO actual_runtime, public_privileges, runtime_grant_options
       FROM pg_catalog.pg_class AS class
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = class.relnamespace
@@ -56,11 +73,47 @@ BEGIN
      WHERE namespace.nspname = 'public'
        AND class.relname = target.table_name
        AND class.relkind = 'r'
+       AND (acl.grantee = 0 OR acl.grantee = runtime_oid);
+
+    SELECT coalesce(
+      pg_catalog.array_agg(
+        DISTINCT pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
+        ORDER BY pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
+      ),
+      ARRAY[]::text[]
+    )
+      INTO runtime_column_privileges
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+      JOIN pg_catalog.pg_attribute AS attribute
+        ON attribute.attrelid = class.oid
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+      CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+     WHERE namespace.nspname = 'public'
+       AND class.relname = target.table_name
+       AND class.relkind = 'r'
        AND acl.grantee = runtime_oid;
 
     IF actual_runtime IS DISTINCT FROM target.privileges THEN
       RAISE EXCEPTION 'refusing rollback: runtime privileges for % are %, expected %',
         target.table_name, actual_runtime, target.privileges
+        USING ERRCODE = '55000';
+    END IF;
+    IF public_privileges <> ARRAY[]::text[] THEN
+      RAISE EXCEPTION 'refusing rollback: PUBLIC privileges remain on %: %',
+        target.table_name, public_privileges
+        USING ERRCODE = '55000';
+    END IF;
+    IF runtime_grant_options <> ARRAY[]::text[] THEN
+      RAISE EXCEPTION 'refusing rollback: runtime grant options remain on %: %',
+        target.table_name, runtime_grant_options
+        USING ERRCODE = '55000';
+    END IF;
+    IF runtime_column_privileges <> ARRAY[]::text[] THEN
+      RAISE EXCEPTION 'refusing rollback: runtime column privileges remain on %: %',
+        target.table_name, runtime_column_privileges
         USING ERRCODE = '55000';
     END IF;
   END LOOP;
