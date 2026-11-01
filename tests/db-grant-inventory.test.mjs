@@ -3122,6 +3122,42 @@ describe("database grant inventory guardrails", () => {
         [],
         "an applied Block preparation adds only the context-bound owner wrappers",
       );
+      const blockActivatedRows = [
+        ...exactRows.map((row) => (
+          [
+            "grainline_conversation_inbox",
+            "grainline_message_unread_count",
+          ].includes(row.function_name)
+            ? { ...row, execute_priv: false, runtime_direct_execute: false }
+            : row
+        )),
+        ...blockPreparedRows,
+      ];
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          blockActivatedRows,
+          runtimeRole,
+          migrationRole,
+          {
+            blockPreparationApplied: true,
+            blockRlsActivationApplied: true,
+          },
+        ),
+        [],
+        "Block activation retires the caller-supplied inbox and unread entry points",
+      );
+      assert.match(
+        collectConversationMessageFunctionIssues(
+          [...exactRows, ...blockPreparedRows],
+          runtimeRole,
+          migrationRole,
+          {
+            blockPreparationApplied: true,
+            blockRlsActivationApplied: true,
+          },
+        ).join("\n"),
+        /grainline_(?:conversation_inbox|message_unread_count).*runtime role must not have effective EXECUTE/,
+      );
     }
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
