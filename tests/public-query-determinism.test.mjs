@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -73,9 +74,7 @@ describe("public query determinism", () => {
     const sellerActorSimilarListingAuthority = source(
       "prisma/migrations/20261020235987_prepare_seller_profile_similar_listing_candidates/migration.sql",
     );
-    const sellerBroadcastPreparation = source(
-      "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
-    );
+    const sellerBroadcastPreparation = source(sellerBroadcastPreparationMigrationPath());
 
     assert.match(home, /sellerPublicFeaturedMakers\(\)/);
     assert.match(

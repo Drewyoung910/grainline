@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -201,9 +202,7 @@ describe("admin server action guardrails", () => {
 
   it("handles stale broadcast deletes without throwing and cleans queued side effects", () => {
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
-    const migration = source(
-      "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
-    );
+    const migration = source(sellerBroadcastPreparationMigrationPath());
 
     assert.match(broadcasts, /deleteStaffSellerBroadcast\(getOrderStaffReadClient\(\), \{/);
     assert.match(broadcasts, /await requireAdminPageAccess\(\)/);

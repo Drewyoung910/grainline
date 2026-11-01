@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
@@ -46,9 +47,7 @@ describe("admin audit durability", () => {
     }
 
     const broadcastPage = source("src/app/admin/broadcasts/page.tsx");
-    const broadcastTransition = source(
-      "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
-    );
+    const broadcastTransition = source(sellerBroadcastPreparationMigrationPath());
     assert.match(broadcastPage, /deleteStaffSellerBroadcast\(/);
     assert.match(
       broadcastTransition,
