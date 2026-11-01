@@ -141,6 +141,8 @@ import {
   proveFollowRlsRollback,
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
+import { proveSellerBroadcastPreparedAuthorities } from
+  "../tools/database-full-chain/scenarios/seller-broadcast-authorities.mjs";
 import {
   BLOCK_PREPARATION_MIGRATION,
   BLOCK_RLS_MIGRATION,
@@ -1078,6 +1080,10 @@ test(
       await proveMakerVerificationPreparedAuthorities({
         database: adapter,
         seller: fixture,
+        connectionString: proofDatabaseUrl,
+      });
+      await proveSellerBroadcastPreparedAuthorities({
+        database: adapter,
         connectionString: proofDatabaseUrl,
       });
       await proveSellerProfileOwnerBootstrapAuthority({

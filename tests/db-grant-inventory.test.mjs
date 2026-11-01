@@ -295,6 +295,24 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
   "grainline_follow_seller_owner_incoming_count",
   "grainline_follow_account_deletion_cleanup",
 ];
+const SELLER_BROADCAST_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql";
+const SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES = [
+  "grainline_seller_broadcast_owner_cooldown",
+  "grainline_seller_broadcast_owner_create",
+  "grainline_seller_broadcast_owner_count",
+  "grainline_seller_broadcast_owner_page",
+  "grainline_seller_broadcast_owner_export",
+  "grainline_seller_broadcast_public_latest",
+  "grainline_seller_broadcast_actor_feed_page",
+  "grainline_seller_broadcast_owner_delivery_source",
+  "grainline_seller_broadcast_owner_record_delivery",
+  "grainline_seller_broadcast_account_deletion_ids",
+  "grainline_seller_broadcast_account_deletion_cleanup",
+  "grainline_seller_broadcast_staff_count",
+  "grainline_seller_broadcast_staff_page",
+  "grainline_seller_broadcast_staff_delete",
+];
 const MAKER_VERIFICATION_PREPARATION_MIGRATION =
   "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
 const MAKER_VERIFICATION_ACTIVATION_MIGRATION =
@@ -4017,6 +4035,12 @@ describe("database grant inventory guardrails", () => {
       source(FOLLOW_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const sellerBroadcastAuthorityPrepared = existsSync(
+      SELLER_BROADCAST_PREPARATION_MIGRATION,
+    ) && SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_BROADCAST_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const reviewVoteAuthorityPrepared = existsSync(
       REVIEW_VOTE_PREPARATION_MIGRATION,
     ) && REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -4266,6 +4290,9 @@ describe("database grant inventory guardrails", () => {
       ...(followAuthorityPrepared
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerBroadcastAuthorityPrepared
+        ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
         : []),
@@ -4382,6 +4409,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (followAuthorityPrepared
           ? FOLLOW_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (sellerBroadcastAuthorityPrepared
+          ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
@@ -4519,6 +4549,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(followAuthorityPrepared
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerBroadcastAuthorityPrepared
+        ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES
         : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES

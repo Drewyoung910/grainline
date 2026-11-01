@@ -327,6 +327,23 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("SellerBroadcast preparation is byte-sealed and remains compatible", () => {
+  const broadcast = verifyPrivateTablePreparationSource("seller_broadcast_v1");
+  assert.equal(broadcast.release.table, "SellerBroadcast");
+  assert.equal(broadcast.functionSources.size, 14);
+  assert.deepEqual(broadcast.release.addedColumns, []);
+  const sql = readFileSync(broadcast.migrationPath, "utf8");
+  assert.match(sql, /grainline_seller_broadcast_owner_create/u);
+  assert.match(sql, /grainline_seller_broadcast_actor_feed_page/u);
+  assert.match(sql, /grainline_seller_broadcast_staff_delete/u);
+  assert.match(sql, /SESSION_USER <> 'grainline_staff_read_runtime'/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("email service preparation is byte-sealed and remains compatible", () => {
   const emailService = verifyPrivateTablePreparationSource("email_service_v1");
   assert.equal(emailService.release.table, "EmailOutbox");
@@ -530,6 +547,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "follow_v1",
       "review_vote_v1",
       "maker_verification_v1",
+      "seller_broadcast_v1",
       "email_service_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",

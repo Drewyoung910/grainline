@@ -92,6 +92,10 @@ import { deleteAllOwnerBlocks } from "@/lib/blockAccess";
 import { redactUserReportsForAccountDeletion } from "@/lib/userReportAccess";
 import { cleanupSellerFaqsForAccountDeletion } from "@/lib/sellerFaqAccess";
 import {
+  accountDeletionSellerBroadcastIds,
+  cleanupAccountSellerBroadcasts,
+} from "@/lib/sellerBroadcastAccess";
+import {
   applyEmailServiceAccountDeletion,
   redactDeletedSellerEmailOutbox,
 } from "@/lib/emailServiceAccess";
@@ -339,9 +343,10 @@ async function collectAdminAuditLogRedactionUpdates({
 }
 
 async function cleanupDeletedSellerFanoutRows(
-  tx: Prisma.TransactionClient,
+  tx: DbUserContextTransactionClient,
   sellerProfileId: string,
 ) {
+  await accountDeletionSellerBroadcastIds(tx, sellerProfileId);
   await redactDeletedSellerEmailOutbox(tx, sellerProfileId);
 }
 
@@ -1200,9 +1205,7 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await tx.sellerBroadcast.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
-      });
+      await cleanupAccountSellerBroadcasts(tx, user.sellerProfile.id);
       await cleanupSellerFaqsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,
         expectedUserId: user.id,
