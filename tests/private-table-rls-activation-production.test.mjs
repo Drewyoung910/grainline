@@ -22,8 +22,14 @@ import {
 const releaseId = "maker_verification_v1";
 const release = privateTableRlsActivation(releaseId);
 const verified = verifyPrivateTableRlsActivationSource(releaseId);
+const userAccumulatedAccessMigrationsDir =
+  process.env.USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR || "prisma/migrations";
 const conversationAuthorityMigration = readFileSync(
-  "prisma/migrations/20261007160000_converge_user_cross_domain_authorities/migration.sql",
+  join(
+    userAccumulatedAccessMigrationsDir,
+    "20261007160000_converge_user_cross_domain_authorities",
+    "migration.sql",
+  ),
   "utf8",
 );
 const initialConversationAuthorityMigration = readFileSync(
