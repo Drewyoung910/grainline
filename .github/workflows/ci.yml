@@ -504,7 +504,7 @@ jobs:
           activation=20261030040000_activate_block_rls
           mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
-          echo "BLOCK_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
           echo "BLOCK_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate UserReport source packages until historical release guards pass
         shell: bash
@@ -516,7 +516,7 @@ jobs:
           activation=20261030050000_activate_user_report_rls
           mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
-          echo "USER_REPORT_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "USER_REPORT_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
           echo "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate SellerFaq source packages until historical release guards pass
         shell: bash
@@ -528,7 +528,7 @@ jobs:
           activation=20261030060000_activate_seller_faq_rls
           mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
           mv "prisma/migrations/$activation" "$holding/migrations/$activation"
-          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
           echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
