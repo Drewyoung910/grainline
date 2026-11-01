@@ -73,6 +73,9 @@ describe("public query determinism", () => {
     const sellerActorSimilarListingAuthority = source(
       "prisma/migrations/20261020235987_prepare_seller_profile_similar_listing_candidates/migration.sql",
     );
+    const sellerBroadcastPreparation = source(
+      "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
+    );
 
     assert.match(home, /sellerPublicFeaturedMakers\(\)/);
     assert.match(
@@ -110,7 +113,11 @@ describe("public query determinism", () => {
     }
 
     assert.match(sellerPage, /orderBy: \[\{ updatedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(sellerPage, /orderBy: \[\{ sentAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(sellerPage, /publicLatestSellerBroadcast\(meId, seller\.id\)/);
+    assert.match(
+      sellerBroadcastPreparation,
+      /grainline_seller_broadcast_public_latest[\s\S]*ORDER BY candidate\."sentAt" DESC, candidate\.id DESC[\s\S]*LIMIT 1/,
+    );
     assert.match(sellerPage, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(sellerPage, /orderBy: \[\{ review: \{ createdAt: "desc" \} \}, \{ id: "desc" \}\]/);
 
