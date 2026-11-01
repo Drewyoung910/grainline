@@ -27,6 +27,10 @@ describe("safe internal return URLs", () => {
     assert.equal(safeInternalReturnUrl("/%5Cevil.example/path", appUrl), null);
     assert.equal(safeInternalReturnUrl("/%255Cevil.example/path", appUrl), null);
     assert.equal(safeInternalReturnUrl("/%0d%0a/dashboard", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/.//evil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/a/..//evil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/%2e//evil.example/path", appUrl), null);
+    assert.equal(safeInternalReturnUrl("/./\\evil.example/path", appUrl), null);
   });
 
   it("rejects absolute URLs and non-path values", () => {
@@ -55,6 +59,10 @@ describe("safe internal auth redirect paths", () => {
     assert.equal(safeInternalPath("/%2Fevil.example/cart", "/fallback"), "/fallback");
     assert.equal(safeInternalPath("/%5Cevil.example/cart", "/fallback"), "/fallback");
     assert.equal(safeInternalPath("/%0a/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/.//evil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/a/..//evil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/%2e//evil.example/cart", "/fallback"), "/fallback");
+    assert.equal(safeInternalPath("/./\\evil.example/cart", "/fallback"), "/fallback");
     assert.equal(safeInternalPath("cart", "/fallback"), "/fallback");
   });
 
