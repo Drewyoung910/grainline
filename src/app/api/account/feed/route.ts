@@ -21,6 +21,7 @@ import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { sellerActorAccountFeedCards } from "@/lib/sellerProfileParticipantAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { ownerFollowedSellerIds } from "@/lib/sellerFollowAccess";
+import { actorSellerBroadcastFeedPage } from "@/lib/sellerBroadcastAccess";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -120,6 +121,15 @@ export async function GET(req: NextRequest) {
           : [];
     return { AND: [withinWindow, { OR: [{ [dateField]: { lt: parsedCursor.date } }, ...sameTimestamp] }] };
   };
+  let broadcastSameTimestampMode: "none" | "all" | "after-id" | "exclude";
+  if (!parsedCursor) {
+    broadcastSameTimestampMode = "none";
+  } else if (parsedCursor.legacy) {
+    broadcastSameTimestampMode = "exclude";
+  } else {
+    const tieMode = accountFeedCursorTieMode("broadcast", parsedCursor);
+    broadcastSameTimestampMode = tieMode === "none" ? "exclude" : tieMode;
+  }
 
   const [listings, blogPosts, broadcasts] = await Promise.all([
     prisma.listing.findMany({
@@ -161,20 +171,13 @@ export async function GET(req: NextRequest) {
         sellerProfileId: true,
       },
     }),
-    prisma.sellerBroadcast.findMany({
-      where: {
-        sellerProfileId: { in: visibleSellerIds },
-        ...timestampCursorWhere("broadcast", "sentAt"),
-      },
-      orderBy: [{ sentAt: "desc" }, { id: "desc" }],
-      take,
-      select: {
-        id: true,
-        message: true,
-        imageUrl: true,
-        sentAt: true,
-        sellerProfileId: true,
-      },
+    actorSellerBroadcastFeedPage(me.id, {
+      sellerProfileIds: visibleSellerIds,
+      cutoff,
+      cursor: parsedCursor?.date ?? null,
+      cursorId: parsedCursor?.id ?? null,
+      sameTimestampMode: broadcastSameTimestampMode,
+      limit: take,
     }),
   ]);
 

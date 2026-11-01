@@ -413,6 +413,9 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_user_report_staff_open_page(text,timestamp without time zone,text,integer)",
   "grainline_user_report_staff_top_reporters(text,timestamp without time zone,integer)",
   "grainline_user_report_staff_resolve(text,text,text,text)",
+  "grainline_seller_broadcast_staff_count(text,text)",
+  "grainline_seller_broadcast_staff_page(text,text,integer,integer)",
+  "grainline_seller_broadcast_staff_delete(text,text)",
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
   [
@@ -445,6 +448,9 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_user_report_staff_open_page(text,timestamp without time zone,text,integer)",
     "grainline_user_report_staff_top_reporters(text,timestamp without time zone,integer)",
     "grainline_user_report_staff_resolve(text,text,text,text)",
+    "grainline_seller_broadcast_staff_count(text,text)",
+    "grainline_seller_broadcast_staff_page(text,text,integer,integer)",
+    "grainline_seller_broadcast_staff_delete(text,text)",
   ],
 );
 export const MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -719,6 +725,9 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_user_report_staff_open_page",
   "grainline_user_report_staff_top_reporters",
   "grainline_user_report_staff_resolve",
+  "grainline_seller_broadcast_staff_count",
+  "grainline_seller_broadcast_staff_page",
+  "grainline_seller_broadcast_staff_delete",
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",
   "grainline_order_seller_key_assert",

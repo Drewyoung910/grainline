@@ -17,27 +17,7 @@ const OPERATIONS = Object.freeze([
   "updateMany",
 ]);
 
-const EXPECTED_DIRECT_CALLERS = Object.freeze({
-  "src/app/admin/broadcasts/page.tsx": Object.freeze([
-    "count",
-    "deleteMany",
-    "findMany",
-    "findUnique",
-  ]),
-  "src/app/api/account/export/route.ts": Object.freeze(["findMany"]),
-  "src/app/api/account/feed/route.ts": Object.freeze(["findMany"]),
-  "src/app/api/seller/broadcast/route.ts": Object.freeze([
-    "count",
-    "create",
-    "findFirst",
-    "findFirst",
-    "findMany",
-    "findUnique",
-    "update",
-  ]),
-  "src/app/seller/[id]/page.tsx": Object.freeze(["findFirst"]),
-  "src/lib/accountDeletion.ts": Object.freeze(["deleteMany", "findMany"]),
-});
+const EXPECTED_DIRECT_CALLERS = Object.freeze({});
 
 function sourceFiles(directory) {
   const files = [];
