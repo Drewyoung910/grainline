@@ -471,6 +471,19 @@ function sellerFaqPreparationMigrationSourcePath() {
     : stagedPath;
 }
 
+function privateTableActivationMigrationSourcePath(migration, envName) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env[envName]?.trim() ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    `missing absolute isolated activation migration ${migration}`,
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
+}
+
 function favoritePreparationMigrationSourcePath() {
   const livePath = path.join(
     "prisma",
@@ -1081,6 +1094,22 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const blockActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      blockActivationMigration,
+    );
+    if (!existsSync(blockActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          blockActivationMigration,
+          "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        blockActivationTarget,
+        { recursive: true },
+      );
+    }
     const userReportPreparationTarget = path.join(
       root,
       "prisma",
@@ -1094,6 +1123,22 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const userReportActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      userReportActivationMigration,
+    );
+    if (!existsSync(userReportActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          userReportActivationMigration,
+          "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        userReportActivationTarget,
+        { recursive: true },
+      );
+    }
     const sellerFaqPreparationTarget = path.join(
       root,
       "prisma",
@@ -1104,6 +1149,22 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       cpSync(
         sellerFaqPreparationMigrationSourcePath(),
         sellerFaqPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerFaqActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerFaqActivationMigration,
+    );
+    if (!existsSync(sellerFaqActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          sellerFaqActivationMigration,
+          "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        sellerFaqActivationTarget,
         { recursive: true },
       );
     }
