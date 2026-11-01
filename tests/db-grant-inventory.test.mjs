@@ -4190,7 +4190,9 @@ describe("database grant inventory guardrails", () => {
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         + (typeof blockRlsActivationExpected === "function"
-          && blockRlsActivationExpected(inventory) ? 1 : 0)
+          && blockRlsActivationExpected(inventory)
+          ? 3 // Block table plus two retired caller-supplied messaging RPCs
+          : 0)
         + (typeof userReportRlsActivationExpected === "function"
           && userReportRlsActivationExpected(inventory) ? 1 : 0)
         + (typeof sellerFaqRlsActivationExpected === "function"

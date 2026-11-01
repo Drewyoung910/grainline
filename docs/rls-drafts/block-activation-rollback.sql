@@ -67,6 +67,16 @@ $grainline_block_rollback_preflight$;
 
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON TABLE public."Block" TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_conversation_inbox(
+  text,
+  boolean,
+  text,
+  timestamp,
+  text,
+  integer
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_message_unread_count(text)
+  TO grainline_app_runtime;
 ALTER TABLE public."Block" NO FORCE ROW LEVEL SECURITY;
 ALTER TABLE public."Block" DISABLE ROW LEVEL SECURITY;
 
@@ -90,6 +100,16 @@ BEGIN
      OR pg_catalog.has_table_privilege('grainline_app_runtime', table_oid, 'TRUNCATE')
      OR pg_catalog.has_table_privilege('grainline_app_runtime', table_oid, 'REFERENCES')
      OR pg_catalog.has_table_privilege('grainline_app_runtime', table_oid, 'TRIGGER')
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_message_unread_count(text)',
+       'EXECUTE'
+     )
   THEN
     RAISE EXCEPTION 'Block rollback did not restore predecessor posture';
   END IF;

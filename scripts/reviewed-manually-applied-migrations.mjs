@@ -95,7 +95,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261030040000_activate_block_rls",
-    "53dd8bcc3eee60ac160a9633e101ea8c13a6e939634d02c418922b9d5319e9d0",
+    "cec9c1c6345225304fcae3b2d433ade6c73e1d6d98f0d461126390f7f0c29e73",
   ],
   [
     "20261030050000_activate_user_report_rls",

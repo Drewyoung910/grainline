@@ -64,5 +64,25 @@ for (const releaseId of releaseIds) {
     assert.match(rollback, /pg_catalog\.aclexplode\(attribute\.attacl\)/u);
     assert.doesNotMatch(rollback, /CREATE\s+POLICY/iu);
     assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
+
+    if (releaseId === "block_v1") {
+      for (const legacy of [
+        "grainline_conversation_inbox",
+        "grainline_message_unread_count",
+      ]) {
+        assert.match(
+          activation,
+          new RegExp(`REVOKE ALL ON FUNCTION public\\.${legacy}\\(`, "u"),
+        );
+        assert.match(
+          rollback,
+          new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${legacy}\\(`, "u"),
+        );
+      }
+      assert.match(
+        readFileSync("scripts/provision-runtime-db-role.sql", "utf8"),
+        /class\.relname = 'Block'[\s\S]*class\.relrowsecurity[\s\S]*class\.relforcerowsecurity/u,
+      );
+    }
   });
 }

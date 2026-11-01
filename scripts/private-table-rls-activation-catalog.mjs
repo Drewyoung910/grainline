@@ -188,10 +188,10 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     minimumCompatibleAppCommit: BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT,
     migration: "20261030040000_activate_block_rls",
     migrationSha256:
-      "53dd8bcc3eee60ac160a9633e101ea8c13a6e939634d02c418922b9d5319e9d0",
+      "cec9c1c6345225304fcae3b2d433ade6c73e1d6d98f0d461126390f7f0c29e73",
     rollbackPath: "docs/rls-drafts/block-activation-rollback.sql",
     rollbackSha256:
-      "3f38e115893af4eee026c55b1bac65f8c8f2d8605148287a7df6960f2368f1de",
+      "e1d0d020ca072149e441c7db5110209579d7d2449692cc3728b98b920c7bea28",
     table: "Block",
     mode: "policyless_combined_enable_force",
     policies: NO_POLICIES,
