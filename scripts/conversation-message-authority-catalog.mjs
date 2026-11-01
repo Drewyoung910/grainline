@@ -108,9 +108,21 @@ export const CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS = Object.freeze([
 
 export function conversationMessageAuthorityFunctionsForState({
   blockPreparationApplied = false,
+  blockActivationApplied = false,
 } = {}) {
+  const predecessorFunctions = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map(
+    (entry) => (
+      blockActivationApplied
+      && [
+        "grainline_conversation_inbox",
+        "grainline_message_unread_count",
+      ].includes(entry.name)
+        ? Object.freeze({ ...entry, runtimeExecute: false })
+        : entry
+    ),
+  );
   return Object.freeze([
-    ...CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+    ...predecessorFunctions,
     ...(blockPreparationApplied
       ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS
       : []),
