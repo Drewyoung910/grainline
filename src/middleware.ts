@@ -71,6 +71,7 @@ const isPublic = createRouteMatcher([
   "/api/listings/([^/]+)/view",   // listing view tracking — fire-and-forget analytics
   "/api/listings/([^/]+)/click",  // listing click tracking — fire-and-forget analytics
   "/api/seller/([^/]+)/view",     // seller profile view tracking — fire-and-forget analytics
+  "/api/seller/([^/]+)/map-card", // public map marker card — bounded authority + IP rate limit in route
   "/api/listings/([^/]+)/similar",       // similar listings — public
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
   "/api/cases/([^/]+)/escalate",       // case escalation — route verifies session or CRON_SECRET
