@@ -159,8 +159,9 @@ export default async function WhyGrainlinePage() {
                 A real dispute system
               </h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                If something arrives damaged, late, or wrong, open a case. The maker has 48 hours to respond. If
-                you can&apos;t reach an agreement, Grainline staff make the final call and issue the refund.
+                For eligible orders, the order page explains when a case can be opened. Buyers and makers can
+                share details in the case thread, and unresolved eligible cases can be escalated for Grainline
+                staff to review under the case rules.
               </p>
             </div>
           </div>
