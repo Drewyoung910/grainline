@@ -13,7 +13,9 @@ const NOISY_PATTERNS = [
 
 const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|email|ip[_-]?address|token|secret|password|api[_-]?key|session|clerk|stripe|resend)/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const EMAIL_DETECTION_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const EMAIL_QUERY_PATTERN = /(^|[?&\s])((?:[^?&=\s]*email[^?&=\s]*)=)[^&\s,]+/gi;
+const QUERY_VALUE_PATTERN = /(^|[?&\s])([^?&=\s]+)=([^&\s,]+)/gi;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
 const TOKEN_QUERY_PATTERN = /(^|[?&\s])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s,]+/gi;
 const ADDRESS_AUTOCOMPLETE_PATH_PATTERN = /\/api\/address\/autocomplete\b/i;
@@ -56,8 +58,36 @@ function isBotStripeLoadFailure(event: ErrorEvent, text: string) {
   return isKnownBot(`${requestHeaders} ${tagText}`);
 }
 
+function containsEmailAfterBoundedDecode(value: string) {
+  let candidate = value;
+  for (let pass = 0; pass < 3; pass += 1) {
+    if (EMAIL_DETECTION_PATTERN.test(candidate)) return true;
+    if (!candidate.includes("%")) return false;
+
+    let decoded;
+    try {
+      decoded = decodeURIComponent(candidate);
+    } catch {
+      return false;
+    }
+    if (decoded === candidate) return false;
+    candidate = decoded;
+  }
+  return EMAIL_DETECTION_PATTERN.test(candidate);
+}
+
+function scrubEncodedEmailQueryValues(value: string) {
+  return value.replace(
+    QUERY_VALUE_PATTERN,
+    (match, prefix: string, key: string, queryValue: string) =>
+      containsEmailAfterBoundedDecode(queryValue)
+        ? `${prefix}${key}=[redacted-email]`
+        : match,
+  );
+}
+
 function scrubString(value: string, opts: { redactUrls?: boolean } = {}) {
-  let scrubbed = value
+  let scrubbed = scrubEncodedEmailQueryValues(value)
     .replace(EMAIL_QUERY_PATTERN, "$1$2[redacted-email]")
     .replace(EMAIL_PATTERN, "[redacted-email]")
     .replace(TOKEN_QUERY_PATTERN, "$1$2[redacted]");
