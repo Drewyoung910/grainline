@@ -50,6 +50,7 @@ const heldTests = [
 const packageOwnedTests = [
   "user-clerk-identity-authority-postgres.test.mjs",
   "user-email-address-history.test.mjs",
+  "private-table-rls-activation-production.test.mjs",
 ];
 const accountDeletionSuccessorTests = [
   "account-deletion-side-effect-ci.test.mjs",
