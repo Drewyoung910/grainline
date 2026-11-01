@@ -241,8 +241,11 @@ TO grainline_app_runtime;
 The guarded rollback draft is
 `docs/rls-drafts/service-reference-least-privilege-rollback.sql`. Rollback also
 requires reverting the provisioning and grant-audit allowlists, then re-running
-the global audit. No data migration or column rollback is needed. The rollback
-is rehearsed and restored on the disposable PostgreSQL 17 full chain.
+the global audit. The successfully applied migration ledger row remains intact;
+Prisma cannot mark a completed migration rolled back. Reapplying the narrowing
+therefore requires a new reviewed forward migration with a new name. No data
+migration or column rollback is needed. The rollback is rehearsed and restored
+on the disposable PostgreSQL 17 full chain.
 
 ## Go/no-go
 

@@ -81,6 +81,18 @@ describe("service and reference table least privilege", () => {
     );
   });
 
+  it("keeps emergency rollback compatible with a completed Prisma ledger row", () => {
+    const rollback = readFileSync(
+      join(
+        repositoryRoot,
+        "docs/rls-drafts/service-reference-least-privilege-rollback.sql",
+      ),
+      "utf8",
+    );
+    assert.doesNotMatch(rollback, /migrate resolve --rolled-back/u);
+    assert.match(rollback, /new reviewed forward migration with a new name/u);
+  });
+
   it("changes the recurring audit expectation only after the exact ledger row", async () => {
     const absent = await readServiceReferenceLeastPrivilegeState({
       async query(sql) {

@@ -5,10 +5,10 @@
 -- production catalog. This restores the predecessor application's direct CRUD
 -- authority; it does not change rows, RLS, policies, functions or PUBLIC.
 -- After the database rollback, restore compatible application source and the
--- predecessor provisioning/audit expectations. If the forward migration must
--- run again, reconcile its Prisma ledger row with `prisma migrate resolve
--- --rolled-back 20261101020000_narrow_service_reference_runtime_privileges`
--- only after the database rollback and an owner-reviewed ledger inspection.
+-- predecessor provisioning/audit expectations. Keep the successfully applied
+-- Prisma ledger row intact: Prisma's rollback resolution accepts failed
+-- migrations only and cannot rewrite this completed row. If the narrowing is
+-- needed again, ship a new reviewed forward migration with a new name.
 
 BEGIN;
 
