@@ -186,7 +186,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "a52ca06e94c7a74b736e5d55741a5431c04eb7b0584c97b872fc8328dbd54434",
     rollbackPath: "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
     rollbackSha256:
-      "4411e29e8b8372b34494014f93114b9d3114aa48ca67895c9ac9445568a2cd9b",
+      "a6167ce605c8f4bd7df4b5ca6c5a7d59688f79b23207c36a1de3b0e99acd8050",
     table: "SellerBroadcast",
     mode: "policyless_combined_enable_force",
     policies: NO_POLICIES,

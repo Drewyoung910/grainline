@@ -137,5 +137,6 @@ $grainline_seller_broadcast_rollback_postflight$;
 
 COMMIT;
 
--- Production ledger reconciliation is a separate owner-authorized operation:
--- npx prisma migrate resolve --rolled-back 20261101050000_activate_seller_broadcast_rls
+-- Keep the successfully applied Prisma ledger row intact: Prisma's rollback
+-- resolution accepts failed migrations only and cannot rewrite this completed
+-- row. Re-activation requires a new reviewed forward migration with a new name.

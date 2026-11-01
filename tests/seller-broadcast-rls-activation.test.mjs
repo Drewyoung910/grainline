@@ -73,10 +73,8 @@ test("SellerBroadcast rollback restores compatible CRUD before disabling RLS", (
   assert.equal(grant >= 0, true);
   assert.equal(grant < noForce, true);
   assert.equal(noForce < disable, true);
-  assert.match(
-    rollback,
-    /migrate resolve --rolled-back 20261101050000_activate_seller_broadcast_rls/u,
-  );
+  assert.doesNotMatch(rollback, /migrate resolve --rolled-back/u);
+  assert.match(rollback, /new reviewed forward migration with a new name/u);
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
 });
 
