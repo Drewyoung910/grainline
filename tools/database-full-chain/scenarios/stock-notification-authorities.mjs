@@ -290,18 +290,13 @@ async function proveSubscribeBlockSerialization({ connectionString, database, fi
     await subscribeFirst.query("COMMIT");
 
     await beginRuntime(blockSecond, fixture.seller.userId);
-    await blockSecond.query(
-      `SELECT * FROM public.grainline_user_block_pair_lock($1)`,
-      [fixture.subscriberA],
-    );
-    await blockSecond.query(
-      `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
-       VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
-      [`${fixture.listings.subscribeRaceA}_block`, fixture.seller.userId, fixture.subscriberA],
-    );
-    await blockSecond.query(
-      `SELECT public.grainline_stock_notification_block_cleanup($1)`,
-      [fixture.subscriberA],
+    assert.deepEqual(
+      (await blockSecond.query(
+        `SELECT public.grainline_user_block_create($1) AS created`,
+        [fixture.subscriberA],
+      )).rows,
+      [{ created: true }],
+      "the activated Block table must be mutated through its actor-bound authority",
     );
     await blockSecond.query("COMMIT");
     assert.equal(Number(rowsOf(await database.query(
@@ -312,14 +307,13 @@ async function proveSubscribeBlockSerialization({ connectionString, database, fi
     ))[0]?.count ?? -1), 0);
 
     await beginRuntime(blockSecond, fixture.seller.userId);
-    await blockSecond.query(
-      `SELECT * FROM public.grainline_user_block_pair_lock($1)`,
-      [fixture.subscriberB],
-    );
-    await blockSecond.query(
-      `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
-       VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
-      [`${fixture.listings.subscribeRaceB}_block`, fixture.seller.userId, fixture.subscriberB],
+    assert.deepEqual(
+      (await blockSecond.query(
+        `SELECT public.grainline_user_block_create($1) AS created`,
+        [fixture.subscriberB],
+      )).rows,
+      [{ created: true }],
+      "the activated Block table must be mutated through its actor-bound authority",
     );
 
     await beginRuntime(subscribeFirst, fixture.subscriberB, "250ms");
