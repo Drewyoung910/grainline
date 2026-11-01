@@ -410,6 +410,24 @@ function stockNotificationPreparationMigrationSourcePath() {
   return stagedPath;
 }
 
+function sellerBroadcastPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    sellerBroadcastPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedMigrationPath =
+    process.env.SELLER_BROADCAST_PREPARATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedMigrationPath &&
+      path.isAbsolute(stagedMigrationPath) &&
+      existsSync(stagedMigrationPath),
+    "missing isolated SellerBroadcast preparation migration",
+  );
+  return path.dirname(stagedMigrationPath);
+}
+
 function favoritePreparationMigrationSourcePath() {
   const livePath = path.join(
     "prisma",
@@ -970,6 +988,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       cpSync(
         stockNotificationPreparationMigrationSourcePath(),
         stockNotificationPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerBroadcastPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerBroadcastPreparationMigration,
+    );
+    if (!existsSync(sellerBroadcastPreparationTarget)) {
+      cpSync(
+        sellerBroadcastPreparationMigrationSourcePath(),
+        sellerBroadcastPreparationTarget,
         { recursive: true },
       );
     }
