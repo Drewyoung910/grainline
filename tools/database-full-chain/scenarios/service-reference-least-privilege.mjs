@@ -139,8 +139,8 @@ export async function proveServiceReferenceLeastPrivilege({
     await runtime.query(
       `INSERT INTO public."SystemAuditLog" (
          id, "actorType", "actorId", action, "targetType", "targetId", metadata, "createdAt"
-       ) VALUES ($1, 'system', NULL, 'SERVICE_REFERENCE_PROOF', 'PROOF', $1, '{}'::jsonb, CURRENT_TIMESTAMP)`,
-      [auditId],
+       ) VALUES ($1, 'system', NULL, 'SERVICE_REFERENCE_PROOF', 'PROOF', $2, '{}'::jsonb, CURRENT_TIMESTAMP)`,
+      [auditId, auditId],
     );
     const audit = await runtime.query(
       'SELECT id FROM public."SystemAuditLog" WHERE id = $1',
