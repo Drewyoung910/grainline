@@ -3,6 +3,7 @@
 
 import { useState, useTransition, type CSSProperties } from "react";
 import { useToast } from "@/components/Toast";
+import { favoriteErrorMessage } from "@/lib/favoriteFeedback";
 
 // Burst dot end positions (px from the heart's center), one ring of eight.
 const HEART_BURST_OFFSETS: ReadonlyArray<readonly [number, number]> = [
@@ -55,7 +56,7 @@ export default function FavoriteButton({
           setSaved(!next);
           const data = await res.json().catch(() => null) as { error?: string } | null;
           console.error("Favorite failed:", data?.error ?? res.statusText);
-          toast(data?.error ?? "Couldn’t update favorites. Please try again.", "error");
+          toast(favoriteErrorMessage(res.status), "error");
         }
       } catch (err) {
         setSaved(!next);
