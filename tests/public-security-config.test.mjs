@@ -13,6 +13,12 @@ describe("public security configuration guardrails", () => {
     assert.match(config, /productionBrowserSourceMaps:\s*false/);
   });
 
+  it("keeps dynamic metadata in the document head for every crawler", () => {
+    const config = source("next.config.ts");
+
+    assert.match(config, /htmlLimitedBots:\s*\/\.\*\//);
+  });
+
   it("keeps enforced script CSP off unsafe eval", () => {
     const config = source("next.config.ts");
 
