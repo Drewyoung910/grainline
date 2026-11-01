@@ -115,7 +115,7 @@ const emailEligibilityLockOrderCorrectionMigration =
 const stockNotificationPreparationMigration =
   "20261026010000_prepare_stock_notification_authorities";
 const sellerAnalyticsDailyPreparationMigration =
-  "20261101010000_prepare_seller_analytics_daily_authorities";
+  "20261101030000_prepare_seller_analytics_daily_authorities";
 const favoritePreparationMigration =
   "20261028010000_prepare_favorite_authorities";
 const followPreparationMigration =

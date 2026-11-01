@@ -7,7 +7,7 @@ function source(path) {
 }
 
 const migrationPath =
-  "prisma/migrations/20261101010000_prepare_seller_analytics_daily_authorities/migration.sql";
+  "prisma/migrations/20261101030000_prepare_seller_analytics_daily_authorities/migration.sql";
 
 describe("seller analytics daily compatible preparation", () => {
   it("adds validated invariants and purpose-bound functions without activating RLS", () => {
