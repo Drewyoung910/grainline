@@ -45,7 +45,12 @@ export function safeInternalPath(
 
   try {
     const parsed = new URL(value, "https://thegrainline.com");
-    if (parsed.origin !== "https://thegrainline.com") return fallback;
+    if (
+      parsed.origin !== "https://thegrainline.com" ||
+      unsafeInternalPathPrefix(parsed.pathname)
+    ) {
+      return fallback;
+    }
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return fallback;
@@ -85,7 +90,7 @@ export function safeInternalReturnUrl(
   try {
     const appOrigin = new URL(appUrl).origin;
     const parsed = new URL(returnUrl, appOrigin);
-    if (parsed.origin !== appOrigin) return null;
+    if (parsed.origin !== appOrigin || unsafeInternalPathPrefix(parsed.pathname)) return null;
     return parsed.toString();
   } catch {
     return null;
