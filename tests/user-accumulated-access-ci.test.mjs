@@ -426,7 +426,9 @@ function blockPreparationMigrationSourcePath() {
     stagedPath && existsSync(stagedPath),
     "missing isolated Block preparation migration",
   );
-  return stagedPath;
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
 }
 
 function userReportPreparationMigrationSourcePath() {
@@ -441,7 +443,9 @@ function userReportPreparationMigrationSourcePath() {
     stagedPath && existsSync(stagedPath),
     "missing isolated UserReport preparation migration",
   );
-  return stagedPath;
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
 }
 
 function sellerFaqPreparationMigrationSourcePath() {
@@ -456,7 +460,9 @@ function sellerFaqPreparationMigrationSourcePath() {
     stagedPath && existsSync(stagedPath),
     "missing isolated SellerFaq preparation migration",
   );
-  return stagedPath;
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
 }
 
 function favoritePreparationMigrationSourcePath() {
