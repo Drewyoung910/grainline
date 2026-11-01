@@ -39,6 +39,7 @@ import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
 import { proveSellerProfilePublicReviewVoteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-review-vote-target.mjs";
 import { proveReviewVoteAuthorities } from "../tools/database-full-chain/scenarios/review-vote-authorities.mjs";
+import { proveServiceReferenceLeastPrivilege } from "../tools/database-full-chain/scenarios/service-reference-least-privilege.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -1225,6 +1226,20 @@ test(
         database: adapter,
         repositoryRoot,
       });
+      assert.deepEqual(
+        await proveServiceReferenceLeastPrivilege({
+          connectionString: proofDatabaseUrl,
+          ownerClient: client,
+        }),
+        {
+          siteConfig: ["SELECT"],
+          systemAuditLog: ["INSERT", "SELECT"],
+          foundingMakerGrant: ["SELECT"],
+          metro: ["INSERT", "SELECT", "UPDATE"],
+          siteMetricsSnapshot: ["INSERT", "SELECT", "UPDATE"],
+          sellerExactMapConsentEvent: [],
+        },
+      );
     } finally {
       await client.end();
       rmSync(preparationEvidenceDirectory, { recursive: true, force: true });
