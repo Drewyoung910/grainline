@@ -405,7 +405,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
       Object.freeze({
         name: "grainline_conversation_inbox_owner",
-        arguments: "boolean, text, timestamp, text, integer",
+        arguments: "boolean, text, timestamp without time zone, text, integer",
       }),
       Object.freeze({
         name: "grainline_message_unread_count_owner",
