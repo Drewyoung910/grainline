@@ -63,6 +63,7 @@
     "audit:user-indirect-access": "node scripts/audit-user-indirect-access.mjs",
     "audit:seller-profile-public-access": "node scripts/audit-user-indirect-access.mjs --model=SellerProfile",
     "audit:seller-profile-public-contracts": "node scripts/seller-profile-public-consumer-contracts.mjs",
+    "audit:seller-broadcast-consumers": "node scripts/seller-broadcast-consumer-contracts.mjs",
     "audit:seller-profile-public-fields": "node scripts/seller-profile-public-field-contracts.mjs",
     "audit:seller-profile-public-catalog": "node scripts/seller-profile-public-catalog-inventory.mjs",
     "audit:seller-profile-public-retained-evidence": "node scripts/seller-profile-public-retained-authority-evidence.mjs",

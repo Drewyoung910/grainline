@@ -1,0 +1,225 @@
+# SellerBroadcast pre-RLS audit
+
+Date: 2026-11-01
+
+Status: source and design audit in progress on exact public main
+`12a4dfc492412ff52ff94d921e20e7026c4cff38`. Option B is selected in
+`docs/seller-broadcast-rls-options.md`. This document authorizes no Production
+operation, merge, deployment, grant change, or RLS activation.
+
+## Domain and data classification
+
+`SellerBroadcast` has six scalars:
+
+| Column | Classification | Current writers/readers |
+| --- | --- | --- |
+| `id` | stable source identifier | create path; notification/email/upload source validation; staff and deletion |
+| `sellerProfileId` | owner relationship | create path; every visibility and lifecycle path |
+| `message` | public only through bounded current surfaces | owner create/history/export; public latest; follower feed; staff search |
+| `imageUrl` | public first-party media only through bounded current surfaces | owner create/history/export; public latest; follower feed; staff; upload lifecycle |
+| `sentAt` | public ordering/time | database default; public/feed/owner/staff ordering |
+| `recipientCount` | owner/staff operational metadata | provisional create; after-delivery update; owner history/export; staff |
+
+The message and image are intentionally public when reached through an active
+shop page or eligible follower feed. The full history and delivery count are
+not currently public. The table therefore cannot be treated as a generic
+public catalog relation.
+
+## Exact application caller inventory
+
+Six source files perform 16 direct Prisma operations:
+
+The machine-checked inventory runs with:
+
+```sh
+npm run audit:seller-broadcast-consumers
+```
+
+| Caller | Direct operations | Principal and invariant |
+| --- | --- | --- |
+| `src/app/api/seller/broadcast/route.ts` | two `findFirst`, `create`, `findUnique`, `update`, `findMany`, `count` | Active owner create/cooldown, post-response source recheck and count update, owner history |
+| `src/app/api/account/feed/route.ts` | `findMany` | Signed-in follower; bounded recent rows for currently visible followed sellers after reciprocal-block filtering |
+| `src/app/seller/[id]/page.tsx` | `findFirst` | Anonymous or signed-in viewer; latest row only after seller visibility and block checks |
+| `src/app/admin/broadcasts/page.tsx` | `findUnique`, `deleteMany`, `count`, `findMany` | Staff plus admin PIN; global bounded queue/search and atomic deletion side effects |
+| `src/app/api/account/export/route.ts` | `findMany` | Active account owner export of the exact seller profile's complete history |
+| `src/lib/accountDeletion.ts` | `findMany`, `deleteMany` | Deletion service; source outbox redaction before exact seller broadcast deletion |
+
+No other `src/` file directly queries the delegate on this baseline.
+
+## Installed database dependencies
+
+The current migration chain contains retained functions and triggers that must
+survive zero-direct activation:
+
+- `grainline_notification_create_core(...)` locks and validates the exact
+  broadcast, seller, source user, follower relationship, recipient account,
+  reciprocal-block state, and active-shop state before inserting an in-app
+  notification.
+- `grainline_notification_delete_seller_broadcast(text)` validates the source
+  and deletes its notification rows during staff cleanup.
+- `grainline_direct_upload_sync_seller_broadcast(text,text)` locks the exact
+  broadcast, proves seller ownership, and claims the durable first-party image.
+- `grainline_direct_upload_release_seller_broadcast_delete` releases the
+  durable upload reference before row deletion.
+- `grainline_email_outbox_source_owner(text,text)` resolves the source seller
+  for email enqueue and provider-attempt fences.
+- `grainline_seller_staff_broadcast_targets(text,text[])` returns bounded
+  seller labels for the staff queue through the isolated staff role.
+- the `SellerProfile -> SellerBroadcast` foreign key cascades owner deletion.
+
+Preparation must inventory the exact installed signatures, owners, ACLs,
+volatility, security mode, search paths, triggers, constraints, and hashes on a
+complete disposable PostgreSQL 17 database. Static migration text is not
+sufficient release evidence.
+
+## Workflow audit
+
+### Owner create and cooldown
+
+The route resolves the Clerk account and active seller, validates and sanitizes
+message/image input, verifies first-party media, reads eligible followers, and
+uses a `SERIALIZABLE` transaction for the durable cooldown recheck, insert, and
+upload-reference claim. Concurrent create attempts serialize through SSI: one
+commits and a retry observes the new latest row. The Redis limiter is only an
+outer abuse control and is not the durable cooldown authority.
+
+The RLS conversion must keep create plus upload-reference claim in one
+transaction. Direct owner insert is not acceptable because it would separate
+cooldown, active-shop, seller ownership, provisional audience, and media
+reference invariants.
+
+### Post-response fanout
+
+The background callback re-reads the source and seller state. In-app
+notification creation then re-proves the exact source, follower relationship,
+recipient account, blocks, and active-shop state under row locks. Staff or
+account deletion either prevents creation or deletes already-created fanout.
+
+The route stores a provisional in-app recipient count and later reduces it to
+the number of notifications actually created. The field does not count
+email-only recipients, even though the UI labels it generically as
+"recipients." That is a product-copy/metric issue, not a reason to broaden
+table access; the fixed operation should preserve existing semantics until a
+separate product change is approved.
+
+### Queued-email eligibility drift — fix before activation
+
+The email enqueue and provider-attempt functions re-check that the source row
+exists, that the source account remains active, and that the recipient remains
+email-eligible. They do **not** re-check that the recipient still follows the
+seller or that the recipient and seller remain unblocked. Therefore a queued
+broadcast email can still be sent after an unfollow or reciprocal block. This
+independently confirms the previously reported queued-maker-email finding.
+
+Required correction: the source-eligibility function used immediately before
+provider attempt must bind `seller_broadcast` to the current source seller,
+current recipient user, current `Follow`, reciprocal `Block` absence, and
+active-shop/source-account state under the same lock-order protocol as
+notification creation. A behavior test must queue first, then unfollow/block,
+and prove the job becomes `SKIPPED` before provider work.
+
+### Public latest and follower feed
+
+The seller page proves seller visibility and reciprocal-block state before
+reading one latest broadcast. The follower feed first derives the actor's
+followed seller ids, removes reciprocal blocks, derives currently visible
+seller cards, reads at most `limit + 1` recent rows, and rechecks the returned
+sellers before rendering.
+
+RLS preparation must preserve those distinct contracts. A policy that permits
+all rows for a visible seller would expose old messages and delivery counts
+beyond the current public surface.
+
+### Owner history and export
+
+History is bounded to ten rows per page and capped to page 1000. Export returns
+the full owner history. Both derive seller ownership from the authenticated
+local user, not a client-supplied seller id. The fixed operations must derive
+the actor from transaction-local `app.user_id` and refuse banned, deleted, or
+missing actors.
+
+### Staff read and delete
+
+The page is guarded by staff role plus admin PIN. It currently performs global
+count/search/read and row deletion through the ordinary runtime client, while
+seller labels already use the isolated staff client. The RLS conversion must
+finish the boundary: staff list/search/delete operations execute only through
+`grainline_staff_read_runtime`, validate the staff actor, and bind deletion to
+the atomic notification/outbox cleanup and admin audit record.
+
+This is part of the broader verified staff-login gap; activation must not
+create a new ordinary-runtime staff mutation authority.
+
+### Account deletion and upload lifecycle
+
+Deletion first enumerates source ids to redact or skip pending emails, then
+deletes the seller's broadcasts. The delete trigger releases direct-upload
+references. Preparation must keep the cleanup inside the larger account
+deletion transaction and must prove another seller's broadcast, outbox,
+notification, and upload rows are untouched.
+
+## Race and crash matrix
+
+| Race/crash | Current behavior to preserve | Required proof |
+| --- | --- | --- |
+| Two owner sends | Serializable conflict/retry leaves one row inside the seven-day window | Two concurrent sessions, one durable row |
+| Block/unfollow during in-app fanout | Notification core rechecks and refuses delivery | Hold source/follower locks and prove fail-closed completion |
+| Block/unfollow during email queue delay | Currently stale and can send | Failing-first test, then provider-attempt `SKIPPED` |
+| Staff delete during in-app fanout | Source locking either prevents create or cleanup deletes the created notification | Two-session delete/create proof |
+| Staff delete during email enqueue | Source re-derivation or outbox cleanup prevents retained pending delivery | Two-session enqueue/delete proof |
+| Account deletion during fanout | User/source locks plus source cleanup prevent durable post-delete delivery | Two-session deletion/fanout proof |
+| Crash after row insert but before response | Row remains durable and cooldown prevents duplicate; background fanout may be incomplete | Replay returns cooldown and does not create a second row |
+| Crash during fanout | Notification/outbox dedup keys make retries idempotent, but no durable fanout job currently guarantees completion | Preserve current best-effort semantics; do not claim delivery guarantee |
+| Count update after delete | Update may fail and is caught by outer background telemetry; deleted row stays deleted | Delete wins without recreation |
+
+## Findings and disposition
+
+| Finding | Severity | RLS disposition |
+| --- | --- | --- |
+| Queued broadcast email ignores later unfollow/block | Medium privacy/trust | **FIX_BEFORE_ACTIVATION**; behavior test and shared email eligibility correction |
+| Generic recipient label counts in-app deliveries only | Low product accuracy | Deferred product copy/metric decision; preserve field semantics during RLS |
+| Staff CRUD uses ordinary runtime while labels use isolated staff role | Medium security boundary | **FIX_BEFORE_ACTIVATION** as part of staff operation conversion |
+| Zod's `.max(500)` counts UTF-16 units while storage sanitization truncates by code point | Low input inconsistency | Fix during caller conversion so valid emoji-heavy text is rejected or accepted consistently; no stored overlength path found |
+| Post-response fanout is best-effort rather than a durable job | Medium reliability, pre-existing | Documented; not silently expanded into the RLS release. Consider a later durable fanout ledger design |
+
+No column deletion, historical content rewrite, or behavior-broadening public
+policy is approved.
+
+## Selected authority contracts
+
+Option B needs these bounded operations; exact signatures remain part of the
+additive preparation review:
+
+1. owner cooldown/create with active-seller and actor binding;
+2. owner paginated history and owner export;
+3. public latest for an already-visible seller/viewer contract;
+4. actor follower-feed page with current follow/block/visibility checks;
+5. source/delivery recheck plus monotonic recipient-count update;
+6. isolated-staff count/list/search and atomic delete;
+7. account-deletion source-id enumeration and exact seller delete; and
+8. retained notification, email-owner, upload-sync, upload-release, and
+   staff-target dependencies.
+
+The zero-direct caller gate must cover Prisma delegates, relation traversals,
+raw SQL, generic clients, and account-deletion helpers. It must not count
+retained fixed functions as direct application access.
+
+## Release and rollback gates
+
+Preparation may be batched with other compatible private-table preparations,
+but activation remains serialized and exact:
+
+- complete PostgreSQL 17 chain and current-function catalog inventory;
+- failing-first behavior tests for each new contract and the email drift;
+- predecessor/new-app compatibility in both deployment orders;
+- no direct runtime/PUBLIC table or column privileges after activation;
+- exact function owners, ACLs, search paths, volatility, and trigger types;
+- app-deploy guard preventing new callers from reaching old database state;
+- migration lock and statement timeouts;
+- sanitized read-only Production inventory before activation;
+- database-first rollback restoring predecessor CRUD and proving predecessor
+  statements before disabling RLS; and
+- migration-ledger recovery instructions for partial workflow failure.
+
+No production or merge action is authorized by this audit.
+
