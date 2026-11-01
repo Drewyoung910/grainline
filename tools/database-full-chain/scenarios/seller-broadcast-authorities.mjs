@@ -476,6 +476,22 @@ export async function proveSellerBroadcastPreparedAuthorities({
   );
   assert.equal(feed[0]?.id, proposedId);
 
+  const wideEmptyFeed = await runtimeQuery(
+    database,
+    followerId,
+    `SELECT * FROM public.grainline_seller_broadcast_actor_feed_page(
+       $1::text[],
+       (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC' - interval '90 days')::timestamp(3),
+       NULL::timestamp(3), NULL::text, 'none'::text, 21
+     )`,
+    [Array.from({ length: 101 }, (_, index) => `${suffix}_absent_${index}`)],
+  );
+  assert.deepEqual(
+    wideEmptyFeed,
+    [],
+    "the 1,000-shop feed contract must not inherit the 100-id public-state helper cap",
+  );
+
   const unfollowClaim = await seedProviderClaim(database, {
     followerId,
     followerEmail: `${followerId}@example.test`,
