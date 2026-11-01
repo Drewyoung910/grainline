@@ -223,6 +223,10 @@ describe("accessibility follow-ups", () => {
     assert.match(vacationMode, /id=\{vacationMessageCounterId\} aria-live="polite"/);
     assert.match(photoManager, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
     assert.match(editPhotoGrid, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
+    for (const modal of [photoManager, editPhotoGrid]) {
+      assert.match(modal, /items-start justify-center overflow-y-auto overscroll-contain/);
+      assert.match(modal, /className="my-auto bg-white/);
+    }
   });
 
   it("labels read-only star ratings for assistive technology", () => {
