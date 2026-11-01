@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 const { isAlwaysOnEmailPreferenceKey } = await import(
@@ -35,9 +36,7 @@ describe("admin query and email guardrails", () => {
   it("keeps admin list ordering deterministic on equal timestamps", () => {
     const users = source("src/app/admin/users/page.tsx");
     const audit = source("src/app/admin/audit/page.tsx");
-    const broadcastMigration = source(
-      "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
-    );
+    const broadcastMigration = source(sellerBroadcastPreparationMigrationPath());
     const reviews = source("src/app/admin/reviews/page.tsx");
     const supportMigration = source(supportRequestPreparationMigrationPath());
 

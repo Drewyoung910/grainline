@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -90,9 +91,7 @@ describe("seller operational route hardening", () => {
   it("keeps seller broadcast writes gated to orderable sellers and first-party media", () => {
     const route = source("src/app/api/seller/broadcast/route.ts");
     const composer = source("src/components/BroadcastComposer.tsx");
-    const migration = source(
-      "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
-    );
+    const migration = source(sellerBroadcastPreparationMigrationPath());
 
     assert.match(route, /!seller\.chargesEnabled \|\| seller\.vacationMode/);
     assert.match(route, /isTextWithinCodePointRange\(message, 1, 500\)/);
