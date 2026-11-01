@@ -486,6 +486,7 @@ jobs:
           migration=20261101020000_narrow_service_reference_runtime_privileges
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -7022,6 +7023,7 @@ jobs:
           migration=20261101020000_narrow_service_reference_runtime_privileges
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
+          echo "SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |

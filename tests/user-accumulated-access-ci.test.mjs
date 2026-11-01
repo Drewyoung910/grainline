@@ -483,6 +483,22 @@ function makerVerificationMigrationSourcePath(migration) {
   return path.dirname(stagedPath);
 }
 
+function serviceReferenceLeastPrivilegeMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    serviceReferenceLeastPrivilegeMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath =
+    process.env.SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated service/reference least-privilege migration",
+  );
+  return path.dirname(stagedPath);
+}
+
 function favoriteActivationMigrationSourcePath() {
   const stagedPath = process.env.FAVORITE_RLS_ACTIVATION_MIGRATION_PATH?.trim() ?? "";
   if (stagedPath !== "") {
@@ -1037,6 +1053,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
           { recursive: true },
         );
       }
+    }
+    const serviceReferenceLeastPrivilegeTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      serviceReferenceLeastPrivilegeMigration,
+    );
+    if (!existsSync(serviceReferenceLeastPrivilegeTarget)) {
+      cpSync(
+        serviceReferenceLeastPrivilegeMigrationSourcePath(),
+        serviceReferenceLeastPrivilegeTarget,
+        { recursive: true },
+      );
     }
     const favoriteActivationTarget = path.join(
       root,
