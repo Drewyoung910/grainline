@@ -430,6 +430,24 @@ function sellerBroadcastPreparationMigrationSourcePath() {
   return path.dirname(stagedMigrationPath);
 }
 
+function sellerBroadcastActivationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    sellerBroadcastActivationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedMigrationPath =
+    process.env.SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedMigrationPath &&
+      path.isAbsolute(stagedMigrationPath) &&
+      existsSync(stagedMigrationPath),
+    "missing isolated SellerBroadcast activation migration",
+  );
+  return path.dirname(stagedMigrationPath);
+}
+
 function favoritePreparationMigrationSourcePath() {
   const livePath = path.join(
     "prisma",
@@ -1016,12 +1034,7 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     );
     if (!existsSync(sellerBroadcastActivationTarget)) {
       cpSync(
-        path.join(
-          process.cwd(),
-          "prisma",
-          "migrations",
-          sellerBroadcastActivationMigration,
-        ),
+        sellerBroadcastActivationMigrationSourcePath(),
         sellerBroadcastActivationTarget,
         { recursive: true },
       );
