@@ -65,7 +65,7 @@ export default function ScrollFadeRow({
       ro.observe(child);
     }
     return () => ro.disconnect();
-  }, [updateEdgeState]);
+  }, [updateEdgeState, children]);
 
   const scrollByPage = useCallback((direction: -1 | 1) => {
     const el = ref.current;

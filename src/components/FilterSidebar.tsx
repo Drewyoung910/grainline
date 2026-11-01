@@ -58,6 +58,13 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   const lat = geo?.lat ?? urlLat;
   const lng = geo?.lng ?? urlLng;
 
+  // Once a detected point has reached the URL, let the URL become the source
+  // of truth again. Otherwise removing the location filter leaves the stale
+  // detected point painted as active even though the results are unfiltered.
+  React.useEffect(() => {
+    if (geo?.lat === urlLat && geo?.lng === urlLng) setGeo(null);
+  }, [geo, urlLat, urlLng]);
+
   // The price fields are controlled so a typed price survives the page
   // refreshing around it, and so every other filter link carries it along:
   // clicking a category right after typing a price keeps both.
