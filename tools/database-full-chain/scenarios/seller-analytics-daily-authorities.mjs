@@ -1234,7 +1234,7 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
        VALUES ($1, $2, $3, pg_catalog.clock_timestamp(), -1, 0)`,
       [`${suffix}_invalid_daily`, directListingId, seller.sellerProfileId],
     ),
-    (error) => error?.code === "23514",
+    (error) => error?.code === (directTableAuthority ? "23514" : "42501"),
   );
 
   const driftListingId = `${suffix}_drift_listing`;
