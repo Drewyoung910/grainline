@@ -265,6 +265,8 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
 ];
 const SELLER_BROADCAST_PREPARATION_MIGRATION =
   "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql";
+const SELLER_BROADCAST_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101050000_activate_seller_broadcast_rls/migration.sql";
 const SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES = [
   "grainline_seller_broadcast_owner_cooldown",
   "grainline_seller_broadcast_owner_create",
@@ -3704,6 +3706,11 @@ describe("database grant inventory guardrails", () => {
       source(SELLER_BROADCAST_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const sellerBroadcastRlsActivationPresent = existsSync(
+      SELLER_BROADCAST_ACTIVATION_MIGRATION,
+    ) && source(SELLER_BROADCAST_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL ON TABLE public."SellerBroadcast"',
+    );
     const reviewVoteAuthorityPrepared = existsSync(
       REVIEW_VOTE_PREPARATION_MIGRATION,
     ) && REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -4034,6 +4041,7 @@ describe("database grant inventory guardrails", () => {
           ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
             + 1 // reasserted provider-attempt PUBLIC/runtime revoke
           : 0)
+        + (sellerBroadcastRlsActivationPresent ? 1 : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
           : 0)
@@ -4525,6 +4533,7 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         ...(sellerProfilePublicCandidatePresent ? ["SellerProfile"] : []),
@@ -4585,6 +4594,7 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
         "SellerPayoutEvent",
         ...(sellerProfilePublicForceMigrationPresent
@@ -6143,6 +6153,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const sellerBroadcastProvisioningPresent = provision.includes(
+      "seller_broadcast_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6153,7 +6166,8 @@ describe("database grant inventory guardrails", () => {
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
-        + Number(reviewVoteProvisioningPresent),
+        + Number(reviewVoteProvisioningPresent)
+        + Number(sellerBroadcastProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -6236,6 +6250,16 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :grainline_follow_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Follow"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
+    if (sellerBroadcastProvisioningPresent) {
+      assert.match(
+        provision,
+        /SellerBroadcast RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :seller_broadcast_rls_active[\s\S]*REVOKE ALL ON TABLE public\."SellerBroadcast" FROM PUBLIC, :"runtime_role"/,
       );
     }
     assert.equal(

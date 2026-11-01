@@ -338,14 +338,18 @@ jobs:
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
-      - name: Verify SellerBroadcast preparation source package
+      - name: Verify SellerBroadcast source packages
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
           --experimental-strip-types --test --test-concurrency=1
           tests/admin-action-guardrails.test.mjs
           tests/db-grant-inventory.test.mjs
+          tests/private-table-rls-activation-catalog.test.mjs
+          tests/private-table-rls-activation-production.test.mjs
+          tests/private-table-rls-activation-workflow.test.mjs
           tests/private-table-preparation-production.test.mjs
           tests/seller-broadcast-consumer-contracts.test.mjs
+          tests/seller-broadcast-rls-activation.test.mjs
           tests/seller-ops-hardening.test.mjs
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
@@ -480,15 +484,18 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
-      - name: Isolate SellerBroadcast preparation until historical release guards pass
+      - name: Isolate SellerBroadcast source packages until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-broadcast-preparation"
-          migration=20261101010000_prepare_seller_broadcast_authorities
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+          preparation=20261101010000_prepare_seller_broadcast_authorities
+          activation=20261101050000_activate_seller_broadcast_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -7017,15 +7024,18 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore SellerBroadcast preparation after historical release guards
+      - name: Restore SellerBroadcast source packages after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-broadcast-preparation"
-          migration=20261101010000_prepare_seller_broadcast_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          preparation=20261101010000_prepare_seller_broadcast_authorities
+          activation=20261101050000_activate_seller_broadcast_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          mv "$holding/migrations/$activation" "prisma/migrations/$activation"
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |

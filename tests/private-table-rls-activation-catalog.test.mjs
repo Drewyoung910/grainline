@@ -84,6 +84,18 @@ test("catalog orders and byte-seals the owner social verification activation bat
   }
 });
 
+test("catalog byte-seals the policyless SellerBroadcast activation", () => {
+  const broadcast = privateTableRlsActivation("seller_broadcast_v1");
+  const source = verifyPrivateTableRlsActivationSource("seller_broadcast_v1");
+  assert.equal(broadcast.table, "SellerBroadcast");
+  assert.equal(broadcast.mode, "policyless_combined_enable_force");
+  assert.equal(broadcast.preparation.functions.length, 15);
+  assert.deepEqual(broadcast.policies, []);
+  assert.deepEqual(broadcast.activatedRuntimePrivileges, []);
+  assert.equal(source.migrationDigest, broadcast.migrationSha256);
+  assert.equal(source.rollbackDigest, broadcast.rollbackSha256);
+});
+
 test("batch source verification prefers each release's staged paths", () => {
   const sourceByRelease = Object.fromEntries(
     privateTableRlsActivationReleaseIds("owner_social_verification_v1")

@@ -38,12 +38,14 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
   follow_v1: "FOLLOW_RLS_ACTIVATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -172,6 +174,29 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     activatedStaffPrivileges: NO_PRIVILEGES,
     activatedPublicPrivileges: NO_PRIVILEGES,
     sourceTests: Object.freeze(["tests/maker-verification-preparation.test.mjs"]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  seller_broadcast_v1: Object.freeze({
+    preparationReleaseId: "seller_broadcast_v1",
+    minimumCompatibleAppCommit:
+      "b27ad67e194e97a5a507202b2c1fac0c3f91c4a4",
+    migration: "20261101050000_activate_seller_broadcast_rls",
+    migrationSha256:
+      "a52ca06e94c7a74b736e5d55741a5431c04eb7b0584c97b872fc8328dbd54434",
+    rollbackPath: "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+    rollbackSha256:
+      "4411e29e8b8372b34494014f93114b9d3114aa48ca67895c9ac9445568a2cd9b",
+    table: "SellerBroadcast",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/seller-broadcast-rls-activation.test.mjs",
+    ]),
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
   }),

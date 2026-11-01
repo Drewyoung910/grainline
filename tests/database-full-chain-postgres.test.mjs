@@ -133,8 +133,11 @@ import {
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import {
   SELLER_BROADCAST_PREPARATION_MIGRATION,
+  SELLER_BROADCAST_RLS_MIGRATION,
   proveSellerBroadcastEligibilityGapClosed,
   proveSellerBroadcastPreparedAuthorities,
+  proveSellerBroadcastRlsAuthorities,
+  proveSellerBroadcastRlsRollback,
   seedSellerBroadcastPredecessorEligibilityGap,
 } from
   "../tools/database-full-chain/scenarios/seller-broadcast-authorities.mjs";
@@ -158,6 +161,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   ["20261028060000_activate_follow_rls", "follow_v1"],
   ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
   ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+  [SELLER_BROADCAST_RLS_MIGRATION, "seller_broadcast_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -278,6 +282,8 @@ test(
       let followPreparationPostflightClosed = false;
       let followRollbackReapplyProven = false;
       let sellerBroadcastPredecessorEligibilityGap;
+      let sellerBroadcastPreparationPreflightPath;
+      let sellerBroadcastPreparationPostflightClosed = false;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -416,11 +422,65 @@ test(
               fixture,
               "seller fixture must exist before SellerBroadcast predecessor proof",
             );
+            sellerBroadcastPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-broadcast-preparation-preflight.json",
+            );
+            const preparationPreflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_broadcast_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                    sellerBroadcastPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "b".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPreflight.state, "pending");
             sellerBroadcastPredecessorEligibilityGap =
               await seedSellerBroadcastPredecessorEligibilityGap({
                 database: adapter,
                 seller: fixture,
               });
+          }
+          if (artifact.name === SELLER_BROADCAST_RLS_MIGRATION) {
+            assert.ok(
+              sellerBroadcastPreparationPreflightPath,
+              "SellerBroadcast preparation preflight must precede preparation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_broadcast_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "seller-broadcast-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    sellerBroadcastPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "b".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 15);
+            sellerBroadcastPreparationPostflightClosed = true;
+            assert.ok(
+              sellerBroadcastPredecessorEligibilityGap,
+              "SellerBroadcast predecessor email gap must be seeded",
+            );
+            await proveSellerBroadcastEligibilityGapClosed({
+              database: adapter,
+              predecessor: sellerBroadcastPredecessorEligibilityGap,
+            });
+            await proveSellerBroadcastPreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
           }
           if (artifact.name === "20261028070000_activate_review_vote_rls") {
             assert.ok(
@@ -1218,6 +1278,34 @@ test(
         true,
         "Follow rollback/reapply must be proven before later reviewed readers exist",
       );
+      assert.equal(
+        sellerBroadcastPreparationPostflightClosed,
+        true,
+        "SellerBroadcast preparation postflight must close before activation",
+      );
+      await proveSellerBroadcastRlsAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+        ),
+        "utf8",
+      ));
+      await proveSellerBroadcastRlsRollback({ database: adapter });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${SELLER_BROADCAST_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveSellerBroadcastRlsAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+      });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),
         "utf8",

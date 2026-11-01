@@ -140,6 +140,7 @@ export const STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const FAVORITE_TABLE = "Favorite";
 export const FAVORITE_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const REVIEW_VOTE_TABLE = "ReviewVote";
+export const SELLER_BROADCAST_TABLE = "SellerBroadcast";
 export const REVIEW_VOTE_OWNER_TABLE_PRIVILEGES = ["SELECT"];
 export const CART_OWNER_COLUMN_PRIVILEGES = ["\"updatedAt\":UPDATE"];
 export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
@@ -1549,6 +1550,18 @@ export function followRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
 }
 
+export function sellerBroadcastRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(SELLER_BROADCAST_TABLE)
+    && !policies.has(SELLER_BROADCAST_TABLE);
+}
+
+export function sellerBroadcastRlsForceExpected(inventory) {
+  return sellerBroadcastRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(SELLER_BROADCAST_TABLE);
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -2014,6 +2027,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
     ...(makerVerificationRlsActivationExpected(inventory)
       ? [MAKER_VERIFICATION_TABLE]
+      : []),
+    ...(sellerBroadcastRlsActivationExpected(inventory)
+      ? [SELLER_BROADCAST_TABLE]
       : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
@@ -3045,6 +3061,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     || (
       tableName === MAKER_VERIFICATION_TABLE
       && makerVerificationRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === SELLER_BROADCAST_TABLE
+      && sellerBroadcastRlsActivationExpected(inventory)
     )
     || (
       tableName === SELLER_PROFILE_TABLE

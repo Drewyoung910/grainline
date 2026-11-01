@@ -5522,8 +5522,58 @@ SELECT format(
 \unset order_payment_event_rls_active
 
 -- SellerBroadcast preparation keeps predecessor table CRUD available until
--- activation. Converge only the reviewed purpose-bound operations; the three
--- staff operations remain exclusive to the isolated staff role.
+-- activation. Once the reviewed policyless FORCE posture is active, converge
+-- the runtime role to zero direct table authority. Refuse a partial posture
+-- rather than accidentally reopening the broadcast history.
+WITH posture AS (
+  SELECT class.relrowsecurity AS rls_enabled,
+         class.relforcerowsecurity AS rls_forced,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'SellerBroadcast'
+     AND class.relkind = 'r'
+), state AS (
+  SELECT rls_enabled AND rls_forced AND policy_count = 0 AS active,
+         NOT rls_enabled AND NOT rls_forced AND policy_count = 0
+           AS clean_predecessor
+    FROM posture
+), failure AS (
+  SELECT
+    'SellerBroadcast RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM state
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+       COALESCE((SELECT message FROM failure LIMIT 1), '')
+         AS grainline_role_provisioning_failure,
+       COALESCE((SELECT active FROM state), false)
+         AS seller_broadcast_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_seller_broadcast_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_seller_broadcast_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :seller_broadcast_rls_active
+REVOKE ALL ON TABLE public."SellerBroadcast" FROM PUBLIC, :"runtime_role";
+\endif
+\unset seller_broadcast_rls_active
+
+-- Converge only the reviewed purpose-bound operations; the three staff
+-- operations remain exclusive to the isolated staff role in both states.
 WITH seller_broadcast_functions(function_signature) AS (
   VALUES
     ('public."grainline_seller_broadcast_owner_cooldown"()'),
