@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
@@ -32,7 +33,6 @@ describe("admin audit durability", () => {
   it("co-commits high-risk admin mutations with their audit rows", () => {
     for (const path of [
       "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
       "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/reviews/[id]/route.ts",
     ]) {
@@ -56,6 +56,16 @@ describe("admin audit durability", () => {
       "report resolution must co-commit its status and audit witness",
     );
     assert.match(reportTransition, /BEGIN;[\s\S]*COMMIT;/);
+
+    const broadcastPage = source("src/app/admin/broadcasts/page.tsx");
+    const broadcastTransition = source(sellerBroadcastPreparationMigrationPath());
+    assert.match(broadcastPage, /deleteStaffSellerBroadcast\(/);
+    assert.match(
+      broadcastTransition,
+      /DELETE FROM public\."SellerBroadcast"[\s\S]*INSERT INTO public\."AdminAuditLog"/,
+      "broadcast deletion must co-commit its mutation and audit witness",
+    );
+    assert.match(broadcastTransition, /BEGIN;[\s\S]*COMMIT;/);
 
     const supportActions = source("src/app/admin/support/actions.ts");
     const supportTransition = source(supportRequestPreparationMigrationPath());
