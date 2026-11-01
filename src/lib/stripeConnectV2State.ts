@@ -1,5 +1,6 @@
 export const STRIPE_CONNECT_V2_API_VERSION = "2026-02-25.clover";
 export const STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
+export const STRIPE_CONNECT_COUNTRY = "US";
 export const STRIPE_CONNECT_CONTROLLER_SUMMARY =
   "dashboard:express|fees:application|losses:application|requirements:stripe";
 export const STRIPE_CONNECT_V2_ACCOUNT_EVENT_PREFIX = "v2.core.account";
@@ -53,21 +54,15 @@ export type StripeConnectV2AccountNotification = {
   } | null;
 };
 
-function normalizedStripeCountry(country: string | null | undefined) {
-  const normalized = country?.trim().toUpperCase();
-  return normalized && /^[A-Z]{2}$/.test(normalized) ? normalized : "US";
-}
-
 export function buildStripeConnectV2AccountCreateParams({
   email,
-  country,
 }: {
   email?: string | null;
   country?: string | null;
 }): StripeConnectV2AccountCreateParams {
   const params: StripeConnectV2AccountCreateParams = {
     identity: {
-      country: normalizedStripeCountry(country),
+      country: STRIPE_CONNECT_COUNTRY,
     },
     dashboard: "express",
     defaults: {
