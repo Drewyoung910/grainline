@@ -5537,6 +5537,7 @@ WITH seller_broadcast_functions(function_signature) AS (
     ('public."grainline_seller_broadcast_owner_record_delivery"(text, integer)'),
     ('public."grainline_seller_broadcast_account_deletion_ids"(text)'),
     ('public."grainline_seller_broadcast_account_deletion_cleanup"(text)'),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)'),
     ('public."grainline_seller_broadcast_staff_count"(text, text)'),
     ('public."grainline_seller_broadcast_staff_page"(text, text, integer, integer)'),
     ('public."grainline_seller_broadcast_staff_delete"(text, text)')
@@ -5562,7 +5563,8 @@ WITH seller_broadcast_runtime(function_signature) AS (
     ('public."grainline_seller_broadcast_owner_delivery_source"(text)'),
     ('public."grainline_seller_broadcast_owner_record_delivery"(text, integer)'),
     ('public."grainline_seller_broadcast_account_deletion_ids"(text)'),
-    ('public."grainline_seller_broadcast_account_deletion_cleanup"(text)')
+    ('public."grainline_seller_broadcast_account_deletion_cleanup"(text)'),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)')
 )
 SELECT pg_catalog.format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

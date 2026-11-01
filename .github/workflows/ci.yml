@@ -338,6 +338,15 @@ jobs:
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
+      - name: Verify SellerBroadcast preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/admin-action-guardrails.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/seller-broadcast-consumer-contracts.test.mjs
+          tests/seller-ops-hardening.test.mjs
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
@@ -471,6 +480,14 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate SellerBroadcast preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-broadcast-preparation"
+          migration=20261101010000_prepare_seller_broadcast_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -6999,6 +7016,14 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerBroadcast preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-broadcast-preparation"
+          migration=20261101010000_prepare_seller_broadcast_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
