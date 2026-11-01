@@ -237,14 +237,14 @@ async function proveSellerAnalyticsQueryPlans({ database, seller, otherSeller, s
          (id, "listingId", "sellerProfileId", date, views, clicks)
        SELECT $1 || '_old_' || source.ordinal::text,
               source.listing_id,
-              source.seller_profile_id,
+              ($3::text[])[source.ordinal],
               pg_catalog.date_trunc(
                 'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
               ) - INTERVAL '731 days',
               1,
               0
-         FROM pg_catalog.unnest($2::text[], $3::text[])
-                WITH ORDINALITY AS source(listing_id, seller_profile_id, ordinal)`,
+         FROM pg_catalog.unnest($2::text[])
+                WITH ORDINALITY AS source(listing_id, ordinal)`,
       [
         `${suffix}_plan_daily`,
         listingIds,
