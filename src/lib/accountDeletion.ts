@@ -80,6 +80,7 @@ import {
   anonymizeSellerForAccountDeletion,
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
+import { clearSellerProfileViewDailyForAccountDeletion } from "@/lib/sellerAnalyticsDailyAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
@@ -1321,8 +1322,10 @@ export async function anonymizeUserAccount(
         });
       }
       await removeSellerCommissionInterests(tx, user.sellerProfile.id);
-      await tx.sellerProfileViewDaily.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await clearSellerProfileViewDailyForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await tx.sellerMetrics.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },

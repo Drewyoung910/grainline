@@ -366,3 +366,24 @@ dashboard receive already-grouped results.
 This decision authorizes only isolated compatible preparation after the
 findings above are encoded in failing-first tests. It does not authorize a
 Production action.
+
+## Compatible candidate checkpoint — 2026-11-01
+
+The isolated candidate implements the Option B preparation without enabling
+RLS or changing either table's predecessor grants. It converts the eight
+reviewed direct operations, adds the four validated count/day constraints,
+hardens the retained profile recorder, and adds fixed telemetry, owner
+aggregation, retention, and exact deletion-claim operations. Runtime-role
+provisioning replay now retains only those reviewed function grants.
+
+Focused caller/guardrail tests pass 45/45. A disposable PostgreSQL 17 proof
+applied the exact migration and exercised representative public view/click,
+owner self-exclusion, scalar/daily parity, seller isolation, bounded retention,
+and exact deletion-claim behavior. The complete migrated PostgreSQL 17 and 16
+scenario is wired but remains a required CI result; no Production catalog or
+release claim is made by this checkpoint.
+
+Activation remains blocked on the remaining acceptance items above, including
+the full query-plan evidence, complete two-session race matrix, current
+Production inventory, zero-direct denial, database-first rollback,
+reactivation, and deployment-skew proof.

@@ -131,6 +131,8 @@ import {
   proveFollowRlsRollback,
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
+import { proveSellerAnalyticsDailyPreparedAuthorities } from
+  "../tools/database-full-chain/scenarios/seller-analytics-daily-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -736,6 +738,15 @@ test(
         forced: true,
       });
       assert.ok(fixture, "seller fixture must be seeded before Case follow-up");
+      const sellerAnalyticsOtherSeller = await seedSellerProfilePrivateFixture(adapter, {
+        suffix: "seller_analytics_other",
+      });
+      await proveSellerAnalyticsDailyPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        seller: fixture,
+        otherSeller: sellerAnalyticsOtherSeller,
+      });
       assert.ok(
         historicalCaseRefundDamage,
         "#710 damage must be seeded by the predecessor before Case follow-up",
