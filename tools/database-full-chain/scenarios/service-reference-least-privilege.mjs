@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import pg from "pg";
 
@@ -56,6 +58,7 @@ async function restoreReviewedGrants(ownerClient) {
 export async function proveServiceReferenceLeastPrivilege({
   connectionString,
   ownerClient,
+  repositoryRoot,
 }) {
   const suffix = `service-reference-${Date.now()}`;
   await ownerClient.query(
@@ -232,11 +235,28 @@ export async function proveServiceReferenceLeastPrivilege({
       [`${suffix}:consent`],
     );
 
+    const rollbackSql = readFileSync(
+      join(
+        repositoryRoot,
+        "docs/rls-drafts/service-reference-least-privilege-rollback.sql",
+      ),
+      "utf8",
+    );
     rollbackStarted = true;
     await ownerClient.query(`
-      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${TARGET_TABLES}
-      TO grainline_app_runtime
+      GRANT SELECT ON TABLE public."SiteConfig"
+      TO grainline_app_runtime WITH GRANT OPTION
     `);
+    await assert.rejects(
+      ownerClient.query(rollbackSql),
+      (error) => error?.code === "55000",
+    );
+    await ownerClient.query("ROLLBACK");
+    await ownerClient.query(`
+      REVOKE GRANT OPTION FOR SELECT ON TABLE public."SiteConfig"
+      FROM grainline_app_runtime
+    `);
+    await ownerClient.query(rollbackSql);
     await runtime.query(
       'INSERT INTO public."SiteConfig" (id, "fallbackShippingCents") VALUES ($1, 1600)',
       [deniedSiteConfigId],

@@ -21,7 +21,7 @@ This is a database security boundary, not an exemption from the site-wide
 review. None of these tables has a useful end-user row owner. RLS policies
 would either be unconditional or would require converting service operations
 to bespoke functions without reducing the data visible to the same server
-credential. Exact operation grants remove thirteen unused mutation powers and
+credential. Exact operation grants remove ten unused mutation powers and
 are enforced by the recurring production grant audit.
 
 No production state changes merely because this candidate exists. The
@@ -194,7 +194,7 @@ the shared grant audit and provisioning script.
 
 | ID | Finding | Class | Candidate closure |
 |---|---|---|---|
-| SRLP-01 | Runtime has CRUD on five tables although no caller uses thirteen of those operations | `BLOCKS_RLS_DESIGN` | exact grants in migration |
+| SRLP-01 | Runtime has CRUD on five tables although no caller uses ten of those operations | `BLOCKS_RLS_DESIGN` | exact grants in migration |
 | SRLP-02 | `SystemAuditLog` append-only behavior is not enforced for the runtime role | `BLOCKS_RLS_DESIGN` | revoke update/delete |
 | SRLP-03 | provisioning replay would restore broad CRUD | `FIX_BEFORE_ACTIVATION` | exact convergence block |
 | SRLP-04 | recurring grant audit assumes CRUD for every non-RLS table | `FIX_BEFORE_ACTIVATION` | exact per-table allowlist |
