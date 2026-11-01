@@ -166,23 +166,41 @@ export async function proveSellerBroadcastEligibilityGapClosed({
       predecessor.claim.claimToken,
     ],
   )).rows[0]?.result;
-  assert.equal(
-    replayResult,
-    "ready",
-    "an already-marked provider attempt must retain its ambiguous generation",
-  );
-  const completion = (await database.query(
-    `SELECT public.grainline_email_outbox_complete(
-       $1, $2::bigint, $3::uuid, $4
-     ) AS result`,
-    [
-      predecessor.claim.jobId,
+  if (replayResult === "ready") {
+    const completion = (await database.query(
+      `SELECT public.grainline_email_outbox_complete(
+         $1, $2::bigint, $3::uuid, $4
+       ) AS result`,
+      [
+        predecessor.claim.jobId,
+        predecessor.claim.claimGeneration,
+        predecessor.claim.claimToken,
+        `provider-${predecessor.claim.jobId}`,
+      ],
+    )).rows[0]?.result;
+    assert.equal(completion, "applied");
+  } else {
+    assert.equal(
+      replayResult,
+      "already_terminal",
+      "an already-marked provider attempt must remain replay-safe after completion",
+    );
+    const completed = (await database.query(
+      `SELECT status, "providerAttemptGeneration", "providerMessageId"
+         FROM public."EmailOutbox"
+        WHERE id = $1`,
+      [predecessor.claim.jobId],
+    )).rows[0];
+    assert.equal(completed?.status, "SENT");
+    assert.equal(
+      Number(completed?.providerAttemptGeneration),
       predecessor.claim.claimGeneration,
-      predecessor.claim.claimToken,
+    );
+    assert.equal(
+      completed?.providerMessageId,
       `provider-${predecessor.claim.jobId}`,
-    ],
-  )).rows[0]?.result;
-  assert.equal(completion, "applied");
+    );
+  }
 
   const freshClaim = await seedProviderClaim(database, {
     followerId: predecessor.followerId,
