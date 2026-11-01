@@ -160,6 +160,10 @@ batch.
   broad CRUD, but only after the exact migration ledger row is durably applied.
   Before that row exists, provisioning deliberately preserves predecessor CRUD;
   a partial or checksum-drifted row fails closed.
+- The exact checksum is admitted with either Prisma's normal one-step ledger
+  record or its documented zero-step `migrate resolve --applied` record. The
+  zero-step form is confined to the reviewed manual-migration allowlist and is
+  exercised by the PostgreSQL full-chain proof.
 
 ### Scale
 

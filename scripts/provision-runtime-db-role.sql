@@ -376,7 +376,7 @@ WITH service_reference_least_privilege_ledger AS (
       WHERE checksum = '5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
-        AND applied_steps_count = 1
+        AND applied_steps_count IN (0, 1)
     )::integer AS exact_count
   FROM public._prisma_migrations
   WHERE migration_name =
