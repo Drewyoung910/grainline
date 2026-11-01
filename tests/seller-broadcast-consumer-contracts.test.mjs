@@ -22,4 +22,3 @@ describe("SellerBroadcast pre-RLS consumer contracts", () => {
     assert.deepEqual(sellerBroadcastConsumerInventory().rawSqlCallers, []);
   });
 });
-
