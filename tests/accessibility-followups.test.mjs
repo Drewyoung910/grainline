@@ -104,6 +104,8 @@ describe("accessibility follow-ups", () => {
     const guild = source("src/components/GuildBadge.tsx");
 
     assert.match(follow, /aria-pressed=\{following\}/);
+    assert.match(follow, /disabled=\{loading\}/);
+    assert.match(follow, /aria-busy=\{loading \|\| undefined\}/);
     assert.match(follow, /aria-hidden="true"/);
     assert.match(unread, /aria-label=\{`\$\{count\} unread message/);
     assert.match(unread, /aria-hidden="true"/);

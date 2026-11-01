@@ -104,7 +104,18 @@ describe("homepage hero and header contracts", () => {
     assert.match(header, /<SearchBar autoFocus tone="solid" \/>/);
     // Sticky elements and anchors clear the pinned header.
     assert.match(globals, /--site-header-h: 4rem;/);
-    assert.match(globals, /scroll-padding-top: calc\(var\(--site-header-h\) \+ 0\.75rem\);/);
+    assert.match(
+      globals,
+      /--site-header-offset: calc\(var\(--site-header-h\) \+ env\(safe-area-inset-top\)\);/,
+    );
+    assert.match(globals, /scroll-padding-top: calc\(var\(--site-header-offset\) \+ 0\.75rem\);/);
+    assert.match(source("src/components/SectionTabs.tsx"), /top-\[var\(--site-header-offset\)\]/);
+    assert.match(
+      source("src/components/SectionTabs.tsx"),
+      /event\.button !== 0[\s\S]*event\.metaKey[\s\S]*event\.ctrlKey[\s\S]*event\.shiftKey[\s\S]*event\.altKey/,
+    );
+    assert.match(source("src/components/MobileFilterBar.tsx"), /top-\[var\(--site-header-offset\)\]/);
+    assert.match(source("src/components/FilterSidebar.tsx"), /100dvh-var\(--site-header-offset\)-2rem/);
   });
 
   it("uses the deeper cream and touch-safe frosted CTA states", () => {

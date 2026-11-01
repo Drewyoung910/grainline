@@ -79,7 +79,15 @@ export default function FollowButton({
   const style = following ? `${base} btn-secondary` : `${base} btn-primary`;
 
   return (
-    <button type="button" onClick={toggle} aria-busy={loading || undefined} aria-pressed={following} data-variant={variant} className={style}>
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={loading}
+      aria-busy={loading || undefined}
+      aria-pressed={following}
+      data-variant={variant}
+      className={style}
+    >
       {following ? <>Following <span aria-hidden="true">✓</span></> : "Follow"}
       <span className="text-xs opacity-70">· <RollingNumber value={count} /></span>
     </button>

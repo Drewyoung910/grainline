@@ -165,7 +165,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   return (
     <aside aria-label="Filters" className="hidden md:block w-56 lg:w-60 shrink-0">
       {/* The small inset keeps focus rings clear of the scroll edge. */}
-      <div className="-ml-1 max-h-[calc(100dvh-var(--site-header-h)-2rem)] space-y-7 overflow-y-auto overscroll-contain pb-6 pl-1 pr-2 pt-1 text-sm [scrollbar-width:thin]">
+      <div className="-ml-1 max-h-[calc(100dvh-var(--site-header-offset)-2rem)] space-y-7 overflow-y-auto overscroll-contain pb-6 pl-1 pr-2 pt-1 text-sm [scrollbar-width:thin]">
         {/* Category */}
         <nav aria-labelledby={`${baseId}-category`}>
           <p id={`${baseId}-category`} className={legendClass}>Category</p>

@@ -13,6 +13,14 @@ function exists(path) {
 }
 
 describe("local discovery and niche route loading boundaries", () => {
+  it("animates path changes without replaying for query-only navigation", () => {
+    const template = source("src/app/template.tsx");
+    assert.match(template, /import \{ usePathname \} from "next\/navigation"/);
+    assert.match(template, /const pathname = usePathname\(\)/);
+    assert.match(template, /function PageEntrance/);
+    assert.match(template, /return <PageEntrance key=\{pathname\}>\{children\}<\/PageEntrance>/);
+  });
+
   it("keeps browse index and city fallbacks local instead of nesting generic loaders", () => {
     assert.equal(exists("src/app/browse/loading.tsx"), false);
     assert.equal(exists("src/app/browse/[metroSlug]/loading.tsx"), false);

@@ -96,6 +96,16 @@ export default function SectionTabs({
   }, [activeId, sectionKey]);
 
   const goTo = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    // Preserve native anchor behavior for new-tab/window gestures. Only the
+    // ordinary primary click becomes an in-page smooth scroll.
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) return;
     const target = document.getElementById(id);
     if (!target) return;
     event.preventDefault();
@@ -114,7 +124,7 @@ export default function SectionTabs({
     <nav
       ref={navRef}
       aria-label={label}
-      className="sticky top-[var(--site-header-h)] z-30 -mx-2 border-b border-stone-200/70 bg-[#F7F5F0]/90 backdrop-blur-xl sm:-mx-4"
+      className="sticky top-[var(--site-header-offset)] z-30 -mx-2 border-b border-stone-200/70 bg-[#F7F5F0]/90 backdrop-blur-xl sm:-mx-4"
     >
       <div
         ref={listRef}
