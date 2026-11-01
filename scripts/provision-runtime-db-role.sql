@@ -373,7 +373,7 @@ WITH service_reference_least_privilege_ledger AS (
   SELECT
     pg_catalog.count(*)::integer AS row_count,
     pg_catalog.count(*) FILTER (
-      WHERE checksum = '1a57239a724ad435b352d2f4fc8c9dd20e42e75b87eb15da914a60171e952cbd'
+      WHERE checksum = '5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count = 1

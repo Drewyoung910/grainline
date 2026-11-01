@@ -61,19 +61,19 @@ BEGIN
       ) AS expected(table_name)
   LOOP
     SELECT
-      pg_catalog.coalesce(
+      coalesce(
         pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
           ORDER BY pg_catalog.upper(acl.privilege_type))
           FILTER (WHERE acl.grantee = runtime_role.oid),
         ARRAY[]::text[]
       ),
-      pg_catalog.coalesce(
+      coalesce(
         pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
           ORDER BY pg_catalog.upper(acl.privilege_type))
           FILTER (WHERE acl.grantee = 0),
         ARRAY[]::text[]
       ),
-      pg_catalog.coalesce(
+      coalesce(
         pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
           ORDER BY pg_catalog.upper(acl.privilege_type))
           FILTER (WHERE acl.grantee = runtime_role.oid AND acl.is_grantable),
@@ -84,7 +84,7 @@ BEGIN
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = class.relnamespace
       CROSS JOIN LATERAL pg_catalog.aclexplode(
-        pg_catalog.coalesce(
+        coalesce(
           class.relacl,
           pg_catalog.acldefault('r', class.relowner)
         )
@@ -94,7 +94,7 @@ BEGIN
        AND class.relkind = 'r'
        AND (acl.grantee = 0 OR acl.grantee = runtime_role.oid);
 
-    SELECT pg_catalog.coalesce(
+    SELECT coalesce(
       pg_catalog.array_agg(
         DISTINCT pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
         ORDER BY pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
@@ -191,7 +191,7 @@ BEGIN
       ) AS expected(table_name, privileges)
   LOOP
     SELECT
-      pg_catalog.coalesce(
+      coalesce(
         pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
           ORDER BY pg_catalog.upper(acl.privilege_type)),
         ARRAY[]::text[]
@@ -201,7 +201,7 @@ BEGIN
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = class.relnamespace
       CROSS JOIN LATERAL pg_catalog.aclexplode(
-        pg_catalog.coalesce(
+        coalesce(
           class.relacl,
           pg_catalog.acldefault('r', class.relowner)
         )
@@ -218,13 +218,13 @@ BEGIN
     END IF;
 
     SELECT
-      pg_catalog.coalesce(
+      coalesce(
         pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
           ORDER BY pg_catalog.upper(acl.privilege_type))
           FILTER (WHERE acl.grantee = 0),
         ARRAY[]::text[]
       ),
-      pg_catalog.coalesce(
+      coalesce(
         pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
           ORDER BY pg_catalog.upper(acl.privilege_type))
           FILTER (WHERE acl.grantee = runtime_oid AND acl.is_grantable),
@@ -235,7 +235,7 @@ BEGIN
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = class.relnamespace
       CROSS JOIN LATERAL pg_catalog.aclexplode(
-        pg_catalog.coalesce(
+        coalesce(
           class.relacl,
           pg_catalog.acldefault('r', class.relowner)
         )
@@ -245,7 +245,7 @@ BEGIN
        AND class.relkind = 'r'
        AND (acl.grantee = 0 OR acl.grantee = runtime_oid);
 
-    SELECT pg_catalog.coalesce(
+    SELECT coalesce(
       pg_catalog.array_agg(
         DISTINCT pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
         ORDER BY pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
