@@ -9,7 +9,7 @@ import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 export const metadata: Metadata = {
   title: { absolute: "Why Grainline | Real handmade woodworking, not factory imports" },
   description:
-    "Grainline is a US marketplace exclusively for handmade woodworking. Sellers connect verified Stripe accounts, every listing is reviewed before it goes live, and factory imports, resellers, and anonymous shops are banned.",
+    "Grainline is a marketplace exclusively for handmade woodworking. Makers connect Stripe accounts, every listing is reviewed before it goes live, and factory imports and resellers are prohibited.",
   alternates: { canonical: "https://thegrainline.com/why-grainline" },
 };
 
@@ -34,8 +34,8 @@ export default async function WhyGrainlinePage() {
           Real wood. Real workshops.<br />Real people.
         </h1>
         <p className="text-lg sm:text-xl text-stone-600 leading-relaxed max-w-2xl mx-auto">
-          Grainline is the US marketplace built exclusively for handmade woodworking. Factory imports,
-          resellers, and anonymous shops are banned here. Just craftspeople and the pieces they build by hand.
+          Grainline is built exclusively for handmade woodworking. Factory imports and resellers are prohibited
+          here. Just craftspeople and the pieces they build by hand.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link
@@ -75,7 +75,7 @@ export default async function WhyGrainlinePage() {
               <li>Mass-produced imports with a sticker on the back</li>
               <li>Drop-shipped products from overseas wholesalers</li>
               <li>AI-generated listing photos of pieces that don&apos;t exist</li>
-              <li>Anonymous shops with no verified identity</li>
+              <li>Storefronts that tell you little about who made the piece</li>
               <li>Counterfeits using copyrighted designs</li>
             </ul>
           </div>
@@ -86,11 +86,11 @@ export default async function WhyGrainlinePage() {
             <ul className="space-y-3 text-sm text-neutral-800">
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                <span>Handmade in a US workshop is the rule for every listing</span>
+                <span>Handmade woodworking is the rule for every listing</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                <span>Every seller connects a verified Stripe account</span>
+                <span>Every seller connects Stripe before accepting payments</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
@@ -102,7 +102,7 @@ export default async function WhyGrainlinePage() {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                <span>Real people, real workshops, real names</span>
+                <span>Maker profiles, workshop stories, and reviewed listings</span>
               </li>
             </ul>
           </div>
@@ -125,11 +125,11 @@ export default async function WhyGrainlinePage() {
             <div className="card-section p-6 bg-white">
               <Shield size={28} className="text-amber-700 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">
-                Identity verification
+                Payment account setup
               </h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                Every maker must complete Stripe&apos;s account verification before they can sell — the same
-                checks payment providers use before moving money. No anonymous shops, no shell accounts.
+                Every maker must connect Stripe and be approved to accept payments before they can sell.
+                Stripe handles the information needed to move money to the maker.
               </p>
             </div>
             <div className="card-section p-6 bg-white">
@@ -235,18 +235,18 @@ export default async function WhyGrainlinePage() {
         </div>
       </section>
 
-      {/* American-made */}
+      {/* Marketplace reach */}
       <section className="bg-[#EFEAE0]/40 py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <p className="text-xs uppercase tracking-wider text-amber-700 mb-3 font-semibold">
-            Made in the USA. Built in Texas.
+            Built in Texas for independent woodworking.
           </p>
           <h2 className="text-3xl sm:text-4xl font-display font-bold text-neutral-900 mb-4">
-            Every workshop is American.
+            Handmade work, with the maker behind it.
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto mb-8">
-            Grainline is a Texas-registered marketplace, and every seller on it ships from a US address. When you
-            buy here, your money goes straight to a US workshop, not an overseas reseller.
+            Grainline is a Texas-registered marketplace focused on handmade woodworking. Maker profiles and
+            reviewed listings help you understand who made a piece and how it was built.
           </p>
           <div className="grid grid-cols-3 gap-4 max-w-xl mx-auto mb-8">
             <div className="bg-white rounded-xl p-5">
@@ -262,8 +262,10 @@ export default async function WhyGrainlinePage() {
               <div className="text-xs text-stone-500 mt-1">active makers</div>
             </div>
             <div className="bg-white rounded-xl p-5">
-              <div className="text-2xl sm:text-3xl font-bold text-neutral-900">50</div>
-              <div className="text-xs text-stone-500 mt-1">states shipped to</div>
+              <div className="text-2xl sm:text-3xl font-bold text-neutral-900">
+                {foundingCount.toLocaleString("en-US")}
+              </div>
+              <div className="text-xs text-stone-500 mt-1">founding makers</div>
             </div>
           </div>
           <Link
@@ -351,7 +353,7 @@ export default async function WhyGrainlinePage() {
             Buy from a real maker.
           </h2>
           <p className="text-white/80 mb-8">
-            Browse handmade woodworking from American craftspeople. Find a piece you love, or commission something
+            Browse handmade woodworking from independent craftspeople. Find a piece you love, or commission something
             new.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
