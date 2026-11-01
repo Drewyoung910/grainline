@@ -3424,6 +3424,9 @@ describe("database grant inventory guardrails", () => {
     ) && source(orderItemQuoteRuntimeLockMigrationPath).includes(
       'REVOKE ALL ON TABLE\n  public."OrderItem",\n  public."OrderShippingRateQuote"\nFROM PUBLIC, grainline_app_runtime;',
     );
+    const serviceReferenceLeastPrivilegeMigrationPresent = existsSync(
+      "prisma/migrations/20261101020000_narrow_service_reference_runtime_privileges/migration.sql",
+    );
     const sellerProfilePrivateForceMigrationPresent = existsSync(
       "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
     );
@@ -3962,6 +3965,7 @@ describe("database grant inventory guardrails", () => {
       inventory.publicRevokes.length,
       157 // historical-prefix baseline before the currently staged successors
         + (orderItemQuoteRuntimeLockMigrationPresent ? 1 : 0)
+        + (serviceReferenceLeastPrivilegeMigrationPresent ? 1 : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)
@@ -6103,6 +6107,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const serviceReferenceLeastPrivilegeProvisioningPresent = provision.includes(
+      "grainline_service_reference_least_privilege_applied",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6113,7 +6120,8 @@ describe("database grant inventory guardrails", () => {
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
-        + Number(reviewVoteProvisioningPresent),
+        + Number(reviewVoteProvisioningPresent)
+        + Number(serviceReferenceLeastPrivilegeProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
