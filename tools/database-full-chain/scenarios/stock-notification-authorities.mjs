@@ -462,14 +462,13 @@ async function proveClaimBlockSerialization({ connectionString, database, fixtur
       fixture.seller.userId,
     );
     await beginRuntime(blockSecond, fixture.seller.userId);
-    await blockSecond.query(
-      `SELECT * FROM public.grainline_user_block_pair_lock($1)`,
-      [fixture.subscriberB],
-    );
-    await blockSecond.query(
-      `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
-       VALUES ($1, $2, $3, pg_catalog.clock_timestamp())`,
-      [`${fixture.listings.claimRaceB}_block`, fixture.seller.userId, fixture.subscriberB],
+    assert.deepEqual(
+      (await blockSecond.query(
+        `SELECT public.grainline_user_block_create($1) AS created`,
+        [fixture.subscriberB],
+      )).rows,
+      [{ created: true }],
+      "the activated Block table must be mutated through its actor-bound authority",
     );
     await beginRuntime(claimFirst, null, "250ms");
     await assert.rejects(
