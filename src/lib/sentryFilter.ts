@@ -13,6 +13,7 @@ const NOISY_PATTERNS = [
 
 const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|email|ip[_-]?address|token|secret|password|api[_-]?key|session|clerk|stripe|resend)/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const EMAIL_QUERY_PATTERN = /(^|[?&\s])((?:[^?&=\s]*email[^?&=\s]*)=)[^&\s,]+/gi;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
 const TOKEN_QUERY_PATTERN = /(^|[?&\s])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s,]+/gi;
 const ADDRESS_AUTOCOMPLETE_PATH_PATTERN = /\/api\/address\/autocomplete\b/i;
@@ -57,6 +58,7 @@ function isBotStripeLoadFailure(event: ErrorEvent, text: string) {
 
 function scrubString(value: string, opts: { redactUrls?: boolean } = {}) {
   let scrubbed = value
+    .replace(EMAIL_QUERY_PATTERN, "$1$2[redacted-email]")
     .replace(EMAIL_PATTERN, "[redacted-email]")
     .replace(TOKEN_QUERY_PATTERN, "$1$2[redacted]");
   if (opts.redactUrls) scrubbed = scrubbed.replace(URL_PATTERN, "[redacted-url]");
