@@ -203,7 +203,28 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       "tests/block-report-seller-faq-rls-activation.test.mjs",
     ]),
     rollbackTriggerDrops: Object.freeze([]),
-    functionChanges: NO_FUNCTION_CHANGES,
+    functionChanges: Object.freeze({
+      retained: Object.freeze([
+        Object.freeze({
+          name: "grainline_conversation_inbox",
+          arguments: "text, boolean, text, timestamp without time zone, text, integer",
+          sourceMd5: "4b2884765f4ca0db432c4678f98b1bdd",
+          securityDefiner: false,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+        Object.freeze({
+          name: "grainline_message_unread_count",
+          arguments: "text",
+          sourceMd5: "6465832d045b72cc2762907f66a461f3",
+          securityDefiner: false,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+      ]),
+      replacements: Object.freeze([]),
+      additions: Object.freeze([]),
+    }),
   }),
   user_report_v1: Object.freeze({
     preparationReleaseId: "user_report_v1",
@@ -538,6 +559,7 @@ export function verifyPrivateTableRlsActivationSource(
       !activation.sql.includes(literal)
       || !rollback.sql.includes(literal)
       || !/^[0-9a-f]{32}$/u.test(change.sourceMd5)
+      || typeof change.securityDefiner !== "boolean"
     ) {
       throw stopped(`retained function transition drifted for ${literal}`);
     }
