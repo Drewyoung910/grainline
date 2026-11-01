@@ -151,7 +151,8 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
   });
 
   const today = rowsOf(await database.query(
-    "SELECT (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::date AS value",
+    `SELECT ((pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::date)::text
+            AS value`,
   ))[0]?.value;
   assert.match(String(today), /^\d{4}-\d{2}-\d{2}$/u);
   assert.equal(
@@ -451,7 +452,8 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
     `INSERT INTO public."AccountDeletionSideEffect"
        (id, "userId", kind, "dedupKey", payload, status,
         "claimGeneration", "claimToken", "processingStartedAt")
-     VALUES ($1, $2, 'LOCAL_ANONYMIZE', 'account-delete:local:' || $2,
+     VALUES ($1, $2::varchar(191), 'LOCAL_ANONYMIZE',
+             'account-delete:local:' || $2::varchar(191),
              '{}'::jsonb, 'PROCESSING', 1, $3::uuid,
              pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')`,
     [claimId, seller.userId, claimToken],
@@ -506,8 +508,17 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
            pg_catalog.has_function_privilege(
              'grainline_app_runtime', source.oid, 'EXECUTE'
            ) AS runtime_execute,
-           pg_catalog.has_function_privilege('PUBLIC', source.oid, 'EXECUTE')
-             AS public_execute
+           EXISTS (
+             SELECT 1
+               FROM pg_catalog.aclexplode(
+                 COALESCE(
+                   source.proacl,
+                   pg_catalog.acldefault('f', source.proowner)
+                 )
+               ) AS acl
+              WHERE acl.grantee = 0
+                AND acl.privilege_type = 'EXECUTE'
+           ) AS public_execute
       FROM pg_catalog.pg_proc AS source
       JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = source.pronamespace
       JOIN pg_catalog.pg_roles AS owner ON owner.oid = source.proowner
@@ -524,4 +535,27 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
   assert.equal(posture.length, 5);
   assert.equal(posture.every((row) =>
     row.owner_bypasses_rls && row.runtime_execute && !row.public_execute), true);
+
+  // This scenario runs before the public-map and account-deletion proofs.
+  // Remove every fixture it owns so public selection, exact deduplication keys,
+  // and later retention counts are independent of scenario order.
+  await database.query(
+    `DELETE FROM public."ListingViewDaily"
+      WHERE "listingId" IN ($1, $2, $3, $4, $5)`,
+    [listingId, concurrentListingId, otherListingId, directListingId, driftListingId],
+  );
+  await database.query(
+    `DELETE FROM public."SellerProfileViewDaily"
+      WHERE id IN ($1, $2, $3, $4)`,
+    [oldProfileRowId, secondOldProfileRowId, recentProfileRowId, lockedOldProfileRowId],
+  );
+  await database.query(
+    `DELETE FROM public."AccountDeletionSideEffect" WHERE id = $1`,
+    [claimId],
+  );
+  await database.query(
+    `DELETE FROM public."Listing"
+      WHERE id IN ($1, $2, $3, $4, $5)`,
+    [listingId, concurrentListingId, otherListingId, directListingId, driftListingId],
+  );
 }
