@@ -2,8 +2,92 @@ import assert from "node:assert/strict";
 
 import pg from "pg";
 
+import { seedSellerProfilePrivateFixture } from "./seller-profile-private-fixture.mjs";
+
+export const SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION =
+  "20261101030000_prepare_seller_analytics_daily_authorities";
+export const SELLER_ANALYTICS_DAILY_RLS_MIGRATION =
+  "20261101040000_activate_seller_analytics_daily_rls";
+
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function explainPlan(result) {
+  const document = rowsOf(result)[0]?.["QUERY PLAN"];
+  const root = Array.isArray(document) ? document[0]?.Plan : document?.Plan;
+  assert.ok(root, "EXPLAIN (FORMAT JSON) did not return a plan root");
+  return root;
+}
+
+function flattenPlan(root) {
+  const nodes = [];
+  const visit = (node) => {
+    nodes.push(node);
+    for (const child of node.Plans ?? []) visit(child);
+  };
+  visit(root);
+  return nodes;
+}
+
+function assertBoundedIndexPlan(result, { relation, indexes }) {
+  const nodes = flattenPlan(explainPlan(result));
+  assert.equal(
+    nodes.some((node) =>
+      node["Node Type"] === "Seq Scan" && node["Relation Name"] === relation),
+    false,
+    `${relation} used an unbounded sequential plan`,
+  );
+  assert.equal(
+    nodes.some((node) => indexes.includes(node["Index Name"])),
+    true,
+    `${relation} did not use one of the reviewed indexes: ${indexes.join(", ")}`,
+  );
+}
+
+async function beginClient(connectionString, applicationName, actorId = undefined) {
+  const client = new pg.Client({
+    connectionString,
+    application_name: applicationName,
+  });
+  await client.connect();
+  await client.query("BEGIN");
+  await client.query("SET LOCAL statement_timeout = '8s'");
+  await client.query("SET LOCAL lock_timeout = '6s'");
+  await client.query("SET LOCAL deadlock_timeout = '100ms'");
+  if (actorId !== undefined) {
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+    await client.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [actorId ?? ""],
+    );
+  }
+  return client;
+}
+
+async function closeClient(client, action = "ROLLBACK") {
+  if (!client) return;
+  await client.query(action).catch(() => {});
+  await client.end().catch(() => {});
+}
+
+async function waitForLockWait(database, applicationName) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const state = rowsOf(await database.query(
+      `SELECT wait_event_type
+         FROM pg_catalog.pg_stat_activity
+        WHERE application_name = $1
+          AND pid <> pg_catalog.pg_backend_pid()`,
+      [applicationName],
+    ))[0];
+    if (state?.wait_event_type === "Lock") return;
+    await delay(20);
+  }
+  throw new Error(`${applicationName} did not reach the expected lock wait`);
 }
 
 async function runtimeQuery(database, actorId, sql, params = []) {
@@ -89,11 +173,774 @@ async function proveConcurrentListingIncrements({ connectionString, database, li
   assert.deepEqual(state, [{ scalar_views: 2, daily_views: 2 }]);
 }
 
+async function proveSellerAnalyticsQueryPlans({ database, seller, otherSeller, suffix }) {
+  const targetListingId = `${suffix}_plan_target`;
+  const noiseListingIds = Array.from(
+    { length: 12 },
+    (_, index) => `${suffix}_plan_noise_${index}`,
+  );
+  const listingIds = [targetListingId, ...noiseListingIds];
+  await insertListing(
+    database,
+    targetListingId,
+    seller.sellerProfileId,
+    "Seller analytics plan target",
+  );
+  for (const [index, listingId] of noiseListingIds.entries()) {
+    await insertListing(
+      database,
+      listingId,
+      otherSeller.sellerProfileId,
+      `Seller analytics plan noise ${index}`,
+    );
+  }
+
+  const profilePrefix = `${suffix}_plan_profile_`;
+  try {
+    await database.query(
+      `INSERT INTO public."ListingViewDaily"
+         (id, "listingId", "sellerProfileId", date, views, clicks)
+       SELECT $1 || '_' || source.ordinal::text || '_' || day.day_offset::text,
+              source.listing_id,
+              source.seller_profile_id,
+              pg_catalog.date_trunc(
+                'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+              ) - day.day_offset * INTERVAL '1 day',
+              1,
+              1
+         FROM pg_catalog.unnest($2::text[], $3::text[])
+                WITH ORDINALITY AS source(listing_id, seller_profile_id, ordinal)
+        CROSS JOIN pg_catalog.generate_series(0, 179) AS day(day_offset)`,
+      [
+        `${suffix}_plan_daily`,
+        listingIds,
+        [seller.sellerProfileId, ...noiseListingIds.map(() => otherSeller.sellerProfileId)],
+      ],
+    );
+    await database.query(
+      `INSERT INTO public."SellerProfileViewDaily"
+         (id, "sellerProfileId", date, views)
+       SELECT $1 || source.ordinal::text || '_' || day.day_offset::text,
+              source.seller_profile_id,
+              pg_catalog.date_trunc(
+                'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+              ) - day.day_offset * INTERVAL '1 day',
+              1
+         FROM pg_catalog.unnest($2::text[])
+                WITH ORDINALITY AS source(seller_profile_id, ordinal)
+        CROSS JOIN pg_catalog.generate_series(0, 729) AS day(day_offset)
+       ON CONFLICT ("sellerProfileId", date) DO NOTHING`,
+      [profilePrefix, [seller.sellerProfileId, otherSeller.sellerProfileId]],
+    );
+    await database.query(
+      `INSERT INTO public."ListingViewDaily"
+         (id, "listingId", "sellerProfileId", date, views, clicks)
+       SELECT $1 || '_old_' || source.ordinal::text,
+              source.listing_id,
+              source.seller_profile_id,
+              pg_catalog.date_trunc(
+                'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+              ) - INTERVAL '731 days',
+              1,
+              0
+         FROM pg_catalog.unnest($2::text[], $3::text[])
+                WITH ORDINALITY AS source(listing_id, seller_profile_id, ordinal)`,
+      [
+        `${suffix}_plan_daily`,
+        listingIds,
+        [seller.sellerProfileId, ...noiseListingIds.map(() => otherSeller.sellerProfileId)],
+      ],
+    );
+    await database.query(
+      `INSERT INTO public."SellerProfileViewDaily"
+         (id, "sellerProfileId", date, views)
+       VALUES (
+         $1,
+         $2,
+         pg_catalog.date_trunc(
+           'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+         ) - INTERVAL '731 days',
+         1
+       )`,
+      [`${profilePrefix}old`, otherSeller.sellerProfileId],
+    );
+    await database.query('ANALYZE public."ListingViewDaily"');
+    await database.query('ANALYZE public."SellerProfileViewDaily"');
+
+    assertBoundedIndexPlan(await database.query(
+      `EXPLAIN (FORMAT JSON)
+       SELECT id
+         FROM public."ListingViewDaily"
+        WHERE "listingId" = $1
+          AND date = pg_catalog.date_trunc(
+            'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+          )
+        FOR UPDATE`,
+      [targetListingId],
+    ), {
+      relation: "ListingViewDaily",
+      indexes: ["ListingViewDaily_listingId_date_key"],
+    });
+
+    const rangeStart = rowsOf(await database.query(
+      `SELECT pg_catalog.date_trunc(
+                'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+              ) - INTERVAL '30 days' AS value`,
+    ))[0]?.value;
+    const rangeEnd = rowsOf(await database.query(
+      `SELECT pg_catalog.date_trunc(
+                'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+              ) + INTERVAL '1 day' AS value`,
+    ))[0]?.value;
+    assertBoundedIndexPlan(await database.query(
+      `EXPLAIN (FORMAT JSON)
+       SELECT pg_catalog.sum(views), pg_catalog.sum(clicks)
+         FROM public."ListingViewDaily"
+        WHERE "sellerProfileId" = $1
+          AND date >= $2
+          AND date < $3`,
+      [seller.sellerProfileId, rangeStart, rangeEnd],
+    ), {
+      relation: "ListingViewDaily",
+      indexes: ["ListingViewDaily_sellerProfileId_date_idx"],
+    });
+    assertBoundedIndexPlan(await database.query(
+      `EXPLAIN (FORMAT JSON)
+       SELECT pg_catalog.sum(views)
+         FROM public."SellerProfileViewDaily"
+        WHERE "sellerProfileId" = $1
+          AND date >= $2
+          AND date < $3`,
+      [seller.sellerProfileId, rangeStart, rangeEnd],
+    ), {
+      relation: "SellerProfileViewDaily",
+      indexes: ["SellerProfileViewDaily_sellerProfileId_date_idx"],
+    });
+
+    const cutoff = rowsOf(await database.query(
+      `SELECT (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+                - INTERVAL '730 days' AS value`,
+    ))[0]?.value;
+    assertBoundedIndexPlan(await database.query(
+      `EXPLAIN (FORMAT JSON)
+       SELECT id
+         FROM public."ListingViewDaily"
+        WHERE date < $1
+        ORDER BY date ASC, id ASC
+        LIMIT 5000
+        FOR UPDATE SKIP LOCKED`,
+      [cutoff],
+    ), {
+      relation: "ListingViewDaily",
+      indexes: ["ListingViewDaily_date_idx"],
+    });
+    assertBoundedIndexPlan(await database.query(
+      `EXPLAIN (FORMAT JSON)
+       SELECT id
+         FROM public."SellerProfileViewDaily"
+        WHERE date < $1
+        ORDER BY date ASC, id ASC
+        LIMIT 5000
+        FOR UPDATE SKIP LOCKED`,
+      [cutoff],
+    ), {
+      relation: "SellerProfileViewDaily",
+      indexes: ["SellerProfileViewDaily_date_idx"],
+    });
+  } finally {
+    await database.query(
+      `DELETE FROM public."SellerProfileViewDaily"
+        WHERE pg_catalog.left(id, pg_catalog.length($1)) = $1`,
+      [profilePrefix],
+    );
+    await database.query(
+      `DELETE FROM public."Listing" WHERE id = ANY($1::text[])`,
+      [listingIds],
+    );
+  }
+}
+
+async function proveConcurrentViewAndClick({ connectionString, database, listingId }) {
+  const first = await beginClient(connectionString, "seller_analytics_view_click_a", null);
+  const second = await beginClient(connectionString, "seller_analytics_view_click_b", null);
+  try {
+    const [view, click] = await Promise.all([
+      first.query(
+        "SELECT public.grainline_listing_analytics_record($1, 'view') AS recorded",
+        [listingId],
+      ),
+      second.query(
+        "SELECT public.grainline_listing_analytics_record($1, 'click') AS recorded",
+        [listingId],
+      ),
+    ]);
+    assert.equal(view.rows[0]?.recorded, true);
+    assert.equal(click.rows[0]?.recorded, true);
+    await Promise.all([first.query("COMMIT"), second.query("COMMIT")]);
+  } finally {
+    await Promise.all([closeClient(first), closeClient(second)]);
+  }
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT listing."viewCount" AS scalar_views,
+            listing."clickCount" AS scalar_clicks,
+            daily.views AS daily_views,
+            daily.clicks AS daily_clicks
+       FROM public."Listing" AS listing
+       JOIN public."ListingViewDaily" AS daily
+         ON daily."listingId" = listing.id
+        AND daily.date = pg_catalog.date_trunc(
+          'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+        )
+      WHERE listing.id = $1`,
+    [listingId],
+  )), [{
+    scalar_views: 1,
+    scalar_clicks: 1,
+    daily_views: 1,
+    daily_clicks: 1,
+  }]);
+}
+
+async function proveListingDeleteRaces({ connectionString, database, seller, suffix }) {
+  const viewWinsListingId = `${suffix}_view_wins_delete`;
+  await insertListing(
+    database,
+    viewWinsListingId,
+    seller.sellerProfileId,
+    "Seller analytics view-wins delete",
+  );
+  let viewClient;
+  let deleteClient;
+  try {
+    viewClient = await beginClient(
+      connectionString,
+      "seller_analytics_view_winner",
+      null,
+    );
+    const view = await viewClient.query(
+      "SELECT public.grainline_listing_analytics_record($1, 'view') AS recorded",
+      [viewWinsListingId],
+    );
+    assert.equal(view.rows[0]?.recorded, true);
+    deleteClient = await beginClient(
+      connectionString,
+      "seller_analytics_delete_waiter",
+    );
+    const deletion = deleteClient.query(
+      'DELETE FROM public."Listing" WHERE id = $1',
+      [viewWinsListingId],
+    );
+    await waitForLockWait(database, "seller_analytics_delete_waiter");
+    await viewClient.query("COMMIT");
+    await deletion;
+    await deleteClient.query("COMMIT");
+  } finally {
+    await Promise.all([closeClient(viewClient), closeClient(deleteClient)]);
+  }
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."ListingViewDaily"
+      WHERE "listingId" = $1`,
+    [viewWinsListingId],
+  ))[0]?.count ?? -1), 0);
+
+  const deleteWinsListingId = `${suffix}_delete_wins_view`;
+  await insertListing(
+    database,
+    deleteWinsListingId,
+    seller.sellerProfileId,
+    "Seller analytics delete-wins view",
+  );
+  let deleteWinner;
+  let viewWaiter;
+  try {
+    deleteWinner = await beginClient(
+      connectionString,
+      "seller_analytics_delete_winner",
+    );
+    await deleteWinner.query(
+      'DELETE FROM public."Listing" WHERE id = $1',
+      [deleteWinsListingId],
+    );
+    viewWaiter = await beginClient(
+      connectionString,
+      "seller_analytics_view_waiter",
+      null,
+    );
+    const view = viewWaiter.query(
+      "SELECT public.grainline_listing_analytics_record($1, 'view') AS recorded",
+      [deleteWinsListingId],
+    );
+    await waitForLockWait(database, "seller_analytics_view_waiter");
+    await deleteWinner.query("COMMIT");
+    assert.equal((await view).rows[0]?.recorded, false);
+    await viewWaiter.query("COMMIT");
+  } finally {
+    await Promise.all([closeClient(deleteWinner), closeClient(viewWaiter)]);
+  }
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."ListingViewDaily"
+      WHERE "listingId" = $1`,
+    [deleteWinsListingId],
+  ))[0]?.count ?? -1), 0);
+}
+
+async function insertDeletionClaim(database, seller, claimId, claimToken) {
+  await database.query(
+    `INSERT INTO public."AccountDeletionSideEffect"
+       (id, "userId", kind, "dedupKey", payload, status,
+        "claimGeneration", "claimToken", "processingStartedAt")
+     VALUES ($1, $2::varchar(191), 'LOCAL_ANONYMIZE',
+             'account-delete:local:' || $2::varchar(191),
+             '{}'::jsonb, 'PROCESSING', 1, $3::uuid,
+             pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')`,
+    [claimId, seller.userId, claimToken],
+  );
+}
+
+async function proveProfileDeletionRaces({ connectionString, database, suffix }) {
+  const seller = await seedSellerProfilePrivateFixture(database, {
+    suffix: `${suffix}_profile_race`,
+  });
+  const claimId = `${suffix}_profile_race_claim`;
+  const claimToken = "21111111-2222-4333-8444-555555555555";
+  await insertDeletionClaim(database, seller, claimId, claimToken);
+  const viewedOn = rowsOf(await database.query(
+    `SELECT (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::date::text AS value`,
+  ))[0]?.value;
+  let viewWinner;
+  let cleanupWaiter;
+  try {
+    viewWinner = await beginClient(
+      connectionString,
+      "seller_analytics_profile_view_winner",
+      null,
+    );
+    assert.equal((await viewWinner.query(
+      "SELECT public.grainline_seller_profile_view_record($1, $2::date) AS recorded",
+      [seller.sellerProfileId, viewedOn],
+    )).rows[0]?.recorded, true);
+    cleanupWaiter = await beginClient(
+      connectionString,
+      "seller_analytics_profile_cleanup_waiter",
+    );
+    await cleanupWaiter.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [seller.userId],
+    );
+    const cleanup = cleanupWaiter.query(
+      `SELECT public.grainline_seller_profile_view_daily_account_deletion_clear(
+         $1, 1, $2::uuid
+       ) AS removed`,
+      [claimId, claimToken],
+    );
+    await waitForLockWait(database, "seller_analytics_profile_cleanup_waiter");
+    await viewWinner.query("COMMIT");
+    assert.equal(Number((await cleanup).rows[0]?.removed ?? -1) >= 1, true);
+    await cleanupWaiter.query("COMMIT");
+  } finally {
+    await Promise.all([closeClient(viewWinner), closeClient(cleanupWaiter)]);
+  }
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."SellerProfileViewDaily"
+      WHERE "sellerProfileId" = $1`,
+    [seller.sellerProfileId],
+  ))[0]?.count ?? -1), 0);
+
+  assert.equal(rowsOf(await runtimeQuery(
+    database,
+    null,
+    "SELECT public.grainline_seller_profile_view_record($1, $2::date) AS recorded",
+    [seller.sellerProfileId, viewedOn],
+  ))[0]?.recorded, true);
+  let cleanupWinner;
+  let viewWaiter;
+  try {
+    cleanupWinner = await beginClient(
+      connectionString,
+      "seller_analytics_profile_cleanup_winner",
+    );
+    await cleanupWinner.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [seller.userId],
+    );
+    await cleanupWinner.query(
+      `UPDATE public."SellerProfile"
+          SET "chargesEnabled" = false
+        WHERE id = $1`,
+      [seller.sellerProfileId],
+    );
+    assert.equal(Number((await cleanupWinner.query(
+      `SELECT public.grainline_seller_profile_view_daily_account_deletion_clear(
+         $1, 1, $2::uuid
+       ) AS removed`,
+      [claimId, claimToken],
+    )).rows[0]?.removed ?? -1) >= 1, true);
+    viewWaiter = await beginClient(
+      connectionString,
+      "seller_analytics_profile_view_waiter",
+      null,
+    );
+    const view = viewWaiter.query(
+      "SELECT public.grainline_seller_profile_view_record($1, $2::date) AS recorded",
+      [seller.sellerProfileId, viewedOn],
+    );
+    await waitForLockWait(database, "seller_analytics_profile_view_waiter");
+    await cleanupWinner.query("COMMIT");
+    assert.equal((await view).rows[0]?.recorded, false);
+    await viewWaiter.query("COMMIT");
+  } finally {
+    await Promise.all([closeClient(cleanupWinner), closeClient(viewWaiter)]);
+  }
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."SellerProfileViewDaily"
+      WHERE "sellerProfileId" = $1`,
+    [seller.sellerProfileId],
+  ))[0]?.count ?? -1), 0);
+  await database.query(
+    'DELETE FROM public."AccountDeletionSideEffect" WHERE id = $1',
+    [claimId],
+  );
+  await database.query('DELETE FROM public."SellerProfile" WHERE id = $1', [
+    seller.sellerProfileId,
+  ]);
+  await database.query('DELETE FROM public."User" WHERE id = $1', [seller.userId]);
+}
+
+async function proveRetentionCascadeRaces({ connectionString, database, seller, suffix }) {
+  const retentionWinsListingId = `${suffix}_retention_wins_listing`;
+  await insertListing(
+    database,
+    retentionWinsListingId,
+    seller.sellerProfileId,
+    "Seller analytics retention-wins listing",
+  );
+  await database.query(
+    `INSERT INTO public."ListingViewDaily"
+       (id, "listingId", "sellerProfileId", date, views, clicks)
+     VALUES (
+       $1, $2, $3,
+       pg_catalog.date_trunc(
+         'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       ) - INTERVAL '731 days',
+       1, 0
+     )`,
+    [`${suffix}_retention_wins_daily`, retentionWinsListingId, seller.sellerProfileId],
+  );
+  let retentionWinner;
+  let listingDeleteWaiter;
+  try {
+    retentionWinner = await beginClient(
+      connectionString,
+      "seller_analytics_retention_winner",
+      null,
+    );
+    await retentionWinner.query(
+      "SELECT * FROM public.grainline_seller_analytics_retention_prune(5000)",
+    );
+    listingDeleteWaiter = await beginClient(
+      connectionString,
+      "seller_analytics_parent_delete_waiter",
+    );
+    const deletion = listingDeleteWaiter.query(
+      'DELETE FROM public."Listing" WHERE id = $1',
+      [retentionWinsListingId],
+    );
+    await waitForLockWait(database, "seller_analytics_parent_delete_waiter");
+    await retentionWinner.query("COMMIT");
+    await deletion;
+    await listingDeleteWaiter.query("COMMIT");
+  } finally {
+    await Promise.all([
+      closeClient(retentionWinner),
+      closeClient(listingDeleteWaiter),
+    ]);
+  }
+
+  const cascadeWinsListingId = `${suffix}_cascade_wins_listing`;
+  await insertListing(
+    database,
+    cascadeWinsListingId,
+    seller.sellerProfileId,
+    "Seller analytics cascade-wins listing",
+  );
+  await database.query(
+    `INSERT INTO public."ListingViewDaily"
+       (id, "listingId", "sellerProfileId", date, views, clicks)
+     VALUES (
+       $1, $2, $3,
+       pg_catalog.date_trunc(
+         'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       ) - INTERVAL '731 days',
+       1, 0
+     )`,
+    [`${suffix}_cascade_wins_daily`, cascadeWinsListingId, seller.sellerProfileId],
+  );
+  let listingDeleteWinner;
+  let retentionSkipper;
+  try {
+    listingDeleteWinner = await beginClient(
+      connectionString,
+      "seller_analytics_parent_delete_winner",
+    );
+    await listingDeleteWinner.query(
+      'DELETE FROM public."Listing" WHERE id = $1',
+      [cascadeWinsListingId],
+    );
+    retentionSkipper = await beginClient(
+      connectionString,
+      "seller_analytics_retention_skipper",
+      null,
+    );
+    await retentionSkipper.query(
+      "SELECT * FROM public.grainline_seller_analytics_retention_prune(5000)",
+    );
+    await retentionSkipper.query("COMMIT");
+    await listingDeleteWinner.query("COMMIT");
+  } finally {
+    await Promise.all([
+      closeClient(listingDeleteWinner),
+      closeClient(retentionSkipper),
+    ]);
+  }
+  assert.equal(Number(rowsOf(await database.query(
+    `SELECT pg_catalog.count(*)::integer AS count
+       FROM public."ListingViewDaily"
+      WHERE "listingId" = ANY($1::text[])`,
+    [[retentionWinsListingId, cascadeWinsListingId]],
+  ))[0]?.count ?? -1), 0);
+
+  const retentionProfile = await seedSellerProfilePrivateFixture(database, {
+    suffix: `${suffix}_retention_profile`,
+  });
+  await database.query(
+    `INSERT INTO public."SellerProfileViewDaily"
+       (id, "sellerProfileId", date, views)
+     VALUES (
+       $1, $2,
+       pg_catalog.date_trunc(
+         'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       ) - INTERVAL '731 days',
+       1
+     )`,
+    [`${suffix}_retention_profile_daily`, retentionProfile.sellerProfileId],
+  );
+  let profileRetentionWinner;
+  let profileDeleteWaiter;
+  try {
+    profileRetentionWinner = await beginClient(
+      connectionString,
+      "seller_analytics_profile_retention_winner",
+      null,
+    );
+    await profileRetentionWinner.query(
+      "SELECT * FROM public.grainline_seller_analytics_retention_prune(5000)",
+    );
+    profileDeleteWaiter = await beginClient(
+      connectionString,
+      "seller_analytics_profile_delete_waiter",
+    );
+    const deletion = profileDeleteWaiter.query(
+      'DELETE FROM public."SellerProfile" WHERE id = $1',
+      [retentionProfile.sellerProfileId],
+    );
+    await waitForLockWait(database, "seller_analytics_profile_delete_waiter");
+    await profileRetentionWinner.query("COMMIT");
+    await deletion;
+    await profileDeleteWaiter.query("COMMIT");
+  } finally {
+    await Promise.all([
+      closeClient(profileRetentionWinner),
+      closeClient(profileDeleteWaiter),
+    ]);
+  }
+  await database.query('DELETE FROM public."User" WHERE id = $1', [
+    retentionProfile.userId,
+  ]);
+
+  const cascadeProfile = await seedSellerProfilePrivateFixture(database, {
+    suffix: `${suffix}_cascade_profile`,
+  });
+  await database.query(
+    `INSERT INTO public."SellerProfileViewDaily"
+       (id, "sellerProfileId", date, views)
+     VALUES (
+       $1, $2,
+       pg_catalog.date_trunc(
+         'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       ) - INTERVAL '731 days',
+       1
+     )`,
+    [`${suffix}_cascade_profile_daily`, cascadeProfile.sellerProfileId],
+  );
+  let profileDeleteWinner;
+  let profileRetentionSkipper;
+  try {
+    profileDeleteWinner = await beginClient(
+      connectionString,
+      "seller_analytics_profile_delete_winner",
+    );
+    await profileDeleteWinner.query(
+      'DELETE FROM public."SellerProfile" WHERE id = $1',
+      [cascadeProfile.sellerProfileId],
+    );
+    profileRetentionSkipper = await beginClient(
+      connectionString,
+      "seller_analytics_profile_retention_skipper",
+      null,
+    );
+    await profileRetentionSkipper.query(
+      "SELECT * FROM public.grainline_seller_analytics_retention_prune(5000)",
+    );
+    await profileRetentionSkipper.query("COMMIT");
+    await profileDeleteWinner.query("COMMIT");
+  } finally {
+    await Promise.all([
+      closeClient(profileDeleteWinner),
+      closeClient(profileRetentionSkipper),
+    ]);
+  }
+  await database.query('DELETE FROM public."User" WHERE id = $1', [
+    cascadeProfile.userId,
+  ]);
+}
+
+async function proveOwnerReadsDuringWrites({
+  connectionString,
+  database,
+  seller,
+  suffix,
+}) {
+  const listingId = `${suffix}_owner_read_race`;
+  await insertListing(
+    database,
+    listingId,
+    seller.sellerProfileId,
+    "Seller analytics owner-read race",
+  );
+  assert.equal(await callRecord(database, null, listingId, "view"), true);
+  const range = rowsOf(await database.query(`
+    SELECT pg_catalog.floor(
+             EXTRACT(EPOCH FROM (
+               (
+                 (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+                 - INTERVAL '800 days'
+               ) AT TIME ZONE 'UTC'
+             )) * 1000
+           )::bigint AS start_millis,
+           pg_catalog.floor(
+             EXTRACT(EPOCH FROM (
+               (
+                 (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+                 + INTERVAL '1 day'
+               ) AT TIME ZONE 'UTC'
+             )) * 1000
+           )::bigint AS end_millis
+  `))[0];
+  const readViews = async () => {
+    const rows = rowsOf(await runtimeQuery(
+      database,
+      seller.userId,
+      `SELECT * FROM public.grainline_seller_engagement_analytics(
+         $1::bigint, $2::bigint, true, 'day'
+       )`,
+      [range.start_millis, range.end_millis],
+    ));
+    assert.ok(rows.length > 0);
+    return BigInt(rows[0].listing_views);
+  };
+
+  const beforeTelemetry = await readViews();
+  let telemetry;
+  try {
+    telemetry = await beginClient(
+      connectionString,
+      "seller_analytics_owner_read_telemetry",
+      null,
+    );
+    assert.equal((await telemetry.query(
+      "SELECT public.grainline_listing_analytics_record($1, 'view') AS recorded",
+      [listingId],
+    )).rows[0]?.recorded, true);
+    assert.equal(await readViews(), beforeTelemetry);
+    await telemetry.query("COMMIT");
+  } finally {
+    await closeClient(telemetry);
+  }
+  assert.equal(await readViews(), beforeTelemetry + 1n);
+
+  await database.query(
+    `INSERT INTO public."ListingViewDaily"
+       (id, "listingId", "sellerProfileId", date, views, clicks)
+     VALUES (
+       $1, $2, $3,
+       pg_catalog.date_trunc(
+         'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       ) - INTERVAL '731 days',
+       7, 0
+     )`,
+    [`${suffix}_owner_read_old`, listingId, seller.sellerProfileId],
+  );
+  const beforeRetention = await readViews();
+  let retention;
+  try {
+    retention = await beginClient(
+      connectionString,
+      "seller_analytics_owner_read_retention",
+      null,
+    );
+    await retention.query(
+      "SELECT * FROM public.grainline_seller_analytics_retention_prune(5000)",
+    );
+    assert.equal(await readViews(), beforeRetention);
+    await retention.query("COMMIT");
+  } finally {
+    await closeClient(retention);
+  }
+  assert.equal(await readViews(), beforeRetention - 7n);
+  await database.query('DELETE FROM public."Listing" WHERE id = $1', [listingId]);
+}
+
+async function proveSellerAnalyticsRaceMatrix({
+  connectionString,
+  database,
+  seller,
+  suffix,
+}) {
+  const viewClickListingId = `${suffix}_view_click`;
+  await insertListing(
+    database,
+    viewClickListingId,
+    seller.sellerProfileId,
+    "Seller analytics view-click race",
+  );
+  try {
+    await proveConcurrentViewAndClick({
+      connectionString,
+      database,
+      listingId: viewClickListingId,
+    });
+  } finally {
+    await database.query('DELETE FROM public."Listing" WHERE id = $1', [
+      viewClickListingId,
+    ]);
+  }
+  await proveListingDeleteRaces({ connectionString, database, seller, suffix });
+  await proveProfileDeletionRaces({ connectionString, database, suffix });
+  await proveRetentionCascadeRaces({ connectionString, database, seller, suffix });
+  await proveOwnerReadsDuringWrites({ connectionString, database, seller, suffix });
+}
+
 export async function proveSellerAnalyticsDailyPreparedAuthorities({
   connectionString,
   database,
   seller,
   otherSeller,
+  directTableAuthority = true,
+  comprehensiveProof = false,
 }) {
   const suffix = `seller_analytics_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const listingId = `${suffix}_listing`;
@@ -207,6 +1054,19 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
     bucketClicks: 1n,
   });
 
+  const topListings = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    `SELECT * FROM public.grainline_order_seller_analytics_top_listings(
+       $1, $2::bigint, $3::bigint, true, false
+     )`,
+    [seller.userId, range.start_millis, range.end_millis],
+  ));
+  const topListing = topListings.find((row) => row.listing_id === listingId);
+  assert.ok(topListing, "top-listings authority omitted the seller listing");
+  assert.equal(BigInt(topListing.view_count), 1n);
+  assert.equal(BigInt(topListing.click_count), 1n);
+
   const otherRows = rowsOf(await runtimeQuery(
     database,
     otherSeller.userId,
@@ -259,33 +1119,105 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
     (error) => error?.code === "42501",
   );
 
-  // Preparation must preserve the predecessor's direct runtime operations.
-  await runtimeQuery(
-    database,
-    seller.userId,
-    `INSERT INTO public."ListingViewDaily"
-       (id, "listingId", "sellerProfileId", date, views, clicks)
-     VALUES (
-       $1, $2, $3,
-       pg_catalog.date_trunc('day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'),
-       4, 2
-     )`,
-    [`${suffix}_direct_daily`, directListingId, seller.sellerProfileId],
-  );
-  await runtimeQuery(
-    database,
-    seller.userId,
-    `UPDATE public."ListingViewDaily"
-        SET views = views + 1
-      WHERE "listingId" = $1`,
-    [directListingId],
-  );
-  await runtimeQuery(
-    database,
-    seller.userId,
-    `DELETE FROM public."ListingViewDaily" WHERE "listingId" = $1`,
-    [directListingId],
-  );
+  if (comprehensiveProof) {
+    assert.equal(
+      directTableAuthority,
+      false,
+      "the comprehensive race and plan proof must run under active RLS",
+    );
+    await proveSellerAnalyticsQueryPlans({
+      database,
+      seller,
+      otherSeller,
+      suffix,
+    });
+    await proveSellerAnalyticsRaceMatrix({
+      connectionString,
+      database,
+      seller,
+      suffix,
+    });
+  }
+
+  if (directTableAuthority) {
+    // Preparation must preserve the predecessor's direct runtime operations.
+    await runtimeQuery(
+      database,
+      seller.userId,
+      `INSERT INTO public."ListingViewDaily"
+         (id, "listingId", "sellerProfileId", date, views, clicks)
+       VALUES (
+         $1, $2, $3,
+         pg_catalog.date_trunc('day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'),
+         4, 2
+       )`,
+      [`${suffix}_direct_daily`, directListingId, seller.sellerProfileId],
+    );
+    await runtimeQuery(
+      database,
+      seller.userId,
+      `UPDATE public."ListingViewDaily"
+          SET views = views + 1
+        WHERE "listingId" = $1`,
+      [directListingId],
+    );
+    await runtimeQuery(
+      database,
+      seller.userId,
+      `DELETE FROM public."ListingViewDaily" WHERE "listingId" = $1`,
+      [directListingId],
+    );
+    await runtimeQuery(
+      database,
+      seller.userId,
+      `INSERT INTO public."SellerProfileViewDaily"
+         (id, "sellerProfileId", date, views)
+       VALUES (
+         $1, $2,
+         pg_catalog.date_trunc('day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'),
+         1
+       )`,
+      [`${suffix}_direct_profile`, seller.sellerProfileId],
+    );
+    await runtimeQuery(
+      database,
+      seller.userId,
+      `UPDATE public."SellerProfileViewDaily"
+          SET views = views + 1
+        WHERE id = $1`,
+      [`${suffix}_direct_profile`],
+    );
+    await runtimeQuery(
+      database,
+      seller.userId,
+      `DELETE FROM public."SellerProfileViewDaily" WHERE id = $1`,
+      [`${suffix}_direct_profile`],
+    );
+  } else {
+    for (const statement of [
+      'SELECT id FROM public."ListingViewDaily" LIMIT 1',
+      `INSERT INTO public."ListingViewDaily"
+         (id, "listingId", "sellerProfileId", date, views, clicks)
+       VALUES ('denied', 'denied', 'denied', pg_catalog.date_trunc(
+         'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       ), 0, 0)`,
+      'UPDATE public."ListingViewDaily" SET views = views WHERE false',
+      'DELETE FROM public."ListingViewDaily" WHERE false',
+      'SELECT id FROM public."SellerProfileViewDaily" LIMIT 1',
+      `INSERT INTO public."SellerProfileViewDaily"
+         (id, "sellerProfileId", date, views)
+       VALUES ('denied', 'denied', pg_catalog.date_trunc(
+         'day', pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+       ), 0)`,
+      'UPDATE public."SellerProfileViewDaily" SET views = views WHERE false',
+      'DELETE FROM public."SellerProfileViewDaily" WHERE false',
+    ]) {
+      await assert.rejects(
+        runtimeQuery(database, seller.userId, statement),
+        (error) => error?.code === "42501",
+      );
+    }
+  }
 
   await assert.rejects(
     runtimeQuery(
@@ -528,13 +1460,63 @@ export async function proveSellerAnalyticsDailyPreparedAuthorities({
          'grainline_seller_profile_view_record',
          'grainline_seller_engagement_analytics',
          'grainline_seller_analytics_retention_prune',
-         'grainline_seller_profile_view_daily_account_deletion_clear'
+         'grainline_seller_profile_view_daily_account_deletion_clear',
+         'grainline_order_seller_analytics_top_listings'
        )
      ORDER BY source.proname
   `));
-  assert.equal(posture.length, 5);
+  assert.equal(posture.length, 6);
   assert.equal(posture.every((row) =>
     row.owner_bypasses_rls && row.runtime_execute && !row.public_execute), true);
+
+  const tablePosture = rowsOf(await database.query(`
+    SELECT relation.relname,
+           relation.relrowsecurity AS rls_enabled,
+           relation.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = relation.oid) AS policy_count
+      FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = relation.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND relation.relname IN ('ListingViewDaily', 'SellerProfileViewDaily')
+     ORDER BY relation.relname
+  `));
+  assert.deepEqual(tablePosture, [
+    {
+      relname: "ListingViewDaily",
+      rls_enabled: !directTableAuthority,
+      rls_forced: !directTableAuthority,
+      runtime_select: directTableAuthority,
+      runtime_insert: directTableAuthority,
+      runtime_update: directTableAuthority,
+      runtime_delete: directTableAuthority,
+      policy_count: 0,
+    },
+    {
+      relname: "SellerProfileViewDaily",
+      rls_enabled: !directTableAuthority,
+      rls_forced: !directTableAuthority,
+      runtime_select: directTableAuthority,
+      runtime_insert: directTableAuthority,
+      runtime_update: directTableAuthority,
+      runtime_delete: directTableAuthority,
+      policy_count: 0,
+    },
+  ]);
 
   // This scenario runs before the public-map and account-deletion proofs.
   // Remove every fixture it owns so public selection, exact deduplication keys,

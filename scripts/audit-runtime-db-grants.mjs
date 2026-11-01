@@ -140,6 +140,8 @@ export const STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const FAVORITE_TABLE = "Favorite";
 export const FAVORITE_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const REVIEW_VOTE_TABLE = "ReviewVote";
+export const LISTING_VIEW_DAILY_TABLE = "ListingViewDaily";
+export const SELLER_PROFILE_VIEW_DAILY_TABLE = "SellerProfileViewDaily";
 export const REVIEW_VOTE_OWNER_TABLE_PRIVILEGES = ["SELECT"];
 export const CART_OWNER_COLUMN_PRIVILEGES = ["\"updatedAt\":UPDATE"];
 export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
@@ -1540,6 +1542,22 @@ export function followRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
 }
 
+export function sellerAnalyticsDailyRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(LISTING_VIEW_DAILY_TABLE)
+    && enabled.has(SELLER_PROFILE_VIEW_DAILY_TABLE)
+    && !policies.has(LISTING_VIEW_DAILY_TABLE)
+    && !policies.has(SELLER_PROFILE_VIEW_DAILY_TABLE);
+}
+
+export function sellerAnalyticsDailyRlsForceExpected(inventory) {
+  const forced = new Set(inventory?.rlsForceTables ?? []);
+  return sellerAnalyticsDailyRlsActivationExpected(inventory)
+    && forced.has(LISTING_VIEW_DAILY_TABLE)
+    && forced.has(SELLER_PROFILE_VIEW_DAILY_TABLE);
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -2005,6 +2023,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
     ...(makerVerificationRlsActivationExpected(inventory)
       ? [MAKER_VERIFICATION_TABLE]
+      : []),
+    ...(sellerAnalyticsDailyRlsActivationExpected(inventory)
+      ? [LISTING_VIEW_DAILY_TABLE, SELLER_PROFILE_VIEW_DAILY_TABLE]
       : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
@@ -3038,6 +3059,11 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && makerVerificationRlsActivationExpected(inventory)
     )
     || (
+      (tableName === LISTING_VIEW_DAILY_TABLE
+        || tableName === SELLER_PROFILE_VIEW_DAILY_TABLE)
+      && sellerAnalyticsDailyRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
@@ -3142,6 +3168,9 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? followRlsForceExpected(inventory)
         : tableName === MAKER_VERIFICATION_TABLE
           ? makerVerificationRlsForceExpected(inventory)
+        : tableName === LISTING_VIEW_DAILY_TABLE
+          || tableName === SELLER_PROFILE_VIEW_DAILY_TABLE
+          ? sellerAnalyticsDailyRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE

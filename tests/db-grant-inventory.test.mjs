@@ -290,6 +290,8 @@ const MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES = [
 ];
 const SELLER_ANALYTICS_PREPARATION_MIGRATION =
   "prisma/migrations/20261101030000_prepare_seller_analytics_daily_authorities/migration.sql";
+const SELLER_ANALYTICS_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101040000_activate_seller_analytics_daily_rls/migration.sql";
 const SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES = [
   "grainline_listing_analytics_record",
   "grainline_seller_profile_view_record",
@@ -487,6 +489,8 @@ const {
   supportRequestRlsForceExpected,
   followRlsActivationExpected,
   followRlsForceExpected,
+  sellerAnalyticsDailyRlsActivationExpected,
+  sellerAnalyticsDailyRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -3712,6 +3716,13 @@ describe("database grant inventory guardrails", () => {
       source(SELLER_ANALYTICS_PREPARATION_MIGRATION).includes(
         `public.${functionName}(`,
       ));
+    const sellerAnalyticsRlsActivationPresent = existsSync(
+      SELLER_ANALYTICS_ACTIVATION_MIGRATION,
+    ) && source(SELLER_ANALYTICS_ACTIVATION_MIGRATION).includes(
+      'ALTER TABLE public."ListingViewDaily" FORCE ROW LEVEL SECURITY',
+    ) && source(SELLER_ANALYTICS_ACTIVATION_MIGRATION).includes(
+      'ALTER TABLE public."SellerProfileViewDaily" FORCE ROW LEVEL SECURITY',
+    );
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -4030,6 +4041,7 @@ describe("database grant inventory guardrails", () => {
           ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES.length
             - 1 // seller-profile view recording already has an exact PUBLIC revoke
           : 0)
+        + (sellerAnalyticsRlsActivationPresent ? 2 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         // Activation revokes the table and count-repair trigger function.
@@ -4135,6 +4147,18 @@ describe("database grant inventory guardrails", () => {
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
     ));
+    if (sellerAnalyticsRlsActivationPresent) {
+      assert.equal(sellerAnalyticsDailyRlsActivationExpected(inventory), true);
+      assert.equal(sellerAnalyticsDailyRlsForceExpected(inventory), true);
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges("ListingViewDaily", inventory),
+        [],
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges("SellerProfileViewDaily", inventory),
+        [],
+      );
+    }
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
     ));
@@ -4493,6 +4517,7 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(sellerAnalyticsRlsActivationPresent ? ["ListingViewDaily"] : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -4515,6 +4540,9 @@ describe("database grant inventory guardrails", () => {
         ...(sellerProfilePublicCandidatePresent ? ["SellerProfile"] : []),
         ...(sellerProfilePrivateEnableMigrationPresent
           ? ["SellerProfilePrivate"]
+          : []),
+        ...(sellerAnalyticsRlsActivationPresent
+          ? ["SellerProfileViewDaily"]
           : []),
         ...(stockNotificationRlsActivationPresent
           ? ["StockNotification"]
@@ -4553,6 +4581,7 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsForceExpected === "function"
           && followRlsForceExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(sellerAnalyticsRlsActivationPresent ? ["ListingViewDaily"] : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -4577,6 +4606,9 @@ describe("database grant inventory guardrails", () => {
           : []),
         ...(sellerProfilePrivateForceMigrationPresent
           ? ["SellerProfilePrivate"]
+          : []),
+        ...(sellerAnalyticsRlsActivationPresent
+          ? ["SellerProfileViewDaily"]
           : []),
         ...(stockNotificationRlsActivationPresent
           ? ["StockNotification"]
@@ -6128,6 +6160,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const sellerAnalyticsProvisioningPresent = provision.includes(
+      "grainline_seller_analytics_daily_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6138,7 +6173,8 @@ describe("database grant inventory guardrails", () => {
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
-        + Number(reviewVoteProvisioningPresent),
+        + Number(reviewVoteProvisioningPresent)
+        + Number(sellerAnalyticsProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);

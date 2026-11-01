@@ -1002,6 +1002,69 @@ GRANT SELECT, DELETE ON TABLE public."Favorite"
 \endif
 \unset grainline_favorite_rls_active
 
+-- Seller daily analytics is a two-table policyless service boundary. A
+-- provisioning replay may preserve predecessor CRUD while both tables are
+-- cleanly unprotected, or preserve zero direct authority after the reviewed
+-- combined ENABLE+FORCE activation. Any half-activated posture fails closed.
+WITH table_state AS (
+  SELECT
+    class.relname,
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    COUNT(policy.oid)::integer AS policy_count
+  FROM pg_catalog.pg_class AS class
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = class.relnamespace
+  LEFT JOIN pg_catalog.pg_policy AS policy ON policy.polrelid = class.oid
+  WHERE namespace.nspname = 'public'
+    AND class.relname IN ('ListingViewDaily', 'SellerProfileViewDaily')
+    AND class.relkind = 'r'
+  GROUP BY class.relname, class.relrowsecurity, class.relforcerowsecurity
+), posture AS (
+  SELECT
+    COUNT(*) = 2
+      AND bool_and(
+        relrowsecurity AND relforcerowsecurity AND policy_count = 0
+      ) AS active,
+    COUNT(*) = 2
+      AND bool_and(
+        NOT relrowsecurity AND NOT relforcerowsecurity AND policy_count = 0
+      ) AS clean_predecessor
+  FROM table_state
+), failure AS (
+  SELECT
+    'Seller daily analytics RLS is partial or unexpected; refusing runtime-role provisioning'
+      AS message
+  FROM posture
+  WHERE active IS DISTINCT FROM true
+    AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS grainline_seller_analytics_daily_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_seller_analytics_daily_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_seller_analytics_daily_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_seller_analytics_daily_rls_active
+REVOKE ALL ON TABLE
+  public."ListingViewDaily",
+  public."SellerProfileViewDaily"
+FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_seller_analytics_daily_rls_active
+
 -- StripeWebhookEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
 -- removes all direct runtime authority. FORCE may be either off (initial

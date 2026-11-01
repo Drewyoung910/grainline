@@ -131,8 +131,11 @@ import {
   proveFollowRlsRollback,
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
-import { proveSellerAnalyticsDailyPreparedAuthorities } from
-  "../tools/database-full-chain/scenarios/seller-analytics-daily-authorities.mjs";
+import {
+  SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION,
+  SELLER_ANALYTICS_DAILY_RLS_MIGRATION,
+  proveSellerAnalyticsDailyPreparedAuthorities,
+} from "../tools/database-full-chain/scenarios/seller-analytics-daily-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -153,6 +156,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   ["20261028060000_activate_follow_rls", "follow_v1"],
   ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
   ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+  [SELLER_ANALYTICS_DAILY_RLS_MIGRATION, "seller_analytics_daily_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -271,6 +275,8 @@ test(
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
+      let sellerAnalyticsPreparationPreflightPath;
+      let sellerAnalyticsOtherSeller;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -531,6 +537,28 @@ test(
               fixture: followFixture,
             });
           }
+          if (artifact.name === SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before analytics proof");
+            sellerAnalyticsPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-analytics-daily-preparation-preflight.json",
+            );
+            const preparationPreflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID:
+                    "seller_analytics_daily_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                    sellerAnalyticsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 5);
+          }
           if (artifact.name === FAVORITE_RLS_MIGRATION) {
             assert.ok(
               favoriteFixture,
@@ -648,6 +676,42 @@ test(
               fixture: followFixture,
             });
           }
+          if (artifact.name === SELLER_ANALYTICS_DAILY_RLS_MIGRATION) {
+            assert.ok(
+              sellerAnalyticsPreparationPreflightPath,
+              "SellerAnalyticsDaily preparation preflight must precede activation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID:
+                    "seller_analytics_daily_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "seller-analytics-daily-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    sellerAnalyticsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 5);
+            sellerAnalyticsOtherSeller = await seedSellerProfilePrivateFixture(
+              adapter,
+              { suffix: "seller_analytics_other" },
+            );
+            await proveSellerAnalyticsDailyPreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+              seller: fixture,
+              otherSeller: sellerAnalyticsOtherSeller,
+              directTableAuthority: true,
+            });
+          }
           const privateActivationReleaseId = PRIVATE_TABLE_ACTIVATION_RELEASES.get(
             artifact.name,
           );
@@ -738,14 +802,45 @@ test(
         forced: true,
       });
       assert.ok(fixture, "seller fixture must be seeded before Case follow-up");
-      const sellerAnalyticsOtherSeller = await seedSellerProfilePrivateFixture(adapter, {
-        suffix: "seller_analytics_other",
-      });
+      assert.ok(
+        sellerAnalyticsOtherSeller,
+        "SellerAnalyticsDaily fixture must exist before active proof",
+      );
       await proveSellerAnalyticsDailyPreparedAuthorities({
         database: adapter,
         connectionString: proofDatabaseUrl,
         seller: fixture,
         otherSeller: sellerAnalyticsOtherSeller,
+        directTableAuthority: false,
+        comprehensiveProof: true,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          "docs/rls-drafts/seller-analytics-daily-activation-rollback.sql",
+        ),
+        "utf8",
+      ));
+      await proveSellerAnalyticsDailyPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        seller: fixture,
+        otherSeller: sellerAnalyticsOtherSeller,
+        directTableAuthority: true,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${SELLER_ANALYTICS_DAILY_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveSellerAnalyticsDailyPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        seller: fixture,
+        otherSeller: sellerAnalyticsOtherSeller,
+        directTableAuthority: false,
       });
       assert.ok(
         historicalCaseRefundDamage,
