@@ -211,6 +211,7 @@ describe("admin server action guardrails", () => {
     assert.match(migration, /DELETE FROM public\."Notification" AS notification/);
     assert.match(migration, /notification\."sourceType" = 'seller_broadcast'/);
     assert.match(migration, /DELETE FROM public\."EmailOutbox" AS outbox/);
+    assert.match(migration, /outbox\.status IN \('PENDING', 'FAILED'\)/);
     assert.match(migration, /outbox\."preferenceKey" = 'EMAIL_SELLER_BROADCAST'/);
     assert.match(migration, /DELETE FROM public\."SellerBroadcast" WHERE id = source_row\.id/);
     assert.match(migration, /'DELETE_BROADCAST'/);
