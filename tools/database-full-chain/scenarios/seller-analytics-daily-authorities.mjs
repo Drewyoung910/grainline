@@ -368,19 +368,20 @@ async function proveConcurrentViewAndClick({ connectionString, database, listing
   const first = await beginClient(connectionString, "seller_analytics_view_click_a", null);
   const second = await beginClient(connectionString, "seller_analytics_view_click_b", null);
   try {
-    const [view, click] = await Promise.all([
-      first.query(
-        "SELECT public.grainline_listing_analytics_record($1, 'view') AS recorded",
-        [listingId],
-      ),
-      second.query(
-        "SELECT public.grainline_listing_analytics_record($1, 'click') AS recorded",
-        [listingId],
-      ),
-    ]);
+    const view = await first.query(
+      "SELECT public.grainline_listing_analytics_record($1, 'view') AS recorded",
+      [listingId],
+    );
+    const clickPromise = second.query(
+      "SELECT public.grainline_listing_analytics_record($1, 'click') AS recorded",
+      [listingId],
+    );
+    await waitForLockWait(database, "seller_analytics_view_click_b");
+    await first.query("COMMIT");
+    const click = await clickPromise;
     assert.equal(view.rows[0]?.recorded, true);
     assert.equal(click.rows[0]?.recorded, true);
-    await Promise.all([first.query("COMMIT"), second.query("COMMIT")]);
+    await second.query("COMMIT");
   } finally {
     await Promise.all([closeClient(first), closeClient(second)]);
   }
