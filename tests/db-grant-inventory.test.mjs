@@ -288,6 +288,15 @@ const MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES = [
   ...MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES,
   ...MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES,
 ];
+const SELLER_ANALYTICS_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101030000_prepare_seller_analytics_daily_authorities/migration.sql";
+const SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES = [
+  "grainline_listing_analytics_record",
+  "grainline_seller_profile_view_record",
+  "grainline_seller_engagement_analytics",
+  "grainline_seller_analytics_retention_prune",
+  "grainline_seller_profile_view_daily_account_deletion_clear",
+];
 const EMAIL_DELIVERY_LEDGER_MIGRATION =
   "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
 const EMAIL_DELIVERY_LEDGER_PRIVATE_FUNCTION_NAMES = [
@@ -3697,6 +3706,12 @@ describe("database grant inventory guardrails", () => {
     ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
+    const sellerAnalyticsAuthorityPrepared = existsSync(
+      SELLER_ANALYTICS_PREPARATION_MIGRATION,
+    ) && SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_ANALYTICS_PREPARATION_MIGRATION).includes(
+        `public.${functionName}(`,
+      ));
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -3926,6 +3941,9 @@ describe("database grant inventory guardrails", () => {
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerAnalyticsAuthorityPrepared
+        ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(reviewVoteRlsActivationPresent
         ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
         : []),
@@ -4008,6 +4026,10 @@ describe("database grant inventory guardrails", () => {
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
         + (makerVerificationActivationPresent ? 1 : 0)
+        + (sellerAnalyticsAuthorityPrepared
+          ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES.length
+            - 1 // seller-profile view recording already has an exact PUBLIC revoke
+          : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         // Activation revokes the table and count-repair trigger function.
@@ -4134,6 +4156,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerAnalyticsAuthorityPrepared
+        ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
