@@ -658,6 +658,10 @@ export async function proveSellerBroadcastPreparedAuthorities({
     seller,
   });
   await database.query(
+    `DELETE FROM public."Listing" WHERE id = $1`,
+    [listingId],
+  );
+  await database.query(
     `DELETE FROM public."SellerProfile"
       WHERE id = ANY($1::text[])`,
     [[
