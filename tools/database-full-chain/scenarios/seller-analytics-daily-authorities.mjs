@@ -317,6 +317,7 @@ async function proveSellerAnalyticsQueryPlans({ database, seller, otherSeller, s
       indexes: [
         "SellerProfileViewDaily_sellerProfileId_date_key",
         "SellerProfileViewDaily_sellerProfileId_date_idx",
+        "SellerProfileViewDaily_date_idx",
       ],
     });
 
