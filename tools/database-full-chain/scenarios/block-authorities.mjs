@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 
 export const BLOCK_PREPARATION_MIGRATION =
   "20261030010000_prepare_block_authorities";
+export const BLOCK_RLS_MIGRATION =
+  "20261030040000_activate_block_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -468,4 +470,128 @@ export async function proveBlockPreparedAuthorities({ database }) {
     runtime_insert: true,
     runtime_delete: true,
   }], "compatible preparation must preserve predecessor access");
+
+  return Object.freeze({ actorId, targetId });
+}
+
+export async function proveBlockRlsAuthorities({ database }) {
+  const suffix = randomUUID().replaceAll("-", "");
+  const actorId = `block_rls_actor_${suffix}`;
+  const targetId = `block_rls_target_${suffix}`;
+  const now = "2026-11-01 12:00:00";
+
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT relation.relrowsecurity,
+           relation.relforcerowsecurity,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = relation.oid) AS policy_count,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete,
+           pg_catalog.has_table_privilege(
+             'grainline_staff_read_runtime', relation.oid, 'SELECT'
+           ) AS staff_select
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."Block"'::pg_catalog.regclass
+  `)), [{
+    relrowsecurity: true,
+    relforcerowsecurity: true,
+    policy_count: 0,
+    runtime_select: false,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: false,
+    staff_select: false,
+  }]);
+
+  await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, role, banned, "createdAt", "updatedAt")
+     VALUES
+       ($1, $2, $3, 'Block RLS actor', 'USER', false, $7, $7),
+       ($4, $5, $6, 'Block RLS target', 'USER', false, $7, $7)`,
+    [
+      actorId,
+      `clerk_${actorId}`,
+      `${actorId}@example.test`,
+      targetId,
+      `clerk_${targetId}`,
+      `${targetId}@example.test`,
+      now,
+    ],
+  );
+
+  await assert.rejects(
+    runtimeQuery(database, actorId, 'SELECT id FROM public."Block"'),
+    (error) => error?.code === "42501",
+    "runtime direct Block reads must remain denied",
+  );
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_user_block_create($1) AS created",
+      [targetId],
+    ),
+    [{ created: true }],
+  );
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      targetId,
+      "SELECT public.grainline_user_block_pair_is_blocked($1) AS blocked",
+      [actorId],
+    ),
+    [{ blocked: true }],
+  );
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_user_block_remove($1) AS deleted_count",
+      [targetId],
+    ),
+    [{ deleted_count: 1 }],
+  );
+}
+
+export async function proveBlockRlsRollback({ database }) {
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT relation.relrowsecurity,
+           relation.relforcerowsecurity,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."Block"'::pg_catalog.regclass
+  `)), [{
+    relrowsecurity: false,
+    relforcerowsecurity: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+  }]);
+  await assert.doesNotReject(
+    runtimeQuery(database, "rollback_actor", 'SELECT id FROM public."Block" LIMIT 1'),
+  );
 }
