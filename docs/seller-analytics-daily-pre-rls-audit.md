@@ -322,7 +322,8 @@ Emergency rollback is database-first:
    guards, not compatible functions or constraints;
 5. execute the predecessor listing telemetry, owner analytics, retention, and
    account-deletion statements on PostgreSQL;
-6. reconcile the migration ledger as a separately documented operator step.
+6. keep the successful activation ledger row intact; any later reactivation
+   uses a newly reviewed forward migration with a new name.
 
 Rollback must refuse unexpected policies, grants, function bodies, triggers,
 or schema drift. It must be proved from the actual rollback SQL, then followed

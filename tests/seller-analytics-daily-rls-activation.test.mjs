@@ -83,14 +83,16 @@ test("SellerAnalyticsDaily activation is one policyless authority transaction", 
 test("SellerAnalyticsDaily rollback is database-first and preserves compatible authorities", () => {
   const verified = verifyPrivateTableRlsActivationSource(releaseId);
   const rollback = readFileSync(verified.rollbackPath, "utf8");
+  const rollbackProse = rollback.replace(/^-- ?/gmu, "");
   const firstGrant = rollback.indexOf("GRANT SELECT, INSERT, UPDATE, DELETE");
   const firstDisable = rollback.indexOf("DISABLE ROW LEVEL SECURITY");
 
   assert.notEqual(firstGrant, -1);
   assert.notEqual(firstDisable, -1);
   assert.equal(firstGrant < firstDisable, true);
-  assert.match(rollback, /compatible fixed-operation\s+application remains live/u);
-  assert.match(rollback, /separately reviewed operator step/u);
+  assert.match(rollbackProse, /compatible fixed-operation\s+application remains live/u);
+  assert.match(rollbackProse, /keep the successfully\s+applied Prisma ledger row intact/u);
+  assert.match(rollbackProse, /newly reviewed forward\s+migration with a new name/u);
   assert.doesNotMatch(rollback, /migrate resolve --rolled-back/u);
 });
 

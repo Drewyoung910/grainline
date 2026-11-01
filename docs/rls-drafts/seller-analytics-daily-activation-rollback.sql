@@ -3,9 +3,11 @@
 -- Restoring predecessor CRUD before disabling RLS keeps both the compatible app
 -- and a later predecessor app functional.
 --
--- After this transaction and its readback succeed, reconcile the successful
--- activation ledger row through a separately reviewed operator step. Do not
--- deploy the predecessor application before this database rollback succeeds.
+-- After this transaction and its readback succeed, keep the successfully
+-- applied Prisma ledger row intact. Prisma cannot mark a completed migration
+-- rolled back; any later reactivation requires a newly reviewed forward
+-- migration with a new name. Do not deploy the predecessor application before
+-- this database rollback succeeds.
 
 BEGIN;
 

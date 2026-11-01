@@ -190,7 +190,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     rollbackPath:
       "docs/rls-drafts/seller-analytics-daily-activation-rollback.sql",
     rollbackSha256:
-      "8e6695119b1a359dadb4c11004d0b66ef3ad0171905ab51943ec367abe8e1b6a",
+      "f126710f9469ace8e80a19809cddfd3b7fa5b962ef103d0e56aa2b923f621ef3",
     table: "ListingViewDaily",
     additionalTables: Object.freeze(["SellerProfileViewDaily"]),
     mode: "policyless_combined_enable_force",
