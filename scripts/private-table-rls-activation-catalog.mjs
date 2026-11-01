@@ -116,6 +116,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
           name: "grainline_user_follower_notification_page",
           arguments: "text, text, integer",
           sourceMd5: "471b1caf9907d6d370ec1cb8ea5aa718",
+          securityDefiner: true,
           predecessorExecuteRole: "runtime",
           activatedExecuteRole: "none",
         }),
