@@ -106,7 +106,7 @@ function environment(directory, phase, previousPath) {
 
 test("Block preparation is byte sealed, additive, and release-cataloged", () => {
   assert.equal(verified.digest, release.migrationSha256);
-  assert.equal(verified.functionSources.size, 5);
+  assert.equal(verified.functionSources.size, 7);
   assert.deepEqual(release.sourceTests, [
     "tests/block-authority-preparation.test.mjs",
     "tests/notification-block-race-guardrails.test.mjs",
@@ -141,7 +141,7 @@ test("Block preparation inspector proves restart-safe pending and applied states
       },
     );
     assert.equal(applied.state, "applied");
-    assert.equal(applied.catalog.functions.length, 5);
+    assert.equal(applied.catalog.functions.length, 7);
 
     const postflight = await inspectPrivateTablePreparationProduction(
       environment(
@@ -156,7 +156,7 @@ test("Block preparation inspector proves restart-safe pending and applied states
     );
     assert.equal(postflight.state, "applied");
     assert.deepEqual(postflight.posture, applied.posture);
-    assert.equal(postflight.catalog.functions.length, 5);
+    assert.equal(postflight.catalog.functions.length, 7);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

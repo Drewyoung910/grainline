@@ -566,7 +566,7 @@ test(
             assert.equal(
               preparationPreflight.catalog.functions.length,
               0,
-              "all five Block functions are new and must be absent before preparation",
+              "all seven Block functions are new and must be absent before preparation",
             );
           }
           if (artifact.name === USER_REPORT_PREPARATION_MIGRATION) {
@@ -1162,7 +1162,7 @@ test(
           { Client: DisposableOwnerClient, rootDir: repositoryRoot },
         );
       assert.equal(blockPreparationPostflight.state, "applied");
-      assert.equal(blockPreparationPostflight.catalog.functions.length, 5);
+      assert.equal(blockPreparationPostflight.catalog.functions.length, 7);
       await proveBlockPreparedAuthorities({ database: adapter });
       assert.ok(
         userReportPreparationPreflightPath,
