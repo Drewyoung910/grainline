@@ -11,6 +11,8 @@ BEGIN
       FROM public."ListingViewDaily" AS daily
      WHERE daily.views < 0
         OR daily.clicks < 0
+        OR daily.views >= 2147483647
+        OR daily.clicks >= 2147483647
         OR daily.date IS DISTINCT FROM pg_catalog.date_trunc('day', daily.date)
         OR NOT EXISTS (
           SELECT 1
@@ -27,6 +29,7 @@ BEGIN
     SELECT 1
       FROM public."SellerProfileViewDaily" AS daily
      WHERE daily.views < 0
+        OR daily.views >= 2147483647
         OR daily.date IS DISTINCT FROM pg_catalog.date_trunc('day', daily.date)
   ) THEN
     RAISE EXCEPTION 'SellerProfileViewDaily contains invalid predecessor rows'
@@ -572,6 +575,30 @@ DO $grainline_seller_analytics_daily_postflight$
 DECLARE
   function_oid oid;
 BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM public."ListingViewDaily" AS daily
+     WHERE daily.views < 0
+        OR daily.clicks < 0
+        OR daily.views >= 2147483647
+        OR daily.clicks >= 2147483647
+        OR daily.date IS DISTINCT FROM pg_catalog.date_trunc('day', daily.date)
+        OR NOT EXISTS (
+          SELECT 1
+            FROM public."Listing" AS listing
+           WHERE listing.id = daily."listingId"
+             AND listing."sellerId" = daily."sellerProfileId"
+        )
+  ) OR EXISTS (
+    SELECT 1
+      FROM public."SellerProfileViewDaily" AS daily
+     WHERE daily.views < 0
+        OR daily.views >= 2147483647
+        OR daily.date IS DISTINCT FROM pg_catalog.date_trunc('day', daily.date)
+  ) THEN
+    RAISE EXCEPTION 'Seller analytics daily postflight inventory drifted';
+  END IF;
+
   IF EXISTS (
     SELECT 1
       FROM (

@@ -34,10 +34,13 @@ describe("seller analytics daily compatible preparation", () => {
     assert.match(migration, /SECURITY DEFINER/g);
     assert.match(migration, /SET search_path = pg_catalog/g);
     assert.match(migration, /ListingViewDaily contains invalid predecessor rows/);
+    assert.match(migration, /daily\.views >= 2147483647/);
+    assert.match(migration, /daily\.clicks >= 2147483647/);
     assert.match(migration, /Listing analytics seller identity drifted/);
     assert.match(migration, /effect\."claimGeneration" = p_claim_generation/);
     assert.match(migration, /effect\."claimToken" = p_claim_token/);
     assert.match(migration, /Seller analytics daily RLS changed during compatible preparation/);
+    assert.match(migration, /Seller analytics daily postflight inventory drifted/);
     assert.match(migration, /Seller analytics predecessor runtime CRUD drifted/);
     assert.doesNotMatch(migration, /ALTER TABLE public\."(?:ListingViewDaily|SellerProfileViewDaily)"\s+(?:ENABLE|FORCE|DISABLE|NO FORCE) ROW LEVEL SECURITY/);
     assert.doesNotMatch(migration, /REVOKE [^;]* ON TABLE public\."(?:ListingViewDaily|SellerProfileViewDaily)"/s);
