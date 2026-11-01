@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
+import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 
 describe("Notification reciprocal-block serialization", () => {
   const blockAccess = fs.readFileSync("src/lib/blockMutationAccess.ts", "utf8");
@@ -16,7 +17,7 @@ describe("Notification reciprocal-block serialization", () => {
     "utf8",
   );
   const blockPreparationSql = fs.readFileSync(
-    "prisma/migrations/20261030010000_prepare_block_authorities/migration.sql",
+    blockPreparationMigrationPath(),
     "utf8",
   );
 

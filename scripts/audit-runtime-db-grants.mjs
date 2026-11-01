@@ -13,7 +13,7 @@ import {
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
 import {
-  CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+  conversationMessageAuthorityFunctionsForState,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
 } from "./conversation-message-authority-catalog.mjs";
 import {
@@ -66,6 +66,9 @@ import {
 import {
   privateTableRlsActivation,
 } from "./private-table-rls-activation-catalog.mjs";
+import {
+  privateTablePreparation,
+} from "./private-table-preparation-catalog.mjs";
 
 const { Client } = pg;
 
@@ -120,6 +123,11 @@ export const SUPPORT_REQUEST_TABLE = "SupportRequest";
 export const MAKER_VERIFICATION_TABLE = "MakerVerification";
 export const FOLLOW_TABLE = "Follow";
 const FOLLOW_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("follow_v1");
+const BLOCK_PREPARATION_RELEASE = privateTablePreparation("block_v1");
+export const BLOCK_PREPARATION_MIGRATION =
+  BLOCK_PREPARATION_RELEASE.migration;
+export const BLOCK_PREPARATION_MIGRATION_SHA256 =
+  BLOCK_PREPARATION_RELEASE.migrationSha256;
 export const FOLLOW_RLS_ACTIVATION_MIGRATION =
   FOLLOW_RLS_ACTIVATION_RELEASE.migration;
 export const FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256 =
@@ -1773,6 +1781,14 @@ export async function readFollowRlsActivationState(client) {
   });
 }
 
+export async function readBlockPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: BLOCK_PREPARATION_MIGRATION,
+    checksum: BLOCK_PREPARATION_MIGRATION_SHA256,
+    label: "Block compatible preparation",
+  });
+}
+
 export async function readClerkWebhookEventForceState(client) {
   return readExactMigrationAppliedState(client, {
     migration: CLERK_WEBHOOK_EVENT_FORCE_MIGRATION,
@@ -2606,7 +2622,9 @@ export function collectConversationMessageFunctionIssues(
   const accountDeletionActive = accountDeletionSideEffectRlsActivationExpected(
     inventory,
   );
-  const expectedFunctions = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.flatMap(
+  const expectedFunctions = conversationMessageAuthorityFunctionsForState({
+    blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
+  }).flatMap(
     (entry) => {
       if (entry.name !== "grainline_message_redact_for_account_deletion") {
         return [entry];
@@ -3513,6 +3531,8 @@ export async function auditLiveDatabase({
   const followRlsActivation =
     await readFollowRlsActivationState(client);
   issues.push(...followRlsActivation.issues);
+  const blockPreparation = await readBlockPreparationState(client);
+  issues.push(...blockPreparation.issues);
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -3641,6 +3661,7 @@ export async function auditLiveDatabase({
     sellerProfileRlsActivationApplied: sellerProfilePublicEnable.applied,
     sellerProfileRlsForceApplied: sellerProfilePublicForce.applied,
     followRlsActivationApplied: followRlsActivation.applied,
+    blockPreparationApplied: blockPreparation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,
@@ -4286,7 +4307,9 @@ export async function auditLiveDatabase({
   }
 
   const conversationMessageFunctionNames = new Set(
-    CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+    conversationMessageAuthorityFunctionsForState({
+      blockPreparationApplied: blockPreparation.applied,
+    }).map((entry) => entry.name),
   );
   if (
     [...conversationMessageFunctionNames].every(

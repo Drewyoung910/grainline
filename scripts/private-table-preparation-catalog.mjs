@@ -362,7 +362,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   block_v1: Object.freeze({
     migration: "20261030010000_prepare_block_authorities",
-    migrationSha256: "a41fd289fc1c8d33e385961e5ae0418a3a33224833d68f03a1e992049452764a",
+    migrationSha256: "3bc49fc721e4bf8067f2222c9d47bc2e01c91d6ed93d7ed70fc25d5dd14251cb",
     table: "Block",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -403,11 +403,19 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_user_block_delete_owned",
         arguments: "",
       }),
+      Object.freeze({
+        name: "grainline_conversation_inbox_owner",
+        arguments: "boolean, text, timestamp, text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_message_unread_count_owner",
+        arguments: "",
+      }),
     ]),
   }),
   user_report_v1: Object.freeze({
     migration: "20261030020000_prepare_user_report_authorities",
-    migrationSha256: "f194866b13fd85848e9f15c43b85ca5ac05a00dfe70ec4efddbdb0b4f01e4944",
+    migrationSha256: "23a39d693ac959d3f1ca81dbb598752ee75d9f9adef90874082ec23693ca105a",
     table: "UserReport",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -472,7 +480,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   seller_faq_v1: Object.freeze({
     migration: "20261030030000_prepare_seller_faq_authorities",
-    migrationSha256: "b0961444c13c8c357898d3121440c436591f38b64f99e0bce680caaebe226dea",
+    migrationSha256: "45cf9935bd9c6492a26ebc167dab20962395e1834f2191d293f0776597803e99",
     table: "SellerFaq",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,

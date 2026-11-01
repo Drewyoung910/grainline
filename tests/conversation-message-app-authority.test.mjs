@@ -115,7 +115,8 @@ describe("Conversation and Message application authority conversion", () => {
     const helper = source("src/lib/conversationMessageAuthority.ts");
 
     assert.match(route, /countActorUnreadMessages\(me\.id\)/);
-    assert.match(helper, /grainline_message_unread_count/);
+    assert.match(helper, /withDbUserContext\(actorId/);
+    assert.match(helper, /grainline_message_unread_count_owner\(\)/);
     assert.doesNotMatch(route, /prisma\.message\.count|getBlockedUserIdsFor/);
   });
 
@@ -134,7 +135,8 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(inbox, /cursor: pageCursor/);
     assert.match(inbox, /limit: 51/);
     assert.doesNotMatch(inbox, /prisma\.(?:conversation|message)\.|getBlockedUserIdsFor/);
-    assert.match(helper, /public\.grainline_conversation_inbox/);
+    assert.match(helper, /withDbUserContext\(actorId/);
+    assert.match(helper, /public\.grainline_conversation_inbox_owner/);
     assert.match(helper, /conversation inbox RPC returned an invalid row/);
     assert.match(helper, /conversation inbox unread count/);
     assert.match(helper, /limit > 51/);

@@ -52,6 +52,8 @@ describe("Block compatible authority preparation", () => {
       "grainline_user_block_remove",
       "grainline_user_block_export",
       "grainline_user_block_delete_owned",
+      "grainline_conversation_inbox_owner",
+      "grainline_message_unread_count_owner",
     ]) {
       const body = functionBody(name);
       assert.match(body, /SECURITY DEFINER/u, name);
@@ -94,17 +96,20 @@ describe("Block compatible authority preparation", () => {
     }
   });
 
-  it("pins messaging source before converting only its Block reads to fixed ownership", () => {
+  it("pins predecessor messaging source and adds context-bound owner wrappers", () => {
     assert.match(migration, /4b2884765f4ca0db432c4678f98b1bdd/u);
     assert.match(migration, /6465832d045b72cc2762907f66a461f3/u);
-    assert.match(
-      migration,
-      /ALTER FUNCTION public\.grainline_conversation_inbox\([\s\S]*?\) SECURITY DEFINER;/u,
-    );
-    assert.match(
-      migration,
-      /ALTER FUNCTION public\.grainline_message_unread_count\(text\)\s+SECURITY DEFINER;/u,
-    );
+    assert.doesNotMatch(migration, /ALTER FUNCTION public\.grainline_(?:conversation_inbox|message_unread_count)/u);
+    for (const name of [
+      "grainline_conversation_inbox_owner",
+      "grainline_message_unread_count_owner",
+    ]) {
+      const body = functionBody(name);
+      assert.match(body, /SECURITY DEFINER/u);
+      assert.match(body, /current_setting\('app\.user_id', true\)/u);
+    }
+    assert.match(migration, /NOT procedure\.prosecdef[\s\S]*4b2884765f4ca0db432c4678f98b1bdd/u);
+    assert.match(migration, /NOT procedure\.prosecdef[\s\S]*6465832d045b72cc2762907f66a461f3/u);
     assert.match(migration, /owner_role\.rolsuper OR owner_role\.rolbypassrls/u);
   });
 

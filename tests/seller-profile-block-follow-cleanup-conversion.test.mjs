@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { blockPreparationMigrationPath } from "./helpers/block-preparation-migration-path.mjs";
 
 const route = readFileSync("src/app/api/users/[id]/block/route.ts", "utf8");
 const access = readFileSync("src/lib/blockMutationAccess.ts", "utf8");
@@ -9,7 +10,7 @@ const migration = readFileSync(
   "utf8",
 );
 const blockPreparation = readFileSync(
-  "prisma/migrations/20261030010000_prepare_block_authorities/migration.sql",
+  blockPreparationMigrationPath(),
   "utf8",
 );
 

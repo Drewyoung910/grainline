@@ -289,6 +289,7 @@ DECLARE
     pg_catalog.current_setting('app.user_id', true),
     ''
   );
+  claimed_user_id text;
   owned_seller_profile_id text;
   deleted_count integer := 0;
 BEGIN
@@ -306,34 +307,21 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  SELECT seller.id
-    INTO owned_seller_profile_id
-    FROM public."User" AS actor
-    LEFT JOIN public."SellerProfile" AS seller
-      ON seller."userId" = actor.id
-   WHERE actor.id = p_expected_user_id
-   FOR UPDATE OF actor;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'SellerFaq account-deletion user is unavailable'
-      USING ERRCODE = '42501';
+  claimed_user_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
+  IF request_user_id IS DISTINCT FROM claimed_user_id
+     OR p_expected_user_id IS DISTINCT FROM claimed_user_id THEN
+    RAISE EXCEPTION 'SellerFaq account-deletion claim actor changed'
+      USING ERRCODE = '40001';
   END IF;
 
-  PERFORM 1
-    FROM public."AccountDeletionSideEffect" AS effect
-   WHERE effect.id = p_side_effect_id
-     AND effect."userId" = p_expected_user_id
-     AND effect.kind = 'LOCAL_ANONYMIZE'
-     AND effect."dedupKey" = 'account-delete:local:' || p_expected_user_id
-     AND effect.payload = '{}'::jsonb
-     AND effect.status = 'PROCESSING'
-     AND effect."claimGeneration" = p_claim_generation
-     AND effect."claimToken" = p_claim_token
-     AND effect."processingStartedAt" IS NOT NULL
-   FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'SellerFaq account-deletion claim is not authorized'
-      USING ERRCODE = '42501';
-  END IF;
+  SELECT seller.id
+    INTO owned_seller_profile_id
+    FROM public."SellerProfile" AS seller
+   WHERE seller."userId" = claimed_user_id;
 
   IF owned_seller_profile_id IS NOT NULL THEN
     DELETE FROM public."SellerFaq"

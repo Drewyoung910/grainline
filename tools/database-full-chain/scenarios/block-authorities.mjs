@@ -34,6 +34,8 @@ export async function proveBlockPreparedAuthorities({ database }) {
   const targetSellerId = `block_target_seller_${suffix}`;
   const actorListingId = `block_actor_listing_${suffix}`;
   const targetListingId = `block_target_listing_${suffix}`;
+  const conversationId = `block_conversation_${suffix}`;
+  const messageId = `block_message_${suffix}`;
   const now = "2026-10-28 05:00:00";
 
   await database.query(
@@ -105,6 +107,37 @@ export async function proveBlockPreparedAuthorities({ database }) {
       randomUUID(), actorListingId, targetId,
       now,
     ],
+  );
+  await database.query(
+    `INSERT INTO public."Conversation"
+       (id, "userAId", "userBId", "createdAt", "updatedAt")
+     VALUES ($1, LEAST($2, $3), GREATEST($2, $3), $4, $4)`,
+    [conversationId, actorId, targetId, now],
+  );
+  await database.query(
+    `INSERT INTO public."Message"
+       (id, "conversationId", "senderId", "recipientId", body, "createdAt")
+     VALUES ($1, $2, $3, $4, 'Block projection proof', $5)`,
+    [messageId, conversationId, targetId, actorId, now],
+  );
+
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      `SELECT id FROM public.grainline_conversation_inbox_owner(
+         false, NULL, NULL, NULL, 10
+       )`,
+    ),
+    [{ id: conversationId }],
+  );
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      actorId,
+      "SELECT public.grainline_message_unread_count_owner() AS count",
+    ),
+    [{ count: "1" }],
   );
 
   assert.deepEqual(
@@ -186,7 +219,56 @@ export async function proveBlockPreparedAuthorities({ database }) {
        FROM public.grainline_user_block_export()`,
   );
   assert.deepEqual(actorExport, [{ blockerId: actorId, blockedId: targetId }]);
-  assert.deepEqual(targetExport, actorExport, "both participants export the relationship");
+  assert.deepEqual(targetExport, [], "a blocked user must not learn who blocked them");
+
+  await database.query(
+    `REVOKE SELECT, INSERT, UPDATE, DELETE
+       ON TABLE public."Block" FROM grainline_app_runtime`,
+  );
+  try {
+    assert.deepEqual(
+      await runtimeQuery(
+        database,
+        actorId,
+        `SELECT id FROM public.grainline_conversation_inbox_owner(
+           false, NULL, NULL, NULL, 10
+         )`,
+      ),
+      [],
+      "the owner inbox wrapper must preserve block filtering without a table grant",
+    );
+    assert.deepEqual(
+      await runtimeQuery(
+        database,
+        actorId,
+        "SELECT public.grainline_message_unread_count_owner() AS count",
+      ),
+      [{ count: "0" }],
+      "the owner unread wrapper must preserve block filtering without a table grant",
+    );
+    assert.deepEqual(
+      await runtimeQuery(
+        database,
+        outsiderId,
+        "SELECT public.grainline_message_unread_count_owner() AS count",
+      ),
+      [{ count: "0" }],
+    );
+    await assert.rejects(
+      runtimeQuery(
+        database,
+        null,
+        "SELECT public.grainline_message_unread_count_owner()",
+      ),
+      (error) => error?.code === "42501",
+      "the owner wrapper must reject a missing actor context",
+    );
+  } finally {
+    await database.query(
+      `GRANT SELECT, INSERT, UPDATE, DELETE
+         ON TABLE public."Block" TO grainline_app_runtime`,
+    );
+  }
 
   assert.deepEqual(
     await runtimeQuery(

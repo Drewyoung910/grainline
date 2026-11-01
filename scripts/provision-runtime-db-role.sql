@@ -3909,7 +3909,7 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_unread_batch() TO 
 
 -- Conversation/Message authority preparation may be absent before its
 -- reviewed migration. When present, converge all function ACLs:
--- six generic helper cores stay owner-only and the 19 fixed projections /
+-- six generic helper cores stay owner-only and the 21 fixed projections /
 -- operations are runtime-callable. Paired table-grant convergence is handled
 -- above once exact RLS activation is detected.
 WITH conversation_message_authority(function_signature) AS (
@@ -3923,6 +3923,8 @@ WITH conversation_message_authority(function_signature) AS (
     ('public."grainline_message_report_target_valid"(text, text, text, text)'),
     ('public."grainline_message_export"(text)'),
     ('public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'),
+    ('public."grainline_conversation_inbox_owner"(boolean, text, timestamp, text, integer)'),
+    ('public."grainline_message_unread_count_owner"()'),
     ('public."grainline_conversation_lock_pair_core"(text, text)'),
     ('public."grainline_conversation_listing_core"(text, text, text)'),
     ('public."grainline_conversation_get_or_create_core"(text, text, text, text)'),
@@ -3959,6 +3961,8 @@ WITH conversation_message_authority(function_signature) AS (
     ('public."grainline_message_report_target_valid"(text, text, text, text)'),
     ('public."grainline_message_export"(text)'),
     ('public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'),
+    ('public."grainline_conversation_inbox_owner"(boolean, text, timestamp, text, integer)'),
+    ('public."grainline_message_unread_count_owner"()'),
     ('public."grainline_conversation_lock_pair_core"(text, text)'),
     ('public."grainline_conversation_listing_core"(text, text, text)'),
     ('public."grainline_conversation_get_or_create_core"(text, text, text, text)'),
@@ -3996,6 +4000,8 @@ WITH conversation_message_public_authority(function_signature) AS (
     ('public."grainline_message_report_target_valid"(text, text, text, text)'),
     ('public."grainline_message_export"(text)'),
     ('public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'),
+    ('public."grainline_conversation_inbox_owner"(boolean, text, timestamp, text, integer)'),
+    ('public."grainline_message_unread_count_owner"()'),
     ('public."grainline_conversation_start"(text, text, text, text)'),
     ('public."grainline_message_send_ordinary"(text, text, text, text, text, text)'),
     ('public."grainline_conversation_set_archived"(text, text, boolean)'),

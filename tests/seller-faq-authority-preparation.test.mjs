@@ -73,11 +73,9 @@ describe("SellerFaq compatible authority preparation", () => {
   it("binds cleanup to the active LOCAL_ANONYMIZE claim", () => {
     const cleanup = functionBody("grainline_seller_faq_account_deletion_cleanup");
     assert.match(cleanup, /request_user_id IS DISTINCT FROM p_expected_user_id/u);
-    assert.match(cleanup, /effect\.kind = 'LOCAL_ANONYMIZE'/u);
-    assert.match(cleanup, /effect\.status = 'PROCESSING'/u);
-    assert.match(cleanup, /effect\."claimGeneration" = p_claim_generation/u);
-    assert.match(cleanup, /effect\."claimToken" = p_claim_token/u);
-    assert.match(cleanup, /FOR UPDATE/u);
+    assert.match(cleanup, /grainline_account_deletion_claim_user\(/u);
+    assert.match(cleanup, /p_expected_user_id IS DISTINCT FROM claimed_user_id/u);
+    assert.doesNotMatch(cleanup, /FROM public\."AccountDeletionSideEffect"/u);
   });
 
   it("converts all four direct application callers", () => {

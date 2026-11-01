@@ -50,6 +50,12 @@ BEGIN
        ),
        pg_catalog.to_regprocedure(
          'public.grainline_user_block_delete_owned()'
+       ),
+       pg_catalog.to_regprocedure(
+         'public.grainline_conversation_inbox_owner(boolean,text,timestamp without time zone,text,integer)'
+       ),
+       pg_catalog.to_regprocedure(
+         'public.grainline_message_unread_count_owner()'
        )
      )
   ) THEN
@@ -305,7 +311,6 @@ BEGIN
          relationship."createdAt"
     FROM public."Block" AS relationship
    WHERE relationship."blockerId" = request_user_id
-      OR relationship."blockedId" = request_user_id
    ORDER BY relationship."createdAt" DESC, relationship.id DESC;
 END;
 $grainline_user_block_export$;
@@ -338,21 +343,109 @@ BEGIN
 END;
 $grainline_user_block_delete_owned$;
 
--- These two projections already enforce their actor/participant contracts and
--- set transaction-local app.user_id. Their only remaining dependency on broad
--- runtime table grants is the reciprocal Block predicate. Fixed ownership lets
--- that exact, source-pinned predicate survive policyless Block FORCE without
--- adding an incoming-row disclosure policy or generic runtime SELECT.
-ALTER FUNCTION public.grainline_conversation_inbox(
-  text,
+-- Keep the predecessor RPCs SECURITY INVOKER for the compatible app. The new
+-- argument-free owner wrappers bind the actor to transaction-local app.user_id
+-- and provide only the exact Block-dependent projections needed after FORCE.
+CREATE FUNCTION public.grainline_conversation_inbox_owner(
   boolean,
   text,
-  timestamp,
+  timestamp(3),
   text,
   integer
-) SECURITY DEFINER;
-ALTER FUNCTION public.grainline_message_unread_count(text)
-  SECURITY DEFINER;
+)
+RETURNS TABLE (
+  id text,
+  "userAId" text,
+  "userBId" text,
+  "userAName" text,
+  "userAImageUrl" text,
+  "userBName" text,
+  "userBImageUrl" text,
+  "updatedAt" timestamp(3),
+  "archivedAAt" timestamp(3),
+  "archivedBAt" timestamp(3),
+  "contextListingId" text,
+  "contextListingTitle" text,
+  "contextListingPhotoUrl" text,
+  "latestMessageId" text,
+  "latestMessageBody" text,
+  "latestMessageKind" text,
+  "latestMessageCreatedAt" timestamp(3),
+  "latestMessageSenderId" text,
+  "unreadCount" bigint
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_conversation_inbox_owner$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.current_setting('app.user_id', true),
+    ''
+  );
+BEGIN
+  IF request_user_id IS NULL
+     OR request_user_id !~ '^[A-Za-z0-9._:-]{1,128}$' THEN
+    RAISE EXCEPTION 'conversation inbox actor context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = request_user_id
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'conversation inbox actor is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT *
+    FROM public.grainline_conversation_inbox(
+      request_user_id,
+      $1,
+      $2,
+      $3,
+      $4,
+      $5
+    );
+END;
+$grainline_conversation_inbox_owner$;
+
+CREATE FUNCTION public.grainline_message_unread_count_owner()
+RETURNS bigint
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_message_unread_count_owner$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.current_setting('app.user_id', true),
+    ''
+  );
+BEGIN
+  IF request_user_id IS NULL
+     OR request_user_id !~ '^[A-Za-z0-9._:-]{1,128}$' THEN
+    RAISE EXCEPTION 'message unread actor context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public."User" AS actor
+     WHERE actor.id = request_user_id
+       AND actor."deletedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'message unread actor is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN public.grainline_message_unread_count(request_user_id);
+END;
+$grainline_message_unread_count_owner$;
 
 REVOKE ALL ON FUNCTION public.grainline_user_block_pair_is_blocked(text)
   FROM PUBLIC, grainline_app_runtime;
@@ -364,6 +457,15 @@ REVOKE ALL ON FUNCTION public.grainline_user_block_export()
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_user_block_delete_owned()
   FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_conversation_inbox_owner(
+  boolean,
+  text,
+  timestamp,
+  text,
+  integer
+) FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION public.grainline_message_unread_count_owner()
+  FROM PUBLIC, grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION public.grainline_user_block_pair_is_blocked(text)
   TO grainline_app_runtime;
@@ -374,6 +476,15 @@ GRANT EXECUTE ON FUNCTION public.grainline_user_block_remove(text)
 GRANT EXECUTE ON FUNCTION public.grainline_user_block_export()
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_user_block_delete_owned()
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_conversation_inbox_owner(
+  boolean,
+  text,
+  timestamp,
+  text,
+  integer
+) TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_message_unread_count_owner()
   TO grainline_app_runtime;
 
 DO $grainline_block_preparation_postflight$
@@ -447,9 +558,10 @@ BEGIN
       ON owner_role.oid = procedure.proowner
    WHERE procedure.oid IN (
      'public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure,
-     'public.grainline_message_unread_count(text)'::pg_catalog.regprocedure
+     'public.grainline_message_unread_count(text)'::pg_catalog.regprocedure,
+     'public.grainline_conversation_inbox_owner(boolean,text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure,
+     'public.grainline_message_unread_count_owner()'::pg_catalog.regprocedure
    )
-     AND procedure.prosecdef
      AND NOT procedure.proleakproof
      AND procedure.proparallel = 'u'
      AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
@@ -473,13 +585,23 @@ BEGIN
      AND (
        (
          procedure.oid = 'public.grainline_conversation_inbox(text,boolean,text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure
+         AND NOT procedure.prosecdef
          AND pg_catalog.md5(procedure.prosrc) = '4b2884765f4ca0db432c4678f98b1bdd'
        ) OR (
          procedure.oid = 'public.grainline_message_unread_count(text)'::pg_catalog.regprocedure
+         AND NOT procedure.prosecdef
          AND pg_catalog.md5(procedure.prosrc) = '6465832d045b72cc2762907f66a461f3'
+       ) OR (
+         procedure.oid = 'public.grainline_conversation_inbox_owner(boolean,text,timestamp without time zone,text,integer)'::pg_catalog.regprocedure
+         AND procedure.prosecdef
+         AND pg_catalog.md5(procedure.prosrc) = '7523e7ad420a1b35d4942608c1383fea'
+       ) OR (
+         procedure.oid = 'public.grainline_message_unread_count_owner()'::pg_catalog.regprocedure
+         AND procedure.prosecdef
+         AND pg_catalog.md5(procedure.prosrc) = '0849b4643e39c8bbfded90359c634d39'
        )
      );
-  IF messaging_count <> 2 THEN
+  IF messaging_count <> 4 THEN
     RAISE EXCEPTION 'Block messaging authority posture drifted';
   END IF;
 END;

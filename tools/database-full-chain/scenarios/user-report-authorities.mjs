@@ -273,6 +273,7 @@ export async function proveUserReportPreparedAuthorities({ database, fixture }) 
     const resolved = received.find((row) => row.id === firstReport.reportId);
     assert.equal(resolved.resolutionNote,
       "Reviewed and closed for both participants.");
+    assert.equal(resolved.targetId, null);
     assert.equal(Object.hasOwn(resolved, "details"), false);
     assert.equal(Object.hasOwn(resolved, "internalResolutionNote"), false);
   } finally {

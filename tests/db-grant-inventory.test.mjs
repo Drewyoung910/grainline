@@ -8,6 +8,7 @@ import pg from "pg";
 import { USER_AUTHORITY_FUNCTIONS, USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
 import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+  CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/conversation-message-authority-catalog.mjs";
 import {
@@ -238,6 +239,8 @@ const BLOCK_PREPARATION_FUNCTION_NAMES = [
   "grainline_user_block_remove",
   "grainline_user_block_export",
   "grainline_user_block_delete_owned",
+  "grainline_conversation_inbox_owner",
+  "grainline_message_unread_count_owner",
 ];
 const USER_REPORT_PREPARATION_MIGRATION =
   "prisma/migrations/20261030020000_prepare_user_report_authorities/migration.sql";
@@ -453,6 +456,8 @@ const {
   FOLLOW_TABLE,
   FOLLOW_RLS_ACTIVATION_MIGRATION,
   FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
+  BLOCK_PREPARATION_MIGRATION: BLOCK_PREPARATION_LEDGER_MIGRATION,
+  BLOCK_PREPARATION_MIGRATION_SHA256: BLOCK_PREPARATION_LEDGER_MIGRATION_SHA256,
   FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
@@ -533,6 +538,7 @@ const {
   readClerkWebhookEventActivationState,
   readClerkWebhookEventForceState,
   readFollowRlsActivationState,
+  readBlockPreparationState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -2969,6 +2975,9 @@ describe("database grant inventory guardrails", () => {
     const exactRows = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map(
       (entry) => functionRow(entry),
     );
+    const blockPreparedRows = CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS.map(
+      (entry) => functionRow(entry),
+    );
     const redactionEntry = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.find(
       (entry) => entry.name === "grainline_message_redact_for_account_deletion",
     );
@@ -3011,6 +3020,16 @@ describe("database grant inventory guardrails", () => {
       ),
       [],
       "source-only preparation files must not change live predecessor expectations",
+    );
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        [...exactRows, ...blockPreparedRows],
+        runtimeRole,
+        migrationRole,
+        { blockPreparationApplied: true },
+      ),
+      [],
+      "an applied Block preparation adds only the context-bound owner wrappers",
     );
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
@@ -4003,6 +4022,9 @@ describe("database grant inventory guardrails", () => {
       ...(conversationMessageAuthorityPrepared
         ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
         : []),
+      ...(blockAuthorityPrepared
+        ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS.map((entry) => entry.name)
+        : []),
       ...(sellerProfilePublicCandidatePresent
         ? SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES
         : []),
@@ -4486,7 +4508,12 @@ describe("database grant inventory guardrails", () => {
       );
     }
     if (conversationMessageAuthorityPrepared) {
-      for (const { name } of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
+      for (const { name } of [
+        ...CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+        ...(blockAuthorityPrepared
+          ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS
+          : []),
+      ]) {
         assert.equal(
           inventory.publicRevokes.some((statement) => (
             statement.includes(`public.${name}(`)
@@ -5148,6 +5175,13 @@ describe("database grant inventory guardrails", () => {
         { applied: true, issues: [] },
       );
     }
+    assert.deepEqual(
+      await readBlockPreparationState(exactClient(
+        BLOCK_PREPARATION_LEDGER_MIGRATION,
+        BLOCK_PREPARATION_LEDGER_MIGRATION_SHA256,
+      )),
+      { applied: true, issues: [] },
+    );
     assert.deepEqual(
       await readAccountDeletionClaimFencePreparationState(exactClient(
         ACCOUNT_DELETION_CLAIM_FENCE_PREPARATION_MIGRATION,
@@ -6450,7 +6484,7 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      19,
+      21,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(
