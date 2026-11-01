@@ -3945,7 +3945,10 @@ describe("database grant inventory guardrails", () => {
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
       ...(sellerBroadcastAuthorityPrepared
-        ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES
+        ? [
+            ...SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES,
+            "grainline_email_outbox_begin_provider_attempt",
+          ]
         : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
@@ -4161,7 +4164,10 @@ describe("database grant inventory guardrails", () => {
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
       ...(sellerBroadcastAuthorityPrepared
-        ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES
+        ? [
+            ...SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES,
+            "grainline_email_outbox_begin_provider_attempt",
+          ]
         : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
