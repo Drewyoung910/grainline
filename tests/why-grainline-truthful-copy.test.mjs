@@ -22,5 +22,10 @@ describe("Why Grainline claims", () => {
     assert.doesNotMatch(page, /money goes straight to a US workshop/u);
     assert.doesNotMatch(page, /American craftspeople/u);
     assert.doesNotMatch(page, />50<\/div>[\s\S]*states shipped to/u);
+    assert.doesNotMatch(page, /The maker has 48 hours to respond/u);
+    assert.doesNotMatch(page, /staff make the final call and issue the refund/u);
+
+    assert.match(page, /For eligible orders, the order page explains when a case can be opened/u);
+    assert.match(page, /unresolved eligible cases can be escalated/u);
   });
 });
