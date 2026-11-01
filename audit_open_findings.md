@@ -1,5 +1,16 @@
 # Grainline Open Audit Findings
 
+## 2026-11-01 — Unsupported marketplace trust claims
+
+- **[CLAUDE C-06/#915 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  The Why Grainline page promised identity verification, real names, American
+  workshops, US ship-from addresses and US workshop payouts that the product
+  does not prove. It also displayed a hard-coded "50 states shipped to" count.
+  The candidate retains enforceable claims about connected Stripe payment
+  accounts, listing review, and prohibited factory imports and reselling,
+  replaces unsupported identity and nationality claims with accurate copy,
+  and replaces the hard-coded number with the live founding-maker count.
+
 Last updated: 2026-10-18
 
 ## 2026-10-16 — Blocked-pair paid-checkout completion
