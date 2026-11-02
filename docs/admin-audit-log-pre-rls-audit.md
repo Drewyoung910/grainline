@@ -80,6 +80,12 @@ The 23 current dependencies cover:
 Six files perform 20 executable direct operations on the audited isolated
 baseline:
 
+The machine-checked inventory runs with:
+
+```sh
+npm run audit:admin-audit-log-consumers
+```
+
 | Caller | Direct operations | Required authority |
 | --- | --- | --- |
 | `src/app/admin/audit/page.tsx` | count, paginated `findMany` | current ADMIN plus fresh PIN; bounded global page/filter through staff role |
