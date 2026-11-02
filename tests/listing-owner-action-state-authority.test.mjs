@@ -11,10 +11,11 @@ const dashboardPath = new URL("../src/app/dashboard/page.tsx", import.meta.url);
 const shopActionsPath = new URL("../src/app/seller/[id]/shop/actions.ts", import.meta.url);
 const editPath = new URL("../src/app/dashboard/listings/[id]/edit/page.tsx", import.meta.url);
 const newPath = new URL("../src/app/dashboard/listings/new/page.tsx", import.meta.url);
+const stockRoutePath = new URL("../src/app/api/listings/[id]/stock/route.ts", import.meta.url);
 const provisionPath = new URL("../scripts/provision-runtime-db-role.sql", import.meta.url);
 
 test("owner listing lifecycle reads use an actor-bound action-state authority", async () => {
-  const [migration, access, dashboard, shopActions, editPage, newPage, provision] =
+  const [migration, access, dashboard, shopActions, editPage, newPage, stockRoute, provision] =
     await Promise.all([
       readFile(migrationPath, "utf8"),
       readFile(accessPath, "utf8"),
@@ -22,6 +23,7 @@ test("owner listing lifecycle reads use an actor-bound action-state authority", 
       readFile(shopActionsPath, "utf8"),
       readFile(editPath, "utf8"),
       readFile(newPath, "utf8"),
+      readFile(stockRoutePath, "utf8"),
       readFile(provisionPath, "utf8"),
     ]);
 
@@ -43,10 +45,13 @@ test("owner listing lifecycle reads use an actor-bound action-state authority", 
   assert.match(shopActions, /listingOwnerActionState\(ownerId, listingId\)/u);
   assert.equal(editPage.match(/listingOwnerActionState\(actor\.id, listingId\)/gu)?.length, 2);
   assert.match(newPage, /listingOwnerActionState\(seller\.userId, created\.id\)/u);
+  assert.match(stockRoute, /listingOwnerActionState\(me\.id, id\)/u);
   assert.doesNotMatch(dashboard, /prisma\.listing\.findUnique\(/u);
   assert.doesNotMatch(shopActions, /prisma\.listing\.findFirst\(/u);
   assert.doesNotMatch(editPage, /prisma\.listing\.findUnique\(/u);
   assert.doesNotMatch(newPage, /prisma\.listing\.findUnique\(/u);
+  assert.doesNotMatch(stockRoute, /prisma\.listing\.findFirst\(/u);
+  assert.doesNotMatch(stockRoute, /sellerOwnerCore/u);
 
   assert.match(
     provision,
