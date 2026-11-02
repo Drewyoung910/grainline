@@ -109,6 +109,8 @@ const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_listing_owner_rating_buckets",
   "grainline_listing_seller_rating_summary_refresh",
   "grainline_listing_service_quality_score_apply",
+  "grainline_listing_owner_stock_lock",
+  "grainline_listing_owner_stock_apply",
   "grainline_listing_owner_action_state",
   "grainline_listing_actor_transaction_source_core",
   "grainline_listing_actor_transaction_source",

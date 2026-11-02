@@ -96,6 +96,18 @@ const LISTING_SELLER_RATING_SUMMARY_REFRESH_SQL = `
     FROM public.grainline_listing_seller_rating_summary_refresh($1::text)
 `;
 
+const LISTING_OWNER_STOCK_LOCK_SQL = `
+  SELECT *
+    FROM public.grainline_listing_owner_stock_lock($1::text, $2::text)
+`;
+
+const LISTING_OWNER_STOCK_APPLY_SQL = `
+  SELECT *
+    FROM public.grainline_listing_owner_stock_apply(
+      $1::text, $2::text, $3::boolean, $4::integer, $5::integer
+    )
+`;
+
 function createArgs({
   listingId,
   status = "DRAFT",
@@ -452,6 +464,107 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
       WHERE id = $1`,
     [transactionListingId],
   );
+  const stockPrivileges = rowsOf(await database.query(
+    `SELECT
+       pg_catalog.has_function_privilege(
+         'grainline_app_runtime',
+         'public.grainline_listing_owner_stock_lock(text,text)',
+         'EXECUTE'
+       ) AS runtime_lock,
+       pg_catalog.has_function_privilege(
+         'grainline_app_runtime',
+         'public.grainline_listing_owner_stock_apply(text,text,boolean,integer,integer)',
+         'EXECUTE'
+       ) AS runtime_apply,
+       pg_catalog.has_function_privilege(
+         'grainline_staff_read_runtime',
+         'public.grainline_listing_owner_stock_lock(text,text)',
+         'EXECUTE'
+       ) AS staff_lock,
+       pg_catalog.has_function_privilege(
+         'grainline_staff_read_runtime',
+         'public.grainline_listing_owner_stock_apply(text,text,boolean,integer,integer)',
+         'EXECUTE'
+       ) AS staff_apply,
+       pg_catalog.has_function_privilege(
+         'public',
+         'public.grainline_listing_owner_stock_lock(text,text)',
+         'EXECUTE'
+       ) AS public_lock,
+       pg_catalog.has_function_privilege(
+         'public',
+         'public.grainline_listing_owner_stock_apply(text,text,boolean,integer,integer)',
+         'EXECUTE'
+       ) AS public_apply`,
+  ))[0];
+  assert.deepEqual(stockPrivileges, {
+    runtime_lock: true,
+    runtime_apply: true,
+    staff_lock: false,
+    staff_apply: false,
+    public_lock: false,
+    public_apply: false,
+  });
+  const lockedStock = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LISTING_OWNER_STOCK_LOCK_SQL,
+    [transactionListingId, seller.sellerProfileId],
+  ));
+  assert.equal(lockedStock.length, 1);
+  assert.equal(lockedStock[0]?.stockQuantity, 2);
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_OWNER_STOCK_LOCK_SQL,
+    [transactionListingId, seller.sellerProfileId],
+  )), [], "cross-owner stock lock is empty");
+  await database.query(
+    `UPDATE public."Listing"
+        SET "stockQuantity" = "stockQuantity" - 1
+      WHERE id = $1`,
+    [transactionListingId],
+  );
+  const deltaStock = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LISTING_OWNER_STOCK_APPLY_SQL,
+    [transactionListingId, seller.sellerProfileId, true, 3, 5],
+  ));
+  assert.deepEqual(deltaStock.map((row) => ({
+    stockQuantity: row.stockQuantity,
+    previousStockQuantity: row.previousStockQuantity,
+    status: row.status,
+    previousStatus: row.previousStatus,
+  })), [{
+    stockQuantity: 4,
+    previousStockQuantity: 1,
+    status: "ACTIVE",
+    previousStatus: "ACTIVE",
+  }], "owner stock apply preserves checkout consumption");
+  const soldOutStock = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LISTING_OWNER_STOCK_APPLY_SQL,
+    [transactionListingId, seller.sellerProfileId, false, 0, 0],
+  ));
+  assert.deepEqual(soldOutStock.map((row) => [
+    row.previousStatus,
+    row.status,
+    row.stockQuantity,
+  ]), [["ACTIVE", "SOLD_OUT", 0]],
+  "owner stock apply performs the active sold-out transition");
+  const restocked = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LISTING_OWNER_STOCK_APPLY_SQL,
+    [transactionListingId, seller.sellerProfileId, false, 0, 3],
+  ));
+  assert.deepEqual(restocked.map((row) => [
+    row.previousStatus,
+    row.status,
+    row.stockQuantity,
+  ]), [["SOLD_OUT", "ACTIVE", 3]]);
   const ratingPrivilege = rowsOf(await database.query(
     `SELECT
        pg_catalog.has_function_privilege(
