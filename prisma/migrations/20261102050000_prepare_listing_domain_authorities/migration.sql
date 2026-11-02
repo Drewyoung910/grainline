@@ -78,6 +78,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner transition authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_review_transition(text,timestamp without time zone,text,text[],double precision)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner review-transition authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -1393,6 +1398,107 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_transition(
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_transition(
   text,text,timestamp without time zone
+) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_review_transition(
+  p_listing_id text,
+  p_reviewed_at timestamp without time zone,
+  p_status text,
+  p_flags text[],
+  p_score double precision
+)
+RETURNS TABLE (applied boolean)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_review_transition$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  source_listing public."Listing"%ROWTYPE;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_reviewed_at IS NULL
+     OR p_status IS NULL
+     OR p_status NOT IN ('PENDING_REVIEW', 'ACTIVE', 'SOLD_OUT', 'DRAFT')
+     OR p_flags IS NULL
+     OR pg_catalog.cardinality(p_flags) > 20
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(p_flags) AS flag(value)
+        WHERE flag.value IS NULL
+           OR pg_catalog.char_length(flag.value) > 80
+     )
+     OR p_score IS NULL
+     OR p_score < 0
+     OR p_score > 1
+     OR p_score = 'NaN'::double precision THEN
+    RAISE EXCEPTION 'Listing owner review-transition input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false;
+    RETURN;
+  END IF;
+
+  SELECT listing.*
+    INTO source_listing
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false;
+    RETURN;
+  END IF;
+
+  IF source_listing.status::text <> 'PENDING_REVIEW'
+     OR source_listing."updatedAt" IS DISTINCT FROM p_reviewed_at
+     OR source_listing."archivedAt" IS NOT NULL
+     OR (
+       p_status IN ('ACTIVE', 'SOLD_OUT')
+       AND NOT source_listing."sellerPubliclyOrderable"
+     ) THEN
+    RETURN QUERY SELECT false;
+    RETURN;
+  END IF;
+
+  UPDATE public."Listing" AS listing
+     SET status = p_status::public."ListingStatus",
+         "aiReviewFlags" = p_flags,
+         "aiReviewScore" = p_score,
+         "updatedAt" = source_now
+   WHERE listing.id = source_listing.id;
+
+  RETURN QUERY SELECT true;
+END
+$grainline_listing_owner_review_transition$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_review_transition(
+  text,timestamp without time zone,text,text[],double precision
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_review_transition(
+  text,timestamp without time zone,text,text[],double precision
 ) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(
