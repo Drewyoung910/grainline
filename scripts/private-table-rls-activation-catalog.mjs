@@ -49,6 +49,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -61,6 +62,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -340,6 +342,30 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
   }),
+  commission_domain_v1: Object.freeze({
+    preparationReleaseId: "commission_domain_v1",
+    minimumCompatibleAppCommit:
+      "461d10dbe86b34e6f286a4fe62b5a9ad28bea1a8",
+    migration: "20261101070000_activate_commission_domain_rls",
+    migrationSha256:
+      "c21445e3c09ebc85041daef861629d871c11f9676cc0116c9d621ffcda3d1f9f",
+    rollbackPath: "docs/rls-drafts/commission-domain-activation-rollback.sql",
+    rollbackSha256:
+      "57618bffcffeb3b0f775219f7c805668e8395054b757dbb44b172c969136cbdb",
+    table: "CommissionRequest",
+    additionalTables: Object.freeze(["CommissionInterest"]),
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/commission-domain-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
@@ -521,35 +547,40 @@ export function verifyPrivateTableRlsActivationSource(
   ) {
     throw stopped("source-test catalog is invalid");
   }
-  const releaseTables = [release.table, ...(release.additionalTables ?? [])];
+  const tables = privateTableRlsActivationTables(release);
   if (
-    releaseTables.some((table) => (
+    tables.some((table) => (
       typeof table !== "string" || !/^[A-Za-z][A-Za-z0-9_]{1,62}$/u.test(table)
     ))
-    || new Set(releaseTables).size !== releaseTables.length
-    || (releaseTables.length > 1 && release.policies.length !== 0)
+    || new Set(tables).size !== tables.length
+    || (tables.length > 1 && release.policies.length !== 0)
   ) {
     throw stopped("multi-table activation catalog is invalid");
   }
-  const tablePatterns = releaseTables.map(
+  const tablePatterns = tables.map(
     (table) => `public\\."${escapeRegExp(table)}"`,
   );
   const tablePattern = tablePatterns[0];
-  const combinedTablePattern = tablePatterns.join(",\\s*");
   const activationAlterTables = [
     ...activation.sql.matchAll(/\bALTER\s+TABLE\s+public\."([^"]+)"/giu),
   ].map((match) => match[1]);
   const activationLock = activation.sql.match(
     /\bLOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE\s*;/iu,
   )?.[1] ?? "";
-  const activationRevoke = activation.sql.match(
-    /\bREVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+TABLE\s+([\s\S]*?)\s+FROM\s+PUBLIC,\s*grainline_app_runtime(?:,\s*grainline_staff_read_runtime)?\s*;/iu,
-  )?.[1] ?? "";
+  const activationRevokedTables = [
+    ...activation.sql.matchAll(
+      /\bREVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+TABLE\s+([\s\S]*?)\s+FROM\s+PUBLIC,\s*grainline_app_runtime(?:,\s*grainline_staff_read_runtime)?\s*;/giu,
+    ),
+  ].flatMap((statement) => [
+    ...statement[1].matchAll(/public\."([^"]+)"/gu),
+  ].map((match) => match[1]));
   const activationTablesExact = tables.every((table) => (
     activationAlterTables.filter((candidate) => candidate === table).length === 2
     && activationLock.includes('public."' + table + '"')
-    && activationRevoke.includes('public."' + table + '"')
-  )) && activationAlterTables.every((table) => tables.includes(table));
+    && activationRevokedTables.filter((candidate) => candidate === table).length === 1
+  ))
+    && activationAlterTables.every((table) => tables.includes(table))
+    && activationRevokedTables.every((table) => tables.includes(table));
   if (
     !["owner_policy_combined_enable_force", "policyless_combined_enable_force"]
       .includes(release.mode)
@@ -557,14 +588,7 @@ export function verifyPrivateTableRlsActivationSource(
       && release.policies.length !== 0)
     || (release.mode === "owner_policy_combined_enable_force"
       && release.policies.length === 0)
-    || !new RegExp(
-      `LOCK\\s+TABLE\\s+${combinedTablePattern}\\s+IN\\s+ACCESS\\s+EXCLUSIVE\\s+MODE`,
-      "iu",
-    ).test(activation.sql)
-    || activationAlterTables.length !== releaseTables.length * 2
-    || releaseTables.some((table) => (
-      activationAlterTables.filter((candidate) => candidate === table).length !== 2
-    ))
+    || !activationTablesExact
     || /\b(?:NO\s+FORCE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(activation.sql)
     || /\bDROP\s+(?:TABLE|COLUMN|POLICY|TRIGGER)\b/iu.test(activation.sql)
   ) {
@@ -580,12 +604,8 @@ export function verifyPrivateTableRlsActivationSource(
         `ALTER\\s+TABLE\\s+${candidateTablePattern}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
         "iu",
       ).test(activation.sql)
-      || !new RegExp(
-        `REVOKE\\s+ALL(?:\\s+PRIVILEGES)?\\s+ON\\s+TABLE\\s+${candidateTablePattern}[\\s\\S]*?FROM\\s+PUBLIC,\\s*grainline_app_runtime(?:,\\s*grainline_staff_read_runtime)?`,
-        "iu",
-      ).test(activation.sql)
     ) {
-      throw stopped("migration table authority shape drifted");
+      throw stopped("migration table RLS shape drifted");
     }
   }
   for (const policy of release.policies) {
@@ -634,23 +654,22 @@ export function verifyPrivateTableRlsActivationSource(
   const rollbackLock = rollback.sql.match(
     /\bLOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE\s*;/iu,
   )?.[1] ?? "";
-  const rollbackGrant = rollback.sql.match(
-    /\bGRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+([\s\S]*?)\s+TO\s+grainline_app_runtime\s*;/iu,
-  )?.[1] ?? "";
+  const rollbackGrantedTables = [
+    ...rollback.sql.matchAll(
+      /\bGRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+(?:ON\s+TABLE\s+)?([\s\S]*?)\s+TO\s+grainline_app_runtime\s*;/giu,
+    ),
+  ].flatMap((statement) => [
+    ...statement[1].matchAll(/public\."([^"]+)"/gu),
+  ].map((match) => match[1]));
   const rollbackTablesExact = tables.every((table) => (
     rollbackAlterTables.filter((candidate) => candidate === table).length === 2
     && rollbackLock.includes('public."' + table + '"')
-    && rollbackGrant.includes('public."' + table + '"')
-  )) && rollbackAlterTables.every((table) => tables.includes(table));
+    && rollbackGrantedTables.filter((candidate) => candidate === table).length === 1
+  ))
+    && rollbackAlterTables.every((table) => tables.includes(table))
+    && rollbackGrantedTables.every((table) => tables.includes(table));
   if (
-    !new RegExp(
-      `LOCK\\s+TABLE\\s+${combinedTablePattern}\\s+IN\\s+ACCESS\\s+EXCLUSIVE\\s+MODE`,
-      "iu",
-    ).test(rollback.sql)
-    || rollbackAlterTables.length !== releaseTables.length * 2
-    || releaseTables.some((table) => (
-      rollbackAlterTables.filter((candidate) => candidate === table).length !== 2
-    ))
+    !rollbackTablesExact
     || /\b(?:ENABLE|FORCE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(
       rollback.sql.replace(/NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/giu, ""),
     )
@@ -662,10 +681,6 @@ export function verifyPrivateTableRlsActivationSource(
   for (const candidateTablePattern of tablePatterns) {
     if (
       !new RegExp(
-        `GRANT\\s+SELECT,\\s*INSERT,\\s*UPDATE,\\s*DELETE\\s+ON\\s+TABLE\\s+${candidateTablePattern}\\s+TO\\s+grainline_app_runtime`,
-        "iu",
-      ).test(rollback.sql)
-      || !new RegExp(
         `ALTER\\s+TABLE\\s+${candidateTablePattern}\\s+NO\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
         "iu",
       ).test(rollback.sql)
@@ -674,7 +689,7 @@ export function verifyPrivateTableRlsActivationSource(
         "iu",
       ).test(rollback.sql)
     ) {
-      throw stopped("rollback table authority shape drifted");
+      throw stopped("rollback table RLS shape drifted");
     }
   }
   for (const policy of release.policies) {

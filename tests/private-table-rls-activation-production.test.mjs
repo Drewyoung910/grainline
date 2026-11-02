@@ -227,14 +227,21 @@ function fakeClientClass({
           ...(selectedRelease.additionalTables ?? []),
         ];
         return {
-          rows: tables.sort().map((table) => tableRow(
-            active,
-            {
-              ...tableOverrides,
-              ...(tableOverridesByName[table] ?? {}),
-              table_name: table,
-            },
-            selectedRelease,
+          rows: tables.sort().map((table) => (
+            tableRowsByTable[`public."${table}"`]
+              ? {
+                  ...tableRowsByTable[`public."${table}"`],
+                  table_name: table,
+                }
+              : tableRow(
+                active,
+                {
+                  ...tableOverrides,
+                  ...(tableOverridesByName[table] ?? {}),
+                  table_name: table,
+                },
+                selectedRelease,
+              )
           )),
         };
       }
@@ -525,8 +532,14 @@ test("inspector proves coupled Commission tables and refuses a partial activatio
         }),
       },
     );
-    assert.deepEqual(ready.tables, ["CommissionRequest", "CommissionInterest"]);
-    assert.deepEqual(Object.keys(ready.postures), ready.tables);
+    assert.deepEqual(
+      ready.tables.map((entry) => entry.table),
+      ["CommissionRequest", "CommissionInterest"],
+    );
+    assert.deepEqual(
+      Object.keys(ready.postures),
+      ready.tables.map((entry) => entry.table),
+    );
 
     const partialDirectory = mkdtempSync(join(tmpdir(), "commission-domain-partial-"));
     try {
@@ -545,7 +558,7 @@ test("inspector proves coupled Commission tables and refuses a partial activatio
             }),
           },
         ),
-        /activation table group is partially active/u,
+        /tables are partially activated/u,
       );
     } finally {
       rmSync(partialDirectory, { recursive: true, force: true });

@@ -141,7 +141,6 @@ function assertPolicies(rows, expected) {
   for (const row of rows) {
     const policy = expectedByName.get(row.name);
     assert.ok(policy, `unexpected policy ${row.name}`);
-    assert.equal(row.table_name, release.table, `${row.name} table drifted`);
     assert.equal(row.command, policy.command, `${row.name} command drifted`);
     assert.equal(row.permissive, policy.permissive, `${row.name} permissiveness drifted`);
     assert.deepEqual(row.roles, policy.roles, `${row.name} roles drifted`);
@@ -452,26 +451,44 @@ export async function inspectPrivateTableRlsActivationProduction(
       "compatible preparation is not applied",
     );
     const recorded = successfulMigration(ledger, release);
-    const tables = tableRows.map((row) => {
-      const posture = postureFromRow(row);
-      let state;
+    const postures = Object.fromEntries(releaseTables.map((table) => {
+      const row = tableRows.find((candidate) => candidate.table_name === table);
+      assert.ok(row, `reviewed table ${table} is absent`);
+      return [table, postureFromRow(row)];
+    }));
+    const posture = postures[release.table];
+    const tableStates = releaseTables.map((table) => {
+      const expectedPolicies = table === release.table ? release.policies : [];
+      const tablePolicies = policies.filter((policy) => policy.table_name === table);
       try {
-        assertActivePosture(posture, release);
-        state = "active";
+        assertActivePosture(
+          postures[table],
+          release,
+          expectedPolicies.length,
+        );
+        assertPolicies(tablePolicies, expectedPolicies);
+        return "active";
       } catch (activeError) {
         try {
-          assertReadyPosture(posture, release);
-          state = "ready";
+          assertReadyPosture(postures[table], release);
+          assertPolicies(tablePolicies, []);
+          return "ready";
         } catch {
           throw activeError;
         }
       }
-      return Object.freeze({ table: row.table_name, posture, state });
     });
-    const tableStates = new Set(tables.map((entry) => entry.state));
-    assert.equal(tableStates.size, 1, "reviewed tables are partially activated");
-    const activeCatalog = tables[0].state === "active";
-    assertPolicies(policies, release, activeCatalog);
+    assert.equal(
+      new Set(tableStates).size,
+      1,
+      "reviewed tables are partially activated",
+    );
+    const activeCatalog = tableStates[0] === "active";
+    const tableEvidence = releaseTables.map((table, index) => Object.freeze({
+      table,
+      posture: postures[table],
+      state: tableStates[index],
+    }));
     if (recorded) assert.equal(activeCatalog, true, "recorded activation has predecessor posture");
     const state = recorded
       ? "active"
@@ -499,10 +516,19 @@ export async function inspectPrivateTableRlsActivationProduction(
       databaseName: primaryRow.database_name,
       migrationRole: primaryRow.current_user_name,
       table: release.table,
-      tables,
+      tables: tableEvidence,
       roles: roles.map((entry) => Object.freeze({ ...entry })),
-      posture: tables.find((entry) => entry.table === release.table).posture,
-      policies: policies.map((entry) => Object.freeze({ ...entry })),
+      posture,
+      postures,
+      policies: policies
+        .filter((entry) => entry.table_name === release.table)
+        .map((entry) => Object.freeze({ ...entry })),
+      policiesByTable: Object.fromEntries(releaseTables.map((table) => [
+        table,
+        policies
+          .filter((entry) => entry.table_name === table)
+          .map((entry) => Object.freeze({ ...entry })),
+      ])),
       functions,
       productionChanged: false,
       containsRowData: false,
@@ -514,7 +540,11 @@ export async function inspectPrivateTableRlsActivationProduction(
       assert.equal(previous.releaseId, evidence.releaseId, "release evidence drifted");
       assert.equal(previous.releaseCommit, evidence.releaseCommit, "commit evidence drifted");
       assert.equal(previous.activationMigration, evidence.activationMigration, "migration evidence drifted");
-      assert.deepEqual(previous.tables ?? [previous.table], evidence.tables, "table group drifted");
+      const previousTableNames = (previous.tables ?? [previous.table]).map(
+        (entry) => (typeof entry === "string" ? entry : entry.table),
+      );
+      const evidenceTableNames = evidence.tables.map((entry) => entry.table);
+      assert.deepEqual(previousTableNames, evidenceTableNames, "table group drifted");
       assert.equal(
         ["ready", "active_unrecorded", "active"].includes(previous.state),
         true,

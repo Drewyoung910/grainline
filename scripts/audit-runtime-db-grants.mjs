@@ -1615,6 +1615,20 @@ export function followRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
 }
 
+export function commissionDomainRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return COMMISSION_DOMAIN_TABLES.every(
+    (tableName) => enabled.has(tableName) && !policies.has(tableName),
+  );
+}
+
+export function commissionDomainRlsForceExpected(inventory) {
+  const forced = new Set(inventory?.rlsForceTables ?? []);
+  return commissionDomainRlsActivationExpected(inventory)
+    && COMMISSION_DOMAIN_TABLES.every((tableName) => forced.has(tableName));
+}
+
 export function sellerBroadcastRlsActivationExpected(inventory) {
   const enabled = new Set(inventory?.rlsEnableTables ?? []);
   const policies = new Set(inventory?.rlsPolicyTables ?? []);
@@ -2232,6 +2246,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
     ...(sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+    ...(commissionDomainRlsActivationExpected(inventory)
+      ? COMMISSION_DOMAIN_TABLES
+      : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -3412,6 +3429,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? userReportRlsForceExpected(inventory)
         : tableName === SELLER_FAQ_TABLE
           ? sellerFaqRlsForceExpected(inventory)
+        : COMMISSION_DOMAIN_TABLES.includes(tableName)
+          ? commissionDomainRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE
