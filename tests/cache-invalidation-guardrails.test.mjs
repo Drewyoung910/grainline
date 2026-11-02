@@ -143,7 +143,7 @@ describe("public cache invalidation guardrails", () => {
     assert.doesNotMatch(caseResolve, /(?:prisma|tx)\.listing\.updateMany/);
 
     assert.match(stockRestore, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
-    assert.match(stockRestore, /return restoreReservedStockItems\(tx, items\)/);
+    assert.match(stockRestore, /applyLegacyStockRestore\(input\.sessionId, items, tx\)/);
     assert.match(stockRestore, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
     assert.match(stockRoute, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);

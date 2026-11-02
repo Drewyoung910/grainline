@@ -48,6 +48,27 @@ const UPDATE_SQL = `
     )
 `;
 
+const ALT_TEXT_BACKFILL_SQL = `
+  SELECT public.grainline_listing_owner_alt_text_backfill(
+    $1::text, $2::text[], $3::text[]
+  ) AS updated_count
+`;
+
+const LEGACY_STOCK_RESTORE_SQL = `
+  SELECT claimed, stock_visibility_changed
+    FROM public.grainline_legacy_stock_restore_apply(
+      $1::text, $2::jsonb
+    )
+`;
+
+const LISTING_ACCOUNT_DELETION_SQL = `
+  SELECT *
+    FROM public.grainline_listing_account_deletion_redact(
+      $1::text, $2::text, $3::bigint, $4::uuid,
+      $5::timestamp without time zone
+    )
+`;
+
 function createArgs({
   listingId,
   status = "DRAFT",
@@ -57,6 +78,8 @@ function createArgs({
   title = "Full-chain listing authority proof",
   photos,
   variantGroups = [],
+  listingType = "MADE_TO_ORDER",
+  stockQuantity = null,
 }) {
   return [
     listingId,
@@ -78,11 +101,11 @@ function createArgs({
     76.2,
     1_000,
     "FURNITURE",
-    "MADE_TO_ORDER",
-    null,
-    null,
-    7,
-    14,
+    listingType,
+    stockQuantity,
+    listingType === "IN_STOCK" ? 7 : null,
+    listingType === "IN_STOCK" ? null : 7,
+    listingType === "IN_STOCK" ? null : 14,
     JSON.stringify(photos),
     JSON.stringify(variantGroups),
   ];
@@ -215,7 +238,7 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
       id: replacementPhotoId,
       url: "https://example.test/listing-replacement.jpg",
       originalUrl: "https://example.test/listing-replacement.jpg",
-      altText: "Replacement side view",
+      altText: null,
       sortOrder: 1,
     },
   ];
@@ -281,6 +304,251 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
       WHERE variant_group."listingId" = $1`,
     [listingId],
   )), [{ groupId: replacementGroupId, optionId: replacementOptionId }]);
+
+  const exactBackfill = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    ALT_TEXT_BACKFILL_SQL,
+    [
+      listingId,
+      ["AI must not replace seller text", "AI-generated replacement side view"],
+      replacementPhotos.map((photo) => photo.url),
+    ],
+  ));
+  assert.equal(exactBackfill[0]?.updated_count, 1);
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT "altText" AS "altText"
+       FROM public."Photo"
+      WHERE "listingId" = $1
+      ORDER BY "sortOrder", id`,
+    [listingId],
+  )), [
+    { altText: "Updated front view" },
+    { altText: "AI-generated replacement side view" },
+  ], "AI backfill must preserve seller-provided alt text");
+
+  const staleBackfill = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    ALT_TEXT_BACKFILL_SQL,
+    [
+      listingId,
+      ["stale first", "stale second"],
+      [replacementPhotos[0].url, "https://example.test/stale-photo.jpg"],
+    ],
+  ));
+  assert.equal(
+    staleBackfill[0]?.updated_count,
+    0,
+    "AI backfill must reject a stale reviewed image sequence",
+  );
+
+  const crossOwnerBackfill = rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    ALT_TEXT_BACKFILL_SQL,
+    [
+      listingId,
+      ["cross-owner first", "cross-owner second"],
+      replacementPhotos.map((photo) => photo.url),
+    ],
+  ));
+  assert.equal(
+    crossOwnerBackfill[0]?.updated_count,
+    0,
+    "AI backfill must reject a cross-owner actor",
+  );
+
+  const stockListingId = `listing-stock-restore-proof-${suffix}`;
+  const stockPhotoId = `listing-stock-restore-photo-${suffix}`;
+  const stockCreate = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    CREATE_SQL,
+    createArgs({
+      listingId: stockListingId,
+      title: "Legacy stock restore full-chain proof",
+      listingType: "IN_STOCK",
+      stockQuantity: 1,
+      photos: [{
+        id: stockPhotoId,
+        url: "https://example.test/stock-restore.jpg",
+        originalUrl: "https://example.test/stock-restore.jpg",
+        altText: "Stock restore proof",
+        sortOrder: 0,
+      }],
+    }),
+  ));
+  assert.equal(stockCreate[0]?.created, true);
+  await database.query(
+    `UPDATE public."Listing"
+        SET status = 'SOLD_OUT', "stockQuantity" = 0
+      WHERE id = $1`,
+    [stockListingId],
+  );
+  const restoreSessionId = `cs_test_${suffix.replaceAll("-", "")}`;
+  const restoreItems = JSON.stringify([{ listingId: stockListingId, quantity: 2 }]);
+  const firstRestore = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LEGACY_STOCK_RESTORE_SQL,
+    [restoreSessionId, restoreItems],
+  ));
+  assert.deepEqual(
+    firstRestore,
+    [{ claimed: true, stock_visibility_changed: 1 }],
+    "Legacy stock restore must apply exactly once",
+  );
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT status::text AS status, "stockQuantity" AS "stockQuantity"
+       FROM public."Listing"
+      WHERE id = $1`,
+    [stockListingId],
+  )), [{ status: "ACTIVE", stockQuantity: 2 }]);
+  const replayRestore = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LEGACY_STOCK_RESTORE_SQL,
+    [restoreSessionId, restoreItems],
+  ));
+  assert.deepEqual(
+    replayRestore,
+    [{ claimed: false, stock_visibility_changed: 0 }],
+    "Legacy stock restore replay must not duplicate stock",
+  );
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT "stockQuantity" AS "stockQuantity"
+       FROM public."Listing"
+      WHERE id = $1`,
+    [stockListingId],
+  )), [{ stockQuantity: 2 }]);
+
+  const deletionUserId = `listing-deletion-user-${suffix}`;
+  const deletionSellerId = `listing-deletion-seller-${suffix}`;
+  const deletionListingId = `listing-deletion-listing-${suffix}`;
+  const deletionPhotoId = `listing-deletion-photo-${suffix}`;
+  const deletionGroupId = `listing-deletion-group-${suffix}`;
+  const deletionOptionId = `listing-deletion-option-${suffix}`;
+  const deletionEffectId = `listing-deletion-effect-${suffix}`;
+  const deletionClaimToken = randomUUID();
+  const deletionAt = new Date();
+  await database.query(
+    `INSERT INTO public."User"
+       (id, "clerkId", email, name, "createdAt", "updatedAt",
+        "termsAcceptedAt", "termsVersion", "ageAttestedAt")
+     VALUES (
+       $1, $2, $3, 'Listing deletion proof seller', $4, $4,
+       $4, '2026-01-01', $4
+     )`,
+    [
+      deletionUserId,
+      `clerk_${deletionUserId}`,
+      `${deletionUserId}@example.test`,
+      deletionAt,
+    ],
+  );
+  await database.query(
+    `INSERT INTO public."SellerProfile"
+       (id, "userId", "displayName", "displayNameNormalized", city, state,
+        "chargesEnabled", "stripeAccountSupported", "ownerAccountActive",
+        "createdAt", "updatedAt")
+     VALUES (
+       $1, $2, 'Listing deletion proof', $3, 'Austin', 'TX',
+       true, true, true, $4, $4
+     )`,
+    [deletionSellerId, deletionUserId, deletionSellerId.toLowerCase(), deletionAt],
+  );
+  await database.query(
+    `INSERT INTO public."Listing"
+       (id, "sellerId", title, description, "priceCents", status,
+        "listingType", "stockQuantity", "isPrivate", "createdAt", "updatedAt")
+     VALUES (
+       $1, $2, 'Sensitive seller title', 'Sensitive seller description', 4000,
+       'ACTIVE', 'IN_STOCK', 3, false, $3, $3
+     )`,
+    [deletionListingId, deletionSellerId, deletionAt],
+  );
+  await database.query(
+    `INSERT INTO public."Photo"
+       (id, "listingId", url, "originalUrl", "altText", "sortOrder", "createdAt")
+     VALUES ($1, $2, $3, $3, 'Sensitive seller photo', 0, $4)`,
+    [deletionPhotoId, deletionListingId, "https://example.test/deletion.jpg", deletionAt],
+  );
+  await database.query(
+    `INSERT INTO public."ListingVariantGroup" (id, "listingId", name, "sortOrder")
+     VALUES ($1, $2, 'Sensitive option', 0)`,
+    [deletionGroupId, deletionListingId],
+  );
+  await database.query(
+    `INSERT INTO public."ListingVariantOption"
+       (id, "groupId", label, "priceAdjustCents", "sortOrder", "inStock")
+     VALUES ($1, $2, 'Sensitive value', 0, 0, true)`,
+    [deletionOptionId, deletionGroupId],
+  );
+  await database.query(
+    `INSERT INTO public."AccountDeletionSideEffect"
+       (id, "userId", kind, "dedupKey", payload, status, attempts,
+        "claimGeneration", "claimToken", "processingStartedAt",
+        "createdAt", "updatedAt")
+     VALUES (
+       $1::text, $2::text, 'LOCAL_ANONYMIZE',
+       'account-delete:local:' || $2::text,
+       '{}'::jsonb, 'PROCESSING', 1, 1, $3::uuid,
+       $4::timestamp, $4::timestamp, $4::timestamp
+     )`,
+    [deletionEffectId, deletionUserId, deletionClaimToken, deletionAt],
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      deletionUserId,
+      LISTING_ACCOUNT_DELETION_SQL,
+      [deletionEffectId, buyerId, 1, deletionClaimToken, deletionAt],
+    ),
+    (error) => error?.code === "42501",
+    "Listing deletion authority must reject a mismatched claimed user",
+  );
+  const deletionResult = rowsOf(await runtimeQuery(
+    database,
+    deletionUserId,
+    LISTING_ACCOUNT_DELETION_SQL,
+    [deletionEffectId, deletionUserId, 1, deletionClaimToken, deletionAt],
+  ));
+  assert.deepEqual(deletionResult, [{
+    seller_profile_id: deletionSellerId,
+    photos_deleted: 1,
+    variant_groups_deleted: 1,
+    listings_redacted: 1,
+  }]);
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT title, status::text AS status, "isPrivate" AS "isPrivate",
+            description, "videoUrl" AS "videoUrl", tags,
+            "metaDescription" AS "metaDescription", materials,
+            "aiReviewFlags" AS "aiReviewFlags", "aiReviewScore" AS "aiReviewScore",
+            "rejectionReason" AS "rejectionReason"
+       FROM public."Listing"
+      WHERE id = $1`,
+    [deletionListingId],
+  )), [{
+    title: "Deleted listing",
+    status: "HIDDEN",
+    isPrivate: true,
+    description: "[Listing removed]",
+    videoUrl: null,
+    tags: [],
+    metaDescription: null,
+    materials: [],
+    aiReviewFlags: [],
+    aiReviewScore: null,
+    rejectionReason: "Seller account deleted",
+  }], "Listing deletion authority must remove children and redact the parent");
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT
+       (SELECT pg_catalog.count(*)::integer FROM public."Photo" WHERE "listingId" = $1) AS photos,
+       (SELECT pg_catalog.count(*)::integer FROM public."ListingVariantGroup" WHERE "listingId" = $1) AS groups,
+       (SELECT pg_catalog.count(*)::integer FROM public."ListingVariantOption" WHERE "groupId" = $2) AS options`,
+    [deletionListingId, deletionGroupId],
+  )), [{ photos: 0, groups: 0, options: 0 }]);
 
   await assert.rejects(
     runtimeQuery(

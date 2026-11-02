@@ -285,7 +285,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       score: aiResult.confidence,
     });
     if (!held) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
-    await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
+    await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, imageUrls);
     revalidatePath(`/messages/${conversationId}`);
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
@@ -301,7 +301,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (!activation.applied) {
     return { ok: false, error: "Listing state changed during review. Refresh and try again." };
   }
-  await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
+  await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, imageUrls);
 
   const readyLink = await sendCustomOrderReadyLink({
     listingId: created.id,

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
-  legacyStockRestoreClaimFromRows,
+  legacyStockRestoreApplyFromRows,
   stripeWebhookHealthSummaryFromRows,
   stripeWebhookPruneCountFromRows,
 } from "@/lib/stripeWebhookMaintenanceState";
@@ -33,12 +33,20 @@ export async function stripeWebhookHealthSummary(
   return stripeWebhookHealthSummaryFromRows(rows);
 }
 
-export async function claimLegacyStockRestore(
+export async function applyLegacyStockRestore(
   sessionId: string,
+  items: ReadonlyArray<Readonly<{ listingId: string; quantity: number }>>,
   client: StripeWebhookMaintenanceClient = prisma,
 ) {
-  const rows = await client.$queryRaw<Array<{ claimed: unknown }>>`
-    SELECT public.grainline_legacy_stock_restore_claim(${sessionId}) AS claimed
+  const rows = await client.$queryRaw<Array<{
+    claimed: unknown;
+    stock_visibility_changed: unknown;
+  }>>`
+    SELECT claimed, stock_visibility_changed
+      FROM public.grainline_legacy_stock_restore_apply(
+        ${sessionId},
+        ${JSON.stringify(items)}::jsonb
+      )
   `;
-  return legacyStockRestoreClaimFromRows(rows);
+  return legacyStockRestoreApplyFromRows(rows);
 }

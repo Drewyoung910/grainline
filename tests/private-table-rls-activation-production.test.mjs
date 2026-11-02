@@ -643,3 +643,13 @@ test("inspector rejects account-deletion direct table authority", async () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("inspector resolves reviewed function identities without absorbing unrelated overloads", () => {
+  const inspector = readFileSync(
+    "scripts/private-table-rls-activation-production-inspect.mjs",
+    "utf8",
+  );
+
+  assert.match(inspector, /pg_catalog\.to_regprocedure\(expected\.identity\)/u);
+  assert.doesNotMatch(inspector, /procedure\.proname = ANY\(\$1::text\[\]\)/u);
+});

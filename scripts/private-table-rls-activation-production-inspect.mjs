@@ -244,8 +244,13 @@ function expectedFunctions(verified, active) {
 
 async function readFunctions(client, verified, tableOwner, active) {
   const expectedEntries = expectedFunctions(verified, active);
-  const names = expectedEntries.map((entry) => entry.name);
+  const identities = expectedEntries.map((entry) => (
+    `public.${entry.name}(${entry.arguments})`
+  ));
   const rows = (await client.query(`
+    WITH expected(identity) AS (
+      SELECT pg_catalog.unnest($1::text[])
+    )
     SELECT procedure.proname AS function_name,
            pg_catalog.oidvectortypes(procedure.proargtypes)::text AS identity_arguments,
            owner.rolname AS owner_name,
@@ -265,14 +270,15 @@ async function readFunctions(client, verified, tableOwner, active) {
            ) AS account_deletion_execute,
            pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
              AS public_execute
-      FROM pg_catalog.pg_proc AS procedure
+      FROM expected
+      JOIN pg_catalog.pg_proc AS procedure
+        ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = procedure.pronamespace
       JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
      WHERE namespace.nspname = 'public'
-       AND procedure.proname = ANY($1::text[])
      ORDER BY procedure.proname, identity_arguments
-  `, [names])).rows;
+  `, [identities])).rows;
   assert.equal(rows.length, expectedEntries.length, "function count drifted");
   const expected = new Map(expectedEntries.map((entry) => [
     `${entry.name}(${entry.arguments})`,

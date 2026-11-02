@@ -323,7 +323,7 @@ export async function publishListingAction(listingId: string): Promise<PublishLi
       if (!updateResult) {
         return { error: "Listing state changed; refresh and try again." };
       }
-      await backfillEmptyAltTexts(listing.id, aiResult.altTexts, reviewedImageUrls);
+      await backfillEmptyAltTexts(listing.seller.userId, listing.id, aiResult.altTexts, reviewedImageUrls);
       await logAdminAction({
         adminId: listing.seller.userId,
         action: "AI_HOLD_LISTING",
@@ -351,7 +351,7 @@ export async function publishListingAction(listingId: string): Promise<PublishLi
       if (!updateResult) {
         return { error: "Listing state changed; refresh and try again." };
       }
-      await backfillEmptyAltTexts(listing.id, aiResult.altTexts, reviewedImageUrls);
+      await backfillEmptyAltTexts(listing.seller.userId, listing.id, aiResult.altTexts, reviewedImageUrls);
       let warning: string | undefined;
       if (listing.isPrivate && listing.reservedForUserId && listing.customOrderConversationId) {
         try {

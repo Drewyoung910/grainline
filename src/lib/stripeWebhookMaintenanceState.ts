@@ -83,11 +83,28 @@ export function stripeWebhookHealthSummaryFromRows(
   return summary;
 }
 
-export function legacyStockRestoreClaimFromRows(
-  rows: readonly Readonly<{ claimed: unknown }>[],
+export function legacyStockRestoreApplyFromRows(
+  rows: readonly Readonly<{
+    claimed: unknown;
+    stock_visibility_changed: unknown;
+  }>[],
 ) {
-  if (rows.length !== 1 || typeof rows[0]?.claimed !== "boolean") {
-    throw new Error("Checkout stock restore claim returned an invalid result");
+  if (
+    rows.length !== 1
+    || typeof rows[0]?.claimed !== "boolean"
+  ) {
+    throw new Error("Checkout stock restore apply returned an invalid result");
   }
-  return rows[0].claimed;
+  const stockVisibilityChanged = boundedNonNegativeCount(
+    rows[0]?.stock_visibility_changed,
+    "Checkout stock restore visibility",
+    100,
+  );
+  if (!rows[0].claimed && stockVisibilityChanged !== 0) {
+    throw new Error("Checkout stock restore apply returned an inconsistent result");
+  }
+  return Object.freeze({
+    claimed: rows[0].claimed,
+    stockVisibilityChanged,
+  });
 }

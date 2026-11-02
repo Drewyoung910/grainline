@@ -83,6 +83,21 @@ BEGIN
     RAISE EXCEPTION 'Listing owner content-update authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_alt_text_backfill(text,text[],text[])'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner alt-text backfill authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_legacy_stock_restore_apply(text,jsonb)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Legacy checkout stock-restore apply authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_account_deletion_redact(text,text,bigint,uuid,timestamp without time zone)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing account-deletion authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_children_replace_core(text,integer,jsonb,jsonb)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing child-manifest core already exists';
@@ -2194,6 +2209,307 @@ GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_content_update(
   text[],text,text[],double precision,double precision,double precision,
   double precision,double precision,double precision,integer,text,text,
   integer,integer,integer,integer,jsonb,jsonb
+) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_alt_text_backfill(
+  p_listing_id text,
+  p_alt_texts text[],
+  p_reviewed_image_urls text[]
+)
+RETURNS integer
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_alt_text_backfill$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  source_photo_ids text[];
+  source_photo_urls text[];
+  source_index integer;
+  updated_count integer;
+  total_updated integer := 0;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_alt_texts IS NULL
+     OR p_reviewed_image_urls IS NULL
+     OR pg_catalog.cardinality(p_reviewed_image_urls) NOT BETWEEN 1 AND 10
+     OR pg_catalog.cardinality(p_alt_texts)
+          IS DISTINCT FROM pg_catalog.cardinality(p_reviewed_image_urls)
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(p_reviewed_image_urls) AS reviewed_url(value)
+        WHERE reviewed_url.value IS NULL
+           OR pg_catalog.char_length(reviewed_url.value) NOT BETWEEN 1 AND 2048
+     )
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(p_alt_texts) AS alt_text(value)
+        WHERE alt_text.value IS NULL
+           OR pg_catalog.char_length(alt_text.value) > 200
+     ) THEN
+    RAISE EXCEPTION 'Listing owner alt-text backfill input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN 0;
+  END IF;
+
+  PERFORM 1
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN 0;
+  END IF;
+
+  SELECT
+    pg_catalog.array_agg(photo.id ORDER BY photo."sortOrder", photo.id),
+    pg_catalog.array_agg(photo.url ORDER BY photo."sortOrder", photo.id)
+    INTO source_photo_ids, source_photo_urls
+    FROM public."Photo" AS photo
+   WHERE photo."listingId" = p_listing_id;
+
+  IF source_photo_urls IS DISTINCT FROM p_reviewed_image_urls THEN
+    RETURN 0;
+  END IF;
+
+  FOR source_index IN 1..pg_catalog.cardinality(source_photo_ids)
+  LOOP
+    IF p_alt_texts[source_index] <> '' THEN
+      UPDATE public."Photo" AS photo
+         SET "altText" = p_alt_texts[source_index]
+       WHERE photo.id = source_photo_ids[source_index]
+         AND photo."listingId" = p_listing_id
+         AND photo.url = p_reviewed_image_urls[source_index]
+         AND (photo."altText" IS NULL OR photo."altText" = '');
+      GET DIAGNOSTICS updated_count = ROW_COUNT;
+      total_updated := total_updated + updated_count;
+    END IF;
+  END LOOP;
+
+  RETURN total_updated;
+END
+$grainline_listing_owner_alt_text_backfill$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_alt_text_backfill(
+  text,text[],text[]
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_alt_text_backfill(
+  text,text[],text[]
+) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_legacy_stock_restore_apply(
+  p_session_id text,
+  p_reserved_items jsonb
+)
+RETURNS TABLE (claimed boolean, stock_visibility_changed integer)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_legacy_stock_restore_apply$
+DECLARE
+  source_item record;
+  source_claimed boolean;
+  updated_count integer;
+  visibility_count integer := 0;
+BEGIN
+  IF p_session_id IS NULL
+     OR pg_catalog.char_length(p_session_id) = 0
+     OR pg_catalog.char_length(p_session_id) > 255
+     OR p_session_id IS DISTINCT FROM pg_catalog.btrim(p_session_id)
+     OR p_session_id !~ '^cs_(test_|live_)?[A-Za-z0-9]+$'
+     OR p_reserved_items IS NULL
+     OR pg_catalog.jsonb_typeof(p_reserved_items) <> 'array'
+     OR pg_catalog.jsonb_array_length(p_reserved_items) NOT BETWEEN 1 AND 100
+     OR pg_catalog.octet_length(p_reserved_items::text) > 65536
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.jsonb_array_elements(p_reserved_items) AS item(value)
+        WHERE pg_catalog.jsonb_typeof(item.value) <> 'object'
+           OR pg_catalog.jsonb_typeof(item.value->'listingId') <> 'string'
+           OR item.value->>'listingId' !~ '^[A-Za-z0-9._:-]{1,191}$'
+           OR pg_catalog.jsonb_typeof(item.value->'quantity') <> 'number'
+           OR item.value->>'quantity' !~ '^[1-9][0-9]{0,6}$'
+           OR (item.value->>'quantity')::bigint > 1000000
+     )
+     OR EXISTS (
+       SELECT 1
+         FROM (
+           SELECT
+             item.value->>'listingId' AS listing_id,
+             pg_catalog.sum((item.value->>'quantity')::bigint) AS quantity
+             FROM pg_catalog.jsonb_array_elements(p_reserved_items) AS item(value)
+            GROUP BY item.value->>'listingId'
+         ) AS grouped_item
+        WHERE grouped_item.quantity > 1000000
+     ) THEN
+    RAISE EXCEPTION 'Legacy checkout stock-restore input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  -- The predecessor claim owns the shared Session advisory lock, exact Order
+  -- absence fence, and durable one-shot event. Calling it inside this function
+  -- keeps that claim and every stock mutation in one database statement and
+  -- therefore one transaction.
+  source_claimed := public.grainline_legacy_stock_restore_claim(p_session_id);
+  IF NOT source_claimed THEN
+    RETURN QUERY SELECT false, 0;
+    RETURN;
+  END IF;
+
+  FOR source_item IN
+    SELECT
+      item.value->>'listingId' AS listing_id,
+      pg_catalog.sum((item.value->>'quantity')::integer)::integer AS quantity
+      FROM pg_catalog.jsonb_array_elements(p_reserved_items) AS item(value)
+     GROUP BY item.value->>'listingId'
+     ORDER BY item.value->>'listingId'
+  LOOP
+    UPDATE public."Listing" AS listing
+       SET "stockQuantity" = listing."stockQuantity" + source_item.quantity
+     WHERE listing.id = source_item.listing_id
+       AND listing."listingType" = 'IN_STOCK';
+
+    UPDATE public."Listing" AS listing
+       SET status = 'ACTIVE'
+     WHERE listing.id = source_item.listing_id
+       AND listing.status = 'SOLD_OUT'
+       AND listing."stockQuantity" > 0;
+    GET DIAGNOSTICS updated_count = ROW_COUNT;
+    visibility_count := visibility_count + updated_count;
+  END LOOP;
+
+  RETURN QUERY SELECT true, visibility_count;
+END
+$grainline_legacy_stock_restore_apply$;
+
+REVOKE ALL ON FUNCTION public.grainline_legacy_stock_restore_apply(text,jsonb)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_legacy_stock_restore_apply(text,jsonb)
+  TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_account_deletion_redact(
+  p_side_effect_id text,
+  p_expected_user_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid,
+  p_archived_at timestamp without time zone
+)
+RETURNS TABLE (
+  seller_profile_id text,
+  photos_deleted integer,
+  variant_groups_deleted integer,
+  listings_redacted integer
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_account_deletion_redact$
+DECLARE
+  claimed_user_id text;
+  source_seller_profile_id text;
+  source_photos_deleted integer;
+  source_variant_groups_deleted integer;
+  source_listings_redacted integer;
+BEGIN
+  IF p_side_effect_id IS NULL
+     OR p_side_effect_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_user_id IS NULL
+     OR p_expected_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_generation IS NULL
+     OR p_claim_generation < 1
+     OR p_claim_token IS NULL
+     OR p_archived_at IS NULL THEN
+    RAISE EXCEPTION 'Listing account-deletion input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  claimed_user_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
+  IF claimed_user_id IS DISTINCT FROM p_expected_user_id THEN
+    RAISE EXCEPTION 'Listing account-deletion claim belongs to another user'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT seller.id
+    INTO source_seller_profile_id
+    FROM public."SellerProfile" AS seller
+   WHERE seller."userId" = claimed_user_id
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Listing account-deletion seller profile is missing'
+      USING ERRCODE = '23503';
+  END IF;
+
+  DELETE FROM public."Photo" AS photo
+   USING public."Listing" AS listing
+   WHERE photo."listingId" = listing.id
+     AND listing."sellerId" = source_seller_profile_id;
+  GET DIAGNOSTICS source_photos_deleted = ROW_COUNT;
+
+  DELETE FROM public."ListingVariantGroup" AS variant_group
+   USING public."Listing" AS listing
+   WHERE variant_group."listingId" = listing.id
+     AND listing."sellerId" = source_seller_profile_id;
+  GET DIAGNOSTICS source_variant_groups_deleted = ROW_COUNT;
+
+  UPDATE public."Listing" AS listing
+     SET title = 'Deleted listing',
+         status = 'HIDDEN',
+         "isPrivate" = true,
+         "archivedAt" = p_archived_at,
+         description = '[Listing removed]',
+         "videoUrl" = NULL,
+         tags = ARRAY[]::text[],
+         "metaDescription" = NULL,
+         materials = ARRAY[]::text[],
+         "aiReviewFlags" = ARRAY[]::text[],
+         "aiReviewScore" = NULL,
+         "rejectionReason" = 'Seller account deleted',
+         "updatedAt" = p_archived_at
+   WHERE listing."sellerId" = source_seller_profile_id;
+  GET DIAGNOSTICS source_listings_redacted = ROW_COUNT;
+
+  RETURN QUERY SELECT
+    source_seller_profile_id,
+    source_photos_deleted,
+    source_variant_groups_deleted,
+    source_listings_redacted;
+END
+$grainline_listing_account_deletion_redact$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_account_deletion_redact(
+  text,text,bigint,uuid,timestamp without time zone
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_account_deletion_redact(
+  text,text,bigint,uuid,timestamp without time zone
 ) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_delete_lock(
