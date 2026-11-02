@@ -73,6 +73,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner-summary authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_catalog_page(text,jsonb,integer,integer)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner-catalog authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_counts()'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner-count authority already exists';
@@ -1221,6 +1226,217 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_export_page(
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_export_page(
   timestamp without time zone,text,integer
+) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_catalog_page(
+  p_seller_profile_id text,
+  p_filter jsonb,
+  p_offset integer,
+  p_limit integer
+)
+RETURNS TABLE (
+  "totalCount" bigint,
+  listings jsonb,
+  "categoryCounts" jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_catalog_page$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  requested_sort text := COALESCE(p_filter ->> 'sort', 'newest');
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_seller_profile_id IS NULL
+     OR p_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_filter IS NULL
+     OR pg_catalog.jsonb_typeof(p_filter) <> 'object'
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.jsonb_object_keys(p_filter) AS filter_key(value)
+        WHERE filter_key.value NOT IN (
+          'status', 'category', 'tag', 'sort', 'includeCategoryCounts'
+        )
+     )
+     OR (
+       p_filter ? 'status'
+       AND (
+         pg_catalog.jsonb_typeof(p_filter -> 'status') <> 'string'
+         OR p_filter ->> 'status' NOT IN (
+           'DRAFT', 'ACTIVE', 'SOLD', 'SOLD_OUT', 'HIDDEN',
+           'PENDING_REVIEW', 'REJECTED'
+         )
+       )
+     )
+     OR (
+       p_filter ? 'category'
+       AND (
+         pg_catalog.jsonb_typeof(p_filter -> 'category') <> 'string'
+         OR p_filter ->> 'category' NOT IN (
+           'FURNITURE', 'KITCHEN', 'DECOR', 'TOOLS', 'TOYS',
+           'JEWELRY', 'ART', 'OUTDOOR', 'STORAGE', 'OTHER'
+         )
+       )
+     )
+     OR (
+       p_filter ? 'tag'
+       AND (
+         pg_catalog.jsonb_typeof(p_filter -> 'tag') <> 'string'
+         OR pg_catalog.char_length(p_filter ->> 'tag') < 1
+         OR pg_catalog.char_length(p_filter ->> 'tag') > 24
+       )
+     )
+     OR requested_sort NOT IN (
+       'newest', 'popular', 'price_asc', 'price_desc'
+     )
+     OR (
+       p_filter ? 'includeCategoryCounts'
+       AND pg_catalog.jsonb_typeof(p_filter -> 'includeCategoryCounts')
+           <> 'boolean'
+     )
+     OR p_offset IS NULL
+     OR p_offset < 0
+     OR p_offset > 10000
+     OR p_limit IS NULL
+     OR p_limit < 0
+     OR p_limit > 100 THEN
+    RAISE EXCEPTION 'Listing owner-catalog input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller.id = p_seller_profile_id
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH base_listing AS MATERIALIZED (
+    SELECT listing.*
+      FROM public."Listing" AS listing
+     WHERE listing."sellerId" = seller_id
+       AND listing."archivedAt" IS NULL
+       AND (
+         NOT (p_filter ? 'status')
+         OR listing.status::text = p_filter ->> 'status'
+       )
+       AND (
+         NOT (p_filter ? 'tag')
+         OR listing.tags @> ARRAY[p_filter ->> 'tag']::text[]
+       )
+  ),
+  filtered_listing AS MATERIALIZED (
+    SELECT listing.*
+      FROM base_listing AS listing
+     WHERE NOT (p_filter ? 'category')
+        OR listing.category::text = p_filter ->> 'category'
+  ),
+  page_listing AS MATERIALIZED (
+    SELECT listing.*
+      FROM filtered_listing AS listing
+     ORDER BY
+       CASE WHEN requested_sort = 'price_asc'
+         THEN listing."priceCents" END ASC,
+       CASE WHEN requested_sort = 'price_desc'
+         THEN listing."priceCents" END DESC,
+       CASE WHEN requested_sort = 'popular'
+         THEN listing."favoriteCount" END DESC,
+       listing."createdAt" DESC,
+       listing.id DESC
+     OFFSET p_offset
+     LIMIT p_limit
+  )
+  SELECT
+    (SELECT pg_catalog.count(*) FROM filtered_listing),
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'id', page.id,
+          'title', page.title,
+          'priceCents', page."priceCents",
+          'currency', page.currency,
+          'status', page.status,
+          'isPrivate', page."isPrivate",
+          'listingType', page."listingType",
+          'stockQuantity', page."stockQuantity",
+          'photos', COALESCE((
+            SELECT pg_catalog.jsonb_agg(
+              pg_catalog.jsonb_build_object(
+                'url', photo.url,
+                'altText', photo."altText"
+              )
+              ORDER BY photo."sortOrder" ASC, photo.id ASC
+            )
+              FROM (
+                SELECT source_photo.id,
+                       source_photo.url,
+                       source_photo."altText",
+                       source_photo."sortOrder"
+                  FROM public."Photo" AS source_photo
+                 WHERE source_photo."listingId" = page.id
+                 ORDER BY source_photo."sortOrder" ASC, source_photo.id ASC
+                 LIMIT 1
+              ) AS photo
+          ), '[]'::jsonb)
+        )
+        ORDER BY
+          CASE WHEN requested_sort = 'price_asc'
+            THEN page."priceCents" END ASC,
+          CASE WHEN requested_sort = 'price_desc'
+            THEN page."priceCents" END DESC,
+          CASE WHEN requested_sort = 'popular'
+            THEN page."favoriteCount" END DESC,
+          page."createdAt" DESC,
+          page.id DESC
+      )
+        FROM page_listing AS page
+    ), '[]'::jsonb),
+    CASE
+      WHEN COALESCE(
+        (p_filter ->> 'includeCategoryCounts')::boolean,
+        false
+      ) THEN COALESCE((
+        SELECT pg_catalog.jsonb_agg(
+          pg_catalog.jsonb_build_object(
+            'category', grouped.category,
+            'count', grouped.total
+          )
+          ORDER BY grouped.category ASC
+        )
+          FROM (
+            SELECT listing.category::text AS category,
+                   pg_catalog.count(*) AS total
+              FROM base_listing AS listing
+             WHERE listing.category IS NOT NULL
+             GROUP BY listing.category
+          ) AS grouped
+      ), '[]'::jsonb)
+      ELSE '[]'::jsonb
+    END;
+END
+$grainline_listing_owner_catalog_page$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_catalog_page(
+  text,jsonb,integer,integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_catalog_page(
+  text,jsonb,integer,integer
 ) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_summary_page(
