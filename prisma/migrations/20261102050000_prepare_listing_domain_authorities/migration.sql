@@ -48,6 +48,16 @@ BEGIN
     RAISE EXCEPTION 'Listing protected staff-review queue already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_staff_reference_targets(text,text[])'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing protected staff-reference authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_staff_seller_active_public_count(text,text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing protected staff seller-count authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_editor(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner-editor authority already exists';
@@ -769,6 +779,124 @@ REVOKE ALL ON FUNCTION public.grainline_seller_staff_listing_review_queue(
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_seller_staff_listing_review_queue(
   text,integer
+) TO grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_listing_staff_reference_targets(
+  p_actor_id text,
+  p_listing_ids text[]
+)
+RETURNS TABLE (
+  id text,
+  title text
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_staff_reference_targets$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Listing staff-reference targets require the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_ids IS NULL
+     OR pg_catalog.cardinality(p_listing_ids) NOT BETWEEN 1 AND 50
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(p_listing_ids) AS requested(id)
+        WHERE requested.id IS NULL
+           OR requested.id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     )
+     OR pg_catalog.cardinality(p_listing_ids) <> (
+       SELECT pg_catalog.count(DISTINCT requested.id)::integer
+         FROM pg_catalog.unnest(p_listing_ids) AS requested(id)
+     ) THEN
+    RAISE EXCEPTION 'Listing staff-reference input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS actor
+   WHERE actor.id = p_actor_id
+     AND actor.role::text IN ('ADMIN', 'EMPLOYEE')
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Listing staff-reference actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT listing.id::text,
+         listing.title::text
+    FROM public."Listing" AS listing
+   WHERE listing.id = ANY(p_listing_ids)
+   ORDER BY pg_catalog.array_position(p_listing_ids, listing.id::text),
+            listing.id;
+END
+$grainline_listing_staff_reference_targets$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_staff_reference_targets(
+  text,text[]
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_staff_reference_targets(
+  text,text[]
+) TO grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_listing_staff_seller_active_public_count(
+  p_actor_id text,
+  p_seller_profile_id text
+)
+RETURNS TABLE (
+  "activePublicCount" bigint
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_staff_seller_active_public_count$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Listing staff seller-count requires the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_seller_profile_id IS NULL
+     OR p_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing staff seller-count input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS actor
+   WHERE actor.id = p_actor_id
+     AND actor.role::text IN ('ADMIN', 'EMPLOYEE')
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Listing staff seller-count actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT pg_catalog.count(*)::bigint
+    FROM public."Listing" AS listing
+   WHERE listing."sellerId" = p_seller_profile_id
+     AND listing.status::text = 'ACTIVE'
+     AND listing."isPrivate" = false;
+END
+$grainline_listing_staff_seller_active_public_count$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_staff_seller_active_public_count(
+  text,text
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_staff_seller_active_public_count(
+  text,text
 ) TO grainline_staff_read_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_editor(

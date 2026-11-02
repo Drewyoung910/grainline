@@ -38,9 +38,9 @@ test("admin listing review resolves seller labels through the bounded staff proj
   assert.match(reviewQueue, /const SELLER_TARGET_CHUNK_SIZE = 50/u);
   assert.match(
     reviewQueue,
-    /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/u,
+    /sellerProfileStaffReportTargets\(staffClient, \{/u,
   );
   assert.match(reviewQueue, /actorId: staff\.id/u);
-  assert.match(reviewQueue, /prisma\.listing\.groupBy\(/u);
+  assert.match(reviewQueue, /sellerProfileStaffListingReviewQueue\(staffClient, \{/u);
   assert.doesNotMatch(reviewQueue, /seller:\s*\{\s*select:/u);
 });
