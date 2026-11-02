@@ -113,6 +113,11 @@ BEGIN
     RAISE EXCEPTION 'Listing public-catalog authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_public_title_suggestions(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing public title-suggestion authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_detail_source_core(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing detail-source core already exists';
@@ -3226,6 +3231,148 @@ $grainline_listing_public_catalog_page$;
 REVOKE ALL ON FUNCTION public.grainline_listing_public_catalog_page(jsonb,integer,integer)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_public_catalog_page(jsonb,integer,integer)
+  TO grainline_app_runtime;
+
+-- Header suggestions have deliberately narrower semantics than the catalog
+-- search: title-only literal substring matches plus conservative pg_trgm
+-- fallbacks. Keep the non-leakproof operators inside one bounded definer
+-- authority so the partial trigram index remains usable after Listing RLS.
+CREATE FUNCTION public.grainline_listing_public_title_suggestions(
+  p_query text
+)
+RETURNS TABLE (
+  "matchKind" text,
+  id text,
+  title text
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_public_title_suggestions$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.current_setting('app.user_id', true),
+    ''
+  );
+  query_filter text := pg_catalog.btrim(p_query);
+  query_pattern text;
+BEGIN
+  IF p_query IS NULL
+     OR pg_catalog.char_length(query_filter) NOT BETWEEN 2 AND 80 THEN
+    RAISE EXCEPTION 'Listing title-suggestion query is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF request_user_id IS NOT NULL
+     AND request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing title-suggestion actor context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  query_pattern := '%'
+    || pg_catalog.replace(
+         pg_catalog.replace(
+           pg_catalog.replace(query_filter, E'\\', E'\\\\'),
+           '%',
+           E'\\%'
+         ),
+         '_',
+         E'\\_'
+       )
+    || '%';
+  PERFORM pg_catalog.set_config(
+    'pg_trgm.similarity_threshold',
+    '0.35',
+    true
+  );
+
+  RETURN QUERY
+  WITH eligible AS NOT MATERIALIZED (
+    SELECT listing.id,
+           listing.title,
+           listing."createdAt"
+      FROM public."Listing" AS listing
+      JOIN public."SellerProfile" AS seller
+        ON seller.id = listing."sellerId"
+     WHERE listing.status = 'ACTIVE'::public."ListingStatus"
+       AND listing."isPrivate" = false
+       AND listing."archivedAt" IS NULL
+       AND listing."sellerPubliclyOrderable" = true
+       AND (
+         request_user_id IS NULL
+         OR NOT EXISTS (
+           SELECT 1
+             FROM public."Block" AS blocked_pair
+            WHERE (
+              blocked_pair."blockerId" = request_user_id
+              AND blocked_pair."blockedId" = seller."userId"
+            ) OR (
+              blocked_pair."blockerId" = seller."userId"
+              AND blocked_pair."blockedId" = request_user_id
+            )
+         )
+       )
+  ), exact_rows AS MATERIALIZED (
+    SELECT eligible.id,
+           eligible.title,
+           pg_catalog.row_number() OVER (
+             ORDER BY eligible."createdAt" DESC, eligible.id DESC
+           ) AS ordinal
+      FROM eligible
+     WHERE eligible.title ILIKE query_pattern ESCAPE E'\\'
+     ORDER BY eligible."createdAt" DESC, eligible.id DESC
+     LIMIT 4
+  ), fuzzy_candidates AS MATERIALIZED (
+    SELECT DISTINCT ON (eligible.title)
+           eligible.id,
+           eligible.title,
+           eligible."createdAt",
+           public.similarity(eligible.title, query_filter) AS similarity_score
+      FROM eligible
+     WHERE eligible.title OPERATOR(public.%) query_filter
+       AND public.similarity(eligible.title, query_filter) > 0.35
+       AND eligible.title NOT ILIKE query_pattern ESCAPE E'\\'
+     ORDER BY eligible.title, eligible."createdAt" DESC, eligible.id DESC
+  ), fuzzy_rows AS MATERIALIZED (
+    SELECT candidate.id,
+           candidate.title,
+           pg_catalog.row_number() OVER (
+             ORDER BY candidate.similarity_score DESC,
+                      candidate."createdAt" DESC,
+                      candidate.id DESC
+           ) AS ordinal
+      FROM fuzzy_candidates AS candidate
+     ORDER BY candidate.similarity_score DESC,
+              candidate."createdAt" DESC,
+              candidate.id DESC
+     LIMIT 2
+  )
+  SELECT result."matchKind",
+         result.id::text,
+         result.title::text
+    FROM (
+      SELECT 0 AS group_order,
+             exact.ordinal,
+             'exact'::text AS "matchKind",
+             exact.id,
+             exact.title
+        FROM exact_rows AS exact
+      UNION ALL
+      SELECT 1 AS group_order,
+             fuzzy.ordinal,
+             'fuzzy'::text AS "matchKind",
+             fuzzy.id,
+             fuzzy.title
+        FROM fuzzy_rows AS fuzzy
+    ) AS result
+   ORDER BY result.group_order, result.ordinal;
+END
+$grainline_listing_public_title_suggestions$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_public_title_suggestions(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_public_title_suggestions(text)
   TO grainline_app_runtime;
 
 -- One bounded projection serves public, owner, reserved-buyer and staff detail
