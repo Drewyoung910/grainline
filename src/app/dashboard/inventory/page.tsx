@@ -1,11 +1,12 @@
 // src/app/dashboard/inventory/page.tsx
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import InventoryRow from "./InventoryRow";
 import type { Metadata } from "next";
+import { ListingType } from "@prisma/client";
 import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
+import { listingOwnerSummaryRows } from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -13,14 +14,11 @@ export default async function InventoryPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/inventory");
 
-  const { me, seller } = await ensureSeller();
+  const { me } = await ensureSeller();
 
-  const listingRows = await prisma.listing.findMany({
-    where: { sellerId: seller.id, listingType: "IN_STOCK" },
-    include: {
-      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-    },
-    orderBy: { updatedAt: "desc" },
+  const listingRows = await listingOwnerSummaryRows(me.id, {
+    listingType: ListingType.IN_STOCK,
+    includeArchived: true,
     take: 100,
   });
   const stockNotificationCounts = await sellerStockNotificationCounts(
