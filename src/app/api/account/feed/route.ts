@@ -22,6 +22,7 @@ import { sellerActorAccountFeedCards } from "@/lib/sellerProfileParticipantAcces
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { ownerFollowedSellerIds } from "@/lib/sellerFollowAccess";
 import { actorSellerBroadcastFeedPage } from "@/lib/sellerBroadcastAccess";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -132,12 +133,10 @@ export async function GET(req: NextRequest) {
 
   const [listings, blogPosts, broadcasts] = await Promise.all([
     prisma.listing.findMany({
-      where: {
+      where: publicListingWhere({
         sellerId: { in: visibleSellerIds },
-        status: "ACTIVE",
-        isPrivate: false,
         ...timestampCursorWhere("listing", "createdAt"),
-      },
+      }),
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take,
       select: {
