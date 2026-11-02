@@ -94,6 +94,26 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "45cf9935bd9c6492a26ebc167dab20962395e1834f2191d293f0776597803e99",
   ],
   [
+    "20261030040000_activate_block_rls",
+    "cec9c1c6345225304fcae3b2d433ade6c73e1d6d98f0d461126390f7f0c29e73",
+  ],
+  [
+    "20261030050000_activate_user_report_rls",
+    "0c488a187a0f2389d32c2860f03e39d6a93dede288a9caf43483fe87c1f626fc",
+  ],
+  [
+    "20261030060000_activate_seller_faq_rls",
+    "d79661da61c150e893e927ea389afcaede307ad3c8b45b95977ce38e26634154",
+  ],
+  [
+    "20261101010000_prepare_seller_broadcast_authorities",
+    "2fd1b027f87e640b254d6be065a376777c5bf4eecb32fda6962d24126dbf7617",
+  ],
+  [
+    "20261101020000_narrow_service_reference_runtime_privileges",
+    "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c",
+  ],
+  [
     "20261101030000_prepare_seller_analytics_daily_authorities",
     "f0f7c974d84e8132eb2271874f266db8ee94c9b80a7be421cba39ec70e95247d",
   ],

@@ -3513,6 +3513,22 @@ builds containing the converted callers must fail closed until every reviewed
 runtime and staff function in the preparation batch is installed with its
 exact source body and EXECUTE role.
 
+### Service and reference table alternative (2026-11-01)
+
+Do not add full RLS to singleton configuration, public reference, derived
+aggregate or append-only service tables merely to raise the RLS count. Use the
+smallest durable database boundary that matches the actual operations. The
+first candidate group narrows `SiteConfig`, `SystemAuditLog`,
+`FoundingMakerGrant`, `Metro` and `SiteMetricsSnapshot` to exact runtime
+privileges and keeps `SellerExactMapConsentEvent` at zero direct authority.
+The cross-user email/cron ledgers retain CRUD until a dedicated service
+identity exists; app-only ownership rules would not protect them.
+
+Every alternative must still have a complete domain audit, exact recurring
+grant check, provisioning convergence, real-runtime PostgreSQL 17 proof,
+rollback and protected production release. See
+`docs/service-reference-least-privilege-audit.md`.
+
 ### Favorite RLS aggregate boundary (2026-10-28)
 
 Use a transactionally maintained raw-current-row favorite count on `Listing`

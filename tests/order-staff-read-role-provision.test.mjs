@@ -78,6 +78,9 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
     'public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)',
     'public."grainline_seller_guild_staff_roster_count"(text, text)',
     'public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)',
+    'public."grainline_seller_broadcast_staff_count"(text, text)',
+    'public."grainline_seller_broadcast_staff_page"(text, text, integer, integer)',
+    'public."grainline_seller_broadcast_staff_delete"(text, text)',
   ]) {
     assert.match(script, new RegExp(signature.replace(/[()]/gu, "\\$&"), "u"));
   }
@@ -96,7 +99,7 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
     );
   }
   assert.match(script, /optional_user_report_staff/u);
-  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 27);
+  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 28);
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

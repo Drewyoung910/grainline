@@ -252,11 +252,21 @@ WITH required(function_signature) AS (
     ('public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)'),
     ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
     ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)')
+), seller_broadcast_candidate(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_broadcast_staff_count"(text, text)'),
+    ('public."grainline_seller_broadcast_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_seller_broadcast_staff_delete"(text, text)')
 ), candidate_state AS (
   SELECT pg_catalog.count(*) FILTER (
     WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
   ) AS installed_count
   FROM maker_verification_candidate
+), seller_broadcast_candidate_state AS (
+  SELECT pg_catalog.count(*) FILTER (
+    WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
+  ) AS installed_count
+  FROM seller_broadcast_candidate
 ), missing AS (
   SELECT function_signature FROM required
   WHERE pg_catalog.to_regprocedure(function_signature) IS NULL
@@ -265,6 +275,12 @@ WITH required(function_signature) AS (
   FROM maker_verification_candidate
   CROSS JOIN candidate_state
   WHERE candidate_state.installed_count > 0
+    AND pg_catalog.to_regprocedure(function_signature) IS NULL
+  UNION ALL
+  SELECT function_signature
+  FROM seller_broadcast_candidate
+  CROSS JOIN seller_broadcast_candidate_state
+  WHERE seller_broadcast_candidate_state.installed_count > 0
     AND pg_catalog.to_regprocedure(function_signature) IS NULL
   ORDER BY function_signature
   LIMIT 1
@@ -351,6 +367,19 @@ FROM (
     ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
     ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)')
 ) AS maker_verification_candidate(function_signature)
+WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'staff_role'
+)
+FROM (
+  VALUES
+    ('public."grainline_seller_broadcast_staff_count"(text, text)'),
+    ('public."grainline_seller_broadcast_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_seller_broadcast_staff_delete"(text, text)')
+) AS seller_broadcast_candidate(function_signature)
 WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 -- UserReport staff operations are additive and may be absent from historical
@@ -470,6 +499,15 @@ WITH table_authority AS (
       ('public."grainline_seller_guild_staff_roster_count"(text, text)'),
       ('public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)')
   ) AS maker_verification_candidate(function_signature)
+  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
+  UNION ALL
+  SELECT function_signature
+  FROM (
+    VALUES
+      ('public."grainline_seller_broadcast_staff_count"(text, text)'),
+      ('public."grainline_seller_broadcast_staff_page"(text, text, integer, integer)'),
+      ('public."grainline_seller_broadcast_staff_delete"(text, text)')
+  ) AS seller_broadcast_candidate(function_signature)
   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
   UNION ALL
   SELECT function_signature

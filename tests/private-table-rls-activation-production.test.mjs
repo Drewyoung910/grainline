@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,6 +9,9 @@ import {
   privateTableRlsActivation,
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
+import {
+  functionSourceFromMigration,
+} from "../scripts/private-table-preparation-catalog.mjs";
 import {
   inspectPrivateTableRlsActivationProduction,
 } from "../scripts/private-table-rls-activation-production-inspect.mjs";
@@ -20,6 +23,36 @@ import {
 const releaseId = "maker_verification_v1";
 const release = privateTableRlsActivation(releaseId);
 const verified = verifyPrivateTableRlsActivationSource(releaseId);
+const userAccumulatedAccessMigrationsDir =
+  process.env.USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR || "prisma/migrations";
+const conversationAuthorityMigration = readFileSync(
+  join(
+    userAccumulatedAccessMigrationsDir,
+    "20261007160000_converge_user_cross_domain_authorities",
+    "migration.sql",
+  ),
+  "utf8",
+);
+const initialConversationAuthorityMigration = readFileSync(
+  "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+  "utf8",
+);
+const retainedSourceByName = new Map([
+  [
+    "grainline_conversation_inbox",
+    functionSourceFromMigration(
+      conversationAuthorityMigration,
+      "grainline_conversation_inbox",
+    ),
+  ],
+  [
+    "grainline_message_unread_count",
+    functionSourceFromMigration(
+      initialConversationAuthorityMigration,
+      "grainline_message_unread_count",
+    ),
+  ],
+]);
 
 function migrationRow(entry, appliedStepsCount = 1) {
   return {
@@ -113,10 +146,11 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
     entries.push({
       name: retained.name,
       arguments: retained.arguments,
+      securityDefiner: retained.securityDefiner,
       executeRole: active
         ? retained.activatedExecuteRole
         : retained.predecessorExecuteRole,
-      source: "retained source",
+      source: retainedSourceByName.get(retained.name) ?? "retained source",
       sourceMd5: retained.sourceMd5,
     });
   }
@@ -153,7 +187,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       identity_arguments: entry.arguments,
       owner_name: "neondb_owner",
       owner_bypasses_rls: true,
-      security_definer: true,
+      security_definer: entry.securityDefiner ?? true,
       configuration: ["search_path=pg_catalog"],
       source: entry.source,
       source_md5: entry.sourceMd5
@@ -275,8 +309,8 @@ test("inspector proves ready and active states without row data", async () => {
   }
 });
 
-test("inspector proves exact owner policies and ReviewVote function transitions", async () => {
-  for (const selectedReleaseId of ["favorite_v1", "review_vote_v1"]) {
+test("inspector proves exact policies and function transitions", async () => {
+  for (const selectedReleaseId of ["favorite_v1", "review_vote_v1", "block_v1"]) {
     const selectedRelease = privateTableRlsActivation(selectedReleaseId);
     const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
     const directory = mkdtempSync(join(tmpdir(), `private-table-${selectedReleaseId}-`));
