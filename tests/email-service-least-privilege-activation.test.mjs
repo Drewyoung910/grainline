@@ -117,6 +117,9 @@ test("activation pins every table and fixed operation", () => {
   assert.match(migration, /owner_role\.rolsuper OR owner_role\.rolbypassrls/u);
   assert.match(migration, /acl\.grantee = 0 AND acl\.privilege_type = 'EXECUTE'/u);
   assert.match(migration, /Email service runtime function catalog drifted/u);
+  assert.match(migration, /FROM actual[\s\S]*EXCEPT[\s\S]*FROM expected/u);
+  assert.match(migration, /FROM expected[\s\S]*EXCEPT[\s\S]*FROM actual/u);
+  assert.doesNotMatch(migration, /array_agg\(actual\.signature/u);
   assert.deepEqual(
     privilegeRelease("email_service_v1").functionNamespacePrefixes,
     ["grainline_email_", "grainline_newsletter_", "grainline_resend_"],

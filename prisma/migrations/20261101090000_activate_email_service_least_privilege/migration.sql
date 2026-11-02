@@ -198,33 +198,46 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF (
-    SELECT pg_catalog.array_agg(actual.signature ORDER BY actual.signature)
+  IF EXISTS (
+    WITH actual AS (
+      SELECT pg_catalog.format(
+               '%I.%I(%s)',
+               namespace.nspname,
+               routine.proname,
+               pg_catalog.replace(
+                 pg_catalog.oidvectortypes(routine.proargtypes),
+                 ', ',
+                 ','
+               )
+             ) AS signature
+        FROM pg_catalog.pg_proc AS routine
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = routine.pronamespace
+       WHERE namespace.nspname = 'public'
+         AND (
+           routine.proname LIKE 'grainline\_email\_%' ESCAPE '\'
+           OR routine.proname LIKE 'grainline\_newsletter\_%' ESCAPE '\'
+           OR routine.proname LIKE 'grainline\_resend\_%' ESCAPE '\'
+         )
+         AND pg_catalog.has_function_privilege(runtime_oid, routine.oid, 'EXECUTE')
+    ), expected AS (
+      SELECT expected_signature.signature
+        FROM pg_catalog.unnest(expected_signatures) AS expected_signature(signature)
+    )
+    SELECT difference.signature
       FROM (
-        SELECT pg_catalog.format(
-                 '%I.%I(%s)',
-                 namespace.nspname,
-                 routine.proname,
-                 pg_catalog.replace(
-                   pg_catalog.oidvectortypes(routine.proargtypes),
-                   ', ',
-                   ','
-                 )
-               ) AS signature
-          FROM pg_catalog.pg_proc AS routine
-          JOIN pg_catalog.pg_namespace AS namespace
-            ON namespace.oid = routine.pronamespace
-         WHERE namespace.nspname = 'public'
-           AND (
-             routine.proname LIKE 'grainline\_email\_%' ESCAPE '\'
-             OR routine.proname LIKE 'grainline\_newsletter\_%' ESCAPE '\'
-             OR routine.proname LIKE 'grainline\_resend\_%' ESCAPE '\'
-           )
-           AND pg_catalog.has_function_privilege(runtime_oid, routine.oid, 'EXECUTE')
-      ) AS actual
-  ) IS DISTINCT FROM (
-    SELECT pg_catalog.array_agg(expected.signature ORDER BY expected.signature)
-      FROM pg_catalog.unnest(expected_signatures) AS expected(signature)
+        (SELECT actual.signature
+           FROM actual
+         EXCEPT
+         SELECT expected.signature
+           FROM expected)
+        UNION ALL
+        (SELECT expected.signature
+           FROM expected
+         EXCEPT
+         SELECT actual.signature
+           FROM actual)
+      ) AS difference
   ) THEN
     RAISE EXCEPTION 'Email service runtime function catalog drifted';
   END IF;

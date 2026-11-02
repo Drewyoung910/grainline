@@ -2953,7 +2953,7 @@ WITH activation_ledger AS (
     pg_catalog.count(*)::integer AS row_count,
     pg_catalog.count(*) FILTER (
       WHERE checksum =
-        'bd46976f767f005fc53d96c3340d3d5b8abf9846240a64334e9837548cfeafdb'
+        '380bb991461b9ff11d9b721615baafbc3d0d0d0dcc51f913381ab6d85cd3b564'
         AND finished_at IS NOT NULL
         AND rolled_back_at IS NULL
         AND applied_steps_count IN (0, 1)

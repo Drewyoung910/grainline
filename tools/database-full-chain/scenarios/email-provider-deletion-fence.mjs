@@ -718,6 +718,17 @@ async function proveSourceOwnerAndAnonymousAlias({
   database,
   seller,
 }) {
+  await database.query("BEGIN");
+  let preexistingSourceOwnerAttempts;
+  try {
+    preexistingSourceOwnerAttempts = await deletionFence(
+      database,
+      seller.userId,
+      ["source-owner@example.test"],
+    );
+  } finally {
+    await database.query("ROLLBACK");
+  }
   const recipient = await seedUser(database, "source_recipient");
   const broadcastId = id("broadcast");
   await database.query(
@@ -745,11 +756,15 @@ async function proveSourceOwnerAndAnonymousAlias({
   assert.equal(await beginProvider(database, sourceJob, sourceClaim), "ready");
   await database.query("BEGIN");
   try {
-    assert.equal(await deletionFence(
-      database,
-      seller.userId,
-      ["source-owner@example.test"],
-    ), 1, "source-owner deletion must see an in-flight fanout email");
+    assert.equal(
+      await deletionFence(
+        database,
+        seller.userId,
+        ["source-owner@example.test"],
+      ),
+      preexistingSourceOwnerAttempts + 1,
+      "source-owner deletion must add the exact in-flight fanout email",
+    );
   } finally {
     await database.query("ROLLBACK");
   }
