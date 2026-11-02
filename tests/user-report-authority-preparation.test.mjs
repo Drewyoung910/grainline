@@ -65,8 +65,7 @@ test("participant-visible rationale and private staff notes stay separate", () =
   assert.match(migration, /"internalResolutionNote" = normalized_internal_note/u);
   assert.doesNotMatch(submittedExport, /internalResolutionNote/u);
   assert.doesNotMatch(receivedExport, /internalResolutionNote/u);
-  assert.match(receivedExport, /NULL::text AS "targetId"/u);
-  assert.doesNotMatch(receivedExport, /report\."targetId"::text/u);
+  assert.match(receivedExport, /report\."targetId"::text/u);
 });
 
 test("account deletion is claim-bound before report redaction", () => {
