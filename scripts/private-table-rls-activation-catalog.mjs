@@ -180,10 +180,10 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
   seller_broadcast_v1: Object.freeze({
     preparationReleaseId: "seller_broadcast_v1",
     minimumCompatibleAppCommit:
-      "7defab714c855d885aea4a6532d9fd78484d6f02",
+      "d956364ead259e5ae26b49171af57e5a89e522a2",
     migration: "20261101050000_activate_seller_broadcast_rls",
     migrationSha256:
-      "cea2b80ca25f510f34995c8e20bbffa94ff92bf22fcb2c563c3fc8844c40a293",
+      "9e71df11bc80f2acebc56b0148031943be07db45244c52e6236d4a2c88bf6990",
     rollbackPath: "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
     rollbackSha256:
       "a6167ce605c8f4bd7df4b5ca6c5a7d59688f79b23207c36a1de3b0e99acd8050",

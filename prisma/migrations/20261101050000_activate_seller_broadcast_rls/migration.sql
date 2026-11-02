@@ -182,7 +182,7 @@ BEGIN
         ('public.grainline_seller_broadcast_staff_delete(text,text)', 'ac86e72979124163b53cb92daa304ab9', 'v'::"char", false, true),
         ('public.grainline_seller_broadcast_account_deletion_ids(text,text,bigint,uuid)', '5c738dd96fdd723f68d392106afe3977', 'v'::"char", true, false),
         ('public.grainline_seller_broadcast_account_deletion_cleanup(text,text,bigint,uuid)', 'f2e2187761d852f2d07983944ff689c8', 'v'::"char", true, false),
-        ('public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)', 'b439d44fe29c656392c8322e4ec03149', 'v'::"char", true, false),
+        ('public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)', '1fe3a6772c2c05bc82e123c1850c09ec', 'v'::"char", true, false),
         ('public.grainline_notification_create_core(text,text,public."NotificationType",text,text,text)', '974a228c0b6feb00564f107a858ff526', 'v'::"char", false, false),
         ('public.grainline_notification_delete_seller_broadcast(text)', 'a34d24cf5abbb0795249c812467d5ab2', 'v'::"char", true, false),
         ('public.grainline_direct_upload_sync_seller_broadcast(text,text)', '1602c79d3fb59aa5661ca784465200b3', 'v'::"char", true, false),

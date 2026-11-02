@@ -95,11 +95,11 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261101010000_prepare_seller_broadcast_authorities",
-    "8af87f6a964bf093a24f05b4f2682dfad399606af26bf976bed5517d85dd1c0a",
+    "2fd1b027f87e640b254d6be065a376777c5bf4eecb32fda6962d24126dbf7617",
   ],
   [
     "20261101050000_activate_seller_broadcast_rls",
-    "cea2b80ca25f510f34995c8e20bbffa94ff92bf22fcb2c563c3fc8844c40a293",
+    "9e71df11bc80f2acebc56b0148031943be07db45244c52e6236d4a2c88bf6990",
   ],
 ]);
 

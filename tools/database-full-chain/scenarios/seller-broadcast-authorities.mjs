@@ -274,24 +274,31 @@ async function proveConcurrentOwnerCreate({ connectionString, seller }) {
 async function waitForLockWait(database, pid, label) {
   for (let attempt = 0; attempt < 300; attempt += 1) {
     const result = await database.query(
-      `SELECT wait_event_type AS "waitEventType", wait_event AS "waitEvent"
-         FROM pg_catalog.pg_stat_activity
-        WHERE pid = $1`,
+      `SELECT activity.wait_event_type AS "waitEventType",
+              activity.wait_event AS "waitEvent",
+              pg_catalog.count(lock.*) FILTER (
+                WHERE lock.locktype = 'advisory' AND lock.granted
+              )::integer AS "grantedAdvisoryLocks"
+         FROM pg_catalog.pg_stat_activity AS activity
+         LEFT JOIN pg_catalog.pg_locks AS lock
+           ON lock.pid = activity.pid
+        WHERE activity.pid = $1
+        GROUP BY activity.wait_event_type, activity.wait_event`,
       [pid],
     );
-    if (result.rows[0]?.waitEventType === "Lock") return result.rows[0].waitEvent;
+    if (result.rows[0]?.waitEventType === "Lock") {
+      return Object.freeze({
+        waitEvent: result.rows[0].waitEvent,
+        grantedAdvisoryLocks: Number(result.rows[0].grantedAdvisoryLocks ?? 0),
+      });
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   assert.fail(`${label} never reached a database lock wait`);
 }
 
-async function proveAccountDeletionProviderLockOrder({
-  database,
-  connectionString,
-  seller,
-  deletionClaim,
-}) {
-  const followerId = `broadcast_delete_race_${randomUUID()}`;
+async function seedDeletionProviderFixture({ database, seller, label }) {
+  const followerId = `broadcast_${label}_${randomUUID()}`;
   await createUser(database, followerId);
   await database.query(
     `INSERT INTO public."Follow" (id, "followerId", "sellerProfileId", "createdAt")
@@ -302,8 +309,8 @@ async function proveAccountDeletionProviderLockOrder({
   await database.query(
     `INSERT INTO public."SellerBroadcast"
        (id, "sellerProfileId", message, "sentAt", "recipientCount")
-     VALUES ($1, $2, 'Deletion lock-order proof', pg_catalog.clock_timestamp(), 1)`,
-    [broadcastId, seller.sellerProfileId],
+     VALUES ($1, $2, $3, pg_catalog.clock_timestamp(), 1)`,
+    [broadcastId, seller.sellerProfileId, `Deletion ${label} lock-order proof`],
   );
   const claim = await seedProviderClaim(database, {
     followerId,
@@ -311,36 +318,58 @@ async function proveAccountDeletionProviderLockOrder({
     sourceType: "seller_broadcast",
     sourceId: broadcastId,
   });
+  return Object.freeze({ followerId, broadcastId, claim });
+}
+
+async function proveAccountDeletionProviderLockOrder({
+  database,
+  connectionString,
+  seller,
+  deletionClaim,
+}) {
+  const deletionFirst = await seedDeletionProviderFixture({
+    database,
+    seller,
+    label: "deletion_first",
+  });
   const deletionClient = new pg.Client({ connectionString });
   const providerClient = new pg.Client({ connectionString });
   await Promise.all([deletionClient.connect(), providerClient.connect()]);
   let deletionCommitted = false;
+  let providerCommitted = false;
   try {
     await deletionClient.query("BEGIN");
     await deletionClient.query(
-      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'",
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'; SET LOCAL deadlock_timeout = '100ms'",
     );
     await deletionClient.query("SET LOCAL ROLE grainline_app_runtime");
     await deletionClient.query(
       "SELECT pg_catalog.set_config('app.user_id', $1, true)",
       [seller.userId],
     );
-    const lockedIds = await deletionClient.query(
-      `SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids(
-         $1,$2,1,$3::uuid
-       )`,
-      [deletionClaim.sideEffectId, deletionClaim.expectedUserId, deletionClaim.claimToken],
+    const snapshot = await deletionClient.query(
+      `SELECT "userId", email
+         FROM public.grainline_user_account_deletion_snapshot(
+           $1,$2::bigint,$3::uuid
+         )`,
+      [
+        deletionClaim.sideEffectId,
+        deletionClaim.claimGeneration,
+        deletionClaim.claimToken,
+      ],
     );
-    assert.ok(lockedIds.rows.some((row) => row.id === broadcastId));
+    assert.equal(snapshot.rows.length, 1);
+    assert.equal(snapshot.rows[0]?.userId, seller.userId);
+    assert.match(snapshot.rows[0]?.email ?? "", /@example\.test$/u);
 
     await providerClient.query("BEGIN");
     await providerClient.query(
-      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'",
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'; SET LOCAL deadlock_timeout = '100ms'",
     );
     await providerClient.query("SET LOCAL ROLE grainline_app_runtime");
     await providerClient.query(
       "SELECT pg_catalog.set_config('app.user_id', $1, true)",
-      [followerId],
+      [deletionFirst.followerId],
     );
     const providerPid = Number((await providerClient.query(
       "SELECT pg_catalog.pg_backend_pid() AS pid",
@@ -349,46 +378,154 @@ async function proveAccountDeletionProviderLockOrder({
       `SELECT public.grainline_email_outbox_begin_provider_attempt(
          $1, $2::bigint, $3::uuid
        ) AS result`,
-      [claim.jobId, claim.claimGeneration, claim.claimToken],
+      [
+        deletionFirst.claim.jobId,
+        deletionFirst.claim.claimGeneration,
+        deletionFirst.claim.claimToken,
+      ],
     );
-    await waitForLockWait(
+    const providerWait = await waitForLockWait(
       database,
       providerPid,
-      "seller-broadcast provider attempt behind account deletion",
+      "seller-broadcast provider attempt behind the deletion User lock",
     );
 
-    await deletionClient.query(
-      `UPDATE public."EmailOutbox"
-          SET status = 'SKIPPED', "sentAt" = pg_catalog.clock_timestamp(),
-              "nextAttemptAt" = NULL, "claimToken" = NULL,
-              "processingStartedAt" = NULL,
-              "lastError" = 'Skipped because the source maker account was deleted.',
-              "updatedAt" = pg_catalog.clock_timestamp()
-        WHERE id = $1`,
-      [claim.jobId],
-    );
-    const deleted = await deletionClient.query(
-      `SELECT public.grainline_seller_broadcast_account_deletion_cleanup(
-         $1,$2,1,$3::uuid
-       )::integer
-         AS count`,
-      [deletionClaim.sideEffectId, deletionClaim.expectedUserId, deletionClaim.claimToken],
-    );
-    assert.ok(Number(deleted.rows[0]?.count ?? 0) >= 1);
-    await deletionClient.query("COMMIT");
-    deletionCommitted = true;
+    let deletionError;
+    try {
+      await deletionClient.query(
+        `SELECT public.grainline_email_outbox_account_deletion_fence(
+           $1, ARRAY[$2]::text[]
+         ) AS pending`,
+        [seller.userId, snapshot.rows[0].email],
+      );
+      await deletionClient.query("COMMIT");
+      deletionCommitted = true;
+    } catch (error) {
+      deletionError = error;
+      await deletionClient.query("ROLLBACK").catch(() => {});
+    }
 
-    assert.equal((await providerAttempt).rows[0]?.result, "already_terminal");
-    await providerClient.query("COMMIT");
-    return Object.freeze({ providerWaitedForSource: true, noDeadlock: true });
+    let providerError;
+    let providerResult;
+    try {
+      providerResult = (await providerAttempt).rows[0]?.result;
+      await providerClient.query("COMMIT");
+      providerCommitted = true;
+    } catch (error) {
+      providerError = error;
+      await providerClient.query("ROLLBACK").catch(() => {});
+    }
+
+    const deadlockError = [deletionError, providerError]
+      .find((error) => error?.code === "40P01");
+    assert.equal(
+      deadlockError,
+      undefined,
+      "seller-broadcast provider start deadlocked with account deletion after "
+        + `taking ${providerWait.grantedAdvisoryLocks} advisory locks before the User lock`,
+    );
+    if (deletionError) throw deletionError;
+    if (providerError) throw providerError;
+    assert.equal(deletionCommitted, true);
+    assert.equal(providerCommitted, true);
+    assert.equal(providerWait.grantedAdvisoryLocks, 0);
+    assert.equal(providerResult, "ready");
   } finally {
     if (!deletionCommitted) await deletionClient.query("ROLLBACK").catch(() => {});
-    await providerClient.query("ROLLBACK").catch(() => {});
+    if (!providerCommitted) await providerClient.query("ROLLBACK").catch(() => {});
     await Promise.all([
       deletionClient.end().catch(() => {}),
       providerClient.end().catch(() => {}),
     ]);
   }
+
+  const providerFirst = await seedDeletionProviderFixture({
+    database,
+    seller,
+    label: "provider_first",
+  });
+  const providerFirstClient = new pg.Client({ connectionString });
+  const deletionSecondClient = new pg.Client({ connectionString });
+  await Promise.all([providerFirstClient.connect(), deletionSecondClient.connect()]);
+  try {
+    await providerFirstClient.query("BEGIN");
+    await providerFirstClient.query(
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'; SET LOCAL deadlock_timeout = '100ms'",
+    );
+    await providerFirstClient.query("SET LOCAL ROLE grainline_app_runtime");
+    await providerFirstClient.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [providerFirst.followerId],
+    );
+    assert.equal(
+      (await providerFirstClient.query(
+        `SELECT public.grainline_email_outbox_begin_provider_attempt(
+           $1,$2::bigint,$3::uuid
+         ) AS result`,
+        [
+          providerFirst.claim.jobId,
+          providerFirst.claim.claimGeneration,
+          providerFirst.claim.claimToken,
+        ],
+      )).rows[0]?.result,
+      "ready",
+    );
+
+    await deletionSecondClient.query("BEGIN");
+    await deletionSecondClient.query(
+      "SET LOCAL statement_timeout = '8s'; SET LOCAL lock_timeout = '6s'; SET LOCAL deadlock_timeout = '100ms'",
+    );
+    await deletionSecondClient.query("SET LOCAL ROLE grainline_app_runtime");
+    await deletionSecondClient.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, true)",
+      [seller.userId],
+    );
+    const deletionPid = Number((await deletionSecondClient.query(
+      "SELECT pg_catalog.pg_backend_pid() AS pid",
+    )).rows[0].pid);
+    const deletionSnapshot = deletionSecondClient.query(
+      `SELECT "userId", email
+         FROM public.grainline_user_account_deletion_snapshot(
+           $1,$2::bigint,$3::uuid
+         )`,
+      [
+        deletionClaim.sideEffectId,
+        deletionClaim.claimGeneration,
+        deletionClaim.claimToken,
+      ],
+    );
+    const deletionWait = await waitForLockWait(
+      database,
+      deletionPid,
+      "account deletion behind seller-broadcast provider start",
+    );
+    assert.equal(deletionWait.grantedAdvisoryLocks, 0);
+
+    await providerFirstClient.query("COMMIT");
+    const snapshot = (await deletionSnapshot).rows[0];
+    await deletionSecondClient.query(
+      `SELECT public.grainline_email_outbox_account_deletion_fence(
+         $1, ARRAY[$2]::text[]
+       )`,
+      [seller.userId, snapshot.email],
+    );
+    await deletionSecondClient.query("COMMIT");
+  } catch (error) {
+    await providerFirstClient.query("ROLLBACK").catch(() => {});
+    await deletionSecondClient.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    await Promise.all([
+      providerFirstClient.end().catch(() => {}),
+      deletionSecondClient.end().catch(() => {}),
+    ]);
+  }
+
+  return Object.freeze({
+    deletionFirst: true,
+    providerFirst: true,
+    noDeadlock: true,
+  });
 }
 
 export async function proveSellerBroadcastPreparedAuthorities({
