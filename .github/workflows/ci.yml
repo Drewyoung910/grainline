@@ -338,6 +338,24 @@ jobs:
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
+      - name: Verify Commission preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/commission-interest-count.test.mjs
+          tests/commission-observability-followups.test.mjs
+          tests/conversation-message-pre-rls-audit.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/user-public-review-commission-state-source.test.mjs
+      - name: Isolate Commission preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/commission-domain-preparation"
+          migration=20261101060000_prepare_commission_domain_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
@@ -6999,6 +7017,14 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Commission preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/commission-domain-preparation"
+          migration=20261101060000_prepare_commission_domain_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
