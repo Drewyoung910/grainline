@@ -1127,7 +1127,8 @@ CREATE FUNCTION public.grainline_listing_owner_counts()
 RETURNS TABLE (
   "draftCount" bigint,
   "activeCount" bigint,
-  "activePublicCount" bigint
+  "activePublicCount" bigint,
+  "oldestListingId" text
 )
 LANGUAGE plpgsql
 STABLE
@@ -1172,7 +1173,14 @@ BEGIN
     pg_catalog.count(*) FILTER (
       WHERE listing.status = 'ACTIVE'
         AND listing."isPrivate" = false
-    ) AS "activePublicCount"
+    ) AS "activePublicCount",
+    (
+      SELECT oldest_listing.id::text
+        FROM public."Listing" AS oldest_listing
+       WHERE oldest_listing."sellerId" = seller_id
+       ORDER BY oldest_listing."createdAt" ASC, oldest_listing.id ASC
+       LIMIT 1
+    ) AS "oldestListingId"
     FROM public."Listing" AS listing
    WHERE listing."sellerId" = seller_id;
 END
