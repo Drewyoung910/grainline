@@ -232,6 +232,8 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
 ];
 const COMMISSION_DOMAIN_PREPARATION_MIGRATION =
   "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+const COMMISSION_DOMAIN_RLS_MIGRATION =
+  "prisma/migrations/20261101070000_activate_commission_domain_rls/migration.sql";
 const COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES = [
   "grainline_commission_request_public_count",
   "grainline_commission_request_public_page",
@@ -3697,6 +3699,13 @@ describe("database grant inventory guardrails", () => {
       source(COMMISSION_DOMAIN_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const commissionDomainRlsActivationPresent = existsSync(
+      COMMISSION_DOMAIN_RLS_MIGRATION,
+    ) && source(COMMISSION_DOMAIN_RLS_MIGRATION).includes(
+      'ALTER TABLE public."CommissionRequest" ENABLE ROW LEVEL SECURITY',
+    ) && source(COMMISSION_DOMAIN_RLS_MIGRATION).includes(
+      'ALTER TABLE public."CommissionInterest" FORCE ROW LEVEL SECURITY',
+    );
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
@@ -4031,6 +4040,7 @@ describe("database grant inventory guardrails", () => {
         + (commissionDomainAuthorityPrepared
           ? COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES.length
           : 0)
+        + (commissionDomainRlsActivationPresent ? 1 : 0)
         + (stockNotificationRlsActivationPresent ? 1 : 0)
         + (favoriteAuthorityPrepared
           ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
@@ -4503,6 +4513,9 @@ describe("database grant inventory guardrails", () => {
         ...(clerkWebhookEventRlsActivationExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
           : []),
+        ...(commissionDomainRlsActivationPresent
+          ? ["CommissionInterest", "CommissionRequest"]
+          : []),
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
@@ -4562,6 +4575,9 @@ describe("database grant inventory guardrails", () => {
         "CheckoutStockReservation",
         ...(clerkWebhookEventRlsForceExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
+          : []),
+        ...(commissionDomainRlsActivationPresent
+          ? ["CommissionInterest", "CommissionRequest"]
           : []),
         "Conversation",
         "DirectUpload",
@@ -6144,6 +6160,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const commissionDomainProvisioningPresent = provision.includes(
+      "grainline_commission_domain_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6154,8 +6173,19 @@ describe("database grant inventory guardrails", () => {
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
-        + Number(reviewVoteProvisioningPresent),
+        + Number(reviewVoteProvisioningPresent)
+        + Number(commissionDomainProvisioningPresent),
     );
+    if (commissionDomainProvisioningPresent) {
+      assert.match(
+        provision,
+        /Commission domain RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :grainline_commission_domain_rls_active[\s\S]*REVOKE ALL ON TABLE\s+public\."CommissionRequest",\s+public\."CommissionInterest"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
       assert.match(
