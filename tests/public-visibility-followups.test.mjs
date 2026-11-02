@@ -81,7 +81,6 @@ describe("public visibility follow-ups", () => {
     const sellerShopPage = read("src/app/seller/[id]/shop/page.tsx");
 
     for (const [path, source] of [
-      ["browse", browsePage],
       ["homepage", homePage],
       ["listing detail", listingPage],
       ["seller profile", sellerPage],
@@ -94,6 +93,8 @@ describe("public visibility follow-ups", () => {
 
     const tagPage = read("src/app/tag/[slug]/page.tsx");
     const publicCatalog = read("src/lib/listingPublicCatalogAccess.ts");
+    assert.match(browsePage, /listingPublicCatalogPage/u);
+    assert.doesNotMatch(browsePage, /prisma\.listing\.(?:findMany|count)/u);
     assert.match(tagPage, /listingPublicCatalogPage/u);
     assert.doesNotMatch(tagPage, /prisma\.listing\.(?:findMany|count)/u);
     assert.match(publicCatalog, /type ListingPublicCatalogItem = Readonly<\{/u);

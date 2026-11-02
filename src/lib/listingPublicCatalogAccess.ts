@@ -17,6 +17,7 @@ type CatalogClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 export type ListingPublicCatalogSort =
   | "newest"
   | "quality"
+  | "relevant"
   | "popular"
   | "price_asc"
   | "price_desc";
@@ -27,6 +28,18 @@ export type ListingPublicCatalogFilter = Readonly<{
   metroId?: string;
   cityMetroId?: string;
   sellerId?: string;
+  query?: string;
+  normalizedSellerQuery?: string;
+  partialTagMatches?: ReadonlyArray<string>;
+  selectedTags?: ReadonlyArray<string>;
+  minPriceCents?: number;
+  maxPriceCents?: number;
+  listingType?: ListingType;
+  shipsWithinDays?: number;
+  minimumSellerRating?: number;
+  locationLat?: number;
+  locationLng?: number;
+  locationRadiusMiles?: number;
   sort?: ListingPublicCatalogSort;
   includeCategoryCounts?: boolean;
 }>;
@@ -45,6 +58,9 @@ export type ListingPublicCatalogItem = Readonly<{
   status: ListingStatus;
   listingType: ListingType;
   stockQuantity: number | null;
+  shipsWithinDays: number | null;
+  processingTimeMinDays: number | null;
+  processingTimeMaxDays: number | null;
   sellerId: string;
   photos: ReadonlyArray<ListingPublicCatalogPhoto>;
 }>;
@@ -112,6 +128,9 @@ const ITEM_KEYS = new Set([
   "status",
   "listingType",
   "stockQuantity",
+  "shipsWithinDays",
+  "processingTimeMinDays",
+  "processingTimeMaxDays",
   "sellerId",
   "photos",
 ]);
@@ -167,6 +186,9 @@ function parseItem(value: unknown): ListingPublicCatalogItem | null {
     || typeof item.listingType !== "string"
     || !LISTING_TYPES.has(item.listingType)
     || !validNullableNonnegativeInteger(item.stockQuantity)
+    || !validNullableNonnegativeInteger(item.shipsWithinDays)
+    || !validNullableNonnegativeInteger(item.processingTimeMinDays)
+    || !validNullableNonnegativeInteger(item.processingTimeMaxDays)
     || !validId(item.sellerId)
     || !photos
   ) return null;
@@ -179,6 +201,9 @@ function parseItem(value: unknown): ListingPublicCatalogItem | null {
     status: ListingStatus.ACTIVE,
     listingType: item.listingType as ListingType,
     stockQuantity: item.stockQuantity,
+    shipsWithinDays: item.shipsWithinDays,
+    processingTimeMinDays: item.processingTimeMinDays,
+    processingTimeMaxDays: item.processingTimeMaxDays,
     sellerId: item.sellerId,
     photos,
   });
@@ -218,6 +243,84 @@ function normalizedFilter(filter: ListingPublicCatalogFilter) {
   if (filter.category !== undefined && !CATEGORIES.has(filter.category)) {
     throw new RangeError("Public catalog category is outside the supported range");
   }
+  if (
+    filter.query !== undefined
+    && !isTextWithinCodePointRange(filter.query, 1, 200)
+  ) throw new RangeError("Public catalog query is outside the supported range");
+  if (
+    filter.normalizedSellerQuery !== undefined
+    && !isTextWithinCodePointRange(filter.normalizedSellerQuery, 1, 100)
+  ) throw new RangeError("Public catalog seller query is outside the supported range");
+  for (const [values, maximum, label] of [
+    [filter.partialTagMatches, 20, "partial tags"],
+    [filter.selectedTags, 10, "selected tags"],
+  ] as const) {
+    if (values === undefined) continue;
+    if (
+      !Array.isArray(values)
+      || values.length > maximum
+      || new Set(values).size !== values.length
+      || values.some((value) => !isTextWithinCodePointRange(value, 1, 24))
+    ) throw new RangeError(`Public catalog ${label} are outside the supported range`);
+  }
+  for (const [value, maximum, label] of [
+    [filter.minPriceCents, 50_000_000, "minimum price"],
+    [filter.maxPriceCents, 50_000_000, "maximum price"],
+  ] as const) {
+    if (
+      value !== undefined
+      && (!validSafeInteger(value) || value < 0 || value > maximum)
+    ) throw new RangeError(`Public catalog ${label} is outside the supported range`);
+  }
+  if (
+    filter.minPriceCents !== undefined
+    && filter.maxPriceCents !== undefined
+    && filter.minPriceCents > filter.maxPriceCents
+  ) throw new RangeError("Public catalog price range is invalid");
+  if (
+    filter.listingType !== undefined
+    && !LISTING_TYPES.has(filter.listingType)
+  ) throw new RangeError("Public catalog listing type is outside the supported range");
+  if (
+    filter.shipsWithinDays !== undefined
+    && (
+      !validSafeInteger(filter.shipsWithinDays)
+      || filter.shipsWithinDays < 1
+      || filter.shipsWithinDays > 365
+    )
+  ) throw new RangeError("Public catalog shipping window is outside the supported range");
+  if (
+    filter.minimumSellerRating !== undefined
+    && (
+      !Number.isFinite(filter.minimumSellerRating)
+      || filter.minimumSellerRating < 1
+      || filter.minimumSellerRating > 5
+    )
+  ) throw new RangeError("Public catalog seller rating is outside the supported range");
+  const locationValues = [
+    filter.locationLat,
+    filter.locationLng,
+    filter.locationRadiusMiles,
+  ];
+  const locationValueCount = locationValues.filter((value) => value !== undefined).length;
+  if (
+    (locationValueCount !== 0 && locationValueCount !== 3)
+    || (filter.locationLat !== undefined && (
+      !Number.isFinite(filter.locationLat)
+      || filter.locationLat < -90
+      || filter.locationLat > 90
+    ))
+    || (filter.locationLng !== undefined && (
+      !Number.isFinite(filter.locationLng)
+      || filter.locationLng < -180
+      || filter.locationLng > 180
+    ))
+    || (filter.locationRadiusMiles !== undefined && (
+      !Number.isFinite(filter.locationRadiusMiles)
+      || filter.locationRadiusMiles < 1
+      || filter.locationRadiusMiles > 500
+    ))
+  ) throw new RangeError("Public catalog location is outside the supported range");
   for (const value of [filter.metroId, filter.cityMetroId, filter.sellerId]) {
     if (value !== undefined && !validId(value)) {
       throw new RangeError("Public catalog id is outside the supported range");
@@ -228,6 +331,9 @@ function normalizedFilter(filter: ListingPublicCatalogFilter) {
   }
   if (filter.sort !== undefined && !SORTS.has(filter.sort)) {
     throw new RangeError("Public catalog sort is outside the supported range");
+  }
+  if (filter.sort === "relevant" && filter.query === undefined) {
+    throw new RangeError("Public catalog relevance sort requires a query");
   }
   if (
     filter.includeCategoryCounts !== undefined
