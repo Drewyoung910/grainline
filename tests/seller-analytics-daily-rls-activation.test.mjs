@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -8,8 +8,12 @@ import {
 } from "../scripts/private-table-rls-activation-catalog.mjs";
 
 const releaseId = "seller_analytics_daily_v1";
-const fullChainTestPath = process.env.DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH?.trim()
-  || "tests/database-full-chain-postgres.test.mjs";
+const configuredFullChainTestPath = process.env.DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH?.trim();
+const localFullChainTestPath = "tests/database-full-chain-postgres.test.mjs";
+const fullChainTestPath = configuredFullChainTestPath
+  && existsSync(configuredFullChainTestPath)
+  ? configuredFullChainTestPath
+  : localFullChainTestPath;
 
 test("SellerAnalyticsDaily activation seals both tables and every FORCE-crossing function", () => {
   const release = privateTableRlsActivation(releaseId);
