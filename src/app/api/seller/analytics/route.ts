@@ -23,6 +23,7 @@ import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { sellerStockNotificationRangeCount } from "@/lib/stockNotificationAccess";
 import { sellerFavoriteRangeCount } from "@/lib/favoriteAccess";
+import { listingOwnerCounts } from "@/lib/listingOwnerAccess";
 
 export const runtime = "nodejs";
 
@@ -200,9 +201,8 @@ export async function GET(req: Request) {
       endDate,
       endExclusive,
     });
-    const activeListingCountPromise = prisma.listing.count({
-      where: { sellerId, status: "ACTIVE" },
-    });
+    const activeListingCountPromise = listingOwnerCounts(me.id)
+      .then((counts) => counts.activeCount);
     const rangeViewAggPromise = prisma.listingViewDaily.aggregate({
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
       _sum: { views: true, clicks: true },

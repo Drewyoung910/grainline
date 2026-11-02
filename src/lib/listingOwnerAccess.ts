@@ -195,6 +195,12 @@ type ListingOwnerSummaryRow = {
   photos: unknown;
 };
 
+type ListingOwnerCountsRow = {
+  draftCount: unknown;
+  activeCount: unknown;
+  activePublicCount: unknown;
+};
+
 export type ListingOwnerSummaryState = Readonly<{
   id: string;
   title: string;
@@ -222,6 +228,12 @@ export type ListingOwnerSummaryOptions = Readonly<{
   take?: number;
 }>;
 
+export type ListingOwnerCountsState = Readonly<{
+  draftCount: number;
+  activeCount: number;
+  activePublicCount: number;
+}>;
+
 const LISTING_STATUSES = new Set<string>(Object.values(ListingStatus));
 const LISTING_TYPES = new Set<string>(Object.values(ListingType));
 const CATEGORIES = new Set<string>(Object.values(Category));
@@ -236,6 +248,12 @@ function validDate(value: unknown): value is Date {
 
 function validSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value);
+}
+
+function validCount(value: unknown): value is bigint {
+  return typeof value === "bigint"
+    && value >= 0n
+    && value <= BigInt(Number.MAX_SAFE_INTEGER);
 }
 
 function validNullableSafeInteger(value: unknown): value is number | null {
@@ -796,5 +814,30 @@ export function listingOwnerSummaryRows(
     isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
     maxWait: 10_000,
     timeout: 30_000,
+  });
+}
+
+export function listingOwnerCounts(userId: string) {
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<ListingOwnerCountsRow[]>`
+      SELECT * FROM public.grainline_listing_owner_counts()
+    `;
+    if (rows.length !== 1) {
+      throw new Error("Listing owner-count authority returned invalid cardinality");
+    }
+    const row = rows[0];
+    if (
+      !validCount(row.draftCount)
+      || !validCount(row.activeCount)
+      || !validCount(row.activePublicCount)
+      || row.activePublicCount > row.activeCount
+    ) {
+      throw new Error("Listing owner-count authority returned invalid counts");
+    }
+    return Object.freeze({
+      draftCount: Number(row.draftCount),
+      activeCount: Number(row.activeCount),
+      activePublicCount: Number(row.activePublicCount),
+    });
   });
 }
