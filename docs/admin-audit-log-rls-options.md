@@ -2,15 +2,19 @@
 
 Date: 2026-11-02
 
-Status: design selected. The isolated compatible application conversion is
-zero-direct and its 14-operation migration plus private insert fence passes
+Status: activation candidate. The isolated compatible application conversion
+is zero-direct and its 14-operation migration plus private insert fence passes
 focused and complete-chain PostgreSQL 17 proof. Atomic deletion-plan creation
 and five deterministic concurrency scenarios pass, as do the 100,000-row
 plans. The reusable manifest and real-catalog inspector seal the 15 new and 23
 retained functions, indexes and trigger. Deploy-order compatibility, the
-app-first rollback and the full local release-workflow restart sequence now pass
-on PostgreSQL 17. Preparation remains unaccepted until exact-branch PostgreSQL
-17 CI passes.
+app-first rollback and the full local release-workflow restart sequence pass
+on PostgreSQL 17. The separate policyless ENABLE-plus-FORCE candidate now also
+passes the complete 464-migration PostgreSQL 17 chain, final runtime/staff/
+account-deletion role convergence, direct-denial matrix, database-first
+rollback, predecessor CRUD and exact reactivation. Preparation and activation
+remain unaccepted until exact-branch PostgreSQL 17 CI and independent exact-head
+review pass.
 This document authorizes no merge, deployment, Production database change, grant change, or
 RLS activation.
 
@@ -224,3 +228,10 @@ runtime SELECT/INSERT/UPDATE/DELETE, and then admitted exact reapplication.
 The production build gate separately pins the new runtime, isolated-staff and
 account-deletion function bodies so the prepared app cannot deploy before the
 database preparation.
+
+The activation rollback has also been executed on the complete disposable
+PostgreSQL 17 chain. It restores predecessor CRUD before disabling FORCE/RLS,
+retains the prepared functions, indexes and trigger, proves predecessor
+runtime statements, and admits exact forward reactivation. A later Production
+rollback would still require a reviewed operator action and migration-ledger
+reconciliation; this local evidence grants no Production authority.
