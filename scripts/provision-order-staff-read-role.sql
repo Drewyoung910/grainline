@@ -266,6 +266,11 @@ WITH required(function_signature) AS (
     ('public."grainline_admin_audit_ban_repair_candidates"(integer)'),
     ('public."grainline_admin_audit_ban_repair_state"(text, text)'),
     ('public."grainline_admin_audit_ban_repair_append"(text, text, text, jsonb)')
+), listing_domain_candidate(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)')
 ), candidate_state AS (
   SELECT pg_catalog.count(*) FILTER (
     WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
@@ -281,6 +286,11 @@ WITH required(function_signature) AS (
     WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
   ) AS installed_count
   FROM admin_audit_candidate
+), listing_domain_candidate_state AS (
+  SELECT pg_catalog.count(*) FILTER (
+    WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
+  ) AS installed_count
+  FROM listing_domain_candidate
 ), missing AS (
   SELECT function_signature FROM required
   WHERE pg_catalog.to_regprocedure(function_signature) IS NULL
@@ -301,6 +311,12 @@ WITH required(function_signature) AS (
   FROM admin_audit_candidate
   CROSS JOIN admin_audit_candidate_state
   WHERE admin_audit_candidate_state.installed_count > 0
+    AND pg_catalog.to_regprocedure(function_signature) IS NULL
+  UNION ALL
+  SELECT function_signature
+  FROM listing_domain_candidate
+  CROSS JOIN listing_domain_candidate_state
+  WHERE listing_domain_candidate_state.installed_count > 0
     AND pg_catalog.to_regprocedure(function_signature) IS NULL
   ORDER BY function_signature
   LIMIT 1
@@ -433,6 +449,20 @@ SELECT pg_catalog.format(
   'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'staff_role'
 )
   FROM optional_admin_audit_staff
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+-- Listing-domain staff transitions are additive and may be absent from
+-- historical replay stages. Converge the reviewed set atomically when present.
+WITH optional_listing_domain_staff(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'staff_role'
+)
+  FROM optional_listing_domain_staff
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 GRANT EXECUTE ON FUNCTION
@@ -569,6 +599,15 @@ WITH table_authority AS (
       ('public."grainline_admin_audit_ban_repair_state"(text, text)'),
       ('public."grainline_admin_audit_ban_repair_append"(text, text, text, jsonb)')
   ) AS admin_audit_candidate(function_signature)
+  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
+  UNION ALL
+  SELECT function_signature
+  FROM (
+    VALUES
+      ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
+      ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
+      ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)')
+  ) AS listing_domain_candidate(function_signature)
   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
 ), expected_authority AS (
   SELECT function_signature,
