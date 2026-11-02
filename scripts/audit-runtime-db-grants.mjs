@@ -160,6 +160,14 @@ export const FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze(
     ))
     .map((entry) => entry.name),
 );
+export const BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  BLOCK_RLS_ACTIVATION_RELEASE.functionChanges.retained
+    .filter((entry) => (
+      entry.predecessorExecuteRole === "runtime"
+      && entry.activatedExecuteRole === "none"
+    ))
+    .map((entry) => entry.name),
+);
 export const SAVED_BLOG_POST_TABLE = "SavedBlogPost";
 export const SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const CART_CART_ITEM_OWNER_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
@@ -1681,6 +1689,10 @@ export function runtimePrivateFunctionNames(inventory) {
     typeof inventory?.followRlsActivationApplied === "boolean"
       ? inventory.followRlsActivationApplied
       : followRlsActivationExpected(inventory);
+  const blockActivated =
+    typeof inventory?.blockRlsActivationApplied === "boolean"
+      ? inventory.blockRlsActivationApplied
+      : blockRlsActivationExpected(inventory);
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1689,6 +1701,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !sellerEmailProjectionRetirementApplied
     && !sellerProfilePrivatePredecessorPrepared
     && !followActivated
+    && !blockActivated
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -1717,6 +1730,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(followActivated
       ? FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(blockActivated
+      ? BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }
