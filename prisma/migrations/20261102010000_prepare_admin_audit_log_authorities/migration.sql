@@ -23,6 +23,8 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_admin_audit_append(text,text,text,text,text,jsonb)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_count(text,text)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_page(text,text,integer,integer)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_undo_source(text,text)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_candidates(integer)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_state(text,text)'),
@@ -529,6 +531,214 @@ BEGIN
 END;
 $grainline_admin_audit_staff_page$;
 
+CREATE FUNCTION public.grainline_admin_audit_staff_undo_source(
+  p_actor_id text,
+  p_log_id text
+)
+RETURNS TABLE (
+  id text,
+  "adminId" text,
+  action text,
+  "targetType" text,
+  "targetId" text,
+  reason text,
+  metadata jsonb,
+  undone boolean,
+  "createdAt" timestamp(3) without time zone,
+  "latestUndoSyncAction" text
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_staff_undo_source$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime'
+     OR p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_log_id IS NULL
+     OR p_log_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR NOT EXISTS (
+       SELECT 1 FROM public."User" AS actor
+        WHERE actor.id = p_actor_id
+          AND actor.role::text = 'ADMIN'
+          AND actor.banned = false
+          AND actor."deletedAt" IS NULL
+     ) THEN
+    RAISE EXCEPTION 'Admin audit undo-source context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT source_audit.id::text,
+         source_audit."adminId"::text,
+         source_audit.action::text,
+         source_audit."targetType"::text,
+         source_audit."targetId"::text,
+         source_audit.reason::text,
+         source_audit.metadata,
+         source_audit.undone,
+         source_audit."createdAt",
+         (
+           SELECT related.action::text
+             FROM public."AdminAuditLog" AS related
+            WHERE source_audit.action = 'BAN_USER'
+              AND related.action IN (
+                    'UNDO_BAN_USER_CLERK_SYNC',
+                    'UNDO_BAN_USER_CLERK_SYNC_FAILED'
+                  )
+              AND related."targetType" = source_audit."targetType"
+              AND related."targetId" = source_audit."targetId"
+              AND related.metadata->>'originalActionId' = source_audit.id
+            ORDER BY related."createdAt" DESC, related.id DESC
+            LIMIT 1
+         )
+    FROM public."AdminAuditLog" AS source_audit
+   WHERE source_audit.id = p_log_id;
+END;
+$grainline_admin_audit_staff_undo_source$;
+
+CREATE FUNCTION public.grainline_admin_audit_undo_claim(
+  p_actor_id text,
+  p_log_id text,
+  p_reason text,
+  p_expected_admin_id text,
+  p_expected_action text,
+  p_expected_target_type text,
+  p_expected_target_id text,
+  p_expected_metadata jsonb
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_undo_claim$
+DECLARE
+  actor_id text := NULLIF(pg_catalog.current_setting('app.user_id', true), '');
+  actor_role text;
+  actor_active boolean := false;
+  source_admin_id text;
+  source_action text;
+  source_target_type text;
+  source_target_id text;
+  source_metadata jsonb;
+  source_undone boolean;
+  source_created_at timestamp(3) without time zone;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+  undo_id text := pg_catalog.gen_random_uuid()::text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_actor_id IS NULL
+     OR p_actor_id <> actor_id THEN
+    RAISE EXCEPTION 'Admin audit undo actor context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_log_id IS NULL
+     OR p_log_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_reason IS NULL
+     OR pg_catalog.char_length(p_reason) NOT BETWEEN 1 AND 500
+     OR p_expected_admin_id IS NULL
+     OR p_expected_admin_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_action IS NULL
+     OR p_expected_target_type IS NULL
+     OR p_expected_target_id IS NULL
+     OR p_expected_metadata IS NULL
+     OR pg_catalog.octet_length(p_expected_metadata::text) > 1000000 THEN
+    RAISE EXCEPTION 'Admin audit undo input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT actor.role::text,
+         actor.banned = false AND actor."deletedAt" IS NULL
+    INTO actor_role, actor_active
+    FROM public."User" AS actor
+   WHERE actor.id = actor_id
+   FOR SHARE;
+  IF NOT FOUND OR NOT actor_active OR actor_role <> 'ADMIN' THEN
+    RAISE EXCEPTION 'Admin audit undo actor context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT source_audit."adminId"::text,
+         source_audit.action::text,
+         source_audit."targetType"::text,
+         source_audit."targetId"::text,
+         source_audit.metadata,
+         source_audit.undone,
+         source_audit."createdAt"
+    INTO source_admin_id, source_action, source_target_type, source_target_id,
+         source_metadata, source_undone, source_created_at
+    FROM public."AdminAuditLog" AS source_audit
+   WHERE source_audit.id = p_log_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Action not found'
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  IF source_action NOT IN ('BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING')
+     OR (source_action = 'BAN_USER' AND source_target_type <> 'USER')
+     OR (
+       source_action IN ('REMOVE_LISTING', 'HOLD_LISTING')
+       AND source_target_type <> 'Listing'
+     ) THEN
+    RAISE EXCEPTION 'Action ''%'' cannot be undone', source_action
+      USING ERRCODE = '42501';
+  END IF;
+  IF source_admin_id = actor_id THEN
+    RAISE EXCEPTION 'Admins cannot undo their own actions'
+      USING ERRCODE = '42501';
+  END IF;
+  IF source_undone THEN
+    RAISE EXCEPTION 'Already undone (concurrent request)'
+      USING ERRCODE = '55000';
+  END IF;
+  IF source_created_at < (
+       pg_catalog.statement_timestamp() AT TIME ZONE 'UTC'
+     ) - INTERVAL '24 hours' THEN
+    RAISE EXCEPTION 'Undo window expired (24 hours)'
+      USING ERRCODE = '42501';
+  END IF;
+  IF source_admin_id <> p_expected_admin_id
+     OR source_action <> p_expected_action
+     OR source_target_type <> p_expected_target_type
+     OR source_target_id <> p_expected_target_id
+     OR source_metadata IS DISTINCT FROM p_expected_metadata THEN
+    RAISE EXCEPTION 'Action changed before undo could be applied'
+      USING ERRCODE = '55000';
+  END IF;
+
+  UPDATE public."AdminAuditLog"
+     SET undone = true,
+         "undoneAt" = source_now,
+         "undoneBy" = actor_id,
+         "undoneReason" = p_reason
+   WHERE id = p_log_id;
+
+  INSERT INTO public."AdminAuditLog" (
+    id, "adminId", action, "targetType", "targetId", reason, metadata,
+    undone, "createdAt"
+  )
+  VALUES (
+    undo_id, actor_id, 'UNDO_' || source_action, source_target_type,
+    source_target_id, p_reason,
+    pg_catalog.jsonb_build_object(
+      'originalActionId', p_log_id,
+      'actorKind', 'staff'
+    ),
+    false, source_now
+  );
+
+  RETURN undo_id;
+END;
+$grainline_admin_audit_undo_claim$;
+
 CREATE FUNCTION public.grainline_admin_audit_staff_ban_rows(
   p_actor_id text,
   p_target_id text,
@@ -758,6 +968,8 @@ REVOKE ALL ON FUNCTION
   public.grainline_admin_audit_append(text,text,text,text,text,jsonb),
   public.grainline_admin_audit_staff_count(text,text),
   public.grainline_admin_audit_staff_page(text,text,integer,integer),
+  public.grainline_admin_audit_staff_undo_source(text,text),
+  public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb),
   public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer),
   public.grainline_admin_audit_ban_repair_candidates(integer),
   public.grainline_admin_audit_ban_repair_state(text,text),
@@ -765,12 +977,14 @@ REVOKE ALL ON FUNCTION
 FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 
 GRANT EXECUTE ON FUNCTION
-  public.grainline_admin_audit_append(text,text,text,text,text,jsonb)
+  public.grainline_admin_audit_append(text,text,text,text,text,jsonb),
+  public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)
 TO grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION
   public.grainline_admin_audit_staff_count(text,text),
   public.grainline_admin_audit_staff_page(text,text,integer,integer),
+  public.grainline_admin_audit_staff_undo_source(text,text),
   public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer),
   public.grainline_admin_audit_ban_repair_candidates(integer),
   public.grainline_admin_audit_ban_repair_state(text,text),
@@ -784,6 +998,11 @@ BEGIN
     'public.grainline_admin_audit_append(text,text,text,text,text,jsonb)',
     'EXECUTE'
   )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)',
+       'EXECUTE'
+     )
      OR pg_catalog.has_function_privilege(
        'grainline_app_runtime',
        'public.grainline_admin_audit_staff_count(text,text)',
@@ -792,6 +1011,11 @@ BEGIN
      OR pg_catalog.has_function_privilege(
        'grainline_app_runtime',
        'public.grainline_admin_audit_staff_page(text,text,integer,integer)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_staff_undo_source(text,text)',
        'EXECUTE'
      )
      OR pg_catalog.has_function_privilege(
@@ -822,6 +1046,11 @@ BEGIN
      OR NOT pg_catalog.has_function_privilege(
        'grainline_staff_read_runtime',
        'public.grainline_admin_audit_staff_page(text,text,integer,integer)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_staff_undo_source(text,text)',
        'EXECUTE'
      )
      OR NOT pg_catalog.has_function_privilege(
@@ -847,6 +1076,11 @@ BEGIN
      OR pg_catalog.has_function_privilege(
        'grainline_staff_read_runtime',
        'public.grainline_admin_audit_append(text,text,text,text,text,jsonb)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)',
        'EXECUTE'
      ) THEN
     RAISE EXCEPTION 'AdminAuditLog preparation function ACL drifted';

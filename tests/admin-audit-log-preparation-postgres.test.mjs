@@ -75,6 +75,7 @@ async function readyDatabase() {
 
     INSERT INTO public."User" (id, role) VALUES
       ('proof-admin', 'ADMIN'),
+      ('proof-admin-two', 'ADMIN'),
       ('proof-employee', 'EMPLOYEE'),
       ('proof-user', 'USER'),
       ('proof-seller', 'USER');
@@ -139,6 +140,16 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
              ) AS runtime_append,
              pg_catalog.has_function_privilege(
                'grainline_app_runtime',
+               'public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)',
+               'EXECUTE'
+             ) AS runtime_undo_claim,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_admin_audit_staff_undo_source(text,text)',
+               'EXECUTE'
+             ) AS runtime_undo_source,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
                'public.grainline_admin_audit_staff_page(text,text,integer,integer)',
                'EXECUTE'
              ) AS runtime_staff_page,
@@ -152,6 +163,16 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
                'public.grainline_admin_audit_append(text,text,text,text,text,jsonb)',
                'EXECUTE'
              ) AS staff_append,
+             pg_catalog.has_function_privilege(
+               'grainline_staff_read_runtime',
+               'public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)',
+               'EXECUTE'
+             ) AS staff_undo_claim,
+             pg_catalog.has_function_privilege(
+               'grainline_staff_read_runtime',
+               'public.grainline_admin_audit_staff_undo_source(text,text)',
+               'EXECUTE'
+             ) AS staff_undo_source,
              pg_catalog.has_function_privilege(
                'grainline_app_runtime',
                'public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)',
@@ -171,12 +192,78 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
       runtime_select: true,
       runtime_insert: true,
       runtime_append: true,
+      runtime_undo_claim: true,
+      runtime_undo_source: false,
       runtime_staff_page: false,
       staff_page: true,
       staff_append: false,
+      staff_undo_claim: false,
+      staff_undo_source: true,
       runtime_ban_repair_append: false,
       staff_ban_repair_append: true,
     });
+  } finally {
+    await database.close();
+  }
+});
+
+test("undo claim binds the exact source and atomically records one undo", async () => {
+  const database = await readyDatabase();
+  try {
+    const created = await asRuntime(database, "proof-admin", appendSql(), [
+      "proof-admin", "REMOVE_LISTING", "Listing", "proof-removed-listing", null,
+      JSON.stringify({ title: "Removed listing", sellerId: "proof-shop" }),
+    ]);
+    const logId = created.rows[0].id;
+    const source = await database.query(
+      `SELECT id, "adminId", action, "targetType", "targetId", metadata, "createdAt"
+         FROM public."AdminAuditLog" WHERE id=$1`,
+      [logId],
+    );
+    const row = source.rows[0];
+    const claimSql = `
+      SELECT public.grainline_admin_audit_undo_claim(
+        $1, $2, $3, $4, $5, $6, $7, $8::jsonb
+      ) AS id
+    `;
+
+    await assert.rejects(
+      asRuntime(database, "proof-admin-two", claimSql, [
+        "proof-admin-two", row.id, "reviewed reversal", row.adminId,
+        row.action, row.targetType, row.targetId, JSON.stringify({ changed: true }),
+      ]),
+      /Action changed before undo/u,
+    );
+
+    const undo = await asRuntime(database, "proof-admin-two", claimSql, [
+      "proof-admin-two", row.id, "reviewed reversal", row.adminId,
+      row.action, row.targetType, row.targetId, JSON.stringify(row.metadata),
+    ]);
+    assert.equal(undo.rows.length, 1);
+
+    const stored = await database.query(
+      `SELECT source.undone, source."undoneBy", source."undoneReason",
+              undo.action, undo.metadata->>'originalActionId' AS original_action_id
+         FROM public."AdminAuditLog" AS source
+         JOIN public."AdminAuditLog" AS undo ON undo.id=$2
+        WHERE source.id=$1`,
+      [row.id, undo.rows[0].id],
+    );
+    assert.deepEqual(stored.rows[0], {
+      undone: true,
+      undoneBy: "proof-admin-two",
+      undoneReason: "reviewed reversal",
+      action: "UNDO_REMOVE_LISTING",
+      original_action_id: row.id,
+    });
+
+    await assert.rejects(
+      asRuntime(database, "proof-admin-two", claimSql, [
+        "proof-admin-two", row.id, "second reversal", row.adminId,
+        row.action, row.targetType, row.targetId, JSON.stringify(row.metadata),
+      ]),
+      /Already undone/u,
+    );
   } finally {
     await database.close();
   }

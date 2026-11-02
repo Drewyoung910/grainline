@@ -29,6 +29,22 @@ export type AdminAuditLogStaffRow = Readonly<{
   actorKind: "staff" | "user" | "automated";
 }>;
 
+export type AdminAuditLogUndoSource = Readonly<{
+  id: string;
+  adminId: string;
+  action: "BAN_USER" | "REMOVE_LISTING" | "HOLD_LISTING";
+  targetType: string;
+  targetId: string;
+  reason: string | null;
+  metadata: Prisma.JsonValue;
+  undone: boolean;
+  createdAt: Date;
+  latestUndoSyncAction:
+    | "UNDO_BAN_USER_CLERK_SYNC"
+    | "UNDO_BAN_USER_CLERK_SYNC_FAILED"
+    | null;
+}>;
+
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,255}$/u;
 const ACTOR_KINDS = new Set(["staff", "user", "automated"]);
 const BAN_REPAIR_ACTIONS = new Set([
@@ -36,6 +52,7 @@ const BAN_REPAIR_ACTIONS = new Set([
   "BAN_USER_CLERK_SYNC_FAILED",
   "BAN_USER_CHECKOUT_SESSIONS_EXPIRED",
 ]);
+const UNDOABLE_ACTIONS = new Set(["BAN_USER", "REMOVE_LISTING", "HOLD_LISTING"]);
 
 function validId(value: unknown, maximum = 255): value is string {
   return typeof value === "string"
@@ -53,6 +70,15 @@ function validActionFilter(value: string | null) {
 
 function validRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validJsonValue(value: unknown): value is Prisma.JsonValue {
+  if (value === undefined) return false;
+  try {
+    return JSON.stringify(value) !== undefined;
+  } catch {
+    return false;
+  }
 }
 
 export async function appendAdminAuditLog(
@@ -170,6 +196,92 @@ export async function adminAuditLogStaffPage(
       actorKind: row.actorKind,
     }) as AdminAuditLogStaffRow;
   });
+}
+
+export async function adminAuditLogStaffUndoSource(
+  client: StaffQueryClient,
+  input: { actorId: string; logId: string },
+): Promise<AdminAuditLogUndoSource | null> {
+  if (!validId(input.actorId, 191) || !validId(input.logId, 191)) {
+    throw new RangeError("Admin audit undo-source input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT * FROM public.grainline_admin_audit_staff_undo_source(
+      ${input.actorId}::text,
+      ${input.logId}::text
+    )
+  `);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || !row
+    || !validId(row.id, 191)
+    || !validId(row.adminId, 191)
+    || typeof row.action !== "string"
+    || !UNDOABLE_ACTIONS.has(row.action)
+    || !isTextWithinCodePointRange(row.targetType, 1, 100)
+    || !isTextWithinCodePointRange(row.targetId, 1, 255)
+    || (row.reason !== null && !isTextWithinCodePointRange(row.reason, 0, 1000))
+    || !validJsonValue(row.metadata)
+    || typeof row.undone !== "boolean"
+    || !validDate(row.createdAt)
+    || (
+      row.latestUndoSyncAction !== null
+      && row.latestUndoSyncAction !== "UNDO_BAN_USER_CLERK_SYNC"
+      && row.latestUndoSyncAction !== "UNDO_BAN_USER_CLERK_SYNC_FAILED"
+    )
+  ) {
+    throw new TypeError("Admin audit undo-source authority returned an invalid row");
+  }
+  return Object.freeze({
+    id: row.id,
+    adminId: row.adminId,
+    action: row.action,
+    targetType: row.targetType,
+    targetId: row.targetId,
+    reason: row.reason,
+    metadata: row.metadata,
+    undone: row.undone,
+    createdAt: row.createdAt,
+    latestUndoSyncAction: row.latestUndoSyncAction,
+  }) as AdminAuditLogUndoSource;
+}
+
+export async function adminAuditLogUndoClaim(
+  client: QueryClient,
+  input: { actorId: string; reason: string; source: AdminAuditLogUndoSource },
+) {
+  if (
+    !validId(input.actorId, 191)
+    || !isTextWithinCodePointRange(input.reason, 1, 500)
+    || !validId(input.source.id, 191)
+    || !validId(input.source.adminId, 191)
+    || !UNDOABLE_ACTIONS.has(input.source.action)
+    || !isTextWithinCodePointRange(input.source.targetType, 1, 100)
+    || !isTextWithinCodePointRange(input.source.targetId, 1, 255)
+    || !validDate(input.source.createdAt)
+    || !validJsonValue(input.source.metadata)
+  ) {
+    throw new RangeError("Admin audit undo-claim input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<{ id: unknown }>>(Prisma.sql`
+    SELECT public.grainline_admin_audit_undo_claim(
+      ${input.actorId}::text,
+      ${input.source.id}::text,
+      ${input.reason}::text,
+      ${input.source.adminId}::text,
+      ${input.source.action}::text,
+      ${input.source.targetType}::text,
+      ${input.source.targetId}::text,
+      ${JSON.stringify(input.source.metadata)}::jsonb
+    ) AS id
+  `);
+  const id = rows[0]?.id;
+  if (rows.length !== 1 || !validId(id, 191)) {
+    throw new TypeError("Admin audit undo-claim authority returned an invalid result");
+  }
+  return id;
 }
 
 export async function adminAuditLogStaffBanRows(
