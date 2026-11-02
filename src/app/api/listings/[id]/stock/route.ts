@@ -33,7 +33,7 @@ import {
   prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired,
 } from "@/lib/listingStockMutation";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
-import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
 import { stockNotificationRestockCandidates } from "@/lib/stockNotificationAccess";
 
 const StockPatchSchema = z.object({
@@ -90,18 +90,7 @@ export async function PATCH(
       : normalizeManualStockQuantity(stockParsed.expectedQuantity);
 
     // Ownership check
-    const seller = await sellerOwnerCore(me.id);
-    if (!seller) return privateJson({ error: "Not found" }, { status: 404 });
-    const listing = await prisma.listing.findFirst({
-      where: { id, sellerId: seller.sellerProfileId },
-      select: {
-        id: true,
-        listingType: true,
-        status: true,
-        stockQuantity: true,
-        isPrivate: true,
-      },
-    });
+    const listing = await listingOwnerActionState(me.id, id);
     if (!listing) return privateJson({ error: "Not found" }, { status: 404 });
     if (listing.listingType !== "IN_STOCK") {
       return privateJson({ error: "Only IN_STOCK listings have quantity" }, { status: 400 });
@@ -119,7 +108,7 @@ export async function PATCH(
       backInStockAuthoritySourceId,
     } = await prisma.$transaction(async (tx) => {
       const mutation = await prepareListingStockMutation(tx, {
-        listingId: id, sellerId: seller.sellerProfileId, actorId: me.id,
+        listingId: id, sellerId: listing.sellerId, actorId: me.id,
       }, stockParsed, { kind: "inventory", quantity, expectedQuantity });
       if (!mutation) return { updated: null, lowStockAuthoritySourceId: null, backInStockAuthoritySourceId: null };
       if (mutation.replayed) {
@@ -142,7 +131,7 @@ export async function PATCH(
           SELECT id, "stockQuantity", status
           FROM "Listing"
           WHERE id = ${id}
-            AND "sellerId" = ${seller.sellerProfileId}
+            AND "sellerId" = ${listing.sellerId}
           FOR UPDATE
         )
         UPDATE "Listing" AS target
@@ -238,7 +227,7 @@ export async function PATCH(
     if (!updated) return privateJson({ error: "Not found" }, { status: 404 });
 
     // Track listingsBelowThresholdSince for Guild Member revocation check
-    await syncGuildMemberListingThreshold(seller.sellerProfileId);
+    await syncGuildMemberListingThreshold(listing.sellerId);
     if (updated.previousStatus !== updated.status) {
       revalidateListingSearchCaches();
       revalidateFeaturedMakerCaches();
@@ -348,7 +337,7 @@ export async function PATCH(
           Sentry.captureException(error, {
             level: "warning",
             tags: { source: "stock_back_in_stock_fanout" },
-            extra: { listingId: id, sellerProfileId: seller.sellerProfileId },
+            extra: { listingId: id, sellerProfileId: listing.sellerId },
           });
         }
       });

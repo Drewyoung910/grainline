@@ -43,10 +43,6 @@ async function quantity() { return (await db.query('SELECT "stockQuantity" FROM 
 function route({ failGuild = false, authenticated = true, owned = true, rejectReceipt = false, beforeTransaction } = {}) {
   const tx = port(db);
   const prisma = { ...tx,
-    listing: { findFirst: async () => {
-      const row = (await db.query('SELECT * FROM "Listing"')).rows[0];
-      return row && owned ? row : null;
-    } },
     $transaction: async (run) => {
       if (beforeTransaction) await beforeTransaction();
       return db.transaction((connection) => {
@@ -68,9 +64,10 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
     "@/lib/notificationServiceAccess": {}, "@/lib/email": {}, "@/lib/emailOutbox": {},
     "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipients: async () => [] },
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "owner" }) },
-    "@/lib/sellerProfileOwnerAccess": { sellerOwnerCore: async () => (
-      owned ? { sellerProfileId: "seller", displayName: "Seller", createdAt: new Date(), chargesEnabled: true, vacationMode: false } : null
-    ) },
+    "@/lib/listingOwnerAccess": { listingOwnerActionState: async () => {
+      const row = (await db.query('SELECT * FROM "Listing"')).rows[0];
+      return row && owned ? { ...row, sellerId: row.sellerId } : null;
+    } },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/concurrency": {}, "@/lib/stockMutationState": stock,
     "@/lib/listingStockMutation": receipts,
