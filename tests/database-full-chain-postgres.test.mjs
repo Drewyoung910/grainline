@@ -104,8 +104,11 @@ import {
 import { proveEmailProviderEligibilityFence } from
   "../tools/database-full-chain/scenarios/email-provider-eligibility-fence.mjs";
 import {
+  EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION,
   EMAIL_SERVICE_LEAST_PRIVILEGE_PREPARATION_MIGRATION,
+  proveEmailServiceLeastPrivilegeActivation,
   proveEmailServiceLeastPrivilegeAuthorities,
+  proveEmailServiceLeastPrivilegeRollback,
   seedEmailServiceLeastPrivilegePredecessor,
 } from "../tools/database-full-chain/scenarios/email-service-least-privilege.mjs";
 import {
@@ -275,6 +278,7 @@ test(
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
       let emailServiceLeastPrivilegeFixture;
+      let emailServiceLeastPrivilegePreparationProved = false;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -415,6 +419,19 @@ test(
               await seedEmailServiceLeastPrivilegePredecessor({
                 database: adapter,
               });
+          }
+          if (
+            artifact.name === EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION
+          ) {
+            assert.ok(
+              emailServiceLeastPrivilegeFixture,
+              "email service predecessor fixture must precede activation",
+            );
+            await proveEmailServiceLeastPrivilegeAuthorities({
+              database: adapter,
+              fixture: emailServiceLeastPrivilegeFixture,
+            });
+            emailServiceLeastPrivilegePreparationProved = true;
           }
           if (artifact.name === STOCK_NOTIFICATION_PREPARATION_MIGRATION) {
             assert.ok(fixture, "seller fixture must exist before StockNotification proof");
@@ -1060,10 +1077,30 @@ test(
         emailServiceLeastPrivilegeFixture,
         "email service predecessor fixture must precede preparation",
       );
-      await proveEmailServiceLeastPrivilegeAuthorities({
-        database: adapter,
-        fixture: emailServiceLeastPrivilegeFixture,
-      });
+      if (!emailServiceLeastPrivilegePreparationProved) {
+        await proveEmailServiceLeastPrivilegeAuthorities({
+          database: adapter,
+          fixture: emailServiceLeastPrivilegeFixture,
+        });
+      } else {
+        await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            "docs/rls-drafts/email-service-least-privilege-activation-rollback.sql",
+          ),
+          "utf8",
+        ));
+        await proveEmailServiceLeastPrivilegeRollback({ database: adapter });
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            `prisma/migrations/${EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION}/migration.sql`,
+          ),
+          "utf8",
+        ));
+        await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+      }
       assert.deepEqual(stockNotificationPredecessorEvidence, {
         blockedNotificationCreated: true,
       });
