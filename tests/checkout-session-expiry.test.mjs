@@ -66,4 +66,11 @@ describe("checkout session expiry hardening", () => {
     assert.match(expiry, /sellerProfileId/);
     assert.match(expiry, /checkout_session_restore/);
   });
+
+  it("identifies seller sessions from their durable Stripe metadata without a Listing table fallback", () => {
+    const expiry = source("src/lib/checkoutSessionExpiry.ts");
+
+    assert.match(expiry, /session\.metadata\?\.sellerId !== sellerId/u);
+    assert.doesNotMatch(expiry, /prisma\.listing\.findUnique/u);
+  });
 });
