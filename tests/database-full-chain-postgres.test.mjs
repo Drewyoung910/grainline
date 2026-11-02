@@ -142,6 +142,10 @@ import {
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
 import {
+  SELLER_METRICS_PREPARATION_MIGRATION,
+  proveSellerMetricsPreparedAuthorities,
+} from "../tools/database-full-chain/scenarios/seller-metrics-authorities.mjs";
+import {
   SELLER_BROADCAST_PREPARATION_MIGRATION,
   SELLER_BROADCAST_RLS_MIGRATION,
   proveSellerBroadcastEligibilityGapClosed,
@@ -316,6 +320,7 @@ test(
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
+      let sellerMetricsPreparationPreflightPath;
       let blockPreparationPreflightPath;
       let blockPreparationPostflightClosed = false;
       let userReportFixture;
@@ -668,6 +673,27 @@ test(
               fixture: followFixture,
             });
           }
+          if (artifact.name === SELLER_METRICS_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before metrics proof");
+            sellerMetricsPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-metrics-preparation-preflight.json",
+            );
+            const preparationPreflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                    sellerMetricsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "7".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
+          }
           if (artifact.name === BLOCK_PREPARATION_MIGRATION) {
             blockPreparationPreflightPath = join(
               preparationEvidenceDirectory,
@@ -981,6 +1007,42 @@ test(
           "20260927090000_enable_order_rls",
         ],
       );
+
+      assert.ok(
+        sellerMetricsPreparationPreflightPath,
+        "SellerMetrics preparation preflight did not run",
+      );
+      const sellerMetricsPreparationPostflight =
+        await inspectPrivateTablePreparationProduction(
+          {
+            DIRECT_URL: proofDatabaseUrl,
+            PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1",
+            PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+            PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+              preparationEvidenceDirectory,
+              "seller-metrics-preparation-postflight.json",
+            ),
+            PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+              sellerMetricsPreparationPreflightPath,
+            PRODUCTION_MIGRATION_RELEASE_COMMIT: "7".repeat(40),
+          },
+          { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+        );
+      assert.equal(sellerMetricsPreparationPostflight.state, "applied");
+      assert.equal(sellerMetricsPreparationPostflight.catalog.functions.length, 4);
+      assert.deepEqual(sellerMetricsPreparationPostflight.catalog.triggers, [{
+        name: "grainline_seller_metrics_inactive_owner_cleanup",
+        function: "grainline_seller_metrics_inactive_owner_cleanup",
+        table: "SellerProfile",
+        enabled: "O",
+        type: 17,
+      }]);
+      assert.ok(fixture, "seller fixture must exist before SellerMetrics proof");
+      await proveSellerMetricsPreparedAuthorities({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        seller: fixture,
+      });
 
       for (const releaseId of PRIVATE_TABLE_ACTIVATION_RELEASES.values()) {
         const previousPath = privateActivationPreflightPaths.get(releaseId);

@@ -12,6 +12,7 @@ import {
   GUILD_MASTER_REQUIREMENTS,
   listingViewDailyRetentionCutoff,
   floorMetric,
+  type SellerMetricsResult,
 } from "@/lib/metrics";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
@@ -175,7 +176,10 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   warned: number;
   revokedMaster: number;
 }> {
-  const metrics = await calculateSellerMetrics(seller.id);
+  // The cohort is source-derived by the Guild batch authority. Reuse the
+  // owner-bound refresh with that database-returned user id instead of
+  // exposing a separate arbitrary-seller metrics reader to the runtime role.
+  const metrics = await calculateSellerMetrics(seller.userId);
   const criteria = meetsGuildMasterRequirements(metrics);
   const transition = await applySellerGuildMetrics({
     sellerProfileId: seller.id,
@@ -292,7 +296,7 @@ function getErrorCode(err: unknown): string {
 
 function buildFailedLabels(
   criteria: ReturnType<typeof meetsGuildMasterRequirements>,
-  metrics: Awaited<ReturnType<typeof calculateSellerMetrics>>
+  metrics: SellerMetricsResult,
 ): string[] {
   const labels: string[] = [];
   if (!criteria.ratingMet)

@@ -22,49 +22,38 @@ describe("seller metrics cache freshness", () => {
     assert.equal(isSellerMetricsFresh({ calculatedAt: new Date("not-a-date") }, now), false);
   });
 
-  it("serializes stale seller metric refreshes with a seller-scoped transaction lock", () => {
-    const source = readFileSync("src/lib/metrics.ts", "utf8");
+  it("serializes refreshes inside the fixed SellerMetrics database operation", () => {
+    const source = readFileSync(
+      "prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql",
+      "utf8",
+    );
 
-    assert.match(source, /const SELLER_METRICS_LOCK_NAMESPACE = 913344/);
-    assert.match(source, /return prisma\.\$transaction\(/);
-    assert.match(source, /calculateSellerMetricsInTransaction\(sellerProfileId, periodMonths, tx\)/);
-    assert.match(source, /SELECT pg_advisory_xact_lock\(\$\{SELLER_METRICS_LOCK_NAMESPACE\}, hashtext\(\$\{sellerProfileId\}\)\)/);
-    assert.match(source, /await db\.sellerMetrics\.upsert/);
-    assert.doesNotMatch(source, /await prisma\.sellerMetrics\.upsert/);
+    assert.match(
+      source,
+      /pg_advisory_xact_lock\(\s*913344,\s*pg_catalog\.hashtext\(p_seller_profile_id\)\s*\)/u,
+    );
+    assert.match(source, /grainline_seller_metrics_refresh_prepared_impl/u);
+    assert.match(source, /IF result_id IS NULL THEN[\s\S]*INSERT INTO public\."SellerMetrics"/u);
+    assert.match(source, /ELSE[\s\S]*UPDATE public\."SellerMetrics" AS metrics/u);
   });
 
-  it("reuses fresh cached seller metrics before taking the advisory lock", () => {
+  it("routes cached and forced owner reads through the fixed database operation", () => {
     const metrics = readFileSync("src/lib/metrics.ts", "utf8");
     const dashboardVerification = readFileSync("src/app/dashboard/verification/page.tsx", "utf8");
 
-    assert.match(metrics, /export const SELLER_METRICS_SELECT = \{[\s\S]*sellerProfileId: true[\s\S]*accountAgeDays: true/s);
-    assert.match(metrics, /existingMetrics === undefined[\s\S]*prisma\.sellerMetrics\.findUnique\(\{[\s\S]*select: SELLER_METRICS_SELECT/s);
-    assert.match(metrics, /metrics\.sellerProfileId === sellerProfileId[\s\S]*metrics\.periodMonths === periodMonths[\s\S]*isSellerMetricsFresh\(metrics\)[\s\S]*return cachedSellerMetricsToResult\(metrics\);/s);
-    assert.match(metrics, /return refreshSellerMetricsAfterCacheMiss\(sellerProfileId, periodMonths\);/);
-    assert.match(metrics, /async function refreshSellerMetricsAfterCacheMiss/);
-    assert.match(metrics, /async function calculateSellerMetricsWithoutLock/);
+    assert.match(metrics, /grainline_seller_metrics_owner_state/u);
+    assert.match(metrics, /return readOwnerSellerMetrics\(actorUserId, periodMonths, false\)/u);
+    assert.match(metrics, /return readOwnerSellerMetrics\(actorUserId, periodMonths, true\)/u);
+    assert.match(metrics, /withDbUserContext\(actorUserId/u);
+    assert.doesNotMatch(metrics, /\.sellerMetrics\.(?:findUnique|upsert|deleteMany)/u);
 
-    const refreshStart = metrics.indexOf("async function refreshSellerMetricsAfterCacheMiss");
-    const refreshEnd = metrics.indexOf("async function lockSellerMetricsRefresh", refreshStart);
-    const refreshBlock = metrics.slice(refreshStart, refreshEnd);
-    assert.ok(
-      refreshBlock.indexOf("await lockSellerMetricsRefresh(tx, sellerProfileId)") <
-        refreshBlock.indexOf("await tx.sellerMetrics.findUnique"),
-      "cache-miss refresh should wait on the seller lock before re-reading cached metrics",
-    );
-    assert.ok(
-      refreshBlock.indexOf("await tx.sellerMetrics.findUnique") <
-        refreshBlock.indexOf("return calculateSellerMetricsWithoutLock"),
-      "cache-miss refresh should reuse another request's fresh row before recomputing aggregates",
-    );
-
-    assert.match(dashboardVerification, /masterMetrics = await getFreshSellerMetrics\(seller\.id\);/);
-    assert.match(dashboardVerification, /const metrics = await calculateSellerMetrics\(s\.id\);/);
+    assert.match(dashboardVerification, /masterMetrics = await getFreshSellerMetrics\(me\.id\);/);
+    assert.match(dashboardVerification, /const metrics = await calculateSellerMetrics\(s\.userId\);/);
     assert.match(dashboardVerification, /masterCriteria\?\.allMet === true && !masterApplicationBlockReason/);
     assert.doesNotMatch(dashboardVerification, /!masterCriteria \|\| masterCriteria\.allMet/);
     assert.ok(
-      dashboardVerification.indexOf("masterMetrics = await getFreshSellerMetrics(seller.id);") <
-        dashboardVerification.indexOf("const metrics = await calculateSellerMetrics(s.id);"),
+      dashboardVerification.indexOf("masterMetrics = await getFreshSellerMetrics(me.id);") <
+        dashboardVerification.indexOf("const metrics = await calculateSellerMetrics(s.userId);"),
       "dashboard render should use the cached freshness helper while the application action still recalculates live metrics",
     );
   });

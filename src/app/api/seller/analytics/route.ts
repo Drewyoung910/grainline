@@ -7,7 +7,6 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import {
   getFreshSellerMetrics,
   meetsGuildMasterRequirements,
-  SELLER_METRICS_SELECT,
 } from "@/lib/metrics";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -270,11 +269,7 @@ export async function GET(req: Request) {
       GROUP BY bucket
       ORDER BY bucket ASC
     `;
-    const existingMetricsPromise = prisma.sellerMetrics.findUnique({
-      where: { sellerProfileId: sellerId },
-      select: SELLER_METRICS_SELECT,
-    });
-
+    const metricsPromise = getFreshSellerMetrics(me.id, 3);
     const [
       orderSummary,
       activeListingCount,
@@ -286,7 +281,7 @@ export async function GET(req: Request) {
       chartOrderRows,
       topListingRows,
       ratingRows,
-      existingMetrics,
+      metrics,
     ] = await Promise.all([
       orderSummaryPromise,
       activeListingCountPromise,
@@ -298,7 +293,7 @@ export async function GET(req: Request) {
       chartOrderRowsPromise,
       topListingRowsPromise,
       ratingRowsPromise,
-      existingMetricsPromise,
+      metricsPromise,
     ]);
 
     if (!orderSummary || orderSummary.sellerProfileId !== sellerId) {
@@ -471,7 +466,9 @@ export async function GET(req: Request) {
 
     // ── Guild metrics ───────────────────────────────────────────────────────────
 
-    const metrics = await getFreshSellerMetrics(sellerId, 3, existingMetrics);
+    if (metrics.sellerProfileId !== sellerId) {
+      throw new Error("Seller metrics authority returned another seller");
+    }
 
     const guildCriteria = meetsGuildMasterRequirements(metrics);
     const failingKeys = Object.entries(guildCriteria)

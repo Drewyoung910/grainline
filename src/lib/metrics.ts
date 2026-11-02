@@ -1,41 +1,26 @@
 // src/lib/metrics.ts
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import {
-  metricsPeriodStart,
-  type SellerMetricsResult,
-} from "@/lib/metricsState";
-import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
-import { getSellerMessageResponseMetrics } from "@/lib/conversationMessageAuthority";
-import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
-import { readOrderSellerMetricsFacts } from "@/lib/orderSellerMetricsAuthority";
+import type { Prisma } from "@prisma/client";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import type { SellerMetricsResult } from "@/lib/metricsState";
 
-const SELLER_METRICS_LOCK_NAMESPACE = 913344;
-const SELLER_PROFILE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/;
-const MAX_EPOCH_MILLIS = 253402300799999n;
+const SELLER_PROFILE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/u;
+const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
-type SellerMetricsIdentityRow = {
-  sellerUserId: unknown;
-  createdAtEpochMillis: unknown;
+type SellerMetricsRow = {
+  sellerProfileId: unknown;
+  calculatedAt: unknown;
+  periodMonths: unknown;
+  averageRating: unknown;
+  reviewCount: unknown;
+  onTimeShippingRate: unknown;
+  responseRate: unknown;
+  totalSalesCents: unknown;
+  completedOrderCount: unknown;
+  activeCaseCount: unknown;
+  accountAgeDays: unknown;
 };
 
-export const SELLER_METRICS_SELECT = {
-  sellerProfileId: true,
-  calculatedAt: true,
-  periodMonths: true,
-  averageRating: true,
-  reviewCount: true,
-  onTimeShippingRate: true,
-  responseRate: true,
-  totalSalesCents: true,
-  completedOrderCount: true,
-  activeCaseCount: true,
-  accountAgeDays: true,
-} satisfies Prisma.SellerMetricsSelect;
-
-export type CachedSellerMetrics = Prisma.SellerMetricsGetPayload<{
-  select: typeof SELLER_METRICS_SELECT;
-}>;
+type MetricsClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 export {
   floorMetric,
@@ -48,226 +33,125 @@ export {
   type SellerMetricsResult,
 } from "@/lib/metricsState";
 
-export async function calculateSellerMetrics(
-  sellerProfileId: string,
-  periodMonths = 3
-): Promise<SellerMetricsResult> {
-  return prisma.$transaction(
-    (tx) => calculateSellerMetricsInTransaction(sellerProfileId, periodMonths, tx),
-    { maxWait: 10_000, timeout: 30_000 },
-  );
-}
-
-export function cachedSellerMetricsToResult(metrics: CachedSellerMetrics): SellerMetricsResult {
-  return {
-    sellerProfileId: metrics.sellerProfileId,
-    calculatedAt: new Date(metrics.calculatedAt),
-    periodMonths: metrics.periodMonths,
-    averageRating: metrics.averageRating,
-    reviewCount: metrics.reviewCount,
-    onTimeShippingRate: metrics.onTimeShippingRate,
-    responseRate: metrics.responseRate,
-    totalSalesCents: Number(metrics.totalSalesCents),
-    completedOrderCount: metrics.completedOrderCount,
-    activeCaseCount: metrics.activeCaseCount,
-    accountAgeDays: metrics.accountAgeDays,
-  };
-}
-
-export async function getFreshSellerMetrics(
-  sellerProfileId: string,
-  periodMonths = 3,
-  existingMetrics?: CachedSellerMetrics | null,
-): Promise<SellerMetricsResult> {
-  const metrics = existingMetrics === undefined
-    ? await prisma.sellerMetrics.findUnique({
-        where: { sellerProfileId },
-        select: SELLER_METRICS_SELECT,
-      })
-    : existingMetrics;
-
-  if (
-    metrics &&
-    metrics.sellerProfileId === sellerProfileId &&
-    metrics.periodMonths === periodMonths &&
-    isSellerMetricsFresh(metrics)
-  ) {
-    return cachedSellerMetricsToResult(metrics);
+function validatePeriodMonths(periodMonths: number) {
+  if (!Number.isInteger(periodMonths) || periodMonths < 1 || periodMonths > 12) {
+    throw new RangeError("Seller metrics period is outside the supported range");
   }
-
-  return refreshSellerMetricsAfterCacheMiss(sellerProfileId, periodMonths);
+  return periodMonths;
 }
 
-async function refreshSellerMetricsAfterCacheMiss(
-  sellerProfileId: string,
-  periodMonths: number,
-): Promise<SellerMetricsResult> {
-  return prisma.$transaction(
-    async (tx) => {
-      await lockSellerMetricsRefresh(tx, sellerProfileId);
-
-      const metrics = await tx.sellerMetrics.findUnique({
-        where: { sellerProfileId },
-        select: SELLER_METRICS_SELECT,
-      });
-
-      if (
-        metrics &&
-        metrics.sellerProfileId === sellerProfileId &&
-        metrics.periodMonths === periodMonths &&
-        isSellerMetricsFresh(metrics)
-      ) {
-        return cachedSellerMetricsToResult(metrics);
-      }
-
-      return calculateSellerMetricsWithoutLock(sellerProfileId, periodMonths, tx);
-    },
-    { maxWait: 10_000, timeout: 30_000 },
-  );
-}
-
-async function lockSellerMetricsRefresh(
-  db: Prisma.TransactionClient,
-  sellerProfileId: string,
-) {
-  await db.$executeRaw`
-    SELECT pg_advisory_xact_lock(${SELLER_METRICS_LOCK_NAMESPACE}, hashtext(${sellerProfileId}))
-  `;
-}
-
-async function calculateSellerMetricsInTransaction(
-  sellerProfileId: string,
-  periodMonths: number,
-  db: Prisma.TransactionClient,
-): Promise<SellerMetricsResult> {
-  await lockSellerMetricsRefresh(db, sellerProfileId);
-  return calculateSellerMetricsWithoutLock(sellerProfileId, periodMonths, db);
-}
-
-async function readSellerMetricsIdentity(
-  sellerProfileId: string,
-  db: Pick<Prisma.TransactionClient, "$queryRaw">,
-) {
-  if (!SELLER_PROFILE_ID_PATTERN.test(sellerProfileId)) {
-    throw new TypeError("Seller metrics seller id is invalid");
+function nonNegativeInteger(value: unknown, label: string) {
+  if (!Number.isSafeInteger(value) || Number(value) < 0) {
+    throw new TypeError(`${label} is outside the supported range`);
   }
-  const rows = await db.$queryRaw<SellerMetricsIdentityRow[]>(Prisma.sql`
-    SELECT *
-      FROM public.grainline_seller_service_metrics_identity(${sellerProfileId})
-  `);
-  if (rows.length > 1) {
-    throw new Error("Seller metrics identity authority returned too many rows");
+  return Number(value);
+}
+
+function supportedPeriodMonths(value: unknown) {
+  if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 12) {
+    throw new TypeError("Seller metrics period is outside the supported range");
+  }
+  return Number(value);
+}
+
+function boundedRate(value: unknown, maximum: number, label: string) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > maximum) {
+    throw new TypeError(`${label} is outside the supported range`);
+  }
+  return value;
+}
+
+function sellerMetricsResult(rows: SellerMetricsRow[]): SellerMetricsResult {
+  if (rows.length !== 1) {
+    throw new Error("Seller metrics authority returned an invalid row count");
   }
   const row = rows[0];
-  if (!row) throw new Error(`SellerProfile not found: ${sellerProfileId}`);
   if (
-    typeof row.sellerUserId !== "string"
-    || !SELLER_PROFILE_ID_PATTERN.test(row.sellerUserId)
-    || typeof row.createdAtEpochMillis !== "bigint"
-    || row.createdAtEpochMillis < 0n
-    || row.createdAtEpochMillis > MAX_EPOCH_MILLIS
+    !row
+    || typeof row.sellerProfileId !== "string"
+    || !SELLER_PROFILE_ID_PATTERN.test(row.sellerProfileId)
+    || !(row.calculatedAt instanceof Date)
+    || !Number.isFinite(row.calculatedAt.getTime())
+    || typeof row.totalSalesCents !== "bigint"
+    || row.totalSalesCents < 0n
+    || row.totalSalesCents > MAX_SAFE_BIGINT
   ) {
-    throw new Error("Seller metrics identity authority returned an invalid result");
+    throw new Error("Seller metrics authority returned an invalid result");
   }
+
   return Object.freeze({
-    userId: row.sellerUserId,
-    createdAt: new Date(Number(row.createdAtEpochMillis)),
+    sellerProfileId: row.sellerProfileId,
+    calculatedAt: new Date(row.calculatedAt),
+    periodMonths: supportedPeriodMonths(row.periodMonths),
+    averageRating: boundedRate(row.averageRating, 5, "Seller average rating"),
+    reviewCount: nonNegativeInteger(row.reviewCount, "Seller review count"),
+    onTimeShippingRate: boundedRate(row.onTimeShippingRate, 1, "Seller shipping rate"),
+    responseRate: boundedRate(row.responseRate, 1, "Seller response rate"),
+    totalSalesCents: Number(row.totalSalesCents),
+    completedOrderCount: nonNegativeInteger(
+      row.completedOrderCount,
+      "Seller completed-order count",
+    ),
+    activeCaseCount: nonNegativeInteger(row.activeCaseCount, "Seller active-case count"),
+    accountAgeDays: nonNegativeInteger(row.accountAgeDays, "Seller account age"),
   });
 }
 
-async function calculateSellerMetricsWithoutLock(
-  sellerProfileId: string,
+async function readOwnerSellerMetrics(
+  actorUserId: string,
   periodMonths: number,
-  db: Prisma.TransactionClient,
+  forceRefresh: boolean,
+) {
+  const period = validatePeriodMonths(periodMonths);
+  return withDbUserContext(actorUserId, async (client) => {
+    const rows = await client.$queryRaw<SellerMetricsRow[]>`
+      SELECT *
+        FROM public.grainline_seller_metrics_owner_state(
+          ${period}::integer,
+          ${forceRefresh}::boolean
+        )
+    `;
+    return sellerMetricsResult(rows);
+  }, { maxWait: 10_000, timeout: 30_000 });
+}
+
+/** Read an owner's fresh-enough private metrics, recalculating on cache miss. */
+export function getFreshSellerMetrics(
+  actorUserId: string,
+  periodMonths = 3,
 ): Promise<SellerMetricsResult> {
-  const now = new Date();
-  const periodStart = metricsPeriodStart(now, periodMonths);
+  return readOwnerSellerMetrics(actorUserId, periodMonths, false);
+}
 
-  const seller = await readSellerMetricsIdentity(sellerProfileId, db);
+/** Force a fresh owner-authorized calculation for Guild application. */
+export function calculateSellerMetrics(
+  actorUserId: string,
+  periodMonths = 3,
+): Promise<SellerMetricsResult> {
+  return readOwnerSellerMetrics(actorUserId, periodMonths, true);
+}
 
-  const accountAgeDays = Math.floor(
-    (now.getTime() - seller.createdAt.getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  // Keep metrics aggregation in the database. Loading full order/review/message
-  // histories works at launch size, but it falls over exactly when seller
-  // metrics become most important.
-  const [reviewAgg, orderFacts, activeCaseCount, responseRows] =
-    await Promise.all([
-      db.review.aggregate({
-        where: { listing: { sellerId: sellerProfileId }, reviewerAccountActive: true },
-        _avg: { ratingX2: true },
-        _count: { _all: true },
-      }),
-
-      readOrderSellerMetricsFacts(sellerProfileId, periodStart, db),
-
-      getCaseSellerActiveCount(sellerProfileId, db),
-
-      getSellerMessageResponseMetrics(seller.userId, periodStart, db),
-    ]);
-
-  // Average rating (all-time)
-  const reviewCount = reviewAgg._count._all;
-  const averageRating =
-    reviewCount > 0
-      ? (reviewAgg._avg.ratingX2 ?? 0) / 2
-      : 0;
-
-  // Completed sales (all-time)
-  if (!orderFacts || orderFacts.sellerProfileId !== sellerProfileId) {
-    throw new Error("Order seller-metrics authority returned no matching seller");
+export async function clearSellerMetricsForAccountDeletion(
+  client: MetricsClient,
+  input: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
+) {
+  const rows = await client.$queryRaw<Array<{ removed: number }>>`
+    SELECT public.grainline_seller_metrics_account_deletion_clear(
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
+    ) AS removed
+  `;
+  if (
+    rows.length !== 1
+    || !Number.isSafeInteger(rows[0]?.removed)
+    || rows[0].removed < 0
+  ) {
+    throw new Error("Seller metrics deletion authority returned an invalid result");
   }
-  const completedOrderCount = orderFacts.completedOrderCount;
-  const totalSalesCents = orderFacts.totalSalesCents;
-
-  // On-time shipping rate (period)
-  // An order is on-time if shippedAt <= processingDeadline
-  const validShippedCount = orderFacts.shippedCount;
-  const onTimeCount = orderFacts.onTimeCount;
-  const onTimeShippingRate =
-    validShippedCount > 0 ? onTimeCount / validShippedCount : 0;
-
-  // Response rate (period)
-  // Buyer-initiated = first message NOT from seller
-  const responseStats = responseRows;
-  const buyerInitiatedCount = responseStats?.buyerInitiatedCount ?? 0;
-  const sellerRespondedCount = responseStats?.sellerRespondedCount ?? 0;
-  const responseRate =
-    buyerInitiatedCount > 0 ? sellerRespondedCount / buyerInitiatedCount : 0;
-
-  const result: SellerMetricsResult = {
-    sellerProfileId,
-    calculatedAt: now,
-    periodMonths,
-    averageRating,
-    reviewCount,
-    onTimeShippingRate,
-    responseRate,
-    totalSalesCents,
-    completedOrderCount,
-    activeCaseCount,
-    accountAgeDays,
-  };
-
-  // Persist to DB (upsert)
-  const dbPayload = {
-    calculatedAt: result.calculatedAt,
-    periodMonths: result.periodMonths,
-    averageRating: result.averageRating,
-    reviewCount: result.reviewCount,
-    onTimeShippingRate: result.onTimeShippingRate,
-    responseRate: result.responseRate,
-    totalSalesCents: result.totalSalesCents,
-    completedOrderCount: result.completedOrderCount,
-    activeCaseCount: result.activeCaseCount,
-    accountAgeDays: result.accountAgeDays,
-  };
-  await db.sellerMetrics.upsert({
-    where: { sellerProfileId },
-    create: { sellerProfileId, ...dbPayload },
-    update: dbPayload,
-  });
-
-  return result;
+  return rows[0].removed;
 }
