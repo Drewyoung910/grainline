@@ -8,6 +8,7 @@ import pg from "pg";
 
 import {
   privateTableRlsActivation,
+  privateTableRlsActivationTables,
   verifyPrivateTableRlsActivationSource,
 } from "./private-table-rls-activation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
@@ -108,10 +109,10 @@ function assertReadyPosture(posture, release) {
   assert.equal(posture.nonOwnerColumnAclCount, 0, "column ACL drifted before activation");
 }
 
-function assertActivePosture(posture, release) {
+function assertActivePosture(posture, release, expectedPolicyCount) {
   assert.equal(posture.rlsEnabled, true, "RLS is not enabled");
   assert.equal(posture.rlsForced, true, "RLS is not forced");
-  assert.equal(posture.policyCount, release.policies.length, "policy count drifted");
+  assert.equal(posture.policyCount, expectedPolicyCount, "policy count drifted");
   assertRolePrivileges(posture, "runtime", release.activatedRuntimePrivileges);
   assertRolePrivileges(posture, "staff", release.activatedStaffPrivileges);
   assertRolePrivileges(posture, "public", release.activatedPublicPrivileges);
@@ -134,8 +135,7 @@ function assertActivePosture(posture, release) {
   assert.equal(posture.nonOwnerColumnAclCount, 0, "non-owner column ACL remains");
 }
 
-function assertPolicies(rows, release, active) {
-  const expected = active ? release.policies : [];
+function assertPolicies(rows, expected) {
   assert.equal(rows.length, expected.length, "policy row count drifted");
   const expectedByName = new Map(expected.map((policy) => [policy.name, policy]));
   for (const row of rows) {
@@ -301,6 +301,7 @@ export async function inspectPrivateTableRlsActivationProduction(
 
   const verified = verifyPrivateTableRlsActivationSource(releaseId, rootDir);
   const release = privateTableRlsActivation(releaseId);
+  const tables = privateTableRlsActivationTables(release);
   const parsed = new URL(directUrl);
   const client = new Client({
     connectionString: directUrl,
@@ -314,68 +315,73 @@ export async function inspectPrivateTableRlsActivationProduction(
   try {
     await client.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const row = (await client.query(`
-      SELECT pg_catalog.current_database() AS database_name,
-             current_user AS current_user_name,
-             session_user AS session_user_name,
-             owner.rolname AS table_owner_name,
-             owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
-             target.relrowsecurity AS rls_enabled,
-             target.relforcerowsecurity AS rls_forced,
-             (SELECT pg_catalog.count(*)::integer
-                FROM pg_catalog.pg_policy AS policy
-               WHERE policy.polrelid = target.oid) AS policy_count,
-             pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'SELECT') AS runtime_select,
-             pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'INSERT') AS runtime_insert,
-             pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'UPDATE') AS runtime_update,
-             pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'DELETE') AS runtime_delete,
-             pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'TRUNCATE') AS runtime_truncate,
-             pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'REFERENCES') AS runtime_references,
-             pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'TRIGGER') AS runtime_trigger,
-             pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'SELECT') AS staff_select,
-             pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'INSERT') AS staff_insert,
-             pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'UPDATE') AS staff_update,
-             pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'DELETE') AS staff_delete,
-             pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRUNCATE') AS staff_truncate,
-             pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'REFERENCES') AS staff_references,
-             pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRIGGER') AS staff_trigger,
-             pg_catalog.has_table_privilege(0, target.oid, 'SELECT') AS public_select,
-             pg_catalog.has_table_privilege(0, target.oid, 'INSERT') AS public_insert,
-             pg_catalog.has_table_privilege(0, target.oid, 'UPDATE') AS public_update,
-             pg_catalog.has_table_privilege(0, target.oid, 'DELETE') AS public_delete,
-             pg_catalog.has_table_privilege(0, target.oid, 'TRUNCATE') AS public_truncate,
-             pg_catalog.has_table_privilege(0, target.oid, 'REFERENCES') AS public_references,
-             pg_catalog.has_table_privilege(0, target.oid, 'TRIGGER') AS public_trigger,
-             pg_catalog.has_any_column_privilege(
-               'grainline_app_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
-             ) AS runtime_any_column,
-             pg_catalog.has_any_column_privilege(
-               'grainline_staff_read_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
-             ) AS staff_any_column,
-             pg_catalog.has_any_column_privilege(
-               0, target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
-             ) AS public_any_column,
-             (SELECT pg_catalog.count(*)::integer
-                FROM pg_catalog.aclexplode(
-                  COALESCE(target.relacl, pg_catalog.acldefault('r', target.relowner))
-                ) AS acl
-               WHERE acl.grantee <> target.relowner) AS non_owner_table_acl_count,
-             (SELECT pg_catalog.count(*)::integer
-                FROM pg_catalog.pg_attribute AS attribute
-                CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
-               WHERE attribute.attrelid = target.oid
-                 AND attribute.attnum > 0
-                 AND NOT attribute.attisdropped
-                 AND acl.grantee <> target.relowner) AS non_owner_column_acl_count
-        FROM pg_catalog.pg_class AS target
-        JOIN pg_catalog.pg_roles AS owner ON owner.oid = target.relowner
-       WHERE target.oid = $1::pg_catalog.regclass
-         AND target.relkind = 'r'
-    `, [`public."${release.table}"`])).rows[0];
-    assert.ok(row, "reviewed table is absent");
-    assert.equal(row.current_user_name, row.session_user_name, "owner session is indirect");
-    assert.equal(row.current_user_name, row.table_owner_name, "session is not table owner");
-    assert.equal(row.owner_bypasses_rls, true, "table owner cannot bypass FORCE");
+    const tableRows = [];
+    for (const table of tables) {
+      const row = (await client.query(`
+        SELECT pg_catalog.current_database() AS database_name,
+               current_user AS current_user_name,
+               session_user AS session_user_name,
+               owner.rolname AS table_owner_name,
+               owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
+               target.relrowsecurity AS rls_enabled,
+               target.relforcerowsecurity AS rls_forced,
+               (SELECT pg_catalog.count(*)::integer
+                  FROM pg_catalog.pg_policy AS policy
+                 WHERE policy.polrelid = target.oid) AS policy_count,
+               pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'SELECT') AS runtime_select,
+               pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'INSERT') AS runtime_insert,
+               pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'UPDATE') AS runtime_update,
+               pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'DELETE') AS runtime_delete,
+               pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'TRUNCATE') AS runtime_truncate,
+               pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'REFERENCES') AS runtime_references,
+               pg_catalog.has_table_privilege('grainline_app_runtime', target.oid, 'TRIGGER') AS runtime_trigger,
+               pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'SELECT') AS staff_select,
+               pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'INSERT') AS staff_insert,
+               pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'UPDATE') AS staff_update,
+               pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'DELETE') AS staff_delete,
+               pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRUNCATE') AS staff_truncate,
+               pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'REFERENCES') AS staff_references,
+               pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRIGGER') AS staff_trigger,
+               pg_catalog.has_table_privilege(0, target.oid, 'SELECT') AS public_select,
+               pg_catalog.has_table_privilege(0, target.oid, 'INSERT') AS public_insert,
+               pg_catalog.has_table_privilege(0, target.oid, 'UPDATE') AS public_update,
+               pg_catalog.has_table_privilege(0, target.oid, 'DELETE') AS public_delete,
+               pg_catalog.has_table_privilege(0, target.oid, 'TRUNCATE') AS public_truncate,
+               pg_catalog.has_table_privilege(0, target.oid, 'REFERENCES') AS public_references,
+               pg_catalog.has_table_privilege(0, target.oid, 'TRIGGER') AS public_trigger,
+               pg_catalog.has_any_column_privilege(
+                 'grainline_app_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+               ) AS runtime_any_column,
+               pg_catalog.has_any_column_privilege(
+                 'grainline_staff_read_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+               ) AS staff_any_column,
+               pg_catalog.has_any_column_privilege(
+                 0, target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+               ) AS public_any_column,
+               (SELECT pg_catalog.count(*)::integer
+                  FROM pg_catalog.aclexplode(
+                    COALESCE(target.relacl, pg_catalog.acldefault('r', target.relowner))
+                  ) AS acl
+                 WHERE acl.grantee <> target.relowner) AS non_owner_table_acl_count,
+               (SELECT pg_catalog.count(*)::integer
+                  FROM pg_catalog.pg_attribute AS attribute
+                  CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+                 WHERE attribute.attrelid = target.oid
+                   AND attribute.attnum > 0
+                   AND NOT attribute.attisdropped
+                   AND acl.grantee <> target.relowner) AS non_owner_column_acl_count
+          FROM pg_catalog.pg_class AS target
+          JOIN pg_catalog.pg_roles AS owner ON owner.oid = target.relowner
+         WHERE target.oid = $1::pg_catalog.regclass
+           AND target.relkind = 'r'
+      `, [`public."${table}"`])).rows[0];
+      assert.ok(row, `reviewed table ${table} is absent`);
+      assert.equal(row.current_user_name, row.session_user_name, "owner session is indirect");
+      assert.equal(row.current_user_name, row.table_owner_name, "session is not table owner");
+      assert.equal(row.owner_bypasses_rls, true, "table owner cannot bypass FORCE");
+      tableRows.push(row);
+    }
+    const row = tableRows[0];
 
     const roles = (await client.query(`
       SELECT rolname, rolsuper, rolinherit, rolcanlogin, rolcreatedb,
@@ -394,24 +400,27 @@ export async function inspectPrivateTableRlsActivationProduction(
       "grainline_staff_read_runtime",
     );
 
-    const policies = (await client.query(`
-      SELECT policy.polname AS name,
-             policy.polcmd AS command,
-             policy.polpermissive AS permissive,
-             ARRAY(
-               SELECT CASE
-                        WHEN role_oid = 0 THEN 'PUBLIC'
-                        ELSE pg_catalog.pg_get_userbyid(role_oid)
-                      END
-                 FROM pg_catalog.unnest(policy.polroles) AS role_oid
-                ORDER BY 1
-             )::text[] AS roles,
-             pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, false) AS "using",
-             pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, false) AS with_check
-        FROM pg_catalog.pg_policy AS policy
-       WHERE policy.polrelid = $1::pg_catalog.regclass
-       ORDER BY policy.polname
-    `, [`public."${release.table}"`])).rows;
+    const policyRowsByTable = {};
+    for (const table of tables) {
+      policyRowsByTable[table] = (await client.query(`
+        SELECT policy.polname AS name,
+               policy.polcmd AS command,
+               policy.polpermissive AS permissive,
+               ARRAY(
+                 SELECT CASE
+                          WHEN role_oid = 0 THEN 'PUBLIC'
+                          ELSE pg_catalog.pg_get_userbyid(role_oid)
+                        END
+                   FROM pg_catalog.unnest(policy.polroles) AS role_oid
+                  ORDER BY 1
+               )::text[] AS roles,
+               pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, false) AS "using",
+               pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, false) AS with_check
+          FROM pg_catalog.pg_policy AS policy
+         WHERE policy.polrelid = $1::pg_catalog.regclass
+         ORDER BY policy.polname
+      `, [`public."${table}"`])).rows;
+    }
 
     const ledger = (await client.query(`
       SELECT migration_name, checksum, finished_at, rolled_back_at,
@@ -426,20 +435,33 @@ export async function inspectPrivateTableRlsActivationProduction(
       "compatible preparation is not applied",
     );
     const recorded = successfulMigration(ledger, release);
-    const posture = postureFromRow(row);
-    let activeCatalog = false;
-    try {
-      assertActivePosture(posture, release);
-      assertPolicies(policies, release, true);
-      activeCatalog = true;
-    } catch (activeError) {
+    const postures = Object.fromEntries(tableRows.map((tableRow, index) => [
+      tables[index],
+      postureFromRow(tableRow),
+    ]));
+    const posture = postures[release.table];
+    const tableStates = tables.map((table) => {
+      const expectedPolicies = table === release.table ? release.policies : [];
       try {
-        assertReadyPosture(posture, release);
-        assertPolicies(policies, release, false);
-      } catch {
-        throw activeError;
+        assertActivePosture(postures[table], release, expectedPolicies.length);
+        assertPolicies(policyRowsByTable[table], expectedPolicies);
+        return "active";
+      } catch (activeError) {
+        try {
+          assertReadyPosture(postures[table], release);
+          assertPolicies(policyRowsByTable[table], []);
+          return "ready";
+        } catch {
+          throw activeError;
+        }
       }
-    }
+    });
+    assert.equal(
+      new Set(tableStates).size,
+      1,
+      "activation table group is partially active",
+    );
+    const activeCatalog = tableStates[0] === "active";
     if (recorded) assert.equal(activeCatalog, true, "recorded activation has predecessor posture");
     const state = recorded
       ? "active"
@@ -467,9 +489,15 @@ export async function inspectPrivateTableRlsActivationProduction(
       databaseName: row.database_name,
       migrationRole: row.current_user_name,
       table: release.table,
+      tables,
       roles: roles.map((entry) => Object.freeze({ ...entry })),
       posture,
-      policies: policies.map((entry) => Object.freeze({ ...entry })),
+      postures,
+      policies: policyRowsByTable[release.table].map((entry) => Object.freeze({ ...entry })),
+      policiesByTable: Object.fromEntries(tables.map((table) => [
+        table,
+        policyRowsByTable[table].map((entry) => Object.freeze({ ...entry })),
+      ])),
       functions,
       productionChanged: false,
       containsRowData: false,
@@ -481,6 +509,7 @@ export async function inspectPrivateTableRlsActivationProduction(
       assert.equal(previous.releaseId, evidence.releaseId, "release evidence drifted");
       assert.equal(previous.releaseCommit, evidence.releaseCommit, "commit evidence drifted");
       assert.equal(previous.activationMigration, evidence.activationMigration, "migration evidence drifted");
+      assert.deepEqual(previous.tables ?? [previous.table], evidence.tables, "table group drifted");
       assert.equal(
         ["ready", "active_unrecorded", "active"].includes(previous.state),
         true,

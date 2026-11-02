@@ -55,6 +55,7 @@ import { proveSellerProfilePublicRecentlyViewedListings } from "../tools/databas
 import { proveSellerProfileOwnerReviewReply } from "../tools/database-full-chain/scenarios/seller-profile-owner-review-reply.mjs";
 import { proveSellerProfilePublicCommissionInterestAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-commission-interest.mjs";
 import { proveCommissionDomainPreparedAuthorities } from "../tools/database-full-chain/scenarios/commission-domain-authorities.mjs";
+import { proveCommissionDomainRlsActivation } from "../tools/database-full-chain/scenarios/commission-domain-activation.mjs";
 import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-guild-application.mjs";
 import { proveMakerVerificationPreparedAuthorities } from "../tools/database-full-chain/scenarios/maker-verification-authorities.mjs";
 import { proveSellerProfileOwnerBootstrapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-bootstrap.mjs";
@@ -152,6 +153,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   ["20261028060000_activate_follow_rls", "follow_v1"],
   ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
   ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+  ["20261101070000_activate_commission_domain_rls", "commission_domain_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -270,6 +272,8 @@ test(
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
+      let commissionPreparationPreflightPath;
+      let commissionPreparationPostflightClosed = false;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -530,6 +534,28 @@ test(
               fixture: followFixture,
             });
           }
+          if (artifact.name === "20261101060000_prepare_commission_domain_authorities") {
+            commissionPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "commission-domain-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "commission_domain_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  commissionPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.deepEqual(
+              preparationPreflight.tables,
+              ["CommissionRequest", "CommissionInterest"],
+            );
+          }
           if (artifact.name === FAVORITE_RLS_MIGRATION) {
             assert.ok(
               favoriteFixture,
@@ -651,6 +677,34 @@ test(
             artifact.name,
           );
           if (privateActivationReleaseId) {
+            if (privateActivationReleaseId === "commission_domain_v1") {
+              assert.ok(
+                commissionPreparationPreflightPath,
+                "Commission preparation preflight must precede activation",
+              );
+              const preparationPostflight =
+                await inspectPrivateTablePreparationProduction(
+                  {
+                    DIRECT_URL: proofDatabaseUrl,
+                    PRIVATE_TABLE_PREPARATION_RELEASE_ID: "commission_domain_v1",
+                    PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                    PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                      preparationEvidenceDirectory,
+                      "commission-domain-preparation-postflight.json",
+                    ),
+                    PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                      commissionPreparationPreflightPath,
+                    PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+                  },
+                  { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+                );
+              assert.equal(preparationPostflight.state, "applied");
+              assert.deepEqual(
+                preparationPostflight.tables,
+                ["CommissionRequest", "CommissionInterest"],
+              );
+              commissionPreparationPostflightClosed = true;
+            }
             const evidencePath = join(
               preparationEvidenceDirectory,
               `${privateActivationReleaseId}-activation-preflight.json`,
@@ -712,6 +766,11 @@ test(
         );
         assert.equal(activationPostflight.state, "active");
       }
+      assert.equal(
+        commissionPreparationPostflightClosed,
+        true,
+        "Commission preparation postflight must close before activation",
+      );
 
       assert.ok(
         stockNotificationPreparationPreflightPath,
@@ -1230,6 +1289,12 @@ test(
         database: adapter,
         seller: fixture,
         connectionString: proofDatabaseUrl,
+        expectedActivated: true,
+      });
+      await proveCommissionDomainRlsActivation({
+        database: adapter,
+        repositoryRoot,
+        seller: fixture,
       });
     } finally {
       await client.end();

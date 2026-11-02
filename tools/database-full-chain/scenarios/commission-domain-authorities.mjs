@@ -178,6 +178,7 @@ export async function proveCommissionDomainPreparedAuthorities({
   database,
   seller,
   connectionString,
+  expectedActivated = false,
 }) {
   const suffix = `commission_domain_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const now = "2026-11-01 12:00:00";
@@ -199,6 +200,7 @@ export async function proveCommissionDomainPreparedAuthorities({
     transitionFirstRace: `${suffix}_transition_first_race`,
   });
 
+  const expectedDirectPrivilege = !expectedActivated;
   assert.deepEqual(rowsOf(await database.query(
     `SELECT relation.relname,
             relation.relrowsecurity AS "rlsEnabled",
@@ -224,23 +226,25 @@ export async function proveCommissionDomainPreparedAuthorities({
   )), [
     {
       relname: "CommissionInterest",
-      rlsEnabled: false,
-      rlsForced: false,
-      runtimeSelect: true,
-      runtimeInsert: true,
-      runtimeUpdate: true,
-      runtimeDelete: true,
+      rlsEnabled: expectedActivated,
+      rlsForced: expectedActivated,
+      runtimeSelect: expectedDirectPrivilege,
+      runtimeInsert: expectedDirectPrivilege,
+      runtimeUpdate: expectedDirectPrivilege,
+      runtimeDelete: expectedDirectPrivilege,
     },
     {
       relname: "CommissionRequest",
-      rlsEnabled: false,
-      rlsForced: false,
-      runtimeSelect: true,
-      runtimeInsert: true,
-      runtimeUpdate: true,
-      runtimeDelete: true,
+      rlsEnabled: expectedActivated,
+      rlsForced: expectedActivated,
+      runtimeSelect: expectedDirectPrivilege,
+      runtimeInsert: expectedDirectPrivilege,
+      runtimeUpdate: expectedDirectPrivilege,
+      runtimeDelete: expectedDirectPrivilege,
     },
-  ], "preparation must preserve predecessor CRUD while RLS remains off");
+  ], expectedActivated
+    ? "activation must enforce policyless FORCE with zero direct runtime authority"
+    : "preparation must preserve predecessor CRUD while RLS remains off");
 
   const functionRows = rowsOf(await database.query(
     `SELECT routine.proname AS name,
