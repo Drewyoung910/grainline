@@ -8,6 +8,8 @@ import {
 } from "../scripts/private-table-rls-activation-catalog.mjs";
 
 const releaseId = "seller_analytics_daily_v1";
+const fullChainTestPath = process.env.DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH?.trim()
+  || "tests/database-full-chain-postgres.test.mjs";
 
 test("SellerAnalyticsDaily activation seals both tables and every FORCE-crossing function", () => {
   const release = privateTableRlsActivation(releaseId);
@@ -104,10 +106,7 @@ test("SellerAnalyticsDaily activation keeps the executed plan and race proof wir
     ),
     "utf8",
   );
-  const fullChain = readFileSync(
-    new URL("./database-full-chain-postgres.test.mjs", import.meta.url),
-    "utf8",
-  );
+  const fullChain = readFileSync(fullChainTestPath, "utf8");
 
   for (const behavior of [
     "proveSellerAnalyticsQueryPlans",

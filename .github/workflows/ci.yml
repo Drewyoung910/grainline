@@ -179,6 +179,8 @@ jobs:
           mv "prisma/migrations/$migration" "$holding/$migration"
           echo "EMAIL_SUPPRESSION_RECOVERY_MIGRATION_PATH=$holding/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Verify SellerAnalyticsDaily preparation and activation source packages
+        env:
+          DATABASE_FULL_CHAIN_POSTGRES_TEST_PATH: ${{ runner.temp }}/seller-profile-public-candidate/tests/database-full-chain-postgres.test.mjs
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
           --experimental-strip-types --test --test-concurrency=1
