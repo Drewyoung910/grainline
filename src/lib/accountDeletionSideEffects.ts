@@ -26,6 +26,7 @@ export const ACCOUNT_DELETION_SIDE_EFFECT_STATUS = {
 } as const;
 export const ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS = 60 * 60 * 1000;
 const ACCOUNT_DELETION_AUDIT_PAYLOAD_BYTE_LIMIT = 1_000_000;
+const ACCOUNT_DELETION_AUDIT_PLAN_BATCH_SIZE = 16;
 
 export const ACCOUNT_DELETION_SIDE_EFFECT_KIND = {
   LOCAL_ANONYMIZE: "LOCAL_ANONYMIZE",
@@ -319,26 +320,41 @@ export async function enqueueAccountDeletionMediaDeleteSideEffects(
 
 export async function enqueueAccountDeletionAuditRedactionSideEffects(
   db: AccountDeletionSideEffectDb,
+  claim: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
   userId: string,
+  targetIds: string[],
+  referenceValues: string[],
   updates: AccountDeletionAuditRedactionUpdate[],
 ) {
   if (updates.length === 0) return;
-  await db.accountDeletionSideEffect.createMany({
-    data: updates.map((update) => ({
-      userId,
-      kind: ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
-      dedupKey: accountDeletionAuditRedactDedupKey(userId, update.logId),
-      payload: {
+  for (let offset = 0; offset < updates.length; offset += ACCOUNT_DELETION_AUDIT_PLAN_BATCH_SIZE) {
+    const batch = updates.slice(offset, offset + ACCOUNT_DELETION_AUDIT_PLAN_BATCH_SIZE);
+    const plans = batch.map((update) => ({
         logId: update.logId,
         planVersion: 2,
         expectedMetadataSha256: update.expectedMetadataSha256,
         expectedReasonSha256: update.expectedReasonSha256,
         ...(update.metadata !== undefined ? { metadata: update.metadata } : {}),
         ...(update.reason !== undefined ? { reason: update.reason } : {}),
-      } as Prisma.InputJsonObject,
-    })),
-    skipDuplicates: true,
-  });
+    }));
+    const rows = await db.$queryRaw<Array<{ enqueuedCount: unknown }>>(Prisma.sql`
+      SELECT public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(
+        ${claim.sideEffectId}::text,
+        ${claim.claimGeneration}::bigint,
+        ${claim.claimToken}::uuid,
+        ${targetIds}::text[],
+        ${referenceValues}::text[],
+        ${JSON.stringify(plans)}::jsonb
+      )::integer AS "enqueuedCount"
+    `);
+    if (rows.length !== 1 || rows[0]?.enqueuedCount !== batch.length) {
+      throw new Error("Admin audit account-deletion redaction plans were not retained");
+    }
+  }
 }
 
 export async function runAccountDeletionStripeRejectSideEffect(input: {

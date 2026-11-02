@@ -5,7 +5,7 @@ import {
   normalizeDbUserContextUserId,
   type DbUserContextTransactionOptions,
 } from "@/lib/dbUserContextState";
-import { withSerializableRetry } from "@/lib/transactionRetry";
+import { withSerializableRetry, withTransactionRetry } from "@/lib/transactionRetry";
 
 declare const dbUserContextTransactionBrand: unique symbol;
 
@@ -66,13 +66,19 @@ export async function withDbUserContext<T>(
   if (options.serializableRetry) {
     return withSerializableRetry(runTransaction, options.attempts);
   }
+  if (options.transactionRetry) {
+    return withTransactionRetry(runTransaction, options.attempts);
+  }
   return runTransaction();
 }
 
 export function withSerializableDbUserContext<T>(
   userId: string,
   operation: (tx: DbUserContextTransactionClient) => Promise<T>,
-  options: Omit<WithDbUserContextOptions, "serializableRetry" | "isolationLevel"> = {},
+  options: Omit<
+    WithDbUserContextOptions,
+    "serializableRetry" | "transactionRetry" | "isolationLevel"
+  > = {},
 ) {
   return withDbUserContext(userId, operation, {
     ...options,

@@ -25,7 +25,9 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_page(text,text,integer,integer)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_undo_source(text,text)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)'),
-       pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)'),
@@ -35,6 +37,25 @@ BEGIN
      )
   ) THEN
     RAISE EXCEPTION 'AdminAuditLog preparation function already exists';
+  END IF;
+
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_admin_audit_insert_write_fence()'
+     ) IS NOT NULL
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_trigger AS trigger
+        WHERE trigger.tgrelid = 'public."AdminAuditLog"'::pg_catalog.regclass
+          AND trigger.tgname = 'AdminAuditLog_insert_write_fence'
+          AND NOT trigger.tgisinternal
+     ) THEN
+    RAISE EXCEPTION 'AdminAuditLog preparation write fence already exists';
+  END IF;
+
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_account_deletion_claim_user(text,bigint,uuid)'
+     ) IS NULL THEN
+    RAISE EXCEPTION 'AdminAuditLog preparation requires the account-deletion claim fence';
   END IF;
 
   IF EXISTS (
@@ -57,6 +78,59 @@ CREATE INDEX "AdminAuditLog_createdAt_id_idx"
 
 CREATE INDEX "AdminAuditLog_action_createdAt_id_idx"
   ON public."AdminAuditLog" (action, "createdAt" DESC, id DESC);
+
+-- Every AdminAuditLog producer, including retained domain functions and the
+-- predecessor direct-table path, crosses one transaction-scoped write fence.
+-- Account deletion acquires the same fence before it locks account/domain
+-- rows. A producer that was already in flight commits before the deletion scan;
+-- a later producer waits and is refused if it structurally references a user
+-- that the deletion has finished anonymizing.
+CREATE FUNCTION public.grainline_admin_audit_insert_write_fence()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_insert_write_fence$
+BEGIN
+  -- Ordinary writers share the fence so unrelated audit actions remain
+  -- concurrent. Account deletion takes the matching exclusive lock.
+  PERFORM pg_catalog.pg_advisory_xact_lock_shared(11240001, 20261102);
+
+  IF EXISTS (
+    SELECT 1
+      FROM public."User" AS deleted_user
+     WHERE deleted_user."deletedAt" IS NOT NULL
+       AND (
+         deleted_user.id = NEW."adminId"
+         OR deleted_user.id = NEW."targetId"
+         OR EXISTS (
+           SELECT 1
+             FROM pg_catalog.jsonb_path_query(
+               COALESCE(NEW.metadata, '{}'::jsonb),
+               '$.** ? (@.type() == "string")'::pg_catalog.jsonpath
+             ) AS metadata_value(value)
+            WHERE metadata_value.value #>> '{}' = deleted_user.id
+         )
+       )
+  ) THEN
+    RAISE EXCEPTION 'Admin audit insert references a deleted account'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$grainline_admin_audit_insert_write_fence$;
+
+REVOKE ALL ON FUNCTION public.grainline_admin_audit_insert_write_fence()
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime,
+       grainline_account_deletion_runtime;
+
+CREATE TRIGGER "AdminAuditLog_insert_write_fence"
+BEFORE INSERT ON public."AdminAuditLog"
+FOR EACH ROW
+EXECUTE FUNCTION public.grainline_admin_audit_insert_write_fence();
 
 CREATE FUNCTION public.grainline_admin_audit_append(
   p_actor_id text,
@@ -746,8 +820,54 @@ BEGIN
 END;
 $grainline_admin_audit_undo_claim$;
 
+CREATE FUNCTION public.grainline_admin_audit_account_deletion_write_fence(
+  p_side_effect_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_account_deletion_write_fence$
+DECLARE
+  actor_id text := NULLIF(pg_catalog.current_setting('app.user_id', true), '');
+  claimed_user_id text;
+BEGIN
+  IF SESSION_USER <> 'grainline_app_runtime'
+     OR p_side_effect_id IS NULL
+     OR p_side_effect_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_generation IS NULL
+     OR p_claim_generation < 1
+     OR p_claim_token IS NULL THEN
+    RAISE EXCEPTION 'Admin audit account-deletion write-fence context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- This must be the first domain authority called by the deletion
+  -- transaction. All audit inserts take the same key in the table trigger.
+  PERFORM pg_catalog.pg_advisory_xact_lock(11240001, 20261102);
+
+  claimed_user_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
+  IF actor_id IS NULL OR actor_id <> claimed_user_id THEN
+    RAISE EXCEPTION 'Admin audit account-deletion write-fence actor is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN claimed_user_id;
+END;
+$grainline_admin_audit_account_deletion_write_fence$;
+
 CREATE FUNCTION public.grainline_admin_audit_account_deletion_candidates(
-  p_user_id text,
+  p_side_effect_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid,
   p_target_ids text[],
   p_reference_values text[],
   p_after_id text,
@@ -761,25 +881,29 @@ RETURNS TABLE (
   "reasonSha256" text
 )
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 PARALLEL UNSAFE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $grainline_admin_audit_account_deletion_candidates$
+DECLARE
+  actor_id text := NULLIF(pg_catalog.current_setting('app.user_id', true), '');
+  claimed_user_id text;
 BEGIN
-  IF SESSION_USER <> 'grainline_account_deletion_runtime'
-     OR p_user_id IS NULL
-     OR p_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+  IF SESSION_USER <> 'grainline_app_runtime'
+     OR p_side_effect_id IS NULL
+     OR p_side_effect_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_generation IS NULL
+     OR p_claim_generation < 1
+     OR p_claim_token IS NULL
      OR p_target_ids IS NULL
      OR pg_catalog.cardinality(p_target_ids) NOT BETWEEN 1 AND 16
-     OR NOT (p_user_id = ANY(p_target_ids))
      OR EXISTS (
        SELECT 1 FROM pg_catalog.unnest(p_target_ids) AS value
         WHERE value IS NULL OR pg_catalog.char_length(value) NOT BETWEEN 1 AND 255
      )
      OR p_reference_values IS NULL
      OR pg_catalog.cardinality(p_reference_values) NOT BETWEEN 1 AND 16
-     OR NOT (p_user_id = ANY(p_reference_values))
      OR EXISTS (
        SELECT 1 FROM pg_catalog.unnest(p_reference_values) AS value
         WHERE value IS NULL OR pg_catalog.char_length(value) NOT BETWEEN 1 AND 255
@@ -787,20 +911,21 @@ BEGIN
      OR (p_after_id IS NOT NULL AND p_after_id !~ '^[A-Za-z0-9._:-]{1,191}$')
      OR p_limit IS NULL
      OR p_limit < 1
-     OR p_limit > 500
-     OR NOT EXISTS (
-       SELECT 1 FROM public."User" AS deleted_user
-        WHERE deleted_user.id = p_user_id
-          AND deleted_user."deletedAt" IS NOT NULL
-     )
-     OR NOT EXISTS (
-       SELECT 1 FROM public."AdminAuditLog" AS deletion_audit
-        WHERE deletion_audit."adminId" = p_user_id
-          AND deletion_audit.action = 'USER_ACCOUNT_DELETE'
-          AND deletion_audit."targetType" = 'USER'
-          AND deletion_audit."targetId" = p_user_id
-     ) THEN
+     OR p_limit > 500 THEN
     RAISE EXCEPTION 'Admin audit account-deletion candidate context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  claimed_user_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
+  IF actor_id IS NULL
+     OR actor_id <> claimed_user_id
+     OR NOT (claimed_user_id = ANY(p_target_ids))
+     OR NOT (claimed_user_id = ANY(p_reference_values)) THEN
+    RAISE EXCEPTION 'Admin audit account-deletion candidate actor is invalid'
       USING ERRCODE = '42501';
   END IF;
 
@@ -826,7 +951,7 @@ BEGIN
     FROM public."AdminAuditLog" AS audit
    WHERE (p_after_id IS NULL OR audit.id > p_after_id)
      AND (
-       audit."adminId" = p_user_id
+       audit."adminId" = claimed_user_id
        OR audit."targetId" = ANY(p_target_ids)
        OR EXISTS (
          SELECT 1
@@ -846,6 +971,202 @@ BEGIN
    LIMIT p_limit;
 END;
 $grainline_admin_audit_account_deletion_candidates$;
+
+CREATE FUNCTION public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(
+  p_side_effect_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid,
+  p_target_ids text[],
+  p_reference_values text[],
+  p_plans jsonb
+)
+RETURNS integer
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_account_deletion_redaction_plans_enqueue$
+DECLARE
+  actor_id text := NULLIF(pg_catalog.current_setting('app.user_id', true), '');
+  claimed_user_id text;
+  plan_count integer;
+  distinct_plan_count integer;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+BEGIN
+  IF SESSION_USER <> 'grainline_app_runtime'
+     OR p_side_effect_id IS NULL
+     OR p_side_effect_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_generation IS NULL
+     OR p_claim_generation < 1
+     OR p_claim_token IS NULL
+     OR p_target_ids IS NULL
+     OR pg_catalog.cardinality(p_target_ids) NOT BETWEEN 1 AND 16
+     OR EXISTS (
+       SELECT 1 FROM pg_catalog.unnest(p_target_ids) AS value
+        WHERE value IS NULL OR pg_catalog.char_length(value) NOT BETWEEN 1 AND 255
+     )
+     OR p_reference_values IS NULL
+     OR pg_catalog.cardinality(p_reference_values) NOT BETWEEN 1 AND 16
+     OR EXISTS (
+       SELECT 1 FROM pg_catalog.unnest(p_reference_values) AS value
+        WHERE value IS NULL OR pg_catalog.char_length(value) NOT BETWEEN 1 AND 255
+     )
+     OR p_plans IS NULL
+     OR pg_catalog.jsonb_typeof(p_plans) <> 'array'
+     OR pg_catalog.jsonb_array_length(p_plans) NOT BETWEEN 1 AND 16
+     OR pg_catalog.octet_length(p_plans::text) > 16000000 THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction plans are invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  claimed_user_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
+  IF actor_id IS NULL
+     OR actor_id <> claimed_user_id
+     OR NOT (claimed_user_id = ANY(p_target_ids))
+     OR NOT (claimed_user_id = ANY(p_reference_values)) THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction-plan actor is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+     WHERE pg_catalog.jsonb_typeof(supplied.plan) <> 'object'
+  ) THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction plan must be an object'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+      CROSS JOIN LATERAL pg_catalog.jsonb_object_keys(supplied.plan) AS field(key)
+     WHERE field.key NOT IN (
+       'logId', 'planVersion', 'expectedMetadataSha256',
+       'expectedReasonSha256', 'metadata', 'reason'
+     )
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+     WHERE supplied.plan->>'logId' !~ '^[A-Za-z0-9._:-]{1,191}$'
+        OR pg_catalog.jsonb_typeof(supplied.plan->'planVersion') <> 'number'
+        OR supplied.plan->>'planVersion' <> '2'
+        OR supplied.plan->>'expectedMetadataSha256' !~ '^[0-9a-f]{64}$'
+        OR supplied.plan->>'expectedReasonSha256' !~ '^[0-9a-f]{64}$'
+        OR (
+          NOT (supplied.plan ? 'metadata')
+          AND NOT (supplied.plan ? 'reason')
+        )
+        OR (
+          supplied.plan ? 'metadata'
+          AND pg_catalog.jsonb_typeof(supplied.plan->'metadata') <> 'object'
+        )
+        OR (
+          supplied.plan ? 'reason'
+          AND (
+            pg_catalog.jsonb_typeof(supplied.plan->'reason') <> 'string'
+            OR pg_catalog.char_length(supplied.plan->>'reason') > 1000
+          )
+        )
+        OR pg_catalog.octet_length(supplied.plan::text) > 1000000
+  ) THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction plan shape is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer,
+         pg_catalog.count(DISTINCT supplied.plan->>'logId')::integer
+    INTO plan_count, distinct_plan_count
+    FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan);
+  IF plan_count <> distinct_plan_count THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction plan ids are duplicated'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+      LEFT JOIN public."AdminAuditLog" AS audit
+        ON audit.id = supplied.plan->>'logId'
+     WHERE audit.id IS NULL
+        OR NOT (
+          audit."adminId" = claimed_user_id
+          OR audit."targetId" = ANY(p_target_ids)
+          OR EXISTS (
+            SELECT 1
+              FROM pg_catalog.unnest(p_reference_values) AS reference_value
+             WHERE pg_catalog.jsonb_path_exists(
+               audit.metadata,
+               '$.** ? (@ == $account_reference)'::pg_catalog.jsonpath,
+               pg_catalog.jsonb_build_object(
+                 'account_reference',
+                 pg_catalog.to_jsonb(reference_value)
+               ),
+               true
+             )
+          )
+        )
+        OR supplied.plan->>'expectedMetadataSha256' <> pg_catalog.encode(
+          pg_catalog.sha256(pg_catalog.convert_to(audit.metadata::text, 'UTF8')),
+          'hex'
+        )
+        OR supplied.plan->>'expectedReasonSha256' <> pg_catalog.encode(
+          pg_catalog.sha256(
+            pg_catalog.convert_to(
+              pg_catalog.jsonb_build_object('reason', audit.reason)::text,
+              'UTF8'
+            )
+          ),
+          'hex'
+        )
+  ) THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction plan source changed'
+      USING ERRCODE = '55000';
+  END IF;
+
+  INSERT INTO public."AccountDeletionSideEffect" (
+    id, "userId", kind, "dedupKey", payload, status, attempts,
+    "claimGeneration", "createdAt", "updatedAt"
+  )
+  SELECT pg_catalog.gen_random_uuid()::text,
+         claimed_user_id,
+         'AUDIT_REDACT',
+         'account-delete:audit:' || claimed_user_id || ':' ||
+           (supplied.plan->>'logId'),
+         supplied.plan,
+         'PENDING',
+         0,
+         0,
+         source_now,
+         source_now
+    FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+  ON CONFLICT ("dedupKey") DO NOTHING;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+      LEFT JOIN public."AccountDeletionSideEffect" AS effect
+        ON effect."dedupKey" =
+          'account-delete:audit:' || claimed_user_id || ':' ||
+            (supplied.plan->>'logId')
+     WHERE effect.id IS NULL
+        OR effect."userId" <> claimed_user_id
+        OR effect.kind <> 'AUDIT_REDACT'
+        OR effect.payload IS DISTINCT FROM supplied.plan
+  ) THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction plan was not retained'
+      USING ERRCODE = '55000';
+  END IF;
+
+  RETURN plan_count;
+END;
+$grainline_admin_audit_account_deletion_redaction_plans_enqueue$;
 
 CREATE FUNCTION public.grainline_admin_audit_account_deletion_redaction_apply(
   p_side_effect_id text,
@@ -1366,7 +1687,9 @@ REVOKE ALL ON FUNCTION
   public.grainline_admin_audit_staff_page(text,text,integer,integer),
   public.grainline_admin_audit_staff_undo_source(text,text),
   public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb),
-  public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer),
+  public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid),
+  public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer),
+  public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb),
   public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text),
   public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text),
   public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer),
@@ -1378,7 +1701,10 @@ FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime,
 
 GRANT EXECUTE ON FUNCTION
   public.grainline_admin_audit_append(text,text,text,text,text,jsonb),
-  public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)
+  public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb),
+  public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid),
+  public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer),
+  public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)
 TO grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION
@@ -1392,7 +1718,6 @@ GRANT EXECUTE ON FUNCTION
 TO grainline_staff_read_runtime;
 
 GRANT EXECUTE ON FUNCTION
-  public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer),
   public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text),
   public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)
 TO grainline_account_deletion_runtime;
@@ -1424,9 +1749,19 @@ BEGIN
        'public.grainline_admin_audit_staff_undo_source(text,text)',
        'EXECUTE'
      )
-     OR pg_catalog.has_function_privilege(
+     OR NOT pg_catalog.has_function_privilege(
        'grainline_app_runtime',
-       'public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)',
+       'public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)',
        'EXECUTE'
      )
      OR pg_catalog.has_function_privilege(
@@ -1506,7 +1841,17 @@ BEGIN
      )
      OR pg_catalog.has_function_privilege(
        'grainline_staff_read_runtime',
-       'public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)',
+       'public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)',
        'EXECUTE'
      )
      OR pg_catalog.has_function_privilege(
@@ -1519,9 +1864,19 @@ BEGIN
        'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
        'EXECUTE'
      )
-     OR NOT pg_catalog.has_function_privilege(
+     OR pg_catalog.has_function_privilege(
        'grainline_account_deletion_runtime',
-       'public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)',
+       'public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_account_deletion_runtime',
+       'public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_account_deletion_runtime',
+       'public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)',
        'EXECUTE'
      )
      OR NOT pg_catalog.has_function_privilege(
@@ -1554,6 +1909,26 @@ BEGIN
        AND (relation.relrowsecurity OR relation.relforcerowsecurity)
   ) THEN
     RAISE EXCEPTION 'AdminAuditLog preparation changed RLS';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger AS trigger
+      JOIN pg_catalog.pg_proc AS procedure
+        ON procedure.oid = trigger.tgfoid
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+     WHERE trigger.tgrelid = 'public."AdminAuditLog"'::pg_catalog.regclass
+       AND trigger.tgname = 'AdminAuditLog_insert_write_fence'
+       AND trigger.tgenabled = 'O'
+       AND trigger.tgtype = 7
+       AND NOT trigger.tgisinternal
+       AND namespace.nspname = 'public'
+       AND procedure.proname = 'grainline_admin_audit_insert_write_fence'
+       AND procedure.prosecdef
+       AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+  ) THEN
+    RAISE EXCEPTION 'AdminAuditLog preparation write fence drifted';
   END IF;
 END;
 $grainline_admin_audit_postflight$;

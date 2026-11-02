@@ -88,6 +88,39 @@ async function readyDatabase() {
       "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE FUNCTION public.grainline_account_deletion_claim_user(
+      p_side_effect_id text,
+      p_claim_generation bigint,
+      p_claim_token uuid
+    )
+    RETURNS text
+    LANGUAGE plpgsql
+    VOLATILE
+    SECURITY DEFINER
+    SET search_path = pg_catalog
+    AS $proof_claim_user$
+    DECLARE
+      claimed_user_id text;
+    BEGIN
+      UPDATE public."AccountDeletionSideEffect" AS effect
+         SET "processingStartedAt" = CURRENT_TIMESTAMP,
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE effect.id = p_side_effect_id
+         AND effect.status = 'PROCESSING'
+         AND effect.kind = 'LOCAL_ANONYMIZE'
+         AND effect."dedupKey" = 'account-delete:local:' || effect."userId"
+         AND effect.payload = '{}'::jsonb
+         AND effect."claimGeneration" = p_claim_generation
+         AND effect."claimToken" = p_claim_token
+      RETURNING effect."userId" INTO claimed_user_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Account deletion claim is not authorized'
+          USING ERRCODE = '42501';
+      END IF;
+      RETURN claimed_user_id;
+    END;
+    $proof_claim_user$;
+
     GRANT SELECT, INSERT, UPDATE, DELETE
       ON public."AdminAuditLog" TO grainline_app_runtime;
 
@@ -138,6 +171,22 @@ async function asAccountDeletionRuntime(database, query, params = []) {
   } finally {
     // PGlite does not restore the bootstrap user for RESET/DEFAULT here.
     // Production proofs connect as the dedicated role instead.
+    await database.exec("SET SESSION AUTHORIZATION postgres");
+  }
+}
+
+async function asAppRuntimeSession(database, actorId, query, params = []) {
+  await database.exec("SET SESSION AUTHORIZATION grainline_app_runtime");
+  try {
+    await database.query(
+      "SELECT pg_catalog.set_config('app.user_id', $1, false)",
+      [actorId],
+    );
+    return await database.query(query, params);
+  } finally {
+    await database.query(
+      "SELECT pg_catalog.set_config('app.user_id', '', false)",
+    ).catch(() => {});
     await database.exec("SET SESSION AUTHORIZATION postgres");
   }
 }
@@ -213,15 +262,40 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
                'EXECUTE'
              ) AS staff_ban_repair_append,
              pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)',
+               'EXECUTE'
+             ) AS runtime_deletion_fence,
+             pg_catalog.has_function_privilege(
                'grainline_account_deletion_runtime',
-               'public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)',
+               'public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)',
+               'EXECUTE'
+             ) AS deletion_fence,
+             pg_catalog.has_function_privilege(
+               'grainline_staff_read_runtime',
+               'public.grainline_admin_audit_account_deletion_write_fence(text,bigint,uuid)',
+               'EXECUTE'
+             ) AS staff_deletion_fence,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer)',
+               'EXECUTE'
+             ) AS runtime_deletion_candidates,
+             pg_catalog.has_function_privilege(
+               'grainline_account_deletion_runtime',
+               'public.grainline_admin_audit_account_deletion_candidates(text,bigint,uuid,text[],text[],text,integer)',
                'EXECUTE'
              ) AS deletion_candidates,
              pg_catalog.has_function_privilege(
                'grainline_app_runtime',
-               'public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)',
+               'public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)',
                'EXECUTE'
-             ) AS runtime_deletion_candidates,
+             ) AS runtime_plan_enqueue,
+             pg_catalog.has_function_privilege(
+               'grainline_account_deletion_runtime',
+               'public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(text,bigint,uuid,text[],text[],jsonb)',
+               'EXECUTE'
+             ) AS deletion_plan_enqueue,
              pg_catalog.has_function_privilege(
                'grainline_staff_read_runtime',
                'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)',
@@ -260,8 +334,13 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
       staff_undo_source: true,
       runtime_ban_repair_append: false,
       staff_ban_repair_append: true,
-      deletion_candidates: true,
-      runtime_deletion_candidates: false,
+      runtime_deletion_fence: true,
+      deletion_fence: false,
+      staff_deletion_fence: false,
+      runtime_deletion_candidates: true,
+      deletion_candidates: false,
+      runtime_plan_enqueue: true,
+      deletion_plan_enqueue: false,
       staff_deletion_apply: false,
       deletion_apply: true,
       deletion_legacy_apply: true,
@@ -277,8 +356,7 @@ test("account deletion drains legacy redactions without restoring newer redacted
   try {
     const claimToken = "11111111-1111-4111-8111-111111111111";
     await database.query(
-      `INSERT INTO public."User" (id, "deletedAt")
-       VALUES ('proof-deleted', '2026-11-02 10:00:00'::timestamp)`,
+      `INSERT INTO public."User" (id) VALUES ('proof-deleted')`,
     );
     await database.query(
       `INSERT INTO public."AdminAuditLog" (
@@ -295,7 +373,18 @@ test("account deletion drains legacy redactions without restoring newer redacted
          'proof-deleted', '{"userId":"proof-deleted"}'::jsonb,
          'deleted proof-deleted', true, '2026-11-02 10:01:00'::timestamp,
          'proof-admin-two', 'reviewed reversal'
+       ),
+       (
+         'proof-legacy-conflict', 'proof-admin', 'BAN_USER', 'USER',
+         'proof-deleted',
+         '{"redactedForAccountDeletion":true,"newer":"kept"}'::jsonb,
+         NULL, false, NULL, NULL, NULL
        )`,
+    );
+    await database.query(
+      `UPDATE public."User"
+          SET "deletedAt"='2026-11-02 10:00:00'::timestamp
+        WHERE id='proof-deleted'`,
     );
     await database.query(
       `INSERT INTO public."AccountDeletionSideEffect" (
@@ -358,15 +447,6 @@ test("account deletion drains legacy redactions without restoring newer redacted
     });
 
     await database.query(
-      `INSERT INTO public."AdminAuditLog" (
-         id, "adminId", action, "targetType", "targetId", metadata
-       ) VALUES (
-         'proof-legacy-conflict', 'proof-admin', 'BAN_USER', 'USER',
-         'proof-deleted',
-         '{"redactedForAccountDeletion":true,"newer":"kept"}'::jsonb
-       )`,
-    );
-    await database.query(
       `INSERT INTO public."AccountDeletionSideEffect" (
          id, "userId", kind, "dedupKey", payload, status,
          "claimGeneration", "claimToken", "processingStartedAt"
@@ -401,13 +481,53 @@ test("account deletion drains legacy redactions without restoring newer redacted
   }
 });
 
+test("audit insert fence refuses every structural reference to an already deleted user", async () => {
+  const database = await readyDatabase();
+  try {
+    await database.query(
+      `INSERT INTO public."User" (id, "deletedAt")
+       VALUES ('proof-fenced-deleted', '2026-11-02 10:30:00'::timestamp)`,
+    );
+    for (const [id, adminId, targetType, targetId, metadata] of [
+      ["proof-fence-admin", "proof-fenced-deleted", "OTHER", "safe", {}],
+      ["proof-fence-target", "proof-admin", "USER", "proof-fenced-deleted", {}],
+      [
+        "proof-fence-metadata",
+        "proof-admin",
+        "OTHER",
+        "safe",
+        { nested: { userId: "proof-fenced-deleted" } },
+      ],
+    ]) {
+      await assert.rejects(
+        database.query(
+          `INSERT INTO public."AdminAuditLog" (
+             id, "adminId", action, "targetType", "targetId", metadata
+           ) VALUES ($1, $2, 'TERMS_ACCEPTED', $3, $4, $5::jsonb)`,
+          [id, adminId, targetType, targetId, JSON.stringify(metadata)],
+        ),
+        /references a deleted account/u,
+      );
+    }
+    await database.query(
+      `INSERT INTO public."AdminAuditLog" (
+         id, "adminId", action, "targetType", "targetId", metadata
+       ) VALUES (
+         'proof-fence-unrelated', 'proof-admin', 'TERMS_ACCEPTED',
+         'OTHER', 'safe', '{"nested":{"userId":"proof-user"}}'::jsonb
+       )`,
+    );
+  } finally {
+    await database.close();
+  }
+});
+
 test("account deletion redaction compare-and-set completes the claimed job atomically", async () => {
   const database = await readyDatabase();
   try {
     const claimToken = "22222222-2222-4222-8222-222222222222";
     await database.query(
-      `INSERT INTO public."User" (id, "deletedAt")
-       VALUES ('proof-current-deleted', '2026-11-02 11:00:00'::timestamp)`,
+      `INSERT INTO public."User" (id) VALUES ('proof-current-deleted')`,
     );
     await database.query(
       `INSERT INTO public."AdminAuditLog" (
@@ -427,13 +547,67 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
          '2026-11-02 11:01:00'::timestamp, 'proof-admin-two', 'reviewed reversal'
        )`,
     );
-    const candidates = await asAccountDeletionRuntime(
+    await database.query(
+      `UPDATE public."User"
+          SET "deletedAt"='2026-11-02 11:00:00'::timestamp
+        WHERE id='proof-current-deleted'`,
+    );
+    await database.query(
+      `INSERT INTO public."AccountDeletionSideEffect" (
+         id, "userId", kind, "dedupKey", payload, status,
+         "claimGeneration", "claimToken", "processingStartedAt"
+       ) VALUES (
+         'proof-current-local', 'proof-current-deleted', 'LOCAL_ANONYMIZE',
+         'account-delete:local:proof-current-deleted', '{}'::jsonb,
+         'PROCESSING', 1, $1::uuid, CURRENT_TIMESTAMP
+       )`,
+      [claimToken],
+    );
+    await assert.rejects(
+      asAppRuntimeSession(
+        database,
+        "proof-admin",
+        `SELECT public.grainline_admin_audit_account_deletion_write_fence(
+           $1, 1, $2::uuid
+         )`,
+        ["proof-current-local", claimToken],
+      ),
+      /write-fence actor is invalid/u,
+    );
+    const fenced = await asAppRuntimeSession(
       database,
+      "proof-current-deleted",
+      `SELECT public.grainline_admin_audit_account_deletion_write_fence(
+         $1, 1, $2::uuid
+       ) AS "userId"`,
+      ["proof-current-local", claimToken],
+    );
+    assert.equal(fenced.rows[0].userId, "proof-current-deleted");
+    await assert.rejects(
+      asAppRuntimeSession(
+        database,
+        "proof-admin",
+        `SELECT * FROM public.grainline_admin_audit_account_deletion_candidates(
+           $1, 1, $2::uuid, $3::text[], $4::text[], NULL, 10
+         )`,
+        [
+          "proof-current-local",
+          claimToken,
+          ["proof-current-deleted"],
+          ["proof-current-deleted"],
+        ],
+      ),
+      /candidate actor is invalid/u,
+    );
+    const candidates = await asAppRuntimeSession(
+      database,
+      "proof-current-deleted",
       `SELECT * FROM public.grainline_admin_audit_account_deletion_candidates(
-         $1, $2::text[], $3::text[], NULL, 10
+         $1, 1, $2::uuid, $3::text[], $4::text[], NULL, 10
        )`,
       [
-        "proof-current-deleted",
+        "proof-current-local",
+        claimToken,
         ["proof-current-deleted"],
         ["proof-current-deleted"],
       ],
@@ -456,16 +630,62 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
       reason: "deleted [deleted account]",
     };
     assert.doesNotMatch(JSON.stringify(payload), /proof-current-deleted/u);
+    await assert.rejects(
+      asAppRuntimeSession(
+        database,
+        "proof-current-deleted",
+        `SELECT public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(
+           $1, 1, $2::uuid, $3::text[], $4::text[], $5::jsonb
+         )`,
+        [
+          "proof-current-local",
+          claimToken,
+          ["proof-current-deleted"],
+          ["proof-current-deleted"],
+          JSON.stringify([{
+            ...payload,
+            expectedMetadataSha256: "0".repeat(64),
+          }]),
+        ],
+      ),
+      /plan source changed/u,
+    );
+    const absentAfterRejectedPlan = await database.query(
+      `SELECT count(*)::integer AS count
+         FROM public."AccountDeletionSideEffect"
+        WHERE "dedupKey" =
+          'account-delete:audit:proof-current-deleted:proof-current-target'`,
+    );
+    assert.equal(absentAfterRejectedPlan.rows[0].count, 0);
+    const enqueued = await asAppRuntimeSession(
+      database,
+      "proof-current-deleted",
+      `SELECT public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(
+         $1, 1, $2::uuid, $3::text[], $4::text[], $5::jsonb
+       ) AS "enqueuedCount"`,
+      [
+        "proof-current-local",
+        claimToken,
+        ["proof-current-deleted"],
+        ["proof-current-deleted"],
+        JSON.stringify([payload]),
+      ],
+    );
+    assert.equal(enqueued.rows[0].enqueuedCount, 1);
+    const planned = await database.query(
+      `SELECT id, payload FROM public."AccountDeletionSideEffect"
+        WHERE "dedupKey" =
+          'account-delete:audit:proof-current-deleted:proof-current-target'`,
+    );
+    assert.equal(planned.rows.length, 1);
+    assert.deepEqual(planned.rows[0].payload, payload);
+    const effectId = planned.rows[0].id;
     await database.query(
-      `INSERT INTO public."AccountDeletionSideEffect" (
-         id, "userId", kind, "dedupKey", payload, status,
-         "claimGeneration", "claimToken", "processingStartedAt"
-       ) VALUES (
-         'proof-current-effect', 'proof-current-deleted', 'AUDIT_REDACT',
-         'account-delete:audit:proof-current-deleted:proof-current-target',
-         $1::jsonb, 'PROCESSING', 1, $2::uuid, CURRENT_TIMESTAMP
-       )`,
-      [JSON.stringify(payload), claimToken],
+      `UPDATE public."AccountDeletionSideEffect"
+          SET status='PROCESSING', "claimGeneration"=1,
+              "claimToken"=$2::uuid, "processingStartedAt"=CURRENT_TIMESTAMP
+        WHERE id=$1`,
+      [effectId, claimToken],
     );
 
     const applied = await asAccountDeletionRuntime(
@@ -474,7 +694,7 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
          $1, 1, $2::uuid, $3
        ) AS applied`,
       [
-        "proof-current-effect",
+        effectId,
         claimToken,
         "proof-current-target",
       ],
@@ -486,8 +706,9 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
               effect."processedAt", effect."processingStartedAt"
          FROM public."AdminAuditLog" AS audit
          JOIN public."AccountDeletionSideEffect" AS effect
-           ON effect.id='proof-current-effect'
+           ON effect.id=$1
         WHERE audit.id='proof-current-target'`,
+      [effectId],
     );
     assert.deepEqual(stored.rows[0].metadata, {
       userId: "[deleted account]",
@@ -512,8 +733,7 @@ test("account deletion redaction refuses a stale source fingerprint without chan
   try {
     const claimToken = "33333333-3333-4333-8333-333333333333";
     await database.query(
-      `INSERT INTO public."User" (id, "deletedAt")
-       VALUES ('proof-stale-deleted', '2026-11-02 12:00:00'::timestamp)`,
+      `INSERT INTO public."User" (id) VALUES ('proof-stale-deleted')`,
     );
     await database.query(
       `INSERT INTO public."AdminAuditLog" (
@@ -528,6 +748,11 @@ test("account deletion redaction refuses a stale source fingerprint without chan
          'proof-stale-target', 'proof-admin', 'BAN_USER', 'USER',
          'proof-stale-deleted', '{"safe":"newer"}'::jsonb
        )`,
+    );
+    await database.query(
+      `UPDATE public."User"
+          SET "deletedAt"='2026-11-02 12:00:00'::timestamp
+        WHERE id='proof-stale-deleted'`,
     );
     await database.query(
       `INSERT INTO public."AccountDeletionSideEffect" (

@@ -45,6 +45,12 @@ export type AdminAuditLogUndoSource = Readonly<{
     | null;
 }>;
 
+export type AdminAuditLogAccountDeletionClaim = Readonly<{
+  sideEffectId: string;
+  claimGeneration: bigint;
+  claimToken: string;
+}>;
+
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,255}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
@@ -80,6 +86,30 @@ function validJsonValue(value: unknown): value is Prisma.JsonValue {
     return JSON.stringify(value) !== undefined;
   } catch {
     return false;
+  }
+}
+
+export async function acquireAdminAuditLogAccountDeletionWriteFence(
+  client: QueryClient,
+  input: AdminAuditLogAccountDeletionClaim & { userId: string },
+) {
+  if (
+    !validId(input.sideEffectId, 191)
+    || input.claimGeneration < 1n
+    || !UUID_PATTERN.test(input.claimToken)
+    || !validId(input.userId, 191)
+  ) {
+    throw new RangeError("Admin audit account-deletion write-fence input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<{ userId: unknown }>>(Prisma.sql`
+    SELECT public.grainline_admin_audit_account_deletion_write_fence(
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
+    ) AS "userId"
+  `);
+  if (rows.length !== 1 || rows[0]?.userId !== input.userId) {
+    throw new TypeError("Admin audit account-deletion write fence returned an invalid user");
   }
 }
 
@@ -287,8 +317,11 @@ export async function adminAuditLogUndoClaim(
 }
 
 export async function adminAuditLogAccountDeletionCandidates(
-  client: StaffQueryClient,
+  client: QueryClient,
   input: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
     userId: string;
     targetIds: string[];
     referenceValues: string[];
@@ -298,7 +331,10 @@ export async function adminAuditLogAccountDeletionCandidates(
 ) {
   const limit = input.limit ?? 500;
   if (
-    !validId(input.userId, 191)
+    !validId(input.sideEffectId, 191)
+    || input.claimGeneration < 1n
+    || !UUID_PATTERN.test(input.claimToken)
+    || !validId(input.userId, 191)
     || input.targetIds.length < 1
     || input.targetIds.length > 16
     || !input.targetIds.includes(input.userId)
@@ -316,7 +352,9 @@ export async function adminAuditLogAccountDeletionCandidates(
   }
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT * FROM public.grainline_admin_audit_account_deletion_candidates(
-      ${input.userId}::text,
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid,
       ${input.targetIds}::text[],
       ${input.referenceValues}::text[],
       ${input.afterId}::text,

@@ -4,12 +4,13 @@ Date: 2026-11-02
 
 Status: domain audit complete; Option B selected in
 `docs/admin-audit-log-rls-options.md`. The isolated compatible source
-conversion is zero-direct and its 12-operation migration passes focused PGlite
-and complete-chain PostgreSQL 17 behavior/ACL proof. Preparation is not yet
-accepted: the account-deletion plan-creation crash window, realistic plans,
-two-session races, catalog sealing, rollback and release proof remain open. No
-Production, merge, deployment, grant, or RLS action is authorized by this
-document.
+conversion is zero-direct and its 14-operation migration plus private insert
+fence passes focused PGlite and complete-chain PostgreSQL 17 behavior/ACL
+proof. Durable in-transaction deletion plans, deterministic two-session races
+and 100,000-row query plans now pass. Preparation is not yet accepted: exact
+retained-function catalog sealing, compatibility, rollback and release proof
+remain open. No Production, merge, deployment, grant, or RLS action is
+authorized by this document.
 
 ## Baseline and method
 
@@ -199,14 +200,15 @@ Candidate collection now includes only rows structurally related through
 or seller-profile id. It no longer scans for generic city/state/name
 substrings.
 
-Collection now runs through a fixed operation in batches of at most 500, but
-the structurally exact JSON-path predicate still performs one whole-table scan
-per account reference value because no normalized reference index exists. It
-runs after local anonymization, so it does not hold the main deletion
-transaction, but it can delay privacy cleanup as the log grows. Preparation
-still needs a realistic large-table plan and either a reviewed reference/index
-strategy or a recorded scale trigger and operator metric. It must not silently
-add a broad GIN index without proving the exact query uses it.
+Collection now runs through a fixed operation in batches of at most 500. The
+structurally exact JSON-path predicate can scan the table because no normalized
+reference index exists, so the disposable PostgreSQL 17 proof measures the
+exact predicate rather than assuming an index. With 100,000 realistic audit
+rows and three matches, it returns the complete candidate set in about 70 ms.
+That is accepted for the rare account-deletion path; repeat the proof and
+design a normalized reference projection before the table reaches one million
+rows or the candidate scan exceeds 500 ms. A broad speculative GIN index is
+not part of this security release.
 
 Redaction side effects replace only `reason` and `metadata`; identity, action,
 target, undo fields and time remain immutable. Version-two retry rows contain
@@ -214,17 +216,21 @@ only the already-redacted patch and PostgreSQL-computed SHA-256 fingerprints
 of the source metadata/reason; they never persist the raw account-deletion
 needles. The claim-bound database operation locks the exact audit row, refuses
 a fingerprint mismatch, applies the patch and clears/completes the exact side
-effect atomically. The complete-chain PostgreSQL 17 proof covers current and
-predecessor payloads, preserved undo evidence, stale-fingerprint refusal and
-exact role denial. A two-session undo/redaction race is still required.
+effect atomically. Candidate collection and already-redacted plan creation now
+run inside the local-anonymization transaction before its durable completion,
+so a commit cannot leave the account anonymized without its retry plans. Raw
+needles never enter a side-effect payload.
 
-There is one separate crash-recovery gap that this conversion does not hide:
-the current application marks `LOCAL_ANONYMIZE` done before it scans candidates
-and creates `AUDIT_REDACT` rows. A process loss in that interval leaves no
-durable plan, and the already-anonymized account no longer retains every
-needle needed to reconstruct one. Preparation cannot be accepted until plan
-creation is durably ordered before local completion or an equivalent reviewed
-recovery source exists.
+Every audit insert, including retained domain functions and predecessor direct
+table writes, crosses one shared transaction-scoped database fence, so normal
+audit writers remain concurrent. Account deletion acquires the matching
+exclusive fence before its first domain read or lock. An earlier writer
+commits before the deletion scan; a later writer waits, then the insert trigger
+refuses it if `adminId`, `targetId`, or any exact JSON scalar structurally
+references a deleted user. The deletion transaction retries serialization and
+deadlock aborts as one DB-only unit. Deterministic PostgreSQL 17 proofs cover
+independent concurrent writers, both writer orders, undo-before-redaction with
+undo fields preserved, and two undo attempts with one durable winner.
 
 ### Existing database writers and readers
 
@@ -248,7 +254,8 @@ a `SECURITY DEFINER` function.
 | Two repair workers | duplicate provider calls may be idempotent | one durable outcome family or safe replay evidence |
 | Domain transition vs audit insert failure | primary fail-closed paths roll back | executed atomic rollback for each converted transaction family |
 | External provider success vs audit failure | provider effect may succeed while result log is missing | existing retry/telemetry remains; no duplicate destructive effect |
-| Account deletion crash before candidate collection | local anonymization may be complete but no redaction plan exists | **open blocker**: durably create the plan before local completion or retain an equivalent private recovery source |
+| Account deletion crash before candidate collection | plan collection/enqueue is in the same transaction as anonymization | rollback leaves both absent; commit makes already-redacted plans durable before local completion |
+| Audit insert vs account deletion | shared transaction fence orders every insert before or after deletion | earlier insert is planned; later structurally related insert is refused; deadlock victim is retry-safe |
 | Account deletion retry after newer undo | stale payload must not erase undo state | redaction touches reason/metadata only and preserves later allowed fields |
 | Direct row delete/PK update attempt | currently allowed to runtime | denied after activation, including referenced rows |
 | User/ledger foreign-key action under FORCE | owner functions and database FK checks continue | executed hard-delete/restrict/cascade behavior on PostgreSQL 17 |
@@ -264,10 +271,10 @@ a `SECURITY DEFINER` function.
 | Automated `AI_HOLD_LISTING` is attributed to the seller as an admin action | Low integrity/UX | **FIX_BEFORE_ACTIVATION** with automated source-bound evidence and actor-kind semantics |
 | SystemAuditLog case/cron events are absent from the admin audit page | Medium operations visibility | **DEFERRED_PRODUCT_WORK**; design a combined read-only staff timeline without granting cross-table CRUD |
 | No retention policy exists and two ledgers restrict audit deletion | Medium legal/scalability | **DEFERRED_PRODUCT_WORK** pending reviewed legal retention periods; no purge in security release |
-| JSON exact-reference collection is an unindexed whole-table scan per reference | Medium scalability/privacy latency | **FIX_BEFORE_ACTIVATION** with executed plan/bound or normalized reference strategy |
+| JSON exact-reference collection may scan the audit table | Medium scalability/privacy latency | **BOUNDED_AND_PROVED** at 100,000 rows (~70 ms); repeat before one million rows or at 500 ms |
 | Metadata size constraint is `NOT VALID` | Low catalog debt | **FIX_BEFORE_ACTIVATION** inventory and validate or fail closed on historical violations |
 | Current indexes do not match stable page/action pagination | Low scalability | **FIX_IN_PREPARATION** after realistic plan proof |
-| `LOCAL_ANONYMIZE` is completed before audit-redaction plans are durable | Medium privacy/recovery | **BLOCKS_PREPARATION_ACCEPTANCE**; a crash can strand retained audit PII with no reconstructible needles |
+| `LOCAL_ANONYMIZE` could complete before audit-redaction plans were durable | Historical medium privacy/recovery | **VERIFIED_FIXED**; plan enqueue and anonymization now commit or roll back together |
 | Old global substring redaction corrupted unrelated rows | Historical high | **VERIFIED_FIXED** on current source; retain two-user noninterference regression |
 | Old deterministic case-mark id could block a second mark | Historical medium | **VERIFIED_FIXED** in installed PostgreSQL function; fresh random suffix retained |
 
@@ -289,16 +296,21 @@ scan, catalog drift, or rollback gap remains.
    staff page bounds, actor-self writes, automated listing evidence, ban
    repair, undo concurrency and deletion noninterference.
 3. **Partially passed:** the complete 462-migration PostgreSQL 17 schema proves
-   the 12 new functions, exact role split, current/legacy redaction, atomic
-   completion and stale-fingerprint refusal. The complete retained 23-function
-   catalog/foreign-key seal remains an activation artifact.
-4. Two-session undo/undo, undo/redaction and repair/repair races.
-5. Realistic high-row-count query plans for page/action pagination and deletion
-   candidate collection.
+   the 14 purpose-bound operations plus private trigger, exact role split,
+   current/legacy redaction, atomic completion and stale-fingerprint refusal.
+   The complete retained 23-function catalog/foreign-key seal remains an
+   activation artifact.
+4. **Passed:** deterministic parallel-writer, two-session insert/deletion,
+   undo/undo and undo/redaction races. Repair/repair remains part of the retained-domain
+   catalog proof, not the account-redaction boundary.
+5. **Passed:** 100,000-row PostgreSQL 17 plans for unfiltered and action-filtered
+   staff pages plus deletion candidate collection (about 0.3 ms, 0.3 ms and
+   70 ms respectively on the disposable proof server).
 6. Predecessor-app/new-database and new-app/predecessor-database compatibility.
 7. Exact preparation migration bytes, owners, grants, search paths and
    source digests in the reusable release catalog.
-8. Durable redaction-plan creation ordered so a crash after local anonymization
-   cannot strand retained audit PII.
+8. **Passed:** durable redaction-plan creation and local anonymization are one
+   transaction, with retry payloads containing only redacted patches and
+   source fingerprints.
 
 Activation remains a later separately reviewed and authorized release.
