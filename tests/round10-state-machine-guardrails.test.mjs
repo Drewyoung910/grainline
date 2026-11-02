@@ -18,12 +18,6 @@ const {
 } = await import("../src/lib/guildApplicationState.ts");
 
 const {
-  LISTING_UNDO_FALLBACK_STATUS,
-  listingUndoCurrentStatusWhere,
-  listingUndoDataFromMetadata,
-} = await import("../src/lib/adminListingUndoState.ts");
-
-const {
   GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES,
   GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
   GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES,
@@ -139,32 +133,16 @@ describe("Round 10 state-machine guardrails", () => {
   });
 
   it("fails listing undo closed and uses current-state guards before restoring metadata", () => {
-    assert.equal(LISTING_UNDO_FALLBACK_STATUS, "HIDDEN");
-    assert.deepEqual(
-      listingUndoDataFromMetadata({ previousStatus: "NOT_A_STATUS" }),
-      { status: "HIDDEN", isPrivate: true },
-    );
-    assert.deepEqual(
-      listingUndoDataFromMetadata({
-        previousStatus: "ACTIVE",
-        previousIsPrivate: false,
-        previousRejectionReason: null,
-      }),
-      { status: "ACTIVE", isPrivate: false, rejectionReason: null },
-    );
-    assert.deepEqual(
-      listingUndoCurrentStatusWhere("REMOVE_LISTING", "listing_1"),
-      { id: "listing_1", status: "REJECTED", isPrivate: true },
-    );
-    assert.deepEqual(
-      listingUndoCurrentStatusWhere("HOLD_LISTING", "listing_1"),
-      { id: "listing_1", status: "HIDDEN" },
-    );
-
     const audit = source("src/lib/audit.ts");
-    assert.match(audit, /tx\.listing\.updateMany/);
-    assert.match(audit, /listingUndoCurrentStatusWhere\(log\.action, log\.targetId\)/);
-    assert.match(audit, /listingUndoDataFromMetadata\(metadata\)/);
+    const listingPreparation = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    assert.match(audit, /sellerProfileStaffListingUndoTransition\(staffClient/u);
+    assert.doesNotMatch(audit, /tx\.listing\.updateMany/u);
+    assert.match(listingPreparation, /ELSE 'HIDDEN'::public\."ListingStatus"/u);
+    assert.match(listingPreparation, /source_listing\.status::text <> 'REJECTED'/u);
+    assert.match(listingPreparation, /source_listing\.status::text <> 'HIDDEN'/u);
+    assert.match(listingPreparation, /source_audit\.undone/u);
     assert.doesNotMatch(audit, /ListingStatus\.ACTIVE/);
   });
 

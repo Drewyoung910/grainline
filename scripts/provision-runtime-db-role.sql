@@ -3458,6 +3458,10 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
     ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text)', false),
+    ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_remove_transition"(text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_undo_transition"(text,text,text)', false),
+    ('public."grainline_listing_materials_guard"()', false),
     ('public."grainline_seller_staff_listing_detail_profile"(text,text)', false),
     ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
@@ -3562,6 +3566,10 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
     ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text)', false),
+    ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_remove_transition"(text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_undo_transition"(text,text,text)', false),
+    ('public."grainline_listing_materials_guard"()', false),
     ('public."grainline_seller_staff_listing_detail_profile"(text,text)', false),
     ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
@@ -3821,6 +3829,7 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_unread_batch() TO 
 WITH conversation_message_authority(function_signature) AS (
   VALUES
     ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_listing_message_context_titles"(text)'),
     ('public."grainline_conversation_get"(text, text)'),
     ('public."grainline_conversation_pair"(text, text)'),
     ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
@@ -3857,6 +3866,7 @@ SELECT format(
 WITH conversation_message_authority(function_signature) AS (
   VALUES
     ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_listing_message_context_titles"(text)'),
     ('public."grainline_conversation_get"(text, text)'),
     ('public."grainline_conversation_pair"(text, text)'),
     ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
@@ -3894,6 +3904,7 @@ SELECT format(
 WITH conversation_message_public_authority(function_signature) AS (
   VALUES
     ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_listing_message_context_titles"(text)'),
     ('public."grainline_conversation_get"(text, text)'),
     ('public."grainline_conversation_pair"(text, text)'),
     ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
@@ -4666,6 +4677,9 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
     ('public."grainline_seller_staff_feature_transition"(text, text, text)'),
     ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
     ('public."grainline_seller_staff_listing_detail_profile"(text, text)'),
     ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
