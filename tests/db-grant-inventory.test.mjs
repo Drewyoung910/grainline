@@ -330,6 +330,8 @@ const EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
 ];
 const EMAIL_SERVICE_PREPARATION_MIGRATION =
   "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql";
+const EMAIL_SERVICE_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101090000_activate_email_service_least_privilege/migration.sql";
 const EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES = [
   "grainline_email_suppression_exists",
   "grainline_email_one_click_suppression_clear",
@@ -3762,6 +3764,11 @@ describe("database grant inventory guardrails", () => {
       source(EMAIL_SERVICE_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const emailServiceActivationPresent = existsSync(
+      EMAIL_SERVICE_ACTIVATION_MIGRATION,
+    ) && source(EMAIL_SERVICE_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL PRIVILEGES ON TABLE',
+    );
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -4062,6 +4069,7 @@ describe("database grant inventory guardrails", () => {
           ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES.length
             - 1 // begin_provider_attempt already has a semantic PUBLIC revoke
           : 0)
+        + (emailServiceActivationPresent ? 1 : 0)
         // CI proves the C-875 release before isolating this successor. While
         // C-875 is held aside, the successor's redefinition still contributes
         // the same unsubscribe-function PUBLIC revoke.
@@ -6144,6 +6152,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const emailServiceActivationProvisioningPresent = provision.includes(
+      "grainline_email_service_activation_applied",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6154,8 +6165,19 @@ describe("database grant inventory guardrails", () => {
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
-        + Number(reviewVoteProvisioningPresent),
+        + Number(reviewVoteProvisioningPresent)
+        + Number(emailServiceActivationProvisioningPresent),
     );
+    if (emailServiceActivationProvisioningPresent) {
+      assert.match(
+        provision,
+        /20261101090000_activate_email_service_least_privilege/u,
+      );
+      assert.match(
+        provision,
+        /REVOKE ALL PRIVILEGES ON TABLE[\s\S]*public\."EmailFailureCount"[\s\S]*FROM PUBLIC, :"runtime_role", grainline_staff_read_runtime/u,
+      );
+    }
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
       assert.match(

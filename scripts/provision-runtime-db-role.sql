@@ -2776,6 +2776,98 @@ SELECT format('GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'runtim
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- The separate email-service activation removes every direct table and column
+-- privilege without changing RLS. Once its exact ledger row is durable, every
+-- provisioning replay must re-close the five-table boundary after the broad
+-- predecessor grant block near the start of this script.
+WITH activation_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum =
+        'a0e925a4f38c4c125c0ca457195c21d191f901ca449d26d66c3d21a2d452c62e'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+    )::integer AS exact_count
+    FROM public._prisma_migrations
+   WHERE migration_name =
+     '20261101090000_activate_email_service_least_privilege'
+), failure AS (
+  SELECT
+    'email-service activation ledger drifted; refusing runtime-role provisioning'
+      AS message
+    FROM activation_ledger
+   WHERE row_count <> 0 AND (row_count <> 1 OR exact_count <> 1)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT exact_count = 1 FROM activation_ledger), false)
+    AS grainline_email_service_activation_applied;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_email_service_activation_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_email_service_activation_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_email_service_activation_applied
+REVOKE ALL PRIVILEGES ON TABLE
+  public."NewsletterSubscriber",
+  public."EmailSuppression",
+  public."ResendWebhookEvent",
+  public."EmailOutbox",
+  public."EmailFailureCount"
+FROM PUBLIC, :"runtime_role", grainline_staff_read_runtime;
+
+WITH protected_table AS (
+  SELECT class.oid, namespace.nspname, class.relname
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = ANY(ARRAY[
+       'NewsletterSubscriber',
+       'EmailSuppression',
+       'ResendWebhookEvent',
+       'EmailOutbox',
+       'EmailFailureCount'
+     ]::text[])
+     AND class.relkind = 'r'
+), column_list AS (
+  SELECT protected_table.nspname,
+         protected_table.relname,
+         pg_catalog.string_agg(
+           pg_catalog.format('%I', attribute.attname), ', '
+           ORDER BY attribute.attnum
+         ) AS columns
+    FROM protected_table
+    JOIN pg_catalog.pg_attribute AS attribute
+      ON attribute.attrelid = protected_table.oid
+     AND attribute.attnum > 0
+     AND NOT attribute.attisdropped
+   GROUP BY protected_table.nspname, protected_table.relname
+)
+SELECT pg_catalog.format(
+  'REVOKE SELECT (%1$s), INSERT (%1$s), UPDATE (%1$s), REFERENCES (%1$s) ON TABLE %2$I.%3$I FROM PUBLIC, %4$I, grainline_staff_read_runtime',
+  columns,
+  nspname,
+  relname,
+  :'runtime_role'
+)
+  FROM column_list
+ ORDER BY nspname, relname;
+\gexec
+\endif
+\unset grainline_email_service_activation_applied
+
 -- SellerPayoutEvent compatible authority is optional until its additive
 -- migration lands. When present, converge only the three reviewed service
 -- functions without changing predecessor table CRUD or RLS posture.
