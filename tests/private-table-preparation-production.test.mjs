@@ -339,6 +339,25 @@ test("owner social and verification preparation batch is exact and ordered", () 
   );
 });
 
+test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", () => {
+  const releaseIds = privateTablePreparationReleaseIds(
+    "block_report_seller_faq_v1",
+  );
+  assert.deepEqual(releaseIds, [
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
+  ]);
+  assert.deepEqual(
+    releaseIds.map((releaseId) => privateTablePreparation(releaseId).migration),
+    [
+      "20261030010000_prepare_block_authorities",
+      "20261030020000_prepare_user_report_authorities",
+      "20261030030000_prepare_seller_faq_authorities",
+    ],
+  );
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -418,6 +437,9 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
     "seller_broadcast_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
@@ -448,6 +470,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "maker_verification_v1",
       "seller_broadcast_v1",
       "owner_social_verification_v1",
+      "block_report_seller_faq_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
@@ -455,6 +478,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.match(workflow, /private-table-preparation-catalog\.mjs --release-ids/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --migrations/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --tests/u);
+  assert.match(workflow, /tests\/block-preparation-production\.test\.mjs/u);
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(runBinding("failure"), /push workflows are not all green/u);

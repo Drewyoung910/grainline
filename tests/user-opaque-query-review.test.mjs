@@ -40,13 +40,14 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // StockNotification subscribe removes one reviewed public-listing factory.
   // SellerBroadcast preparation removes one reviewed outbox factory and one
   // residual direct broadcast relation from the application frontier.
-  assert.equal(report.opaqueShapes.length, 144);
-  assert.equal(reviewedFactories.length, 110);
+  // UserReport target validation removes three report-route factory calls.
+  assert.equal(report.opaqueShapes.length, 141);
+  assert.equal(reviewedFactories.length, 107);
   assert.equal(reviewedResidual.length, 34);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 89,
-    sha256: "4d53b85420836898b9eb27582739e2087cf9c846c77f7cb5248e85c5626d6b5e",
+    unique: 86,
+    sha256: "fcddfefc9d12757888c9b000a60c327fd8cdaf75a991b88ff85150c5fa0993d8",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 28,
