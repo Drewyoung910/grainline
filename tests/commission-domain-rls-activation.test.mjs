@@ -89,7 +89,8 @@ test("Commission rollback atomically restores the predecessor posture", () => {
   );
   assert.ok(noForce >= 0);
   assert.ok(grant > noForce);
-  assert.match(rollback, /migrate resolve --rolled-back/u);
-  assert.match(rollback, /20261101070000_activate_commission_domain_rls/u);
+  assert.doesNotMatch(rollback, /migrate resolve --rolled-back/u);
+  assert.match(rollback, /Keep the successfully applied Prisma ledger row intact/u);
+  assert.match(rollback, /new reviewed forward\s+--\s+migration with a new name/u);
   assert.doesNotMatch(rollback, /DROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)/iu);
 });

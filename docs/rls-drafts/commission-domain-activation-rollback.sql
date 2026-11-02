@@ -5,9 +5,12 @@
 -- 2. Verify the still-compatible predecessor app can read and write both
 --    tables through its reviewed statements.
 -- 3. Only then roll application traffic back if required.
--- 4. Reconcile Prisma's ledger explicitly:
---      npx prisma migrate resolve --rolled-back \
---        20261101070000_activate_commission_domain_rls
+-- 4. Keep the successfully applied Prisma ledger row intact. Prisma's
+--    rollback resolution is for failed migrations; marking this completed
+--    activation rolled back would let a later deploy reapply it and silently
+--    undo this emergency rollback.
+-- 5. If policyless activation is needed again, ship a new reviewed forward
+--    migration with a new name.
 --
 -- Never use this draft after the predecessor direct-access application has
 -- been retired unless that exact predecessor is deliberately restored.
