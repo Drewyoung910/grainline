@@ -85,6 +85,7 @@ import {
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
 import { clearSellerProfileViewDailyForAccountDeletion } from "@/lib/sellerAnalyticsDailyAccess";
+import { clearSellerMetricsForAccountDeletion } from "@/lib/metrics";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import {
@@ -1082,8 +1083,10 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await tx.sellerMetrics.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await clearSellerMetricsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
