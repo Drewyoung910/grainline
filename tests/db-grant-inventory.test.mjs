@@ -92,6 +92,15 @@ import {
 
 const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_staff_listing_review_transition",
+  "grainline_seller_staff_listing_remove_transition",
+  "grainline_seller_staff_listing_undo_transition",
+  "grainline_listing_message_context_titles",
+  "grainline_listing_materials_guard",
+]);
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -4086,6 +4095,12 @@ describe("database grant inventory guardrails", () => {
         `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
       ).includes(`FUNCTION public.${entry.name}(`),
     );
+    const listingDomainAuthorityPrepared = existsSync(
+      LISTING_DOMAIN_PREPARATION_MIGRATION,
+    ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const sellerMetricsRlsActivationPresent = existsSync(
       "prisma/migrations/20261102040000_activate_seller_metrics_rls/migration.sql",
     ) && source(
@@ -4356,6 +4371,9 @@ describe("database grant inventory guardrails", () => {
       ...(sellerMetricsAuthorityPrepared
         ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
         : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
         : []),
@@ -4480,6 +4498,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (sellerMetricsAuthorityPrepared
           ? SELLER_METRICS_PREPARATION.functions.length
+          : 0)
+        + (listingDomainAuthorityPrepared
+          ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (sellerMetricsRlsActivationPresent ? 1 : 0)
         + (sellerAnalyticsRlsActivationPresent ? 2 : 0)
@@ -4652,6 +4673,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(sellerMetricsAuthorityPrepared
         ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
+        : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
         : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
@@ -7080,7 +7104,7 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      typeof readBlockPreparationState === "function" ? 21 : 19,
+      typeof readBlockPreparationState === "function" ? 22 : 20,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(

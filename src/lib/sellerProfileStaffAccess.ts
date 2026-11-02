@@ -104,6 +104,20 @@ export type SellerProfileStaffListingRemovalTransition = Readonly<{
   removedCartItems: number;
 }>;
 
+type SellerProfileStaffListingUndoTransitionRow = Readonly<{
+  action: "REMOVE_LISTING" | "HOLD_LISTING";
+  listingId: string;
+  restoredStatus: string;
+  auditId: string;
+}>;
+
+export type SellerProfileStaffListingUndoTransition = Readonly<{
+  action: "REMOVE_LISTING" | "HOLD_LISTING";
+  listingId: string;
+  restoredStatus: string;
+  auditId: string;
+}>;
+
 type VerificationStatus =
   | "PENDING"
   | "APPROVED"
@@ -433,6 +447,44 @@ export async function sellerProfileStaffListingRemovalTransition(
     removedFavorites: row.removedFavorites,
     removedStockNotifications,
     removedCartItems: row.removedCartItems,
+  });
+}
+
+export async function sellerProfileStaffListingUndoTransition(
+  client: SellerProfileStaffClient,
+  input: { actorId: string; logId: string; reason: string },
+): Promise<SellerProfileStaffListingUndoTransition> {
+  if (
+    !validId(input.actorId)
+    || !validId(input.logId)
+    || !isTextWithinCodePointRange(input.reason, 1, 500)
+  ) {
+    throw new RangeError("Seller listing undo transition input is invalid");
+  }
+  const rows = await client.$queryRaw<SellerProfileStaffListingUndoTransitionRow[]>`
+    SELECT * FROM public.grainline_seller_staff_listing_undo_transition(
+      ${input.actorId}::text,
+      ${input.logId}::text,
+      ${input.reason}::text
+    )
+  `;
+  if (rows.length !== 1) {
+    throw new Error("Seller listing undo transition returned an invalid row count");
+  }
+  const row = rows[0];
+  if (
+    (row.action !== "REMOVE_LISTING" && row.action !== "HOLD_LISTING")
+    || !validId(row.listingId)
+    || !LISTING_STATUSES.has(row.restoredStatus)
+    || !validId(row.auditId)
+  ) {
+    throw new Error("Seller listing undo transition returned an invalid result");
+  }
+  return Object.freeze({
+    action: row.action,
+    listingId: row.listingId,
+    restoredStatus: row.restoredStatus,
+    auditId: row.auditId,
   });
 }
 

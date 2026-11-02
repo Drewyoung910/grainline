@@ -38,6 +38,11 @@ BEGIN
     RAISE EXCEPTION 'Listing version-bound staff-removal authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_seller_staff_listing_undo_transition(text,text,text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing protected staff-undo authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -344,6 +349,192 @@ REVOKE ALL ON FUNCTION public.grainline_seller_staff_listing_remove_transition(
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_seller_staff_listing_remove_transition(
   text,text,timestamp without time zone
+) TO grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_seller_staff_listing_undo_transition(
+  p_actor_id text,
+  p_log_id text,
+  p_reason text
+)
+RETURNS TABLE (
+  action text,
+  "listingId" text,
+  "restoredStatus" text,
+  "auditId" text
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_staff_listing_undo_transition$
+DECLARE
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+  source_audit public."AdminAuditLog"%ROWTYPE;
+  source_listing public."Listing"%ROWTYPE;
+  source_metadata jsonb;
+  has_valid_previous_status boolean := false;
+  restored_status public."ListingStatus";
+  restored_is_private boolean;
+  restored_rejection_reason text;
+  undo_id text := pg_catalog.gen_random_uuid()::text;
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Seller listing undo requires the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_log_id IS NULL
+     OR p_log_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_reason IS NULL
+     OR pg_catalog.char_length(p_reason) NOT BETWEEN 1 AND 500 THEN
+    RAISE EXCEPTION 'Seller listing undo input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS actor
+   WHERE actor.id = p_actor_id
+     AND actor.role::text = 'ADMIN'
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Seller listing undo actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT source_audit_row.*
+    INTO source_audit
+    FROM public."AdminAuditLog" AS source_audit_row
+   WHERE source_audit_row.id = p_log_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Action not found'
+      USING ERRCODE = 'P0002';
+  END IF;
+  IF source_audit.action NOT IN ('REMOVE_LISTING', 'HOLD_LISTING')
+     OR source_audit."targetType" <> 'Listing' THEN
+    RAISE EXCEPTION 'Action ''%'' cannot use listing undo', source_audit.action
+      USING ERRCODE = '42501';
+  END IF;
+  IF source_audit."adminId" = p_actor_id THEN
+    RAISE EXCEPTION 'Admins cannot undo their own actions'
+      USING ERRCODE = '42501';
+  END IF;
+  IF source_audit.undone THEN
+    RAISE EXCEPTION 'Already undone (concurrent request)'
+      USING ERRCODE = '55000';
+  END IF;
+  IF source_audit."createdAt" < (
+       pg_catalog.statement_timestamp() AT TIME ZONE 'UTC'
+     ) - INTERVAL '24 hours' THEN
+    RAISE EXCEPTION 'Undo window expired (24 hours)'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT listing.*
+    INTO source_listing
+    FROM public."Listing" AS listing
+   WHERE listing.id = source_audit."targetId"
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Listing changed before undo could be applied'
+      USING ERRCODE = '55000';
+  END IF;
+  IF (
+       source_audit.action = 'REMOVE_LISTING'
+       AND (
+         source_listing.status::text <> 'REJECTED'
+         OR source_listing."isPrivate" = false
+       )
+     ) OR (
+       source_audit.action = 'HOLD_LISTING'
+       AND source_listing.status::text <> 'HIDDEN'
+     ) THEN
+    RAISE EXCEPTION 'Listing changed before undo could be applied'
+      USING ERRCODE = '55000';
+  END IF;
+
+  source_metadata := CASE
+    WHEN pg_catalog.jsonb_typeof(source_audit.metadata) = 'object'
+      THEN source_audit.metadata
+    ELSE '{}'::jsonb
+  END;
+  has_valid_previous_status :=
+    pg_catalog.jsonb_typeof(source_metadata->'previousStatus') = 'string'
+    AND EXISTS (
+      SELECT 1
+        FROM pg_catalog.unnest(
+          pg_catalog.enum_range(NULL::public."ListingStatus")
+        ) AS status_value(value)
+       WHERE status_value.value::text = source_metadata->>'previousStatus'
+    );
+  restored_status := CASE
+    WHEN has_valid_previous_status
+      THEN (source_metadata->>'previousStatus')::public."ListingStatus"
+    ELSE 'HIDDEN'::public."ListingStatus"
+  END;
+  restored_is_private := CASE
+    WHEN pg_catalog.jsonb_typeof(source_metadata->'previousIsPrivate') = 'boolean'
+      THEN (source_metadata->>'previousIsPrivate')::boolean
+    WHEN NOT has_valid_previous_status THEN true
+    ELSE source_listing."isPrivate"
+  END;
+  restored_rejection_reason := CASE
+    WHEN pg_catalog.jsonb_typeof(source_metadata->'previousRejectionReason') = 'string'
+      THEN source_metadata->>'previousRejectionReason'
+    WHEN source_metadata ? 'previousRejectionReason' THEN NULL
+    ELSE source_listing."rejectionReason"
+  END;
+
+  UPDATE public."Listing"
+     SET status = restored_status,
+         "isPrivate" = restored_is_private,
+         "rejectionReason" = restored_rejection_reason,
+         "updatedAt" = source_now
+   WHERE id = source_listing.id;
+
+  UPDATE public."AdminAuditLog"
+     SET undone = true,
+         "undoneAt" = source_now,
+         "undoneBy" = p_actor_id,
+         "undoneReason" = p_reason
+   WHERE id = source_audit.id;
+
+  INSERT INTO public."AdminAuditLog" (
+    id, "adminId", action, "targetType", "targetId", reason, metadata,
+    undone, "createdAt"
+  ) VALUES (
+    undo_id,
+    p_actor_id,
+    'UNDO_' || source_audit.action,
+    source_audit."targetType",
+    source_audit."targetId",
+    p_reason,
+    pg_catalog.jsonb_build_object(
+      'originalActionId', source_audit.id,
+      'actorKind', 'staff'
+    ),
+    false,
+    source_now
+  );
+
+  RETURN QUERY SELECT
+    source_audit.action::text,
+    source_listing.id::text,
+    restored_status::text,
+    undo_id;
+END
+$grainline_seller_staff_listing_undo_transition$;
+
+REVOKE ALL ON FUNCTION public.grainline_seller_staff_listing_undo_transition(
+  text,text,text
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_seller_staff_listing_undo_transition(
+  text,text,text
 ) TO grainline_staff_read_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(

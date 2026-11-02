@@ -1,7 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import type { Prisma } from '@prisma/client'
 import { adminUndoActorBlockReason, adminUndoWindowBlockReason } from './adminAuditUndoState'
-import { listingUndoCurrentStatusWhere, listingUndoDataFromMetadata } from './adminListingUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
 import {
   mintBanReviewCapability,
@@ -35,6 +34,7 @@ import {
   adminAuditLogStaffUndoSource,
   adminAuditLogUndoClaim,
 } from './adminAuditLogAccess'
+import { sellerProfileStaffListingUndoTransition } from './sellerProfileStaffAccess'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -257,6 +257,20 @@ export async function undoAdminAction({
   const sanitizedUndoReason = sanitizeAdminAuditReason(reason)
   if (!sanitizedUndoReason) throw new Error('Undo reason is invalid')
 
+  if (log.action === 'REMOVE_LISTING' || log.action === 'HOLD_LISTING') {
+    const transition = await sellerProfileStaffListingUndoTransition(staffClient, {
+      actorId: adminId,
+      logId,
+      reason: sanitizedUndoReason,
+    })
+    if (transition.action !== log.action || transition.listingId !== log.targetId) {
+      throw new Error('Listing undo authority returned an unexpected target')
+    }
+    revalidateListingSearchCaches()
+    revalidateFeaturedMakerCaches()
+    return
+  }
+
   const metadata = (log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata))
     ? log.metadata as Record<string, unknown>
     : {}
@@ -401,15 +415,6 @@ export async function undoAdminAction({
         }
         break
       }
-      case 'REMOVE_LISTING':
-      case 'HOLD_LISTING': {
-        const updated = await tx.listing.updateMany({
-          where: listingUndoCurrentStatusWhere(log.action, log.targetId),
-          data: listingUndoDataFromMetadata(metadata)
-        })
-        if (updated.count === 0) throw new Error('Listing changed before undo could be applied')
-        break
-      }
       default:
         throw new Error(`Action '${log.action}' cannot be undone`)
     }
@@ -417,9 +422,6 @@ export async function undoAdminAction({
 
   if (log.action === 'BAN_USER') {
     revalidatePublicSellerVisibilityCaches()
-  } else if (log.action === 'REMOVE_LISTING' || log.action === 'HOLD_LISTING') {
-    revalidateListingSearchCaches()
-    revalidateFeaturedMakerCaches()
   }
 
   if (log.action === 'BAN_USER' && clerkUnbanTarget?.clerkId) {
