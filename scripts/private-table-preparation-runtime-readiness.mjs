@@ -18,6 +18,7 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS = Object.freeze(
   "owner_social_verification_v1",
   "block_report_seller_faq_v1",
   "email_service_v1",
+  "seller_broadcast_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
@@ -28,6 +29,7 @@ const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
   email_service_v1: "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -46,22 +48,37 @@ function sourceSha256(source) {
   return createHash("sha256").update(source, "utf8").digest("hex");
 }
 
-export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
-  PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS.flatMap((selection) => (
-    privateTablePreparationReleaseIds(selection)
-  ))
-    .flatMap((releaseId) => {
+export function privateTableRuntimeReadinessFunctionsForSelections(
+  releaseSelections,
+) {
+  const latestByRoleAndIdentity = new Map();
+  for (const selection of releaseSelections) {
+    for (const releaseId of privateTablePreparationReleaseIds(selection)) {
       const verified = verifyPrivateTablePreparationSource(
         releaseId,
         process.cwd(),
         privateTableRuntimeReadinessMigrationOverride(releaseId),
       );
-      return verified.release.functions.map((entry) => Object.freeze({
+      for (const entry of verified.release.functions) {
+        const readiness = Object.freeze({
         identity: `${entry.name}(${entry.arguments})`,
         executeRole: entry.executeRole ?? "runtime",
         sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
-      }));
-    }),
+        });
+        latestByRoleAndIdentity.set(
+          `${readiness.executeRole}\u0000${readiness.identity}`,
+          readiness,
+        );
+      }
+    }
+  }
+  return Object.freeze([...latestByRoleAndIdentity.values()]);
+}
+
+export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
+  privateTableRuntimeReadinessFunctionsForSelections(
+    PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS,
+  ),
 );
 
 const stopped = () => new Error(
