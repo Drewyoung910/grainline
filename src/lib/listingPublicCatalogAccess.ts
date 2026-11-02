@@ -28,6 +28,7 @@ export type ListingPublicCatalogFilter = Readonly<{
   cityMetroId?: string;
   sellerId?: string;
   sort?: ListingPublicCatalogSort;
+  includeCategoryCounts?: boolean;
 }>;
 
 export type ListingPublicCatalogPhoto = Readonly<{
@@ -48,14 +49,21 @@ export type ListingPublicCatalogItem = Readonly<{
   photos: ReadonlyArray<ListingPublicCatalogPhoto>;
 }>;
 
+export type ListingPublicCatalogCategoryCount = Readonly<{
+  category: Category;
+  count: number;
+}>;
+
 export type ListingPublicCatalogPage = Readonly<{
   total: number;
   listings: ReadonlyArray<ListingPublicCatalogItem>;
+  categoryCounts: ReadonlyArray<ListingPublicCatalogCategoryCount>;
 }>;
 
 type CatalogSourceRow = Readonly<{
   totalCount: unknown;
   listings: unknown;
+  categoryCounts: unknown;
 }>;
 
 const CATEGORIES = new Set<string>(Object.values(Category));
@@ -107,6 +115,7 @@ const ITEM_KEYS = new Set([
   "sellerId",
   "photos",
 ]);
+const CATEGORY_COUNT_KEYS = new Set(["category", "count"]);
 
 function parseTotal(value: unknown): number | null {
   if (typeof value === "bigint") {
@@ -175,6 +184,32 @@ function parseItem(value: unknown): ListingPublicCatalogItem | null {
   });
 }
 
+function parseCategoryCounts(
+  value: unknown,
+): ReadonlyArray<ListingPublicCatalogCategoryCount> | null {
+  if (!Array.isArray(value) || value.length > CATEGORIES.size) return null;
+  const categories = new Set<string>();
+  const counts: ListingPublicCatalogCategoryCount[] = [];
+  for (const candidate of value) {
+    const count = recordValue(candidate);
+    if (
+      !count
+      || !hasOnlyKeys(count, CATEGORY_COUNT_KEYS)
+      || typeof count.category !== "string"
+      || !CATEGORIES.has(count.category)
+      || categories.has(count.category)
+      || !validSafeInteger(count.count)
+      || count.count < 1
+    ) return null;
+    categories.add(count.category);
+    counts.push(Object.freeze({
+      category: count.category as Category,
+      count: count.count,
+    }));
+  }
+  return Object.freeze(counts);
+}
+
 function normalizedFilter(filter: ListingPublicCatalogFilter) {
   if (
     filter.tag !== undefined
@@ -193,6 +228,12 @@ function normalizedFilter(filter: ListingPublicCatalogFilter) {
   }
   if (filter.sort !== undefined && !SORTS.has(filter.sort)) {
     throw new RangeError("Public catalog sort is outside the supported range");
+  }
+  if (
+    filter.includeCategoryCounts !== undefined
+    && typeof filter.includeCategoryCounts !== "boolean"
+  ) {
+    throw new RangeError("Public catalog category-count request is invalid");
   }
   return Object.freeze(Object.fromEntries(
     Object.entries(filter).filter(([, value]) => value !== undefined),
@@ -223,7 +264,12 @@ async function readCatalogPage(
     throw new Error("Public catalog authority returned an invalid result count");
   }
   const total = parseTotal(rows[0]?.totalCount);
-  if (total === null || !Array.isArray(rows[0]?.listings)) {
+  const categoryCounts = parseCategoryCounts(rows[0]?.categoryCounts);
+  if (
+    total === null
+    || !Array.isArray(rows[0]?.listings)
+    || !categoryCounts
+  ) {
     throw new Error("Public catalog authority returned an invalid result");
   }
   const listings = rows[0].listings.map(parseItem);
@@ -233,6 +279,7 @@ async function readCatalogPage(
   return Object.freeze({
     total,
     listings: Object.freeze(listings as ListingPublicCatalogItem[]),
+    categoryCounts,
   });
 }
 

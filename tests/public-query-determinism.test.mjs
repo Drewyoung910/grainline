@@ -128,13 +128,15 @@ describe("public query determinism", () => {
     assert.match(listingPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
 
     assert.match(tagPage, /\{ tag, sort: "quality" \}/);
-    assert.match(metroPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(metroPage, /orderBy: \[\{ _count: \{ category: "desc" \} \}, \{ category: "asc" \}\]/);
+    assert.match(metroPage, /sort: "newest" as const/);
+    assert.match(metroPage, /includeCategoryCounts: true/);
+    assert.match(metroPage, /listingPublicCatalogPage\(meDbId, catalogFilter, 0, 24\)/);
+    assert.match(metroPage, /categoryCounts/);
+    assert.doesNotMatch(metroPage, /prisma\.listing\.(?:count|findMany|groupBy)/);
     assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
     assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
     assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
     assert.match(metroPage, /const blockedSellerListingWhere: Prisma\.ListingWhereInput/);
-    assert.match(metroPage, /const listingWhere = publicListingWhere\(\{[\s\S]*\.\.\.blockedSellerListingWhere/);
     assert.match(metroPage, /sellerPublicMetroCount\(meDbId, metro\.id, isMajorMetro, false\)/);
     assert.match(metroPage, /listings: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroPage, /listingCityMetros: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
@@ -143,14 +145,20 @@ describe("public query determinism", () => {
     assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["metroId", "category"\]/);
     assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["cityMetroId", "category"\]/);
     assert.doesNotMatch(metroCategoryPage, /for \(const metro of metros\)[\s\S]*await prisma\.listing\.groupBy/);
-    for (const metroText of [metroPage, metroCategoryPage]) {
-      assert.ok(
-        metroText.indexOf("const [listings") < metroText.indexOf("ownerFavoriteListingIds(meDbId, listingIds)"),
-        "metro favorites should be scoped after the capped page listings are known",
-      );
-      assert.match(metroText, /const listingIds = listings\.map\(\(listing\) => listing\.id\)/);
-      assert.match(metroText, /ownerFavoriteListingIds\(meDbId, listingIds\)/);
-    }
+    assert.ok(
+      metroPage.indexOf("const listings = listingRows.flatMap")
+        < metroPage.indexOf("ownerFavoriteListingIds(meDbId, listingIds)"),
+      "metro favorites should be scoped after the capped page listings are known",
+    );
+    assert.match(metroPage, /const listingIds = listings\.map\(\(listing\) => listing\.id\)/);
+    assert.match(metroPage, /ownerFavoriteListingIds\(meDbId, listingIds\)/);
+    assert.ok(
+      metroCategoryPage.indexOf("const [listings")
+        < metroCategoryPage.indexOf("ownerFavoriteListingIds(meDbId, listingIds)"),
+      "metro-category favorites should be scoped after the capped page listings are known",
+    );
+    assert.match(metroCategoryPage, /const listingIds = listings\.map\(\(listing\) => listing\.id\)/);
+    assert.match(metroCategoryPage, /ownerFavoriteListingIds\(meDbId, listingIds\)/);
     assert.match(blogDetail, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(makersMetro, /sellerPublicMetroStaticSlugs\(\)/);
     assert.match(makersMetro, /sellerPublicMetroMakers\(meDbId, metro\.id, isMajorMetro, 24\)/);
