@@ -3,9 +3,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
-import { Category, ListingType, Prisma } from "@prisma/client";
+import { Category, ListingType } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import FavoriteButton from "@/components/FavoriteButton";
 import FilterSidebar from "@/components/FilterSidebar";
 import MobileFilterBar from "@/components/MobileFilterBar";
@@ -26,11 +25,16 @@ import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/qu
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
 import {
-  sellerPublicBrowseNearbySellerIds,
   sellerPublicListingCards,
   type SellerPublicListingCard,
 } from "@/lib/sellerProfilePublicAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import {
+  listingPublicCatalogPage,
+  type ListingPublicCatalogFilter,
+  type ListingPublicCatalogItem,
+  type ListingPublicCatalogSort,
+} from "@/lib/listingPublicCatalogAccess";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -69,35 +73,7 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
-async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[], take: number, skip: number) {
-  return prisma.listing.findMany({
-    where,
-    orderBy,
-    take,
-    skip,
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      priceCents: true,
-      currency: true,
-      status: true,
-      listingType: true,
-      stockQuantity: true,
-      shipsWithinDays: true,
-      processingTimeMinDays: true,
-      processingTimeMaxDays: true,
-      createdAt: true,
-      sellerId: true,
-      tags: true,
-      qualityScore: true,
-      favoriteCount: true,
-      photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-    },
-  });
-}
-
-type ListingRow = Awaited<ReturnType<typeof fetchListings>>[number];
+type ListingRow = ListingPublicCatalogItem;
 type ListingWithIncludes = ListingRow & { seller: SellerPublicListingCard };
 
 async function hydrateSellerCards(viewerUserId: string | null, rows: ListingRow[]) {
@@ -108,54 +84,6 @@ async function hydrateSellerCards(viewerUserId: string | null, rows: ListingRow[
     if (!seller || seller.sellerProfileId !== listing.sellerId) return [];
     return [{ ...listing, seller }];
   });
-}
-
-function scoreListings(listings: ListingRow[], query?: string) {
-  const qLower = (query ?? "").toLowerCase().trim();
-  const searchTerms = qLower.split(/\s+/).filter(Boolean).slice(0, 6);
-
-  return listings
-    .map((l) => {
-      // Primary factor: pre-computed qualityScore (40% weight when searching)
-      const qualityBase = l.qualityScore ?? 0;
-
-      if (!qLower || searchTerms.length === 0) {
-        return { listing: l, score: qualityBase };
-      }
-
-      // Text relevance: score per search term, then normalize (60% weight)
-      const titleLower = (l.title ?? "").toLowerCase();
-      const descLower = (l.description ?? "").toLowerCase();
-      const tagsLower = (l.tags ?? []).map((t) => t.toLowerCase());
-      let textScore = 0;
-
-      // Bonus for exact full-phrase match in title
-      if (titleLower === qLower) textScore += 0.5;
-      else if (titleLower.includes(qLower)) textScore += 0.25;
-
-      // Per-word scoring
-      for (const term of searchTerms) {
-        // Title matches (highest weight)
-        if (titleLower.includes(term)) textScore += 0.2;
-        // Tag matches (medium weight)
-        if (tagsLower.includes(term)) textScore += 0.25;
-        else if (tagsLower.some((t) => t.includes(term))) textScore += 0.1;
-        // Description matches (low weight)
-        if (descLower.includes(term)) textScore += 0.05;
-      }
-
-      // Normalize by term count so 3-word queries don't auto-score 3x
-      const normalizedText = textScore / Math.max(1, searchTerms.length);
-
-      // Blend: 60% text relevance, 40% quality
-      const score = normalizedText * 0.6 + qualityBase * 0.4;
-      return { listing: l, score };
-    })
-    .sort((a, b) =>
-      (b.score - a.score) ||
-      (b.listing.createdAt.getTime() - a.listing.createdAt.getTime()) ||
-      b.listing.id.localeCompare(a.listing.id)
-    );
 }
 
 export async function generateMetadata({
@@ -233,21 +161,30 @@ async function BrowseContent({
 }) {
   const sp = await searchParams;
 
-  // Resolve user early for block filtering
+  // Resolve the optional viewer for block-aware catalog and seller authorities.
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
     const me = await userIdByClerkId(prisma, userId);
     meDbId = me?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-
-  const q = truncateText(sp.q ?? "", 200);
+  const q = truncateText(sp.q ?? "", 200).trim();
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
   const min = sp.min ?? "";
   const max = sp.max ?? "";
   const sortRaw = sp.sort ?? "";
-  const sort = sortRaw || (q ? "relevant" : "newest");
+  const supportedSorts = new Set<ListingPublicCatalogSort>([
+    "newest",
+    "relevant",
+    "popular",
+    "price_asc",
+    "price_desc",
+  ]);
+  const defaultSort: ListingPublicCatalogSort = q ? "relevant" : "newest";
+  const sort = supportedSorts.has(sortRaw as ListingPublicCatalogSort)
+    && (sortRaw !== "relevant" || Boolean(q))
+    ? sortRaw as ListingPublicCatalogSort
+    : defaultSort;
   const view = sp.view === "list" ? "list" : "grid";
 
   const rawTag = sp.tag;
@@ -274,25 +211,14 @@ async function BrowseContent({
   const hasLocationFilter = latFilter !== null && lngFilter !== null && radiusFilter !== null;
   const popularTags = await getPopularListingTags(q ? 200 : 12);
 
-  // Price filter
-  const priceFilter: { gte?: number; lte?: number } = {};
   const minCents = parseMoneyInputToCents(min);
   const maxCents = parseMoneyInputToCents(max);
-  if (minCents !== null && minCents >= 0) priceFilter.gte = Math.min(minCents, 50_000_000);
-  if (maxCents !== null && maxCents >= 0) priceFilter.lte = Math.min(maxCents, 50_000_000);
-
-  // Pre-pass: collect seller ID constraints from location filters. Rating is
-  // applied via SellerRatingSummary so browse does not aggregate every review.
-  const sellerIdFilters: string[][] = [];
-
-  if (hasLocationFilter) {
-    sellerIdFilters.push([...await sellerPublicBrowseNearbySellerIds(
-      meDbId,
-      latFilter!,
-      lngFilter!,
-      radiusFilter!,
-    )]);
-  }
+  const boundedMinCents = minCents !== null && minCents >= 0
+    ? Math.min(minCents, 50_000_000)
+    : undefined;
+  const boundedMaxCents = maxCents !== null && maxCents >= 0
+    ? Math.min(maxCents, 50_000_000)
+    : undefined;
 
   // Partial tag matches use cached popular tags instead of per-request unnest.
   let partialTagMatches: string[] = [];
@@ -306,111 +232,49 @@ async function BrowseContent({
     }
   }
 
-  // Build WHERE
-  const where: Prisma.ListingWhereInput = publicListingWhere(
-    blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
+  const catalogFilter: ListingPublicCatalogFilter = {
+    ...(q ? {
+      query: q,
+      ...(normalizedDisplayNameQuery
+        ? { normalizedSellerQuery: normalizedDisplayNameQuery }
+        : {}),
+      ...(partialTagMatches.length > 0 ? { partialTagMatches } : {}),
+    } : {}),
+    ...(selectedTags.length > 0 ? { selectedTags } : {}),
+    ...(boundedMinCents !== undefined ? { minPriceCents: boundedMinCents } : {}),
+    ...(boundedMaxCents !== undefined ? { maxPriceCents: boundedMaxCents } : {}),
+    ...(categoryFilter ? { category: categoryFilter } : {}),
+    ...(typeFilter || shipsFilter
+      ? { listingType: typeFilter ?? ListingType.IN_STOCK }
+      : {}),
+    ...(shipsFilter ? { shipsWithinDays: shipsFilter } : {}),
+    ...(ratingFilter !== null ? { minimumSellerRating: ratingFilter } : {}),
+    ...(hasLocationFilter ? {
+      locationLat: latFilter!,
+      locationLng: lngFilter!,
+      locationRadiusMiles: radiusFilter!,
+    } : {}),
+    sort,
+  };
+
+  let catalogPage = await listingPublicCatalogPage(
+    meDbId,
+    catalogFilter,
+    (pageNum - 1) * PAGE_SIZE,
+    PAGE_SIZE,
   );
-
-  if (q) {
-    // Split query into individual words for broad matching.
-    // "walnut dining table" matches listings with ANY of those words
-    // in title, tags, description, or seller name — not just exact phrase.
-    const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
-    const wordConditions: Prisma.ListingWhereInput[] = searchWords.flatMap((word) => [
-      { title: { contains: word, mode: "insensitive" as const } },
-      { description: { contains: word, mode: "insensitive" as const } },
-    ]);
-    // Tag matching: check each word against tags individually
-    const tagWordConditions: Prisma.ListingWhereInput[] = searchWords.map((word) => ({
-      tags: { has: word.toLowerCase() },
-    }));
-    const sellerNameCondition: Prisma.ListingWhereInput = {
-      OR: normalizedDisplayNameQuery
-        ? [
-            { sellerDisplayName: { contains: q, mode: "insensitive" as const } },
-            {
-              sellerDisplayNameNormalized: {
-                contains: normalizedDisplayNameQuery,
-                mode: "insensitive" as const,
-              },
-            },
-          ]
-        : [{ sellerDisplayName: { contains: q, mode: "insensitive" as const } }],
-    };
-
-    where.OR = [
-      // Full phrase match (highest relevance, scored in JS)
-      { title: { contains: q, mode: "insensitive" as const } },
-      // Individual word matches in title and description
-      ...wordConditions,
-      // Individual word matches in tags
-      ...tagWordConditions,
-      // Partial tag matches (existing logic)
-      ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
-      // Seller name match
-      sellerNameCondition,
-    ];
-  }
-  if (Object.keys(priceFilter).length > 0) where.priceCents = priceFilter;
-  if (selectedTags.length > 0) where.tags = { hasSome: selectedTags };
-  if (categoryFilter) where.category = categoryFilter;
-  if (typeFilter) where.listingType = typeFilter;
-  if (shipsFilter && Number.isFinite(shipsFilter)) {
-    // Only set IN_STOCK listingType when no explicit type filter is set
-    if (!typeFilter) {
-      where.listingType = ListingType.IN_STOCK;
-    }
-    where.shipsWithinDays = { lte: shipsFilter };
-  }
-  if (ratingFilter && Number.isFinite(ratingFilter)) {
-    where.sellerAverageRating = { gte: ratingFilter };
-    where.sellerReviewCount = { gt: 0 };
-  }
-
-  // Apply intersected seller ID constraints (preserve block notIn if set)
-  const blockNotIn = blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {};
-  if (sellerIdFilters.length === 1) {
-    where.sellerId = { in: sellerIdFilters[0], ...blockNotIn };
-  } else if (sellerIdFilters.length > 1) {
-    const bSet = new Set(sellerIdFilters[1]);
-    where.sellerId = { in: sellerIdFilters[0].filter((id) => bSet.has(id)), ...blockNotIn };
-  }
-
-  // ORDER BY
-  const orderBy: Prisma.ListingOrderByWithRelationInput[] =
-    sort === "price_asc" ? [{ priceCents: "asc" }, { createdAt: "desc" }, { id: "desc" }]
-    : sort === "price_desc" ? [{ priceCents: "desc" }, { createdAt: "desc" }, { id: "desc" }]
-    : sort === "popular" ? [{ favoriteCount: "desc" }, { createdAt: "desc" }, { id: "desc" }]
-    : sort === "relevant" ? [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }]
-    : [{ createdAt: "desc" }, { id: "desc" }];
-
-  // Fetch listings
-  let listings: ListingWithIncludes[];
-  let total: number;
-
-  if (sort === "relevant" && q) {
-    // Search relevance: fetch up to 200, re-score with text-match bonus, paginate
-    const all = await fetchListings(where, [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }], 200, 0);
-    const scored = scoreListings(all, q);
-    total = scored.length;
-    const relevantTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    const relevantPage = Math.min(Math.max(pageNum, 1), relevantTotalPages);
-    const listingRows = scored
-      .slice((relevantPage - 1) * PAGE_SIZE, relevantPage * PAGE_SIZE)
-      .map((s) => s.listing);
-    listings = await hydrateSellerCards(meDbId, listingRows);
-  } else {
-    total = await prisma.listing.count({ where });
-    const standardTotalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    const standardPage = Math.min(Math.max(pageNum, 1), standardTotalPages);
-    const listingRows = await fetchListings(
-      where,
-      orderBy,
+  const total = catalogPage.total;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const clampedPage = Math.min(Math.max(pageNum, 1), totalPages);
+  if (total > 0 && clampedPage !== pageNum) {
+    catalogPage = await listingPublicCatalogPage(
+      meDbId,
+      catalogFilter,
+      (clampedPage - 1) * PAGE_SIZE,
       PAGE_SIZE,
-      (standardPage - 1) * PAGE_SIZE,
     );
-    listings = await hydrateSellerCards(meDbId, listingRows);
   }
+  const listings = await hydrateSellerCards(meDbId, [...catalogPage.listings]);
 
   const visiblePopularTags = popularTags.slice(0, 12);
 
@@ -423,10 +287,6 @@ async function BrowseContent({
   // Seller ratings for display
   const sellerIds = Array.from(new Set(listings.map((l) => l.sellerId)));
   let sellerRatings = await getSellerRatingMap(sellerIds);
-
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const clampedPage = Math.min(Math.max(pageNum, 1), totalPages);
 
   // URL helpers
   function makePageHref(n: number) {
@@ -470,15 +330,13 @@ async function BrowseContent({
 
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
-    const featuredRows = await fetchListings(
-      publicListingWhere(
-        blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
-      ),
-      [{ favoriteCount: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-      4,
+    const featuredPage = await listingPublicCatalogPage(
+      meDbId,
+      { sort: "popular" },
       0,
+      4,
     );
-    const featured = await hydrateSellerCards(meDbId, featuredRows);
+    const featured = await hydrateSellerCards(meDbId, [...featuredPage.listings]);
     const [featuredFavorites, featuredRatings] = await Promise.all([
       meDbId && featured.length > 0
         ? ownerFavoriteListingIds(meDbId, featured.map((listing) => listing.id))

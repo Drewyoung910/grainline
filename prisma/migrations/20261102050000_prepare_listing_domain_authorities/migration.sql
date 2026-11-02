@@ -2648,6 +2648,21 @@ DECLARE
   metro_filter text;
   city_metro_filter text;
   seller_filter text;
+  query_filter text;
+  query_pattern text;
+  normalized_seller_filter text;
+  normalized_seller_pattern text;
+  search_terms text[] := '{}'::text[];
+  partial_tag_matches text[] := '{}'::text[];
+  selected_tags text[] := '{}'::text[];
+  min_price_cents integer;
+  max_price_cents integer;
+  listing_type_filter text;
+  ships_within_days_filter integer;
+  minimum_seller_rating double precision;
+  location_lat double precision;
+  location_lng double precision;
+  location_radius_miles double precision;
   sort_filter text := 'newest';
   include_category_counts boolean := false;
   bounded_offset integer;
@@ -2658,8 +2673,11 @@ BEGIN
        SELECT 1
          FROM pg_catalog.jsonb_object_keys(source_filter) AS filter_key(value)
         WHERE filter_key.value NOT IN (
-          'tag', 'category', 'metroId', 'cityMetroId', 'sellerId', 'sort',
-          'includeCategoryCounts'
+          'tag', 'category', 'metroId', 'cityMetroId', 'sellerId', 'query',
+          'normalizedSellerQuery', 'partialTagMatches', 'selectedTags',
+          'minPriceCents', 'maxPriceCents', 'listingType', 'shipsWithinDays',
+          'minimumSellerRating', 'locationLat', 'locationLng',
+          'locationRadiusMiles', 'sort', 'includeCategoryCounts'
         )
      ) THEN
     RAISE EXCEPTION 'Public catalog filter is invalid'
@@ -2682,6 +2700,30 @@ BEGIN
       AND pg_catalog.jsonb_typeof(source_filter -> 'cityMetroId') <> 'string')
      OR (source_filter ? 'sellerId'
       AND pg_catalog.jsonb_typeof(source_filter -> 'sellerId') <> 'string')
+     OR (source_filter ? 'query'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'query') <> 'string')
+     OR (source_filter ? 'normalizedSellerQuery'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'normalizedSellerQuery') <> 'string')
+     OR (source_filter ? 'partialTagMatches'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'partialTagMatches') <> 'array')
+     OR (source_filter ? 'selectedTags'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'selectedTags') <> 'array')
+     OR (source_filter ? 'minPriceCents'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'minPriceCents') <> 'number')
+     OR (source_filter ? 'maxPriceCents'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'maxPriceCents') <> 'number')
+     OR (source_filter ? 'listingType'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'listingType') <> 'string')
+     OR (source_filter ? 'shipsWithinDays'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'shipsWithinDays') <> 'number')
+     OR (source_filter ? 'minimumSellerRating'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'minimumSellerRating') <> 'number')
+     OR (source_filter ? 'locationLat'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'locationLat') <> 'number')
+     OR (source_filter ? 'locationLng'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'locationLng') <> 'number')
+     OR (source_filter ? 'locationRadiusMiles'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'locationRadiusMiles') <> 'number')
      OR (source_filter ? 'sort'
       AND pg_catalog.jsonb_typeof(source_filter -> 'sort') <> 'string')
      OR (source_filter ? 'includeCategoryCounts'
@@ -2697,11 +2739,92 @@ BEGIN
   metro_filter := NULLIF(source_filter ->> 'metroId', '');
   city_metro_filter := NULLIF(source_filter ->> 'cityMetroId', '');
   seller_filter := NULLIF(source_filter ->> 'sellerId', '');
+  query_filter := NULLIF(pg_catalog.btrim(source_filter ->> 'query'), '');
+  normalized_seller_filter := NULLIF(
+    pg_catalog.btrim(source_filter ->> 'normalizedSellerQuery'),
+    ''
+  );
+  IF source_filter ? 'partialTagMatches' THEN
+    SELECT COALESCE(pg_catalog.array_agg(tag.value ORDER BY tag.ordinality), '{}'::text[])
+      INTO partial_tag_matches
+      FROM pg_catalog.jsonb_array_elements_text(
+             source_filter -> 'partialTagMatches'
+           ) WITH ORDINALITY AS tag(value, ordinality);
+  END IF;
+  IF source_filter ? 'selectedTags' THEN
+    SELECT COALESCE(pg_catalog.array_agg(tag.value ORDER BY tag.ordinality), '{}'::text[])
+      INTO selected_tags
+      FROM pg_catalog.jsonb_array_elements_text(
+             source_filter -> 'selectedTags'
+           ) WITH ORDINALITY AS tag(value, ordinality);
+  END IF;
+  min_price_cents := NULLIF(source_filter ->> 'minPriceCents', '')::integer;
+  max_price_cents := NULLIF(source_filter ->> 'maxPriceCents', '')::integer;
+  listing_type_filter := NULLIF(source_filter ->> 'listingType', '');
+  ships_within_days_filter := NULLIF(
+    source_filter ->> 'shipsWithinDays',
+    ''
+  )::integer;
+  minimum_seller_rating := NULLIF(
+    source_filter ->> 'minimumSellerRating',
+    ''
+  )::double precision;
+  location_lat := NULLIF(source_filter ->> 'locationLat', '')::double precision;
+  location_lng := NULLIF(source_filter ->> 'locationLng', '')::double precision;
+  location_radius_miles := NULLIF(
+    source_filter ->> 'locationRadiusMiles',
+    ''
+  )::double precision;
   sort_filter := COALESCE(NULLIF(source_filter ->> 'sort', ''), 'newest');
   include_category_counts := COALESCE(
     (source_filter ->> 'includeCategoryCounts')::boolean,
     false
   );
+
+  IF query_filter IS NOT NULL THEN
+    query_pattern := '%'
+      || pg_catalog.replace(
+           pg_catalog.replace(
+             pg_catalog.replace(query_filter, E'\\', E'\\\\'),
+             '%',
+             E'\\%'
+           ),
+           '_',
+           E'\\_'
+         )
+      || '%';
+    SELECT COALESCE(
+             pg_catalog.array_agg(term.value ORDER BY term.ordinality),
+             '{}'::text[]
+           )
+      INTO search_terms
+      FROM (
+        SELECT pg_catalog.lower(source_term.value) AS value,
+               source_term.ordinality
+          FROM pg_catalog.unnest(
+                 pg_catalog.regexp_split_to_array(
+                   pg_catalog.btrim(query_filter),
+                   '[[:space:]]+'
+                 )
+               ) WITH ORDINALITY AS source_term(value, ordinality)
+         WHERE source_term.value <> ''
+         ORDER BY source_term.ordinality
+         LIMIT 6
+      ) AS term;
+  END IF;
+  IF normalized_seller_filter IS NOT NULL THEN
+    normalized_seller_pattern := '%'
+      || pg_catalog.replace(
+           pg_catalog.replace(
+             pg_catalog.replace(normalized_seller_filter, E'\\', E'\\\\'),
+             '%',
+             E'\\%'
+           ),
+           '_',
+           E'\\_'
+         )
+      || '%';
+  END IF;
 
   IF (tag_filter IS NOT NULL AND (
         pg_catalog.char_length(tag_filter) > 24
@@ -2717,10 +2840,49 @@ BEGIN
        AND city_metro_filter !~ '^[A-Za-z0-9._:-]{1,191}$')
      OR (seller_filter IS NOT NULL
        AND seller_filter !~ '^[A-Za-z0-9._:-]{1,191}$')
+     OR (query_filter IS NOT NULL
+       AND pg_catalog.char_length(query_filter) > 200)
+     OR (normalized_seller_filter IS NOT NULL
+       AND pg_catalog.char_length(normalized_seller_filter) > 100)
+     OR pg_catalog.cardinality(partial_tag_matches) > 20
+     OR pg_catalog.cardinality(selected_tags) > 10
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(
+                partial_tag_matches || selected_tags
+              ) AS catalog_tag(value)
+        WHERE pg_catalog.char_length(catalog_tag.value) NOT BETWEEN 1 AND 24
+           OR catalog_tag.value !~ '^[[:alnum:]-]+$'
+     )
+     OR min_price_cents < 0
+     OR min_price_cents > 50000000
+     OR max_price_cents < 0
+     OR max_price_cents > 50000000
+     OR (min_price_cents IS NOT NULL AND max_price_cents IS NOT NULL
+       AND min_price_cents > max_price_cents)
+     OR (listing_type_filter IS NOT NULL AND listing_type_filter NOT IN (
+       'IN_STOCK', 'MADE_TO_ORDER'
+     ))
+     OR ships_within_days_filter < 1
+     OR ships_within_days_filter > 365
+     OR minimum_seller_rating < 1
+     OR minimum_seller_rating > 5
+     OR pg_catalog.num_nonnulls(
+          location_lat,
+          location_lng,
+          location_radius_miles
+        ) NOT IN (0, 3)
+     OR location_lat < -90
+     OR location_lat > 90
+     OR location_lng < -180
+     OR location_lng > 180
+     OR location_radius_miles < 1
+     OR location_radius_miles > 500
      OR (metro_filter IS NOT NULL AND city_metro_filter IS NOT NULL)
      OR sort_filter NOT IN (
-       'newest', 'quality', 'popular', 'price_asc', 'price_desc'
-     ) THEN
+       'newest', 'quality', 'relevant', 'popular', 'price_asc', 'price_desc'
+     )
+     OR (sort_filter = 'relevant' AND query_filter IS NULL) THEN
     RAISE EXCEPTION 'Public catalog filter is outside the supported range'
       USING ERRCODE = '22023';
   END IF;
@@ -2737,12 +2899,17 @@ BEGIN
   WITH eligible AS MATERIALIZED (
     SELECT listing.id,
            listing.title,
+           listing.description,
            listing."priceCents",
            listing.currency,
            listing.status,
            listing."listingType",
            listing."stockQuantity",
+           listing."shipsWithinDays",
+           listing."processingTimeMinDays",
+           listing."processingTimeMaxDays",
            listing.category,
+           listing.tags,
            listing."createdAt",
            listing."sellerId",
            listing."qualityScore",
@@ -2759,6 +2926,87 @@ BEGIN
        AND (metro_filter IS NULL OR listing."metroId" = metro_filter)
        AND (city_metro_filter IS NULL OR listing."cityMetroId" = city_metro_filter)
        AND (seller_filter IS NULL OR listing."sellerId" = seller_filter)
+       AND (min_price_cents IS NULL OR listing."priceCents" >= min_price_cents)
+       AND (max_price_cents IS NULL OR listing."priceCents" <= max_price_cents)
+       AND (
+         pg_catalog.cardinality(selected_tags) = 0
+         OR listing.tags && selected_tags
+       )
+       AND (
+         listing_type_filter IS NULL
+         OR listing."listingType"::text = listing_type_filter
+       )
+       AND (
+         ships_within_days_filter IS NULL
+         OR (
+           listing."listingType" = 'IN_STOCK'::public."ListingType"
+           AND listing."shipsWithinDays" <= ships_within_days_filter
+         )
+       )
+       AND (
+         minimum_seller_rating IS NULL
+         OR (
+           listing."sellerAverageRating" >= minimum_seller_rating
+           AND listing."sellerReviewCount" > 0
+         )
+       )
+       AND (
+         location_lat IS NULL
+         OR EXISTS (
+           SELECT 1
+             FROM public.grainline_seller_public_browse_nearby(
+                    location_lat,
+                    location_lng,
+                    location_radius_miles
+                  ) AS nearby
+            WHERE nearby."sellerProfileId" = listing."sellerId"
+         )
+       )
+       AND (
+         query_filter IS NULL
+         OR listing.title ILIKE query_pattern ESCAPE E'\\'
+         OR EXISTS (
+           SELECT 1
+             FROM pg_catalog.unnest(search_terms) AS search_term(value)
+            WHERE listing.title ILIKE (
+                    '%'
+                    || pg_catalog.replace(
+                         pg_catalog.replace(
+                           pg_catalog.replace(search_term.value, E'\\', E'\\\\'),
+                           '%',
+                           E'\\%'
+                         ),
+                         '_',
+                         E'\\_'
+                       )
+                    || '%'
+                  ) ESCAPE E'\\'
+               OR listing.description ILIKE (
+                    '%'
+                    || pg_catalog.replace(
+                         pg_catalog.replace(
+                           pg_catalog.replace(search_term.value, E'\\', E'\\\\'),
+                           '%',
+                           E'\\%'
+                         ),
+                         '_',
+                         E'\\_'
+                       )
+                    || '%'
+                  ) ESCAPE E'\\'
+         )
+         OR listing.tags && search_terms
+         OR (
+           pg_catalog.cardinality(partial_tag_matches) > 0
+           AND listing.tags && partial_tag_matches
+         )
+         OR listing."sellerDisplayName" ILIKE query_pattern ESCAPE E'\\'
+         OR (
+           normalized_seller_pattern IS NOT NULL
+           AND listing."sellerDisplayNameNormalized"
+             ILIKE normalized_seller_pattern ESCAPE E'\\'
+         )
+       )
        AND (
          request_user_id IS NULL
          OR NOT EXISTS (
@@ -2773,8 +3021,79 @@ BEGIN
             )
          )
        )
-  ), page_rows AS (
+  ), ranked_rows AS (
     SELECT eligible.*,
+           pg_catalog.row_number() OVER (
+             ORDER BY eligible."qualityScore" DESC,
+                      eligible."createdAt" DESC,
+                      eligible.id DESC
+           ) AS relevant_candidate_rank,
+           CASE
+             WHEN sort_filter = 'relevant' THEN (
+               (
+                 CASE
+                   WHEN pg_catalog.lower(eligible.title) = pg_catalog.lower(query_filter)
+                     THEN 0.5::double precision
+                   WHEN pg_catalog.strpos(
+                          pg_catalog.lower(eligible.title),
+                          pg_catalog.lower(query_filter)
+                        ) > 0
+                     THEN 0.25::double precision
+                   ELSE 0::double precision
+                 END
+                 + COALESCE(
+                     (
+                       SELECT pg_catalog.sum(
+                                (CASE
+                                   WHEN pg_catalog.strpos(
+                                          pg_catalog.lower(eligible.title),
+                                          search_term.value
+                                        ) > 0
+                                     THEN 0.2::double precision
+                                   ELSE 0::double precision
+                                 END)
+                                + (CASE
+                                     WHEN search_term.value = ANY(eligible.tags)
+                                       THEN 0.25::double precision
+                                     WHEN EXISTS (
+                                       SELECT 1
+                                         FROM pg_catalog.unnest(eligible.tags) AS listing_tag(value)
+                                        WHERE pg_catalog.strpos(
+                                                pg_catalog.lower(listing_tag.value),
+                                                search_term.value
+                                              ) > 0
+                                     )
+                                       THEN 0.1::double precision
+                                     ELSE 0::double precision
+                                   END)
+                                + (CASE
+                                     WHEN pg_catalog.strpos(
+                                            pg_catalog.lower(eligible.description),
+                                            search_term.value
+                                          ) > 0
+                                       THEN 0.05::double precision
+                                     ELSE 0::double precision
+                                   END)
+                              )
+                         FROM pg_catalog.unnest(search_terms) AS search_term(value)
+                     ),
+                     0::double precision
+                   )
+               ) / GREATEST(pg_catalog.cardinality(search_terms), 1)::double precision
+               * 0.6::double precision
+               + COALESCE(eligible."qualityScore", 0)::double precision
+                 * 0.4::double precision
+             )
+             ELSE 0::double precision
+           END AS relevance_score
+      FROM eligible
+  ), candidate_rows AS MATERIALIZED (
+    SELECT ranked.*
+      FROM ranked_rows AS ranked
+     WHERE sort_filter <> 'relevant'
+        OR ranked.relevant_candidate_rank <= 200
+  ), page_rows AS (
+    SELECT candidate.*,
            COALESCE(
              (
                SELECT pg_catalog.jsonb_agg(
@@ -2791,25 +3110,26 @@ BEGIN
                           source_photo."altText",
                           source_photo."sortOrder"
                      FROM public."Photo" AS source_photo
-                    WHERE source_photo."listingId" = eligible.id
+                    WHERE source_photo."listingId" = candidate.id
                     ORDER BY source_photo."sortOrder", source_photo.id
                     LIMIT 2
                  ) AS photo
              ),
              '[]'::jsonb
            ) AS photos
-      FROM eligible
+      FROM candidate_rows AS candidate
      ORDER BY
-       CASE WHEN sort_filter = 'quality' THEN eligible."qualityScore" END DESC NULLS LAST,
-       CASE WHEN sort_filter = 'popular' THEN eligible."favoriteCount" END DESC NULLS LAST,
-       CASE WHEN sort_filter = 'price_asc' THEN eligible."priceCents" END ASC NULLS LAST,
-       CASE WHEN sort_filter = 'price_desc' THEN eligible."priceCents" END DESC NULLS LAST,
-       eligible."createdAt" DESC,
-       eligible.id DESC
+       CASE WHEN sort_filter = 'relevant' THEN candidate.relevance_score END DESC NULLS LAST,
+       CASE WHEN sort_filter = 'quality' THEN candidate."qualityScore" END DESC NULLS LAST,
+       CASE WHEN sort_filter = 'popular' THEN candidate."favoriteCount" END DESC NULLS LAST,
+       CASE WHEN sort_filter = 'price_asc' THEN candidate."priceCents" END ASC NULLS LAST,
+       CASE WHEN sort_filter = 'price_desc' THEN candidate."priceCents" END DESC NULLS LAST,
+       candidate."createdAt" DESC,
+       candidate.id DESC
      OFFSET bounded_offset
      LIMIT bounded_limit
   )
-  SELECT (SELECT pg_catalog.count(*) FROM eligible),
+  SELECT (SELECT pg_catalog.count(*) FROM candidate_rows),
          COALESCE(
            (
              SELECT pg_catalog.jsonb_agg(
@@ -2821,10 +3141,14 @@ BEGIN
                         'status', page.status::text,
                         'listingType', page."listingType"::text,
                         'stockQuantity', page."stockQuantity",
+                        'shipsWithinDays', page."shipsWithinDays",
+                        'processingTimeMinDays', page."processingTimeMinDays",
+                        'processingTimeMaxDays', page."processingTimeMaxDays",
                         'sellerId', page."sellerId",
                         'photos', page.photos
                       )
                       ORDER BY
+                        CASE WHEN sort_filter = 'relevant' THEN page.relevance_score END DESC NULLS LAST,
                         CASE WHEN sort_filter = 'quality' THEN page."qualityScore" END DESC NULLS LAST,
                         CASE WHEN sort_filter = 'popular' THEN page."favoriteCount" END DESC NULLS LAST,
                         CASE WHEN sort_filter = 'price_asc' THEN page."priceCents" END ASC NULLS LAST,

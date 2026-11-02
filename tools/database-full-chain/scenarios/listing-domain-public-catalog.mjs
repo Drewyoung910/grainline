@@ -41,6 +41,18 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
   const blockId = `listing-catalog-block-${suffix}`;
   const metroId = `listing-catalog-metro-${suffix}`;
   const now = "2026-11-02 13:00:00";
+  const [originalSellerLocation] = rowsOf(await database.query(
+    `SELECT lat, lng, "radiusMeters"
+       FROM public."SellerProfile"
+      WHERE id = $1`,
+    [seller.sellerProfileId],
+  ));
+  const [originalSellerRating] = rowsOf(await database.query(
+    `SELECT "averageRating", "reviewCount", "updatedAt"
+       FROM public."SellerRatingSummary"
+      WHERE "sellerProfileId" = $1`,
+    [seller.sellerProfileId],
+  ));
 
   const privilege = rowsOf(await database.query(`
     SELECT pg_catalog.has_function_privilege(
@@ -92,24 +104,47 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     [metroId, `catalog-city-${suffix}`.slice(0, 191), now],
   );
   await database.query(
+    `UPDATE public."SellerProfile"
+        SET lat = 30.2672,
+            lng = -97.7431,
+            "radiusMeters" = 0
+      WHERE id = $1`,
+    [seller.sellerProfileId],
+  );
+  await database.query(
+    `INSERT INTO public."SellerRatingSummary"
+       ("sellerProfileId", "averageRating", "reviewCount", "updatedAt")
+     VALUES ($1, 4.8, 12, $2)
+     ON CONFLICT ("sellerProfileId") DO UPDATE
+       SET "averageRating" = EXCLUDED."averageRating",
+           "reviewCount" = EXCLUDED."reviewCount",
+           "updatedAt" = EXCLUDED."updatedAt"`,
+    [seller.sellerProfileId, now],
+  );
+  await database.query(
     `INSERT INTO public."Listing"
        (id, "sellerId", title, description, "priceCents", currency, status,
         "listingType", "stockQuantity", "isPrivate", "reservedForUserId",
-        "archivedAt", tags, materials, category, "metroId",
+        "archivedAt", tags, materials, category, "metroId", "shipsWithinDays",
+        "qualityScore",
         "sellerPubliclyOrderable", "createdAt", "updatedAt")
      VALUES
        ($1, $5, 'Catalog oak table', 'Matching catalog row', 1000, 'usd', 'ACTIVE',
         'IN_STOCK', 1, false, NULL, NULL, ARRAY['oak'], ARRAY['oak'], 'FURNITURE',
-        $6, true, $7, $7),
+        $6, 3, 0.8,
+        true, $7, $7),
        ($2, $5, 'Catalog walnut table', 'Wrong tag row', 1100, 'usd', 'ACTIVE',
         'IN_STOCK', 1, false, NULL, NULL, ARRAY['walnut'], ARRAY['walnut'], 'FURNITURE',
-        $6, true, $7, $7),
+        $6, 10, 0.9,
+        true, $7, $7),
        ($3, $5, 'Private oak table', 'Private catalog row', 1200, 'usd', 'ACTIVE',
         'IN_STOCK', 1, true, $8, NULL, ARRAY['oak'], ARRAY['oak'], 'FURNITURE',
-        $6, true, $7, $7),
+        $6, 3, 0.7,
+        true, $7, $7),
        ($4, $5, 'Sold out oak table', 'Sold-out catalog row', 1300, 'usd', 'SOLD_OUT',
         'IN_STOCK', 0, false, NULL, NULL, ARRAY['oak'], ARRAY['oak'], 'FURNITURE',
-        $6, true, $7, $7)`,
+        $6, 3, 0.7,
+        true, $7, $7)`,
     [
       listingIds.matching,
       listingIds.wrongTag,
@@ -126,6 +161,11 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
         SET "sellerPubliclyOrderable" = true
       WHERE id = ANY($1::text[])`,
     [Object.values(listingIds)],
+  );
+  await database.query(
+    `INSERT INTO public."Favorite" ("userId", "listingId", "createdAt")
+     VALUES ($1, $2, $3)`,
+    [actorId, listingIds.wrongTag, now],
   );
   await database.query(
     `INSERT INTO public."Photo"
@@ -152,6 +192,36 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     /Public catalog filter is invalid/u,
     "unknown public-catalog filters fail closed",
   );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      sourceSql,
+      [JSON.stringify({ selectedTags: "oak" }), 0, 24],
+    ),
+    /Public catalog filter value is invalid/u,
+    "malformed browse arrays fail closed",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      sourceSql,
+      [JSON.stringify({ locationLat: 30.2672 }), 0, 24],
+    ),
+    /Public catalog filter is outside the supported range/u,
+    "partial browse location fails closed",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      sourceSql,
+      [JSON.stringify({ sort: "relevant" }), 0, 24],
+    ),
+    /Public catalog filter is outside the supported range/u,
+    "relevance without a query fails closed",
+  );
   const tagPage = pageOf(await runtimeQuery(
     database,
     null,
@@ -172,7 +242,10 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
       "listingType",
       "photos",
       "priceCents",
+      "processingTimeMaxDays",
+      "processingTimeMinDays",
       "sellerId",
+      "shipsWithinDays",
       "status",
       "stockQuantity",
       "title",
@@ -234,6 +307,106 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     "category facets",
   );
 
+  const textSearchPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({ metroId, query: "oak", sort: "relevant" }), 0, 24],
+  ));
+  assert.deepEqual(
+    textSearchPage.listings.map((listing) => listing.id),
+    [listingIds.matching],
+    "browse text relevance",
+  );
+  const literalWildcardPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({ metroId, query: "%", sort: "relevant" }), 0, 24],
+  ));
+  assert.deepEqual(
+    literalWildcardPage.listings,
+    [],
+    "browse search treats wildcard characters literally",
+  );
+
+  const selectedTagPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({ metroId, selectedTags: ["walnut"], sort: "newest" }), 0, 24],
+  ));
+  assert.deepEqual(
+    selectedTagPage.listings.map((listing) => listing.id),
+    [listingIds.wrongTag],
+    "browse selected-tag filter",
+  );
+
+  const pricePage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({ metroId, minPriceCents: 1050, maxPriceCents: 1150 }), 0, 24],
+  ));
+  assert.deepEqual(
+    pricePage.listings.map((listing) => listing.id),
+    [listingIds.wrongTag],
+    "browse price filter",
+  );
+
+  const shippingPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({ metroId, listingType: "IN_STOCK", shipsWithinDays: 3 }), 0, 24],
+  ));
+  assert.deepEqual(
+    shippingPage.listings.map((listing) => listing.id),
+    [listingIds.matching],
+    "browse shipping filter",
+  );
+
+  const ratingPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({ metroId, minimumSellerRating: 4.5 }), 0, 24],
+  ));
+  assert.deepEqual(
+    ratingPage.listings.map((listing) => listing.id).sort(),
+    [listingIds.matching, listingIds.wrongTag].sort(),
+    "browse rating filter",
+  );
+
+  const locationPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({
+      locationLat: 30.2672,
+      locationLng: -97.7431,
+      locationRadiusMiles: 5,
+      metroId,
+    }), 0, 24],
+  ));
+  assert.deepEqual(
+    locationPage.listings.map((listing) => listing.id).sort(),
+    [listingIds.matching, listingIds.wrongTag].sort(),
+    "browse location filter",
+  );
+
+  const popularPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({ metroId, sort: "popular" }), 0, 4],
+  ));
+  assert.equal(
+    popularPage.listings[0]?.id,
+    listingIds.wrongTag,
+    "browse popular fallback",
+  );
+
   await database.query(
     `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
      VALUES ($1, $2, $3, $4)`,
@@ -247,4 +420,41 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
   ));
   assert.equal(Number(blockedPage.totalCount), 0, "blocked seller exclusion");
   assert.deepEqual(blockedPage.listings, []);
+
+  await database.query(
+    `UPDATE public."SellerProfile"
+        SET lat = $2,
+            lng = $3,
+            "radiusMeters" = $4
+      WHERE id = $1`,
+    [
+      seller.sellerProfileId,
+      originalSellerLocation?.lat ?? null,
+      originalSellerLocation?.lng ?? null,
+      originalSellerLocation?.radiusMeters ?? null,
+    ],
+  );
+  if (originalSellerRating) {
+    await database.query(
+      `INSERT INTO public."SellerRatingSummary"
+         ("sellerProfileId", "averageRating", "reviewCount", "updatedAt")
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT ("sellerProfileId") DO UPDATE
+         SET "averageRating" = EXCLUDED."averageRating",
+             "reviewCount" = EXCLUDED."reviewCount",
+             "updatedAt" = EXCLUDED."updatedAt"`,
+      [
+        seller.sellerProfileId,
+        originalSellerRating.averageRating,
+        originalSellerRating.reviewCount,
+        originalSellerRating.updatedAt,
+      ],
+    );
+  } else {
+    await database.query(
+      `DELETE FROM public."SellerRatingSummary"
+        WHERE "sellerProfileId" = $1`,
+      [seller.sellerProfileId],
+    );
+  }
 }

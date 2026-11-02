@@ -53,6 +53,9 @@ describe("public query determinism", () => {
     const browse = source("src/app/browse/page.tsx");
     const sellerShop = source("src/app/seller/[id]/shop/page.tsx");
     const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const listingPublicCatalogAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
     const listingPage = source("src/app/listing/[id]/page.tsx");
     const tagPage = source("src/app/tag/[slug]/page.tsx");
     const metroPage = source("src/app/browse/[metroSlug]/page.tsx");
@@ -98,15 +101,20 @@ describe("public query determinism", () => {
     assert.match(home, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(home, /featuredById = new Map\(featuredRows\.map\(\(listing\) => \[listing\.id, listing\]\)\)/);
 
-    assert.match(browse, /\[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /sort === "price_asc" \? \[\{ priceCents: "asc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /sort === "price_desc" \? \[\{ priceCents: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /sort === "popular" \? \[\{ favoriteCount: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /const featuredRows = await fetchListings\(\s*publicListingWhere\(\s*blockedSellerIds\.length > 0 \? \{ sellerId: \{ notIn: blockedSellerIds \} \} : \{\},\s*\),\s*\[\{ favoriteCount: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(browse, /const featured = await hydrateSellerCards\(meDbId, featuredRows\)/);
-    assert.match(browse, /b\.listing\.createdAt\.getTime\(\) - a\.listing\.createdAt\.getTime\(\)/);
-    assert.match(browse, /b\.listing\.id\.localeCompare\(a\.listing\.id\)/);
+    assert.match(browse, /listingPublicCatalogPage\(/);
+    assert.doesNotMatch(browse, /prisma\.listing\.(?:findMany|count)/);
+    assert.match(browse, /\{ sort: "popular" \}/);
+    assert.match(
+      listingPublicCatalogAuthority,
+      /ORDER BY eligible\."qualityScore" DESC,\s*eligible\."createdAt" DESC,\s*eligible\.id DESC/,
+    );
+    assert.match(
+      listingPublicCatalogAuthority,
+      /CASE WHEN sort_filter = 'relevant' THEN candidate\.relevance_score END DESC NULLS LAST,[\s\S]*candidate\."createdAt" DESC,\s*candidate\.id DESC/,
+    );
+    for (const sortName of ["popular", "price_asc", "price_desc"]) {
+      assert.match(listingPublicCatalogAuthority, new RegExp(`sort_filter = '${sortName}'`, "u"));
+    }
 
     for (const text of [sellerShop]) {
       assert.match(text, /sort === "price_asc" \? \[\{ priceCents: "asc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -213,13 +221,18 @@ describe("public query determinism", () => {
     assert.match(sellerPublicMapAuthority, /ORDER BY seller\.id ASC\s+LIMIT p_limit/);
   });
 
-  it("filters browse geo seller pre-pass by public seller and listing visibility", () => {
+  it("filters bounded browse geo results through public seller and listing visibility", () => {
     const browse = source("src/app/browse/page.tsx");
     const sellerPublicBrowseAuthority = source(
       "prisma/migrations/20261019030000_prepare_seller_profile_public_browse_authority/migration.sql",
     );
 
-    assert.match(browse, /sellerPublicBrowseNearbySellerIds\(/);
+    const listingPublicCatalogAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+
+    assert.match(browse, /locationLat: latFilter!/);
+    assert.match(listingPublicCatalogAuthority, /grainline_seller_public_browse_nearby\(/);
     assert.match(sellerPublicBrowseAuthority, /FROM public\."SellerProfile" AS seller/);
     assert.match(sellerPublicBrowseAuthority, /seller\."chargesEnabled" = true/);
     assert.match(sellerPublicBrowseAuthority, /seller\."stripeAccountSupported" = true/);
@@ -409,13 +422,13 @@ describe("public query determinism", () => {
     const commissionDetailApi = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
     const commissionAuthority = source(commissionPreparationMigration);
 
-    assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
-    assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
+    assert.match(browse, /const clampedPage = Math\.min\(Math\.max\(pageNum, 1\), totalPages\)/);
+    assert.match(browse, /if \(total > 0 && clampedPage !== pageNum\)/);
     assert.match(
       browse,
-      /const listingRows = await fetchListings\(\s*where,\s*orderBy,\s*PAGE_SIZE,\s*\(standardPage - 1\) \* PAGE_SIZE,?\s*\)/s,
+      /listingPublicCatalogPage\(\s*meDbId,\s*catalogFilter,\s*\(clampedPage - 1\) \* PAGE_SIZE,\s*PAGE_SIZE/,
     );
-    assert.match(browse, /listings = await hydrateSellerCards\(meDbId, listingRows\)/);
+    assert.match(browse, /hydrateSellerCards\(meDbId, \[\.\.\.catalogPage\.listings\]\)/);
 
     assert.match(sellerShop, /const clampedPage = Math\.min\(Math\.max\(page, 1\), totalPages\)/);
     assert.match(sellerShop, /skip: \(clampedPage - 1\) \* PAGE_SIZE/);
@@ -467,7 +480,7 @@ describe("public query determinism", () => {
 
     assert.match(browse, /import \{ normalizeTags \} from "@\/lib\/tags"/);
     assert.match(browse, /const selectedTags = normalizeTags\(\s*rawTag == null \? \[\] : Array\.isArray\(rawTag\) \? rawTag : \[rawTag\],\s*10,\s*\)/);
-    assert.match(browse, /where\.tags = \{ hasSome: selectedTags \}/);
+    assert.match(browse, /\.\.\.\(selectedTags\.length > 0 \? \{ selectedTags \} : \{\}\)/);
     assert.doesNotMatch(browse, /selectedTags\.map\(\(t\) => t\.toLowerCase\(\)\)/);
 
     for (const component of [filterSidebar, mobileFilterBar]) {
