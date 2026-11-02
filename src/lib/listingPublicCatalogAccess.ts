@@ -28,6 +28,8 @@ export type ListingPublicCatalogFilter = Readonly<{
   metroId?: string;
   cityMetroId?: string;
   sellerId?: string;
+  listingIds?: ReadonlyArray<string>;
+  excludeListingId?: string;
   query?: string;
   normalizedSellerQuery?: string;
   partialTagMatches?: ReadonlyArray<string>;
@@ -326,6 +328,20 @@ function normalizedFilter(filter: ListingPublicCatalogFilter) {
       throw new RangeError("Public catalog id is outside the supported range");
     }
   }
+  if (
+    filter.listingIds !== undefined
+    && (
+      !Array.isArray(filter.listingIds)
+      || filter.listingIds.length < 1
+      || filter.listingIds.length > 20
+      || new Set(filter.listingIds).size !== filter.listingIds.length
+      || filter.listingIds.some((value) => !validId(value))
+    )
+  ) throw new RangeError("Public catalog listing ids are outside the supported range");
+  if (
+    filter.excludeListingId !== undefined
+    && !validId(filter.excludeListingId)
+  ) throw new RangeError("Public catalog excluded listing id is outside the supported range");
   if (filter.metroId !== undefined && filter.cityMetroId !== undefined) {
     throw new RangeError("Public catalog location is ambiguous");
   }
