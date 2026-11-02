@@ -55,7 +55,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.doesNotMatch(mediaCollection, /Promise\.all\s*\(/);
     assert.match(
       sellerFanout,
-      /await accountDeletionSellerBroadcastIds\(tx, sellerProfileId\)[\s\S]*await redactDeletedSellerEmailOutbox\(tx, sellerProfileId\)/,
+      /await accountDeletionSellerBroadcastIds\(tx, claim\)[\s\S]*await redactDeletedSellerEmailOutbox\(tx, sellerProfileId\)/,
     );
     assert.doesNotMatch(
       sellerFanout,

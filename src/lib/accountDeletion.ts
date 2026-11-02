@@ -345,8 +345,14 @@ async function collectAdminAuditLogRedactionUpdates({
 async function cleanupDeletedSellerFanoutRows(
   tx: DbUserContextTransactionClient,
   sellerProfileId: string,
+  claim: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ) {
-  await accountDeletionSellerBroadcastIds(tx, sellerProfileId);
+  await accountDeletionSellerBroadcastIds(tx, claim);
   await redactDeletedSellerEmailOutbox(tx, sellerProfileId);
 }
 
@@ -1170,7 +1176,12 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id);
+      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      });
       await tx.review.updateMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
         data: { sellerReply: null, sellerReplyAt: null },
@@ -1205,7 +1216,12 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await cleanupAccountSellerBroadcasts(tx, user.sellerProfile.id);
+      await cleanupAccountSellerBroadcasts(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      });
       await cleanupSellerFaqsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,
         expectedUserId: user.id,

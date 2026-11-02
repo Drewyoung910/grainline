@@ -332,6 +332,14 @@ test("SellerBroadcast preparation is byte-sealed and remains compatible", () => 
     sql,
     /grainline_seller_broadcast_account_deletion_ids[\s\S]*FOR UPDATE OF broadcast/u,
   );
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_ids\(\s*p_side_effect_id text,\s*p_expected_user_id text,\s*p_claim_generation bigint,\s*p_claim_token uuid\s*\)[\s\S]*grainline_account_deletion_claim_user\(\s*p_side_effect_id,\s*p_claim_generation,\s*p_claim_token\s*\)/u,
+  );
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_cleanup\(\s*p_side_effect_id text,\s*p_expected_user_id text,\s*p_claim_generation bigint,\s*p_claim_token uuid\s*\)[\s\S]*grainline_account_deletion_claim_user\(\s*p_side_effect_id,\s*p_claim_generation,\s*p_claim_token\s*\)/u,
+  );
   assert.match(sql, /SESSION_USER <> 'grainline_staff_read_runtime'/u);
   assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
   assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
