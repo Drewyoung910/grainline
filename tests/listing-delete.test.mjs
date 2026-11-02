@@ -95,7 +95,15 @@ describe("listing delete lifecycle", () => {
     assert.match(migration, /ADD COLUMN "archivedAt" TIMESTAMP\(3\)/);
     assert.match(migration, /status = 'HIDDEN'[\s\S]*"isPrivate" = true/);
     assert.match(migration, /audit\.action = 'HOLD_LISTING'[\s\S]*NOT audit\.undone/);
-    assert.match(dashboard, /where: \{ sellerId: seller\.id, archivedAt: null \}/);
+    const listingOwnerMigration = readFileSync(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      "utf8",
+    );
+    assert.match(dashboard, /listingOwnerSummaryRows\(me\.id,[\s\S]*includeArchived: false/);
+    assert.match(
+      listingOwnerMigration,
+      /p_include_archived OR listing\."archivedAt" IS NULL/,
+    );
     assert.match(shop, /\{ sellerId, archivedAt: null,/);
   });
 

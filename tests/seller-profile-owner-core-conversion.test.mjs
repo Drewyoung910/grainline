@@ -36,6 +36,7 @@ test("owner core converts analytics, broadcast, and seller-upload lookups", () =
   }
 
   const shopActions = readFileSync("src/app/seller/[id]/shop/actions.ts", "utf8");
-  assert.match(shopActions, /sellerId: seller\.sellerProfileId/u);
+  assert.match(shopActions, /listingOwnerActionState\(ownerId, listingId\)/u);
+  assert.match(shopActions, /listing\.sellerId !== seller\.sellerProfileId/u);
   assert.doesNotMatch(shopActions, /(?:select|include): \{ seller:/u);
 });

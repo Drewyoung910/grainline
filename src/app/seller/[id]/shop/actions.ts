@@ -29,6 +29,7 @@ import {
   sellerOwnerCore,
   sellerOwnerListingPublishReview,
 } from "@/lib/sellerProfileOwnerAccess";
+import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 const customOrderReadyWarning = "Listing is live, but the buyer was not notified. Contact support; delivery is safe to retry.";
@@ -42,10 +43,8 @@ async function findOwnedListing(
   ownerId: string,
   seller: { sellerProfileId: string; displayName: string },
 ) {
-  const listing = await prisma.listing.findFirst({
-    where: { id: listingId, sellerId: seller.sellerProfileId },
-  });
-  if (!listing) return null;
+  const listing = await listingOwnerActionState(ownerId, listingId);
+  if (!listing || listing.sellerId !== seller.sellerProfileId) return null;
   return {
     ...listing,
     seller: { userId: ownerId, displayName: seller.displayName },
@@ -308,7 +307,7 @@ export async function publishListingAction(listingId: string): Promise<PublishLi
       priceCents: listing.priceCents,
       currency: listing.currency,
       category: listing.category ?? null,
-      tags: listing.tags,
+      tags: [...listing.tags],
       sellerName: sellerReview.displayName,
       listingCount,
       imageUrls: reviewedImageUrls,

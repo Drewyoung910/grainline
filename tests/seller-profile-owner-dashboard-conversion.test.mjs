@@ -16,8 +16,9 @@ test("seller dashboard uses owner authorities without SellerProfile table access
   assert.match(migration, /GRANT EXECUTE[\s\S]*TO grainline_app_runtime/u);
   assert.match(helper, /export function sellerOwnerDashboardState/u);
   assert.match(dashboard, /sellerOwnerDashboardState\(me\.id\)/u);
-  assert.equal((dashboard.match(/sellerOwnerCore\(me\.id\)/gu) ?? []).length, 3);
+  assert.equal((dashboard.match(/listingOwnerActionState\(me\.id, listingId\)/gu) ?? []).length, 3);
+  assert.doesNotMatch(dashboard, /sellerOwnerCore\(me\.id\)/u);
   assert.doesNotMatch(dashboard, /prisma\.sellerProfile\./u);
   assert.doesNotMatch(dashboard, /seller:\s*\{\s*(?:select|include|userId|user):/u);
-  assert.equal((dashboard.match(/sellerId:\s*sellerCore\.sellerProfileId/gu) ?? []).length, 3);
+  assert.doesNotMatch(dashboard, /prisma\.listing\.findUnique/u);
 });
