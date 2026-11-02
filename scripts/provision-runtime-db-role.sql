@@ -6140,6 +6140,40 @@ REVOKE ALL ON TABLE public."SellerBroadcast"
 \endif
 \unset seller_broadcast_rls_active
 
+-- SellerMetrics compatible preparation retains predecessor table CRUD while
+-- converging the new source-derived operations. The private refresh core stays
+-- owner-only; only the owner and claim-bound deletion wrappers
+-- are callable by the ordinary runtime.
+WITH seller_metrics_functions(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_metrics_refresh_prepared_impl"(text, integer, boolean, text)'),
+    ('public."grainline_seller_metrics_owner_state"(integer, boolean)'),
+    ('public."grainline_seller_metrics_account_deletion_clear"(text, bigint, uuid)'),
+    ('public."grainline_seller_metrics_inactive_owner_cleanup"()')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_metrics_functions
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_metrics_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_metrics_owner_state"(integer, boolean)'),
+    ('public."grainline_seller_metrics_account_deletion_clear"(text, bigint, uuid)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_metrics_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- ReviewVote keeps predecessor CRUD while RLS is off. Once the reviewed owner
 -- policy is active, convergence must reduce the runtime role to SELECT only.
 -- Refuse every partial RLS/policy posture instead of guessing which side of

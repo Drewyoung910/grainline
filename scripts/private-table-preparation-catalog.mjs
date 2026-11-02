@@ -685,6 +685,104 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  seller_metrics_v1: Object.freeze({
+    migration: "20261102030000_prepare_seller_metrics_authorities",
+    migrationSha256: "caad02ef9a93ae9d51e09c50ca7036b0f9ef5a047279dc082f6c72072652cae0",
+    table: "SellerMetrics",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    addedConstraints: Object.freeze([
+      "period_months",
+      "average_rating",
+      "review_count",
+      "on_time_shipping_rate",
+      "response_rate",
+      "total_sales_cents",
+      "completed_order_count",
+      "active_case_count",
+      "account_age_days",
+    ].map((suffix) => Object.freeze({
+      table: "SellerMetrics",
+      name: `SellerMetrics_${suffix}_chk`,
+    }))),
+    sourceTests: Object.freeze([
+      "tests/seller-metrics-preparation.test.mjs",
+      "tests/seller-metrics-preparation-postgres.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_metrics_refresh_prepared_impl",
+        arguments: "text, integer, boolean, text",
+        executeRoles: Object.freeze([]),
+      }),
+      Object.freeze({
+        name: "grainline_seller_metrics_owner_state",
+        arguments: "integer, boolean",
+      }),
+      Object.freeze({
+        name: "grainline_seller_metrics_account_deletion_clear",
+        arguments: "text, bigint, uuid",
+      }),
+      Object.freeze({
+        name: "grainline_seller_metrics_inactive_owner_cleanup",
+        arguments: "",
+        executeRoles: Object.freeze([]),
+      }),
+    ]),
+    addedTriggers: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_metrics_inactive_owner_cleanup",
+        function: "grainline_seller_metrics_inactive_owner_cleanup",
+        table: "SellerProfile",
+        enabled: "O",
+        type: 17,
+      }),
+    ]),
+    retainedFunctions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_guild_metrics_apply",
+        arguments: "text, timestamp without time zone",
+        sourceSha256: "6c8fe8238aa8b4af01f4c5fa05ce3b0239fa05ced973879f6dc512875d06d7a8",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_metrics_apply_prepared_impl",
+        arguments: "text, timestamp without time zone",
+        executeRoles: Object.freeze([]),
+        sourceSha256: "7299fca002e46e5451534095ac981621d0e56a1d5cdf97d2949072a1fb97d7ef",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_master_pending",
+        arguments: "text",
+        executeRole: "staff",
+        volatility: "s",
+        sourceSha256: "bb265ad425fb0f4b60a73cd0aefc2ca920f492825e69d45ec0d2eb800fa62b8d",
+      }),
+      Object.freeze({
+        name: "grainline_seller_guild_staff_master_pending_page",
+        arguments: "text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+        volatility: "s",
+        sourceSha256: "e801b2643f5c04dad78b50fbe62f70e9b669eedfee4e649604b198ffa66f9377",
+      }),
+      Object.freeze({
+        name: "grainline_seller_staff_verification_target",
+        arguments: "text, text",
+        executeRole: "staff",
+        volatility: "s",
+        sourceSha256: "31c74535ca8685e4d490b73fd7e0d3704f0bde2aaebf8b4a1aad5bf9a5b482f0",
+      }),
+    ]),
+  }),
 });
 
 export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
@@ -714,6 +812,19 @@ export function privateTablePreparation(releaseId) {
   return release;
 }
 
+export function privateTablePreparationTables(release) {
+  const tables = [release.table, ...(release.additionalTables ?? [])];
+  if (
+    tables.some((table) => (
+      typeof table !== "string" || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(table)
+    ))
+    || new Set(tables).size !== tables.length
+  ) {
+    throw stopped("preparation table catalog is invalid");
+  }
+  return Object.freeze(tables);
+}
+
 export function privateTablePreparationReleaseIds(selectionId) {
   if (typeof selectionId !== "string" || !RELEASE_ID_PATTERN.test(selectionId)) {
     throw stopped("release id is invalid");
@@ -741,6 +852,10 @@ export function privateTablePreparationMigrationPath(release) {
   return `prisma/migrations/${release.migration}/migration.sql`;
 }
 
+export function privateTableFunctionExecuteRoles(entry) {
+  return Object.freeze([...(entry.executeRoles ?? [entry.executeRole ?? "runtime"])]);
+}
+
 export function functionSourceFromMigration(sql, name) {
   const delimiter = `$${name}$`;
   const marker = `AS ${delimiter}`;
@@ -761,6 +876,7 @@ export function verifyPrivateTablePreparationSource(
     process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
 ) {
   const release = privateTablePreparation(releaseId);
+  const tableNames = privateTablePreparationTables(release);
   const migrationPath = migrationPathOverride
     ? path.resolve(rootDir, migrationPathOverride)
     : path.join(rootDir, privateTablePreparationMigrationPath(release));
@@ -795,11 +911,57 @@ export function verifyPrivateTablePreparationSource(
   ))) {
     throw stopped("predecessor function digest is invalid");
   }
-  if (release.functions.some((entry) => (
-    (entry.executeRole ?? "runtime") !== "runtime"
-    && entry.executeRole !== "staff"
-  ))) {
+  const allFunctions = [...release.functions, ...(release.retainedFunctions ?? [])];
+  const allowedExecuteRoles = new Set(["runtime", "staff", "account_deletion"]);
+  if (allFunctions.some((entry) => {
+    const roles = privateTableFunctionExecuteRoles(entry);
+    return new Set(roles).size !== roles.length
+      || roles.some((role) => !allowedExecuteRoles.has(role));
+  })) {
     throw stopped("function execution role is invalid");
+  }
+  if (allFunctions.some((entry) => (
+    entry.volatility !== undefined && !["i", "s", "v"].includes(entry.volatility)
+  ))) {
+    throw stopped("function volatility is invalid");
+  }
+  const functionIdentities = allFunctions.map((entry) => `${entry.name}(${entry.arguments})`);
+  if (new Set(functionIdentities).size !== functionIdentities.length) {
+    throw stopped("function identity catalog is duplicated");
+  }
+  if ((release.retainedFunctions ?? []).some((entry) => (
+    !/^[0-9a-f]{64}$/u.test(entry.sourceSha256 ?? "")
+  ))) {
+    throw stopped("retained function digest is invalid");
+  }
+  if ((release.addedConstraints ?? []).some((entry) => (
+    !tableNames.includes(entry.table)
+    || typeof entry.name !== "string"
+    || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.name)
+  ))) {
+    throw stopped("constraint catalog is invalid");
+  }
+  if ((release.addedIndexes ?? []).some((entry) => (
+    typeof entry.name !== "string"
+    || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.name)
+    || typeof entry.definition !== "string"
+    || !entry.definition.startsWith("CREATE INDEX ")
+  ))) {
+    throw stopped("index catalog is invalid");
+  }
+  if ((release.addedTriggers ?? []).some((entry) => (
+    typeof entry.name !== "string"
+    || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.name)
+    || typeof entry.function !== "string"
+    || !/^[a-z][a-z0-9_]{2,62}$/u.test(entry.function)
+    || (entry.table !== undefined && (
+      typeof entry.table !== "string"
+      || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.table)
+    ))
+    || !["O", "D", "R", "A"].includes(entry.enabled)
+    || !Number.isSafeInteger(entry.type)
+  ))) {
+    throw stopped("trigger catalog is invalid");
   }
   const functionSources = new Map(release.functions.map((entry) => [
     entry.name,
