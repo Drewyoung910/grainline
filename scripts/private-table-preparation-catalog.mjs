@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 const RELEASE_ID_PATTERN = /^[a-z][a-z0-9_]{2,63}$/u;
 const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   seller_analytics_daily_v1: "SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH",
+  seller_metrics_v1: "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_PREPARATION_CONFIRMATION =
