@@ -82,6 +82,41 @@ export const CONVERSATION_MESSAGE_RECIPIENT_FUNCTIONS = Object.freeze([
   }),
 ]);
 
+// These context-bound wrappers arrive with the compatible Block preparation.
+// Keep them out of the predecessor inventory until that exact migration is
+// recorded, otherwise historical and held-out migration stages cannot pass.
+export const CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS = Object.freeze([
+  Object.freeze({
+    name: "grainline_message_unread_count_owner",
+    signature: "",
+    securityDefiner: true,
+    language: "plpgsql",
+    volatility: "v",
+    parallelSafety: "u",
+    runtimeExecute: true,
+  }),
+  Object.freeze({
+    name: "grainline_conversation_inbox_owner",
+    signature: "boolean,text,timestamp without time zone,text,integer",
+    securityDefiner: true,
+    language: "plpgsql",
+    volatility: "v",
+    parallelSafety: "u",
+    runtimeExecute: true,
+  }),
+]);
+
+export function conversationMessageAuthorityFunctionsForState({
+  blockPreparationApplied = false,
+} = {}) {
+  return Object.freeze([
+    ...CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+    ...(blockPreparationApplied
+      ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS
+      : []),
+  ]);
+}
+
 export const CONVERSATION_MESSAGE_SERVICE_FUNCTIONS = Object.freeze([
   Object.freeze({
     name: "grainline_conversation_lock_pair_core",

@@ -8,6 +8,7 @@ import pg from "pg";
 import { USER_AUTHORITY_FUNCTIONS, USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
 import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+  CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/conversation-message-authority-catalog.mjs";
 import {
@@ -230,6 +231,37 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_block_cleanup",
   "grainline_stock_notification_owner_export",
 ];
+const BLOCK_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030010000_prepare_block_authorities/migration.sql";
+const BLOCK_PREPARATION_FUNCTION_NAMES = [
+  "grainline_user_block_pair_is_blocked",
+  "grainline_user_block_create",
+  "grainline_user_block_remove",
+  "grainline_user_block_export",
+  "grainline_user_block_delete_owned",
+  "grainline_conversation_inbox_owner",
+  "grainline_message_unread_count_owner",
+];
+const USER_REPORT_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030020000_prepare_user_report_authorities/migration.sql";
+const USER_REPORT_PREPARATION_FUNCTION_NAMES = [
+  "grainline_user_report_submit",
+  "grainline_user_report_owner_submitted_export",
+  "grainline_user_report_owner_received_export",
+  "grainline_user_report_staff_open_count",
+  "grainline_user_report_staff_open_page",
+  "grainline_user_report_staff_top_reporters",
+  "grainline_user_report_staff_resolve",
+  "grainline_user_report_account_deletion_redact",
+];
+const SELLER_FAQ_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030030000_prepare_seller_faq_authorities/migration.sql";
+const SELLER_FAQ_PREPARATION_FUNCTION_NAMES = [
+  "grainline_seller_faq_owner_create",
+  "grainline_seller_faq_owner_remove",
+  "grainline_seller_faq_owner_export",
+  "grainline_seller_faq_account_deletion_cleanup",
+];
 const FAVORITE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
 const FAVORITE_RLS_MIGRATION =
@@ -262,6 +294,24 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
   "grainline_follow_owner_outgoing_count",
   "grainline_follow_seller_owner_incoming_count",
   "grainline_follow_account_deletion_cleanup",
+];
+const SELLER_BROADCAST_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql";
+const SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES = [
+  "grainline_seller_broadcast_owner_cooldown",
+  "grainline_seller_broadcast_owner_create",
+  "grainline_seller_broadcast_owner_count",
+  "grainline_seller_broadcast_owner_page",
+  "grainline_seller_broadcast_owner_export",
+  "grainline_seller_broadcast_public_latest",
+  "grainline_seller_broadcast_actor_feed_page",
+  "grainline_seller_broadcast_owner_delivery_source",
+  "grainline_seller_broadcast_owner_record_delivery",
+  "grainline_seller_broadcast_account_deletion_ids",
+  "grainline_seller_broadcast_account_deletion_cleanup",
+  "grainline_seller_broadcast_staff_count",
+  "grainline_seller_broadcast_staff_page",
+  "grainline_seller_broadcast_staff_delete",
 ];
 const MAKER_VERIFICATION_PREPARATION_MIGRATION =
   "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
@@ -449,6 +499,8 @@ const {
   FOLLOW_TABLE,
   FOLLOW_RLS_ACTIVATION_MIGRATION,
   FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
+  BLOCK_PREPARATION_MIGRATION: BLOCK_PREPARATION_LEDGER_MIGRATION,
+  BLOCK_PREPARATION_MIGRATION_SHA256: BLOCK_PREPARATION_LEDGER_MIGRATION_SHA256,
   FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
@@ -529,6 +581,7 @@ const {
   readClerkWebhookEventActivationState,
   readClerkWebhookEventForceState,
   readFollowRlsActivationState,
+  readBlockPreparationState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -2965,6 +3018,9 @@ describe("database grant inventory guardrails", () => {
     const exactRows = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map(
       (entry) => functionRow(entry),
     );
+    const blockPreparedRows = CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS.map(
+      (entry) => functionRow(entry),
+    );
     const redactionEntry = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.find(
       (entry) => entry.name === "grainline_message_redact_for_account_deletion",
     );
@@ -3008,6 +3064,18 @@ describe("database grant inventory guardrails", () => {
       [],
       "source-only preparation files must not change live predecessor expectations",
     );
+    if (typeof readBlockPreparationState === "function") {
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          [...exactRows, ...blockPreparedRows],
+          runtimeRole,
+          migrationRole,
+          { blockPreparationApplied: true },
+        ),
+        [],
+        "an applied Block preparation adds only the context-bound owner wrappers",
+      );
+    }
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
         [...exactRows, claimedRedactionRow],
@@ -3693,6 +3761,24 @@ describe("database grant inventory guardrails", () => {
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
+    const blockAuthorityPrepared = existsSync(
+      BLOCK_PREPARATION_MIGRATION,
+    ) && BLOCK_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(BLOCK_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const userReportAuthorityPrepared = existsSync(
+      USER_REPORT_PREPARATION_MIGRATION,
+    ) && USER_REPORT_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(USER_REPORT_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const sellerFaqAuthorityPrepared = existsSync(
+      SELLER_FAQ_PREPARATION_MIGRATION,
+    ) && SELLER_FAQ_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_FAQ_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const favoriteAuthorityPrepared = existsSync(
       FAVORITE_PREPARATION_MIGRATION,
     ) && FAVORITE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -3703,6 +3789,12 @@ describe("database grant inventory guardrails", () => {
       FOLLOW_PREPARATION_MIGRATION,
     ) && FOLLOW_PREPARATION_FUNCTION_NAMES.every((functionName) =>
       source(FOLLOW_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const sellerBroadcastAuthorityPrepared = existsSync(
+      SELLER_BROADCAST_PREPARATION_MIGRATION,
+    ) && SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_BROADCAST_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
     const reviewVoteAuthorityPrepared = existsSync(
@@ -3951,11 +4043,26 @@ describe("database grant inventory guardrails", () => {
       ...(followAuthorityPrepared
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerBroadcastAuthorityPrepared
+        ? [
+            ...SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES,
+            "grainline_email_outbox_begin_provider_attempt",
+          ]
+        : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(blockAuthorityPrepared
+        ? BLOCK_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(userReportAuthorityPrepared
+        ? USER_REPORT_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
         : []),
       ...(reviewVoteRlsActivationPresent
         ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
@@ -3980,6 +4087,9 @@ describe("database grant inventory guardrails", () => {
       ).filter((name) => name !== "grainline_stripe_webhook_begin"),
       ...(conversationMessageAuthorityPrepared
         ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
+        : []),
+      ...(blockAuthorityPrepared
+        ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS.map((entry) => entry.name)
         : []),
       ...(sellerProfilePublicCandidatePresent
         ? SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES
@@ -4028,11 +4138,24 @@ describe("database grant inventory guardrails", () => {
           ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (stockNotificationRlsActivationPresent ? 1 : 0)
+        + (blockAuthorityPrepared
+          ? BLOCK_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (userReportAuthorityPrepared
+          ? USER_REPORT_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (sellerFaqAuthorityPrepared
+          ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES.length
+          : 0)
         + (favoriteAuthorityPrepared
           ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (followAuthorityPrepared
           ? FOLLOW_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (sellerBroadcastAuthorityPrepared
+          ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
+            + 1 // reasserted provider-attempt PUBLIC/runtime revoke
           : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
@@ -4170,11 +4293,26 @@ describe("database grant inventory guardrails", () => {
       ...(followAuthorityPrepared
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerBroadcastAuthorityPrepared
+        ? [
+            ...SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES,
+            "grainline_email_outbox_begin_provider_attempt",
+          ]
+        : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(blockAuthorityPrepared
+        ? BLOCK_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(userReportAuthorityPrepared
+        ? USER_REPORT_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
@@ -4456,7 +4594,12 @@ describe("database grant inventory guardrails", () => {
       );
     }
     if (conversationMessageAuthorityPrepared) {
-      for (const { name } of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
+      for (const { name } of [
+        ...CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+        ...(blockAuthorityPrepared
+          ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS
+          : []),
+      ]) {
         assert.equal(
           inventory.publicRevokes.some((statement) => (
             statement.includes(`public.${name}(`)
@@ -4689,11 +4832,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 5);
+    assert.equal(auditMatches.length, 6);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 5);
+    assert.equal(combinedStaffStageMatches.length, 6);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -4730,7 +4873,31 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreCorrection,
     );
-    const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
+    const correctionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyCorrection,
+    );
+    const restoreLockOrderCorrection = stagedProof.indexOf(
+      '"$holding/migrations/$lock_order_correction_migration" \\\n            "prisma/migrations/$lock_order_correction_migration"',
+    );
+    const applyLockOrderCorrection = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreLockOrderCorrection,
+    );
+    const lockOrderCorrectionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyLockOrderCorrection,
+    );
+    const restoreBroadcastPreparation = stagedProof.indexOf(
+      '"$holding/migrations/$broadcast_preparation" \\\n            "prisma/migrations/$broadcast_preparation"',
+    );
+    const applyBroadcastPreparation = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreBroadcastPreparation,
+    );
+    const broadcastPreparationAudit = stagedProof.lastIndexOf(
+      "npm run audit:db-grants",
+    );
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
     assert.ok(preparationAudit < restoreDeletionFence);
@@ -4746,7 +4913,17 @@ describe("database grant inventory guardrails", () => {
     assert.ok(
       eligibilityFenceAudit < restoreCorrection
       && restoreCorrection < applyCorrection
-      && applyCorrection < finalAudit,
+      && applyCorrection < correctionAudit,
+    );
+    assert.ok(
+      correctionAudit < restoreLockOrderCorrection
+      && restoreLockOrderCorrection < applyLockOrderCorrection
+      && applyLockOrderCorrection < lockOrderCorrectionAudit,
+    );
+    assert.ok(
+      lockOrderCorrectionAudit < restoreBroadcastPreparation
+      && restoreBroadcastPreparation < applyBroadcastPreparation
+      && applyBroadcastPreparation < broadcastPreparationAudit,
     );
   });
 
@@ -5114,6 +5291,15 @@ describe("database grant inventory guardrails", () => {
         await readFollowRlsActivationState(exactClient(
           FOLLOW_RLS_ACTIVATION_MIGRATION,
           FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
+        )),
+        { applied: true, issues: [] },
+      );
+    }
+    if (typeof readBlockPreparationState === "function") {
+      assert.deepEqual(
+        await readBlockPreparationState(exactClient(
+          BLOCK_PREPARATION_LEDGER_MIGRATION,
+          BLOCK_PREPARATION_LEDGER_MIGRATION_SHA256,
         )),
         { applied: true, issues: [] },
       );
@@ -6420,7 +6606,7 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      19,
+      typeof readBlockPreparationState === "function" ? 21 : 19,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(

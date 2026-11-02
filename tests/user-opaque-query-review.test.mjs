@@ -35,20 +35,25 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   const reviewedFactories = report.opaqueShapes.filter((shape) => REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
   const reviewedResidual = report.opaqueShapes.filter((shape) => !REVIEWED_FACTORY_CALL.test(shape.expression.trim()));
 
-  // Email service preparation moves eight EmailOutbox query-shape occurrences
-  // (four reviewed factory calls and four residuals) behind fixed SQL
-  // authorities. These hashes pin the exact remaining frontier.
-  assert.equal(report.opaqueShapes.length, 138);
-  assert.equal(reviewedFactories.length, 107);
-  assert.equal(reviewedResidual.length, 31);
+  // The provider/eligibility fence replaces three direct Prisma
+  // EmailSuppression write arguments with one fixed SQL authority. The
+  // StockNotification subscribe removes one reviewed public-listing factory.
+  // SellerBroadcast preparation removes one reviewed outbox factory and one
+  // residual direct broadcast relation from the application frontier.
+  // UserReport target validation removes three report-route factory calls.
+  // Email-service preparation moves the remaining direct EmailOutbox shapes
+  // behind fixed SQL authorities.
+  assert.equal(report.opaqueShapes.length, 134);
+  assert.equal(reviewedFactories.length, 104);
+  assert.equal(reviewedResidual.length, 30);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 87,
-    sha256: "f5ab7adebe83a0d2a23706497722fc6e472aa4fbe8b057814011f572a164650b",
+    unique: 84,
+    sha256: "9a76298f4a63c7d437387ee8730bb3f23e1f71845775c9765869636a54bdf3bc",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 26,
-    sha256: "1ee810951774abec624324525b0181d7d08af0582373c673bffceca796e613ab",
+    unique: 25,
+    sha256: "5e9f1f2b7003cf1a028bbd195c4507bfbe05d9ee9d903a1e743a41f76a9acae3",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,

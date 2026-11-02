@@ -150,7 +150,11 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 116
+      // SellerBroadcast's fixed authorities replace two public seller query
+      // factory calls while preserving their reviewed public visibility rules.
+      // Email-service preparation then moves the remaining direct outbox
+      // shapes behind fixed SQL authorities.
+      || reviewedNonTargetFactoryCalls.length !== 112
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
@@ -168,6 +172,8 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // occurrences (four reviewed factory calls and four residuals) behind
       // fixed SQL authorities. The User opaque-query digest test pins the
       // exact remaining frontier.
+      // UserReport submission now validates its three remaining public target
+      // shapes inside one actor-bound SQL authority.
       || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `

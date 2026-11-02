@@ -292,6 +292,40 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("SellerBroadcast preparation is byte-sealed and remains compatible", () => {
+  const broadcast = verifyPrivateTablePreparationSource("seller_broadcast_v1");
+  assert.equal(broadcast.release.table, "SellerBroadcast");
+  assert.equal(broadcast.functionSources.size, 15);
+  assert.deepEqual(broadcast.release.addedColumns, []);
+  const sql = readFileSync(broadcast.migrationPath, "utf8");
+  assert.match(sql, /grainline_seller_broadcast_owner_create/u);
+  assert.match(sql, /grainline_seller_broadcast_actor_feed_page/u);
+  assert.match(sql, /grainline_seller_broadcast_staff_delete/u);
+  assert.match(sql, /grainline_email_outbox_begin_provider_attempt/u);
+  assert.match(sql, /source_recipient_eligible/u);
+  assert.match(sql, /JOIN public\."Follow" AS source_follow/u);
+  assert.match(sql, /FROM public\."Block" AS source_block/u);
+  assert.match(sql, /Email source relationship became ineligible before provider attempt/u);
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_ids[\s\S]*FOR UPDATE OF broadcast/u,
+  );
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_ids\(\s*p_side_effect_id text,\s*p_expected_user_id text,\s*p_claim_generation bigint,\s*p_claim_token uuid\s*\)[\s\S]*grainline_account_deletion_claim_user\(\s*p_side_effect_id,\s*p_claim_generation,\s*p_claim_token\s*\)/u,
+  );
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_cleanup\(\s*p_side_effect_id text,\s*p_expected_user_id text,\s*p_claim_generation bigint,\s*p_claim_token uuid\s*\)[\s\S]*grainline_account_deletion_claim_user\(\s*p_side_effect_id,\s*p_claim_generation,\s*p_claim_token\s*\)/u,
+  );
+  assert.match(sql, /SESSION_USER <> 'grainline_staff_read_runtime'/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("owner social and verification preparation batch is exact and ordered", () => {
   const releaseIds = privateTablePreparationReleaseIds(
     "owner_social_verification_v1",
@@ -309,6 +343,25 @@ test("owner social and verification preparation batch is exact and ordered", () 
       "20261028020000_prepare_follow_authorities",
       "20261028030000_prepare_review_vote_authorities",
       "20261028040000_prepare_maker_verification_authorities",
+    ],
+  );
+});
+
+test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", () => {
+  const releaseIds = privateTablePreparationReleaseIds(
+    "block_report_seller_faq_v1",
+  );
+  assert.deepEqual(releaseIds, [
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
+  ]);
+  assert.deepEqual(
+    releaseIds.map((releaseId) => privateTablePreparation(releaseId).migration),
+    [
+      "20261030010000_prepare_block_authorities",
+      "20261030020000_prepare_user_report_authorities",
+      "20261030030000_prepare_seller_faq_authorities",
     ],
   );
 });
@@ -392,6 +445,10 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
+    "seller_broadcast_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -419,7 +476,9 @@ test("Production workflow is exact-main bound and fails on another red push work
       "follow_v1",
       "review_vote_v1",
       "maker_verification_v1",
+      "seller_broadcast_v1",
       "owner_social_verification_v1",
+      "block_report_seller_faq_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
@@ -427,6 +486,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.match(workflow, /private-table-preparation-catalog\.mjs --release-ids/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --migrations/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --tests/u);
+  assert.match(workflow, /tests\/block-preparation-production\.test\.mjs/u);
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(runBinding("failure"), /push workflows are not all green/u);

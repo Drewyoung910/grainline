@@ -24,7 +24,8 @@ describe("seller public page query guardrails", () => {
 
     assert.match(sellerPage, /const \[\s*followState,[\s\S]*customerPhotoRows,\s*\] = await Promise\.all\(\[/);
     assert.match(sellerPage, /sellerPublicFollowState\(seller\.id, meId \?\? undefined\)/);
-    assert.match(sellerPage, /prisma\.sellerBroadcast\.findFirst/);
+    assert.match(sellerPage, /publicLatestSellerBroadcast\(meId, seller\.id\)/);
+    assert.doesNotMatch(sellerPage, /prisma\.sellerBroadcast\./);
     assert.match(sellerPage, /prisma\.blogPost\.findMany/);
     assert.match(sellerPage, /prisma\.listing\.findMany/);
     assert.match(sellerPage, /featuredRows,/);

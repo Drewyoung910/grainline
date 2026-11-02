@@ -156,6 +156,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const notifications = fs.readFileSync("src/lib/notifications.ts", "utf8");
     const blog = fs.readFileSync("src/app/admin/blog/page.tsx", "utf8");
     const broadcasts = fs.readFileSync("src/app/admin/broadcasts/page.tsx", "utf8");
+    const broadcastAccess = fs.readFileSync("src/lib/sellerBroadcastAccess.ts", "utf8");
     const favorite = fs.readFileSync("src/app/api/favorites/route.ts", "utf8");
     const follow = fs.readFileSync("src/app/api/follow/[sellerId]/route.ts", "utf8");
     const review = fs.readFileSync("src/app/api/reviews/route.ts", "utf8");
@@ -212,7 +213,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal((blog.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.BLOG_COMMENT/g) ?? []).length, 2);
     assert.match(blog, /deleteBlogCommentNotificationServiceRows\(tx, deleted\.id\)/);
     assert.doesNotMatch(blog, /tx\.notification\./);
-    assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
+    assert.match(broadcasts, /deleteStaffSellerBroadcast\(/);
+    assert.match(broadcastAccess, /grainline_seller_broadcast_staff_delete/);
     assert.doesNotMatch(broadcasts, /tx\.notification\./);
     assert.match(favorite, /sourceType: NOTIFICATION_SOURCE_TYPES\.FAVORITE,\s*sourceId: listingId/);
     assert.match(follow, /sourceType: NOTIFICATION_SOURCE_TYPES\.FOLLOW,\s*sourceId: sellerId/);

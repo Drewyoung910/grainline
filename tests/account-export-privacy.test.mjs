@@ -73,25 +73,46 @@ describe("account export privacy coverage", () => {
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");
 
-    for (const model of [
-      "block",
-      "userReport",
-      "sellerFaq",
-      "sellerBroadcast",
-    ]) {
-      assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
-    }
     assert.match(route, /exportOwnerEmailServiceData/);
     assert.match(route, /withDbUserContext\(user\.id, \(tx\) => exportOwnerEmailServiceData\(tx\)\)/);
     assert.doesNotMatch(
       route,
-      /prisma\.(?:emailSuppression|emailOutbox|emailFailureCount|newsletterSubscriber)\./,
+      /prisma\.(?:block|userReport|sellerFaq|sellerBroadcast|emailSuppression|emailOutbox|emailFailureCount|newsletterSubscriber)\./,
     );
+    assert.match(
+      route,
+      /ownerSellerBroadcastExport\(user\.id\)/,
+      "account export must query broadcasts through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.sellerBroadcast\./);
+    assert.match(
+      route,
+      /ownerBlockExportRows\(user\.id\)/,
+      "account export must query blocks through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.block\./);
     assert.match(
       route,
       /exportOwnerMakerVerification\(user\.id\)/,
       "account export must query maker verification through its owner authority",
     );
+    assert.match(
+      route,
+      /exportSubmittedUserReports\(user\.id\)/,
+      "account export must query submitted reports through its owner authority",
+    );
+    assert.match(
+      route,
+      /exportReceivedUserReports\(user\.id\)/,
+      "account export must query received reports through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.userReport\./);
+    assert.match(
+      route,
+      /ownerSellerFaqExportRows\(user\.id\)/,
+      "account export must query seller FAQs through its owner authority",
+    );
+    assert.doesNotMatch(route, /prisma\.sellerFaq\./);
     assert.match(
       route,
       /exportOwnerSupportRequests\(user\.id\)/,
