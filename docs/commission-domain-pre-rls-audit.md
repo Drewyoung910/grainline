@@ -48,11 +48,39 @@ Verified preparation evidence:
 - TypeScript passes, lint has zero errors, and the remaining five lint warnings
   are unchanged navigation warnings outside this Commission batch.
 
-This evidence makes the branch a **compatible preparation candidate**, not an
-activation candidate. Activation remains separately blocked on the denial,
-query-plan-at-volume, deployment-skew, hard-cascade and database-first rollback
-proofs listed below, plus compatible deployment/drain and exact production
-authorization.
+This evidence makes the preparation branch a **compatible preparation
+candidate**. It does not itself activate RLS or revoke direct access.
+
+## Separate activation-candidate status (2026-11-01)
+
+The isolated `codex/commission-rls-activation-20261101` branch now contains a
+separate coupled activation candidate. It is not merged or live. The candidate:
+
+- enables and forces policyless RLS on `CommissionRequest` and
+  `CommissionInterest` in one transaction, revokes runtime/staff/PUBLIC table
+  and column access, and fails closed on a partially active two-table posture;
+- binds every reviewed preparation function by exact `regprocedure` identity,
+  checks function owners and execution grants, and keeps runtime provisioning
+  compatible with either the exact predecessor posture or the exact fully
+  active posture while refusing a mixed posture;
+- passes the complete **449-migration** chain on disposable PostgreSQL 16 and
+  PostgreSQL 17, including the shared preparation and activation production
+  inspectors;
+- proves runtime direct read/write denial, retained fixed-operation behavior,
+  the request-to-interest hard cascade, and database-first rollback followed by
+  clean reactivation;
+- seeds 20,000 requests and proves the public page keeps the reviewed
+  `status/createdAt` index path, a 24-row page bound, and a three-second
+  disposable execution ceiling; and
+- reuses the shared catalog-driven release workflows rather than adding a
+  copied Commission-specific production workflow.
+
+The technical `FIX_BEFORE_ACTIVATION` proof items below are closed by the
+preparation plus this isolated candidate. Production activation remains
+**NO-GO** until the preparation PR is independently reviewed, merged and
+applied, the compatible app is deployed with predecessor traffic drained, the
+separate activation PR and exact release evidence are reviewed, and Drew gives
+explicit production authorization.
 
 ## Product contract
 
@@ -263,7 +291,7 @@ ever-growing `NOT IN` list.
 
 ## Verified findings and disposition
 
-### `FIX_BEFORE_ACTIVATION`
+### `FIX_BEFORE_ACTIVATION` — closed in the isolated candidates
 
 1. **#437/#158:** terminal or elapsed requests 404 for their buyer and
    interested makers, including links from the account page, messages and

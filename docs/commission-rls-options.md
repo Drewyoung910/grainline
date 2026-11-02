@@ -138,10 +138,17 @@ It is weaker and not materially cheaper than the selected projection.
 
 ## Activation boundary
 
-Option B authorizes compatible preparation only. Activation remains blocked
-until `docs/commission-domain-pre-rls-audit.md` has no open
-`FIX_BEFORE_ACTIVATION` items and the exact PostgreSQL 17, deployment-skew,
-catalog, denial, concurrency, cascade and rollback proofs pass. No statement in
-this document is standing permission to merge, deploy, inspect production, or
-run a production migration.
+Option B first authorized compatible preparation only. A separate coupled
+activation candidate now passes the exact PostgreSQL 16 and 17 full-chain,
+catalog, direct-denial, realistic-volume plan, cascade and database-first
+rollback/reactivation proofs recorded in
+`docs/commission-domain-pre-rls-audit.md`. The shared protected workflow still
+requires the exact compatible deployment and predecessor drain before any
+database step.
+
+Neither candidate is production authorization. Preparation must be reviewed,
+merged and applied first. Activation remains a separate PR and an explicit
+Drew-approved production action. No statement in this document is standing
+permission to merge, deploy, inspect production, or run a production
+migration.
 

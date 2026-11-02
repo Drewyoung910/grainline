@@ -53,6 +53,20 @@ test("catalog byte-seals the combined policyless activation and rollback", () =>
   );
 });
 
+test("catalog byte-seals the coupled Commission domain activation", () => {
+  const commission = privateTableRlsActivation("commission_domain_v1");
+  const commissionVerified = verifyPrivateTableRlsActivationSource(
+    "commission_domain_v1",
+  );
+  assert.equal(commission.table, "CommissionRequest");
+  assert.deepEqual(commission.additionalTables, ["CommissionInterest"]);
+  assert.equal(commission.mode, "policyless_combined_enable_force");
+  assert.deepEqual(commission.policies, []);
+  assert.deepEqual(commission.activatedRuntimePrivileges, []);
+  assert.equal(commissionVerified.migrationDigest, commission.migrationSha256);
+  assert.equal(commissionVerified.rollbackDigest, commission.rollbackSha256);
+});
+
 test("catalog orders and byte-seals the owner social verification activation batch", () => {
   const releaseIds = privateTableRlsActivationReleaseIds(
     "owner_social_verification_v1",

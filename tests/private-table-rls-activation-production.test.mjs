@@ -211,12 +211,14 @@ function fakeClientClass({
   selectedRelease = release,
   selectedVerified = verified,
   policyRows = [],
+  tableRowsByTable = {},
+  policyRowsByTable = {},
 }) {
   return class FakeClient {
     async connect() {}
     async end() {}
 
-    async query(statement) {
+    async query(statement, parameters = []) {
       const sql = String(statement);
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
       if (sql.includes("current_database() AS database_name")) {
@@ -225,14 +227,21 @@ function fakeClientClass({
           ...(selectedRelease.additionalTables ?? []),
         ];
         return {
-          rows: tables.sort().map((table) => tableRow(
-            active,
-            {
-              ...tableOverrides,
-              ...(tableOverridesByName[table] ?? {}),
-              table_name: table,
-            },
-            selectedRelease,
+          rows: tables.sort().map((table) => (
+            tableRowsByTable[`public."${table}"`]
+              ? {
+                  ...tableRowsByTable[`public."${table}"`],
+                  table_name: table,
+                }
+              : tableRow(
+                active,
+                {
+                  ...tableOverrides,
+                  ...(tableOverridesByName[table] ?? {}),
+                  table_name: table,
+                },
+                selectedRelease,
+              )
           )),
         };
       }
@@ -253,7 +262,7 @@ function fakeClientClass({
         };
       }
       if (sql.includes("FROM pg_catalog.pg_policy AS policy")) {
-        return { rows: policyRows };
+        return { rows: policyRowsByTable[parameters[0]] ?? policyRows };
       }
       if (sql.includes("procedure.prosrc AS source")) {
         return { rows: functionRows(selectedRelease, selectedVerified, active) };
@@ -499,6 +508,61 @@ test("inspector detects committed activation before Prisma ledger recovery", asy
       release.migrationSha256,
     );
     assert.equal(isReviewedSuccessfulMigration(migrationRow(release, 0)), true);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector proves coupled Commission tables and refuses a partial activation", async () => {
+  const selectedReleaseId = "commission_domain_v1";
+  const selectedRelease = privateTableRlsActivation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "commission-domain-rls-"));
+  const primary = 'public."CommissionRequest"';
+  const secondary = 'public."CommissionInterest"';
+  try {
+    const preEnv = environment(directory, "preflight", undefined, selectedReleaseId);
+    const ready = await inspectPrivateTableRlsActivationProduction(
+      preEnv,
+      {
+        Client: fakeClientClass({
+          active: false,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.deepEqual(
+      ready.tables.map((entry) => entry.table),
+      ["CommissionRequest", "CommissionInterest"],
+    );
+    assert.deepEqual(
+      Object.keys(ready.postures),
+      ready.tables.map((entry) => entry.table),
+    );
+
+    const partialDirectory = mkdtempSync(join(tmpdir(), "commission-domain-partial-"));
+    try {
+      await assert.rejects(
+        inspectPrivateTableRlsActivationProduction(
+          environment(partialDirectory, "preflight", undefined, selectedReleaseId),
+          {
+            Client: fakeClientClass({
+              active: false,
+              selectedRelease,
+              selectedVerified,
+              tableRowsByTable: {
+                [primary]: tableRow(true, {}, selectedRelease),
+                [secondary]: tableRow(false, {}, selectedRelease),
+              },
+            }),
+          },
+        ),
+        /tables are partially activated/u,
+      );
+    } finally {
+      rmSync(partialDirectory, { recursive: true, force: true });
+    }
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
