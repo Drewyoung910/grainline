@@ -201,6 +201,26 @@ type ListingOwnerCountsRow = {
   activePublicCount: unknown;
 };
 
+type ListingOwnerActionStateRow = {
+  listingId: unknown;
+  sellerProfileId: unknown;
+  title: unknown;
+  description: unknown;
+  priceCents: unknown;
+  currency: unknown;
+  status: unknown;
+  updatedAt: unknown;
+  archivedAt: unknown;
+  listingType: unknown;
+  stockQuantity: unknown;
+  category: unknown;
+  tags: unknown;
+  isPrivate: unknown;
+  reservedForUserId: unknown;
+  customOrderConversationId: unknown;
+  rejectionReason: unknown;
+};
+
 export type ListingOwnerSummaryState = Readonly<{
   id: string;
   title: string;
@@ -232,6 +252,26 @@ export type ListingOwnerCountsState = Readonly<{
   draftCount: number;
   activeCount: number;
   activePublicCount: number;
+}>;
+
+export type ListingOwnerActionState = Readonly<{
+  id: string;
+  sellerId: string;
+  title: string;
+  description: string;
+  priceCents: number;
+  currency: string;
+  status: ListingStatus;
+  updatedAt: Date;
+  archivedAt: Date | null;
+  listingType: ListingType;
+  stockQuantity: number | null;
+  category: Category | null;
+  tags: ReadonlyArray<string>;
+  isPrivate: boolean;
+  reservedForUserId: string | null;
+  customOrderConversationId: string | null;
+  rejectionReason: string | null;
 }>;
 
 const LISTING_STATUSES = new Set<string>(Object.values(ListingStatus));
@@ -455,6 +495,79 @@ export function listingOwnerEditor(userId: string, listingId: string) {
   return withDbUserContext(
     userId,
     (client) => readListingOwnerEditor(client, listingId),
+  );
+}
+
+async function readListingOwnerActionState(
+  client: ListingOwnerClient,
+  listingId: string,
+): Promise<ListingOwnerActionState | null> {
+  if (!validId(listingId)) {
+    throw new RangeError("Listing owner action-state input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingOwnerActionStateRow[]>`
+    SELECT *
+      FROM public.grainline_listing_owner_action_state(${listingId}::text)
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Listing owner action-state authority returned multiple rows");
+  }
+  const row = rows[0];
+  const validNullableId = (value: unknown) => value === null || validId(value);
+  if (
+    row.listingId !== listingId
+    || !validId(row.sellerProfileId)
+    || !isTextWithinCodePointRange(row.title, 1, 150)
+    || !isTextWithinCodePointRange(row.description, 0, 5000)
+    || !validSafeInteger(row.priceCents)
+    || row.priceCents < 1
+    || typeof row.currency !== "string"
+    || row.currency.length !== 3
+    || typeof row.status !== "string"
+    || !LISTING_STATUSES.has(row.status)
+    || !validDate(row.updatedAt)
+    || !(row.archivedAt === null || validDate(row.archivedAt))
+    || typeof row.listingType !== "string"
+    || !LISTING_TYPES.has(row.listingType)
+    || !validNullableSafeInteger(row.stockQuantity)
+    || (row.stockQuantity !== null && row.stockQuantity < 0)
+    || (row.category !== null && (typeof row.category !== "string" || !CATEGORIES.has(row.category)))
+    || !Array.isArray(row.tags)
+    || row.tags.length > 10
+    || !row.tags.every((tag) => isTextWithinCodePointRange(tag, 0, 100))
+    || typeof row.isPrivate !== "boolean"
+    || !validNullableId(row.reservedForUserId)
+    || !validNullableId(row.customOrderConversationId)
+    || (row.rejectionReason !== null && !isTextWithinCodePointRange(row.rejectionReason, 0, 1000))
+  ) {
+    throw new Error("Listing owner action-state authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.listingId,
+    sellerId: row.sellerProfileId,
+    title: row.title,
+    description: row.description,
+    priceCents: row.priceCents,
+    currency: row.currency,
+    status: row.status as ListingStatus,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt as Date | null,
+    listingType: row.listingType as ListingType,
+    stockQuantity: row.stockQuantity,
+    category: row.category as Category | null,
+    tags: Object.freeze([...row.tags]),
+    isPrivate: row.isPrivate,
+    reservedForUserId: row.reservedForUserId as string | null,
+    customOrderConversationId: row.customOrderConversationId as string | null,
+    rejectionReason: row.rejectionReason as string | null,
+  });
+}
+
+export function listingOwnerActionState(userId: string, listingId: string) {
+  return withDbUserContext(
+    userId,
+    (client) => readListingOwnerActionState(client, listingId),
   );
 }
 

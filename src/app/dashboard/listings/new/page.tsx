@@ -49,6 +49,7 @@ import {
   sellerOwnerListingReview,
 } from "@/lib/sellerProfileOwnerAccess";
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
+import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -459,10 +460,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
 
   // Only notify followers if the listing went live (not held for review)
-  const finalListing = await prisma.listing.findUnique({
-    where: { id: created.id },
-    select: { status: true },
-  });
+  const finalListing = await listingOwnerActionState(seller.userId, created.id);
   if (finalListing?.status === "ACTIVE" && activatedByThisReview) {
     await syncGuildMemberListingThreshold(seller.id);
     revalidateListingSearchCaches();

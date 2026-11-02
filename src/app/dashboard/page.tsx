@@ -24,7 +24,6 @@ import { orderRefundedAway, workshopAttentionRows, type WorkshopAttentionRow } f
 import { logServerError } from "@/lib/serverErrorLogger";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
-
 type DashboardPageProps = {
   searchParams?: Promise<{ setup?: string }>;
 };

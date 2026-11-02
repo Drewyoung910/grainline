@@ -14,7 +14,7 @@ import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
 
 type DashboardActionState = { ok: boolean; error?: string };
 
@@ -35,14 +35,7 @@ export async function setStatus(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   if (listing.archivedAt) {
     return { ok: false, error: "Archived listings cannot be changed here." };
@@ -114,14 +107,7 @@ export async function deleteListing(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = deleteListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
@@ -181,14 +167,7 @@ export async function withdrawListingReview(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = withdrawReviewBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
