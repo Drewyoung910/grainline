@@ -45,10 +45,15 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_support_request_delivery_record",
         arguments: "text, uuid, boolean, text",
       }),
-      Object.freeze({ name: "grainline_support_request_owner_export", arguments: "" }),
+      Object.freeze({
+        name: "grainline_support_request_owner_export",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_support_request_staff_state",
         arguments: "integer, integer, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_support_request_staff_transition",
@@ -62,7 +67,11 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_support_request_provider_deletion_upsert",
         arguments: "text",
       }),
-      Object.freeze({ name: "grainline_support_request_overdue_count", arguments: "" }),
+      Object.freeze({
+        name: "grainline_support_request_overdue_count",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_support_request_retention_delete_batch",
         arguments: "integer",
@@ -97,14 +106,17 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_stock_notification_seller_counts",
         arguments: "text[]",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_stock_notification_seller_range_count",
         arguments: "timestamp without time zone, timestamp without time zone, boolean",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_stock_notification_restock_candidates",
         arguments: "text, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_stock_notification_seller_listing_cleanup",
@@ -121,6 +133,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_stock_notification_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_notification_claim_back_in_stock",
@@ -156,6 +169,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_favorite_owner_listing_ids",
         arguments: "text[]",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_favorite_owner_add",
@@ -172,10 +186,12 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_favorite_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_favorite_seller_range_count",
         arguments: "timestamp without time zone, timestamp without time zone, boolean",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_favorite_seller_listing_cleanup",
@@ -211,22 +227,27 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_follow_public_state_batch",
         arguments: "text[]",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_source_notification_page",
         arguments: "text, text, text, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_owner_target_ids",
         arguments: "integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_owner_outgoing_count",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_seller_owner_incoming_count",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_follow_account_deletion_cleanup",
@@ -289,6 +310,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_maker_verification_owner_export",
         arguments: "",
         executeRole: "runtime",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_maker_verification_owner_delete_redact",
@@ -299,31 +321,37 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_maker_verification_staff_pending_count",
         arguments: "text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_maker_verification_staff_pending_page",
         arguments: "text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_master_pending_count",
         arguments: "text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_master_pending_page",
         arguments: "text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_roster_count",
         arguments: "text, text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_guild_staff_roster_page",
         arguments: "text, text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
     ]),
   }),
@@ -356,6 +384,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_review_vote_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_review_vote_owner_delete_all",
@@ -390,31 +419,38 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_commission_request_public_count",
         arguments: "text, text, text, double precision, double precision, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_public_page",
         arguments:
           "text, text, text, double precision, double precision, integer, integer, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_public_detail",
         arguments: "text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_public_sitemap_page",
         arguments: "integer, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_public_metro_ids",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_actor_report_target",
         arguments: "text, text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_interest_actor_request_ids",
         arguments: "text[]",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_interest_actor_create",
@@ -432,22 +468,27 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_commission_request_owner_page",
         arguments: "integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_owner_active_count",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_owner_reference_image_urls",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_interest_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_commission_request_owner_transition",
@@ -476,10 +517,12 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_commission_request_service_expired_count",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_owner_commission_interest_summaries",
         arguments: "text[], integer",
+        volatility: "s",
         predecessorSourceSha256:
           "80cb199f7162cf26d7ca76217db9a007d218bde3b8a8c1389806c3800c4330c1",
       }),
@@ -505,28 +548,44 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       "tests/seller-broadcast-consumer-contracts.test.mjs",
     ]),
     functions: Object.freeze([
-      Object.freeze({ name: "grainline_seller_broadcast_owner_cooldown", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_cooldown",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_create",
         arguments: "text, text, text, integer",
       }),
-      Object.freeze({ name: "grainline_seller_broadcast_owner_count", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_count",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_page",
         arguments: "integer, integer",
+        volatility: "s",
       }),
-      Object.freeze({ name: "grainline_seller_broadcast_owner_export", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_export",
+        arguments: "",
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_seller_broadcast_public_latest",
         arguments: "text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_actor_feed_page",
         arguments: "text[], timestamp without time zone, timestamp without time zone, text, text, integer",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_delivery_source",
         arguments: "text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_owner_record_delivery",
@@ -536,11 +595,13 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
         name: "grainline_seller_broadcast_staff_count",
         arguments: "text, text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_staff_page",
         arguments: "text, text, integer, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_broadcast_staff_delete",
@@ -710,6 +771,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_seller_engagement_analytics",
         arguments: "bigint, bigint, boolean, text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_analytics_retention_prune",
@@ -747,6 +809,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_user_block_pair_is_blocked",
         arguments: "text",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_block_create",
@@ -759,6 +822,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_user_block_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_block_delete_owned",
@@ -808,25 +872,30 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_user_report_owner_submitted_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_owner_received_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_open_count",
         arguments: "text",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_open_page",
         arguments: "text, timestamp without time zone, text, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_top_reporters",
         arguments: "text, timestamp without time zone, integer",
         executeRole: "staff",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_user_report_staff_resolve",
@@ -870,6 +939,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({
         name: "grainline_seller_faq_owner_export",
         arguments: "",
+        volatility: "s",
       }),
       Object.freeze({
         name: "grainline_seller_faq_account_deletion_cleanup",
