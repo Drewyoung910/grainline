@@ -1879,6 +1879,21 @@ jobs:
           mv
           prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
           "$RUNNER_TEMP/order-receipt-notification-authority-release"
+      - name: Isolate all later migrations before historical checkout receipt replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          boundary="20260901110000_prepare_order_checkout_receipt_authority"
+          holding="$RUNNER_TEMP/order-checkout-receipt-later-migrations"
+          mkdir "$holding"
+          while IFS= read -r migration; do
+            if [[ "$migration" > "$boundary" ]]; then
+              mv "prisma/migrations/$migration" "$holding/$migration"
+            fi
+          done < <(
+            find prisma/migrations -mindepth 1 -maxdepth 1 -type d -exec basename {} \; \
+              | LC_ALL=C sort
+          )
       - name: Verify compatible Order checkout receipt authority release
         run: npm run audit:order-checkout-receipt-authority-release
       - name: Isolate Order checkout receipt authority until snapshot correction passes
