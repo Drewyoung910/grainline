@@ -58,6 +58,10 @@ type ListingActorTransactionSourceRow = {
   sellerGiftWrappingPriceCents: unknown;
 };
 
+type ListingActorCartTransactionSourceRow = ListingActorTransactionSourceRow & {
+  cartItemId: unknown;
+};
+
 type ListingTransactionPhoto = Readonly<{ url: string }>;
 type ListingTransactionVariantOption = Readonly<{
   id: string;
@@ -93,7 +97,15 @@ function recordValue(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-const LISTING_TRANSACTION_STATUSES = new Set(["ACTIVE", "SOLD", "SOLD_OUT"]);
+const LISTING_TRANSACTION_STATUSES = new Set([
+  "DRAFT",
+  "ACTIVE",
+  "SOLD",
+  "SOLD_OUT",
+  "HIDDEN",
+  "PENDING_REVIEW",
+  "REJECTED",
+]);
 const LISTING_TRANSACTION_TYPES = new Set(["IN_STOCK", "MADE_TO_ORDER"]);
 
 function parseListingTransactionPhotos(value: unknown): ReadonlyArray<ListingTransactionPhoto> | null {
@@ -175,22 +187,7 @@ function validSellerTransactionState(row: unknown): row is SellerTransactionStat
   );
 }
 
-async function readListingActorTransactionSource(
-  client: Pick<DbUserContextTransactionClient, "$queryRaw">,
-  listingId: string,
-) {
-  if (!validId(listingId)) {
-    throw new RangeError("Listing actor transaction-source input is invalid");
-  }
-  const rows = await client.$queryRaw<ListingActorTransactionSourceRow[]>`
-    SELECT *
-      FROM public.grainline_listing_actor_transaction_source(${listingId}::text)
-  `;
-  if (rows.length === 0) return null;
-  if (rows.length !== 1) {
-    throw new TypeError("Listing actor transaction authority returned multiple rows");
-  }
-  const row = rows[0];
+function parseListingActorTransactionSourceRow(row: ListingActorTransactionSourceRow) {
   const photos = parseListingTransactionPhotos(row.photos);
   const variantGroups = parseListingTransactionVariantGroups(row.variantGroups);
   const sellerCandidate = {
@@ -277,6 +274,51 @@ async function readListingActorTransactionSource(
     variantGroups,
     seller: Object.freeze(sellerCandidate),
   });
+}
+
+async function readListingActorTransactionSource(
+  client: Pick<DbUserContextTransactionClient, "$queryRaw">,
+  listingId: string,
+) {
+  if (!validId(listingId)) {
+    throw new RangeError("Listing actor transaction-source input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingActorTransactionSourceRow[]>`
+    SELECT *
+      FROM public.grainline_listing_actor_transaction_source(${listingId}::text)
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new TypeError("Listing actor transaction authority returned multiple rows");
+  }
+  return parseListingActorTransactionSourceRow(rows[0]);
+}
+
+export async function readListingActorCartTransactionSources(
+  client: Pick<DbUserContextTransactionClient, "$queryRaw">,
+  cartId: string,
+) {
+  if (!validId(cartId)) {
+    throw new RangeError("Listing actor cart transaction-source input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingActorCartTransactionSourceRow[]>`
+    SELECT *
+      FROM public.grainline_listing_actor_cart_transaction_sources(${cartId}::text)
+  `;
+  if (rows.length > 50) {
+    throw new TypeError("Listing actor cart transaction authority exceeded the cart limit");
+  }
+  const cartItemIds = new Set<string>();
+  return Object.freeze(rows.map((row) => {
+    if (!validId(row.cartItemId) || cartItemIds.has(row.cartItemId)) {
+      throw new TypeError("Listing actor cart transaction authority returned an invalid item");
+    }
+    cartItemIds.add(row.cartItemId);
+    return Object.freeze({
+      cartItemId: row.cartItemId,
+      listing: parseListingActorTransactionSourceRow(row),
+    });
+  }));
 }
 
 export async function readSellerActorListingTransactionState(

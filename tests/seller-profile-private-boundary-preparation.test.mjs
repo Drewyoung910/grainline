@@ -276,10 +276,10 @@ describe("SellerProfile private-boundary additive preparation", () => {
     assert.doesNotMatch(singleCheckout, /seller:\s*\{\s*select:\s*\{/);
     assert.match(singleCheckoutResume, /sellerSingleCheckoutResumeSource\(me\.id, listingId\)/);
     assert.doesNotMatch(singleCheckoutResume, /seller:\s*\{\s*select:\s*\{/);
-    assert.match(cartOwnerAccess, /withSellerActorCartTransaction/);
+    assert.match(cartOwnerAccess, /readListingActorCartTransactionSources/);
     assert.match(sellerTransactionAccess, /export function sellerSingleCheckoutSource/);
     assert.match(sellerTransactionAccess, /export function sellerSingleCheckoutResumeSource/);
-    assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
+    assert.match(sellerTransactionAccess, /grainline_listing_actor_cart_transaction_sources/);
     assert.match(checkoutPrivateAccess, /grainline_seller_checkout_private_state/);
     assert.doesNotMatch(checkoutPrivateAccess, /stripeAccountId: true/);
     assert.doesNotMatch(checkoutPrivateAccess, /stripeAccountVersion: true/);

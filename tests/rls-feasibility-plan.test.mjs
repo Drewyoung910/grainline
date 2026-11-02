@@ -1004,9 +1004,12 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
     assert.match(ownerAccess, /export function ownerCartExportRows/);
-    assert.match(ownerAccess, /withSellerActorCartTransaction/);
-    assert.match(ownerAccess, /attachCartSellerStates/);
-    assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
+    assert.match(ownerAccess, /readListingActorCartTransactionSources/);
+    assert.match(ownerAccess, /attachOwnerCartListingSources/);
+    assert.match(sellerTransactionAccess, /grainline_listing_actor_cart_transaction_sources/);
+    assert.doesNotMatch(ownerAccess, /include:\s*\{\s*listing:\s*true/u);
+    assert.doesNotMatch(ownerAccess, /listing:\s*\{\s*include:/u);
+    assert.doesNotMatch(ownerAccess, /listing:\s*\{\s*select:/u);
     assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
     assert.doesNotMatch(ownerAccess, /seller:\s*\{/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);
