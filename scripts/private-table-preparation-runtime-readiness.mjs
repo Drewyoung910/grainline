@@ -21,6 +21,7 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_RELEASE_SELECTIONS = Object.freeze(
   "email_service_v1",
   "seller_broadcast_v1",
   "seller_metrics_v1",
+  "admin_audit_log_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
@@ -33,6 +34,7 @@ const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   email_service_v1: "EMAIL_SERVICE_LEAST_PRIVILEGE_MIGRATION_PATH",
   seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
   seller_metrics_v1: "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(

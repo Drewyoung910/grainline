@@ -3,11 +3,15 @@ import test from "node:test";
 import {
   ACCOUNT_DELETION_APPLICATION_FUNCTIONS,
   ACCOUNT_DELETION_RUNTIME_FUNCTIONS,
+  ACCOUNT_DELETION_RUNTIME_SOURCE_SHA256,
   collectAccountDeletionActivationReadinessIssues,
   collectAccountDeletionApplicationReadinessIssues,
   collectAccountDeletionRuntimeReadinessIssues,
   verifyAccountDeletionRuntimeReadiness,
 } from "../scripts/account-deletion-runtime-readiness.mjs";
+import {
+  verifyPrivateTablePreparationSource,
+} from "../scripts/private-table-preparation-catalog.mjs";
 
 const RUNTIME_URL = "postgresql://grainline_app_runtime:runtime-password@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
 const productionEnv = Object.freeze({
@@ -25,6 +29,17 @@ const productionEnv = Object.freeze({
   RUNTIME_DB_ROLE: "grainline_app_runtime",
 });
 
+const adminAuditPreparation = verifyPrivateTablePreparationSource(
+  "admin_audit_log_v1",
+  process.cwd(),
+);
+const adminAuditSourceByIdentity = new Map(
+  adminAuditPreparation.release.functions.map((entry) => [
+    `${entry.name}(${entry.arguments})`,
+    adminAuditPreparation.functionSources.get(entry.name),
+  ]),
+);
+
 function readyRows(overrides = {}) {
   return ACCOUNT_DELETION_RUNTIME_FUNCTIONS.map((functionIdentity) => ({
     function_identity: functionIdentity,
@@ -38,6 +53,7 @@ function readyRows(overrides = {}) {
     table_crud: true,
     function_exists: true,
     function_execute: true,
+    source: adminAuditSourceByIdentity.get(functionIdentity) ?? null,
     ...overrides,
   }));
 }
@@ -69,6 +85,24 @@ test("readiness validator requires exact prepared worker authority", () => {
   assert.match(issues, /missing required function/);
   assert.match(issues, /function inventory is not exact/);
   assert.match(issues, /lacks effective EXECUTE/);
+});
+
+test("readiness validator pins the account-deletion audit authority bodies", () => {
+  assert.deepEqual(
+    Object.keys(ACCOUNT_DELETION_RUNTIME_SOURCE_SHA256).sort(),
+    [
+      "grainline_admin_audit_account_deletion_legacy_redaction_apply(text, bigint, uuid, text)",
+      "grainline_admin_audit_account_deletion_redaction_apply(text, bigint, uuid, text)",
+    ],
+  );
+  const rows = readyRows();
+  const identity = Object.keys(ACCOUNT_DELETION_RUNTIME_SOURCE_SHA256)[0];
+  const index = rows.findIndex((row) => row.function_identity === identity);
+  rows[index] = { ...rows[index], source: "drifted" };
+  assert.match(
+    collectAccountDeletionRuntimeReadinessIssues(rows).join("\n"),
+    /body drifted/u,
+  );
 });
 
 test("readiness validator requires the regular-runtime media enqueue authority", () => {
@@ -158,7 +192,7 @@ test("production readiness checks worker and application authority read-only", a
     enforced: true,
     environment: "production",
     role: "grainline_account_deletion_runtime",
-    preparedFunctionCount: 3,
+    preparedFunctionCount: ACCOUNT_DELETION_RUNTIME_FUNCTIONS.length,
     applicationFunctionCount: 1,
     rlsEnabled: true,
     rlsForced: false,
