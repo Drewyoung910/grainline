@@ -9,9 +9,19 @@ const REVIEW_TARGET_STATUSES = new Set<ListingStatus>([
   ListingStatus.DRAFT,
 ]);
 
+const REVIEW_SOURCE_STATUSES = new Set<ListingStatus>([
+  ListingStatus.PENDING_REVIEW,
+  ListingStatus.DRAFT,
+  ListingStatus.HIDDEN,
+  ListingStatus.SOLD,
+  ListingStatus.SOLD_OUT,
+  ListingStatus.REJECTED,
+]);
+
 export type VersionBoundListingAiReviewInput = Readonly<{
   listingId: string;
   reviewedAt: Date;
+  sourceStatus: ListingStatus;
   status: ListingStatus;
   flags: readonly string[];
   score: number;
@@ -19,6 +29,13 @@ export type VersionBoundListingAiReviewInput = Readonly<{
 
 function validId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9._:-]{1,191}$/u.test(value);
+}
+
+function validReviewTransition(sourceStatus: ListingStatus, status: ListingStatus) {
+  if (sourceStatus === ListingStatus.PENDING_REVIEW) {
+    return REVIEW_TARGET_STATUSES.has(status);
+  }
+  return status === ListingStatus.PENDING_REVIEW || status === ListingStatus.ACTIVE;
 }
 
 /**
@@ -34,7 +51,9 @@ export async function applyVersionBoundListingAiReviewTransition(
     !validId(input.listingId)
     || !(input.reviewedAt instanceof Date)
     || !Number.isFinite(input.reviewedAt.getTime())
+    || !REVIEW_SOURCE_STATUSES.has(input.sourceStatus)
     || !REVIEW_TARGET_STATUSES.has(input.status)
+    || !validReviewTransition(input.sourceStatus, input.status)
     || !Array.isArray(input.flags)
     || input.flags.length > 20
     || input.flags.some((flag) => !isTextWithinCodePointRange(flag, 0, 80))
@@ -54,6 +73,7 @@ export async function applyVersionBoundListingAiReviewTransition(
         FROM public.grainline_listing_owner_review_transition(
           ${input.listingId}::text,
           ${input.reviewedAt}::timestamp,
+          ${input.sourceStatus}::text,
           ${input.status}::text,
           ${flagsSql},
           ${input.score}::double precision

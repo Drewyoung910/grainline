@@ -324,19 +324,31 @@ describe("seller operational route hardening", () => {
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
-  it("keeps seller listing status follow-up mutations owner-scoped", () => {
+  it("keeps seller listing review transitions actor- and version-scoped", () => {
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const createListing = source("src/app/dashboard/listings/new/page.tsx");
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(shopActions, /WHERE id = \$\{listingId\}\s+AND "sellerId" = \$\{listing\.sellerId\}/);
-    assert.match(createListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
-    assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
+    assert.equal(
+      (shopActions.match(/applyVersionBoundListingAiReviewTransition\(\s*listing\.seller\.userId,/g) ?? []).length,
+      3,
+    );
+    assert.equal(
+      (createListing.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/g) ?? []).length,
+      3,
+    );
+    assert.equal(
+      (customListing.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/g) ?? []).length,
+      2,
+    );
     assert.equal(
       (editListing.match(/applyVersionBoundListingAiReviewTransition\(actor\.id,/g) ?? []).length,
       3,
     );
+    assert.doesNotMatch(shopActions, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
+    assert.doesNotMatch(createListing, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
+    assert.doesNotMatch(customListing, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
     assert.match(editListing, /status: approvedPublicStatus/);
   });
 

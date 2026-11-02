@@ -401,6 +401,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       reviewApplied = await applyVersionBoundListingAiReviewTransition(seller.userId, {
         listingId: created.id,
         reviewedAt: reviewedListingVersion,
+        sourceStatus: ListingStatus.PENDING_REVIEW,
         status: ListingStatus.PENDING_REVIEW,
         flags: aiResult.flags,
         score: aiResult.confidence,
@@ -409,22 +410,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
       reviewApplied = await applyVersionBoundListingAiReviewTransition(seller.userId, {
         listingId: created.id,
         reviewedAt: reviewedListingVersion,
+        sourceStatus: ListingStatus.PENDING_REVIEW,
         status: ListingStatus.ACTIVE,
         flags: aiResult.flags,
         score: aiResult.confidence,
       });
       activatedByThisReview = reviewApplied;
-      if (reviewApplied) {
-        await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET status = 'SOLD_OUT'
-          WHERE id = ${created.id}
-            AND "sellerId" = ${seller.id}
-            AND "listingType" = 'IN_STOCK'
-            AND COALESCE("stockQuantity", 0) <= 0
-            AND status = 'ACTIVE'
-        `;
-      }
     }
 
     // Do not let a stale review write alt text onto a newer photo set.
@@ -440,6 +431,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     await applyVersionBoundListingAiReviewTransition(seller.userId, {
       listingId: created.id,
       reviewedAt: reviewedListingVersion,
+      sourceStatus: ListingStatus.PENDING_REVIEW,
       status: ListingStatus.PENDING_REVIEW,
       flags: ["AI review error"],
       score: 0,

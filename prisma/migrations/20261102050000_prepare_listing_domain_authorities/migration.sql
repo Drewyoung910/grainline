@@ -78,7 +78,7 @@ BEGIN
     RAISE EXCEPTION 'Listing owner transition authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
-       'public.grainline_listing_owner_review_transition(text,timestamp without time zone,text,text[],double precision)'
+       'public.grainline_listing_owner_review_transition(text,timestamp without time zone,text,text,text[],double precision)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner review-transition authority already exists';
   END IF;
@@ -1403,6 +1403,7 @@ GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_transition(
 CREATE FUNCTION public.grainline_listing_owner_review_transition(
   p_listing_id text,
   p_reviewed_at timestamp without time zone,
+  p_source_status text,
   p_status text,
   p_flags text[],
   p_score double precision
@@ -1429,8 +1430,18 @@ BEGIN
      OR p_listing_id IS NULL
      OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
      OR p_reviewed_at IS NULL
+     OR p_source_status IS NULL
      OR p_status IS NULL
-     OR p_status NOT IN ('PENDING_REVIEW', 'ACTIVE', 'SOLD_OUT', 'DRAFT')
+     OR NOT (
+       (
+         p_source_status = 'PENDING_REVIEW'
+         AND p_status IN ('PENDING_REVIEW', 'ACTIVE', 'SOLD_OUT', 'DRAFT')
+       )
+       OR (
+         p_source_status IN ('DRAFT', 'HIDDEN', 'SOLD', 'SOLD_OUT', 'REJECTED')
+         AND p_status IN ('PENDING_REVIEW', 'ACTIVE')
+       )
+     )
      OR p_flags IS NULL
      OR pg_catalog.cardinality(p_flags) > 20
      OR EXISTS (
@@ -1472,21 +1483,43 @@ BEGIN
     RETURN;
   END IF;
 
-  IF source_listing.status::text <> 'PENDING_REVIEW'
+  IF source_listing.status::text <> p_source_status
      OR source_listing."updatedAt" IS DISTINCT FROM p_reviewed_at
      OR source_listing."archivedAt" IS NOT NULL
      OR (
        p_status IN ('ACTIVE', 'SOLD_OUT')
        AND NOT source_listing."sellerPubliclyOrderable"
+     )
+     OR (
+       p_source_status <> 'PENDING_REVIEW'
+       AND (
+         source_listing."rejectionReason" = 'Removed by Grainline staff.'
+         OR (
+           source_listing."listingType"::text = 'IN_STOCK'
+           AND COALESCE(source_listing."stockQuantity", 0) <= 0
+         )
+       )
      ) THEN
     RETURN QUERY SELECT false;
     RETURN;
   END IF;
 
   UPDATE public."Listing" AS listing
-     SET status = p_status::public."ListingStatus",
+     SET status = CASE
+           WHEN p_source_status = 'PENDING_REVIEW'
+             AND p_status = 'ACTIVE'
+             AND source_listing."listingType"::text = 'IN_STOCK'
+             AND COALESCE(source_listing."stockQuantity", 0) <= 0
+           THEN 'SOLD_OUT'::public."ListingStatus"
+           ELSE p_status::public."ListingStatus"
+         END,
          "aiReviewFlags" = p_flags,
          "aiReviewScore" = p_score,
+         "rejectionReason" = CASE
+           WHEN p_source_status = 'PENDING_REVIEW'
+           THEN source_listing."rejectionReason"
+           ELSE NULL
+         END,
          "updatedAt" = source_now
    WHERE listing.id = source_listing.id;
 
@@ -1495,10 +1528,10 @@ END
 $grainline_listing_owner_review_transition$;
 
 REVOKE ALL ON FUNCTION public.grainline_listing_owner_review_transition(
-  text,timestamp without time zone,text,text[],double precision
+  text,timestamp without time zone,text,text,text[],double precision
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_review_transition(
-  text,timestamp without time zone,text,text[],double precision
+  text,timestamp without time zone,text,text,text[],double precision
 ) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(
