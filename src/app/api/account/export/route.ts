@@ -45,6 +45,13 @@ import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAcces
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
+import { ownerSellerBroadcastExport } from "@/lib/sellerBroadcastAccess";
+import { ownerBlockExportRows } from "@/lib/blockAccess";
+import {
+  exportReceivedUserReports,
+  exportSubmittedUserReports,
+} from "@/lib/userReportAccess";
+import { ownerSellerFaqExportRows } from "@/lib/sellerFaqAccess";
 
 export const runtime = "nodejs";
 
@@ -231,60 +238,16 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         })
       : [],
     ownerNotificationExportRows(user.id),
-    prisma.block.findMany({
-      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
-      orderBy: { createdAt: "desc" },
-      select: { blockerId: true, blockedId: true, createdAt: true },
-    }),
-    prisma.userReport.findMany({
-      where: { reporterId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reportedId: true,
-        reason: true,
-        details: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
-    prisma.userReport.findMany({
-      where: { reportedId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reason: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
+    ownerBlockExportRows(user.id),
+    exportSubmittedUserReports(user.id),
+    exportReceivedUserReports(user.id),
     exportOwnerSupportRequests(user.id),
     withDbUserContext(user.id, (tx) => exportOwnerEmailServiceData(tx)),
     ownerStockNotificationExportRows(user.id),
     exportCheckoutStockReservations(user.id),
     sellerProfile ? exportOwnerMakerVerification(user.id) : null,
-    sellerProfile
-      ? prisma.sellerFaq.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, question: true, answer: true, sortOrder: true, createdAt: true },
-        })
-      : [],
-    sellerProfile
-      ? prisma.sellerBroadcast.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sentAt: "desc" },
-          select: { id: true, message: true, imageUrl: true, sentAt: true, recipientCount: true },
-        })
-      : [],
+    ownerSellerFaqExportRows(user.id),
+    sellerProfile ? ownerSellerBroadcastExport(user.id) : [],
     sellerProfile ? exportSellerPayoutEvents(user.id) : [],
     exportOwnedDirectUploads(user.id),
     exportOwnerReviewVotes(user.id),

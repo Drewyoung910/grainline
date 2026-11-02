@@ -15,12 +15,13 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   assert.equal(Object.keys(SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS).length, 0);
   assert.equal(result.directWrites, 0);
   assert.equal(result.coordinateFiles, 0);
-  // Email service preparation moves eight EmailOutbox query-shape occurrences
-  // behind fixed SQL authorities. The remaining frontier stays pinned here.
-  assert.equal(result.reviewedOpaqueShapes, 138);
+  // Fixed SQL authorities remove the historical EmailSuppression,
+  // StockNotification, SellerBroadcast, UserReport, and EmailOutbox query
+  // shapes from this frontier.
+  assert.equal(result.reviewedOpaqueShapes, 134);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 116);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 112);
   assert.equal(result.opaqueNonTargetResiduals, 22);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,

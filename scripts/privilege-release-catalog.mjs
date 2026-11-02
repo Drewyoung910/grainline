@@ -33,10 +33,10 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     preparationMigration: Object.freeze({
       name: "20261101080000_prepare_email_service_least_privilege",
       sha256:
-        "fe2025fb5ac81c6692eee0d1a30dbde84504f3143b9534e6d64db72c1624f07a",
+        "032209f22a02ff0145e69b7aa2c164bb823d376f41218c932878c8e8b4f0df37",
     }),
     compatibleDeployment: Object.freeze({
-      minimumAppCommit: "db336ce5dde14dddca57dbc92bf2ce1e507ef159",
+      minimumAppCommit: "e4d35863b22a1694d96f9582732ff66e26ba770d",
     }),
     rollback: Object.freeze({
       path: "docs/rls-drafts/email-service-least-privilege-activation-rollback.sql",
@@ -64,7 +64,7 @@ export const PRIVILEGE_RELEASES = Object.freeze({
       "public.grainline_email_hard_suppression_apply(text,text,\"EmailSuppressionReason\",text,text,jsonb)": fixedFunctionContract("26b56879c36244c42a16eeae66f06813d1c5d53fad5b0eb59a71410910dc942b", "TABLE(email text, reason \"EmailSuppressionReason\", source text, \"eventId\" text, details jsonb)"),
       "public.grainline_email_one_click_suppression_clear(text)": fixedFunctionContract("c149130950709ea50e05c69533ec63f7e27a2c3bb966dfa4e562c7aebc4d5b1f", "integer"),
       "public.grainline_email_outbox_account_deletion_fence(text,text[])": fixedFunctionContract("d6ee02f559fec2fd3e2dbf9c9925dcfecf6988e97b8c7595895585b25851eb8e", "integer"),
-      "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)": fixedFunctionContract("acb3d41117e8b8a88fbe3fd055cdc1824b8a32eaebf4f40fb687c8ef7516289e", "text"),
+      "public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)": fixedFunctionContract("ccd76d8732ce145f25e523daf5f5134231e148689d7af90719c3f0680e69b708", "text"),
       "public.grainline_email_outbox_cancel_seller_broadcast(text)": fixedFunctionContract("8c0fc3a6975c1d4735741ae58062b4e55b3674ff2b898bbd17f2f951285a7f63", "integer"),
       "public.grainline_email_outbox_claim_batch(integer)": fixedFunctionContract("821da02132dba680a82444eae5bd2fb1a3690309996cc222a0a10234b199bd22", "TABLE(\"jobId\" text, \"claimGeneration\" bigint, \"claimToken\" uuid, \"recipientEmail\" text, \"recipientUserId\" text, \"preferenceKey\" text, \"templateName\" text, \"templateVersion\" integer, \"payloadVersion\" integer, payload jsonb, \"dedupKey\" text, \"createdAt\" timestamp with time zone, \"legacySubject\" text, \"legacyHtml\" text, lane text)", { language: "sql" }),
       "public.grainline_email_outbox_claim_one(text)": fixedFunctionContract("76d1a2048afa03dce1d4399df5da6abf0fb7d4f555498efe56c22712dce5beb2", "TABLE(\"jobId\" text, \"claimGeneration\" bigint, \"claimToken\" uuid, \"recipientEmail\" text, \"recipientUserId\" text, \"preferenceKey\" text, \"templateName\" text, \"templateVersion\" integer, \"payloadVersion\" integer, payload jsonb, \"dedupKey\" text, \"createdAt\" timestamp with time zone, \"legacySubject\" text, \"legacyHtml\" text, lane text)", { language: "sql" }),
