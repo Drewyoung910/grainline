@@ -73,6 +73,18 @@ type ListingOwnerCreateRow = {
   tags: unknown;
 };
 
+type ListingOwnerRatingBucketRow = {
+  bucketEpochMillis: unknown;
+  averageRating: unknown;
+  reviewCount: unknown;
+};
+
+export type ListingOwnerRatingBucket = Readonly<{
+  date: Date;
+  averageRating: number;
+  reviewCount: number;
+}>;
+
 export type ListingOwnerPhotoInput = Readonly<{
   id?: string | null;
   url: string;
@@ -1777,5 +1789,67 @@ export function listingOwnerCounts(userId: string) {
       activePublicCount: Number(row.activePublicCount),
       oldestListingId: row.oldestListingId as string | null,
     });
+  });
+}
+
+export function listingOwnerRatingBuckets(
+  userId: string,
+  input: {
+    startDate: Date;
+    endDate: Date;
+    endExclusive: boolean;
+  },
+) {
+  const startEpochMillis = input.startDate.getTime();
+  const endEpochMillis = input.endDate.getTime();
+  if (
+    !Number.isSafeInteger(startEpochMillis)
+    || !Number.isSafeInteger(endEpochMillis)
+    || startEpochMillis < 0
+    || endEpochMillis < startEpochMillis
+    || typeof input.endExclusive !== "boolean"
+  ) {
+    throw new RangeError("Listing owner rating range is invalid");
+  }
+
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<ListingOwnerRatingBucketRow[]>`
+      SELECT *
+        FROM public.grainline_listing_owner_rating_buckets(
+          ${BigInt(startEpochMillis)}::bigint,
+          ${BigInt(endEpochMillis)}::bigint,
+          ${input.endExclusive}::boolean
+        )
+    `;
+    let previousBucket = -1;
+    return Object.freeze(rows.map((row) => {
+      const bucketEpochMillis = typeof row.bucketEpochMillis === "bigint"
+        && row.bucketEpochMillis >= 0n
+        && row.bucketEpochMillis <= 253402300799999n
+        ? Number(row.bucketEpochMillis)
+        : null;
+      const reviewCount = typeof row.reviewCount === "bigint"
+        && row.reviewCount > 0n
+        && row.reviewCount <= BigInt(Number.MAX_SAFE_INTEGER)
+        ? Number(row.reviewCount)
+        : null;
+      if (
+        bucketEpochMillis === null
+        || bucketEpochMillis <= previousBucket
+        || typeof row.averageRating !== "number"
+        || !Number.isFinite(row.averageRating)
+        || row.averageRating < 0.5
+        || row.averageRating > 5
+        || reviewCount === null
+      ) {
+        throw new Error("Listing owner rating authority returned an invalid row");
+      }
+      previousBucket = bucketEpochMillis;
+      return Object.freeze({
+        date: new Date(bucketEpochMillis),
+        averageRating: row.averageRating,
+        reviewCount,
+      }) satisfies ListingOwnerRatingBucket;
+    }));
   });
 }

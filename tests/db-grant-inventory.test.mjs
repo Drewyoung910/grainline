@@ -106,6 +106,7 @@ const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_listing_owner_catalog_page",
   "grainline_listing_owner_summary_page",
   "grainline_listing_owner_counts",
+  "grainline_listing_owner_rating_buckets",
   "grainline_listing_owner_action_state",
   "grainline_listing_actor_transaction_source_core",
   "grainline_listing_actor_transaction_source",
