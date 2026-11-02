@@ -45,7 +45,8 @@ test("tag and metro pages share one bounded public catalog authority", async () 
   assert.match(tagPage, /listingPublicCatalogPage/u);
   assert.doesNotMatch(tagPage, /prisma\.listing\.(?:count|findMany)/u);
   assert.match(metroCategoryPage, /listingPublicCatalogPage/u);
-  assert.doesNotMatch(metroCategoryPage, /prisma\.listing\.(?:count|findMany)/u);
+  assert.doesNotMatch(metroCategoryPage, /prisma\.listing\.(?:count|findMany|groupBy)/u);
+  assert.doesNotMatch(metroCategoryPage, /generateStaticParams/u);
   assert.match(access, /categoryCounts/u);
   assert.match(metroPage, /includeCategoryCounts: true/u);
   assert.match(metroPage, /categoryCounts/u);
