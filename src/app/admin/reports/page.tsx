@@ -8,6 +8,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { userStaffAdminLabels, userStaffReportLabels } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
+import { listingStaffReferenceTargets } from "@/lib/listingStaffAccess";
 import {
   userReportStaffOpenCount,
   userReportStaffOpenPage,
@@ -110,9 +111,9 @@ export default async function AdminReportsPage({
   }
 
   if (listingTargetIds.length > 0) {
-    const listings = await prisma.listing.findMany({
-      where: { id: { in: listingTargetIds } },
-      select: { id: true, title: true },
+    const listings = await listingStaffReferenceTargets(staffClient, {
+      actorId: staff.id,
+      listingIds: listingTargetIds,
     });
     for (const listing of listings) {
       listingPathMap.set(listing.id, publicListingPath(listing.id, listing.title));
