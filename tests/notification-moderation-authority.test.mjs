@@ -22,9 +22,9 @@ describe("Notification moderation and account-warning authority", () => {
     assert.match(listingReview, /sellerProfileStaffListingReviewTransition\([\s\S]*operation: action === 'approve' \? 'APPROVE' : 'REJECT'/);
     assert.match(listingReview, /if \(!transition\.auditId\)/);
     assert.equal((listingReview.match(/sourceId: transition\.auditId/g) ?? []).length, 2);
-    assert.match(userReport, /const report = await prisma\.userReport\.create/);
+    assert.match(userReport, /report = await createUserReport\(\{/);
     assert.match(userReport, /sourceType: NOTIFICATION_SOURCE_TYPES\.LISTING_USER_REPORT/);
-    assert.match(userReport, /sourceId: report\.id/);
+    assert.match(userReport, /sourceId: report\.reportId/);
     assert.match(userReport, /relatedUserId: me\.id/);
   });
 

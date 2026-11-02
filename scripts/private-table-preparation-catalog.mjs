@@ -438,6 +438,162 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  block_v1: Object.freeze({
+    migration: "20261030010000_prepare_block_authorities",
+    migrationSha256: "3bc49fc721e4bf8067f2222c9d47bc2e01c91d6ed93d7ed70fc25d5dd14251cb",
+    table: "Block",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/block-authority-preparation.test.mjs",
+      "tests/notification-block-race-guardrails.test.mjs",
+      "tests/order-blocked-pair-checkout.test.mjs",
+      "tests/seller-profile-block-follow-cleanup-conversion.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_user_block_pair_is_blocked",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_create",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_user_block_delete_owned",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_conversation_inbox_owner",
+        arguments: "boolean, text, timestamp without time zone, text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_message_unread_count_owner",
+        arguments: "",
+      }),
+    ]),
+  }),
+  user_report_v1: Object.freeze({
+    migration: "20261030020000_prepare_user_report_authorities",
+    migrationSha256: "23a39d693ac959d3f1ca81dbb598752ee75d9f9adef90874082ec23693ca105a",
+    table: "UserReport",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([
+      Object.freeze({
+        name: "internalResolutionNote",
+        type: "character varying(1000)",
+        nullable: true,
+      }),
+    ]),
+    sourceTests: Object.freeze([
+      "tests/user-report-authority-preparation.test.mjs",
+      "tests/user-report-target-access.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_user_report_submit",
+        arguments: "text, text, text, text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_owner_submitted_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_owner_received_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_open_count",
+        arguments: "text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_open_page",
+        arguments: "text, timestamp without time zone, text, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_top_reporters",
+        arguments: "text, timestamp without time zone, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_staff_resolve",
+        arguments: "text, text, text, text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_user_report_account_deletion_redact",
+        arguments: "text, bigint, uuid",
+      }),
+    ]),
+  }),
+  seller_faq_v1: Object.freeze({
+    migration: "20261030030000_prepare_seller_faq_authorities",
+    migrationSha256: "45cf9935bd9c6492a26ebc167dab20962395e1834f2191d293f0776597803e99",
+    table: "SellerFaq",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-faq-authority-preparation.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_seller_faq_owner_create",
+        arguments: "text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_faq_owner_remove",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_faq_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_seller_faq_account_deletion_cleanup",
+        arguments: "text, text, bigint, uuid",
+      }),
+    ]),
+  }),
 });
 
 export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
@@ -446,6 +602,11 @@ export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+  ]),
+  block_report_seller_faq_v1: Object.freeze([
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
   ]),
 });
 
