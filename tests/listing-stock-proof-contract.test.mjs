@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { loadStockUpdate, parseStockProofConfig, verifyStockProofIdentity } from "../scripts/listing-stock-mutation-postgres-proof.mjs";
+import {
+  loadStockAuthorityDefinitions,
+  parseStockProofConfig,
+  verifyStockProofIdentity,
+} from "../scripts/listing-stock-mutation-postgres-proof.mjs";
 
 test("native stock proof rejects non-disposable targets and unexpected identities", () => {
   const key = "LISTING_STOCK_MUTATION_PROOF_DATABASE_URL";
@@ -17,16 +21,13 @@ test("native stock proof rejects non-disposable targets and unexpected identitie
   for (const drift of [{ db: "neondb" }, { actor: "grainline_app_runtime" }, { login: "owner" },
     { host: "8.8.8.8" }, { version: 170000 }]) assert.throws(() => verifyStockProofIdentity({ ...identity, ...drift }));
 });
-test("native proof executes the production tagged UPDATE with bound parameters", async () => {
-  let captured;
-  const rows = await loadStockUpdate()({ $queryRaw: async (parts, ...values) => {
-    captured = { text: parts.join("?"), values }; return [{ stockQuantity: 10 }];
-  } }, "listing", { sellerId: "seller" }, true, 5, 10);
-  assert.equal(rows[0].stockQuantity, 10);
-  assert.match(captured.text, /WITH previous_listing AS MATERIALIZED/);
-  assert.match(captured.text, /FOR UPDATE/);
-  assert.equal(captured.values[0], "listing"); assert.equal(captured.values[1], "seller");
-  assert.equal(captured.values.filter((value) => value === true).length, 3);
+test("native proof executes the exact migrated stock authorities", () => {
+  const sql = loadStockAuthorityDefinitions("listing_stock_proof_contract");
+  assert.match(sql, /CREATE FUNCTION "listing_stock_proof_contract"\.grainline_listing_owner_stock_lock/u);
+  assert.match(sql, /CREATE FUNCTION "listing_stock_proof_contract"\.grainline_listing_owner_stock_apply/u);
+  assert.match(sql, /WITH previous_listing AS MATERIALIZED/u);
+  assert.match(sql, /FOR UPDATE OF listing/u);
+  assert.doesNotMatch(sql, /public\."Listing"|public\."SellerProfile"|public\."User"/u);
 });
 test("concurrency proof is wired only in disposable CI and verifies exact-schema teardown", () => {
   const proof = readFileSync("scripts/listing-stock-mutation-postgres-proof.mjs", "utf8");

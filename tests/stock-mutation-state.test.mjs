@@ -88,37 +88,44 @@ describe("stock mutation state", () => {
 
   it("keeps manual stock SQL status flips constrained to active and sold-out listings", () => {
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
-    const statusCase = stockRoute.slice(
-      stockRoute.indexOf("status = CASE"),
-      stockRoute.indexOf("\"updatedAt\" = NOW()"),
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    const statusCase = listingAuthority.slice(
+      listingAuthority.indexOf("CREATE FUNCTION public.grainline_listing_owner_stock_apply"),
+      listingAuthority.indexOf("$grainline_listing_owner_stock_apply$;"),
     );
 
-    assert.match(statusCase, /WHEN target\.status = 'ACTIVE'::"ListingStatus" AND/);
-    assert.match(statusCase, /\) <= 0 THEN 'SOLD_OUT'::"ListingStatus"/);
-    assert.match(statusCase, /WHEN target\.status = 'SOLD_OUT'::"ListingStatus" AND NOT target\."isPrivate" AND/);
-    assert.match(statusCase, /\) > 0 THEN 'ACTIVE'::"ListingStatus"/);
+    assert.match(statusCase, /WHEN target\.status = 'ACTIVE'::public\."ListingStatus"/);
+    assert.match(statusCase, /\) <= 0[\s\S]*THEN 'SOLD_OUT'::public\."ListingStatus"/);
+    assert.match(statusCase, /WHEN target\.status = 'SOLD_OUT'::public\."ListingStatus"[\s\S]*AND NOT target\."isPrivate"/);
+    assert.match(statusCase, /\) > 0[\s\S]*THEN 'ACTIVE'::public\."ListingStatus"/);
+    assert.doesNotMatch(stockRoute, /UPDATE "Listing"|FROM "Listing"/);
     assert.match(stockRoute, /revalidateListingSearchCaches\(\);[\s\S]*revalidateFeaturedMakerCaches\(\);/);
   });
 
   it("keeps sold-out listing edits in review before restock can reactivate them", () => {
     const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
 
     assert.match(
-      editListing,
-      /const needsPublicContentReview =[\s\S]*listing\.status === ListingStatus\.ACTIVE \|\|[\s\S]*listing\.status === ListingStatus\.SOLD_OUT/,
+      listingAuthority,
+      /requires_review := source_listing\.status::text IN \('ACTIVE', 'SOLD_OUT'\)/,
     );
-    assert.match(editListing, /if \(needsPublicContentReview\) \{/);
     assert.match(
-      editListing,
-      /\.\.\.\(needsPublicContentReview \? \{ status: ListingStatus\.PENDING_REVIEW \} : \{\}\)/,
+      listingAuthority,
+      /WHEN requires_review THEN 'PENDING_REVIEW'::public\."ListingStatus"/,
     );
+    assert.match(editListing, /if \(updatedListing\.requiresReview\) \{/);
     assert.match(
       editListing,
       /applyVersionBoundListingAiReviewTransition\(actor\.id, \{[\s\S]*reviewedAt: updatedListing\.updatedAt/,
     );
     assert.match(
       editListing,
-      /status: approvedPublicStatus,[\s\S]*flags: aiResult\.flags/,
+      /status: updatedListing\.approvedStatus,[\s\S]*flags: aiResult\.flags/,
     );
     assert.doesNotMatch(editListing, /const wasActive = listing\.status === ListingStatus\.ACTIVE/);
   });

@@ -98,6 +98,13 @@ BEGIN
     RAISE EXCEPTION 'Listing quality-score apply authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_stock_lock(text,text)'
+     ) IS NOT NULL OR pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_stock_apply(text,text,boolean,integer,integer)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner stock authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_action_state(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner action-state authority already exists';
@@ -1874,6 +1881,204 @@ REVOKE ALL ON FUNCTION public.grainline_listing_service_quality_score_apply(json
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_service_quality_score_apply(jsonb)
   TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_stock_lock(
+  p_listing_id text,
+  p_expected_seller_profile_id text
+)
+RETURNS TABLE (
+  id text,
+  title text,
+  "stockQuantity" integer,
+  "listingType" text,
+  status text,
+  "isPrivate" boolean,
+  "archivedAt" timestamp(3) without time zone,
+  "rejectionReason" text
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_stock_lock$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_seller_profile_id IS NULL
+     OR p_expected_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing owner stock-lock input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true
+     AND seller.id = p_expected_seller_profile_id;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    listing.id::text,
+    listing.title::text,
+    listing."stockQuantity",
+    listing."listingType"::text,
+    listing.status::text,
+    listing."isPrivate",
+    listing."archivedAt",
+    listing."rejectionReason"::text
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+   FOR UPDATE OF listing;
+END
+$grainline_listing_owner_stock_lock$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_stock_lock(text,text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_stock_lock(text,text)
+  TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_stock_apply(
+  p_listing_id text,
+  p_expected_seller_profile_id text,
+  p_apply_delta boolean,
+  p_stock_delta integer,
+  p_quantity integer
+)
+RETURNS TABLE (
+  id text,
+  title text,
+  "stockQuantity" integer,
+  status text,
+  "previousStockQuantity" integer,
+  "previousStatus" text
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_stock_apply$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_seller_profile_id IS NULL
+     OR p_expected_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_apply_delta IS NULL
+     OR p_stock_delta IS NULL
+     OR p_stock_delta < -1000000
+     OR p_stock_delta > 1000000
+     OR p_quantity IS NULL
+     OR p_quantity < 0
+     OR p_quantity > 1000000
+     OR (NOT p_apply_delta AND p_stock_delta <> 0) THEN
+    RAISE EXCEPTION 'Listing owner stock-apply input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true
+     AND seller.id = p_expected_seller_profile_id;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH previous_listing AS MATERIALIZED (
+    SELECT listing.id, listing."stockQuantity", listing.status
+      FROM public."Listing" AS listing
+     WHERE listing.id = p_listing_id
+       AND listing."sellerId" = seller_id
+     FOR UPDATE OF listing
+  )
+  UPDATE public."Listing" AS target
+     SET "stockQuantity" = CASE
+           WHEN p_apply_delta THEN
+             GREATEST(
+               0,
+               COALESCE(target."stockQuantity", 0) + p_stock_delta
+             )
+           ELSE p_quantity
+         END,
+         status = CASE
+           WHEN target.status = 'ACTIVE'::public."ListingStatus"
+             AND (
+               CASE
+                 WHEN p_apply_delta THEN
+                   GREATEST(
+                     0,
+                     COALESCE(target."stockQuantity", 0) + p_stock_delta
+                   )
+                 ELSE p_quantity
+               END
+             ) <= 0
+             THEN 'SOLD_OUT'::public."ListingStatus"
+           WHEN target.status = 'SOLD_OUT'::public."ListingStatus"
+             AND NOT target."isPrivate"
+             AND (
+               CASE
+                 WHEN p_apply_delta THEN
+                   GREATEST(
+                     0,
+                     COALESCE(target."stockQuantity", 0) + p_stock_delta
+                   )
+                 ELSE p_quantity
+               END
+             ) > 0
+             THEN 'ACTIVE'::public."ListingStatus"
+           ELSE target.status
+         END,
+         "updatedAt" = pg_catalog.now()
+    FROM previous_listing AS previous
+   WHERE target.id = previous.id
+  RETURNING
+    target.id::text,
+    target.title::text,
+    target."stockQuantity",
+    target.status::text,
+    previous."stockQuantity",
+    previous.status::text;
+END
+$grainline_listing_owner_stock_apply$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_stock_apply(
+  text,text,boolean,integer,integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_stock_apply(
+  text,text,boolean,integer,integer
+) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_action_state(
   p_listing_id text

@@ -30,8 +30,10 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { z } from "zod";
 import {
-  prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired,
+  applyListingStockMutation, prepareListingStockMutation, recordListingStockMutation,
+  StockMutationConflict, StockMutationExpired,
 } from "@/lib/listingStockMutation";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import { userEmailDeliveryRecipients } from "@/lib/userEmailDeliveryAccess";
 import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
 import { stockNotificationRestockCandidates } from "@/lib/stockNotificationAccess";
@@ -106,7 +108,7 @@ export async function PATCH(
       updated,
       lowStockAuthoritySourceId,
       backInStockAuthoritySourceId,
-    } = await prisma.$transaction(async (tx) => {
+    } = await withDbUserContext(me.id, async (tx) => {
       const mutation = await prepareListingStockMutation(tx, {
         listingId: id, sellerId: listing.sellerId, actorId: me.id,
       }, stockParsed, { kind: "inventory", quantity, expectedQuantity });
@@ -119,54 +121,13 @@ export async function PATCH(
       if (mutation.listing.listingType !== "IN_STOCK") {
         throw new StockMutationConflict("Listing type changed. Refresh inventory before adjusting stock.");
       }
-      const updatedRows = await tx.$queryRaw<Array<{
-        id: string;
-        title: string;
-        stockQuantity: number | null;
-        status: string;
-        previousStockQuantity: number | null;
-        previousStatus: string;
-      }>>`
-        WITH previous_listing AS MATERIALIZED (
-          SELECT id, "stockQuantity", status
-          FROM "Listing"
-          WHERE id = ${id}
-            AND "sellerId" = ${listing.sellerId}
-          FOR UPDATE
-        )
-        UPDATE "Listing" AS target
-        SET
-          "stockQuantity" = CASE
-            WHEN ${applyDelta} THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + ${stockDelta})
-            ELSE ${quantity}
-          END,
-          status = CASE
-            WHEN target.status = 'ACTIVE'::"ListingStatus" AND (
-              CASE
-                WHEN ${applyDelta} THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + ${stockDelta})
-                ELSE ${quantity}
-              END
-            ) <= 0 THEN 'SOLD_OUT'::"ListingStatus"
-            WHEN target.status = 'SOLD_OUT'::"ListingStatus" AND NOT target."isPrivate" AND (
-              CASE
-                WHEN ${applyDelta} THEN GREATEST(0, COALESCE(target."stockQuantity", 0) + ${stockDelta})
-                ELSE ${quantity}
-              END
-            ) > 0 THEN 'ACTIVE'::"ListingStatus"
-            ELSE target.status
-          END,
-          "updatedAt" = NOW()
-        FROM previous_listing AS previous
-        WHERE target.id = previous.id
-        RETURNING
-          target.id,
-          target.title,
-          target."stockQuantity",
-          target.status::text AS status,
-          previous."stockQuantity" AS "previousStockQuantity",
-          previous.status::text AS "previousStatus"
-      `;
-      const committed = updatedRows[0];
+      const committed = await applyListingStockMutation(tx, {
+        listingId: id,
+        sellerId: listing.sellerId,
+        applyDelta,
+        stockDelta,
+        quantity,
+      });
       if (!committed) {
         return {
           updated: null,

@@ -21,8 +21,37 @@ before(async () => {
 after(async () => { await db?.close(); });
 function port(connection) {
   return {
-    $queryRaw: async (parts, ...values) => (await connection.query(parts.reduce((sql, part, index) =>
-      sql + (index ? `$${index}` : "") + part, ""), values)).rows,
+    $queryRaw: async (parts, ...values) => {
+      const sql = parts.reduce((text, part, index) => text + (index ? `$${index}` : "") + part, "");
+      if (sql.includes("grainline_listing_owner_stock_lock")) {
+        return (await connection.query(`SELECT id, title, "stockQuantity", "listingType",
+          status::text AS status, "isPrivate", "archivedAt", "rejectionReason"
+          FROM "Listing" WHERE id=$1 AND "sellerId"=$2 FOR UPDATE`, values)).rows;
+      }
+      if (sql.includes("grainline_listing_owner_stock_apply")) {
+        return (await connection.query(`WITH previous_listing AS MATERIALIZED (
+          SELECT id, "stockQuantity", status FROM "Listing"
+          WHERE id=$1 AND "sellerId"=$2 FOR UPDATE
+        )
+        UPDATE "Listing" AS target SET
+          "stockQuantity"=CASE WHEN $3::boolean
+            THEN GREATEST(0,COALESCE(target."stockQuantity",0)+$4::integer)
+            ELSE $5::integer END,
+          status=CASE
+            WHEN target.status='ACTIVE' AND
+              (CASE WHEN $3::boolean THEN GREATEST(0,COALESCE(target."stockQuantity",0)+$4::integer) ELSE $5::integer END)<=0
+              THEN 'SOLD_OUT'::"ListingStatus"
+            WHEN target.status='SOLD_OUT' AND NOT target."isPrivate" AND
+              (CASE WHEN $3::boolean THEN GREATEST(0,COALESCE(target."stockQuantity",0)+$4::integer) ELSE $5::integer END)>0
+              THEN 'ACTIVE'::"ListingStatus"
+            ELSE target.status END,
+          "updatedAt"=now()
+        FROM previous_listing AS previous WHERE target.id=previous.id
+        RETURNING target.id, target.title, target."stockQuantity", target.status::text AS status,
+          previous."stockQuantity" AS "previousStockQuantity", previous.status::text AS "previousStatus"`, values)).rows;
+      }
+      return (await connection.query(sql, values)).rows;
+    },
     systemAuditLog: {
       findUnique: async ({ where }) => (await connection.query('SELECT * FROM "SystemAuditLog" WHERE id=$1', [where.id])).rows[0] ?? null,
       create: async ({ data }) => {
@@ -56,6 +85,7 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
     "@clerk/nextjs/server": { auth: async () => ({ userId: authenticated ? "clerk_owner" : null }) },
     "next/server": { after() {} }, "@sentry/nextjs": { captureException() {} },
     "@/lib/db": { prisma }, "@/lib/apiAccountAccess": { accountAccessErrorResponse: () => null },
+    "@/lib/dbUserContext": { withDbUserContext: (_actorId, run) => prisma.$transaction(run) },
     "@/lib/privateResponse": { privateJson: (data, init) => Response.json(data, init), privateResponse: (x) => x },
     "@/lib/notifications": { createNotification: async () => {}, shouldSendEmail: async () => false },
     "@/lib/notificationSources": { NOTIFICATION_SOURCE_TYPES: {} },
