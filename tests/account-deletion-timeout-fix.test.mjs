@@ -34,7 +34,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /source: "account_delete_media_cleanup"/);
   });
 
-  it("keeps Prisma work sequential in account-deletion transaction helpers", () => {
+  it("keeps account-deletion transaction helpers bounded and sequential", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const sellerFanoutStart = accountDeletion.indexOf("async function cleanupDeletedSellerFanoutRows");
     const sellerFanoutEnd = accountDeletion.indexOf(
@@ -53,7 +53,11 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const mediaCollection = accountDeletion.slice(mediaCollectionStart, mediaCollectionEnd);
     assert.doesNotMatch(sellerFanout, /Promise\.all\s*\(/);
     assert.doesNotMatch(mediaCollection, /Promise\.all\s*\(/);
-    assert.match(sellerFanout, /await tx\.sellerBroadcast\.findMany[\s\S]*await tx\.listing\.findMany/);
+    assert.match(
+      sellerFanout,
+      /await redactDeletedSellerEmailOutbox\(tx, sellerProfileId\)/,
+    );
+    assert.doesNotMatch(sellerFanout, /tx\.(?:sellerBroadcast|listing|emailOutbox)\./);
     assert.doesNotMatch(sellerFanout, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
     assert.match(
       mediaCollection,

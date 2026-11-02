@@ -839,6 +839,15 @@ jobs:
           tests/admin-moderation-screen-ui.test.mjs
           tests/conversation-message-pre-rls-audit.test.mjs
           tests/conversation-message-recipient-rls.test.mjs
+      - name: Isolate email service least-privilege preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-service-least-privilege"
+          migration=20261101080000_prepare_email_service_least_privilege
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "EMAIL_SERVICE_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate Clerk webhook event authority until historical release guards pass
         shell: bash
         run: |
@@ -7111,6 +7120,15 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore email service least-privilege preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/email-service-least-privilege"
+          migration=20261101080000_prepare_email_service_least_privilege
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "EMAIL_SERVICE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       # Recreate the disposable database and prove the final application build
       # against the complete reviewed candidate chain.
       - name: Apply complete public SellerProfile chain for final Production build
