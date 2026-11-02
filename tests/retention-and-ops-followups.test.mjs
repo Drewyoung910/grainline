@@ -82,12 +82,12 @@ describe("retention and ops-health follow-ups", () => {
     const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
 
     assert.match(source, /const VIEW_CLEANUP_TIME_BUDGET_MS = 60_000/);
-    assert.match(source, /runBoundedDeletionBatches\(\{/);
+    assert.match(source, /pruneSellerAnalyticsDaily\(\{/);
+    assert.match(source, /batchSize: VIEW_CLEANUP_BATCH_SIZE/);
     assert.match(source, /timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS/);
-    assert.match(source, /deletedViewRowsComplete/);
-    assert.match(source, /deleteOldSellerProfileViewDaily\(twoYearsAgo\)/);
-    assert.match(source, /DELETE FROM "SellerProfileViewDaily"/);
-    assert.match(source, /deletedProfileViewRowsComplete/);
+    assert.match(source, /deletedViewRowsComplete = cleanup\.listingComplete/);
+    assert.match(source, /deletedProfileViewRowsComplete = cleanup\.profileComplete/);
+    assert.doesNotMatch(source, /DELETE FROM "(?:ListingViewDaily|SellerProfileViewDaily)"/);
   });
 
   it("uses a fixed listing-view retention window without calendar rollover", () => {

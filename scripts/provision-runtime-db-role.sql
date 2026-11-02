@@ -615,6 +615,143 @@ REVOKE ALL ON TABLE public."MakerVerification"
 \endif
 \unset maker_verification_rls_active
 
+-- CommissionRequest and CommissionInterest form one authority boundary. Keep
+-- compatible predecessor CRUD only while both tables are cleanly unprotected.
+-- Their reviewed activation is policyless ENABLE plus FORCE on both tables,
+-- so every provisioning replay must preserve zero direct table authority.
+WITH table_state AS (
+  SELECT
+    class.relname,
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname IN ('CommissionRequest', 'CommissionInterest')
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 2
+      AND bool_and(
+        relrowsecurity AND relforcerowsecurity AND policy_count = 0
+      ) AS active,
+    COUNT(*) = 2
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'Commission domain RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS grainline_commission_domain_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_commission_domain_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_commission_domain_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_commission_domain_rls_active
+REVOKE ALL ON TABLE
+  public."CommissionRequest",
+  public."CommissionInterest"
+FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_commission_domain_rls_active
+
+-- Block, UserReport and SellerFaq share one reviewed policyless activation
+-- batch. A provisioning replay may preserve predecessor CRUD only while each
+-- table is cleanly unprotected; after activation it must restore zero direct
+-- authority. Refuse every partial posture before changing grants.
+DO $grainline_block_report_seller_faq_provisioning_posture$
+DECLARE
+  expected_table text;
+  row_security boolean;
+  force_row_security boolean;
+  policy_count bigint;
+BEGIN
+  FOREACH expected_table IN ARRAY ARRAY['Block', 'UserReport', 'SellerFaq']
+  LOOP
+    SELECT
+      class.relrowsecurity,
+      class.relforcerowsecurity,
+      (SELECT pg_catalog.count(*)
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = class.oid)
+      INTO row_security, force_row_security, policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = expected_table
+       AND class.relkind = 'r';
+
+    IF NOT FOUND OR NOT (
+      (
+        NOT row_security
+        AND NOT force_row_security
+        AND policy_count = 0
+      )
+      OR (
+        row_security
+        AND force_row_security
+        AND policy_count = 0
+      )
+    ) THEN
+      RAISE EXCEPTION
+        '% RLS is partially or unexpectedly configured; refusing runtime-role provisioning',
+        expected_table;
+    END IF;
+  END LOOP;
+END
+$grainline_block_report_seller_faq_provisioning_posture$;
+
+WITH activated(table_name) AS (
+  SELECT class.relname
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = ANY (ARRAY['Block', 'UserReport', 'SellerFaq'])
+     AND class.relkind = 'r'
+     AND class.relrowsecurity
+     AND class.relforcerowsecurity
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = class.oid
+     )
+)
+SELECT format(
+  'REVOKE ALL ON TABLE public.%I FROM PUBLIC, %I',
+  table_name,
+  :'runtime_role'
+)
+  FROM activated
+ ORDER BY table_name;
+\gexec
+
 -- OrderItem and OrderShippingRateQuote remain separate from the Core Order RLS
 -- release, but the application no longer needs ordinary table access. Preserve
 -- predecessor grants until the exact runtime-lock migration is durably applied;
@@ -1075,6 +1212,69 @@ GRANT SELECT, DELETE ON TABLE public."Favorite"
   TO :"runtime_role";
 \endif
 \unset grainline_favorite_rls_active
+
+-- Seller daily analytics is a two-table policyless service boundary. A
+-- provisioning replay may preserve predecessor CRUD while both tables are
+-- cleanly unprotected, or preserve zero direct authority after the reviewed
+-- combined ENABLE+FORCE activation. Any half-activated posture fails closed.
+WITH table_state AS (
+  SELECT
+    class.relname,
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    COUNT(policy.oid)::integer AS policy_count
+  FROM pg_catalog.pg_class AS class
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = class.relnamespace
+  LEFT JOIN pg_catalog.pg_policy AS policy ON policy.polrelid = class.oid
+  WHERE namespace.nspname = 'public'
+    AND class.relname IN ('ListingViewDaily', 'SellerProfileViewDaily')
+    AND class.relkind = 'r'
+  GROUP BY class.relname, class.relrowsecurity, class.relforcerowsecurity
+), posture AS (
+  SELECT
+    COUNT(*) = 2
+      AND bool_and(
+        relrowsecurity AND relforcerowsecurity AND policy_count = 0
+      ) AS active,
+    COUNT(*) = 2
+      AND bool_and(
+        NOT relrowsecurity AND NOT relforcerowsecurity AND policy_count = 0
+      ) AS clean_predecessor
+  FROM table_state
+), failure AS (
+  SELECT
+    'Seller daily analytics RLS is partial or unexpected; refusing runtime-role provisioning'
+      AS message
+  FROM posture
+  WHERE active IS DISTINCT FROM true
+    AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS grainline_seller_analytics_daily_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_seller_analytics_daily_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_seller_analytics_daily_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_seller_analytics_daily_rls_active
+REVOKE ALL ON TABLE
+  public."ListingViewDaily",
+  public."SellerProfileViewDaily"
+FROM PUBLIC, :"runtime_role";
+\endif
+\unset grainline_seller_analytics_daily_rls_active
 
 -- StripeWebhookEvent begins as a compatible CRUD table. Its separate
 -- policyless service-ledger activation enables RLS with zero policies and
@@ -2418,6 +2618,109 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Commission preparation is additive and keeps predecessor table CRUD
+-- available until activation. Converge only the purpose-bound functions that
+-- replace direct CommissionRequest and CommissionInterest access. The
+-- seller-owner interest summary is provisioned with the SellerProfile public
+-- authority family below.
+WITH commission_domain_service(function_signature) AS (
+  VALUES
+    ('public."grainline_commission_request_public_count"(text, text, text, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_public_page"(text, text, text, double precision, double precision, integer, integer, integer)'),
+    ('public."grainline_commission_request_public_detail"(text)'),
+    ('public."grainline_commission_request_public_sitemap_page"(integer, integer)'),
+    ('public."grainline_commission_request_public_metro_ids"()'),
+    ('public."grainline_commission_request_actor_report_target"(text, text)'),
+    ('public."grainline_commission_interest_actor_request_ids"(text[])'),
+    ('public."grainline_commission_interest_actor_create"(text, text, text, text)'),
+    ('public."grainline_commission_request_owner_create"(text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_owner_assign_metros"(text, text, text)'),
+    ('public."grainline_commission_request_owner_page"(integer)'),
+    ('public."grainline_commission_request_owner_export"()'),
+    ('public."grainline_commission_request_owner_active_count"()'),
+    ('public."grainline_commission_request_owner_reference_image_urls"()'),
+    ('public."grainline_commission_interest_owner_export"()'),
+    ('public."grainline_commission_request_owner_transition"(text, text)'),
+    ('public."grainline_commission_account_deletion_prepare"()'),
+    ('public."grainline_commission_account_deletion_redact"()'),
+    ('public."grainline_commission_request_staff_ban_close"(text, text)'),
+    ('public."grainline_commission_request_staff_ban_restore"(text, text, text[], text[])'),
+    ('public."grainline_commission_request_service_expire_batch"(integer)'),
+    ('public."grainline_commission_request_service_expired_count"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM commission_domain_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH commission_domain_service(function_signature) AS (
+  VALUES
+    ('public."grainline_commission_request_public_count"(text, text, text, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_public_page"(text, text, text, double precision, double precision, integer, integer, integer)'),
+    ('public."grainline_commission_request_public_detail"(text)'),
+    ('public."grainline_commission_request_public_sitemap_page"(integer, integer)'),
+    ('public."grainline_commission_request_public_metro_ids"()'),
+    ('public."grainline_commission_request_actor_report_target"(text, text)'),
+    ('public."grainline_commission_interest_actor_request_ids"(text[])'),
+    ('public."grainline_commission_interest_actor_create"(text, text, text, text)'),
+    ('public."grainline_commission_request_owner_create"(text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_owner_assign_metros"(text, text, text)'),
+    ('public."grainline_commission_request_owner_page"(integer)'),
+    ('public."grainline_commission_request_owner_export"()'),
+    ('public."grainline_commission_request_owner_active_count"()'),
+    ('public."grainline_commission_request_owner_reference_image_urls"()'),
+    ('public."grainline_commission_interest_owner_export"()'),
+    ('public."grainline_commission_request_owner_transition"(text, text)'),
+    ('public."grainline_commission_account_deletion_prepare"()'),
+    ('public."grainline_commission_account_deletion_redact"()'),
+    ('public."grainline_commission_request_staff_ban_close"(text, text)'),
+    ('public."grainline_commission_request_staff_ban_restore"(text, text, text[], text[])'),
+    ('public."grainline_commission_request_service_expire_batch"(integer)'),
+    ('public."grainline_commission_request_service_expired_count"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM commission_domain_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH commission_domain_service(function_signature) AS (
+  VALUES
+    ('public."grainline_commission_request_public_count"(text, text, text, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_public_page"(text, text, text, double precision, double precision, integer, integer, integer)'),
+    ('public."grainline_commission_request_public_detail"(text)'),
+    ('public."grainline_commission_request_public_sitemap_page"(integer, integer)'),
+    ('public."grainline_commission_request_public_metro_ids"()'),
+    ('public."grainline_commission_request_actor_report_target"(text, text)'),
+    ('public."grainline_commission_interest_actor_request_ids"(text[])'),
+    ('public."grainline_commission_interest_actor_create"(text, text, text, text)'),
+    ('public."grainline_commission_request_owner_create"(text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_owner_assign_metros"(text, text, text)'),
+    ('public."grainline_commission_request_owner_page"(integer)'),
+    ('public."grainline_commission_request_owner_export"()'),
+    ('public."grainline_commission_request_owner_active_count"()'),
+    ('public."grainline_commission_request_owner_reference_image_urls"()'),
+    ('public."grainline_commission_interest_owner_export"()'),
+    ('public."grainline_commission_request_owner_transition"(text, text)'),
+    ('public."grainline_commission_account_deletion_prepare"()'),
+    ('public."grainline_commission_account_deletion_redact"()'),
+    ('public."grainline_commission_request_staff_ban_close"(text, text)'),
+    ('public."grainline_commission_request_staff_ban_restore"(text, text, text[], text[])'),
+    ('public."grainline_commission_request_service_expire_batch"(integer)'),
+    ('public."grainline_commission_request_service_expired_count"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM commission_domain_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- UserReport participant operations remain callable through the ordinary
 -- runtime role during compatible preparation. Staff operations are converged
 -- separately below onto the isolated staff role and must stay unavailable
@@ -3617,7 +3920,11 @@ FROM (
     ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
     ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
     ('public."grainline_seller_account_deletion_reconciliation_clear"(text, text, text, bigint, uuid)'),
+    ('public."grainline_listing_analytics_record"(text, text)'),
     ('public."grainline_seller_profile_view_record"(text, date)'),
+    ('public."grainline_seller_engagement_analytics"(bigint, bigint, boolean, text)'),
+    ('public."grainline_seller_analytics_retention_prune"(integer)'),
+    ('public."grainline_seller_profile_view_daily_account_deletion_clear"(text, bigint, uuid)'),
     ('public."grainline_seller_owner_guild_master_application_record"(text, text, timestamp without time zone)'),
     ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
     ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
@@ -3649,7 +3956,11 @@ FROM (
     ('public."grainline_seller_account_deletion_pause"(text, text, text, bigint, uuid)'),
     ('public."grainline_seller_account_deletion_anonymize"(text, text, boolean, text, text, text, text, bigint, uuid)'),
     ('public."grainline_seller_account_deletion_reconciliation_clear"(text, text, text, bigint, uuid)'),
+    ('public."grainline_listing_analytics_record"(text, text)'),
     ('public."grainline_seller_profile_view_record"(text, date)'),
+    ('public."grainline_seller_engagement_analytics"(bigint, bigint, boolean, text)'),
+    ('public."grainline_seller_analytics_retention_prune"(integer)'),
+    ('public."grainline_seller_profile_view_daily_account_deletion_clear"(text, bigint, uuid)'),
     ('public."grainline_seller_owner_guild_master_application_record"(text, text, timestamp without time zone)'),
     ('public."grainline_seller_guild_listing_threshold_sync"(text)'),
     ('public."grainline_seller_guild_member_cron_batch"(text, integer)'),
@@ -4276,7 +4587,29 @@ SELECT format(
   :'runtime_role'
 )
   FROM conversation_message_public_authority
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND NOT (
+     function_signature IN (
+       'public."grainline_message_unread_count"(text)',
+       'public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'
+     )
+     AND EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_class AS class
+         JOIN pg_catalog.pg_namespace AS namespace
+           ON namespace.oid = class.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND class.relname = 'Block'
+          AND class.relkind = 'r'
+          AND class.relrowsecurity
+          AND class.relforcerowsecurity
+          AND NOT EXISTS (
+            SELECT 1
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid
+          )
+     )
+   );
 \gexec
 \unset conversation_message_rls_active
 
@@ -5893,8 +6226,58 @@ SELECT format(
 \unset order_payment_event_rls_active
 
 -- SellerBroadcast preparation keeps predecessor table CRUD available until
--- activation. Converge only the reviewed purpose-bound operations; the three
--- staff operations remain exclusive to the isolated staff role.
+-- activation. Once the reviewed policyless FORCE posture is active, converge
+-- the runtime role to zero direct table authority. Refuse a partial posture
+-- rather than accidentally reopening the broadcast history.
+WITH posture AS (
+  SELECT class.relrowsecurity AS rls_enabled,
+         class.relforcerowsecurity AS rls_forced,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'SellerBroadcast'
+     AND class.relkind = 'r'
+), state AS (
+  SELECT rls_enabled AND rls_forced AND policy_count = 0 AS active,
+         NOT rls_enabled AND NOT rls_forced AND policy_count = 0
+           AS clean_predecessor
+    FROM posture
+), failure AS (
+  SELECT
+    'SellerBroadcast RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM state
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+       COALESCE((SELECT message FROM failure LIMIT 1), '')
+         AS grainline_role_provisioning_failure,
+       COALESCE((SELECT active FROM state), false)
+         AS seller_broadcast_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_seller_broadcast_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_seller_broadcast_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :seller_broadcast_rls_active
+REVOKE ALL ON TABLE public."SellerBroadcast" FROM PUBLIC, :"runtime_role";
+\endif
+\unset seller_broadcast_rls_active
+
+-- Converge only the reviewed purpose-bound operations; the three staff
+-- operations remain exclusive to the isolated staff role in both states.
 WITH seller_broadcast_functions(function_signature) AS (
   VALUES
     ('public."grainline_seller_broadcast_owner_cooldown"()'),

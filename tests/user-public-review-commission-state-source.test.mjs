@@ -6,8 +6,15 @@ import yaml from "js-yaml";
 import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
 
 function read(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  return readFileSync(
+    path.startsWith("/") ? path : new URL(`../${path}`, import.meta.url),
+    "utf8",
+  );
 }
+
+const commissionAuthorityMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ||
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
 
 const functionNames = [
   "grainline_review_reviewer_public_state_bind",
@@ -91,16 +98,27 @@ describe("User public review and commission state source boundary", () => {
     const shared = read("src/lib/commissionState.ts");
     assert.match(shared, /buyerAccountActive: true/);
     const distance = read("src/app/commission/page.tsx");
-    assert.match(distance, /cr\."buyerAccountActive" = true/);
-    assert.ok(distance.indexOf('cr."buyerAccountActive" = true') < distance.indexOf("LIMIT $6 OFFSET $7"));
+    assert.match(distance, /publicCommissionRequestCount\(meId, publicFilter\)/);
+    assert.match(distance, /publicCommissionRequestPage\(meId, \{/);
+    assert.doesNotMatch(distance, /\$queryRaw(?:Unsafe)?/);
+    const authority = read(commissionAuthorityMigration);
+    assert.match(
+      authority,
+      /grainline_commission_request_public_count[\s\S]*request\."buyerAccountActive" = true/,
+    );
+    assert.match(
+      authority,
+      /grainline_commission_request_public_page[\s\S]*request\."buyerAccountActive" = true/,
+    );
     const interest = read("src/app/api/commission/[id]/interest/route.ts");
-    assert.match(interest, /if \(!commissionRequest\.buyerAccountActive\)/);
+    assert.match(interest, /publicCommissionRequestDetail\(me\.id, id\)/);
+    assert.doesNotMatch(interest, /commissionRequest\.(?:buyerAccountActive|buyerId)/);
     for (const path of [
       "src/app/api/commission/route.ts",
       "src/app/api/commission/[id]/route.ts",
     ]) {
       const source = read(path);
-      assert.match(source, /buyer: \{ name: buyerName, imageUrl: buyerImageUrl \}/);
+      assert.match(source, /buyer: \{ name: request\.buyerName, imageUrl: request\.buyerImageUrl \}/);
     }
   });
 

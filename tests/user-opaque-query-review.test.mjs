@@ -38,18 +38,18 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // The provider/eligibility fence replaces three direct Prisma
   // EmailSuppression write arguments with one fixed SQL authority. The
   // StockNotification subscribe removes one reviewed public-listing factory.
-  // SellerBroadcast preparation removes one reviewed outbox factory and one
-  // residual direct broadcast relation from the application frontier.
-  // UserReport target validation removes three report-route factory calls.
-  // Email-service preparation moves the remaining direct EmailOutbox shapes
-  // behind fixed SQL authorities.
-  assert.equal(report.opaqueShapes.length, 134);
-  assert.equal(reviewedFactories.length, 104);
+  // SellerBroadcast removes one reviewed outbox factory and one residual direct
+  // relation. Listing analytics removes two reviewed publicListingWhere calls,
+  // UserReport removes three report-route factories, Commission removes the
+  // remaining open-commission calls, and email-service preparation moves the
+  // remaining direct EmailOutbox shapes behind fixed SQL authorities.
+  assert.equal(report.opaqueShapes.length, 115);
+  assert.equal(reviewedFactories.length, 85);
   assert.equal(reviewedResidual.length, 30);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 84,
-    sha256: "9a76298f4a63c7d437387ee8730bb3f23e1f71845775c9765869636a54bdf3bc",
+    unique: 67,
+    sha256: "fa2213f6a1554ba7be7a83884b13e3abbc4c894337182bcf7bfaea7fb50bdc83",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 25,

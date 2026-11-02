@@ -35,28 +35,27 @@ describe("listing analytics guardrails", () => {
     assert.doesNotMatch(capFailureCapture, /userAgent|headers|cookie|url/);
   });
 
-  it("skips signed-in seller self-traffic before listing analytics counters are written", () => {
-    for (const [path, counter] of [
-      ["src/app/api/listings/[id]/view/route.ts", "viewCount"],
-      ["src/app/api/listings/[id]/click/route.ts", "clickCount"],
+  it("delegates listing telemetry to the fixed authority with server-resolved identity", () => {
+    for (const [path, kind] of [
+      ["src/app/api/listings/[id]/view/route.ts", "view"],
+      ["src/app/api/listings/[id]/click/route.ts", "click"],
     ]) {
       const route = source(path);
       const capIndex = route.indexOf("claimListingAnalyticsDailyCap(");
-      const transactionIndex = route.indexOf("prisma.$transaction");
+      const authorityIndex = route.indexOf("recordListingAnalytics(");
 
       assert.match(route, /import \{ auth \} from "@clerk\/nextjs\/server"/);
       assert.match(route, /import \{ userIdByClerkId \} from "@\/lib\/userIdentityAccess"/);
+      assert.match(route, /import \{ recordListingAnalytics \} from "@\/lib\/sellerAnalyticsDailyAccess"/);
       assert.match(route, /const \{ userId \} = await auth\(\)/);
       assert.match(route, /claimListingAnalyticsDailyCap\("(view|click)", id\)/);
-      assert.ok(capIndex >= 0 && capIndex < transactionIndex, `${path} must check daily cap before DB writes`);
+      assert.ok(capIndex >= 0 && capIndex < authorityIndex, `${path} must check daily cap before DB writes`);
       assert.match(route, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(route, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
       assert.match(route, /const viewerUserId = viewer\?\.id \?\? null/);
-      assert.match(route, /sellerOwnerCore\(viewerUserId\)/);
-      assert.match(route, /viewerSellerProfileId \? \{ sellerId: \{ not: viewerSellerProfileId \} \} : \{\}/);
-      assert.doesNotMatch(route, /seller: \{ user: \{ clerkId:/);
-      assert.match(route, new RegExp(`data: \\{ ${counter}: \\{ increment: 1 \\} \\}`));
-      assert.match(route, /publicListingWhere\(\{/);
+      assert.match(route, new RegExp(`recordListingAnalytics\\(id, "${kind}", viewerUserId\\)`));
+      assert.doesNotMatch(route, /sellerOwnerCore|publicListingWhere|prisma\.\$transaction/);
+      assert.doesNotMatch(route, /listingViewDaily\.(?:upsert|create|update)|viewCount: \{ increment|clickCount: \{ increment/);
     }
   });
 });

@@ -72,7 +72,12 @@ describe("mutating API route rate-limit sweep", () => {
     assert.match(limiters, /prefix: "rl:commission_status"/);
     assert.match(route, /commissionStatusRatelimit/);
     assert.match(route, /safeRateLimit\(commissionStatusRatelimit, userId\)/);
-    assert.match(route, /openCommissionMutationWhere\(id, new Date\(\), \{ buyerId: me\.id \}\)/);
+    assert.match(route, /transitionOwnerCommissionRequest\(\s*me\.id,\s*id,\s*status/);
+    assert.ok(
+      route.indexOf("safeRateLimit(commissionStatusRatelimit, userId)")
+        < route.indexOf("transitionOwnerCommissionRequest("),
+      "commission status limiter must run before the bounded transition authority",
+    );
   });
 
   it("rate-limits destructive admin moderation routes by acting admin", () => {

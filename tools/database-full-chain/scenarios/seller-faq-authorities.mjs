@@ -5,6 +5,8 @@ import pg from "pg";
 
 export const SELLER_FAQ_PREPARATION_MIGRATION =
   "20261030030000_prepare_seller_faq_authorities";
+export const SELLER_FAQ_RLS_MIGRATION =
+  "20261030060000_activate_seller_faq_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -335,4 +337,104 @@ export async function proveSellerFaqPreparedAuthorities({
     runtime_insert: true,
     runtime_delete: true,
   }], "compatible preparation must preserve predecessor direct access");
+
+  return Object.freeze({ ownerId, ownerSellerId });
+}
+
+export async function proveSellerFaqRlsAuthorities({ database, fixture }) {
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT relation.relrowsecurity,
+           relation.relforcerowsecurity,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = relation.oid) AS policy_count,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete,
+           pg_catalog.has_table_privilege(
+             'grainline_staff_read_runtime', relation.oid, 'SELECT'
+           ) AS staff_select
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."SellerFaq"'::pg_catalog.regclass
+  `)), [{
+    relrowsecurity: true,
+    relforcerowsecurity: true,
+    policy_count: 0,
+    runtime_select: false,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: false,
+    staff_select: false,
+  }]);
+
+  await assert.rejects(
+    runtimeQuery(database, fixture.ownerId, 'SELECT id FROM public."SellerFaq"'),
+    (error) => error?.code === "42501",
+    "runtime direct SellerFaq reads must remain denied",
+  );
+  const faqId = randomUUID();
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      fixture.ownerId,
+      `SELECT "resultStatus", id, created
+         FROM public.grainline_seller_faq_owner_create($1,$2,$3)`,
+      [faqId, "Activation question", "Activation answer"],
+    ),
+    [{ resultStatus: "OK", id: faqId, created: true }],
+  );
+  assert.ok((await runtimeQuery(
+    database,
+    fixture.ownerId,
+    "SELECT id FROM public.grainline_seller_faq_owner_export()",
+  )).some((row) => row.id === faqId));
+  assert.deepEqual(
+    await runtimeQuery(
+      database,
+      fixture.ownerId,
+      "SELECT public.grainline_seller_faq_owner_remove($1) AS value",
+      [faqId],
+    ),
+    [{ value: 1 }],
+  );
+}
+
+export async function proveSellerFaqRlsRollback({ database }) {
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT relation.relrowsecurity,
+           relation.relforcerowsecurity,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."SellerFaq"'::pg_catalog.regclass
+  `)), [{
+    relrowsecurity: false,
+    relforcerowsecurity: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+  }]);
+  await assert.doesNotReject(
+    runtimeQuery(database, "rollback_actor", 'SELECT id FROM public."SellerFaq" LIMIT 1'),
+  );
 }

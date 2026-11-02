@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import type { MessageCursor } from "@/lib/messageCursor";
+import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
 
@@ -967,7 +968,7 @@ export async function createActorCommissionInterest(
     commissionRequestId: string;
     sellerUserId: string;
   },
-  db: ConversationMessageAuthorityClient = prisma,
+  db: DbUserContextTransactionClient,
 ): Promise<CreatedActorCommissionInterest> {
   const sellerUserId = normalizeDbUserContextUserId(input.sellerUserId);
   if (!isBoundedAuthorityId(input.commissionRequestId)) {
@@ -978,11 +979,10 @@ export async function createActorCommissionInterest(
   const proposedInterestId = randomUUID();
   const rows = await db.$queryRaw<CreatedActorCommissionInterest[]>`
     SELECT *
-      FROM public.grainline_message_create_commission_interest(
+      FROM public.grainline_commission_interest_actor_create(
         ${proposedConversationId}::text,
         ${proposedMessageId}::text,
         ${proposedInterestId}::text,
-        ${sellerUserId}::text,
         ${input.commissionRequestId}::text
       )
   `;

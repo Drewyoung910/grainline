@@ -136,18 +136,50 @@ export const USER_EMAIL_ADDRESS_TABLE = "UserEmailAddress";
 export const SUPPORT_REQUEST_TABLE = "SupportRequest";
 export const MAKER_VERIFICATION_TABLE = "MakerVerification";
 export const FOLLOW_TABLE = "Follow";
+export const COMMISSION_DOMAIN_TABLES = Object.freeze([
+  "CommissionRequest",
+  "CommissionInterest",
+]);
 const FOLLOW_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("follow_v1");
 const BLOCK_PREPARATION_RELEASE = privateTablePreparation("block_v1");
+const BLOCK_RLS_ACTIVATION_RELEASE = privateTableRlsActivation("block_v1");
+const USER_REPORT_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("user_report_v1");
+const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("seller_faq_v1");
+export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
+export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
+export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
   BLOCK_PREPARATION_RELEASE.migrationSha256;
+export const BLOCK_RLS_ACTIVATION_MIGRATION =
+  BLOCK_RLS_ACTIVATION_RELEASE.migration;
+export const BLOCK_RLS_ACTIVATION_MIGRATION_SHA256 =
+  BLOCK_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const USER_REPORT_RLS_ACTIVATION_MIGRATION =
+  USER_REPORT_RLS_ACTIVATION_RELEASE.migration;
+export const USER_REPORT_RLS_ACTIVATION_MIGRATION_SHA256 =
+  USER_REPORT_RLS_ACTIVATION_RELEASE.migrationSha256;
+export const SELLER_FAQ_RLS_ACTIVATION_MIGRATION =
+  SELLER_FAQ_RLS_ACTIVATION_RELEASE.migration;
+export const SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256 =
+  SELLER_FAQ_RLS_ACTIVATION_RELEASE.migrationSha256;
 export const FOLLOW_RLS_ACTIVATION_MIGRATION =
   FOLLOW_RLS_ACTIVATION_RELEASE.migration;
 export const FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256 =
   FOLLOW_RLS_ACTIVATION_RELEASE.migrationSha256;
 export const FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze(
   FOLLOW_RLS_ACTIVATION_RELEASE.functionChanges.retained
+    .filter((entry) => (
+      entry.predecessorExecuteRole === "runtime"
+      && entry.activatedExecuteRole === "none"
+    ))
+    .map((entry) => entry.name),
+);
+export const BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  BLOCK_RLS_ACTIVATION_RELEASE.functionChanges.retained
     .filter((entry) => (
       entry.predecessorExecuteRole === "runtime"
       && entry.activatedExecuteRole === "none"
@@ -162,6 +194,9 @@ export const STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const FAVORITE_TABLE = "Favorite";
 export const FAVORITE_OWNER_TABLE_PRIVILEGES = ["SELECT", "DELETE"];
 export const REVIEW_VOTE_TABLE = "ReviewVote";
+export const SELLER_BROADCAST_TABLE = "SellerBroadcast";
+export const LISTING_VIEW_DAILY_TABLE = "ListingViewDaily";
+export const SELLER_PROFILE_VIEW_DAILY_TABLE = "SellerProfileViewDaily";
 export const REVIEW_VOTE_OWNER_TABLE_PRIVILEGES = ["SELECT"];
 export const CART_OWNER_COLUMN_PRIVILEGES = ["\"updatedAt\":UPDATE"];
 export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
@@ -1594,6 +1629,114 @@ export function followRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
 }
 
+export function commissionDomainRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return COMMISSION_DOMAIN_TABLES.every(
+    (tableName) => enabled.has(tableName) && !policies.has(tableName),
+  );
+}
+
+export function commissionDomainRlsForceExpected(inventory) {
+  const forced = new Set(inventory?.rlsForceTables ?? []);
+  return commissionDomainRlsActivationExpected(inventory)
+    && COMMISSION_DOMAIN_TABLES.every((tableName) => forced.has(tableName));
+}
+
+export function sellerBroadcastRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(SELLER_BROADCAST_TABLE)
+    && !policies.has(SELLER_BROADCAST_TABLE);
+}
+
+export function sellerBroadcastRlsForceExpected(inventory) {
+  return sellerBroadcastRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(SELLER_BROADCAST_TABLE);
+}
+
+export function sellerAnalyticsDailyRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(LISTING_VIEW_DAILY_TABLE)
+    && enabled.has(SELLER_PROFILE_VIEW_DAILY_TABLE)
+    && !policies.has(LISTING_VIEW_DAILY_TABLE)
+    && !policies.has(SELLER_PROFILE_VIEW_DAILY_TABLE);
+}
+
+export function sellerAnalyticsDailyRlsForceExpected(inventory) {
+  const forced = new Set(inventory?.rlsForceTables ?? []);
+  return sellerAnalyticsDailyRlsActivationExpected(inventory)
+    && forced.has(LISTING_VIEW_DAILY_TABLE)
+    && forced.has(SELLER_PROFILE_VIEW_DAILY_TABLE);
+}
+
+function policylessCatalogActivationExpected(inventory, tableName, stateField) {
+  if (typeof inventory?.[stateField] === "boolean") {
+    return inventory[stateField];
+  }
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(tableName) && !policies.has(tableName);
+}
+
+function policylessCatalogForceExpected(
+  inventory,
+  tableName,
+  stateField,
+) {
+  return policylessCatalogActivationExpected(inventory, tableName, stateField)
+    && (inventory?.rlsForceTables ?? []).includes(tableName);
+}
+
+export function blockRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    BLOCK_TABLE,
+    "blockRlsActivationApplied",
+  );
+}
+
+export function blockRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    BLOCK_TABLE,
+    "blockRlsActivationApplied",
+  );
+}
+
+export function userReportRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    USER_REPORT_TABLE,
+    "userReportRlsActivationApplied",
+  );
+}
+
+export function userReportRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    USER_REPORT_TABLE,
+    "userReportRlsActivationApplied",
+  );
+}
+
+export function sellerFaqRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    SELLER_FAQ_TABLE,
+    "sellerFaqRlsActivationApplied",
+  );
+}
+
+export function sellerFaqRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    SELLER_FAQ_TABLE,
+    "sellerFaqRlsActivationApplied",
+  );
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -1629,6 +1772,10 @@ export function runtimePrivateFunctionNames(inventory) {
     typeof inventory?.followRlsActivationApplied === "boolean"
       ? inventory.followRlsActivationApplied
       : followRlsActivationExpected(inventory);
+  const blockActivated =
+    typeof inventory?.blockRlsActivationApplied === "boolean"
+      ? inventory.blockRlsActivationApplied
+      : blockRlsActivationExpected(inventory);
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1637,6 +1784,7 @@ export function runtimePrivateFunctionNames(inventory) {
     && !sellerEmailProjectionRetirementApplied
     && !sellerProfilePrivatePredecessorPrepared
     && !followActivated
+    && !blockActivated
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -1665,6 +1813,9 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(followActivated
       ? FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(blockActivated
+      ? BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -1836,6 +1987,30 @@ export async function readBlockPreparationState(client) {
     migration: BLOCK_PREPARATION_MIGRATION,
     checksum: BLOCK_PREPARATION_MIGRATION_SHA256,
     label: "Block compatible preparation",
+  });
+}
+
+export async function readBlockRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: BLOCK_RLS_ACTIVATION_MIGRATION,
+    checksum: BLOCK_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "Block RLS activation",
+  });
+}
+
+export async function readUserReportRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: USER_REPORT_RLS_ACTIVATION_MIGRATION,
+    checksum: USER_REPORT_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "UserReport RLS activation",
+  });
+}
+
+export async function readSellerFaqRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
+    checksum: SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
+    label: "SellerFaq RLS activation",
   });
 }
 
@@ -2084,6 +2259,18 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(makerVerificationRlsActivationExpected(inventory)
       ? [MAKER_VERIFICATION_TABLE]
       : []),
+    ...(commissionDomainRlsActivationExpected(inventory)
+      ? COMMISSION_DOMAIN_TABLES
+      : []),
+    ...(sellerBroadcastRlsActivationExpected(inventory)
+      ? [SELLER_BROADCAST_TABLE]
+      : []),
+    ...(sellerAnalyticsDailyRlsActivationExpected(inventory)
+      ? [LISTING_VIEW_DAILY_TABLE, SELLER_PROFILE_VIEW_DAILY_TABLE]
+      : []),
+    ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
+    ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
+    ...(sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
     ...(inventory?.sellerProfilePrivateRlsEnabled
       ? ["SellerProfilePrivate"]
       : []),
@@ -2674,6 +2861,7 @@ export function collectConversationMessageFunctionIssues(
   );
   const expectedFunctions = conversationMessageAuthorityFunctionsForState({
     blockPreparationApplied: Boolean(inventory.blockPreparationApplied),
+    blockActivationApplied: blockRlsActivationExpected(inventory),
   }).flatMap(
     (entry) => {
       if (entry.name !== "grainline_message_redact_for_account_deletion") {
@@ -3127,8 +3315,33 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && makerVerificationRlsActivationExpected(inventory)
     )
     || (
+      tableName === SELLER_BROADCAST_TABLE
+      && sellerBroadcastRlsActivationExpected(inventory)
+    )
+    || (
+      (tableName === LISTING_VIEW_DAILY_TABLE
+        || tableName === SELLER_PROFILE_VIEW_DAILY_TABLE)
+      && sellerAnalyticsDailyRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === BLOCK_TABLE
+      && blockRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === USER_REPORT_TABLE
+      && userReportRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === SELLER_FAQ_TABLE
+      && sellerFaqRlsActivationExpected(inventory)
+    )
+    || (
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
+    )
+    || (
+      COMMISSION_DOMAIN_TABLES.includes(tableName)
+      && commissionDomainRlsActivationExpected(inventory)
     )
   ) {
     return [];
@@ -3231,6 +3444,19 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? followRlsForceExpected(inventory)
         : tableName === MAKER_VERIFICATION_TABLE
           ? makerVerificationRlsForceExpected(inventory)
+        : COMMISSION_DOMAIN_TABLES.includes(tableName)
+          ? commissionDomainRlsForceExpected(inventory)
+        : tableName === SELLER_BROADCAST_TABLE
+          ? sellerBroadcastRlsForceExpected(inventory)
+        : tableName === LISTING_VIEW_DAILY_TABLE
+          || tableName === SELLER_PROFILE_VIEW_DAILY_TABLE
+          ? sellerAnalyticsDailyRlsForceExpected(inventory)
+        : tableName === BLOCK_TABLE
+          ? blockRlsForceExpected(inventory)
+        : tableName === USER_REPORT_TABLE
+          ? userReportRlsForceExpected(inventory)
+        : tableName === SELLER_FAQ_TABLE
+          ? sellerFaqRlsForceExpected(inventory)
         : tableName === "SellerProfilePrivate"
           ? inventory?.sellerProfilePrivateRlsForced === true
         : tableName === SELLER_PROFILE_TABLE
@@ -3598,6 +3824,14 @@ export async function auditLiveDatabase({
   issues.push(...followRlsActivation.issues);
   const blockPreparation = await readBlockPreparationState(client);
   issues.push(...blockPreparation.issues);
+  const blockRlsActivation = await readBlockRlsActivationState(client);
+  issues.push(...blockRlsActivation.issues);
+  const userReportRlsActivation =
+    await readUserReportRlsActivationState(client);
+  issues.push(...userReportRlsActivation.issues);
+  const sellerFaqRlsActivation =
+    await readSellerFaqRlsActivationState(client);
+  issues.push(...sellerFaqRlsActivation.issues);
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -3731,6 +3965,9 @@ export async function auditLiveDatabase({
     sellerProfileRlsForceApplied: sellerProfilePublicForce.applied,
     followRlsActivationApplied: followRlsActivation.applied,
     blockPreparationApplied: blockPreparation.applied,
+    blockRlsActivationApplied: blockRlsActivation.applied,
+    userReportRlsActivationApplied: userReportRlsActivation.applied,
+    sellerFaqRlsActivationApplied: sellerFaqRlsActivation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,
@@ -4378,6 +4615,7 @@ export async function auditLiveDatabase({
   const conversationMessageFunctionNames = new Set(
     conversationMessageAuthorityFunctionsForState({
       blockPreparationApplied: blockPreparation.applied,
+      blockActivationApplied: blockRlsActivation.applied,
     }).map((entry) => entry.name),
   );
   if (

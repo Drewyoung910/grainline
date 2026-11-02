@@ -115,9 +115,10 @@ describe("account deletion media cleanup scoping", () => {
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(");
     const releaseRows = deletion.indexOf("await releaseDirectUploadsForAccount({");
 
-    assert.match(deletion, /"reviewPhoto" \| "commissionRequest" \| "blogPost" \| "\$queryRaw"/);
+    assert.match(deletion, /type AccountDeletionMediaDb = DbUserContextTransactionClient/);
     assert.doesNotMatch(deletion, /"sellerProfile" \| "reviewPhoto"/u);
     assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
+    assert.match(collect, /ownerCommissionReferenceImageUrls\(db\)/);
     assert.match(
       collect,
       /accountDeletionBlogPostMediaOwnerWhere\(userId, sellerProfileId\)/,
@@ -125,6 +126,11 @@ describe("account deletion media cleanup scoping", () => {
     assert.doesNotMatch(collect, /sellerProfile:\s*\{\s*userId\s*\}/);
     assert.doesNotMatch(collect, /db\.message\./);
     assert.match(collect, /accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/s);
+    assert.ok(
+      collect.indexOf("ownerCommissionReferenceImageUrls(db)")
+        < collect.indexOf("accountDirectUploadPublicUrls({"),
+      "Commission media must be collected before account-owned upload references are released",
+    );
     assert.match(
       collect,
       /directUploads\.forEach\(\(upload\) => \{\s*if \(upload\.publicUrl\) urls\.add\(upload\.publicUrl\);\s*\}\)/s,
