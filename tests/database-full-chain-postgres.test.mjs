@@ -333,6 +333,7 @@ test(
       let sellerBroadcastPredecessorEligibilityGap;
       let sellerBroadcastPreparationPreflightPath;
       let sellerBroadcastPreparationPostflightClosed = false;
+      let sellerBroadcastRollbackReapplyProven = false;
       let blockPreparationPreflightPath;
       let blockPreparationPostflightClosed = false;
       let userReportFixture;
@@ -546,6 +547,40 @@ test(
               database: adapter,
               connectionString: proofDatabaseUrl,
             });
+          }
+          if (
+            artifact.name ===
+            "20261101060000_prepare_commission_domain_authorities"
+          ) {
+            assert.equal(
+              sellerBroadcastPreparationPostflightClosed,
+              true,
+              "SellerBroadcast preparation postflight must close before activation",
+            );
+            await proveSellerBroadcastRlsAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
+            await client.query(readFileSync(
+              join(
+                repositoryRoot,
+                "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+              ),
+              "utf8",
+            ));
+            await proveSellerBroadcastRlsRollback({ database: adapter });
+            await client.query(readFileSync(
+              join(
+                repositoryRoot,
+                `prisma/migrations/${SELLER_BROADCAST_RLS_MIGRATION}/migration.sql`,
+              ),
+              "utf8",
+            ));
+            await proveSellerBroadcastRlsAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
+            sellerBroadcastRollbackReapplyProven = true;
           }
           if (artifact.name === "20261028070000_activate_review_vote_rls") {
             assert.ok(
@@ -1763,29 +1798,10 @@ test(
         "Follow rollback/reapply must be proven before later reviewed readers exist",
       );
       assert.equal(
-        sellerBroadcastPreparationPostflightClosed,
+        sellerBroadcastRollbackReapplyProven,
         true,
-        "SellerBroadcast preparation postflight must close before activation",
+        "SellerBroadcast rollback/reapply must be proven before later reviewed readers exist",
       );
-      await proveSellerBroadcastRlsAuthorities({
-        database: adapter,
-        connectionString: proofDatabaseUrl,
-      });
-      await client.query(readFileSync(
-        join(
-          repositoryRoot,
-          "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
-        ),
-        "utf8",
-      ));
-      await proveSellerBroadcastRlsRollback({ database: adapter });
-      await client.query(readFileSync(
-        join(
-          repositoryRoot,
-          `prisma/migrations/${SELLER_BROADCAST_RLS_MIGRATION}/migration.sql`,
-        ),
-        "utf8",
-      ));
       await proveSellerBroadcastRlsAuthorities({
         database: adapter,
         connectionString: proofDatabaseUrl,
