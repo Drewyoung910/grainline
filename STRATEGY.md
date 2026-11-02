@@ -4,6 +4,26 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### AdminAuditLog fixed-operation RLS (selected 2026-11-02)
+
+After the current serial private-table chain through email service,
+`AdminAuditLog` is the next sensitive-table design. Drew authorized choosing
+the safer, scalable long-term option. The domain audit rejects direct
+actor/staff table policies because `adminId` also represents ordinary users
+and automated actions, and because global staff update would be broader than
+the one-way undo contract.
+
+Use policyless ENABLE plus FORCE with zero direct runtime/staff/`PUBLIC` table
+authority. Preserve the current domain functions, move the six remaining
+direct application consumers behind bounded actor/source/staff operations,
+keep undo and privacy redaction source-bound and replay-safe, and prove the
+23-function installed catalog on the complete PostgreSQL 17 schema. Compatible
+preparation remains additive; activation waits for a compatible deployment,
+predecessor drain, query-plan/race/rollback evidence and separate Production
+approval. Do not add retention deletion or split the table in this security
+release. See `docs/admin-audit-log-pre-rls-audit.md` and
+`docs/admin-audit-log-rls-options.md`.
+
 ### Owner/social RLS compatible sequence (updated 2026-10-30)
 
 Favorite, Follow, ReviewVote and MakerVerification compatible preparations are
