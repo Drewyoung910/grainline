@@ -26,10 +26,12 @@ export default function FollowButton({
   const [following, setFollowing] = React.useState(initialFollowing);
   const [count, setCount] = React.useState(initialCount);
   const [loading, setLoading] = React.useState(false);
+  const loadingRef = React.useRef(false);
   const { toast } = useToast();
 
   async function toggle() {
-    if (loading) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
 
     const previousFollowing = following;
@@ -68,6 +70,7 @@ export default function FollowButton({
       setCount(previousCount);
       toast("Network error. Please try again.", "error");
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }
@@ -82,7 +85,7 @@ export default function FollowButton({
     <button
       type="button"
       onClick={toggle}
-      disabled={loading}
+      aria-disabled={loading || undefined}
       aria-busy={loading || undefined}
       aria-pressed={following}
       data-variant={variant}

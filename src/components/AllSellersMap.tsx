@@ -98,6 +98,10 @@ export default function AllSellersMap({
         style: "https://tiles.openfreemap.org/styles/liberty",
         center,
         zoom: resolvedInitialZoom,
+        // Let the page keep scrolling over an embedded homepage map. Desktop
+        // visitors can zoom with Ctrl/Cmd + wheel; touch visitors use two
+        // fingers, matching MapLibre's cooperative interaction guidance.
+        cooperativeGestures: true,
       });
     } catch {
       setMapUnavailable(true);

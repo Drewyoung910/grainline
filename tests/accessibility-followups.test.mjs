@@ -106,7 +106,8 @@ describe("accessibility follow-ups", () => {
     const guild = source("src/components/GuildBadge.tsx");
 
     assert.match(follow, /aria-pressed=\{following\}/);
-    assert.match(follow, /disabled=\{loading\}/);
+    assert.match(follow, /aria-disabled=\{loading \|\| undefined\}/);
+    assert.doesNotMatch(follow, /disabled=\{loading\}/);
     assert.match(follow, /aria-busy=\{loading \|\| undefined\}/);
     assert.match(follow, /aria-hidden="true"/);
     assert.match(unread, /aria-label=\{`\$\{count\} unread message/);
@@ -452,7 +453,7 @@ describe("accessibility follow-ups", () => {
     assert.match(searchBar, /overflow-y-auto overscroll-contain/);
     assert.match(makersMap, /<section className="min-w-0">/);
     assert.match(makersMap, /lg:items-center/);
-    assert.match(makersMap, /w-full min-w-0 flex-1/);
+    assert.match(makersMap, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);

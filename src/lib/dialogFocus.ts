@@ -14,16 +14,72 @@ const FOCUSABLE_SELECTOR = [
 ].join(",");
 
 let scrollLockCount = 0;
-let scrollRestore:
-  | {
-      scrollY: number;
-      bodyOverflow: string;
-      bodyPosition: string;
-      bodyTop: string;
-      bodyWidth: string;
-      htmlOverflow: string;
+let removeScrollGuards: (() => void) | null = null;
+
+function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
+  let element = target instanceof HTMLElement ? target : null;
+  while (element && element !== document.body && element !== document.documentElement) {
+    const style = window.getComputedStyle(element);
+    const scrollable = /(auto|scroll)/u.test(style.overflowY)
+      && element.scrollHeight > element.clientHeight + 1;
+    if (scrollable) {
+      if (deltaY < 0 && element.scrollTop > 0) return true;
+      if (deltaY > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - 1) {
+        return true;
+      }
     }
-  | null = null;
+    element = element.parentElement;
+  }
+  return false;
+}
+
+function installScrollGuards() {
+  let previousTouchY: number | null = null;
+  const onWheel = (event: WheelEvent) => {
+    if (!scrollableAncestorCanMove(event.target, event.deltaY)) event.preventDefault();
+  };
+  const onTouchStart = (event: TouchEvent) => {
+    previousTouchY = event.touches[0]?.clientY ?? null;
+  };
+  const onTouchMove = (event: TouchEvent) => {
+    const currentY = event.touches[0]?.clientY;
+    if (currentY == null || previousTouchY == null) {
+      event.preventDefault();
+      return;
+    }
+    const deltaY = previousTouchY - currentY;
+    previousTouchY = currentY;
+    if (!scrollableAncestorCanMove(event.target, deltaY)) event.preventDefault();
+  };
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement
+      || target instanceof HTMLTextAreaElement
+      || target instanceof HTMLSelectElement
+      || (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
+    const deltaY = event.key === "ArrowUp" || event.key === "PageUp" || (event.key === " " && event.shiftKey) || event.key === "Home"
+      ? -Infinity
+      : event.key === "ArrowDown" || event.key === "PageDown" || event.key === " " || event.key === "End"
+        ? Infinity
+        : null;
+    if (deltaY !== null && !scrollableAncestorCanMove(target, deltaY)) event.preventDefault();
+  };
+  document.addEventListener("wheel", onWheel, { passive: false });
+  document.addEventListener("touchstart", onTouchStart, { passive: true });
+  document.addEventListener("touchmove", onTouchMove, { passive: false });
+  document.addEventListener("keydown", onKeyDown);
+  return () => {
+    document.removeEventListener("wheel", onWheel);
+    document.removeEventListener("touchstart", onTouchStart);
+    document.removeEventListener("touchmove", onTouchMove);
+    document.removeEventListener("keydown", onKeyDown);
+  };
+}
 
 function visibleFocusableElements(root: HTMLElement) {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) => {
@@ -102,7 +158,7 @@ export function useDialogFocus(
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", onKeyDown);
       if (previouslyFocused?.isConnected) {
-        previouslyFocused.focus();
+        previouslyFocused.focus({ preventScroll: true });
       }
     };
   }, [dialogRef, open, initialFocus]);
@@ -113,37 +169,16 @@ export function useBodyScrollLock(locked: boolean) {
     if (!locked) return;
 
     if (scrollLockCount === 0) {
-      scrollRestore = {
-        scrollY: window.scrollY,
-        bodyOverflow: document.body.style.overflow,
-        bodyPosition: document.body.style.position,
-        bodyTop: document.body.style.top,
-        bodyWidth: document.body.style.width,
-        htmlOverflow: document.documentElement.style.overflow,
-      };
-
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.top = `-${scrollRestore.scrollY}px`;
-      document.body.style.width = "100%";
+      removeScrollGuards = installScrollGuards();
     }
 
     scrollLockCount += 1;
 
     return () => {
       scrollLockCount = Math.max(0, scrollLockCount - 1);
-      if (scrollLockCount > 0 || !scrollRestore) return;
-
-      const restore = scrollRestore;
-      scrollRestore = null;
-
-      document.documentElement.style.overflow = restore.htmlOverflow;
-      document.body.style.overflow = restore.bodyOverflow;
-      document.body.style.position = restore.bodyPosition;
-      document.body.style.top = restore.bodyTop;
-      document.body.style.width = restore.bodyWidth;
-      window.scrollTo(0, restore.scrollY);
+      if (scrollLockCount > 0) return;
+      removeScrollGuards?.();
+      removeScrollGuards = null;
     };
   }, [locked]);
 }

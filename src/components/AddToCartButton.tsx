@@ -29,6 +29,7 @@ export default function AddToCartButton({
   anonymousSnapshot?: AnonymousCartSnapshot;
 }) {
   const [loading, setLoading] = React.useState(false);
+  const loadingRef = React.useRef(false);
   // Briefly confirms a successful add with a drawn check, then returns to
   // the normal label. Bumped on each add so the check redraws every time.
   const [addedCount, setAddedCount] = React.useState(0);
@@ -57,6 +58,7 @@ export default function AddToCartButton({
   const listingPath = publicListingPath(listingId, listingTitle);
 
   async function add() {
+    if (loadingRef.current) return;
     // The listing panel flags the missing option next to the options.
     if (!variantSelectionComplete) return;
     if (!signedIn) {
@@ -85,6 +87,7 @@ export default function AddToCartButton({
     }
 
     try {
+      loadingRef.current = true;
       setLoading(true);
       const res = await fetch("/api/cart/add", {
         method: "POST",
@@ -113,6 +116,7 @@ export default function AddToCartButton({
     } catch (e) {
       toast((e as Error).message, "error");
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }
@@ -121,7 +125,8 @@ export default function AddToCartButton({
     <button
       type="button"
       data-purchase-action=""
-      disabled={loading}
+      aria-disabled={loading || undefined}
+      aria-busy={loading || undefined}
       onClick={add}
       className={className || "rounded border px-3 py-1.5 text-sm"}
     >

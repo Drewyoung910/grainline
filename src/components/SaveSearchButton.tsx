@@ -7,8 +7,15 @@ import { parseMoneyInputToCents } from "@/lib/money";
 
 export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
   const [state, setState] = React.useState<"idle" | "saving" | "saved">("idle");
+  const activeSearchKey = React.useRef(searchKey);
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    activeSearchKey.current = searchKey;
+    setState("idle");
+  }, [searchKey]);
 
   async function save() {
     if (!signedIn) {
@@ -16,6 +23,7 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
       return;
     }
     setState("saving");
+    const savedSearchKey = searchKey;
     try {
       const q = searchParams.get("q") || undefined;
       const category = searchParams.get("category") || undefined;
@@ -60,14 +68,18 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
         } catch {
           // keep generic message
         }
-        toast(message, "error");
-        setState("idle");
+        if (activeSearchKey.current === savedSearchKey) {
+          toast(message, "error");
+          setState("idle");
+        }
         return;
       }
-      setState("saved");
+      if (activeSearchKey.current === savedSearchKey) setState("saved");
     } catch {
-      setState("idle");
-      toast("Network error. Please try again.", "error");
+      if (activeSearchKey.current === savedSearchKey) {
+        setState("idle");
+        toast("Network error. Please try again.", "error");
+      }
     }
   }
 

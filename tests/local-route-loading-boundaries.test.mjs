@@ -13,12 +13,11 @@ function exists(path) {
 }
 
 describe("local discovery and niche route loading boundaries", () => {
-  it("animates path changes without replaying for query-only navigation", () => {
+  it("keeps the root template motion-free so navigation cannot replay an entrance", () => {
     const template = source("src/app/template.tsx");
-    assert.match(template, /import \{ usePathname \} from "next\/navigation"/);
-    assert.match(template, /const pathname = usePathname\(\)/);
-    assert.match(template, /function PageEntrance/);
-    assert.match(template, /return <PageEntrance key=\{pathname\}>\{children\}<\/PageEntrance>/);
+    assert.match(template, /return children;/);
+    assert.doesNotMatch(template, /usePathname|key=\{pathname\}|PageEntrance|page-enter/);
+    assert.doesNotMatch(source("src/app/globals.css"), /@keyframes page-enter|\.page-enter/);
   });
 
   it("keeps browse index and city fallbacks local instead of nesting generic loaders", () => {

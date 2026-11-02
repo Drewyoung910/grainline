@@ -7,11 +7,26 @@ const gallery = readFileSync("src/components/ListingGallery.tsx", "utf8");
 const nextConfig = readFileSync("next.config.ts", "utf8");
 
 describe("listing image delivery", () => {
-  it("optimizes first-party photos and leaves legacy shared-host media unoptimized", () => {
+  it("optimizes first-party photos, then falls back without losing the image", () => {
     assert.match(gallery, /import Image from "next\/image"/u);
     assert.match(gallery, /import \{ isFirstPartyMediaUrl \} from "@\/lib\/urlValidation"/u);
-    assert.match(gallery, /unoptimized=\{!isFirstPartyMediaUrl\(activeUrl\)\}/u);
-    assert.match(gallery, /unoptimized=\{!isFirstPartyMediaUrl\(p\.url\)\}/u);
+    assert.match(gallery, /const \[optimizerFailures, setOptimizerFailures\]/u);
+    assert.match(
+      gallery,
+      /unoptimized=\{!isFirstPartyMediaUrl\(activeUrl\) \|\| optimizerFailures\.has\(activeUrl\)\}/u,
+    );
+    assert.match(
+      gallery,
+      /unoptimized=\{!isFirstPartyMediaUrl\(p\.url\) \|\| optimizerFailures\.has\(p\.url\)\}/u,
+    );
+    assert.match(
+      gallery,
+      /setOptimizerFailures\(\(current\) => new Set\(current\)\.add\(activeUrl\)\)/u,
+    );
+    assert.match(
+      gallery,
+      /setOptimizerFailures\(\(current\) => new Set\(current\)\.add\(p\.url\)\)/u,
+    );
     assert.match(gallery, /sizes="\(max-width: 1023px\) 100vw, 50vw"/u);
     assert.match(gallery, /preload=\{activeIndex === 0\}/u);
     assert.match(gallery, /sizes="64px"/u);

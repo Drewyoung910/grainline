@@ -185,8 +185,27 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               }}
               className="toast-pill toast-pill-leaving pointer-events-none flex max-w-full items-center gap-1 rounded-3xl bg-[#2C1F1A] py-[3px] pl-[18px] pr-[3px] text-[15px] text-[#FBF8F3]"
             >
-              <span className="min-w-0 flex-1 py-[9px]">{t.message}</span>
-              <span className="h-11 w-11 shrink-0" />
+              <span
+                className={`min-w-0 flex-1 py-[9px] ${
+                  t.type === "error"
+                    ? "before:mr-2 before:inline-block before:h-2 before:w-2 before:rounded-full before:bg-[#F08A73] before:align-middle before:content-['']"
+                    : ""
+                }`}
+              >
+                {t.message}
+              </span>
+              {t.action && (
+                <span className="inline-flex h-11 shrink-0 items-center px-0.5">
+                  <span className="inline-flex h-[30px] items-center rounded-full bg-white/[0.14] px-3 text-sm font-medium">
+                    {t.action.label}
+                  </span>
+                </span>
+              )}
+              <span className="grid h-11 w-11 shrink-0 place-items-center">
+                <span className="grid h-[30px] w-[30px] place-items-center rounded-full bg-white/10 text-[#FBF8F3]/85">
+                  <X size={14} />
+                </span>
+              </span>
             </div>
           ) : (
             <div

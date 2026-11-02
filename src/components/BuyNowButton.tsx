@@ -24,6 +24,7 @@ type Props = {
   selectedVariantOptionIds?: string[];
   variantSelectionComplete?: boolean;
   autoOpen?: boolean;
+  signedIn: boolean;
   className?: string;
   children?: React.ReactNode;
 };
@@ -42,32 +43,35 @@ export default function BuyNowButton({
   selectedVariantOptionIds = [],
   variantSelectionComplete = true,
   autoOpen = false,
+  signedIn,
   className = "",
   children,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const openedFromRedirect = useRef(false);
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn } = useUser();
+  // The server renders this control only for an authenticated account. Clerk
+  // may still be hydrating, but that should not turn the first tap into a no-op.
+  const signedInNow = signedIn || isSignedIn === true;
 
   useEffect(() => {
-    if (!autoOpen || openedFromRedirect.current || !isLoaded || !isSignedIn) return;
+    if (!autoOpen || openedFromRedirect.current || !signedInNow) return;
     if (!variantSelectionComplete) return;
     openedFromRedirect.current = true;
     setHasOpened(true);
     setIsOpen(true);
-  }, [autoOpen, isLoaded, isSignedIn, variantSelectionComplete]);
+  }, [autoOpen, signedInNow, variantSelectionComplete]);
 
   return (
     <>
       <button
         type="button"
         data-purchase-action=""
-        disabled={!isLoaded}
         onClick={() => {
           // The listing panel flags the missing option next to the options.
           if (!variantSelectionComplete) return;
-          if (!isSignedIn) {
+          if (!signedInNow) {
             window.location.href = signUpPathForRedirect(window.location.pathname + window.location.search);
             return;
           }
@@ -97,7 +101,7 @@ export default function BuyNowButton({
           selectedVariantOptionIds={selectedVariantOptionIds}
           isOpen={isOpen}
           onClose={() => setIsOpen(false)}
-          isSignedIn={isSignedIn ?? false}
+          isSignedIn={signedInNow}
         />
       )}
     </>

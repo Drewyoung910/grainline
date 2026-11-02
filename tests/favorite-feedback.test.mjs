@@ -20,6 +20,13 @@ describe("favorite failure feedback", () => {
     assert.equal(favoriteErrorMessage(403), "This listing isn’t available.");
     assert.equal(favoriteErrorMessage(404), "This listing isn’t available.");
     assert.equal(favoriteErrorMessage(429), "Too many save attempts. Try again shortly.");
+    assert.equal(favoriteErrorMessage(400, "SELF"), "You can’t save your own listing.");
+    assert.equal(
+      favoriteErrorMessage(428, "TERMS_NOT_ACCEPTED"),
+      "Accept Grainline’s current Terms to save listings.",
+    );
+    assert.match(route, /code: "SELF"/u);
+    assert.match(button, /acceptTermsPathForRedirect/u);
   });
 
   it("does not expose unexpected server details to shoppers", () => {

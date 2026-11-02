@@ -38,6 +38,11 @@ function chipClass(active: boolean) {
 export default function FilterSidebar({ popularTags }: { popularTags: string[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
+  const pendingParamsRef = React.useRef(searchKey);
+  React.useEffect(() => {
+    pendingParamsRef.current = searchKey;
+  }, [searchKey]);
   const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
   const selectedTags = normalizeTags(searchParams.getAll("tag"), 10);
@@ -80,8 +85,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   const pendingMin = cleanPrice(minInput);
   const pendingMax = cleanPrice(maxInput);
 
-  function hrefWith(changes: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
+  function hrefWith(changes: Record<string, string | null>, baseQuery = searchKey) {
+    const params = new URLSearchParams(baseQuery);
     const price: Record<string, string | null> = {};
     if (pendingMin !== null) price.min = pendingMin;
     if (pendingMax !== null) price.max = pendingMax;
@@ -99,8 +104,39 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     scrollResultsToTop();
   }
 
-  function tagToggleHref(tag: string) {
-    const params = new URLSearchParams(hrefWith({}).split("?")[1] ?? "");
+  function navigateWith(changes: Record<string, string | null>) {
+    const href = hrefWith(changes, pendingParamsRef.current);
+    pendingParamsRef.current = href.split("?")[1] ?? "";
+    go(href);
+  }
+
+  function handleFilterLinkClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    const encoded = event.currentTarget.dataset.filterChanges;
+    if (!encoded) return;
+    const changes = JSON.parse(encoded) as Record<string, string | null>;
+    const href = hrefWith(changes, pendingParamsRef.current);
+    pendingParamsRef.current = href.split("?")[1] ?? "";
+    go(href);
+  }
+
+  function handleTagLinkClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    const tag = event.currentTarget.dataset.filterTag;
+    if (!tag) return;
+    const href = tagToggleHref(tag, pendingParamsRef.current);
+    pendingParamsRef.current = href.split("?")[1] ?? "";
+    go(href);
+  }
+
+  function tagToggleHref(tag: string, baseQuery = searchKey) {
+    const params = new URLSearchParams(hrefWith({}, baseQuery).split("?")[1] ?? "");
     const current = params.getAll("tag");
     params.delete("tag");
     params.delete("page");
@@ -159,14 +195,13 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     if (pendingMin !== minInput) setMinInput(pendingMin);
     if (pendingMax !== maxInput) setMaxInput(pendingMax);
     if (pendingMin === currentMin && pendingMax === currentMax) return;
-    go(hrefWith({ min: pendingMin, max: pendingMax }));
+    navigateWith({ min: pendingMin, max: pendingMax });
   };
   const onPriceBlur = (event: React.FocusEvent<HTMLInputElement>) => {
     if (priceFormRef.current?.contains(event.relatedTarget as Node | null)) return;
     applyPrice();
   };
 
-  const linkProps = { scroll: false, onClick: scrollResultsToTop } as const;
   const hasLocation = Boolean(lat && lng);
 
   return (
@@ -184,7 +219,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                   <li key={value || "all"}>
                     <Link
                       href={hrefWith({ category: value })}
-                      {...linkProps}
+                      scroll={false}
+                      data-filter-changes={JSON.stringify({ category: value })}
+                      onClick={handleFilterLinkClick}
                       aria-current={active ? "true" : undefined}
                       className={`flex h-[38px] items-center rounded-[10px] px-3 text-[15px] transition-[background-color,box-shadow] duration-150 ${
                         active
@@ -209,7 +246,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             labelledBy={`${baseId}-availability`}
             fullWidth
             value={currentType}
-            onChange={(value) => go(hrefWith({ type: value }))}
+            resetKey={searchKey}
+            onChange={(value) => navigateWith({ type: value })}
             options={[
               { value: "", label: "All" },
               { value: "IN_STOCK", label: "In stock" },
@@ -275,14 +313,16 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Ships within</legend>
           <div className="flex flex-wrap gap-2">
-            <Link href={hrefWith({ ships: null })} {...linkProps} aria-current={!currentShips ? "true" : undefined} className={chipClass(!currentShips)}>
+            <Link href={hrefWith({ ships: null })} scroll={false} data-filter-changes={JSON.stringify({ ships: null })} onClick={handleFilterLinkClick} aria-current={!currentShips ? "true" : undefined} className={chipClass(!currentShips)}>
               Any time
             </Link>
             {SHIPS_WITHIN_OPTIONS.map((days) => (
               <Link
                 key={days}
                 href={hrefWith({ ships: days })}
-                {...linkProps}
+                scroll={false}
+                data-filter-changes={JSON.stringify({ ships: days })}
+                onClick={handleFilterLinkClick}
                 aria-current={currentShips === days ? "true" : undefined}
                 className={chipClass(currentShips === days)}
               >
@@ -299,14 +339,16 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Shop rating</legend>
           <div className="flex flex-wrap gap-2">
-            <Link href={hrefWith({ rating: null })} {...linkProps} aria-current={!currentRating ? "true" : undefined} className={chipClass(!currentRating)}>
+            <Link href={hrefWith({ rating: null })} scroll={false} data-filter-changes={JSON.stringify({ rating: null })} onClick={handleFilterLinkClick} aria-current={!currentRating ? "true" : undefined} className={chipClass(!currentRating)}>
               Any
             </Link>
             {RATING_OPTIONS.map((stars) => (
               <Link
                 key={stars}
                 href={hrefWith({ rating: stars })}
-                {...linkProps}
+                scroll={false}
+                data-filter-changes={JSON.stringify({ rating: stars })}
+                onClick={handleFilterLinkClick}
                 aria-label={`${stars} stars and up`}
                 aria-current={currentRating === stars ? "true" : undefined}
                 className={chipClass(currentRating === stars)}
@@ -331,7 +373,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                   <Link
                     key={miles}
                     href={hrefWith({ lat, lng, radius: miles })}
-                    {...linkProps}
+                    scroll={false}
+                    data-filter-changes={JSON.stringify({ lat, lng, radius: miles })}
+                    onClick={handleFilterLinkClick}
                     aria-current={currentRadius === miles ? "true" : undefined}
                     className={chipClass(currentRadius === miles)}
                   >
@@ -347,7 +391,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               <p className="text-xs text-neutral-600">Pick a distance from you.</p>
             )}
             {hasLocation && currentRadius && (
-              <Link href={hrefWith({ lat: null, lng: null, radius: null })} {...linkProps} className="inline-block text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800">
+              <Link href={hrefWith({ lat: null, lng: null, radius: null })} scroll={false} data-filter-changes={JSON.stringify({ lat: null, lng: null, radius: null })} onClick={handleFilterLinkClick} className="inline-block text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800">
                 Any distance
               </Link>
             )}
@@ -370,7 +414,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                   <Link
                     key={tag}
                     href={tagToggleHref(tag)}
-                    {...linkProps}
+                    scroll={false}
+                    data-filter-tag={tag}
+                    onClick={handleTagLinkClick}
                     aria-current={active ? "true" : undefined}
                     className={chipClass(active)}
                   >
@@ -384,7 +430,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
         <Link
           href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
-          {...linkProps}
+          scroll={false}
+          onClick={scrollResultsToTop}
           className="inline-flex min-h-11 items-center text-sm text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
         >
           Reset filters

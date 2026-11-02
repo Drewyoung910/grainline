@@ -29,17 +29,34 @@ export default function Header() {
   // The header is clear over the homepage photo until the visitor scrolls,
   // then settles into the same frosted paper every other page uses.
   const [scrolled, setScrolled] = React.useState(false);
-  React.useEffect(() => {
-    if (!isHome) return;
+  const [headerAnimates, setHeaderAnimates] = React.useState(false);
+  const scrolledRef = React.useRef(false);
+  React.useLayoutEffect(() => {
+    if (!isHome) {
+      scrolledRef.current = false;
+      setScrolled(false);
+      setHeaderAnimates(false);
+      return;
+    }
     let frame = 0;
+    // Synchronize before paint on client navigation or hydration. Decorative
+    // transitions begin only after a real threshold crossing, so arriving on
+    // the homepage never morphs the entire header.
+    const initial = window.scrollY > 24;
+    scrolledRef.current = initial;
+    setScrolled(initial);
+    setHeaderAnimates(false);
     const update = () => {
       frame = 0;
-      setScrolled(window.scrollY > 24);
+      const next = scrolledRef.current ? window.scrollY > 16 : window.scrollY > 32;
+      if (next === scrolledRef.current) return;
+      scrolledRef.current = next;
+      setHeaderAnimates(true);
+      setScrolled(next);
     };
     const onScroll = () => {
       if (frame === 0) frame = window.requestAnimationFrame(update);
     };
-    update();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
@@ -420,7 +437,7 @@ export default function Header() {
     <header
       data-header-state={clear ? "clear" : "frosted"}
       className={`${isHome ? "fixed" : pinned ? "sticky" : "relative"} inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] ${
-        isHome ? "transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+        isHome && headerAnimates ? "transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
       } ${
         clear
           ? "text-[#F5EFE6] [&_a:focus-visible]:outline-[#F5EFE6] [&_button:focus-visible]:outline-[#F5EFE6]"
@@ -433,7 +450,9 @@ export default function Header() {
       {isHome && (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-x-0 top-0 -z-10 h-[150%] bg-gradient-to-b from-[#1c1410]/55 via-[#1c1410]/25 to-transparent transition-opacity duration-500 ${
+          className={`pointer-events-none absolute inset-x-0 top-0 -z-10 h-[150%] bg-gradient-to-b from-[#1c1410]/55 via-[#1c1410]/25 to-transparent ${
+            headerAnimates ? "transition-opacity duration-500" : ""
+          } ${
             clear ? "opacity-100" : "opacity-0"
           }`}
         />
@@ -445,13 +464,13 @@ export default function Header() {
         aria-hidden="true"
         data-header-frost
         className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] backdrop-blur-xl backdrop-saturate-150 ${
-          isHome ? "transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+          isHome && headerAnimates ? "transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
         } ${clear ? "opacity-0" : "opacity-100"}`}
       />
       <nav
         aria-label="Main navigation"
         className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 lg:gap-6 lg:px-8 xl:gap-8 ${
-          isHome ? "transition-[padding] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+          isHome && headerAnimates ? "transition-[padding] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
         } ${clear ? "py-4 lg:py-5" : "py-2.5 lg:py-3"}`}
       >
         {/* Logo: one mask so its color can follow the header from cream over
@@ -464,7 +483,7 @@ export default function Header() {
           <span
             aria-hidden="true"
             data-site-logo-mark
-            className={`logo-mark block h-5 w-[92px] ${isHome ? "transition-[background-color] duration-500" : ""} min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px] ${
+            className={`logo-mark block h-5 w-[92px] ${isHome && headerAnimates ? "transition-[background-color] duration-500" : ""} min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px] ${
               clear ? "bg-[#E5DFD2]" : "bg-[#2C1F1A]"
             }`}
           />
@@ -508,18 +527,23 @@ export default function Header() {
               )}
             </Link>
 
-            <Show
-              when="signed-in"
-              fallback={
-                <Link
-                  href="/sign-in"
-                  className="ml-1.5 inline-flex h-10 items-center rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
-                >
-                  Sign in
-                </Link>
-              }
-            >
-              <span className="ml-1.5 inline-flex">
+            {/* Keep one stable auth slot while Clerk resolves. Without the
+                reserved width, the late Sign in pill shifted the cart and
+                search after first paint on every signed-out desktop load. */}
+            <span className="ml-1.5 inline-flex min-w-[76px] justify-end">
+              <Show
+                when="signed-in"
+                fallback={
+                  isLoaded ? (
+                    <Link
+                      href="/sign-in"
+                      className="inline-flex h-10 items-center rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
+                    >
+                      Sign in
+                    </Link>
+                  ) : null
+                }
+              >
                 <UserAvatarMenu
                   name={name}
                   imageUrl={imageUrl}
@@ -527,8 +551,8 @@ export default function Header() {
                   role={role}
                   hasSeller={hasSeller}
                 />
-              </span>
-            </Show>
+              </Show>
+            </span>
           </div>
         </div>
 

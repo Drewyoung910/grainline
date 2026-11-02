@@ -201,6 +201,7 @@ export default function ListingPurchasePanel({
         >
           {userId ? (
             <BuyNowButton
+              signedIn
               listingId={listingId}
               listingTitle={listingTitle}
               listingImageUrl={listingImageUrl}

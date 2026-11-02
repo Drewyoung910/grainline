@@ -306,6 +306,12 @@ function CartPage() {
   }
   React.useEffect(() => {
     if (!animateStep) return;
+    const main = document.querySelector<HTMLElement>("main[data-cart-steps]");
+    if (main) {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      const top = Math.max(0, main.getBoundingClientRect().top + window.scrollY - 12);
+      window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
+    }
     const timer = window.setTimeout(() => setAnimateStep(false), 700);
     return () => window.clearTimeout(timer);
   }, [animateStep]);
@@ -725,29 +731,30 @@ function CartPage() {
             return (
               <li
                 key={i.id}
-                className={`flex items-center gap-3 py-3${removingIds.has(i.id) ? " cart-row-leaving" : ""}`}
+                className={`cart-row${removingIds.has(i.id) ? " cart-row-leaving" : ""}`}
                 aria-busy={removingIds.has(i.id) || undefined}
               >
-                {img ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
-                ) : (
-                  <div className="h-16 w-16 rounded bg-neutral-100" />
-                )}
-
-                <div className="min-w-0 flex-1">
-                  {listingIsActive ? (
-                    <Link href={publicListingPath(i.listing.id, i.listing.title)} className="block truncate text-sm font-medium hover:underline">
-                      {i.listing.title}
-                    </Link>
+                <div className="cart-row-content flex items-center gap-3 py-3">
+                  {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
                   ) : (
-                    <span className="block truncate text-sm font-medium text-neutral-700">
-                      {i.listing.title}
-                    </span>
+                    <div className="h-16 w-16 rounded bg-neutral-100" />
                   )}
-                  {(i.variantLabels ?? []).length > 0 && (
-                    <p className="text-xs text-neutral-500 mt-0.5">{(i.variantLabels ?? []).join(" · ")}</p>
-                  )}
+
+                  <div className="min-w-0 flex-1">
+                    {listingIsActive ? (
+                      <Link href={publicListingPath(i.listing.id, i.listing.title)} className="block truncate text-sm font-medium hover:underline">
+                        {i.listing.title}
+                      </Link>
+                    ) : (
+                      <span className="block truncate text-sm font-medium text-neutral-700">
+                        {i.listing.title}
+                      </span>
+                    )}
+                    {(i.variantLabels ?? []).length > 0 && (
+                      <p className="text-xs text-neutral-500 mt-0.5">{(i.variantLabels ?? []).join(" · ")}</p>
+                    )}
 
                   {!listingIsActive && (
                     <div className="text-xs text-red-600 mt-0.5">This item is no longer available</div>
@@ -769,7 +776,7 @@ function CartPage() {
                     </div>
                   )}
 
-                  <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
+                    <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
                     <span className="shrink-0">{formatCurrencyCents(unitPriceCents, i.listing.currency)} each</span>
                     {i.priceChanged && !i.variantUnavailable && (
                       <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
@@ -828,11 +835,12 @@ function CartPage() {
                     >
                       Remove
                     </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="text-sm font-medium shrink-0">
-                  <RollingAmount cents={lineCents} currency={i.listing.currency} />
+                  <div className="text-sm font-medium shrink-0">
+                    <RollingAmount cents={lineCents} currency={i.listing.currency} />
+                  </div>
                 </div>
               </li>
             );

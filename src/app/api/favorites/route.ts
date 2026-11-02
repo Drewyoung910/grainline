@@ -90,7 +90,10 @@ export async function POST(req: Request) {
     return privateJson({ error: "Listing not found." }, { status: HTTP_STATUS.NOT_FOUND });
   }
   if (favorite.resultStatus === "SELF") {
-    return privateJson({ error: "Cannot favorite your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
+    return privateJson(
+      { error: "Cannot favorite your own listing.", code: "SELF" },
+      { status: HTTP_STATUS.BAD_REQUEST },
+    );
   }
   if (favorite.resultStatus === "BLOCKED") {
     return privateJson({ error: "This listing isn’t available." }, { status: HTTP_STATUS.FORBIDDEN });

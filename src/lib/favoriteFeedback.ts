@@ -1,4 +1,10 @@
 export function favoriteErrorMessage(status: number, code?: string) {
+  if (code === "SELF") {
+    return "You can’t save your own listing.";
+  }
+  if (code === "TERMS_NOT_ACCEPTED") {
+    return "Accept Grainline’s current Terms to save listings.";
+  }
   if (code === "ACCOUNT_SUSPENDED") {
     return "Your account has been suspended. Contact support@thegrainline.com.";
   }

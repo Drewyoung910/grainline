@@ -27,6 +27,7 @@ export default function SegmentedControl({
   fullWidth = false,
   linkScroll,
   onLinkClick,
+  resetKey,
   className = "",
 }: {
   options: SegmentOption[];
@@ -42,6 +43,9 @@ export default function SegmentedControl({
   fullWidth?: boolean;
   linkScroll?: boolean;
   onLinkClick?: () => void;
+  // URL-backed controls clear an optimistic thumb when any navigation settles,
+  // including one where another fast click won and this value never changed.
+  resetKey?: string;
   className?: string;
 }) {
   const [pendingValue, setPendingValue] = React.useState<string | null>(null);
@@ -51,6 +55,9 @@ export default function SegmentedControl({
     setPendingValue(null);
   }
   const activeValue = pendingValue ?? value;
+  React.useEffect(() => {
+    setPendingValue(null);
+  }, [resetKey]);
   const optionKey = options.map((option) => option.value).join("|");
 
   const trackRef = React.useRef<HTMLDivElement>(null);
@@ -76,6 +83,8 @@ export default function SegmentedControl({
   }, [activeValue, optionKey]);
 
   const choose = (next: string) => {
+    // A second fast click on the still-current URL value must cancel a pending
+    // first choice instead of being ignored.
     if (next === activeValue) return;
     setPendingValue(next);
     onChange?.(next);

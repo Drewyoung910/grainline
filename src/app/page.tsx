@@ -605,7 +605,7 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center will-change-transform transition-[background-color,translate,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:hover:-translate-y-[3px] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
                 >
                   <c.Icon size={28} className="text-[#2C1F1A] will-change-transform transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-[1.08]" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
@@ -613,7 +613,7 @@ export default async function HomePage() {
               ))}
               <Link
                 href="/browse"
-                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center will-change-transform transition-[background-color,translate,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:hover:-translate-y-[3px] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
               >
                 <span className="text-2xl text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
@@ -690,7 +690,7 @@ export default async function HomePage() {
             <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg motion-safe:hover:-translate-y-1 motion-safe:transition-all motion-safe:duration-200">
+                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden transition-shadow duration-200 hover:shadow-lg">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
                       <div className="aspect-[4/5] bg-neutral-100 overflow-hidden">
                         <MediaImage
@@ -711,7 +711,7 @@ export default async function HomePage() {
                     </Link>
                   </ClickTracker>
                 ) : (
-                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg motion-safe:hover:-translate-y-1 motion-safe:transition-all motion-safe:duration-200">
+                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden transition-shadow duration-200 hover:shadow-lg">
                     <Link href={`/blog/${item.slug}`} className="block">
                       <div className="aspect-square bg-neutral-100 overflow-hidden">
                         <MediaImage

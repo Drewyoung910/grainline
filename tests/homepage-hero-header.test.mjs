@@ -49,7 +49,9 @@ describe("homepage hero and header contracts", () => {
     // Clear only at the top of the homepage; frosted on scroll and on every
     // other page (Drew, 2026-10-30: "frosted on other pages same as home").
     assert.match(header, /const clear = isHome && !scrolled;/);
-    assert.match(header, /setScrolled\(window\.scrollY > 24\)/);
+    assert.match(header, /const initial = window\.scrollY > 24/);
+    assert.match(header, /scrolledRef\.current \? window\.scrollY > 16 : window\.scrollY > 32/);
+    assert.match(header, /isHome && headerAnimates/);
     assert.match(header, /window\.addEventListener\("scroll", onScroll, \{ passive: true \}\)/);
     // Message threads keep their own pinned chat header, so the site header
     // scrolls away there.
@@ -102,13 +104,15 @@ describe("homepage hero and header contracts", () => {
     assert.match(header, /onClick=\{closeMobileSearch\}/);
     assert.match(header, /searchClosing \? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"/);
     assert.match(header, /<SearchBar autoFocus tone="solid" \/>/);
-    // Sticky elements and anchors clear the pinned header.
+    // Sticky elements and actual anchor targets clear the pinned header
+    // without making focus inside the pinned header scroll the root page.
     assert.match(globals, /--site-header-h: 4rem;/);
     assert.match(
       globals,
       /--site-header-offset: calc\(var\(--site-header-h\) \+ env\(safe-area-inset-top\)\);/,
     );
-    assert.match(globals, /scroll-padding-top: calc\(var\(--site-header-offset\) \+ 0\.75rem\);/);
+    assert.doesNotMatch(globals, /scroll-padding-top:/);
+    assert.match(globals, /section\[id\],[\s\S]*\[data-scroll-anchor\][\s\S]*scroll-margin-top: calc\(var\(--site-header-offset\) \+ 0\.75rem\);/);
     assert.match(source("src/components/SectionTabs.tsx"), /top-\[var\(--site-header-offset\)\]/);
     assert.match(
       source("src/components/SectionTabs.tsx"),

@@ -19,6 +19,7 @@ export default function ListingGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
   // Set when the viewer moves to another photo, so only that photo's load gets
@@ -171,7 +172,7 @@ export default function ListingGallery({
         <Image
           src={activeUrl}
           alt={photos[activeIndex]?.altText ?? title}
-          unoptimized={!isFirstPartyMediaUrl(activeUrl)}
+          unoptimized={!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)}
           fill
           sizes="(max-width: 1023px) 100vw, 50vw"
           preload={activeIndex === 0}
@@ -181,6 +182,10 @@ export default function ListingGallery({
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
             playPhotoSwap(e.currentTarget);
+          }}
+          onError={() => {
+            if (!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)) return;
+            setOptimizerFailures((current) => new Set(current).add(activeUrl));
           }}
         />
         {photos.length > 1 && (
@@ -261,10 +266,14 @@ export default function ListingGallery({
               <Image
                 src={p.url}
                 alt={p.altText ?? `${title} — photo ${i + 1}`}
-                unoptimized={!isFirstPartyMediaUrl(p.url)}
+                unoptimized={!isFirstPartyMediaUrl(p.url) || optimizerFailures.has(p.url)}
                 fill
                 sizes="64px"
                 className="object-cover"
+                onError={() => {
+                  if (!isFirstPartyMediaUrl(p.url) || optimizerFailures.has(p.url)) return;
+                  setOptimizerFailures((current) => new Set(current).add(p.url));
+                }}
               />
             </button>
           ))}
@@ -341,17 +350,17 @@ export default function ListingGallery({
   );
 }
 
-// Short cross-fade when the shown photo changes. Runs after the new photo has
-// loaded, so the old one stays on screen until then (no blank flash).
+// Settle the shown photo without changing opacity. Starting a post-load fade
+// at partial opacity made every arrow click and swipe flash pale.
 function playPhotoSwap(img: HTMLImageElement) {
   if (typeof img.animate !== "function") return;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   img.animate(
     [
-      { opacity: 0.35, transform: "scale(1.015)" },
-      { opacity: 1, transform: "scale(1)" },
+      { transform: "scale(1.01)" },
+      { transform: "scale(1)" },
     ],
-    { duration: 420, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
+    { duration: 220, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
   );
 }
 

@@ -442,15 +442,29 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div
-          id={dropdownId}
-          role="dialog"
-          aria-label="Notifications"
-          data-home-notification-surface={overlay ? "true" : undefined}
-          className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-[18px] text-neutral-900 popover-shadow motion-reduce:animate-none ${notificationSurfaceClass} ${
-            closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
-          }`}
-        >
+        <>
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 z-40 md:hidden"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              closeDropdown();
+            }}
+          />
+          <div
+            id={dropdownId}
+            role="dialog"
+            aria-label="Notifications"
+            data-home-notification-surface={overlay ? "true" : undefined}
+            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-[18px] text-neutral-900 popover-shadow motion-reduce:animate-none ${notificationSurfaceClass} ${
+              closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
+            }`}
+          >
           {/* Header */}
           <div className={`flex items-center justify-between px-4 py-3 ${notificationHeaderClass}`}>
             <span className="text-sm font-semibold">Notifications</span>
@@ -512,7 +526,8 @@ export default function NotificationBell({
               See all notifications
             </Link>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

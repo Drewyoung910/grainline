@@ -4,6 +4,7 @@
 import { useState, useTransition, type CSSProperties } from "react";
 import { useToast } from "@/components/Toast";
 import { favoriteErrorMessage } from "@/lib/favoriteFeedback";
+import { acceptTermsPathForRedirect } from "@/lib/internalReturnUrl";
 
 // Burst dot end positions (px from the heart's center), one ring of eight.
 const HEART_BURST_OFFSETS: ReadonlyArray<readonly [number, number]> = [
@@ -56,6 +57,12 @@ export default function FavoriteButton({
           setSaved(!next);
           const data = await res.json().catch(() => null) as { error?: string; code?: string } | null;
           console.error("Favorite failed:", data?.error ?? res.statusText);
+          if (data?.code === "TERMS_NOT_ACCEPTED") {
+            window.location.href = acceptTermsPathForRedirect(
+              window.location.pathname + window.location.search,
+            );
+            return;
+          }
           toast(favoriteErrorMessage(res.status, data?.code), "error");
         }
       } catch (err) {

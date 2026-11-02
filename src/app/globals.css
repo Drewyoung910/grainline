@@ -149,10 +149,12 @@
     border-color 280ms cubic-bezier(0.2, 0.7, 0.2, 1),
     box-shadow 280ms cubic-bezier(0.2, 0.7, 0.2, 1),
     scale 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
-  &:disabled,
-  &[aria-disabled="true"] {
+  &:disabled {
     opacity: 0.45;
     pointer-events: none;
+  }
+  &[aria-disabled="true"] {
+    cursor: wait;
   }
   @media (prefers-reduced-motion: no-preference) {
     &:active {
@@ -269,7 +271,18 @@
   }
 }
 html {
-  scroll-padding-top: calc(var(--site-header-offset) + 0.75rem);
+  /* Keep the scrollbar lane reserved while a dialog locks scrolling, so the
+     page does not nudge sideways on systems with persistent scrollbars. */
+  scrollbar-gutter: stable;
+}
+@layer base {
+  /* Offset actual in-page destinations instead of the root scroll container.
+     Root scroll-padding made focusing a control inside the pinned header
+     move an already-scrolled page. */
+  section[id],
+  [data-scroll-anchor] {
+    scroll-margin-top: calc(var(--site-header-offset) + 0.75rem);
+  }
 }
 
 /* Base button rounding — placed in @layer base so Tailwind utilities in
@@ -821,9 +834,6 @@ input, textarea, select {
    Parallax uses scroll-driven animations where the browser supports them and
    is simply absent elsewhere; nothing depends on it. */
 @media (prefers-reduced-motion: no-preference) {
-  .page-enter {
-    animation: page-enter 0.42s var(--motion-ease-out) backwards;
-  }
   @supports (animation-timeline: scroll()) {
     .hero-parallax {
       animation: hero-parallax linear both;
@@ -904,23 +914,6 @@ input, textarea, select {
   50%      { transform: translateY(-6px); }
 }
 
-/* Cards rise in as they scroll into view (scroll-driven, compositor only).
-   Inside horizontal rows the timeline has nothing to track and the card
-   simply stays put. */
-@media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    .card-rise {
-      animation: card-rise linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 40%;
-    }
-  }
-}
-@keyframes card-rise {
-  from { opacity: 0; transform: translateY(22px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 /* Batch two: confirmations and browse results. */
 .check-draw path {
   stroke-dasharray: 1;
@@ -930,16 +923,6 @@ input, textarea, select {
   .check-draw path {
     animation: check-draw 0.42s var(--motion-ease-out) 0.06s backwards;
   }
-  .results-stagger > * {
-    animation: reveal-card-in 0.45s var(--motion-ease-out) backwards;
-  }
-  .results-stagger > :nth-child(2) { animation-delay: 40ms; }
-  .results-stagger > :nth-child(3) { animation-delay: 80ms; }
-  .results-stagger > :nth-child(4) { animation-delay: 120ms; }
-  .results-stagger > :nth-child(5) { animation-delay: 160ms; }
-  .results-stagger > :nth-child(6) { animation-delay: 200ms; }
-  .results-stagger > :nth-child(7) { animation-delay: 240ms; }
-  .results-stagger > :nth-child(n + 8) { animation-delay: 280ms; }
 }
 @media (prefers-reduced-motion: no-preference) {
   /* Browse: newly applied filter chips pop in. */
@@ -989,10 +972,6 @@ input, textarea, select {
 @keyframes check-draw {
   from { stroke-dashoffset: 1; }
   to   { stroke-dashoffset: 0; }
-}
-@keyframes page-enter {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes hero-parallax {
   from { transform: translateY(0); }
@@ -1046,9 +1025,14 @@ input, textarea, select {
 
 /* Batch five: cart and checkout. */
 @media (prefers-reduced-motion: no-preference) {
-  /* A removed cart row slides out before the cart reloads without it. */
-  .cart-row-leaving {
-    animation: cart-row-leave 0.24s ease-in forwards;
+  /* A removed cart row fades while its grid track collapses, so the rows
+     below move continuously instead of snapping after the request returns. */
+  .cart-row,
+  .cart-row-content {
+    transition:
+      grid-template-rows 0.24s ease-in,
+      opacity 0.2s ease-in,
+      transform 0.24s ease-in;
   }
   /* The gift note and wrapping options ease open under the checkbox. */
   .gift-reveal-in {
@@ -1059,15 +1043,25 @@ input, textarea, select {
     animation: checkout-placeholder-out 0.3s ease-out forwards;
   }
 }
+.cart-row {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.cart-row-content {
+  min-height: 0;
+  overflow: hidden;
+}
 .cart-row-leaving {
+  grid-template-rows: 0fr;
   pointer-events: none;
+}
+.cart-row-leaving .cart-row-content {
+  opacity: 0;
+  transform: translateX(-12px);
 }
 /* The outgoing copy of a rolling number is only visible while it animates. */
 .count-roll-out {
   opacity: 0;
-}
-@keyframes cart-row-leave {
-  to { opacity: 0; transform: translateX(-12px); }
 }
 @keyframes gift-reveal-in {
   from { opacity: 0; transform: translateY(-6px); }
