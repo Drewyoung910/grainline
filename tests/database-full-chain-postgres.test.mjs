@@ -44,6 +44,7 @@ import { proveListingDomainDetailAuthorities } from "../tools/database-full-chai
 import { proveListingDomainPublicCatalog } from "../tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs";
 import { proveListingDomainStaffReferences } from "../tools/database-full-chain/scenarios/listing-domain-staff-references.mjs";
 import { proveListingDomainReviewHistory } from "../tools/database-full-chain/scenarios/listing-domain-review-history.mjs";
+import { proveListingDomainRlsActivation } from "../tools/database-full-chain/scenarios/listing-domain-activation.mjs";
 import { proveServiceReferenceLeastPrivilege } from "../tools/database-full-chain/scenarios/service-reference-least-privilege.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
@@ -1438,6 +1439,13 @@ test(
       });
       await proveListingDomainReviewHistory({
         database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainRlsActivation({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        ownerClient: client,
+        repositoryRoot,
         seller: fixture,
       });
       await proveSellerProfileActorReviewListingTarget({

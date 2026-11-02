@@ -123,14 +123,18 @@ export async function proveSellerProfilePublicVisibilityMirrors({ database, sell
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
-    await database.query(
-      `UPDATE public."Listing"
-          SET "sellerPubliclyOrderable" = false,
-              "sellerDisplayName" = 'Forged',
-              "sellerAverageRating" = 1,
-              "sellerReviewCount" = 1
-        WHERE id = $1`,
-      [listingId],
+    await assert.rejects(
+      database.query(
+        `UPDATE public."Listing"
+            SET "sellerPubliclyOrderable" = false,
+                "sellerDisplayName" = 'Forged',
+                "sellerAverageRating" = 1,
+                "sellerReviewCount" = 1
+          WHERE id = $1`,
+        [listingId],
+      ),
+      (error) => error?.code === "42501",
+      "Listing activation must deny direct runtime mirror forgery",
     );
     await database.query(
       `UPDATE public."BlogPost"
