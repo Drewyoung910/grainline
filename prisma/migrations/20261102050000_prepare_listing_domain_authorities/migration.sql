@@ -93,6 +93,11 @@ BEGIN
     RAISE EXCEPTION 'Listing seller rating-summary refresh authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_service_quality_score_apply(jsonb)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing quality-score apply authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_action_state(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner action-state authority already exists';
@@ -1801,6 +1806,73 @@ $grainline_listing_seller_rating_summary_refresh$;
 REVOKE ALL ON FUNCTION public.grainline_listing_seller_rating_summary_refresh(text)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_seller_rating_summary_refresh(text)
+  TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_service_quality_score_apply(
+  p_scores jsonb
+)
+RETURNS bigint
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_service_quality_score_apply$
+DECLARE
+  score_item jsonb;
+  score_id text;
+  score_value double precision;
+  seen_ids text[] := ARRAY[]::text[];
+  updated_count bigint;
+BEGIN
+  IF p_scores IS NULL
+     OR pg_catalog.jsonb_typeof(p_scores) <> 'array'
+     OR pg_catalog.jsonb_array_length(p_scores) < 1
+     OR pg_catalog.jsonb_array_length(p_scores) > 200 THEN
+    RAISE EXCEPTION 'Listing quality-score batch is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  FOR score_item IN
+    SELECT entry.value
+      FROM pg_catalog.jsonb_array_elements(p_scores) AS entry(value)
+  LOOP
+    IF pg_catalog.jsonb_typeof(score_item) <> 'object'
+       OR score_item - 'id' - 'score' <> '{}'::jsonb
+       OR pg_catalog.jsonb_typeof(score_item -> 'id') <> 'string'
+       OR pg_catalog.jsonb_typeof(score_item -> 'score') <> 'number' THEN
+      RAISE EXCEPTION 'Listing quality-score item is invalid'
+        USING ERRCODE = '22023';
+    END IF;
+
+    score_id := score_item ->> 'id';
+    score_value := (score_item ->> 'score')::double precision;
+    IF score_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+       OR score_value < 0 OR score_value > 1.2 THEN
+      RAISE EXCEPTION 'Listing quality-score item is invalid'
+        USING ERRCODE = '22023';
+    END IF;
+    IF score_id = ANY(seen_ids) THEN
+      RAISE EXCEPTION 'Listing quality-score ids must be unique'
+        USING ERRCODE = '22023';
+    END IF;
+    seen_ids := pg_catalog.array_append(seen_ids, score_id);
+  END LOOP;
+
+  UPDATE public."Listing" AS listing
+     SET "qualityScore" = score.score
+    FROM pg_catalog.jsonb_to_recordset(p_scores)
+      AS score(id text, score double precision)
+   WHERE listing.id = score.id;
+
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  RETURN updated_count;
+END
+$grainline_listing_service_quality_score_apply$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_service_quality_score_apply(jsonb)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_service_quality_score_apply(jsonb)
   TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_action_state(
