@@ -199,6 +199,7 @@ type ListingOwnerCountsRow = {
   draftCount: unknown;
   activeCount: unknown;
   activePublicCount: unknown;
+  oldestListingId: unknown;
 };
 
 type ListingOwnerActionStateRow = {
@@ -252,6 +253,7 @@ export type ListingOwnerCountsState = Readonly<{
   draftCount: number;
   activeCount: number;
   activePublicCount: number;
+  oldestListingId: string | null;
 }>;
 
 export type ListingOwnerActionState = Readonly<{
@@ -944,6 +946,7 @@ export function listingOwnerCounts(userId: string) {
       || !validCount(row.activeCount)
       || !validCount(row.activePublicCount)
       || row.activePublicCount > row.activeCount
+      || !(row.oldestListingId === null || validId(row.oldestListingId))
     ) {
       throw new Error("Listing owner-count authority returned invalid counts");
     }
@@ -951,6 +954,7 @@ export function listingOwnerCounts(userId: string) {
       draftCount: Number(row.draftCount),
       activeCount: Number(row.activeCount),
       activePublicCount: Number(row.activePublicCount),
+      oldestListingId: row.oldestListingId as string | null,
     });
   });
 }

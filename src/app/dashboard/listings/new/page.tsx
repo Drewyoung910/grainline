@@ -49,7 +49,7 @@ import {
   sellerOwnerListingReview,
 } from "@/lib/sellerProfileOwnerAccess";
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
-import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
+import { listingOwnerActionState, listingOwnerCounts } from "@/lib/listingOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -343,12 +343,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
   // Non-draft: run all side effects unchanged
   let activatedByThisReview = false;
   try {
-    const firstListing = await prisma.listing.findFirst({
-      where: { sellerId: seller.id },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true },
-    });
-    if (firstListing?.id === created.id) {
+    const listingCounts = await listingOwnerCounts(seller.userId);
+    if (listingCounts.oldestListingId === created.id) {
       const emailRecipient = await userEmailDeliveryRecipient(prisma, {
         userId: seller.userId,
       });

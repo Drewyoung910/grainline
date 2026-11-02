@@ -11,6 +11,7 @@ const sellerSettingsPath = new URL("../src/app/dashboard/seller/page.tsx", impor
 const verificationPath = new URL("../src/app/dashboard/verification/page.tsx", import.meta.url);
 const verificationApplyPath = new URL("../src/app/api/verification/apply/route.ts", import.meta.url);
 const analyticsPath = new URL("../src/app/api/seller/analytics/route.ts", import.meta.url);
+const newListingPath = new URL("../src/app/dashboard/listings/new/page.tsx", import.meta.url);
 const provisionPath = new URL("../scripts/provision-runtime-db-role.sql", import.meta.url);
 
 test("owner listing counts use one actor-bound aggregate authority", async () => {
@@ -21,6 +22,7 @@ test("owner listing counts use one actor-bound aggregate authority", async () =>
     verification,
     verificationApply,
     analytics,
+    newListing,
     provision,
   ] = await Promise.all([
     readFile(migrationPath, "utf8"),
@@ -29,12 +31,13 @@ test("owner listing counts use one actor-bound aggregate authority", async () =>
     readFile(verificationPath, "utf8"),
     readFile(verificationApplyPath, "utf8"),
     readFile(analyticsPath, "utf8"),
+    readFile(newListingPath, "utf8"),
     readFile(provisionPath, "utf8"),
   ]);
 
   assert.match(
     migration,
-    /CREATE FUNCTION public\.grainline_listing_owner_counts\(\)[\s\S]*RETURNS TABLE \([\s\S]*"draftCount" bigint,[\s\S]*"activeCount" bigint,[\s\S]*"activePublicCount" bigint/u,
+    /CREATE FUNCTION public\.grainline_listing_owner_counts\(\)[\s\S]*RETURNS TABLE \([\s\S]*"draftCount" bigint,[\s\S]*"activeCount" bigint,[\s\S]*"activePublicCount" bigint,[\s\S]*"oldestListingId" text/u,
   );
   assert.match(migration, /current_setting\('app\.user_id', true\)/u);
   assert.match(migration, /listing\.status = 'DRAFT'/u);
@@ -52,6 +55,9 @@ test("owner listing counts use one actor-bound aggregate authority", async () =>
   assert.match(verification, /listingOwnerCounts\(sellerUserId\)/u);
   assert.match(verificationApply, /listingOwnerCounts\(me\.id\)/u);
   assert.match(analytics, /listingOwnerCounts\(me\.id\)/u);
+  assert.match(newListing, /listingOwnerCounts\(seller\.userId\)/u);
+  assert.match(newListing, /listingCounts\.oldestListingId === created\.id/u);
+  assert.doesNotMatch(newListing, /prisma\.listing\.findFirst\(/u);
   for (const source of [sellerSettings, verification, verificationApply, analytics]) {
     assert.doesNotMatch(source, /prisma\.listing\.count\(/u);
   }
