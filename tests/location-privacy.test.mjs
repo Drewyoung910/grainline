@@ -15,6 +15,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+
 function haversineMeters(a, b) {
   const radians = (value) => value * Math.PI / 180;
   const latDelta = radians(b.lat - a.lat);
@@ -149,9 +153,7 @@ describe("public location source boundaries", () => {
   it("coarsens new and historical commission locations before public discovery", () => {
     const route = source("src/app/api/commission/route.ts");
     const page = source("src/app/commission/page.tsx");
-    const authority = source(
-      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const authority = source(commissionPreparationMigration);
 
     assert.match(route, /userClerkCommissionContext\(prisma, userId\)/);
     assert.match(route, /me\.sellerProfile\?\.radiusMeters/);
