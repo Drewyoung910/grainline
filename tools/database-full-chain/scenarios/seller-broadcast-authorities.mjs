@@ -269,6 +269,7 @@ async function proveAccountDeletionProviderLockOrder({
   database,
   connectionString,
   seller,
+  deletionClaim,
 }) {
   const followerId = `broadcast_delete_race_${randomUUID()}`;
   await createUser(database, followerId);
@@ -290,8 +291,6 @@ async function proveAccountDeletionProviderLockOrder({
     sourceType: "seller_broadcast",
     sourceId: broadcastId,
   });
-  const deletionClaim = await seedAccountDeletionClaim(database, seller.userId);
-
   const deletionClient = new pg.Client({ connectionString });
   const providerClient = new pg.Client({ connectionString });
   await Promise.all([deletionClient.connect(), providerClient.connect()]);
@@ -705,6 +704,7 @@ export async function proveSellerBroadcastPreparedAuthorities({
     database,
     connectionString,
     seller,
+    deletionClaim,
   });
   return Object.freeze({
     ownerCreateSerialized: true,
