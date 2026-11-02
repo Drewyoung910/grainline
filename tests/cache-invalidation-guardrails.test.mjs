@@ -73,7 +73,7 @@ describe("public cache invalidation guardrails", () => {
     assert.match(sellerShop, /function revalidateListingSurfaces[\s\S]*revalidateListingSearchCaches\(\)/);
     assert.match(sellerShop, /function revalidateListingSurfaces[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(adminReview, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(adminRemove, /status: "REJECTED"[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(adminRemove, /sellerProfileStaffListingRemovalTransition\([\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(adminUndo, /log\.action === 'BAN_USER'[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(adminUndo, /log\.action === 'REMOVE_LISTING' \|\| log\.action === 'HOLD_LISTING'[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(dashboard, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
