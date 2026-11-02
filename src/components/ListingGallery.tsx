@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, type MutableRefObject, type RefObject } fr
 import Image from "next/image";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 
 type Photo = { id: string; url: string; altText?: string | null };
 
@@ -170,6 +171,7 @@ export default function ListingGallery({
         <Image
           src={activeUrl}
           alt={photos[activeIndex]?.altText ?? title}
+          unoptimized={!isFirstPartyMediaUrl(activeUrl)}
           fill
           sizes="(max-width: 1023px) 100vw, 50vw"
           preload={activeIndex === 0}
@@ -259,6 +261,7 @@ export default function ListingGallery({
               <Image
                 src={p.url}
                 alt={p.altText ?? `${title} — photo ${i + 1}`}
+                unoptimized={!isFirstPartyMediaUrl(p.url)}
                 fill
                 sizes="64px"
                 className="object-cover"

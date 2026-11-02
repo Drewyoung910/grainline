@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import { imageRemotePatternsFromValues } from "./src/lib/imageRemotePatterns";
 
 function cspOriginsFromEnv(values: Array<string | undefined>): string {
   const origins = new Set<string>();
@@ -25,29 +26,7 @@ const r2PublicOrigins = cspOriginsFromEnv([
   "https://cdn.thegrainline.com",
 ]);
 
-function imageRemotePatternsFromEnv(values: Array<string | undefined>) {
-  const patterns = new Map<string, { protocol: "https"; hostname: string; port: string; pathname: string }>();
-  for (const value of values.filter(Boolean)) {
-    for (const part of value!.split(",")) {
-      try {
-        const url = new URL(part.trim());
-        if (url.protocol !== "https:") continue;
-        const key = `${url.hostname}:${url.port}`;
-        patterns.set(key, {
-          protocol: "https",
-          hostname: url.hostname,
-          port: url.port,
-          pathname: "/**",
-        });
-      } catch {
-        // Ignore malformed optional env values.
-      }
-    }
-  }
-  return [...patterns.values()];
-}
-
-const r2ImageRemotePatterns = imageRemotePatternsFromEnv([
+const r2ImageRemotePatterns = imageRemotePatternsFromValues([
   process.env.CLOUDFLARE_R2_PUBLIC_URL,
   process.env.R2_PUBLIC_URL,
   process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL,
@@ -108,13 +87,7 @@ const nextConfig: NextConfig = {
     // Keep responsive image optimization while preserving fine wood grain in
     // the full-bleed homepage photograph. Other images retain quality 75.
     qualities: [75, 88],
-    remotePatterns: [
-      ...r2ImageRemotePatterns,
-      // Historical listing photos can still use the retired UploadThing hosts.
-      { protocol: "https", hostname: "utfs.io", pathname: "/**" },
-      { protocol: "https", hostname: "ufs.sh", pathname: "/**" },
-      { protocol: "https", hostname: "**.ufs.sh", pathname: "/**" },
-    ],
+    remotePatterns: r2ImageRemotePatterns,
   },
   async headers() {
     return [
