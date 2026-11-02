@@ -10,6 +10,7 @@ import {
 } from "../scripts/private-table-rls-activation-catalog.mjs";
 import {
   functionSourceFromMigration,
+  privateTableFunctionExecuteRoles,
 } from "../scripts/private-table-preparation-catalog.mjs";
 import {
   inspectPrivateTableRlsActivationProduction,
@@ -90,6 +91,13 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
     staff_truncate: false,
     staff_references: false,
     staff_trigger: false,
+    account_deletion_select: false,
+    account_deletion_insert: false,
+    account_deletion_update: false,
+    account_deletion_delete: false,
+    account_deletion_truncate: false,
+    account_deletion_references: false,
+    account_deletion_trigger: false,
     public_select: false,
     public_insert: false,
     public_update: false,
@@ -101,6 +109,7 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
       ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(privilege)
     )),
     staff_any_column: false,
+    account_deletion_any_column: false,
     public_any_column: false,
     non_owner_table_acl_count: privileges.length,
     non_owner_column_acl_count: 0,
@@ -109,7 +118,11 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
 }
 
 function roleRows() {
-  return ["grainline_app_runtime", "grainline_staff_read_runtime"].map((rolname) => ({
+  return [
+    "grainline_account_deletion_runtime",
+    "grainline_app_runtime",
+    "grainline_staff_read_runtime",
+  ].map((rolname) => ({
     rolname,
     rolsuper: false,
     rolinherit: false,
@@ -136,7 +149,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
   const entries = selectedRelease.preparation.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRoles: entry.executeRoles ?? [entry.executeRole ?? "runtime"],
+    executeRoles: privateTableFunctionExecuteRoles(entry),
     source: selectedVerified.preparation.functionSources.get(entry.name),
   }));
   for (const retained of selectedRelease.functionChanges.retained) {
@@ -146,7 +159,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       securityDefiner: retained.securityDefiner,
       executeRoles: [active
         ? retained.activatedExecuteRole
-        : retained.predecessorExecuteRole],
+        : retained.predecessorExecuteRole].filter((role) => role !== "none"),
       source: retainedSourceByName.get(retained.name) ?? "retained source",
     });
   }
@@ -172,7 +185,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       entries.push({
         name: addition.name,
         arguments: addition.arguments,
-        executeRoles: [addition.executeRole],
+        executeRoles: addition.executeRole === "none" ? [] : [addition.executeRole],
         source: selectedVerified.activeFunctionSources.get(addition.name),
       });
     }
@@ -186,8 +199,11 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       security_definer: entry.securityDefiner ?? true,
       configuration: ["search_path=pg_catalog"],
       source: entry.source,
+      source_md5: entry.sourceMd5
+        ?? createHash("md5").update(entry.source, "utf8").digest("hex"),
       runtime_execute: entry.executeRoles.includes("runtime"),
       staff_execute: entry.executeRoles.includes("staff"),
+      account_deletion_execute: entry.executeRoles.includes("account_deletion"),
       public_execute: false,
     }))
     .sort((left, right) => (
@@ -409,6 +425,30 @@ test("inspector rejects direct authority after activation", async () => {
         },
       ),
       /staffSelect drifted/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector rejects account-deletion direct table authority", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-deletion-authority-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: true,
+            tableOverrides: {
+              account_deletion_select: true,
+              account_deletion_any_column: true,
+              non_owner_table_acl_count: 1,
+            },
+          }),
+        },
+      ),
+      /accountDeletionSelect drifted/u,
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });

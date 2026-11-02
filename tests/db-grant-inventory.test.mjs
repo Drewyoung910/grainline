@@ -3925,6 +3925,9 @@ describe("database grant inventory guardrails", () => {
     const adminAuditLogAuthorityPrepared = existsSync(
       ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH,
     );
+    const adminAuditLogActivationPresent = existsSync(
+      "prisma/migrations/20261102020000_activate_admin_audit_log_rls/migration.sql",
+    );
     const sellerProfilePrivateForceMigrationPresent = existsSync(
       "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
     );
@@ -4299,6 +4302,7 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 70 : 69);
     assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
     assert.deepEqual(inventory.functions, [...new Set([
+      ...ADMIN_AUDIT_LOG_PREPARATION.functions.map((entry) => entry.name),
       ...(accountDeletionClaimFencePrepared
         ? accountDeletionClaimFenceFunctionNames
         : []),
@@ -4555,6 +4559,8 @@ describe("database grant inventory guardrails", () => {
         + (emailServiceLeastPrivilegeActivationPresent
           ? 2 // table boundary plus temporary indexed-write helper
           : 0)
+        + (adminAuditLogAuthorityPrepared ? 2 : 0)
+        + (adminAuditLogActivationPresent ? 1 : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)
@@ -5097,6 +5103,7 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsActivationExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(adminAuditLogActivationPresent ? ["AdminAuditLog"] : []),
         ...(typeof blockRlsActivationExpected === "function"
           && blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
@@ -5167,6 +5174,7 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsForceExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(adminAuditLogActivationPresent ? ["AdminAuditLog"] : []),
         ...(typeof blockRlsForceExpected === "function"
           && blockRlsForceExpected(inventory) ? [BLOCK_TABLE] : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
@@ -6860,6 +6868,9 @@ describe("database grant inventory guardrails", () => {
     const sellerMetricsProvisioningPresent = provision.includes(
       "seller_metrics_rls_active",
     );
+    const adminAuditLogProvisioningPresent = provision.includes(
+      "admin_audit_log_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6874,7 +6885,8 @@ describe("database grant inventory guardrails", () => {
         + Number(sellerBroadcastProvisioningPresent)
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
         + Number(emailServiceLeastPrivilegeProvisioningPresent)
-        + Number(sellerMetricsProvisioningPresent),
+        + Number(sellerMetricsProvisioningPresent)
+        + Number(adminAuditLogProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);

@@ -430,6 +430,24 @@ SELECT pg_catalog.format(
   FROM optional_user_report_staff
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
+-- AdminAuditLog staff operations are additive and may be absent from
+-- historical replay stages. Converge the whole reviewed set when present.
+WITH optional_admin_audit_staff(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_staff_count"(text, text)'),
+    ('public."grainline_admin_audit_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_admin_audit_staff_undo_source"(text, text)'),
+    ('public."grainline_admin_audit_staff_ban_rows"(text, text, boolean, integer)'),
+    ('public."grainline_admin_audit_ban_repair_candidates"(integer)'),
+    ('public."grainline_admin_audit_ban_repair_state"(text, text)'),
+    ('public."grainline_admin_audit_ban_repair_append"(text, text, text, jsonb)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'staff_role'
+)
+  FROM optional_admin_audit_staff
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
 GRANT EXECUTE ON FUNCTION
   public.grainline_seller_staff_feature_transition(text, text, text)
   TO :"staff_role";
@@ -551,6 +569,19 @@ WITH table_authority AS (
       ('public."grainline_seller_broadcast_staff_page"(text, text, integer, integer)'),
       ('public."grainline_seller_broadcast_staff_delete"(text, text)')
   ) AS seller_broadcast_candidate(function_signature)
+  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
+  UNION ALL
+  SELECT function_signature
+  FROM (
+    VALUES
+      ('public."grainline_admin_audit_staff_count"(text, text)'),
+      ('public."grainline_admin_audit_staff_page"(text, text, integer, integer)'),
+      ('public."grainline_admin_audit_staff_undo_source"(text, text)'),
+      ('public."grainline_admin_audit_staff_ban_rows"(text, text, boolean, integer)'),
+      ('public."grainline_admin_audit_ban_repair_candidates"(integer)'),
+      ('public."grainline_admin_audit_ban_repair_state"(text, text)'),
+      ('public."grainline_admin_audit_ban_repair_append"(text, text, text, jsonb)')
+  ) AS admin_audit_candidate(function_signature)
   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
   UNION ALL
   SELECT function_signature

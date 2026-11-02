@@ -5540,6 +5540,39 @@ SELECT pg_catalog.format(
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 \endif
+
+-- AdminAuditLog preparation moves the two claim-bound redaction workers onto
+-- the isolated account-deletion login. Keep that grant exact when the
+-- preparation exists, while remaining compatible with earlier chain stages.
+WITH admin_audit_account_deletion(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_account_deletion_redaction_apply"(text, bigint, uuid, text)'),
+    ('public."grainline_admin_audit_account_deletion_legacy_redaction_apply"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I, %I',
+  function_signature,
+  :'runtime_role',
+  'grainline_account_deletion_runtime'
+)
+  FROM admin_audit_account_deletion
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH admin_audit_account_deletion(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_account_deletion_redaction_apply"(text, bigint, uuid, text)'),
+    ('public."grainline_admin_audit_account_deletion_legacy_redaction_apply"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  'grainline_account_deletion_runtime'
+)
+  FROM admin_audit_account_deletion
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 \if :account_deletion_claim_fence_prepared
 DO $grainline_account_deletion_worker_postflight$
 DECLARE
@@ -5556,6 +5589,27 @@ DECLARE
     'grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)'
   ]::text[];
 BEGIN
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+     ) IS NOT NULL
+     OR pg_catalog.to_regprocedure(
+       'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)'
+     ) IS NOT NULL THEN
+    IF pg_catalog.to_regprocedure(
+         'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+       ) IS NULL
+       OR pg_catalog.to_regprocedure(
+         'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)'
+       ) IS NULL THEN
+      RAISE EXCEPTION
+        'AdminAuditLog account-deletion function set is partial';
+    END IF;
+    expected_worker_function_identities := expected_worker_function_identities || ARRAY[
+      'grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
+      'grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+    ]::text[];
+  END IF;
+
   IF pg_catalog.has_database_privilege(
        worker_oid, pg_catalog.current_database(), 'CREATE'
      )
@@ -5700,7 +5754,9 @@ BEGIN
          'grainline_user_account_deletion_finalize',
          'grainline_case_account_deletion_redact',
          'grainline_message_redact_for_account_deletion',
-         'grainline_order_account_deletion_scrub'
+         'grainline_order_account_deletion_scrub',
+         'grainline_admin_audit_account_deletion_redaction_apply',
+         'grainline_admin_audit_account_deletion_legacy_redaction_apply'
        )
        AND acl.grantee = 0
        AND acl.privilege_type = 'EXECUTE'
@@ -6317,6 +6373,56 @@ $grainline_seller_metrics_provisioning_abort$;
 REVOKE ALL ON TABLE public."SellerMetrics" FROM PUBLIC, :"runtime_role";
 \endif
 \unset seller_metrics_rls_active
+
+-- AdminAuditLog preparation leaves predecessor CRUD in place. After the
+-- reviewed policyless activation, provisioning must never reopen direct audit
+-- history access. The fixed RPC surface is converged above in both states.
+WITH posture AS (
+  SELECT class.relrowsecurity AS rls_enabled,
+         class.relforcerowsecurity AS rls_forced,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'AdminAuditLog'
+     AND class.relkind = 'r'
+), state AS (
+  SELECT rls_enabled AND rls_forced AND policy_count = 0 AS active,
+         NOT rls_enabled AND NOT rls_forced AND policy_count = 0
+           AS clean_predecessor
+    FROM posture
+), failure AS (
+  SELECT
+    'AdminAuditLog RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM state
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+       COALESCE((SELECT message FROM failure LIMIT 1), '')
+         AS grainline_role_provisioning_failure,
+       COALESCE((SELECT active FROM state), false)
+         AS admin_audit_log_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_admin_audit_log_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_admin_audit_log_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :admin_audit_log_rls_active
+REVOKE ALL ON TABLE public."AdminAuditLog" FROM PUBLIC, :"runtime_role";
+\endif
+\unset admin_audit_log_rls_active
 
 -- ReviewVote keeps predecessor CRUD while RLS is off. Once the reviewed owner
 -- policy is active, convergence must reduce the runtime role to SELECT only.

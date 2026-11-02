@@ -206,6 +206,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   [SELLER_FAQ_RLS_MIGRATION, "seller_faq_v1"],
   [SELLER_BROADCAST_RLS_MIGRATION, "seller_broadcast_v1"],
   [SELLER_METRICS_RLS_MIGRATION, "seller_metrics_v1"],
+  ["20261102020000_activate_admin_audit_log_rls", "admin_audit_log_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
