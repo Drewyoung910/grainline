@@ -726,6 +726,11 @@ async function proveSourceOwnerAndAnonymousAlias({
      VALUES ($1, $2, 'Email deletion fence source proof', now(), 1)`,
     [broadcastId, seller.sellerProfileId],
   );
+  await database.query(
+    `INSERT INTO public."Follow" (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ($1, $2, $3, now())`,
+    [id("source_follow"), recipient.userId, seller.sellerProfileId],
+  );
   const sourceJob = await enqueue(database, {
     suffix: "source_owner",
     recipientEmail: recipient.email,

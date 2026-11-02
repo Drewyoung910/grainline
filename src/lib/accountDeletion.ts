@@ -12,7 +12,12 @@ import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { deleteAllOwnerSavedBlogPosts } from "@/lib/savedBlogPostOwnerAccess";
 import { accountDeletionMediaKeysForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
-import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
+import {
+  ownerActiveCommissionRequestCount,
+  ownerCommissionReferenceImageUrls,
+  prepareCommissionAccountDeletion,
+  redactCommissionAccountDeletion,
+} from "@/lib/commissionRequestAccess";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
   accountEmailFallbackEmailsForUser,
@@ -80,8 +85,13 @@ import {
   anonymizeSellerForAccountDeletion,
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
+import { clearSellerProfileViewDailyForAccountDeletion } from "@/lib/sellerAnalyticsDailyAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import {
+  accountDeletionSellerBroadcastIds,
+  cleanupAccountSellerBroadcasts,
+} from "@/lib/sellerBroadcastAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import {
@@ -92,9 +102,11 @@ import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess"
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
 import { deleteAllOwnerFavorites } from "@/lib/favoriteAccess";
 import { cleanupFollowsForAccountDeletion } from "@/lib/sellerFollowAccess";
+import { deleteAllOwnerBlocks } from "@/lib/blockAccess";
+import { redactUserReportsForAccountDeletion } from "@/lib/userReportAccess";
+import { cleanupSellerFaqsForAccountDeletion } from "@/lib/sellerFaqAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
-const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH = 3;
 const ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50;
@@ -132,10 +144,7 @@ type AuditLogRedactionCandidate = {
 };
 
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
-type AccountDeletionMediaDb = Pick<
-  Prisma.TransactionClient,
-  "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
->;
+type AccountDeletionMediaDb = DbUserContextTransactionClient;
 
 function chunks<T>(items: T[], size = ACCOUNT_DELETION_REDACTION_BATCH_SIZE) {
   const result: T[][] = [];
@@ -370,19 +379,21 @@ async function redactEmailOutboxRowsForDeletedMaker(
 }
 
 async function cleanupDeletedSellerFanoutRows(
-  tx: Prisma.TransactionClient,
+  tx: DbUserContextTransactionClient,
   sellerProfileId: string,
   now: Date,
+  claim: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ) {
-  const broadcasts = await tx.sellerBroadcast.findMany({
-    where: { sellerProfileId },
-    select: { id: true },
-  });
+  const broadcastIds = await accountDeletionSellerBroadcastIds(tx, claim);
   const listings = await tx.listing.findMany({
     where: { sellerId: sellerProfileId },
     select: { id: true },
   });
-  const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
   const listingIds = listings.map((listing) => listing.id);
   await redactEmailOutboxRowsForDeletedMaker(
     tx,
@@ -497,12 +508,7 @@ async function getAccountDeletionBlockersInTransaction(
     tx,
   );
   const openCases = await getCaseAccountDeletionBlockerCount(userId, tx);
-  const activeCommissions = await tx.commissionRequest.count({
-    where: {
-      buyerId: userId,
-      status: { in: [...ACTIVE_COMMISSION_STATUSES] },
-    },
-  });
+  const activeCommissions = await ownerActiveCommissionRequestCount(tx);
   const accountEmails = await accountEmailFallbackEmailsForUser(tx);
   const emailDeliveryPending = await emailOutboxAccountDeletionPendingCount(
     {
@@ -612,10 +618,7 @@ async function collectAccountDeletionMediaKeys(
     where: { review: { reviewerId: userId } },
     select: { url: true },
   });
-  const commissionRequests = await db.commissionRequest.findMany({
-    where: { buyerId: userId },
-    select: { referenceImageUrls: true },
-  });
+  const commissionReferenceImageUrls = await ownerCommissionReferenceImageUrls(db);
   const messages = await listActorSentMessageBodiesForDeletion(userId, db);
   const blogPosts = await db.blogPost.findMany({
     where: accountDeletionBlogPostMediaOwnerWhere(userId, sellerProfileId),
@@ -629,7 +632,7 @@ async function collectAccountDeletionMediaKeys(
   sellerMediaUrls.forEach((url) => urls.add(url));
 
   reviewPhotos.forEach((photo) => urls.add(photo.url));
-  commissionRequests.forEach((request) => request.referenceImageUrls.forEach((url) => urls.add(url)));
+  commissionReferenceImageUrls.forEach((url) => urls.add(url));
   messages.forEach((message) => {
     const url = messageAttachmentUrl(message.body);
     if (url) urls.add(url);
@@ -1169,7 +1172,7 @@ export async function anonymizeUserAccount(
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
     await deleteAllOwnerReviewVotes(tx);
-    await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await deleteAllOwnerBlocks(tx);
     await redactActorMessagesForAccountDeletion({
       sideEffectId: localAnonymizeSideEffectId,
       userId: user.id,
@@ -1206,28 +1209,11 @@ export async function anonymizeUserAccount(
     await tx.reviewPhoto.deleteMany({
       where: { review: { reviewerId: user.id } },
     });
-    await tx.userReport.updateMany({
-      where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
-      data: { details: null },
-    });
-    await tx.userReport.updateMany({
-      where: {
-        OR: [{ reporterId: user.id }, { reportedId: user.id }],
-        resolved: true,
-        resolutionNote: { not: null },
-      },
-      data: {
-        resolutionNote: "Resolution note removed after an involved account was deleted.",
-      },
-    });
-    await tx.userReport.updateMany({
-      where: { reportedId: user.id, resolved: false },
-      data: {
-        resolved: true,
-        resolvedAt: now,
-        resolvedById: null,
-        resolutionNote: "Auto-resolved after the reported account was deleted.",
-      },
+    await redactUserReportsForAccountDeletion(tx, {
+      expectedUserId: user.id,
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
     await redactSupportRequestsForAccountDeletion(
       tx,
@@ -1306,10 +1292,7 @@ export async function anonymizeUserAccount(
         });
       }
     }
-    await tx.commissionRequest.updateMany({
-      where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
-      data: { status: "CLOSED" },
-    });
+    await prepareCommissionAccountDeletion(tx);
 
     if (user.sellerProfile) {
       if (stripeRejectSucceeded) {
@@ -1320,9 +1303,10 @@ export async function anonymizeUserAccount(
           claimToken: localClaimToken,
         });
       }
-      await removeSellerCommissionInterests(tx, user.sellerProfile.id);
-      await tx.sellerProfileViewDaily.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await clearSellerProfileViewDailyForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await tx.sellerMetrics.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
@@ -1330,7 +1314,12 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
+      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      });
       await tx.review.updateMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
         data: { sellerReply: null, sellerReplyAt: null },
@@ -1365,11 +1354,17 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await tx.sellerBroadcast.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupAccountSellerBroadcasts(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
-      await tx.sellerFaq.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupSellerFaqsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await anonymizeSellerForAccountDeletion(tx, {
         sellerProfileId: user.sellerProfile.id,
@@ -1392,19 +1387,7 @@ export async function anonymizeUserAccount(
     }
 
     await archiveBlogPostsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
-    await tx.commissionRequest.updateMany({
-      where: { buyerId: user.id },
-      data: {
-        title: "Deleted commission request",
-        description: "[Request deleted]",
-        timeline: null,
-        referenceImageUrls: [],
-        lat: null,
-        lng: null,
-        radiusMeters: null,
-        isNational: true,
-      },
-    });
+    await redactCommissionAccountDeletion(tx);
 
     await deleteCurrentUserEmailAddressHistory(tx);
 

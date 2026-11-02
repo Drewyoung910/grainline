@@ -8,7 +8,10 @@ import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPath, publicListingPath, publicSellerPath, publicSellerShopPath, publicTagPath } from "@/lib/publicPaths";
 import { getPopularListingTags } from "@/lib/popularTags";
-import { openCommissionWhere } from "@/lib/commissionExpiry";
+import {
+  publicCommissionRequestMetroIds,
+  publicCommissionRequestSitemapPage,
+} from "@/lib/commissionRequestAccess";
 import {
   SITEMAP_ENTRY_LIMIT,
   sitemapChunkCount,
@@ -113,13 +116,10 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     }
 
     if (chunk.kind === "commissions") {
-      const openCommissions = await prisma.commissionRequest.findMany({
-        where: openCommissionWhere(),
-        select: { id: true, updatedAt: true },
-        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-        skip: chunk.rowSkip,
-        take: chunk.rowTake,
-      });
+      const openCommissions = await publicCommissionRequestSitemapPage(
+        chunk.rowSkip,
+        chunk.rowTake,
+      );
 
       return openCommissions.map((c) => ({
         url: `${BASE_URL}/commission/${c.id}`,
@@ -183,6 +183,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   // Metro city pages — only include metros with content
   // Major metros (no parent) get higher priority than child metros
   // ---------------------------------------------------------------------------
+  const commissionMetroIds = await publicCommissionRequestMetroIds();
   const [metrosWithListings, metrosWithCommissions, sellerMetroSlugs] = await Promise.all([
     prisma.metro.findMany({
       where: {
@@ -197,10 +198,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     prisma.metro.findMany({
       where: {
         isActive: true,
-        OR: [
-          { commissions: { some: openCommissionWhere() } },
-          { commissionCityMetros: { some: openCommissionWhere() } },
-        ],
+        id: { in: [...commissionMetroIds] },
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },
     }),

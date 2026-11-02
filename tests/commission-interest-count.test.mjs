@@ -52,7 +52,10 @@ describe("commission interest counts", () => {
   it("removes the public Near Me SellerProfile join", () => {
     const page = source("src/app/commission/page.tsx");
     assert.doesNotMatch(page, /JOIN public\."SellerProfile"|JOIN "SellerProfile"/);
-    assert.match(page, /publicCommissionInterestCounts\(rawResults\.map/);
+    assert.match(page, /publicCommissionRequestCount\(meId, publicFilter\)/);
+    assert.match(page, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(page, /publicCommissionInterestCounts\(found\.map/);
+    assert.doesNotMatch(page, /\$queryRaw(?:Unsafe)?/);
   });
 
   it("routes owner summaries and notification targets through fixed authorities", () => {
@@ -62,15 +65,22 @@ describe("commission interest counts", () => {
     assert.match(access, /withDbUserContext/);
 
     const account = source("src/app/account/commissions/page.tsx");
+    assert.match(account, /ownerCommissionRequestPage\(/);
     assert.match(account, /ownerCommissionInterestSummaries\(/);
     assert.doesNotMatch(account, /interests:\s*\{/);
+
+    const requestAccess = source("src/lib/commissionRequestAccess.ts");
+    assert.match(requestAccess, /transitionOwnerCommissionRequest\(/);
+    assert.match(requestAccess, /expireCommissionRequestBatch\(/);
+    assert.match(requestAccess, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/);
+    assert.match(requestAccess, /sellerUserIds/);
 
     for (const path of [
       "src/app/api/commission/[id]/route.ts",
       "src/app/api/cron/commission-expire/route.ts",
     ]) {
       const routeSource = source(path);
-      assert.match(routeSource, /commissionInterestNotificationTargets\(/);
+      assert.doesNotMatch(routeSource, /commissionInterestNotificationTargets\(/);
       assert.doesNotMatch(routeSource, /sellerProfile:\s*\{/);
     }
   });

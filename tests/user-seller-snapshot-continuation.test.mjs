@@ -11,6 +11,7 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   const messages = source("src/app/messages/new/page.tsx");
   const commission = source("src/app/api/commission/[id]/route.ts");
   const expire = source("src/app/api/cron/commission-expire/route.ts");
+  const commissionRequestAccess = source("src/lib/commissionRequestAccess.ts");
   const commissionInterestAccess = source("src/lib/commissionInterestResidualAccess.ts");
   const commissionInterestAuthority = source(
     "prisma/migrations/20261020235500_prepare_seller_profile_commission_interest_residual_authorities/migration.sql",
@@ -24,16 +25,21 @@ test("remaining seller preflight callers reuse durable owner identity and activi
   assert.doesNotMatch(messages, /seller:\s*\{/);
 
   for (const candidate of [commission, expire]) {
-    assert.match(candidate, /commissionInterestNotificationTargets\(/);
+    assert.doesNotMatch(candidate, /commissionInterestNotificationTargets\(/);
     assert.doesNotMatch(candidate, /sellerProfile:\s*\{/);
     assert.doesNotMatch(candidate, /sellerProfile:\s*\{\s*user:\s*\{\s*banned: false, deletedAt: null/);
   }
+  assert.match(commission, /transitionOwnerCommissionRequest\(/);
+  assert.match(expire, /expireCommissionRequestBatch\(/);
+  assert.match(commissionRequestAccess, /sellerUserIds/);
+  assert.match(commissionRequestAccess, /createNotificationOrThrow\(/);
   assert.match(commissionInterestAccess, /grainline_seller_service_commission_interest_targets/);
   assert.match(commissionInterestAuthority, /seller\."ownerAccountActive" = true/);
 
   assert.match(broadcast, /sellerOwnerCore\(me\.id\)/);
   assert.match(broadcast, /canDeliverSellerBroadcast\(/);
-  assert.match(broadcast, /currentBroadcast\?\.sellerProfileId \?\? null/);
+  assert.match(broadcast, /ownerSellerBroadcastDeliverySource\(me\.id, broadcast\.id\)/);
+  assert.match(broadcast, /canDeliverSellerBroadcast\(\s*currentBroadcast,\s*currentSeller,\s*\)/s);
   assert.doesNotMatch(broadcast, /currentBroadcast\.sellerProfile/);
 
   assert.match(

@@ -14,6 +14,7 @@ import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { withDbUserContext } from './dbUserContext'
+import { restoreCommissionRequestsForStaffBan } from './commissionRequestAccess'
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -349,6 +350,14 @@ export async function undoAdminAction({
         if (!banReviewCapability || !userUnbanCapability) {
           throw new Error('Ban undo authorization capability is missing')
         }
+        if (banMetadata?.previousCommissionRequests.length) {
+          await restoreCommissionRequestsForStaffBan(
+            tx,
+            banReviewCapability,
+            log.targetId,
+            banMetadata.previousCommissionRequests,
+          )
+        }
         await restoreBannedSellerOrderReviews(
           banReviewCapability,
           log.targetId,
@@ -390,14 +399,6 @@ export async function undoAdminAction({
             throw new Error('Seller profile changed before undo could be applied')
           }
           throw error
-        }
-        if (banMetadata?.previousCommissionRequests.length) {
-          for (const request of banMetadata.previousCommissionRequests) {
-            await tx.commissionRequest.updateMany({
-              where: { id: request.id, buyerId: log.targetId, status: 'CLOSED' },
-              data: { status: request.status },
-            })
-          }
         }
         break
       }

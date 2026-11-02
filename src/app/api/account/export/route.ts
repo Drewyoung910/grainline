@@ -6,7 +6,10 @@ import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/
 import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { exportActorMessages } from "@/lib/conversationMessageAuthority";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import {
+  ownerCommissionInterestExport,
+  ownerCommissionRequestExport,
+} from "@/lib/commissionRequestAccess";
 import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -51,6 +54,13 @@ import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAcces
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
+import { ownerSellerBroadcastExport } from "@/lib/sellerBroadcastAccess";
+import { ownerBlockExportRows } from "@/lib/blockAccess";
+import {
+  exportReceivedUserReports,
+  exportSubmittedUserReports,
+} from "@/lib/userReportAccess";
+import { ownerSellerFaqExportRows } from "@/lib/sellerFaqAccess";
 
 export const runtime = "nodejs";
 
@@ -210,73 +220,12 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     listOwnerSavedSearches(user.id, prisma),
     sellerOwnerFollowExportRows(user.id),
     ownerSavedBlogPostExportRows(user.id),
-    prisma.commissionRequest.findMany({
-      where: { buyerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        category: true,
-        budgetMinCents: true,
-        budgetMaxCents: true,
-        timeline: true,
-        referenceImageUrls: true,
-        status: true,
-        interestedCount: true,
-        _count: { select: { interests: true } },
-        expiresAt: true,
-        isNational: true,
-        lat: true,
-        lng: true,
-        radiusMeters: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    sellerProfile
-      ? prisma.commissionInterest.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { createdAt: "desc" },
-          select: { commissionRequestId: true, conversationId: true, createdAt: true },
-        })
-      : [],
+    ownerCommissionRequestExport(user.id),
+    ownerCommissionInterestExport(user.id),
     ownerNotificationExportRows(user.id),
-    prisma.block.findMany({
-      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
-      orderBy: { createdAt: "desc" },
-      select: { blockerId: true, blockedId: true, createdAt: true },
-    }),
-    prisma.userReport.findMany({
-      where: { reporterId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reportedId: true,
-        reason: true,
-        details: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
-    prisma.userReport.findMany({
-      where: { reportedId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reason: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
+    ownerBlockExportRows(user.id),
+    exportSubmittedUserReports(user.id),
+    exportReceivedUserReports(user.id),
     exportOwnerSupportRequests(user.id),
     accountEmailSuppressionKeys.length > 0
       ? prisma.emailSuppression.findMany({
@@ -300,13 +249,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     ownerStockNotificationExportRows(user.id),
     exportCheckoutStockReservations(user.id),
     sellerProfile ? exportOwnerMakerVerification(user.id) : null,
-    sellerProfile
-      ? prisma.sellerFaq.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, question: true, answer: true, sortOrder: true, createdAt: true },
-        })
-      : [],
+    ownerSellerFaqExportRows(user.id),
     accountEmailSuppressionKeys.length > 0
       ? prisma.newsletterSubscriber.findMany({
           where: { email: { in: accountEmailSuppressionKeys } },
@@ -322,13 +265,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           },
         })
       : [],
-    sellerProfile
-      ? prisma.sellerBroadcast.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sentAt: "desc" },
-          select: { id: true, message: true, imageUrl: true, sentAt: true, recipientCount: true },
-        })
-      : [],
+    sellerProfile ? ownerSellerBroadcastExport(user.id) : [],
     sellerProfile ? exportSellerPayoutEvents(user.id) : [],
     exportOwnedDirectUploads(user.id),
     exportOwnerReviewVotes(user.id),
@@ -339,13 +276,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
   const messagesReceived = messageRows
     .filter((message) => message.recipientId === user.id)
     .map(({ recipientId: _recipientId, ...message }) => message);
-  const commissionRequests = commissionRequestRows.map(({ _count, ...request }) => ({
-    ...request,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: request.interestedCount,
-      _count,
-    }),
-  }));
+  const commissionRequests = commissionRequestRows;
   const checkoutStockReservations = checkoutStockReservationRows;
   const buyerOrdersWithPaymentHistory = buyerOrders.map((order) => ({
     ...order,

@@ -50,7 +50,8 @@ describe("sitemap entry limit guardrails", () => {
     assert.match(source, /sellerPublicSitemapPage\(\s*"SELLERS"/s);
     assert.match(source, /sellerPublicSitemapPage\(\s*"CUSTOMER_PHOTOS"/s);
     assert.match(source, /where: publicBlogPostWhere\(\)/);
-    assert.match(source, /where: openCommissionWhere\(\)/);
+    assert.match(source, /publicCommissionRequestSitemapPage\(\s*chunk\.rowSkip,\s*chunk\.rowTake,?\s*\)/s);
+    assert.doesNotMatch(source, /prisma\.commissionRequest\./);
     assert.match(source, /where: publicListingWhere\(\)/);
     assert.match(source, /where: publicListingWhere\(\{\s*metroId: \{ not: null \}/s);
     assert.match(source, /where: publicListingWhere\(\{\s*cityMetroId: \{ not: null \}/s);

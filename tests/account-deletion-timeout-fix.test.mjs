@@ -53,11 +53,15 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const mediaCollection = accountDeletion.slice(mediaCollectionStart, mediaCollectionEnd);
     assert.doesNotMatch(sellerFanout, /Promise\.all\s*\(/);
     assert.doesNotMatch(mediaCollection, /Promise\.all\s*\(/);
-    assert.match(sellerFanout, /await tx\.sellerBroadcast\.findMany[\s\S]*await tx\.listing\.findMany/);
+    assert.match(
+      sellerFanout,
+      /await accountDeletionSellerBroadcastIds\(tx, claim\)[\s\S]*await tx\.listing\.findMany/,
+    );
+    assert.doesNotMatch(sellerFanout, /tx\.sellerBroadcast\./);
     assert.doesNotMatch(sellerFanout, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
     assert.match(
       mediaCollection,
-      /await sellerAccountDeletionPublicMediaUrls\(db, \{[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await db\.commissionRequest\.findMany[\s\S]*await listActorSentMessageBodiesForDeletion\(userId, db\)[\s\S]*await db\.blogPost\.findMany[\s\S]*await accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/,
+      /await sellerAccountDeletionPublicMediaUrls\(db, \{[\s\S]*await db\.reviewPhoto\.findMany[\s\S]*await ownerCommissionReferenceImageUrls\(db\)[\s\S]*await listActorSentMessageBodiesForDeletion\(userId, db\)[\s\S]*await db\.blogPost\.findMany[\s\S]*await accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/,
     );
     assert.doesNotMatch(mediaCollection, /db\.directUpload\./);
   });
