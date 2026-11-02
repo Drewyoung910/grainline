@@ -21,12 +21,28 @@ describe("account export privacy coverage", () => {
 
   it("exports owned listing photo originals and only actor-safe refund history", () => {
     const route = source("src/app/api/account/export/route.ts");
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    const listingExportStart = listingAuthority.indexOf(
+      "CREATE FUNCTION public.grainline_listing_owner_export_page(",
+    );
+    const listingExportEnd = listingAuthority.indexOf(
+      "REVOKE ALL ON FUNCTION public.grainline_listing_owner_export_page(",
+      listingExportStart,
+    );
+    const listingExport = listingAuthority.slice(listingExportStart, listingExportEnd);
+
+    assert.ok(listingExportStart >= 0, "listing export authority must exist");
+    assert.ok(listingExportEnd > listingExportStart, "listing export authority must stay bounded");
     const authority = source("src/lib/orderParticipantExportAuthority.ts");
     const migration = source(
       "prisma/migrations/20260901030000_prepare_order_participant_export_authority/migration.sql",
     );
 
-    assert.match(route, /photos: \{ orderBy: \{ sortOrder: "asc" \}, select: \{ url: true, originalUrl: true/);
+    assert.match(route, /listingOwnerExportRows\(user\.id\)/);
+    assert.match(listingExport, /'originalUrl', photo\."originalUrl"/);
+    assert.match(listingExport, /ORDER BY photo\."sortOrder" ASC, photo\.id ASC/);
     assert.match(route, /exportBuyerOrders\(user\.id\)/);
     assert.match(route, /exportSellerOrders\(user\.id\)/);
     assert.doesNotMatch(route, /prisma\.order\.findMany|shippingRateQuotes/);
@@ -212,11 +228,21 @@ describe("account export privacy coverage", () => {
 
   it("exports current user-configured seller profile and listing fields", () => {
     const schema = source("prisma/schema.prisma");
-    const route = source("src/app/api/account/export/route.ts");
     const sellerSelect = source("src/lib/sellerOwnerPrivateAccess.ts");
-    const listingSelectStart = route.indexOf("sellerProfile\n      ? prisma.listing.findMany");
-    const listingSelectEnd = route.indexOf("photos: { orderBy", listingSelectStart);
-    const listingSelect = route.slice(listingSelectStart, listingSelectEnd);
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    const listingExportStart = listingAuthority.indexOf(
+      "CREATE FUNCTION public.grainline_listing_owner_export_page(",
+    );
+    const listingExportEnd = listingAuthority.indexOf(
+      "REVOKE ALL ON FUNCTION public.grainline_listing_owner_export_page(",
+      listingExportStart,
+    );
+    const listingExport = listingAuthority.slice(listingExportStart, listingExportEnd);
+
+    assert.ok(listingExportStart >= 0, "listing export authority must exist");
+    assert.ok(listingExportEnd > listingExportStart, "listing export authority must stay bounded");
 
     for (const field of [
       "defaultPkgWeightGrams",
@@ -287,7 +313,11 @@ describe("account export privacy coverage", () => {
       "productHeightIn",
     ]) {
       assert.match(schema, new RegExp(`\\b${field}\\b`), `schema must retain ${field}`);
-      assert.match(listingSelect, new RegExp(`${field}: true`), `account export must select ${field}`);
+      assert.match(
+        listingExport,
+        new RegExp(`listing\\.(?:\\"${field}\\"|${field})`),
+        `account export authority must retain ${field}`,
+      );
     }
   });
 
