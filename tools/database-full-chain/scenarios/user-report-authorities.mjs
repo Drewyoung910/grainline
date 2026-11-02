@@ -22,6 +22,9 @@ export async function seedUserReportPredecessorFixture({ database, seller }) {
   const staffId = `${suffix}_staff`;
   const listingId = `${suffix}_listing`;
   const reviewId = `${suffix}_review`;
+  const conversationId = `${suffix}_conversation`;
+  const blogPostId = `${suffix}_blog_post`;
+  const blogCommentId = `${suffix}_blog_comment`;
   const now = new Date("2026-10-28T14:00:00.000Z");
 
   await database.query(
@@ -62,6 +65,33 @@ export async function seedUserReportPredecessorFixture({ database, seller }) {
      VALUES ($1, $2, $3, true, 10, true, $4, $4)`,
     [reviewId, listingId, reviewAuthorId, now],
   );
+  await database.query(
+    `INSERT INTO public."Conversation"
+      (id, "userAId", "userBId", "createdAt", "updatedAt")
+     VALUES ($1, LEAST($2, $3), GREATEST($2, $3), $4, $4)`,
+    [conversationId, reporterId, reviewAuthorId, now],
+  );
+  await database.query(
+    `INSERT INTO public."BlogPost"
+      (id, slug, title, body, "authorId", "authorType", "sellerProfileId", status,
+       "authorAccountActive", "authorSellerPubliclyOrderable", "publishedAt",
+       "createdAt", "updatedAt")
+     VALUES ($1, $2, 'User report authority post', 'UserReport full-chain proof',
+             $3, 'MAKER', $4, 'PUBLISHED', true, true, $5, $5, $5)`,
+    [
+      blogPostId,
+      `${suffix}-post`.slice(0, 255),
+      seller.userId,
+      seller.sellerProfileId,
+      now,
+    ],
+  );
+  await database.query(
+    `INSERT INTO public."BlogComment"
+      (id, "postId", "authorId", "authorAccountActive", body, approved, "createdAt")
+     VALUES ($1, $2, $3, true, 'Reportable full-chain comment', true, $4)`,
+    [blogCommentId, blogPostId, reviewAuthorId, now],
+  );
 
   await setActor(database, reporterId);
   await database.query("SET ROLE grainline_app_runtime");
@@ -88,7 +118,11 @@ export async function seedUserReportPredecessorFixture({ database, seller }) {
     reporterId,
     reviewAuthorId,
     staffId,
+    listingId,
     reviewId,
+    conversationId,
+    blogCommentId,
+    sellerProfileId: seller.sellerProfileId,
     sellerUserId: seller.userId,
     predecessor: Object.freeze({ sellerMisattributionAccepted }),
   });
@@ -179,15 +213,38 @@ export async function proveUserReportPreparedAuthorities({ database, fixture }) 
        )`,
       [`${fixture.suffix}_generic_report`, fixture.reviewAuthorId],
     ))[0];
+    const additionalReports = [];
+    for (const [name, reportedUserId, targetType, targetId] of [
+      ["listing", fixture.sellerUserId, "LISTING", fixture.listingId],
+      ["thread", fixture.reviewAuthorId, "MESSAGE_THREAD", fixture.conversationId],
+      ["comment", fixture.reviewAuthorId, "BLOG_COMMENT", fixture.blogCommentId],
+      ["seller", fixture.sellerUserId, "SELLER_PROFILE", fixture.sellerProfileId],
+    ]) {
+      additionalReports.push(rowsOf(await database.query(
+        `SELECT * FROM public.grainline_user_report_submit(
+           $1, $2, 'OTHER', NULL, $3, $4
+         )`,
+        [`${fixture.suffix}_${name}_report`, reportedUserId, targetType, targetId],
+      ))[0]);
+    }
     assert.equal(firstReport.reportedId, fixture.reviewAuthorId);
     assert.equal(secondReport.targetType, null);
+    assert.deepEqual(
+      additionalReports.map((report) => report.targetType),
+      ["LISTING", "MESSAGE_THREAD", "BLOG_COMMENT", "SELLER_PROFILE"],
+      "every rendered report target type remains accepted",
+    );
 
     const submitted = rowsOf(await database.query(
       `SELECT * FROM public.grainline_user_report_owner_submitted_export()`,
     ));
     assert.deepEqual(
       new Set(submitted.map((row) => row.id)),
-      new Set([firstReport.reportId, secondReport.reportId]),
+      new Set([
+        firstReport.reportId,
+        secondReport.reportId,
+        ...additionalReports.map((report) => report.reportId),
+      ]),
     );
     assert.equal(submitted.find((row) => row.id === firstReport.reportId).details,
       "Participant-visible report details");
@@ -208,7 +265,7 @@ export async function proveUserReportPreparedAuthorities({ database, fixture }) 
     assert.equal(Number(rowsOf(await database.query(
       `SELECT public.grainline_user_report_staff_open_count($1) AS value`,
       [fixture.staffId],
-    ))[0].value), 2);
+    ))[0].value), 6);
     const firstPage = rowsOf(await database.query(
       `SELECT * FROM public.grainline_user_report_staff_open_page($1, NULL, NULL, 1)`,
       [fixture.staffId],
@@ -229,7 +286,7 @@ export async function proveUserReportPreparedAuthorities({ database, fixture }) 
     assert.deepEqual(topReporters.map((row) => ({
       reporterId: row.reporterId,
       value: Number(row.value),
-    })), [{ reporterId: fixture.reporterId, value: 2 }]);
+    })), [{ reporterId: fixture.reporterId, value: 6 }]);
     assert.equal(rowsOf(await database.query(
       `SELECT public.grainline_user_report_staff_resolve(
          $1, $2, 'Reviewed and closed for both participants.',
@@ -327,7 +384,7 @@ export async function proveUserReportPreparedAuthorities({ database, fixture }) 
       userId: fixture.reviewAuthorId,
       detailsRedacted: 1,
       resolvedNotesRedacted: 1,
-      reportsAutoResolved: 1,
+      reportsAutoResolved: 3,
     }]);
   } finally {
     await setActor(database, null);
