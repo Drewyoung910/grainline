@@ -468,6 +468,7 @@ const {
   SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
   SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
   FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
+  BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
   CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
@@ -1335,6 +1336,26 @@ describe("database grant inventory guardrails", () => {
         })),
         batchActivatedInventory,
       ), []);
+      assert.deepEqual(BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES, [
+        "grainline_conversation_inbox",
+        "grainline_message_unread_count",
+      ]);
+      for (const retiredName of BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES) {
+        assert.equal(
+          runtimePrivateFunctionNames({
+            ...batchActivatedInventory,
+            blockRlsActivationApplied: false,
+          }).includes(retiredName),
+          false,
+        );
+        assert.equal(
+          runtimePrivateFunctionNames({
+            ...batchActivatedInventory,
+            blockRlsActivationApplied: true,
+          }).includes(retiredName),
+          true,
+        );
+      }
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
