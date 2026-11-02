@@ -4060,7 +4060,10 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (emailServiceAuthorityPrepared
           ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES.length
-            - 1 // begin_provider_attempt already has a semantic PUBLIC revoke
+            // The staged historical CI prefix temporarily removes the
+            // delivery-ledger migration. Only subtract the exact duplicate
+            // begin_provider_attempt revoke while that predecessor is present.
+            - (emailDeliveryLedgerPrepared ? 1 : 0)
           : 0)
         // CI proves the C-875 release before isolating this successor. While
         // C-875 is held aside, the successor's redefinition still contributes
