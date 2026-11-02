@@ -15,8 +15,16 @@ describe("guild and listing-edit audit follow-ups", () => {
       "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
     );
 
-    assert.match(dashboard, /status: "ACTIVE", isPrivate: false/);
-    assert.match(applyRoute, /status: "ACTIVE", isPrivate: false/);
+    assert.match(
+      dashboard,
+      /listingOwnerCounts\(sellerUserId\)[\s\S]*counts\.activePublicCount/,
+    );
+    assert.match(
+      applyRoute,
+      /listingOwnerCounts\(me\.id\)[\s\S]*counts\.activePublicCount/,
+    );
+    assert.doesNotMatch(dashboard, /prisma\.listing\.count\(/);
+    assert.doesNotMatch(applyRoute, /prisma\.listing\.count\(/);
     assert.match(applyRoute, /safeRateLimit\(verificationApplyRatelimit, me\.id\)/);
     assert.match(applyRoute, /rateLimitResponse\(reset, "Too many verification applications\."\)/);
     assert.match(applyRoute, /getSellerVerificationOrderSales/);
