@@ -2648,6 +2648,8 @@ DECLARE
   metro_filter text;
   city_metro_filter text;
   seller_filter text;
+  listing_ids text[] := '{}'::text[];
+  exclude_listing_id text;
   query_filter text;
   query_pattern text;
   normalized_seller_filter text;
@@ -2673,7 +2675,8 @@ BEGIN
        SELECT 1
          FROM pg_catalog.jsonb_object_keys(source_filter) AS filter_key(value)
         WHERE filter_key.value NOT IN (
-          'tag', 'category', 'metroId', 'cityMetroId', 'sellerId', 'query',
+          'tag', 'category', 'metroId', 'cityMetroId', 'sellerId',
+          'listingIds', 'excludeListingId', 'query',
           'normalizedSellerQuery', 'partialTagMatches', 'selectedTags',
           'minPriceCents', 'maxPriceCents', 'listingType', 'shipsWithinDays',
           'minimumSellerRating', 'locationLat', 'locationLng',
@@ -2700,6 +2703,10 @@ BEGIN
       AND pg_catalog.jsonb_typeof(source_filter -> 'cityMetroId') <> 'string')
      OR (source_filter ? 'sellerId'
       AND pg_catalog.jsonb_typeof(source_filter -> 'sellerId') <> 'string')
+     OR (source_filter ? 'listingIds'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'listingIds') <> 'array')
+     OR (source_filter ? 'excludeListingId'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'excludeListingId') <> 'string')
      OR (source_filter ? 'query'
       AND pg_catalog.jsonb_typeof(source_filter -> 'query') <> 'string')
      OR (source_filter ? 'normalizedSellerQuery'
@@ -2739,6 +2746,17 @@ BEGIN
   metro_filter := NULLIF(source_filter ->> 'metroId', '');
   city_metro_filter := NULLIF(source_filter ->> 'cityMetroId', '');
   seller_filter := NULLIF(source_filter ->> 'sellerId', '');
+  IF source_filter ? 'listingIds' THEN
+    SELECT COALESCE(
+             pg_catalog.array_agg(listing_id.value ORDER BY listing_id.ordinality),
+             '{}'::text[]
+           )
+      INTO listing_ids
+      FROM pg_catalog.jsonb_array_elements_text(
+             source_filter -> 'listingIds'
+           ) WITH ORDINALITY AS listing_id(value, ordinality);
+  END IF;
+  exclude_listing_id := NULLIF(source_filter ->> 'excludeListingId', '');
   query_filter := NULLIF(pg_catalog.btrim(source_filter ->> 'query'), '');
   normalized_seller_filter := NULLIF(
     pg_catalog.btrim(source_filter ->> 'normalizedSellerQuery'),
@@ -2840,6 +2858,20 @@ BEGIN
        AND city_metro_filter !~ '^[A-Za-z0-9._:-]{1,191}$')
      OR (seller_filter IS NOT NULL
        AND seller_filter !~ '^[A-Za-z0-9._:-]{1,191}$')
+     OR (source_filter ? 'listingIds' AND (
+       pg_catalog.cardinality(listing_ids) NOT BETWEEN 1 AND 20
+       OR EXISTS (
+         SELECT 1
+           FROM pg_catalog.unnest(listing_ids) AS listing_id(value)
+          WHERE listing_id.value !~ '^[A-Za-z0-9._:-]{1,191}$'
+       )
+       OR pg_catalog.cardinality(listing_ids) <> (
+         SELECT pg_catalog.count(DISTINCT listing_id.value)::integer
+           FROM pg_catalog.unnest(listing_ids) AS listing_id(value)
+       )
+     ))
+     OR (exclude_listing_id IS NOT NULL
+       AND exclude_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$')
      OR (query_filter IS NOT NULL
        AND pg_catalog.char_length(query_filter) > 200)
      OR (normalized_seller_filter IS NOT NULL
@@ -2926,6 +2958,11 @@ BEGIN
        AND (metro_filter IS NULL OR listing."metroId" = metro_filter)
        AND (city_metro_filter IS NULL OR listing."cityMetroId" = city_metro_filter)
        AND (seller_filter IS NULL OR listing."sellerId" = seller_filter)
+       AND (
+         pg_catalog.cardinality(listing_ids) = 0
+         OR listing.id = ANY(listing_ids)
+       )
+       AND (exclude_listing_id IS NULL OR listing.id <> exclude_listing_id)
        AND (min_price_cents IS NULL OR listing."priceCents" >= min_price_cents)
        AND (max_price_cents IS NULL OR listing."priceCents" <= max_price_cents)
        AND (

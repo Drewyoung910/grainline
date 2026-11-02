@@ -26,7 +26,7 @@ import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Wrench } from "@/components/icons";
-import { canViewListingDetail, isPublicListingDetail, publicListingWhere } from "@/lib/listingVisibility";
+import { canViewListingDetail, isPublicListingDetail } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicTagPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -48,6 +48,7 @@ import {
   listingActorDetailSource,
   listingStaffDetailSource,
 } from "@/lib/listingDetailAccess";
+import { listingPublicCatalogPage } from "@/lib/listingPublicCatalogAccess";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -272,21 +273,16 @@ export default async function ListingPage({
       _count: { _all: true },
     }),
     getSellerRatingMap([listing.sellerId]),
-    prisma.listing.findMany({
-      where: publicListingWhere({
+    listingPublicCatalogPage(
+      meId,
+      {
         sellerId: listing.sellerId,
-        id: { not: listing.id },
-      }),
-      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-      take: 4,
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        excludeListingId: listing.id,
+        sort: "quality",
       },
-    }),
+      0,
+      4,
+    ).then(({ listings: rows }) => rows),
     prisma.review.findMany({
       where: visibleListingReviewWhere,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],

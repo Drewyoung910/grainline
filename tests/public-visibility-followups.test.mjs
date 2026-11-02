@@ -22,11 +22,12 @@ describe("public visibility follow-ups", () => {
   it("keeps listing detail related listings and review aggregates on public visibility filters", () => {
     const listingPage = read("src/app/listing/[id]/page.tsx");
 
-    assert.match(listingPage, /import \{ canViewListingDetail, isPublicListingDetail, publicListingWhere \}/);
+    assert.match(listingPage, /import \{ canViewListingDetail, isPublicListingDetail \}/);
     assert.match(listingPage, /const visibleListingReviewWhere = \{[\s\S]*?reviewerAccountActive: true,[\s\S]*?\.\.\.blockedReviewerFilter,/);
     assert.match(listingPage, /prisma\.review\.aggregate\(\{\s*where: visibleListingReviewWhere,/);
     assert.match(listingPage, /prisma\.review\.findMany\(\{\s*where: visibleListingReviewWhere,/);
-    assert.match(listingPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{\s*sellerId: listing\.sellerId,\s*id: \{ not: listing\.id \},\s*\}\),/);
+    assert.match(listingPage, /listingPublicCatalogPage\([\s\S]*sellerId: listing\.sellerId,[\s\S]*excludeListingId: listing\.id,[\s\S]*sort: "quality"/);
+    assert.doesNotMatch(listingPage, /prisma\.listing\.findMany\(/);
   });
 
   it("applies viewer block filters to public blog comment reads", () => {
@@ -82,7 +83,6 @@ describe("public visibility follow-ups", () => {
 
     for (const [path, source] of [
       ["homepage", homePage],
-      ["listing detail", listingPage],
       ["seller profile", sellerPage],
       ["seller shop", sellerShopPage],
     ]) {
@@ -90,6 +90,9 @@ describe("public visibility follow-ups", () => {
       assert.doesNotMatch(source, /Prisma\.ListingInclude/, `${path} should not type public Listing card payloads as includes`);
       assert.match(source, /(?:select:\s*\{|const (?:sellerProfileListingCardSelect|homeListingCardSelect|TAG_LISTING_SELECT) = \{)[\s\S]*?id: true,[\s\S]*?title: true,[\s\S]*?priceCents: true,/);
     }
+
+    assert.match(listingPage, /listingPublicCatalogPage/u);
+    assert.doesNotMatch(listingPage, /prisma\.listing\.findMany/u);
 
     const tagPage = read("src/app/tag/[slug]/page.tsx");
     const publicCatalog = read("src/lib/listingPublicCatalogAccess.ts");
