@@ -218,6 +218,22 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     "sold-out listing exclusion",
   );
 
+  const facetPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({
+      metroId,
+      sort: "newest",
+      includeCategoryCounts: true,
+    }), 0, 24],
+  ));
+  assert.deepEqual(
+    facetPage.categoryCounts,
+    [{ category: "FURNITURE", count: 2 }],
+    "category facets",
+  );
+
   await database.query(
     `INSERT INTO public."Block" (id, "blockerId", "blockedId", "createdAt")
      VALUES ($1, $2, $3, $4)`,
