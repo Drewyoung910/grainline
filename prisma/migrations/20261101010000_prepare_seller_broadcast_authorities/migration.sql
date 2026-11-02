@@ -713,7 +713,10 @@ END
 $grainline_seller_broadcast_staff_delete$;
 
 CREATE FUNCTION public.grainline_seller_broadcast_account_deletion_ids(
-  p_seller_profile_id text
+  p_side_effect_id text,
+  p_expected_user_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid
 )
 RETURNS TABLE (id text)
 LANGUAGE plpgsql
@@ -724,28 +727,53 @@ SET search_path = pg_catalog
 AS $grainline_seller_broadcast_account_deletion_ids$
 DECLARE
   actor_id text := NULLIF(pg_catalog.current_setting('app.user_id', true), '');
+  claimed_user_id text;
+  owned_seller_profile_id text;
 BEGIN
-  IF p_seller_profile_id IS NULL
-     OR p_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-     OR NOT EXISTS (
-       SELECT 1 FROM public."SellerProfile" AS seller
-        WHERE seller.id = p_seller_profile_id
-          AND seller."userId" = actor_id
-     ) THEN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_user_id IS NULL
+     OR p_expected_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR actor_id IS DISTINCT FROM p_expected_user_id
+     OR p_side_effect_id IS NULL
+     OR p_side_effect_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_generation IS NULL
+     OR p_claim_generation < 1
+     OR p_claim_token IS NULL THEN
     RAISE EXCEPTION 'SellerBroadcast account deletion context is invalid'
       USING ERRCODE = '42501';
   END IF;
+
+  claimed_user_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
+  IF actor_id IS DISTINCT FROM claimed_user_id
+     OR p_expected_user_id IS DISTINCT FROM claimed_user_id THEN
+    RAISE EXCEPTION 'SellerBroadcast account deletion claim actor changed'
+      USING ERRCODE = '40001';
+  END IF;
+
+  SELECT seller.id
+    INTO owned_seller_profile_id
+    FROM public."SellerProfile" AS seller
+   WHERE seller."userId" = claimed_user_id;
+
   RETURN QUERY
   SELECT broadcast.id::text
     FROM public."SellerBroadcast" AS broadcast
-   WHERE broadcast."sellerProfileId" = p_seller_profile_id
+   WHERE broadcast."sellerProfileId" = owned_seller_profile_id
    ORDER BY broadcast.id
    FOR UPDATE OF broadcast;
 END
 $grainline_seller_broadcast_account_deletion_ids$;
 
 CREATE FUNCTION public.grainline_seller_broadcast_account_deletion_cleanup(
-  p_seller_profile_id text
+  p_side_effect_id text,
+  p_expected_user_id text,
+  p_claim_generation bigint,
+  p_claim_token uuid
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -756,20 +784,42 @@ SET search_path = pg_catalog
 AS $grainline_seller_broadcast_account_deletion_cleanup$
 DECLARE
   actor_id text := NULLIF(pg_catalog.current_setting('app.user_id', true), '');
+  claimed_user_id text;
+  owned_seller_profile_id text;
   deleted_count bigint;
 BEGIN
-  IF p_seller_profile_id IS NULL
-     OR p_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-     OR NOT EXISTS (
-       SELECT 1 FROM public."SellerProfile" AS seller
-        WHERE seller.id = p_seller_profile_id
-          AND seller."userId" = actor_id
-     ) THEN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_user_id IS NULL
+     OR p_expected_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR actor_id IS DISTINCT FROM p_expected_user_id
+     OR p_side_effect_id IS NULL
+     OR p_side_effect_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_generation IS NULL
+     OR p_claim_generation < 1
+     OR p_claim_token IS NULL THEN
     RAISE EXCEPTION 'SellerBroadcast account deletion context is invalid'
       USING ERRCODE = '42501';
   END IF;
+
+  claimed_user_id := public.grainline_account_deletion_claim_user(
+    p_side_effect_id,
+    p_claim_generation,
+    p_claim_token
+  );
+  IF actor_id IS DISTINCT FROM claimed_user_id
+     OR p_expected_user_id IS DISTINCT FROM claimed_user_id THEN
+    RAISE EXCEPTION 'SellerBroadcast account deletion claim actor changed'
+      USING ERRCODE = '40001';
+  END IF;
+
+  SELECT seller.id
+    INTO owned_seller_profile_id
+    FROM public."SellerProfile" AS seller
+   WHERE seller."userId" = claimed_user_id;
+
   DELETE FROM public."SellerBroadcast"
-   WHERE "sellerProfileId" = p_seller_profile_id;
+   WHERE "sellerProfileId" = owned_seller_profile_id;
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
   RETURN deleted_count;
 END
@@ -1015,9 +1065,9 @@ REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_owner_delivery_source(t
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_owner_record_delivery(text,integer)
   FROM PUBLIC, grainline_app_runtime;
-REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_account_deletion_ids(text)
+REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_account_deletion_ids(text,text,bigint,uuid)
   FROM PUBLIC, grainline_app_runtime;
-REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_account_deletion_cleanup(text)
+REVOKE ALL ON FUNCTION public.grainline_seller_broadcast_account_deletion_cleanup(text,text,bigint,uuid)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)
   FROM PUBLIC, grainline_app_runtime;
@@ -1040,9 +1090,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_owner_delivery_sourc
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_owner_record_delivery(text,integer)
   TO grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_account_deletion_ids(text)
+GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_account_deletion_ids(text,text,bigint,uuid)
   TO grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_account_deletion_cleanup(text)
+GRANT EXECUTE ON FUNCTION public.grainline_seller_broadcast_account_deletion_cleanup(text,text,bigint,uuid)
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)
   TO grainline_app_runtime;

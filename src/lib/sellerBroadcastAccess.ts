@@ -411,14 +411,27 @@ export async function deleteStaffSellerBroadcast(
 
 export async function accountDeletionSellerBroadcastIds(
   client: DbUserContextTransactionClient,
-  sellerProfileId: string,
+  input: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ) {
-  if (!validId(sellerProfileId)) {
-    throw new RangeError("SellerBroadcast deletion seller id is invalid");
+  if (
+    !validId(input.sideEffectId)
+    || !validId(input.expectedUserId)
+    || input.claimGeneration < 1n
+    || !validId(input.claimToken)
+  ) {
+    throw new RangeError("SellerBroadcast deletion claim is invalid");
   }
   const rows = await client.$queryRaw<Array<{ id: unknown }>>`
     SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids(
-      ${sellerProfileId}::text
+      ${input.sideEffectId}::text,
+      ${input.expectedUserId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
     )
   `;
   if (rows.some((row) => !validId(row.id))) {
@@ -429,14 +442,27 @@ export async function accountDeletionSellerBroadcastIds(
 
 export async function cleanupAccountSellerBroadcasts(
   client: DbUserContextTransactionClient,
-  sellerProfileId: string,
+  input: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ) {
-  if (!validId(sellerProfileId)) {
-    throw new RangeError("SellerBroadcast deletion seller id is invalid");
+  if (
+    !validId(input.sideEffectId)
+    || !validId(input.expectedUserId)
+    || input.claimGeneration < 1n
+    || !validId(input.claimToken)
+  ) {
+    throw new RangeError("SellerBroadcast deletion claim is invalid");
   }
   const rows = await client.$queryRaw<Array<{ value: unknown }>>`
     SELECT public.grainline_seller_broadcast_account_deletion_cleanup(
-      ${sellerProfileId}::text
+      ${input.sideEffectId}::text,
+      ${input.expectedUserId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid
     ) AS value
   `;
   const value = typeof rows[0]?.value === "bigint" ? Number(rows[0].value) : rows[0]?.value;
