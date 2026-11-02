@@ -25,6 +25,9 @@ async function readyDatabase() {
       id text PRIMARY KEY,
       role public."Role" NOT NULL DEFAULT 'USER',
       banned boolean NOT NULL DEFAULT false,
+      "bannedAt" timestamp(3) without time zone,
+      "banReason" text,
+      "bannedBy" text,
       "deletedAt" timestamp(3) without time zone
     );
     CREATE TABLE public."SellerProfile" (
@@ -148,7 +151,17 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
                'grainline_staff_read_runtime',
                'public.grainline_admin_audit_append(text,text,text,text,text,jsonb)',
                'EXECUTE'
-             ) AS staff_append
+             ) AS staff_append,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)',
+               'EXECUTE'
+             ) AS runtime_ban_repair_append,
+             pg_catalog.has_function_privilege(
+               'grainline_staff_read_runtime',
+               'public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)',
+               'EXECUTE'
+             ) AS staff_ban_repair_append
         FROM pg_catalog.pg_class AS relation
        WHERE relation.oid = 'public."AdminAuditLog"'::pg_catalog.regclass
     `);
@@ -161,6 +174,8 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
       runtime_staff_page: false,
       staff_page: true,
       staff_append: false,
+      runtime_ban_repair_append: false,
+      staff_ban_repair_append: true,
     });
   } finally {
     await database.close();
@@ -194,6 +209,59 @@ test("actor-bound append accepts every converted action family and fixes actor k
       assert.equal(result.rows.length, 1, action);
     }
 
+    await database.query(`
+      UPDATE public."User"
+         SET banned = true,
+             "bannedAt" = '2026-11-02 12:34:56.789'::timestamp,
+             "bannedBy" = 'proof-admin'
+       WHERE id = 'proof-user'
+    `);
+    const ban = await asRuntime(database, "proof-admin", appendSql(), [
+      "proof-admin", "BAN_USER", "USER", "proof-user", "policy violation",
+      JSON.stringify({
+        externalSyncVersion: 1,
+        appliedBannedAt: "2026-11-02T12:34:56.789Z",
+      }),
+    ]);
+    assert.equal(ban.rows.length, 1);
+    const banId = ban.rows[0].id;
+    for (const action of [
+      "BAN_USER_CLERK_SYNC",
+      "BAN_USER_CHECKOUT_SESSIONS_EXPIRED",
+    ]) {
+      const sideEffect = await asRuntime(database, "proof-admin", appendSql(), [
+        "proof-admin", action, "USER", "proof-user", null,
+        JSON.stringify({ originalActionId: banId }),
+      ]);
+      assert.equal(sideEffect.rows.length, 1, action);
+    }
+
+    await database.query(`
+      UPDATE public."User"
+         SET banned = false, "bannedAt" = NULL, "bannedBy" = NULL
+       WHERE id = 'proof-user'
+    `);
+    const unban = await asRuntime(database, "proof-admin", appendSql(), [
+      "proof-admin", "UNBAN_USER", "USER", "proof-user", "appeal accepted",
+      JSON.stringify({ previousUser: { banned: true } }),
+    ]);
+    assert.equal(unban.rows.length, 1);
+    const unbanId = unban.rows[0].id;
+    const unbanSync = await asRuntime(database, "proof-admin", appendSql(), [
+      "proof-admin", "UNBAN_USER_CLERK_SYNC", "USER", "proof-user", null,
+      JSON.stringify({ originalActionId: unbanId }),
+    ]);
+    assert.equal(unbanSync.rows.length, 1);
+    await database.query(
+      'UPDATE public."AdminAuditLog" SET undone=true WHERE id=$1',
+      [banId],
+    );
+    const undoSync = await asRuntime(database, "proof-admin", appendSql(), [
+      "proof-admin", "UNDO_BAN_USER_CLERK_SYNC", "USER", "proof-user", null,
+      JSON.stringify({ originalActionId: banId }),
+    ]);
+    assert.equal(undoSync.rows.length, 1);
+
     const stored = await database.query(`
       SELECT action, metadata->>'actorKind' AS actor_kind
         FROM public."AdminAuditLog"
@@ -204,6 +272,8 @@ test("actor-bound append accepts every converted action family and fixes actor k
     assert.equal(actorKinds.get("AI_HOLD_LISTING"), "automated");
     assert.equal(actorKinds.get("ADMIN_PIN_VERIFY_OK"), "staff");
     assert.equal(actorKinds.get("REMOVE_LISTING"), "staff");
+    assert.equal(actorKinds.get("BAN_USER"), "staff");
+    assert.equal(actorKinds.get("UNBAN_USER"), "staff");
   } finally {
     await database.close();
   }

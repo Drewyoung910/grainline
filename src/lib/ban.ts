@@ -1,4 +1,3 @@
-import { prisma } from './db'
 import { stripe } from './stripe'
 import { buildBanAuditMetadata } from './banAuditMetadata'
 import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
@@ -29,6 +28,11 @@ import {
   sellerStaffOrderabilityState,
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
+import {
+  adminAuditLogStaffBanRows,
+  appendAdminAuditLog,
+  appendAdminAuditLogForActor,
+} from './adminAuditLogAccess'
 import * as Sentry from '@sentry/nextjs'
 
 export class BanUserPolicyError extends Error {
@@ -108,17 +112,15 @@ async function convergeAlreadyBannedExternalSideEffects({
   clerkId: string
   bannedAt: Date | null
 }) {
-  const recentBanLogs = await prisma.adminAuditLog.findMany({
-    where: {
-      action: 'BAN_USER',
-      targetType: 'USER',
+  const recentBanLogs = await adminAuditLogStaffBanRows(
+    getOrderStaffReadClient(),
+    {
+      actorId: adminId,
       targetId: userId,
-      undone: false,
+      onlyActive: true,
+      limit: 25,
     },
-    orderBy: { createdAt: 'desc' },
-    take: 25,
-    select: { id: true, metadata: true },
-  })
+  )
   const matchingBanLog = recentBanLogs.find((log) => {
     const metadata = readBanAuditMetadata(log.metadata)
     return metadata.externalSyncVersion === 1
@@ -128,7 +130,6 @@ async function convergeAlreadyBannedExternalSideEffects({
   if (matchingBanLog) {
     const result = await repairBanUserExternalSideEffects({
       originalActionId: matchingBanLog.id,
-      adminId,
       targetId: userId,
     })
     if (result.status === 'failed') {
@@ -190,16 +191,14 @@ async function logClerkSyncResult({
   metadata: Record<string, unknown>
 }) {
   try {
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId,
-        action,
-        targetType: 'USER',
-        targetId,
-        metadata: {
-          ...(originalActionId ? { originalActionId } : {}),
-          ...metadata,
-        } as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
+    await appendAdminAuditLogForActor({
+      adminId,
+      action,
+      targetType: 'USER',
+      targetId,
+      metadata: {
+        ...(originalActionId ? { originalActionId } : {}),
+        ...metadata,
       },
     })
   } catch (error) {
@@ -369,22 +368,20 @@ export async function banUser({ userId, adminId, reason }: {
       userId,
       tx,
     )
-    const banAuditLog = await tx.adminAuditLog.create({
-      data: {
-        adminId,
-        action: 'BAN_USER',
-        targetType: 'USER',
-        targetId: userId,
-        reason: sanitizeAdminAuditReason(reason),
-        metadata: {
-          ...buildBanAuditMetadata({
-            sellerProfile,
-            commissionRequests,
-            openOrderSnapshots: flaggedOpenOrders,
-            appliedBannedAt: bannedAt,
-          }),
-          removedCommissionInterestRequestIds,
-        },
+    const banAuditLog = await appendAdminAuditLog(tx, {
+      adminId,
+      action: 'BAN_USER',
+      targetType: 'USER',
+      targetId: userId,
+      reason: sanitizeAdminAuditReason(reason) ?? undefined,
+      metadata: {
+        ...buildBanAuditMetadata({
+          sellerProfile,
+          commissionRequests,
+          openOrderSnapshots: flaggedOpenOrders,
+          appliedBannedAt: bannedAt,
+        }),
+        removedCommissionInterestRequestIds,
       }
     })
     return {
@@ -502,10 +499,11 @@ export async function unbanUser({ userId, adminId, reason }: {
       })
     }
   }
-  const latestBanForCapability = await prisma.adminAuditLog.findFirst({
-    where: { action: 'BAN_USER', targetType: 'USER', targetId: userId },
-    orderBy: { createdAt: 'desc' },
-    select: { metadata: true },
+  const [latestBanForCapability] = await adminAuditLogStaffBanRows(staffClient, {
+    actorId: adminId,
+    targetId: userId,
+    onlyActive: false,
+    limit: 1,
   })
   const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
   const userUnbanCapability = await mintUserStaffCapability(staffClient, {
@@ -559,28 +557,26 @@ export async function unbanUser({ userId, adminId, reason }: {
     } catch (error) {
       throwSellerOrderabilityPolicyError(error)
     }
-    const unbanAuditLog = await tx.adminAuditLog.create({
-      data: {
-        adminId,
-        action: 'UNBAN_USER',
-        targetType: 'USER',
-        targetId: userId,
-        reason: sanitizeAdminAuditReason(reason),
-        metadata: {
-          previousUser: previousUser
-            ? {
-                banned: previousUser.banned,
-                bannedAt: previousUser.bannedAt?.toISOString() ?? null,
-                banReason: previousUser.banReason,
-                bannedBy: previousUser.bannedBy,
-              }
-            : null,
-          previousSellerProfile,
-          restoredFlaggedOrderReviews,
-          restoredSellerProfile: sellerRestore,
-          sellerRestoreWarning,
-          sellerRestoreError,
-        },
+    const unbanAuditLog = await appendAdminAuditLog(tx, {
+      adminId,
+      action: 'UNBAN_USER',
+      targetType: 'USER',
+      targetId: userId,
+      reason: sanitizeAdminAuditReason(reason) ?? undefined,
+      metadata: {
+        previousUser: previousUser
+          ? {
+              banned: previousUser.banned,
+              bannedAt: previousUser.bannedAt?.toISOString() ?? null,
+              banReason: previousUser.banReason,
+              bannedBy: previousUser.bannedBy,
+            }
+          : null,
+        previousSellerProfile,
+        restoredFlaggedOrderReviews,
+        restoredSellerProfile: sellerRestore,
+        sellerRestoreWarning,
+        sellerRestoreError,
       }
     })
     return {

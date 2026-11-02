@@ -22,7 +22,11 @@ BEGIN
      WHERE procedure.oid IN (
        pg_catalog.to_regprocedure('public.grainline_admin_audit_append(text,text,text,text,text,jsonb)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_count(text,text)'),
-       pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_page(text,text,integer,integer)')
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_page(text,text,integer,integer)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_candidates(integer)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_state(text,text)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)')
      )
   ) THEN
     RAISE EXCEPTION 'AdminAuditLog preparation function already exists';
@@ -265,14 +269,114 @@ BEGIN
         'actorKind', 'staff'
       );
 
-    WHEN 'BAN_USER',
-         'UNBAN_USER',
-         'BAN_USER_CLERK_SYNC',
+    WHEN 'BAN_USER' THEN
+      IF actor_role <> 'ADMIN'
+         OR p_target_type <> 'USER'
+         OR p_target_id = actor_id
+         OR NOT EXISTS (
+           SELECT 1 FROM public."User" AS target
+            WHERE target.id = p_target_id
+              AND target.banned = true
+              AND target."bannedBy" = actor_id
+              AND target."bannedAt" IS NOT NULL
+              AND stored_metadata->>'externalSyncVersion' = '1'
+              AND stored_metadata->>'appliedBannedAt' = pg_catalog.to_char(
+                target."bannedAt",
+                'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+              )
+         ) THEN
+        RAISE EXCEPTION 'Admin audit ban source is invalid'
+          USING ERRCODE = '42501';
+      END IF;
+      stored_metadata := stored_metadata || pg_catalog.jsonb_build_object(
+        'actorKind', 'staff'
+      );
+
+    WHEN 'UNBAN_USER' THEN
+      IF actor_role <> 'ADMIN'
+         OR p_target_type <> 'USER'
+         OR p_target_id = actor_id
+         OR pg_catalog.jsonb_typeof(stored_metadata->'previousUser') <> 'object'
+         OR stored_metadata->'previousUser'->>'banned' <> 'true'
+         OR NOT EXISTS (
+           SELECT 1 FROM public."User" AS target
+            WHERE target.id = p_target_id
+              AND target.banned = false
+         ) THEN
+        RAISE EXCEPTION 'Admin audit unban source is invalid'
+          USING ERRCODE = '42501';
+      END IF;
+      stored_metadata := stored_metadata || pg_catalog.jsonb_build_object(
+        'actorKind', 'staff'
+      );
+
+    WHEN 'BAN_USER_CLERK_SYNC',
          'BAN_USER_CLERK_SYNC_FAILED',
-         'BAN_USER_CHECKOUT_SESSIONS_EXPIRED',
-         'UNBAN_USER_CLERK_SYNC',
-         'UNBAN_USER_CLERK_SYNC_FAILED',
-         'UNDO_BAN_USER_CLERK_SYNC',
+         'BAN_USER_CHECKOUT_SESSIONS_EXPIRED' THEN
+      IF actor_role <> 'ADMIN'
+         OR p_target_type <> 'USER'
+         OR p_target_id = actor_id
+         OR NOT EXISTS (
+           SELECT 1 FROM public."User" AS target
+            WHERE target.id = p_target_id
+              AND target.banned = true
+         )
+         OR NOT (
+           (
+             pg_catalog.jsonb_typeof(stored_metadata->'originalActionId') = 'string'
+             AND EXISTS (
+               SELECT 1 FROM public."AdminAuditLog" AS source_audit
+                WHERE source_audit.id = stored_metadata->>'originalActionId'
+                  AND source_audit.action = 'BAN_USER'
+                  AND source_audit."targetType" = 'USER'
+                  AND source_audit."targetId" = p_target_id
+                  AND source_audit.undone = false
+             )
+           )
+           OR (
+             p_action <> 'BAN_USER_CHECKOUT_SESSIONS_EXPIRED'
+             AND stored_metadata->>'idempotentConvergence' = 'true'
+             AND stored_metadata->>'unmatchedHistoricalBan' = 'true'
+           )
+         ) THEN
+        RAISE EXCEPTION 'Admin audit ban side-effect source is invalid'
+          USING ERRCODE = '42501';
+      END IF;
+      stored_metadata := stored_metadata || pg_catalog.jsonb_build_object(
+        'actorKind', 'staff'
+      );
+
+    WHEN 'UNBAN_USER_CLERK_SYNC',
+         'UNBAN_USER_CLERK_SYNC_FAILED' THEN
+      IF actor_role <> 'ADMIN'
+         OR p_target_type <> 'USER'
+         OR p_target_id = actor_id
+         OR NOT EXISTS (
+           SELECT 1 FROM public."User" AS target
+            WHERE target.id = p_target_id
+              AND target.banned = false
+         )
+         OR NOT (
+           (
+             pg_catalog.jsonb_typeof(stored_metadata->'originalActionId') = 'string'
+             AND EXISTS (
+               SELECT 1 FROM public."AdminAuditLog" AS source_audit
+                WHERE source_audit.id = stored_metadata->>'originalActionId'
+                  AND source_audit.action = 'UNBAN_USER'
+                  AND source_audit."targetType" = 'USER'
+                  AND source_audit."targetId" = p_target_id
+             )
+           )
+           OR stored_metadata->>'idempotentConvergence' = 'true'
+         ) THEN
+        RAISE EXCEPTION 'Admin audit unban side-effect source is invalid'
+          USING ERRCODE = '42501';
+      END IF;
+      stored_metadata := stored_metadata || pg_catalog.jsonb_build_object(
+        'actorKind', 'staff'
+      );
+
+    WHEN 'UNDO_BAN_USER_CLERK_SYNC',
          'UNDO_BAN_USER_CLERK_SYNC_FAILED' THEN
       IF actor_role <> 'ADMIN'
          OR p_target_type <> 'USER'
@@ -280,8 +384,18 @@ BEGIN
          OR NOT EXISTS (
            SELECT 1 FROM public."User" AS target
             WHERE target.id = p_target_id
+              AND target.banned = false
+         )
+         OR pg_catalog.jsonb_typeof(stored_metadata->'originalActionId') <> 'string'
+         OR NOT EXISTS (
+           SELECT 1 FROM public."AdminAuditLog" AS source_audit
+            WHERE source_audit.id = stored_metadata->>'originalActionId'
+              AND source_audit.action = 'BAN_USER'
+              AND source_audit."targetType" = 'USER'
+              AND source_audit."targetId" = p_target_id
+              AND source_audit.undone = true
          ) THEN
-        RAISE EXCEPTION 'Admin audit account action actor or target is invalid'
+        RAISE EXCEPTION 'Admin audit undo-ban side-effect source is invalid'
           USING ERRCODE = '42501';
       END IF;
       stored_metadata := stored_metadata || pg_catalog.jsonb_build_object(
@@ -415,11 +529,240 @@ BEGIN
 END;
 $grainline_admin_audit_staff_page$;
 
+CREATE FUNCTION public.grainline_admin_audit_staff_ban_rows(
+  p_actor_id text,
+  p_target_id text,
+  p_only_active boolean,
+  p_limit integer
+)
+RETURNS TABLE (
+  id text,
+  metadata jsonb,
+  undone boolean,
+  "createdAt" timestamp(3) without time zone
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_staff_ban_rows$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime'
+     OR p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_target_id IS NULL
+     OR p_target_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_only_active IS NULL
+     OR p_limit IS NULL
+     OR p_limit < 1
+     OR p_limit > 25
+     OR NOT EXISTS (
+       SELECT 1 FROM public."User" AS actor
+        WHERE actor.id = p_actor_id
+          AND actor.role::text = 'ADMIN'
+          AND actor.banned = false
+          AND actor."deletedAt" IS NULL
+     ) THEN
+    RAISE EXCEPTION 'Admin audit ban-row context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT audit.id::text,
+         audit.metadata,
+         audit.undone,
+         audit."createdAt"
+    FROM public."AdminAuditLog" AS audit
+   WHERE audit.action = 'BAN_USER'
+     AND audit."targetType" = 'USER'
+     AND audit."targetId" = p_target_id
+     AND (NOT p_only_active OR audit.undone = false)
+   ORDER BY audit."createdAt" DESC, audit.id DESC
+   LIMIT p_limit;
+END;
+$grainline_admin_audit_staff_ban_rows$;
+
+CREATE FUNCTION public.grainline_admin_audit_ban_repair_candidates(
+  p_limit integer
+)
+RETURNS TABLE (
+  id text,
+  "targetId" text,
+  metadata jsonb,
+  "createdAt" timestamp(3) without time zone
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_ban_repair_candidates$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime'
+     OR p_limit IS NULL
+     OR p_limit < 1
+     OR p_limit > 100 THEN
+    RAISE EXCEPTION 'Admin audit ban-repair candidate context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT audit.id::text,
+         audit."targetId"::text,
+         audit.metadata,
+         audit."createdAt"
+    FROM public."AdminAuditLog" AS audit
+   WHERE audit.action = 'BAN_USER'
+     AND audit."targetType" = 'USER'
+     AND audit.undone = false
+     AND audit."createdAt" >= (
+       pg_catalog.statement_timestamp() AT TIME ZONE 'UTC'
+     ) - INTERVAL '14 days'
+     AND audit.metadata->>'externalSyncVersion' = '1'
+   ORDER BY audit."createdAt" DESC, audit.id DESC
+   LIMIT p_limit;
+END;
+$grainline_admin_audit_ban_repair_candidates$;
+
+CREATE FUNCTION public.grainline_admin_audit_ban_repair_state(
+  p_original_action_id text,
+  p_target_id text
+)
+RETURNS TABLE (
+  "latestSyncAction" text,
+  "checkoutExpired" boolean
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_ban_repair_state$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime'
+     OR p_original_action_id IS NULL
+     OR p_original_action_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_target_id IS NULL
+     OR p_target_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR NOT EXISTS (
+       SELECT 1 FROM public."AdminAuditLog" AS source_audit
+        WHERE source_audit.id = p_original_action_id
+          AND source_audit.action = 'BAN_USER'
+          AND source_audit."targetType" = 'USER'
+          AND source_audit."targetId" = p_target_id
+          AND source_audit.undone = false
+          AND source_audit.metadata->>'externalSyncVersion' = '1'
+     ) THEN
+    RAISE EXCEPTION 'Admin audit ban-repair source is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT (
+           SELECT related.action::text
+             FROM public."AdminAuditLog" AS related
+            WHERE related.action IN (
+                    'BAN_USER_CLERK_SYNC',
+                    'BAN_USER_CLERK_SYNC_FAILED'
+                  )
+              AND related."targetType" = 'USER'
+              AND related."targetId" = p_target_id
+              AND related.metadata->>'originalActionId' = p_original_action_id
+            ORDER BY related."createdAt" DESC, related.id DESC
+            LIMIT 1
+         ),
+         EXISTS (
+           SELECT 1
+             FROM public."AdminAuditLog" AS related
+            WHERE related.action = 'BAN_USER_CHECKOUT_SESSIONS_EXPIRED'
+              AND related."targetType" = 'USER'
+              AND related."targetId" = p_target_id
+              AND related.metadata->>'originalActionId' = p_original_action_id
+         );
+END;
+$grainline_admin_audit_ban_repair_state$;
+
+CREATE FUNCTION public.grainline_admin_audit_ban_repair_append(
+  p_original_action_id text,
+  p_action text,
+  p_target_id text,
+  p_metadata jsonb
+)
+RETURNS text
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_ban_repair_append$
+DECLARE
+  source_admin_id text;
+  audit_id text := pg_catalog.gen_random_uuid()::text;
+  stored_metadata jsonb := COALESCE(p_metadata, '{}'::jsonb);
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime'
+     OR p_original_action_id IS NULL
+     OR p_original_action_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_action NOT IN (
+       'BAN_USER_CLERK_SYNC',
+       'BAN_USER_CLERK_SYNC_FAILED',
+       'BAN_USER_CHECKOUT_SESSIONS_EXPIRED'
+     )
+     OR p_target_id IS NULL
+     OR p_target_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR pg_catalog.jsonb_typeof(stored_metadata) <> 'object'
+     OR pg_catalog.octet_length(stored_metadata::text) > 1000000 THEN
+    RAISE EXCEPTION 'Admin audit ban-repair append input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT source_audit."adminId"::text
+    INTO source_admin_id
+    FROM public."AdminAuditLog" AS source_audit
+    JOIN public."User" AS target
+      ON target.id = source_audit."targetId"
+   WHERE source_audit.id = p_original_action_id
+     AND source_audit.action = 'BAN_USER'
+     AND source_audit."targetType" = 'USER'
+     AND source_audit."targetId" = p_target_id
+     AND source_audit.undone = false
+     AND source_audit.metadata->>'externalSyncVersion' = '1'
+     AND target.banned = true
+     AND target."deletedAt" IS NULL
+   FOR SHARE OF source_audit, target;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Admin audit ban-repair source is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  stored_metadata := stored_metadata || pg_catalog.jsonb_build_object(
+    'originalActionId', p_original_action_id,
+    'actorKind', 'staff'
+  );
+
+  INSERT INTO public."AdminAuditLog" (
+    id, "adminId", action, "targetType", "targetId", metadata,
+    undone, "createdAt"
+  )
+  VALUES (
+    audit_id, source_admin_id, p_action, 'USER', p_target_id,
+    stored_metadata, false,
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3)
+  );
+  RETURN audit_id;
+END;
+$grainline_admin_audit_ban_repair_append$;
+
 REVOKE ALL ON FUNCTION
   public.grainline_admin_audit_append(text,text,text,text,text,jsonb),
   public.grainline_admin_audit_staff_count(text,text),
-  public.grainline_admin_audit_staff_page(text,text,integer,integer)
-FROM PUBLIC;
+  public.grainline_admin_audit_staff_page(text,text,integer,integer),
+  public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer),
+  public.grainline_admin_audit_ban_repair_candidates(integer),
+  public.grainline_admin_audit_ban_repair_state(text,text),
+  public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)
+FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 
 GRANT EXECUTE ON FUNCTION
   public.grainline_admin_audit_append(text,text,text,text,text,jsonb)
@@ -427,7 +770,11 @@ TO grainline_app_runtime;
 
 GRANT EXECUTE ON FUNCTION
   public.grainline_admin_audit_staff_count(text,text),
-  public.grainline_admin_audit_staff_page(text,text,integer,integer)
+  public.grainline_admin_audit_staff_page(text,text,integer,integer),
+  public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer),
+  public.grainline_admin_audit_ban_repair_candidates(integer),
+  public.grainline_admin_audit_ban_repair_state(text,text),
+  public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)
 TO grainline_staff_read_runtime;
 
 DO $grainline_admin_audit_postflight$
@@ -447,6 +794,26 @@ BEGIN
        'public.grainline_admin_audit_staff_page(text,text,integer,integer)',
        'EXECUTE'
      )
+     OR pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_ban_repair_candidates(integer)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_ban_repair_state(text,text)',
+       'EXECUTE'
+     )
+     OR pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       'public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)',
+       'EXECUTE'
+     )
      OR NOT pg_catalog.has_function_privilege(
        'grainline_staff_read_runtime',
        'public.grainline_admin_audit_staff_count(text,text)',
@@ -455,6 +822,26 @@ BEGIN
      OR NOT pg_catalog.has_function_privilege(
        'grainline_staff_read_runtime',
        'public.grainline_admin_audit_staff_page(text,text,integer,integer)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_ban_repair_candidates(integer)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_ban_repair_state(text,text)',
+       'EXECUTE'
+     )
+     OR NOT pg_catalog.has_function_privilege(
+       'grainline_staff_read_runtime',
+       'public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)',
        'EXECUTE'
      )
      OR pg_catalog.has_function_privilege(

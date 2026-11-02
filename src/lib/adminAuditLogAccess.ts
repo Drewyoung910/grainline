@@ -31,6 +31,11 @@ export type AdminAuditLogStaffRow = Readonly<{
 
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,255}$/u;
 const ACTOR_KINDS = new Set(["staff", "user", "automated"]);
+const BAN_REPAIR_ACTIONS = new Set([
+  "BAN_USER_CLERK_SYNC",
+  "BAN_USER_CLERK_SYNC_FAILED",
+  "BAN_USER_CHECKOUT_SESSIONS_EXPIRED",
+]);
 
 function validId(value: unknown, maximum = 255): value is string {
   return typeof value === "string"
@@ -44,6 +49,10 @@ function validDate(value: unknown): value is Date {
 
 function validActionFilter(value: string | null) {
   return value === null || isTextWithinCodePointRange(value, 1, 100);
+}
+
+function validRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function appendAdminAuditLog(
@@ -161,4 +170,152 @@ export async function adminAuditLogStaffPage(
       actorKind: row.actorKind,
     }) as AdminAuditLogStaffRow;
   });
+}
+
+export async function adminAuditLogStaffBanRows(
+  client: StaffQueryClient,
+  input: { actorId: string; targetId: string; onlyActive: boolean; limit?: number },
+) {
+  const limit = input.limit ?? 25;
+  if (
+    !validId(input.actorId, 191)
+    || !validId(input.targetId, 191)
+    || typeof input.onlyActive !== "boolean"
+    || !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 25
+  ) {
+    throw new RangeError("Admin audit ban-row input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT * FROM public.grainline_admin_audit_staff_ban_rows(
+      ${input.actorId}::text,
+      ${input.targetId}::text,
+      ${input.onlyActive}::boolean,
+      ${limit}::integer
+    )
+  `);
+  if (rows.length > limit) {
+    throw new TypeError("Admin audit ban-row authority returned too many rows");
+  }
+  return rows.map((row) => {
+    if (
+      !validId(row.id, 191)
+      || !validRecord(row.metadata)
+      || typeof row.undone !== "boolean"
+      || !validDate(row.createdAt)
+    ) {
+      throw new TypeError("Admin audit ban-row authority returned an invalid row");
+    }
+    return Object.freeze({
+      id: row.id,
+      metadata: row.metadata,
+      undone: row.undone,
+      createdAt: row.createdAt,
+    });
+  });
+}
+
+export async function adminAuditLogBanRepairCandidates(
+  client: StaffQueryClient,
+  input: { limit?: number } = {},
+) {
+  const limit = input.limit ?? 100;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new RangeError("Admin audit ban-repair candidate limit is invalid");
+  }
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT * FROM public.grainline_admin_audit_ban_repair_candidates(
+      ${limit}::integer
+    )
+  `);
+  if (rows.length > limit) {
+    throw new TypeError("Admin audit ban-repair candidate authority returned too many rows");
+  }
+  return rows.map((row) => {
+    if (
+      !validId(row.id, 191)
+      || !validId(row.targetId, 191)
+      || !validRecord(row.metadata)
+      || !validDate(row.createdAt)
+    ) {
+      throw new TypeError("Admin audit ban-repair candidate authority returned an invalid row");
+    }
+    return Object.freeze({
+      id: row.id,
+      targetId: row.targetId,
+      metadata: row.metadata,
+      createdAt: row.createdAt,
+    });
+  });
+}
+
+export async function adminAuditLogBanRepairState(
+  client: StaffQueryClient,
+  input: { originalActionId: string; targetId: string },
+) {
+  if (!validId(input.originalActionId, 191) || !validId(input.targetId, 191)) {
+    throw new RangeError("Admin audit ban-repair state input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT * FROM public.grainline_admin_audit_ban_repair_state(
+      ${input.originalActionId}::text,
+      ${input.targetId}::text
+    )
+  `);
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || !row
+    || (
+      row.latestSyncAction !== null
+      && row.latestSyncAction !== "BAN_USER_CLERK_SYNC"
+      && row.latestSyncAction !== "BAN_USER_CLERK_SYNC_FAILED"
+    )
+    || typeof row.checkoutExpired !== "boolean"
+  ) {
+    throw new TypeError("Admin audit ban-repair state authority returned an invalid result");
+  }
+  return Object.freeze({
+    latestSyncAction: row.latestSyncAction as
+      | "BAN_USER_CLERK_SYNC"
+      | "BAN_USER_CLERK_SYNC_FAILED"
+      | null,
+    checkoutExpired: row.checkoutExpired,
+  });
+}
+
+export async function appendAdminAuditLogBanRepairEvent(
+  client: StaffQueryClient,
+  input: {
+    originalActionId: string;
+    action:
+      | "BAN_USER_CLERK_SYNC"
+      | "BAN_USER_CLERK_SYNC_FAILED"
+      | "BAN_USER_CHECKOUT_SESSIONS_EXPIRED";
+    targetId: string;
+    metadata: Record<string, unknown>;
+  },
+) {
+  if (
+    !validId(input.originalActionId, 191)
+    || !BAN_REPAIR_ACTIONS.has(input.action)
+    || !validId(input.targetId, 191)
+    || !validRecord(input.metadata)
+  ) {
+    throw new RangeError("Admin audit ban-repair append input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<{ id: unknown }>>(Prisma.sql`
+    SELECT public.grainline_admin_audit_ban_repair_append(
+      ${input.originalActionId}::text,
+      ${input.action}::text,
+      ${input.targetId}::text,
+      ${JSON.stringify(input.metadata)}::jsonb
+    ) AS id
+  `);
+  const id = rows[0]?.id;
+  if (rows.length !== 1 || !validId(id, 191)) {
+    throw new TypeError("Admin audit ban-repair append authority returned an invalid result");
+  }
+  return id;
 }
