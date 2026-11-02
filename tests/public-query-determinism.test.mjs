@@ -139,10 +139,8 @@ describe("public query determinism", () => {
     assert.match(metroPage, /listings: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroPage, /listingCityMetros: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroCategoryPage, /sort: "newest" as const/);
-    assert.match(metroCategoryPage, /const \[metros, majorGroups, cityGroups\] = await Promise\.all/);
-    assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["metroId", "category"\]/);
-    assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["cityMetroId", "category"\]/);
-    assert.doesNotMatch(metroCategoryPage, /for \(const metro of metros\)[\s\S]*await prisma\.listing\.groupBy/);
+    assert.doesNotMatch(metroCategoryPage, /generateStaticParams/);
+    assert.doesNotMatch(metroCategoryPage, /prisma\.listing\.(?:count|findMany|groupBy)/);
     assert.ok(
       metroPage.indexOf("const listings = listingRows.flatMap")
         < metroPage.indexOf("ownerFavoriteListingIds(meDbId, listingIds)"),
