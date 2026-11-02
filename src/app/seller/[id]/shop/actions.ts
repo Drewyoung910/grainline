@@ -293,6 +293,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       orderBy: { sortOrder: "asc" },
       take: 10,
     });
+    const reviewedImageUrls = photos.map((photo) => photo.url);
 
     const aiResult = await reviewListingWithAI({
       listingId: listing.id,
@@ -305,7 +306,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       tags: listing.tags,
       sellerName: sellerReview.displayName,
       listingCount,
-      imageUrls: photos.map((p) => p.url),
+      imageUrls: reviewedImageUrls,
     }).catch((error) => {
       logServerError(error, {
         source: "listing_publish_ai_review",
@@ -320,10 +321,6 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         altTexts: [] as string[],
       };
     });
-
-    // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text.
-    // Runs regardless of approval status — alt text content is independent of moderation decision.
-    await backfillEmptyAltTexts(listing.id, aiResult.altTexts);
 
     const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
@@ -347,6 +344,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       if (updateResult.count === 0) {
         return { error: "Listing state changed; refresh and try again." };
       }
+      await backfillEmptyAltTexts(listing.id, aiResult.altTexts, reviewedImageUrls);
       await logAdminAction({
         adminId: listing.seller.userId,
         action: "AI_HOLD_LISTING",
@@ -379,6 +377,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       if (updateResult.count === 0) {
         return { error: "Listing state changed; refresh and try again." };
       }
+      await backfillEmptyAltTexts(listing.id, aiResult.altTexts, reviewedImageUrls);
       await prisma.$executeRaw`
         UPDATE "Listing"
         SET status = 'SOLD_OUT'

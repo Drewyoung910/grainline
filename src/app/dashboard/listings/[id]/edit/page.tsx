@@ -526,6 +526,7 @@ async function updateListing(
           take: 10,
         });
         const { reviewListingWithAI } = await import("@/lib/ai-review");
+        const reviewedImageUrls = photos.map((photo) => photo.url);
         const aiResult = await reviewListingWithAI({
           listingId,
           sellerId: sellerCore.sellerProfileId,
@@ -537,7 +538,7 @@ async function updateListing(
           tags,
           sellerName: sellerCore.displayName,
           listingCount: sellerReview.totalListingCount,
-          imageUrls: photos.map((p) => p.url),
+          imageUrls: reviewedImageUrls,
         }).catch(() => ({
           approved: false,
           flags: ["AI review error"] as string[],
@@ -545,10 +546,6 @@ async function updateListing(
           reason: "AI error",
           altTexts: [] as string[],
         }));
-
-        // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-        const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
-        await backfillEmptyAltTexts(listingId, aiResult.altTexts);
 
         const shouldHold =
           !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
@@ -562,6 +559,8 @@ async function updateListing(
             },
           });
           if (holdResult.count > 0) {
+            const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
+            await backfillEmptyAltTexts(listingId, aiResult.altTexts, reviewedImageUrls);
             queueCheckoutSessionExpiryForListing(
               listingId,
               sellerCore.sellerProfileId,
@@ -570,7 +569,7 @@ async function updateListing(
           }
         } else {
           // Stays in the current public status; refresh AI metadata for this pass.
-          await prisma.listing.updateMany({
+          const activationResult = await prisma.listing.updateMany({
             where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
             data: {
               status: approvedPublicStatus,
@@ -578,6 +577,10 @@ async function updateListing(
               aiReviewScore: aiResult.confidence,
             },
           });
+          if (activationResult.count > 0) {
+            const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
+            await backfillEmptyAltTexts(listingId, aiResult.altTexts, reviewedImageUrls);
+          }
         }
       } else {
         // Seller lost chargesEnabled mid-edit: send the listing to draft.
