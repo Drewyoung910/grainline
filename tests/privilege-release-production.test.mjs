@@ -130,7 +130,12 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
   );
   assert.match(emailRelease.compatibleDeployment.minimumAppCommit, /^[0-9a-f]{40}$/u);
   assert.deepEqual(emailRelease.emptyTables, ["EmailFailureCount"]);
-  assert.equal(Object.keys(emailRelease.functions).length, 21);
+  assert.equal(Object.keys(emailRelease.functions).length, 30);
+  assert.deepEqual(emailRelease.functionNamespacePrefixes, [
+    "grainline_email_",
+    "grainline_newsletter_",
+    "grainline_resend_",
+  ]);
   assert.deepEqual(emailRelease.tables, {
     EmailFailureCount: [],
     EmailOutbox: [],

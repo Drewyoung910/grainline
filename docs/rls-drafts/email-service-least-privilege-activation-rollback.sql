@@ -1,9 +1,13 @@
 -- Database-first emergency rollback for the email-service zero-direct
 -- activation. Run this while the compatible fixed-operation app remains live.
 -- It restores predecessor CRUD before any predecessor app may serve traffic.
--- After this transaction and readback succeed, record the ledger reversal:
---   npx prisma migrate resolve --rolled-back \
---     20261101090000_activate_email_service_least_privilege
+-- After the database rollback, restore compatible predecessor application
+-- source and its provisioning/audit expectations. Keep the successfully
+-- applied Prisma ledger row intact: Prisma's rollback resolution accepts
+-- failed migrations only and cannot rewrite this completed row. Do not replay
+-- the successor provisioning script while predecessor CRUD is restored. If
+-- zero-direct activation is needed again, ship a new reviewed forward
+-- migration with a new name.
 
 BEGIN;
 

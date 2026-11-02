@@ -79,6 +79,13 @@ export const SERVICE_REFERENCE_TABLE_PRIVILEGES = Object.freeze({
   Metro: Object.freeze(["SELECT", "INSERT", "UPDATE"]),
   SiteMetricsSnapshot: Object.freeze(["SELECT", "INSERT", "UPDATE"]),
 });
+export const EMAIL_SERVICE_ZERO_DIRECT_TABLES = Object.freeze([
+  "EmailFailureCount",
+  "EmailOutbox",
+  "EmailSuppression",
+  "NewsletterSubscriber",
+  "ResendWebhookEvent",
+]);
 export const SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELETE"];
 export const NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
@@ -173,6 +180,10 @@ export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION =
   "20261101020000_narrow_service_reference_runtime_privileges";
 export const SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256 =
   "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION =
+  "20261101090000_activate_email_service_least_privilege";
+export const EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_SHA256 =
+  "bd46976f767f005fc53d96c3340d3d5b8abf9846240a64334e9837548cfeafdb";
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION =
   "20261013180000_move_provider_identity_seller_private_sql_callers";
 export const SELLER_PROFILE_DEAUTHORIZE_COMPAT_MIGRATION_SHA256 =
@@ -670,6 +681,9 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
 ]);
 
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);
+const EMAIL_SERVICE_ZERO_DIRECT_TABLE_NAME_SET = new Set(
+  EMAIL_SERVICE_ZERO_DIRECT_TABLES,
+);
 const ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLE_NAME_SET = new Set(
   ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLES,
 );
@@ -1730,6 +1744,14 @@ export async function readServiceReferenceLeastPrivilegeState(client) {
     migration: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION,
     checksum: SERVICE_REFERENCE_LEAST_PRIVILEGE_MIGRATION_SHA256,
     label: "service/reference least-privilege",
+  });
+}
+
+export async function readEmailServiceLeastPrivilegeActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION,
+    checksum: EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION_SHA256,
+    label: "email-service least-privilege activation",
   });
 }
 
@@ -2992,6 +3014,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
     && inventory?.serviceReferenceLeastPrivilegeApplied === true
   ) return [...serviceReferencePrivileges];
   if (
+    EMAIL_SERVICE_ZERO_DIRECT_TABLE_NAME_SET.has(tableName)
+    && inventory?.emailServiceLeastPrivilegeActivationApplied === true
+  ) return [];
+  if (
     RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
     || (
       ORDER_ITEM_QUOTE_RUNTIME_LOCKED_TABLE_NAME_SET.has(tableName)
@@ -3519,6 +3545,9 @@ export async function auditLiveDatabase({
   const serviceReferenceLeastPrivilege =
     await readServiceReferenceLeastPrivilegeState(client);
   issues.push(...serviceReferenceLeastPrivilege.issues);
+  const emailServiceLeastPrivilegeActivation =
+    await readEmailServiceLeastPrivilegeActivationState(client);
+  issues.push(...emailServiceLeastPrivilegeActivation.issues);
   const clerkWebhookEventActivation =
     await readClerkWebhookEventActivationState(client);
   issues.push(...clerkWebhookEventActivation.issues);
@@ -3645,6 +3674,8 @@ export async function auditLiveDatabase({
     orderItemQuoteRuntimeLockApplied: orderItemQuoteRuntimeLock.applied,
     serviceReferenceLeastPrivilegeApplied:
       serviceReferenceLeastPrivilege.applied,
+    emailServiceLeastPrivilegeActivationApplied:
+      emailServiceLeastPrivilegeActivation.applied,
     clerkWebhookEventRlsActivationApplied:
       clerkWebhookEventActivation.applied,
     clerkWebhookEventRlsForceApplied:

@@ -27,6 +27,38 @@ DECLARE
   runtime_oid oid;
   staff_oid oid;
   expected_signature text;
+  expected_signatures constant text[] := ARRAY[
+    'public.grainline_email_account_deletion_suppression_clear(text)',
+    'public.grainline_email_hard_suppression_apply(text,text,"EmailSuppressionReason",text,text,jsonb)',
+    'public.grainline_email_one_click_suppression_clear(text)',
+    'public.grainline_email_outbox_account_deletion_fence(text,text[])',
+    'public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)',
+    'public.grainline_email_outbox_cancel_seller_broadcast(text)',
+    'public.grainline_email_outbox_claim_batch(integer)',
+    'public.grainline_email_outbox_claim_one(text)',
+    'public.grainline_email_outbox_complete(text,bigint,uuid,text)',
+    'public.grainline_email_outbox_defer(text,bigint,uuid,text)',
+    'public.grainline_email_outbox_enqueue_legacy(text,text,text,text,text,integer,text,text,text,text,text)',
+    'public.grainline_email_outbox_fail(text,bigint,uuid,text,text)',
+    'public.grainline_email_outbox_redact_deleted_seller(text)',
+    'public.grainline_email_outbox_retention_delete_batch(timestamp without time zone,timestamp without time zone,integer)',
+    'public.grainline_email_outbox_skip(text,bigint,uuid,text)',
+    'public.grainline_email_service_account_deletion_apply()',
+    'public.grainline_email_service_ops_health(timestamp without time zone,timestamp without time zone)',
+    'public.grainline_email_service_owner_export()',
+    'public.grainline_email_suppression_exists(text,text)',
+    'public.grainline_email_unsubscribe_apply(text,jsonb)',
+    'public.grainline_newsletter_confirm(text,timestamp without time zone)',
+    'public.grainline_newsletter_confirmation_valid(text,timestamp without time zone)',
+    'public.grainline_newsletter_expired_unconfirmed_delete_batch(timestamp without time zone,integer)',
+    'public.grainline_newsletter_signup_release(text,text)',
+    'public.grainline_newsletter_signup_reserve(text,text,text,timestamp without time zone,timestamp without time zone,timestamp without time zone)',
+    'public.grainline_newsletter_token_superseded(text,timestamp without time zone)',
+    'public.grainline_resend_webhook_event_complete(text,bigint,uuid,timestamp without time zone)',
+    'public.grainline_resend_webhook_event_fail(text,bigint,uuid,text,timestamp without time zone)',
+    'public.grainline_resend_webhook_event_reserve(text,text,timestamp without time zone,timestamp without time zone,uuid)',
+    'public.grainline_resend_webhook_event_retention_delete_batch(timestamp without time zone,integer)'
+  ]::text[];
   role_state record;
 BEGIN
   SELECT role.oid INTO runtime_oid
@@ -157,29 +189,7 @@ BEGIN
     RAISE EXCEPTION 'EmailFailureCount must be empty before activation';
   END IF;
 
-  FOREACH expected_signature IN ARRAY ARRAY[
-    'public.grainline_email_suppression_exists(text,text)',
-    'public.grainline_email_one_click_suppression_clear(text)',
-    'public.grainline_newsletter_signup_reserve(text,text,text,timestamp without time zone,timestamp without time zone,timestamp without time zone)',
-    'public.grainline_newsletter_signup_release(text,text)',
-    'public.grainline_newsletter_confirmation_valid(text,timestamp without time zone)',
-    'public.grainline_newsletter_confirm(text,timestamp without time zone)',
-    'public.grainline_newsletter_token_superseded(text,timestamp without time zone)',
-    'public.grainline_email_unsubscribe_apply(text,jsonb)',
-    'public.grainline_email_account_deletion_suppression_clear(text)',
-    'public.grainline_email_service_owner_export()',
-    'public.grainline_email_service_account_deletion_apply()',
-    'public.grainline_resend_webhook_event_reserve(text,text,timestamp without time zone,timestamp without time zone,uuid)',
-    'public.grainline_resend_webhook_event_complete(text,bigint,uuid,timestamp without time zone)',
-    'public.grainline_resend_webhook_event_fail(text,bigint,uuid,text,timestamp without time zone)',
-    'public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)',
-    'public.grainline_newsletter_expired_unconfirmed_delete_batch(timestamp without time zone,integer)',
-    'public.grainline_email_outbox_retention_delete_batch(timestamp without time zone,timestamp without time zone,integer)',
-    'public.grainline_resend_webhook_event_retention_delete_batch(timestamp without time zone,integer)',
-    'public.grainline_email_service_ops_health(timestamp without time zone,timestamp without time zone)',
-    'public.grainline_email_outbox_cancel_seller_broadcast(text)',
-    'public.grainline_email_outbox_redact_deleted_seller(text)'
-  ]::text[] LOOP
+  FOREACH expected_signature IN ARRAY expected_signatures LOOP
     IF pg_catalog.to_regprocedure(expected_signature) IS NULL
        OR NOT pg_catalog.has_function_privilege(
          runtime_oid, expected_signature, 'EXECUTE'
@@ -188,35 +198,45 @@ BEGIN
     END IF;
   END LOOP;
 
+  IF (
+    SELECT pg_catalog.array_agg(actual.signature ORDER BY actual.signature)
+      FROM (
+        SELECT pg_catalog.format(
+                 '%I.%I(%s)',
+                 namespace.nspname,
+                 routine.proname,
+                 pg_catalog.replace(
+                   pg_catalog.oidvectortypes(routine.proargtypes),
+                   ', ',
+                   ','
+                 )
+               ) AS signature
+          FROM pg_catalog.pg_proc AS routine
+          JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.oid = routine.pronamespace
+         WHERE namespace.nspname = 'public'
+           AND (
+             routine.proname LIKE 'grainline\_email\_%' ESCAPE '\'
+             OR routine.proname LIKE 'grainline\_newsletter\_%' ESCAPE '\'
+             OR routine.proname LIKE 'grainline\_resend\_%' ESCAPE '\'
+           )
+           AND pg_catalog.has_function_privilege(runtime_oid, routine.oid, 'EXECUTE')
+      ) AS actual
+  ) IS DISTINCT FROM (
+    SELECT pg_catalog.array_agg(expected.signature ORDER BY expected.signature)
+      FROM pg_catalog.unnest(expected_signatures) AS expected(signature)
+  ) THEN
+    RAISE EXCEPTION 'Email service runtime function catalog drifted';
+  END IF;
+
   IF EXISTS (
     SELECT 1
-      FROM pg_catalog.pg_proc AS routine
+      FROM pg_catalog.unnest(expected_signatures) AS expected(signature)
+      JOIN pg_catalog.pg_proc AS routine
+        ON routine.oid = pg_catalog.to_regprocedure(expected.signature)
       JOIN pg_catalog.pg_roles AS owner_role
         ON owner_role.oid = routine.proowner
-     WHERE routine.oid = ANY(ARRAY[
-       'public.grainline_email_suppression_exists(text,text)'::pg_catalog.regprocedure,
-       'public.grainline_email_one_click_suppression_clear(text)'::pg_catalog.regprocedure,
-       'public.grainline_newsletter_signup_reserve(text,text,text,timestamp without time zone,timestamp without time zone,timestamp without time zone)'::pg_catalog.regprocedure,
-       'public.grainline_newsletter_signup_release(text,text)'::pg_catalog.regprocedure,
-       'public.grainline_newsletter_confirmation_valid(text,timestamp without time zone)'::pg_catalog.regprocedure,
-       'public.grainline_newsletter_confirm(text,timestamp without time zone)'::pg_catalog.regprocedure,
-       'public.grainline_newsletter_token_superseded(text,timestamp without time zone)'::pg_catalog.regprocedure,
-       'public.grainline_email_unsubscribe_apply(text,jsonb)'::pg_catalog.regprocedure,
-       'public.grainline_email_account_deletion_suppression_clear(text)'::pg_catalog.regprocedure,
-       'public.grainline_email_service_owner_export()'::pg_catalog.regprocedure,
-       'public.grainline_email_service_account_deletion_apply()'::pg_catalog.regprocedure,
-       'public.grainline_resend_webhook_event_reserve(text,text,timestamp without time zone,timestamp without time zone,uuid)'::pg_catalog.regprocedure,
-       'public.grainline_resend_webhook_event_complete(text,bigint,uuid,timestamp without time zone)'::pg_catalog.regprocedure,
-       'public.grainline_resend_webhook_event_fail(text,bigint,uuid,text,timestamp without time zone)'::pg_catalog.regprocedure,
-       'public.grainline_email_outbox_begin_provider_attempt(text,bigint,uuid)'::pg_catalog.regprocedure,
-       'public.grainline_newsletter_expired_unconfirmed_delete_batch(timestamp without time zone,integer)'::pg_catalog.regprocedure,
-       'public.grainline_email_outbox_retention_delete_batch(timestamp without time zone,timestamp without time zone,integer)'::pg_catalog.regprocedure,
-       'public.grainline_resend_webhook_event_retention_delete_batch(timestamp without time zone,integer)'::pg_catalog.regprocedure,
-       'public.grainline_email_service_ops_health(timestamp without time zone,timestamp without time zone)'::pg_catalog.regprocedure,
-       'public.grainline_email_outbox_cancel_seller_broadcast(text)'::pg_catalog.regprocedure,
-       'public.grainline_email_outbox_redact_deleted_seller(text)'::pg_catalog.regprocedure
-     ])
-       AND (
+     WHERE (
          NOT routine.prosecdef
          OR routine.proconfig IS DISTINCT FROM ARRAY['search_path=pg_catalog']::text[]
          OR NOT (owner_role.rolsuper OR owner_role.rolbypassrls)

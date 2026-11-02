@@ -93,7 +93,7 @@ function classify(rows, release) {
   });
 }
 
-function classifyFunctions(rows, release) {
+export function classifyFunctions(rows, release) {
   const expected = Object.keys(release.functions ?? {}).sort();
   assert.deepEqual(
     rows.map((row) => row.signature),
@@ -101,6 +101,7 @@ function classifyFunctions(rows, release) {
     "reviewed function catalog drifted",
   );
   return rows.map((row) => {
+    const expectedContract = release.functions[row.signature];
     assert.equal(row.exists, true, `${row.signature} is missing`);
     assert.equal(row.security_definer, true, `${row.signature} is not SECURITY DEFINER`);
     assert.deepEqual(
@@ -114,11 +115,35 @@ function classifyFunctions(rows, release) {
     const sourceSha256 = createHash("sha256").update(row.source).digest("hex");
     assert.equal(
       sourceSha256,
-      release.functions[row.signature],
+      expectedContract.sourceSha256,
       `${row.signature} source drifted`,
     );
-    return Object.freeze({ signature: row.signature, sourceSha256 });
+    assert.equal(row.language, expectedContract.language, `${row.signature} language drifted`);
+    assert.equal(row.result, expectedContract.result, `${row.signature} result drifted`);
+    assert.equal(row.volatility, expectedContract.volatility, `${row.signature} volatility drifted`);
+    assert.equal(row.strict, expectedContract.strict, `${row.signature} strictness drifted`);
+    assert.equal(row.leakproof, expectedContract.leakproof, `${row.signature} leakproof posture drifted`);
+    assert.equal(row.parallel_safety, expectedContract.parallelSafety, `${row.signature} parallel safety drifted`);
+    assert.equal(row.function_kind, expectedContract.kind, `${row.signature} function kind drifted`);
+    return Object.freeze({
+      signature: row.signature,
+      sourceSha256,
+      language: row.language,
+      result: row.result,
+      volatility: row.volatility,
+      strict: row.strict,
+      leakproof: row.leakproof,
+      parallelSafety: row.parallel_safety,
+      kind: row.function_kind,
+    });
   });
+}
+
+export function classifyFunctionNamespace(rows, release) {
+  const expected = Object.keys(release.functions ?? {}).sort();
+  const actual = rows.map((row) => row.signature);
+  assert.deepEqual(actual, expected, "runtime function namespace drifted");
+  return Object.freeze([...actual]);
 }
 
 export async function inspectPrivilegeReleaseProduction(
@@ -256,6 +281,13 @@ export async function inspectPrivilegeReleaseProduction(
              routine.prosrc AS source,
              routine.prosecdef AS security_definer,
              routine.proconfig AS configuration,
+             language.lanname AS language,
+             pg_catalog.pg_get_function_result(routine.oid) AS result,
+             routine.provolatile AS volatility,
+             routine.proisstrict AS strict,
+             routine.proleakproof AS leakproof,
+             routine.proparallel AS parallel_safety,
+             routine.prokind AS function_kind,
              owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
              EXISTS (
                SELECT 1
@@ -271,10 +303,45 @@ export async function inspectPrivilegeReleaseProduction(
         LEFT JOIN pg_catalog.pg_proc AS routine
           ON routine.oid = pg_catalog.to_regprocedure(expected.signature)
         LEFT JOIN pg_catalog.pg_roles AS owner ON owner.oid = routine.proowner
+        LEFT JOIN pg_catalog.pg_language AS language ON language.oid = routine.prolang
         CROSS JOIN pg_catalog.pg_roles AS runtime_role
        WHERE runtime_role.rolname = 'grainline_app_runtime'
        ORDER BY expected.signature
     `, [functionSignatures])).rows;
+    const functionNamespacePrefixes = release.functionNamespacePrefixes ?? [];
+    if (functionNamespacePrefixes.length > 0) {
+      const runtimeNamespaceFunctions = (await client.query(`
+        SELECT pg_catalog.format(
+                 '%I.%I(%s)',
+                 namespace.nspname,
+                 routine.proname,
+                 pg_catalog.replace(
+                   pg_catalog.oidvectortypes(routine.proargtypes),
+                   ', ',
+                   ','
+                 )
+               ) AS signature
+          FROM pg_catalog.pg_proc AS routine
+          JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.oid = routine.pronamespace
+          CROSS JOIN pg_catalog.pg_roles AS runtime_role
+         WHERE namespace.nspname = 'public'
+           AND runtime_role.rolname = 'grainline_app_runtime'
+           AND pg_catalog.has_function_privilege(
+                 runtime_role.oid,
+                 routine.oid,
+                 'EXECUTE'
+               )
+           AND EXISTS (
+             SELECT 1
+               FROM pg_catalog.unnest($1::text[]) AS prefix(value)
+              WHERE pg_catalog.left(routine.proname, pg_catalog.length(prefix.value))
+                    = prefix.value
+           )
+         ORDER BY signature
+      `, [functionNamespacePrefixes])).rows;
+      classifyFunctionNamespace(runtimeNamespaceFunctions, release);
+    }
     const functions = classifyFunctions(functionRows, release);
     for (const table of release.emptyTables ?? []) {
       assert.ok(Object.hasOwn(release.tables, table), "empty table is outside release catalog");

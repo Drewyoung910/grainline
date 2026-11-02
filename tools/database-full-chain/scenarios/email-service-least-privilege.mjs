@@ -238,11 +238,20 @@ export async function seedEmailServiceLeastPrivilegePredecessor({ database }) {
 export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fixture }) {
   const expectedFunctions = [
     "grainline_email_account_deletion_suppression_clear",
+    "grainline_email_hard_suppression_apply",
     "grainline_email_one_click_suppression_clear",
+    "grainline_email_outbox_account_deletion_fence",
     "grainline_email_outbox_begin_provider_attempt",
     "grainline_email_outbox_cancel_seller_broadcast",
+    "grainline_email_outbox_claim_batch",
+    "grainline_email_outbox_claim_one",
+    "grainline_email_outbox_complete",
+    "grainline_email_outbox_defer",
+    "grainline_email_outbox_enqueue_legacy",
+    "grainline_email_outbox_fail",
     "grainline_email_outbox_redact_deleted_seller",
     "grainline_email_outbox_retention_delete_batch",
+    "grainline_email_outbox_skip",
     "grainline_email_service_account_deletion_apply",
     "grainline_email_service_ops_health",
     "grainline_email_service_owner_export",
@@ -274,9 +283,23 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
               WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
            ) AS "publicExecute"
       FROM pg_catalog.pg_proc AS routine
-     WHERE routine.proname = ANY($1::text[])
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = routine.pronamespace
+      CROSS JOIN pg_catalog.pg_roles AS runtime_role
+     WHERE namespace.nspname = 'public'
+       AND runtime_role.rolname = 'grainline_app_runtime'
+       AND (
+         routine.proname LIKE 'grainline\_email\_%' ESCAPE '\'
+         OR routine.proname LIKE 'grainline\_newsletter\_%' ESCAPE '\'
+         OR routine.proname LIKE 'grainline\_resend\_%' ESCAPE '\'
+       )
+       AND pg_catalog.has_function_privilege(
+             runtime_role.oid,
+             routine.oid,
+             'EXECUTE'
+           )
      ORDER BY routine.proname
-  `, [expectedFunctions]));
+  `));
   assert.deepEqual(functionRows.map((row) => row.name), expectedFunctions);
   for (const row of functionRows) {
     assert.equal(row.securityDefiner, true, row.name);
