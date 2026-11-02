@@ -16,16 +16,16 @@ test("version-bound owner AI review writes use one actor-bound authority", async
 
   assert.match(
     migration,
-    /CREATE FUNCTION public\.grainline_listing_owner_review_transition\(\s*p_listing_id text,\s*p_reviewed_at timestamp without time zone,\s*p_status text,\s*p_flags text\[\],\s*p_score double precision\s*\)/u,
+    /CREATE FUNCTION public\.grainline_listing_owner_review_transition\(\s*p_listing_id text,\s*p_reviewed_at timestamp without time zone,\s*p_source_status text,\s*p_status text,\s*p_flags text\[\],\s*p_score double precision\s*\)/u,
   );
   assert.match(migration, /current_setting\('app\.user_id', true\)/u);
-  assert.match(migration, /p_status NOT IN \('PENDING_REVIEW', 'ACTIVE', 'SOLD_OUT', 'DRAFT'\)/u);
-  assert.match(migration, /source_listing\.status::text <> 'PENDING_REVIEW'/u);
+  assert.match(migration, /p_source_status = 'PENDING_REVIEW'[\s\S]*p_status IN \('PENDING_REVIEW', 'ACTIVE', 'SOLD_OUT', 'DRAFT'\)/u);
+  assert.match(migration, /source_listing\.status::text <> p_source_status/u);
   assert.match(migration, /source_listing\."updatedAt" IS DISTINCT FROM p_reviewed_at/u);
   assert.match(migration, /FOR UPDATE/u);
   assert.match(
     migration,
-    /GRANT EXECUTE ON FUNCTION public\.grainline_listing_owner_review_transition\(\s*text,timestamp without time zone,text,text\[\],double precision\s*\)[\s\S]*TO grainline_app_runtime/u,
+    /GRANT EXECUTE ON FUNCTION public\.grainline_listing_owner_review_transition\(\s*text,timestamp without time zone,text,text,text\[\],double precision\s*\)[\s\S]*TO grainline_app_runtime/u,
   );
 
   assert.match(helper, /withDbUserContext\(userId,/u);
@@ -36,6 +36,6 @@ test("version-bound owner AI review writes use one actor-bound authority", async
   assert.equal(editPage.match(/applyVersionBoundListingAiReviewTransition\(actor\.id,/gu)?.length, 3);
   assert.match(
     provision,
-    /public\."grainline_listing_owner_review_transition"\(text,timestamp without time zone,text,text\[\],double precision\)'\s*,\s*true/u,
+    /public\."grainline_listing_owner_review_transition"\(text,timestamp without time zone,text,text,text\[\],double precision\)'\s*,\s*true/u,
   );
 });
