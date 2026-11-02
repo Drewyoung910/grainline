@@ -662,12 +662,14 @@ describe("post-launch UI follow-ups", () => {
 
   it("keeps listing similar makers public-scoped and visually bounded", () => {
     const listingPage = source("src/app/listing/[id]/page.tsx");
+    const listingDetailAccess = source("src/lib/listingDetailAccess.ts");
     const similarMakers = source("src/components/SimilarMakers.tsx");
     const docs = source("CLAUDE.md");
 
     assert.match(listingPage, /import SimilarMakers from "@\/components\/SimilarMakers"/);
-    assert.match(listingPage, /metroId: true/);
-    assert.match(listingPage, /cityMetroId: true/);
+    assert.match(listingPage, /listingActorDetailSource\(/);
+    assert.match(listingDetailAccess, /metroId: row\.metroId/);
+    assert.match(listingDetailAccess, /cityMetroId: row\.cityMetroId/);
     assert.match(listingPage, /<SimilarMakers[\s\S]*listingId=\{listing\.id\}[\s\S]*viewerUserId=\{meId\}/);
 
     assert.match(similarMakers, /sellerPublicSimilarMakers\(/);
