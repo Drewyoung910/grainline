@@ -147,7 +147,6 @@ describe("Conversation and Message application authority conversion", () => {
   });
 
   it("keeps account export and report validation on actor-scoped projections", () => {
-    const helper = source("src/lib/conversationMessageAuthority.ts");
     const reportAccess = source("src/lib/userReportAccess.ts");
     const accountExport = source("src/app/api/account/export/route.ts");
     const report = source("src/app/api/users/[id]/report/route.ts");
