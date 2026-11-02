@@ -31,6 +31,11 @@ import {
 } from "@/lib/sellerProfileOwnerAccess";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+const customOrderReadyWarning = "Listing is live, but the buyer was not notified. Contact support; delivery is safe to retry.";
+
+type PublishListingResult =
+  | { status: "ACTIVE" | "PENDING_REVIEW"; warning?: string }
+  | { error: string };
 
 async function findOwnedListing(
   listingId: string,
@@ -266,7 +271,7 @@ export async function markAvailableAction(listingId: string) {
   return result;
 }
 
-export async function publishListingAction(listingId: string): Promise<{ status: "ACTIVE" | "PENDING_REVIEW" } | { error: string }> {
+export async function publishListingAction(listingId: string): Promise<PublishListingResult> {
   const owned = await getOwnedListing(listingId);
   if (!owned.ok) return { error: owned.error };
   const listing = owned.listing;
@@ -387,11 +392,22 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           AND COALESCE("stockQuantity", 0) <= 0
           AND status = 'ACTIVE'
       `;
+      let warning: string | undefined;
       if (listing.isPrivate && listing.reservedForUserId && listing.customOrderConversationId) {
-        await sendCustomOrderReadyLink({
-          listingId,
-          sellerUserId: listing.seller.userId,
-        });
+        try {
+          const readyLink = await sendCustomOrderReadyLink({
+            listingId,
+            sellerUserId: listing.seller.userId,
+          });
+          if (!readyLink.messageDelivered) warning = customOrderReadyWarning;
+        } catch (error) {
+          warning = customOrderReadyWarning;
+          logServerError(error, {
+            source: "listing_publish_custom_order_ready_delivery",
+            level: "warning",
+            extra: { listingId, sellerProfileId: listing.sellerId },
+          });
+        }
       }
       await syncThreshold(listing.sellerId);
       // First active listing for this seller might earn the Founding Maker badge.
@@ -400,7 +416,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         queueFollowerFanoutForActiveListing(listing);
       }
       revalidateListingSurfaces(listingId, listing.sellerId);
-      return { status: "ACTIVE" };
+      return { status: "ACTIVE", ...(warning ? { warning } : {}) };
     }
   } catch (error) {
     logServerError(error, {

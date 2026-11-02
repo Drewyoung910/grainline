@@ -28,6 +28,11 @@ import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { listingPriceMaxError } from "@/lib/listingPrice";
 import {
+  MAX_LISTING_MATERIAL_CODE_POINTS,
+  MAX_LISTING_MATERIALS,
+  parseListingMaterials,
+} from "@/lib/listingMaterials";
+import {
   normalizeVariantPriceAdjustCents,
   validateVariantGroupsForBasePrice,
 } from "@/lib/listingVariants";
@@ -140,10 +145,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
-  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
-  const materials = materialsRaw
-    ? materialsRaw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20)
-    : [];
+  const materialsResult = parseListingMaterials(String(formData.get("materials") ?? ""));
+  if (!materialsResult.ok) return { ok: false, error: materialsResult.error };
+  const materials = materialsResult.value;
 
   // Product dimensions (inches — stored directly, separate from packaged dims)
   const productLengthIn = Number(String(formData.get("productLengthIn") ?? "").trim()) || null;
@@ -579,7 +583,9 @@ export default async function NewListingPage({
             placeholder="e.g. walnut, maple, brass hardware"
             className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
           />
-          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            Comma-separated, up to {MAX_LISTING_MATERIALS}; {MAX_LISTING_MATERIAL_CODE_POINTS} characters each.
+          </p>
         </div>
 
         <div>

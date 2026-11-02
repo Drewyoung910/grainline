@@ -29,6 +29,27 @@ const ReviewActionSchema = z.object({
   reason: z.string().max(500).nullish(),
 })
 const ADMIN_LISTING_REVIEW_BODY_MAX_BYTES = 16 * 1024
+const customOrderReadyWarning = 'Listing was approved, but the buyer was not notified. Contact support; delivery is safe to retry.'
+
+async function deliverCustomOrderReadyLink(listing: {
+  id: string
+  seller: { userId: string }
+}) {
+  try {
+    const result = await sendCustomOrderReadyLink({
+      listingId: listing.id,
+      sellerUserId: listing.seller.userId,
+    })
+    return result.messageDelivered ? null : customOrderReadyWarning
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: 'warning',
+      tags: { source: 'admin_listing_review_custom_order_ready_delivery' },
+      extra: { listingId: listing.id, sellerUserId: listing.seller.userId },
+    })
+    return customOrderReadyWarning
+  }
+}
 
 function sellerUnavailableReason(seller: {
   chargesEnabled: boolean
@@ -139,9 +160,12 @@ export async function PATCH(
       listing.customOrderConversationId &&
       listing.reservedForUserId
     ) {
-      await sendCustomOrderReadyLink({
-        listingId: listing.id,
-        sellerUserId: listing.seller.userId,
+      const warning = await deliverCustomOrderReadyLink(listing)
+      return privateJson({
+        ok: true,
+        skipped: true,
+        reason: 'Listing is no longer pending review.',
+        ...(warning ? { warning } : {}),
       })
     }
     return privateJson({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
@@ -151,6 +175,7 @@ export async function PATCH(
   }
 
   if (action === 'approve') {
+    let warning: string | null = null
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_approve_guild_threshold')
@@ -167,10 +192,7 @@ export async function PATCH(
       }
       queueAdminApprovedListingFollowerFanout(listing)
       if (listing.customOrderConversationId && listing.reservedForUserId) {
-        await sendCustomOrderReadyLink({
-          listingId: listing.id,
-          sellerUserId: listing.seller.userId,
-        })
+        warning = await deliverCustomOrderReadyLink(listing)
       }
     }
     const notificationBody = listing.status === 'SOLD_OUT'
@@ -191,6 +213,7 @@ export async function PATCH(
         extra: { listingId: id, sellerUserId: listing.seller.userId, action },
       })
     })
+    return privateJson({ ok: true, ...(warning ? { warning } : {}) })
   } else if (action === 'reject') {
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
