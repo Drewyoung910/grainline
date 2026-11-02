@@ -83,17 +83,20 @@ describe("account-state residue hardening", () => {
 
     assert.match(
       deletion,
-      /sellerProfileViewDaily\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s,
+      /clearSellerProfileViewDailyForAccountDeletion\(tx, \{\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\}\)/s,
     );
+    assert.doesNotMatch(deletion, /sellerProfileViewDaily\.deleteMany/);
   });
 
   it("removes deleted seller FAQs from retained seller profiles", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const faqDelete = deletion.indexOf("await tx.sellerFaq.deleteMany");
+    const faqDelete = deletion.indexOf("await cleanupSellerFaqsForAccountDeletion(tx");
     const profileUpdate = deletion.indexOf("await anonymizeSellerForAccountDeletion(tx");
 
     assert.ok(faqDelete >= 0, "account deletion should remove seller FAQs");
-    assert.match(deletion.slice(faqDelete, profileUpdate), /where: \{ sellerProfileId: user\.sellerProfile\.id \}/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /expectedUserId: user\.id/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /claimGeneration: localClaimGeneration/);
+    assert.match(deletion.slice(faqDelete, profileUpdate), /claimToken: localClaimToken/);
     assert.ok(faqDelete < profileUpdate, "FAQ deletion should happen before the retained seller profile is anonymized");
   });
 
@@ -104,9 +107,10 @@ describe("account-state residue hardening", () => {
     assert.match(reportsPage, /if \(user\.deletedAt\) return "Deleted user"/);
     assert.match(reportsPage, /function reportUserSearchValue/);
     assert.match(reportsPage, /if \(!user \|\| user\.deletedAt\) return ""/);
-    assert.match(reportsPage, /userStaffAdminLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: reports\.flatMap\(\(report\) => \[report\.reporterId, report\.reportedId\]\),/s);
+    assert.match(reportsPage, /const staffClient = getOrderStaffReadClient\(\)/);
+    assert.match(reportsPage, /userStaffAdminLabels\(staffClient, \{\s*actorId: staff\.id,\s*userIds: reports\.flatMap\(\(report\) => \[report\.reporterId, report\.reportedId\]\),/s);
     assert.match(reportsPage, /const reportUserById = new Map\(reportUsers\.map\(\(user\) => \[user\.id, user\]\)\)/);
-    assert.match(reportsPage, /userStaffReportLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
+    assert.match(reportsPage, /userStaffReportLabels\(staffClient, \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
     assert.match(source("src/lib/userStaffAccess.ts"), /UserStaffReportLabel = UserStaffEmailTarget & \{\s*deletedAt: Date \| null;/s);
     assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reporterId\)\)/);
     assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reportedId\)\)/);
@@ -163,14 +167,15 @@ describe("account-state residue hardening", () => {
         helperStart,
       ),
     );
-    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now)");
-    const broadcastDeleteIndex = deletion.indexOf("await tx.sellerBroadcast.deleteMany");
+    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now, {");
+    const broadcastDeleteIndex = deletion.indexOf("await cleanupAccountSellerBroadcasts(tx");
     const listingAnonymizeIndex = deletion.indexOf("await tx.listing.updateMany");
     const blogArchiveIndex = deletion.indexOf("await archiveBlogPostsForDeletedAccount");
 
     assert.ok(helperStart >= 0, "account deletion should have a seller fanout cleanup helper");
     assert.ok(callIndex >= 0, "account deletion should call seller fanout cleanup");
     assert.ok(callIndex < broadcastDeleteIndex, "fanout cleanup should run before broadcast rows are deleted");
+    assert.doesNotMatch(deletion, /tx\.sellerBroadcast\./);
     assert.ok(callIndex < listingAnonymizeIndex, "fanout cleanup should collect listing ids before listing anonymization");
     assert.ok(callIndex < blogArchiveIndex, "fanout cleanup should collect blog slugs before blog archive slugs are written");
     assert.match(deletion, /await deleteAccountNotificationServiceRows\(tx, user\.id\)/);

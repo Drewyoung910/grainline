@@ -114,8 +114,16 @@ test("staff admin label source keeps the isolated role and bounded callers", () 
   assert.match(access, /grainline_user_staff_admin_labels/);
   assert.match(migration, /account_user\."createdAt"/);
   for (const page of pages) {
-    assert.match(page, /userStaffAdminLabels\(getOrderStaffReadClient\(\), \{/);
+    assert.match(page, /getOrderStaffReadClient\(\)/);
+    assert.match(
+      page,
+      /userStaffAdminLabels\((?:getOrderStaffReadClient\(\)|staffClient), \{/,
+    );
   }
+  const broadcasts = pages.find((page) => page.includes("staffSellerBroadcastPage"));
+  assert.ok(broadcasts);
+  assert.match(broadcasts, /const staffClient = getOrderStaffReadClient\(\)/);
+  assert.match(broadcasts, /userStaffAdminLabels\(staffClient, \{/);
   assert.match(verification, /sellerAccount\.createdAt\.getTime\(\)/);
   assert.match(verification, /verification\.sellerProfile\.ownerAccountActive/);
   assert.doesNotMatch(verification, /user:\s*\{\s*(?:select|banned|deletedAt)/);
