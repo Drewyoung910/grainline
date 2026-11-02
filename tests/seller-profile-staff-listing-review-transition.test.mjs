@@ -28,7 +28,7 @@ test("admin listing review uses one isolated-staff transition", () => {
 });
 
 test("staff listing decisions bind the exact content version shown in the queue", () => {
-  assert.match(reviewPage, /updatedAt: true/u);
+  assert.match(reviewPage, /sellerProfileStaffListingReviewQueue\(/u);
   assert.match(reviewPage, /reviewedAt=\{listing\.updatedAt\.toISOString\(\)\}/u);
   assert.match(reviewButtons, /reviewedAt: string/u);
   assert.match(reviewButtons, /JSON\.stringify\(\{ action, reason: trimmedReason, reviewedAt \}\)/u);
