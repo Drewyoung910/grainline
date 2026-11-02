@@ -91,6 +91,7 @@ const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_remove_transition",
   "grainline_seller_staff_listing_undo_transition",
+  "grainline_seller_staff_listing_review_queue",
   "grainline_listing_message_context_titles",
   "grainline_listing_materials_guard",
 ]);

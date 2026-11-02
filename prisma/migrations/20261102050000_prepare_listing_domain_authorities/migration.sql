@@ -43,6 +43,11 @@ BEGIN
     RAISE EXCEPTION 'Listing protected staff-undo authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_seller_staff_listing_review_queue(text,integer)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing protected staff-review queue already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -535,6 +540,98 @@ REVOKE ALL ON FUNCTION public.grainline_seller_staff_listing_undo_transition(
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_seller_staff_listing_undo_transition(
   text,text,text
+) TO grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_seller_staff_listing_review_queue(
+  p_actor_id text,
+  p_limit integer
+)
+RETURNS TABLE (
+  "totalPending" bigint,
+  "listingId" text,
+  "sellerProfileId" text,
+  title text,
+  "priceCents" integer,
+  currency text,
+  "createdAt" timestamp(3) without time zone,
+  "updatedAt" timestamp(3) without time zone,
+  "aiReviewFlags" text[],
+  "aiReviewScore" double precision,
+  "photoUrl" text,
+  "sellerListingCount" bigint
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_seller_staff_listing_review_queue$
+BEGIN
+  IF SESSION_USER <> 'grainline_staff_read_runtime' THEN
+    RAISE EXCEPTION 'Seller listing review queue requires the isolated staff session'
+      USING ERRCODE = '42501';
+  END IF;
+  IF p_actor_id IS NULL
+     OR p_actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_limit IS NULL
+     OR p_limit < 1
+     OR p_limit > 100 THEN
+    RAISE EXCEPTION 'Seller listing review queue input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS actor
+   WHERE actor.id = p_actor_id
+     AND actor.role::text IN ('ADMIN', 'EMPLOYEE')
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Seller listing review queue actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  WITH pending AS MATERIALIZED (
+    SELECT source_listing.*
+      FROM public."Listing" AS source_listing
+     WHERE source_listing.status::text = 'PENDING_REVIEW'
+  )
+  SELECT
+    (SELECT pg_catalog.count(*) FROM pending)::bigint,
+    listing.id::text,
+    listing."sellerId"::text,
+    listing.title::text,
+    listing."priceCents",
+    listing.currency::text,
+    listing."createdAt",
+    listing."updatedAt",
+    listing."aiReviewFlags"::text[],
+    listing."aiReviewScore",
+    first_photo.url::text,
+    (
+      SELECT pg_catalog.count(*)
+        FROM public."Listing" AS seller_listing
+       WHERE seller_listing."sellerId" = listing."sellerId"
+    )::bigint
+    FROM pending AS listing
+    LEFT JOIN LATERAL (
+      SELECT photo.url
+        FROM public."Photo" AS photo
+       WHERE photo."listingId" = listing.id
+       ORDER BY photo."sortOrder" ASC, photo.id ASC
+       LIMIT 1
+    ) AS first_photo ON true
+   ORDER BY listing."createdAt" ASC, listing.id ASC
+   LIMIT p_limit;
+END
+$grainline_seller_staff_listing_review_queue$;
+
+REVOKE ALL ON FUNCTION public.grainline_seller_staff_listing_review_queue(
+  text,integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_seller_staff_listing_review_queue(
+  text,integer
 ) TO grainline_staff_read_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(

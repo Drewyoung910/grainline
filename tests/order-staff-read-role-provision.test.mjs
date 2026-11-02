@@ -81,6 +81,7 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
     'public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)',
     'public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)',
     'public."grainline_seller_staff_listing_undo_transition"(text, text, text)',
+    'public."grainline_seller_staff_listing_review_queue"(text, integer)',
   ]) {
     assert.match(script, new RegExp(signature.replace(/[()]/gu, "\\$&"), "u"));
   }
