@@ -157,17 +157,12 @@ describe("seller public page query guardrails", () => {
     assert.match(sellerShopPage, /const seller = await getSellerProfileForShopPage\(meId, sellerId\)/);
     assert.match(
       sellerShopPage,
-      /const \[\s*followState,\s*categoryGroups,\s*total,\s*\] = await Promise\.all\(\[/,
+      /const \[\s*followState,\s*availableCategoryRows,\s*total,\s*\] = await Promise\.all\(\[/,
     );
     assert.match(sellerShopPage, /sellerPublicFollowState\(sellerId, meId \?\? undefined\)/);
-    assert.ok(
-      sellerShopPage.indexOf("prisma.listing.groupBy({") < sellerShopPage.indexOf("const totalPages ="),
-      "seller shop category groups should be fetched in the shared pre-pagination batch",
-    );
-    assert.ok(
-      sellerShopPage.indexOf("prisma.listing.count({ where })") < sellerShopPage.indexOf("const totalPages ="),
-      "seller shop total count should be fetched in the shared pre-pagination batch",
-    );
+    assert.match(sellerShopPage, /const categoryPromise:[\s\S]*isOwner[\s\S]*prisma\.listing\.groupBy\([\s\S]*listingPublicCatalogPage\(/);
+    assert.match(sellerShopPage, /const totalPromise = isOwner[\s\S]*prisma\.listing\.count\(\{ where \}\)[\s\S]*listingPublicCatalogCount\(/);
+    assert.match(sellerShopPage, /Promise\.all\(\[[\s\S]*categoryPromise,[\s\S]*totalPromise,/);
     assert.ok(
       sellerShopPage.indexOf("const totalPages =") < sellerShopPage.indexOf("const listings = await prisma.listing.findMany"),
       "seller shop listing fetch should still wait for page clamping",
