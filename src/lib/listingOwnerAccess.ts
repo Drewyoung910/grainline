@@ -226,6 +226,11 @@ type ListingOwnerTransitionRow = {
   applied: unknown;
 };
 
+type ListingOwnerMetroAssignmentRow = {
+  applied: unknown;
+  updatedAt: unknown;
+};
+
 export type ListingOwnerTransitionOperation =
   | "HIDE"
   | "MARK_SOLD"
@@ -581,6 +586,52 @@ export function listingOwnerActionState(userId: string, listingId: string) {
     userId,
     (client) => readListingOwnerActionState(client, listingId),
   );
+}
+
+export function assignListingOwnerMetros(
+  userId: string,
+  input: Readonly<{
+    listingId: string;
+    expectedUpdatedAt: Date;
+    metroId: string;
+    cityMetroId: string | null;
+  }>,
+) {
+  if (
+    !validId(input.listingId)
+    || !validDate(input.expectedUpdatedAt)
+    || !validId(input.metroId)
+    || !(input.cityMetroId === null || validId(input.cityMetroId))
+  ) {
+    throw new RangeError("Listing owner metro-assignment input is invalid");
+  }
+
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<ListingOwnerMetroAssignmentRow[]>`
+      SELECT *
+        FROM public.grainline_listing_owner_assign_metros(
+          ${input.listingId}::text,
+          ${input.expectedUpdatedAt}::timestamp,
+          ${input.metroId}::text,
+          ${input.cityMetroId}::text
+        )
+    `;
+    const row = rows[0];
+    if (
+      rows.length !== 1
+      || typeof row?.applied !== "boolean"
+      || (
+        row.applied
+          ? !(row.updatedAt instanceof Date && Number.isFinite(row.updatedAt.getTime()))
+          : row.updatedAt !== null
+      )
+    ) {
+      throw new Error("Listing owner metro-assignment authority returned an invalid result");
+    }
+    return row.applied
+      ? Object.freeze({ applied: true as const, updatedAt: row.updatedAt as Date })
+      : Object.freeze({ applied: false as const, updatedAt: null });
+  });
 }
 
 export function listingOwnerTransition(
