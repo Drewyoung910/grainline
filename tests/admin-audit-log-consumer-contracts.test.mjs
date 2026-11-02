@@ -8,19 +8,17 @@ import {
 describe("AdminAuditLog pre-RLS consumer contracts", () => {
   it("pins every current direct delegate operation until conversion reaches zero", () => {
     const inventory = assertAdminAuditLogConsumerContracts();
-    assert.equal(Object.keys(inventory.directCallers).length, 2);
+    assert.equal(Object.keys(inventory.directCallers).length, 0);
     assert.equal(
       Object.values(inventory.directCallers).reduce(
         (count, operations) => count + operations.length,
         0,
       ),
-      3,
+      0,
     );
   });
 
-  it("pins the one current direct raw SQL caller", () => {
-    assert.deepEqual(adminAuditLogConsumerInventory().rawSqlCallers, [
-      "src/lib/accountDeletion.ts",
-    ]);
+  it("rejects any direct raw SQL caller", () => {
+    assert.deepEqual(adminAuditLogConsumerInventory().rawSqlCallers, []);
   });
 });

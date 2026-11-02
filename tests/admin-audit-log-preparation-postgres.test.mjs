@@ -14,6 +14,7 @@ async function readyDatabase() {
   await database.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
     CREATE ROLE grainline_staff_read_runtime LOGIN NOINHERIT;
+    CREATE ROLE grainline_account_deletion_runtime LOGIN NOINHERIT;
     CREATE ROLE grainline_untrusted LOGIN NOINHERIT;
 
     CREATE TYPE public."Role" AS ENUM ('USER', 'EMPLOYEE', 'ADMIN');
@@ -69,6 +70,23 @@ async function readyDatabase() {
       ON public."AdminAuditLog" ("targetType", "targetId");
     CREATE INDEX "AdminAuditLog_undone_idx"
       ON public."AdminAuditLog" (undone);
+    CREATE TABLE public."AccountDeletionSideEffect" (
+      id text PRIMARY KEY,
+      "userId" varchar(191) NOT NULL,
+      kind varchar(40) NOT NULL,
+      "dedupKey" varchar(300) NOT NULL UNIQUE,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      status varchar(20) NOT NULL DEFAULT 'PENDING',
+      attempts integer NOT NULL DEFAULT 0,
+      "claimGeneration" bigint NOT NULL DEFAULT 0,
+      "claimToken" uuid,
+      "processingStartedAt" timestamp(3) without time zone,
+      "nextAttemptAt" timestamp(3) without time zone,
+      "processedAt" timestamp(3) without time zone,
+      "lastError" varchar(1000),
+      "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
 
     GRANT SELECT, INSERT, UPDATE, DELETE
       ON public."AdminAuditLog" TO grainline_app_runtime;
@@ -110,6 +128,17 @@ async function asRuntime(database, actorId, query, params = []) {
   } catch (error) {
     await database.exec("ROLLBACK").catch(() => {});
     throw error;
+  }
+}
+
+async function asAccountDeletionRuntime(database, query, params = []) {
+  await database.exec("SET SESSION AUTHORIZATION grainline_account_deletion_runtime");
+  try {
+    return await database.query(query, params);
+  } finally {
+    // PGlite does not restore the bootstrap user for RESET/DEFAULT here.
+    // Production proofs connect as the dedicated role instead.
+    await database.exec("SET SESSION AUTHORIZATION postgres");
   }
 }
 
@@ -182,7 +211,32 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
                'grainline_staff_read_runtime',
                'public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)',
                'EXECUTE'
-             ) AS staff_ban_repair_append
+             ) AS staff_ban_repair_append,
+             pg_catalog.has_function_privilege(
+               'grainline_account_deletion_runtime',
+               'public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)',
+               'EXECUTE'
+             ) AS deletion_candidates,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)',
+               'EXECUTE'
+             ) AS runtime_deletion_candidates,
+             pg_catalog.has_function_privilege(
+               'grainline_staff_read_runtime',
+               'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean)',
+               'EXECUTE'
+             ) AS staff_deletion_apply,
+             pg_catalog.has_function_privilege(
+               'grainline_account_deletion_runtime',
+               'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
+               'EXECUTE'
+             ) AS deletion_legacy_apply,
+             pg_catalog.has_function_privilege(
+               'grainline_app_runtime',
+               'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
+               'EXECUTE'
+             ) AS runtime_deletion_legacy_apply
         FROM pg_catalog.pg_class AS relation
        WHERE relation.oid = 'public."AdminAuditLog"'::pg_catalog.regclass
     `);
@@ -201,7 +255,235 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
       staff_undo_source: true,
       runtime_ban_repair_append: false,
       staff_ban_repair_append: true,
+      deletion_candidates: true,
+      runtime_deletion_candidates: false,
+      staff_deletion_apply: false,
+      deletion_legacy_apply: true,
+      runtime_deletion_legacy_apply: false,
     });
+  } finally {
+    await database.close();
+  }
+});
+
+test("account deletion drains legacy redactions without restoring newer redacted data", async () => {
+  const database = await readyDatabase();
+  try {
+    const claimToken = "11111111-1111-4111-8111-111111111111";
+    await database.query(
+      `INSERT INTO public."User" (id, "deletedAt")
+       VALUES ('proof-deleted', '2026-11-02 10:00:00'::timestamp)`,
+    );
+    await database.query(
+      `INSERT INTO public."AdminAuditLog" (
+         id, "adminId", action, "targetType", "targetId", metadata,
+         reason, undone, "undoneAt", "undoneBy", "undoneReason"
+       ) VALUES
+       (
+         'proof-delete-audit', 'proof-deleted', 'USER_ACCOUNT_DELETE',
+         'USER', 'proof-deleted', '{"actorKind":"user"}'::jsonb, NULL,
+         false, NULL, NULL, NULL
+       ),
+       (
+         'proof-legacy-target', 'proof-admin', 'BAN_USER', 'USER',
+         'proof-deleted', '{"userId":"proof-deleted"}'::jsonb,
+         'deleted proof-deleted', true, '2026-11-02 10:01:00'::timestamp,
+         'proof-admin-two', 'reviewed reversal'
+       )`,
+    );
+    await database.query(
+      `INSERT INTO public."AccountDeletionSideEffect" (
+         id, "userId", kind, "dedupKey", payload, status,
+         "claimGeneration", "claimToken", "processingStartedAt"
+       ) VALUES (
+         'proof-legacy-effect', 'proof-deleted', 'AUDIT_REDACT',
+         'account-delete:audit:proof-deleted:proof-legacy-target',
+         $1::jsonb, 'PROCESSING', 1, $2::uuid, CURRENT_TIMESTAMP
+       )`,
+      [
+        JSON.stringify({
+          logId: "proof-legacy-target",
+          metadata: {
+            userId: "[deleted account]",
+            redactedForAccountDeletion: true,
+          },
+          reason: "deleted [deleted account]",
+        }),
+        claimToken,
+      ],
+    );
+
+    const applied = await asAccountDeletionRuntime(
+      database,
+      `SELECT public.grainline_admin_audit_account_deletion_legacy_redaction_apply(
+         $1, 1, $2::uuid, $3
+       ) AS applied`,
+      ["proof-legacy-effect", claimToken, "proof-legacy-target"],
+    );
+    assert.equal(applied.rows[0].applied, true);
+    const stored = await database.query(
+      `SELECT metadata, reason, undone, "undoneBy", "undoneReason"
+         FROM public."AdminAuditLog" WHERE id='proof-legacy-target'`,
+    );
+    assert.deepEqual(stored.rows[0], {
+      metadata: {
+        userId: "[deleted account]",
+        redactedForAccountDeletion: true,
+      },
+      reason: "deleted [deleted account]",
+      undone: true,
+      undoneBy: "proof-admin-two",
+      undoneReason: "reviewed reversal",
+    });
+    const scrubbed = await database.query(
+      `SELECT payload, status, "processedAt", "processingStartedAt",
+              "nextAttemptAt", "lastError"
+         FROM public."AccountDeletionSideEffect"
+        WHERE id='proof-legacy-effect'`,
+    );
+    const { processedAt, ...scrubbedState } = scrubbed.rows[0];
+    assert.ok(processedAt instanceof Date);
+    assert.deepEqual(scrubbedState, {
+      payload: {},
+      status: "DONE",
+      processingStartedAt: null,
+      nextAttemptAt: null,
+      lastError: null,
+    });
+
+    await database.query(
+      `INSERT INTO public."AdminAuditLog" (
+         id, "adminId", action, "targetType", "targetId", metadata
+       ) VALUES (
+         'proof-legacy-conflict', 'proof-admin', 'BAN_USER', 'USER',
+         'proof-deleted',
+         '{"redactedForAccountDeletion":true,"newer":"kept"}'::jsonb
+       )`,
+    );
+    await database.query(
+      `INSERT INTO public."AccountDeletionSideEffect" (
+         id, "userId", kind, "dedupKey", payload, status,
+         "claimGeneration", "claimToken", "processingStartedAt"
+       ) VALUES (
+         'proof-legacy-conflict-effect', 'proof-deleted', 'AUDIT_REDACT',
+         'account-delete:audit:proof-deleted:proof-legacy-conflict',
+         '{"logId":"proof-legacy-conflict","metadata":{"redactedForAccountDeletion":true,"older":"unsafe"}}'::jsonb,
+         'PROCESSING', 1, $1::uuid, CURRENT_TIMESTAMP
+       )`,
+      [claimToken],
+    );
+    await assert.rejects(
+      asAccountDeletionRuntime(
+        database,
+        `SELECT public.grainline_admin_audit_account_deletion_legacy_redaction_apply(
+           $1, 1, $2::uuid, $3
+         )`,
+        ["proof-legacy-conflict-effect", claimToken, "proof-legacy-conflict"],
+      ),
+      /conflicts with a newer redaction/u,
+    );
+    const conflict = await database.query(
+      `SELECT metadata FROM public."AdminAuditLog"
+        WHERE id='proof-legacy-conflict'`,
+    );
+    assert.deepEqual(conflict.rows[0].metadata, {
+      redactedForAccountDeletion: true,
+      newer: "kept",
+    });
+  } finally {
+    await database.close();
+  }
+});
+
+test("account deletion redaction compare-and-set completes the claimed job atomically", async () => {
+  const database = await readyDatabase();
+  try {
+    const claimToken = "22222222-2222-4222-8222-222222222222";
+    await database.query(
+      `INSERT INTO public."User" (id, "deletedAt")
+       VALUES ('proof-current-deleted', '2026-11-02 11:00:00'::timestamp)`,
+    );
+    await database.query(
+      `INSERT INTO public."AdminAuditLog" (
+         id, "adminId", action, "targetType", "targetId", metadata
+       ) VALUES
+       (
+         'proof-current-delete-audit', 'proof-current-deleted',
+         'USER_ACCOUNT_DELETE', 'USER', 'proof-current-deleted',
+         '{"actorKind":"user"}'::jsonb
+       ),
+       (
+         'proof-current-target', 'proof-admin', 'BAN_USER', 'USER',
+         'proof-current-deleted',
+         '{"userId":"proof-current-deleted","safe":"keep"}'::jsonb
+       )`,
+    );
+    await database.query(
+      `INSERT INTO public."AccountDeletionSideEffect" (
+         id, "userId", kind, "dedupKey", payload, status,
+         "claimGeneration", "claimToken", "processingStartedAt"
+       ) VALUES (
+         'proof-current-effect', 'proof-current-deleted', 'AUDIT_REDACT',
+         'account-delete:audit:proof-current-deleted:proof-current-target',
+         $1::jsonb, 'PROCESSING', 1, $2::uuid, CURRENT_TIMESTAMP
+       )`,
+      [
+        JSON.stringify({
+          logId: "proof-current-target",
+          sensitiveValues: ["proof-current-deleted"],
+          directAccountReference: true,
+        }),
+        claimToken,
+      ],
+    );
+    const source = await asAccountDeletionRuntime(
+      database,
+      `SELECT * FROM public.grainline_admin_audit_account_deletion_redaction_source(
+         $1, 1, $2::uuid, $3
+       )`,
+      ["proof-current-effect", claimToken, "proof-current-target"],
+    );
+    assert.deepEqual(source.rows[0], {
+      metadata: { userId: "proof-current-deleted", safe: "keep" },
+      reason: null,
+    });
+
+    const applied = await asAccountDeletionRuntime(
+      database,
+      `SELECT public.grainline_admin_audit_account_deletion_redaction_apply(
+         $1, 1, $2::uuid, $3,
+         $4::jsonb, NULL, $5::jsonb, NULL, true, false
+       ) AS applied`,
+      [
+        "proof-current-effect",
+        claimToken,
+        "proof-current-target",
+        JSON.stringify(source.rows[0].metadata),
+        JSON.stringify({
+          userId: "[deleted account]",
+          safe: "keep",
+          redactedForAccountDeletion: true,
+        }),
+      ],
+    );
+    assert.equal(applied.rows[0].applied, true);
+    const stored = await database.query(
+      `SELECT audit.metadata, effect.status, effect.payload,
+              effect."processedAt", effect."processingStartedAt"
+         FROM public."AdminAuditLog" AS audit
+         JOIN public."AccountDeletionSideEffect" AS effect
+           ON effect.id='proof-current-effect'
+        WHERE audit.id='proof-current-target'`,
+    );
+    assert.deepEqual(stored.rows[0].metadata, {
+      userId: "[deleted account]",
+      safe: "keep",
+      redactedForAccountDeletion: true,
+    });
+    assert.equal(stored.rows[0].status, "DONE");
+    assert.deepEqual(stored.rows[0].payload, {});
+    assert.ok(stored.rows[0].processedAt instanceof Date);
+    assert.equal(stored.rows[0].processingStartedAt, null);
   } finally {
     await database.close();
   }
@@ -403,6 +685,11 @@ test("actor-bound append denies missing, mismatched, disabled and forged context
       ]),
       /actor context is invalid/u,
     );
+    const bannedDeletion = await asRuntime(database, "proof-user", appendSql(), [
+      "proof-user", "USER_ACCOUNT_DELETE", "USER", "proof-user",
+      "provider deletion", "{}",
+    ]);
+    assert.equal(bannedDeletion.rows.length, 1);
     await assert.rejects(
       asRuntime(
         database,

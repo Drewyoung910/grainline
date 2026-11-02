@@ -391,6 +391,9 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("redacts account identifiers from admin audit reasons as well as metadata", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const preparation = source(
+      "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql",
+    );
     const referenceStart = deletion.indexOf(
       "const accountAuditReferenceValues = normalizedSensitiveValues",
     );
@@ -420,15 +423,17 @@ describe("Round 9 account deletion PII guardrails", () => {
       auditNeedlesBlock,
       /shippingCity|shippingState|shippingPostalCode|sellerProfile\?\.(?:city|state|shipFromCity|shipFromState|shipFromPostal|tagline)/,
     );
-    assert.match(deletion, /jsonb_path_exists\(/);
-    assert.match(deletion, /@ == \$account_reference/);
+    assert.match(deletion, /adminAuditLogAccountDeletionCandidates/);
+    assert.match(preparation, /jsonb_path_exists\(/);
+    assert.match(preparation, /@ == \$account_reference/);
     assert.doesNotMatch(deletion, /collectAuditLogsBySensitiveMetadata/);
     assert.doesNotMatch(deletion, /position\(\$\{normalized\} in lower\(metadata::text\)\)/);
     assert.match(
       deletion,
       /redactAccountDeletionText\(candidate\.reason, sensitiveValues, undefined, 1000\)/,
     );
-    assert.match(deletion, /reason\.changed && reason\.text !== null \? \{ reason: reason\.text \} : \{\}/);
+    assert.match(deletion, /sensitiveValues,/);
+    assert.match(deletion, /directAccountReference: candidate\.directAccountReference/);
   });
 
   it("resets retained deleted-account role while keeping deleted accounts blocked", () => {

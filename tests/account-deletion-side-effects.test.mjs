@@ -109,7 +109,10 @@ describe("account deletion side-effect retries", () => {
       sideEffects,
       /activation refuses[\s\S]*no unfinished URL-form media row remains/,
     );
-    assert.match(sideEffects, /prisma\.adminAuditLog\.update/);
+    assert.match(sideEffects, /adminAuditLogAccountDeletionRedactionSource/);
+    assert.match(sideEffects, /applyAdminAuditLogAccountDeletionRedaction/);
+    assert.match(sideEffects, /for \(let attempt = 0; attempt < 3; attempt \+= 1\)/);
+    assert.doesNotMatch(sideEffects, /prisma\.adminAuditLog\./);
     assert.match(claimFence, /payload = '\{}'::jsonb/);
     assert.match(mediaKeyFence, /grainline_account_deletion_media_key_enqueue_claimed/);
     assert.match(mediaKeyFence, /source_actor_segment/);
