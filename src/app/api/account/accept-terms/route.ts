@@ -2,7 +2,6 @@ import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUser } from "@/lib/ensureUser";
-import { prisma } from "@/lib/db";
 import { safeRateLimit, termsAcceptanceRatelimit, rateLimitResponse } from "@/lib/ratelimit";
 import { CURRENT_TERMS_VERSION } from "@/lib/termsAcceptance";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
@@ -11,6 +10,7 @@ import { logUserAuditActionOrThrow } from "@/lib/audit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { acceptUserOwnerLegalTerms } from "@/lib/userOwnerPrivateAccess";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 const AcceptTermsSchema = z.object({
   termsAccepted: z.literal(true),
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
   if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const user = await prisma.$transaction(async (tx) => {
+  const user = await withDbUserContext(me.id, async (tx) => {
     const updated = await acceptUserOwnerLegalTerms(tx, {
       userId: me.id,
       termsVersion: CURRENT_TERMS_VERSION,
