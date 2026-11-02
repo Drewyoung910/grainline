@@ -53,6 +53,16 @@ BEGIN
     RAISE EXCEPTION 'Listing protected staff-reference authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_actor_review_contexts(text[])'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing actor review-context authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_public_customer_photo_page(text,integer,integer)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing public customer-photo authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_staff_seller_active_public_count(text,text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing protected staff seller-count authority already exists';
@@ -814,7 +824,8 @@ CREATE FUNCTION public.grainline_listing_staff_reference_targets(
 )
 RETURNS TABLE (
   id text,
-  title text
+  title text,
+  "sellerProfileId" text
 )
 LANGUAGE plpgsql
 STABLE
@@ -858,7 +869,8 @@ BEGIN
 
   RETURN QUERY
   SELECT listing.id::text,
-         listing.title::text
+         listing.title::text,
+         listing."sellerId"::text
     FROM public."Listing" AS listing
    WHERE listing.id = ANY(p_listing_ids)
    ORDER BY pg_catalog.array_position(p_listing_ids, listing.id::text),
@@ -872,6 +884,227 @@ REVOKE ALL ON FUNCTION public.grainline_listing_staff_reference_targets(
 GRANT EXECUTE ON FUNCTION public.grainline_listing_staff_reference_targets(
   text,text[]
 ) TO grainline_staff_read_runtime;
+
+-- A review belongs to its reviewer and to the maker who owns the reviewed
+-- listing even after the Listing is hidden or archived. Keep that retained
+-- history out of the generic public policy and expose only the small reference
+-- projection required by review pages, edits, replies, and account exports.
+CREATE FUNCTION public.grainline_listing_actor_review_contexts(
+  p_review_ids text[]
+)
+RETURNS TABLE (
+  "reviewId" text,
+  "listingId" text,
+  "listingTitle" text,
+  "sellerProfileId" text,
+  "listingPhotoUrl" text
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_actor_review_contexts$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_review_ids IS NULL
+     OR pg_catalog.cardinality(p_review_ids) NOT BETWEEN 1 AND 200
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(p_review_ids) AS requested(id)
+        WHERE requested.id IS NULL
+           OR requested.id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     )
+     OR pg_catalog.cardinality(p_review_ids) <> (
+       SELECT pg_catalog.count(DISTINCT requested.id)::integer
+         FROM pg_catalog.unnest(p_review_ids) AS requested(id)
+     ) THEN
+    RAISE EXCEPTION 'Listing actor review-context input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1
+    FROM public."User" AS actor
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Listing actor review-context actor is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT review.id::text,
+         listing.id::text,
+         listing.title::text,
+         listing."sellerId"::text,
+         first_photo.url::text
+    FROM public."Review" AS review
+    JOIN public."Listing" AS listing
+      ON listing.id = review."listingId"
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = listing."sellerId"
+    LEFT JOIN LATERAL (
+      SELECT photo.url
+        FROM public."Photo" AS photo
+       WHERE photo."listingId" = listing.id
+       ORDER BY photo."sortOrder", photo.id
+       LIMIT 1
+    ) AS first_photo ON true
+   WHERE review.id = ANY(p_review_ids)
+     AND (
+       review."reviewerId" = actor_id
+       OR seller."userId" = actor_id
+     )
+   ORDER BY pg_catalog.array_position(p_review_ids, review.id::text),
+            review.id;
+END
+$grainline_listing_actor_review_contexts$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_actor_review_contexts(text[])
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_review_contexts(text[])
+  TO grainline_app_runtime;
+
+-- Customer photos intentionally include retained SOLD_OUT listing references,
+-- but never private, archived, inactive-maker, inactive-reviewer, or blocked
+-- rows. One bounded page operation serves both the profile preview and the
+-- complete customer-photo page without weakening Listing's public policy.
+CREATE FUNCTION public.grainline_listing_public_customer_photo_page(
+  p_seller_profile_id text,
+  p_offset integer,
+  p_limit integer
+)
+RETURNS TABLE (
+  "totalCount" bigint,
+  photos jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_public_customer_photo_page$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+BEGIN
+  IF p_seller_profile_id IS NULL
+     OR p_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_offset IS NULL
+     OR p_offset < 0
+     OR p_offset > 12000
+     OR p_limit IS NULL
+     OR p_limit < 1
+     OR p_limit > 50 THEN
+    RAISE EXCEPTION 'Listing public customer-photo input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF request_user_id IS NOT NULL
+     AND (
+       request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+       OR NOT EXISTS (
+         SELECT 1
+           FROM public."User" AS viewer
+          WHERE viewer.id = request_user_id
+            AND viewer.banned = false
+            AND viewer."deletedAt" IS NULL
+       )
+     ) THEN
+    RAISE EXCEPTION 'Listing public customer-photo viewer is not authorized'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  WITH eligible AS MATERIALIZED (
+    SELECT photo.id,
+           photo.url,
+           photo."altText",
+           review."listingId",
+           review."reviewerId",
+           review."createdAt" AS "reviewCreatedAt",
+           listing.title AS "listingTitle"
+      FROM public."ReviewPhoto" AS photo
+      JOIN public."Review" AS review
+        ON review.id = photo."reviewId"
+      JOIN public."Listing" AS listing
+        ON listing.id = review."listingId"
+      JOIN public."SellerProfile" AS seller
+        ON seller.id = listing."sellerId"
+     WHERE seller.id = p_seller_profile_id
+       AND seller."ownerAccountActive" = true
+       AND seller."chargesEnabled" = true
+       AND seller."stripeAccountSupported" = true
+       AND seller."vacationMode" = false
+       AND listing.status IN (
+         'ACTIVE'::public."ListingStatus",
+         'SOLD_OUT'::public."ListingStatus"
+       )
+       AND listing."isPrivate" = false
+       AND listing."archivedAt" IS NULL
+       AND listing."sellerPubliclyOrderable" = true
+       AND review."reviewerAccountActive" = true
+       AND (
+         request_user_id IS NULL
+         OR NOT EXISTS (
+           SELECT 1
+             FROM public."Block" AS relationship
+            WHERE (
+              relationship."blockerId" = request_user_id
+              AND relationship."blockedId" IN (
+                seller."userId", review."reviewerId"
+              )
+            ) OR (
+              relationship."blockedId" = request_user_id
+              AND relationship."blockerId" IN (
+                seller."userId", review."reviewerId"
+              )
+            )
+         )
+       )
+  ), page AS (
+    SELECT eligible.*
+      FROM eligible
+     ORDER BY eligible."reviewCreatedAt" DESC, eligible.id DESC
+     OFFSET p_offset
+     LIMIT p_limit
+  )
+  SELECT (SELECT pg_catalog.count(*) FROM eligible)::bigint,
+         COALESCE(
+           (
+             SELECT pg_catalog.jsonb_agg(
+                      pg_catalog.jsonb_build_object(
+                        'id', page.id,
+                        'url', page.url,
+                        'altText', page."altText",
+                        'listingId', page."listingId",
+                        'listingTitle', page."listingTitle",
+                        'reviewerId', page."reviewerId"
+                      )
+                      ORDER BY page."reviewCreatedAt" DESC, page.id DESC
+                    )
+               FROM page
+           ),
+           '[]'::jsonb
+         );
+END
+$grainline_listing_public_customer_photo_page$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_public_customer_photo_page(
+  text,integer,integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_public_customer_photo_page(
+  text,integer,integer
+) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_staff_seller_active_public_count(
   p_actor_id text,
@@ -4784,6 +5017,20 @@ BEGIN
    WHERE variant_group."listingId" = listing.id
      AND listing."sellerId" = source_seller_profile_id;
   GET DIAGNOSTICS source_variant_groups_deleted = ROW_COUNT;
+
+  -- Seller replies are retained on Review rows rather than Listing. Clear
+  -- them under the same durable deletion claim before the Listing rows are
+  -- redacted, so activation never needs a relational direct-table write.
+  UPDATE public."Review" AS review
+     SET "sellerReply" = NULL,
+         "sellerReplyAt" = NULL
+    FROM public."Listing" AS listing
+   WHERE listing.id = review."listingId"
+     AND listing."sellerId" = source_seller_profile_id
+     AND (
+       review."sellerReply" IS NOT NULL
+       OR review."sellerReplyAt" IS NOT NULL
+     );
 
   UPDATE public."Listing" AS listing
      SET title = 'Deleted listing',

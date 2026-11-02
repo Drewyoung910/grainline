@@ -9,6 +9,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { userStaffAdminLabels } from "@/lib/userStaffAccess";
+import { listingStaffReferenceTargets } from "@/lib/listingStaffAccess";
 
 export const metadata: Metadata = { title: "Reviews — Admin" };
 
@@ -28,19 +29,33 @@ export default async function AdminReviewsPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
-  const reviews = await prisma.review.findMany({
+  const reviewRows = await prisma.review.findMany({
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     include: {
-      listing: { select: { id: true, title: true } },
       photos: { orderBy: [{ sortOrder: "asc" }, { id: "asc" }] },
     },
   });
-  const reviewerLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+  const staffClient = getOrderStaffReadClient();
+  const reviewerLabels = await userStaffAdminLabels(staffClient, {
     actorId: staff.id,
-    userIds: reviews.map((review) => review.reviewerId),
+    userIds: reviewRows.map((review) => review.reviewerId),
   });
+  const listingReferences = reviewRows.length > 0
+    ? await listingStaffReferenceTargets(staffClient, {
+        actorId: staff.id,
+        listingIds: reviewRows.map((review) => review.listingId),
+      })
+    : [];
+  const listingById = new Map(listingReferences.map((listing) => [listing.id, listing]));
+  if (listingById.size !== new Set(reviewRows.map((review) => review.listingId)).size) {
+    throw new Error("Admin review Listing references are incomplete");
+  }
+  const reviews = reviewRows.map((review) => ({
+    ...review,
+    listing: listingById.get(review.listingId)!,
+  }));
   const reviewerLabelById = new Map(reviewerLabels.map((label) => [label.id, label]));
 
   return (

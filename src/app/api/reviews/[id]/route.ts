@@ -13,6 +13,7 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { listingActorReviewContexts } from "@/lib/listingReviewHistoryAccess";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -82,10 +83,13 @@ export async function PATCH(
       createdAt: true,
       listingId: true,
       sellerReplyAt: true,
-      listing: { select: { sellerId: true } },
     },
   });
   if (!r || r.reviewerId !== me.id) {
+    return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
+  }
+  const [listingContext] = await listingActorReviewContexts(me.id, [r.id]);
+  if (!listingContext || listingContext.listingId !== r.listingId) {
     return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
   }
   if (r.sellerReplyAt) {
@@ -137,7 +141,7 @@ export async function PATCH(
       reviewId: id,
     });
 
-    await refreshSellerRatingSummary(r.listing.sellerId, tx);
+    await refreshSellerRatingSummary(listingContext.sellerProfileId, tx);
   });
 
   // revalidate listing page
@@ -167,16 +171,19 @@ export async function DELETE(
       id: true,
       reviewerId: true,
       listingId: true,
-      listing: { select: { sellerId: true } },
     },
   });
   if (!review || review.reviewerId !== me.id) {
     return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
   }
+  const [listingContext] = await listingActorReviewContexts(me.id, [review.id]);
+  if (!listingContext || listingContext.listingId !== review.listingId) {
+    return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.review.delete({ where: { id } });
-    await refreshSellerRatingSummary(review.listing.sellerId, tx);
+    await refreshSellerRatingSummary(listingContext.sellerProfileId, tx);
   });
 
   revalidateFeaturedMakerCaches();

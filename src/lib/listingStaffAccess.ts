@@ -7,6 +7,7 @@ type ListingStaffClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 type ListingStaffReferenceRow = Readonly<{
   id: unknown;
   title: unknown;
+  sellerProfileId: unknown;
 }>;
 
 type ListingStaffSellerCountRow = Readonly<{
@@ -42,14 +43,20 @@ export async function listingStaffReferenceTargets(
       const valid = typeof row.id === "string"
         && requestedIds.has(row.id)
         && !returnedIds.has(row.id)
-        && isTextWithinCodePointRange(row.title, 1, 150);
+        && isTextWithinCodePointRange(row.title, 1, 150)
+        && typeof row.sellerProfileId === "string"
+        && ID.test(row.sellerProfileId);
       if (typeof row.id === "string") returnedIds.add(row.id);
       return !valid;
     })
   ) {
     throw new Error("Listing staff-reference authority returned an invalid result");
   }
-  return rows as ReadonlyArray<Readonly<{ id: string; title: string }>>;
+  return rows as ReadonlyArray<Readonly<{
+    id: string;
+    title: string;
+    sellerProfileId: string;
+  }>>;
 }
 
 export async function listingStaffSellerActivePublicCount(

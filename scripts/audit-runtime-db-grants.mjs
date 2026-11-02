@@ -754,6 +754,8 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_listing_staff_detail_source",
   "grainline_listing_staff_reference_targets",
   "grainline_listing_staff_seller_active_public_count",
+  "grainline_listing_actor_review_contexts",
+  "grainline_listing_public_customer_photo_page",
   "grainline_seller_staff_broadcast_targets",
   "grainline_seller_staff_report_targets",
   "grainline_seller_staff_verification_target",
