@@ -30,9 +30,9 @@ import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money"
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { WorkshopSkeleton } from "@/components/RouteSkeletons";
-import { sellerOwnerCore, sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
+import { sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
-import { listingOwnerSummaryRows } from "@/lib/listingOwnerAccess";
+import { listingOwnerActionState, listingOwnerSummaryRows } from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -62,14 +62,7 @@ async function setStatus(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   if (listing.archivedAt) {
     return { ok: false, error: "Archived listings cannot be changed here." };
@@ -141,14 +134,7 @@ async function deleteListing(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = deleteListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
@@ -208,14 +194,7 @@ async function withdrawListingReview(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = withdrawReviewBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };

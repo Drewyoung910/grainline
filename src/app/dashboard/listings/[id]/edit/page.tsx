@@ -43,7 +43,7 @@ import { lockListingStock, prepareListingStockMutation, recordListingStockMutati
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
-import { listingOwnerEditor } from "@/lib/listingOwnerAccess";
+import { listingOwnerActionState, listingOwnerEditor } from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -621,10 +621,7 @@ async function updateListing(
   // Publish button is shown on those statuses.
   const wantsPublish = formData.get("publish") === "true";
   if (wantsPublish) {
-    const current = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: { status: true },
-    });
+    const current = await listingOwnerActionState(actor.id, listingId);
     if (
       current && (
         current.status === ListingStatus.DRAFT ||
@@ -655,10 +652,7 @@ async function updateListing(
   // Re-query final status after AI re-review may have transitioned the listing.
   // Public listing path 404s for DRAFT, HIDDEN, REJECTED, PENDING_REVIEW — must
   // redirect to the edit page with a saved banner instead of the public URL.
-  const final = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: { status: true, title: true },
-  });
+  const final = await listingOwnerActionState(actor.id, listingId);
   const finalStatus = final?.status ?? listing.status;
   const finalTitle = final?.title ?? updatedListing.title;
 

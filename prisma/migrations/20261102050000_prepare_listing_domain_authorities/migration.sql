@@ -68,6 +68,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner-count authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_action_state(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner action-state authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -1176,6 +1181,92 @@ $grainline_listing_owner_counts$;
 REVOKE ALL ON FUNCTION public.grainline_listing_owner_counts()
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_counts()
+  TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_action_state(
+  p_listing_id text
+)
+RETURNS TABLE (
+  "listingId" text,
+  "sellerProfileId" text,
+  title text,
+  description text,
+  "priceCents" integer,
+  currency text,
+  status text,
+  "updatedAt" timestamp(3) without time zone,
+  "archivedAt" timestamp(3) without time zone,
+  "listingType" text,
+  "stockQuantity" integer,
+  category text,
+  tags text[],
+  "isPrivate" boolean,
+  "reservedForUserId" text,
+  "customOrderConversationId" text,
+  "rejectionReason" text
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_action_state$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing owner action-state input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    listing.id::text,
+    listing."sellerId"::text,
+    listing.title::text,
+    listing.description::text,
+    listing."priceCents",
+    listing.currency::text,
+    listing.status::text,
+    listing."updatedAt",
+    listing."archivedAt",
+    listing."listingType"::text,
+    listing."stockQuantity",
+    listing.category::text,
+    listing.tags::text[],
+    listing."isPrivate",
+    listing."reservedForUserId"::text,
+    listing."customOrderConversationId"::text,
+    listing."rejectionReason"::text
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id;
+END
+$grainline_listing_owner_action_state$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_action_state(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_action_state(text)
   TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(
