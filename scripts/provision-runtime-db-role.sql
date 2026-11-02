@@ -2344,6 +2344,109 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Commission preparation is additive and keeps predecessor table CRUD
+-- available until activation. Converge only the purpose-bound functions that
+-- replace direct CommissionRequest and CommissionInterest access. The
+-- seller-owner interest summary is provisioned with the SellerProfile public
+-- authority family below.
+WITH commission_domain_service(function_signature) AS (
+  VALUES
+    ('public."grainline_commission_request_public_count"(text, text, text, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_public_page"(text, text, text, double precision, double precision, integer, integer, integer)'),
+    ('public."grainline_commission_request_public_detail"(text)'),
+    ('public."grainline_commission_request_public_sitemap_page"(integer, integer)'),
+    ('public."grainline_commission_request_public_metro_ids"()'),
+    ('public."grainline_commission_request_actor_report_target"(text, text)'),
+    ('public."grainline_commission_interest_actor_request_ids"(text[])'),
+    ('public."grainline_commission_interest_actor_create"(text, text, text, text)'),
+    ('public."grainline_commission_request_owner_create"(text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_owner_assign_metros"(text, text, text)'),
+    ('public."grainline_commission_request_owner_page"(integer)'),
+    ('public."grainline_commission_request_owner_export"()'),
+    ('public."grainline_commission_request_owner_active_count"()'),
+    ('public."grainline_commission_request_owner_reference_image_urls"()'),
+    ('public."grainline_commission_interest_owner_export"()'),
+    ('public."grainline_commission_request_owner_transition"(text, text)'),
+    ('public."grainline_commission_account_deletion_prepare"()'),
+    ('public."grainline_commission_account_deletion_redact"()'),
+    ('public."grainline_commission_request_staff_ban_close"(text, text)'),
+    ('public."grainline_commission_request_staff_ban_restore"(text, text, text[], text[])'),
+    ('public."grainline_commission_request_service_expire_batch"(integer)'),
+    ('public."grainline_commission_request_service_expired_count"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM commission_domain_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH commission_domain_service(function_signature) AS (
+  VALUES
+    ('public."grainline_commission_request_public_count"(text, text, text, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_public_page"(text, text, text, double precision, double precision, integer, integer, integer)'),
+    ('public."grainline_commission_request_public_detail"(text)'),
+    ('public."grainline_commission_request_public_sitemap_page"(integer, integer)'),
+    ('public."grainline_commission_request_public_metro_ids"()'),
+    ('public."grainline_commission_request_actor_report_target"(text, text)'),
+    ('public."grainline_commission_interest_actor_request_ids"(text[])'),
+    ('public."grainline_commission_interest_actor_create"(text, text, text, text)'),
+    ('public."grainline_commission_request_owner_create"(text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_owner_assign_metros"(text, text, text)'),
+    ('public."grainline_commission_request_owner_page"(integer)'),
+    ('public."grainline_commission_request_owner_export"()'),
+    ('public."grainline_commission_request_owner_active_count"()'),
+    ('public."grainline_commission_request_owner_reference_image_urls"()'),
+    ('public."grainline_commission_interest_owner_export"()'),
+    ('public."grainline_commission_request_owner_transition"(text, text)'),
+    ('public."grainline_commission_account_deletion_prepare"()'),
+    ('public."grainline_commission_account_deletion_redact"()'),
+    ('public."grainline_commission_request_staff_ban_close"(text, text)'),
+    ('public."grainline_commission_request_staff_ban_restore"(text, text, text[], text[])'),
+    ('public."grainline_commission_request_service_expire_batch"(integer)'),
+    ('public."grainline_commission_request_service_expired_count"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM commission_domain_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH commission_domain_service(function_signature) AS (
+  VALUES
+    ('public."grainline_commission_request_public_count"(text, text, text, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_public_page"(text, text, text, double precision, double precision, integer, integer, integer)'),
+    ('public."grainline_commission_request_public_detail"(text)'),
+    ('public."grainline_commission_request_public_sitemap_page"(integer, integer)'),
+    ('public."grainline_commission_request_public_metro_ids"()'),
+    ('public."grainline_commission_request_actor_report_target"(text, text)'),
+    ('public."grainline_commission_interest_actor_request_ids"(text[])'),
+    ('public."grainline_commission_interest_actor_create"(text, text, text, text)'),
+    ('public."grainline_commission_request_owner_create"(text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer)'),
+    ('public."grainline_commission_request_owner_assign_metros"(text, text, text)'),
+    ('public."grainline_commission_request_owner_page"(integer)'),
+    ('public."grainline_commission_request_owner_export"()'),
+    ('public."grainline_commission_request_owner_active_count"()'),
+    ('public."grainline_commission_request_owner_reference_image_urls"()'),
+    ('public."grainline_commission_interest_owner_export"()'),
+    ('public."grainline_commission_request_owner_transition"(text, text)'),
+    ('public."grainline_commission_account_deletion_prepare"()'),
+    ('public."grainline_commission_account_deletion_redact"()'),
+    ('public."grainline_commission_request_staff_ban_close"(text, text)'),
+    ('public."grainline_commission_request_staff_ban_restore"(text, text, text[], text[])'),
+    ('public."grainline_commission_request_service_expire_batch"(integer)'),
+    ('public."grainline_commission_request_service_expired_count"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM commission_domain_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- StockNotification preparation is additive and keeps predecessor table CRUD
 -- available until activation. When present, converge only the reviewed fixed
 -- operations; the existing back-in-stock claim is provisioned with the other

@@ -230,6 +230,32 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_block_cleanup",
   "grainline_stock_notification_owner_export",
 ];
+const COMMISSION_DOMAIN_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+const COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES = [
+  "grainline_commission_request_public_count",
+  "grainline_commission_request_public_page",
+  "grainline_commission_request_public_detail",
+  "grainline_commission_request_public_sitemap_page",
+  "grainline_commission_request_public_metro_ids",
+  "grainline_commission_request_actor_report_target",
+  "grainline_commission_interest_actor_request_ids",
+  "grainline_commission_interest_actor_create",
+  "grainline_commission_request_owner_create",
+  "grainline_commission_request_owner_assign_metros",
+  "grainline_commission_request_owner_page",
+  "grainline_commission_request_owner_export",
+  "grainline_commission_request_owner_active_count",
+  "grainline_commission_request_owner_reference_image_urls",
+  "grainline_commission_interest_owner_export",
+  "grainline_commission_request_owner_transition",
+  "grainline_commission_account_deletion_prepare",
+  "grainline_commission_account_deletion_redact",
+  "grainline_commission_request_staff_ban_close",
+  "grainline_commission_request_staff_ban_restore",
+  "grainline_commission_request_service_expire_batch",
+  "grainline_commission_request_service_expired_count",
+];
 const FAVORITE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
 const FAVORITE_RLS_MIGRATION =
@@ -3665,6 +3691,12 @@ describe("database grant inventory guardrails", () => {
       source(STOCK_NOTIFICATION_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const commissionDomainAuthorityPrepared = existsSync(
+      COMMISSION_DOMAIN_PREPARATION_MIGRATION,
+    ) && COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(COMMISSION_DOMAIN_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
@@ -3914,6 +3946,9 @@ describe("database grant inventory guardrails", () => {
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(favoriteAuthorityPrepared
         ? FAVORITE_PREPARATION_FUNCTION_NAMES
         : []),
@@ -3992,6 +4027,9 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (stockNotificationAuthorityPrepared
           ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (commissionDomainAuthorityPrepared
+          ? COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (stockNotificationRlsActivationPresent ? 1 : 0)
         + (favoriteAuthorityPrepared
@@ -4122,6 +4160,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES
         : []),
       ...(favoriteAuthorityPrepared
         ? FAVORITE_PREPARATION_FUNCTION_NAMES
