@@ -108,6 +108,28 @@ BEGIN
     RAISE EXCEPTION 'Listing actor cart transaction-source authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_detail_source_core(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing detail-source core already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_actor_detail_source(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing actor detail-source authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_staff_detail_source(text,text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing staff detail-source authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_seller_actor_listing_detail_profile(text)'
+     ) IS NULL OR pg_catalog.to_regprocedure(
+       'public.grainline_seller_staff_listing_detail_profile(text,text)'
+     ) IS NULL THEN
+    RAISE EXCEPTION 'Listing detail-source seller authorization dependencies are missing';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_legacy_stock_restore_apply(text,jsonb)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Legacy checkout stock-restore apply authority already exists';
@@ -2587,6 +2609,287 @@ REVOKE ALL ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(t
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(text)
   TO grainline_app_runtime;
+
+-- One bounded projection serves public, owner, reserved-buyer and staff detail
+-- pages. Authorization remains in the already-live seller-profile detail
+-- authorities, so Listing and SellerProfile cannot drift to different rules.
+-- The core is deliberately ungranted: callers must pass through one of the
+-- actor or isolated-staff wrappers below.
+CREATE FUNCTION public.grainline_listing_detail_source_core(
+  p_listing_id text
+)
+RETURNS TABLE (
+  id text,
+  "sellerId" text,
+  title text,
+  description text,
+  "metaDescription" text,
+  "priceCents" integer,
+  currency text,
+  status text,
+  "isPrivate" boolean,
+  "archivedAt" timestamp without time zone,
+  "reservedForUserId" text,
+  "listingType" text,
+  "stockQuantity" integer,
+  "shipsWithinDays" integer,
+  "processingTimeMinDays" integer,
+  "processingTimeMaxDays" integer,
+  category text,
+  tags text[],
+  materials text[],
+  "productLengthIn" double precision,
+  "productWidthIn" double precision,
+  "productHeightIn" double precision,
+  "metroId" text,
+  "cityMetroId" text,
+  photos jsonb,
+  "variantGroups" jsonb,
+  metro jsonb,
+  "cityMetro" jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_detail_source_core$
+BEGIN
+  IF p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing detail-source input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  SELECT listing.id::text,
+         listing."sellerId"::text,
+         listing.title::text,
+         listing.description::text,
+         listing."metaDescription"::text,
+         listing."priceCents",
+         listing.currency::text,
+         listing.status::text,
+         listing."isPrivate",
+         listing."archivedAt",
+         listing."reservedForUserId"::text,
+         listing."listingType"::text,
+         listing."stockQuantity",
+         listing."shipsWithinDays",
+         listing."processingTimeMinDays",
+         listing."processingTimeMaxDays",
+         listing.category::text,
+         listing.tags,
+         listing.materials,
+         listing."productLengthIn",
+         listing."productWidthIn",
+         listing."productHeightIn",
+         listing."metroId"::text,
+         listing."cityMetroId"::text,
+         COALESCE(
+           (
+             SELECT pg_catalog.jsonb_agg(
+                      pg_catalog.jsonb_build_object(
+                        'id', photo.id,
+                        'url', photo.url,
+                        'altText', photo."altText"
+                      )
+                      ORDER BY photo."sortOrder", photo.id
+                    )
+               FROM (
+                 SELECT source_photo.id,
+                        source_photo.url,
+                        source_photo."altText",
+                        source_photo."sortOrder"
+                   FROM public."Photo" AS source_photo
+                  WHERE source_photo."listingId" = listing.id
+                  ORDER BY source_photo."sortOrder", source_photo.id
+                  LIMIT 11
+               ) AS photo
+           ),
+           '[]'::jsonb
+         ),
+         COALESCE(
+           (
+             SELECT pg_catalog.jsonb_agg(
+                      pg_catalog.jsonb_build_object(
+                        'id', variant_group.id,
+                        'name', variant_group.name,
+                        'options', COALESCE(
+                          (
+                            SELECT pg_catalog.jsonb_agg(
+                                     pg_catalog.jsonb_build_object(
+                                       'id', variant_option.id,
+                                       'label', variant_option.label,
+                                       'priceAdjustCents', variant_option."priceAdjustCents",
+                                       'inStock', variant_option."inStock"
+                                     )
+                                     ORDER BY variant_option."sortOrder", variant_option.id
+                                   )
+                              FROM (
+                                SELECT source_option.id,
+                                       source_option.label,
+                                       source_option."priceAdjustCents",
+                                       source_option."inStock",
+                                       source_option."sortOrder"
+                                  FROM public."ListingVariantOption" AS source_option
+                                 WHERE source_option."groupId" = variant_group.id
+                                 ORDER BY source_option."sortOrder", source_option.id
+                                 LIMIT 11
+                              ) AS variant_option
+                          ),
+                          '[]'::jsonb
+                        )
+                      )
+                      ORDER BY variant_group."sortOrder", variant_group.id
+                    )
+               FROM (
+                 SELECT source_group.id,
+                        source_group.name,
+                        source_group."sortOrder"
+                   FROM public."ListingVariantGroup" AS source_group
+                  WHERE source_group."listingId" = listing.id
+                  ORDER BY source_group."sortOrder", source_group.id
+                  LIMIT 4
+               ) AS variant_group
+           ),
+           '[]'::jsonb
+         ),
+         CASE WHEN metro.id IS NULL THEN NULL ELSE
+           pg_catalog.jsonb_build_object(
+             'slug', metro.slug,
+             'name', metro.name,
+             'state', metro.state
+           )
+         END,
+         CASE WHEN city_metro.id IS NULL THEN NULL ELSE
+           pg_catalog.jsonb_build_object(
+             'slug', city_metro.slug,
+             'name', city_metro.name,
+             'state', city_metro.state
+           )
+         END
+    FROM public."Listing" AS listing
+    LEFT JOIN public."Metro" AS metro
+      ON metro.id = listing."metroId"
+    LEFT JOIN public."Metro" AS city_metro
+      ON city_metro.id = listing."cityMetroId"
+   WHERE listing.id = p_listing_id
+     AND listing."archivedAt" IS NULL;
+END
+$grainline_listing_detail_source_core$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_detail_source_core(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_listing_actor_detail_source(
+  p_listing_id text
+)
+RETURNS TABLE (
+  id text,
+  "sellerId" text,
+  title text,
+  description text,
+  "metaDescription" text,
+  "priceCents" integer,
+  currency text,
+  status text,
+  "isPrivate" boolean,
+  "archivedAt" timestamp without time zone,
+  "reservedForUserId" text,
+  "listingType" text,
+  "stockQuantity" integer,
+  "shipsWithinDays" integer,
+  "processingTimeMinDays" integer,
+  "processingTimeMaxDays" integer,
+  category text,
+  tags text[],
+  materials text[],
+  "productLengthIn" double precision,
+  "productWidthIn" double precision,
+  "productHeightIn" double precision,
+  "metroId" text,
+  "cityMetroId" text,
+  photos jsonb,
+  "variantGroups" jsonb,
+  metro jsonb,
+  "cityMetro" jsonb
+)
+LANGUAGE sql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_actor_detail_source$
+  SELECT source.*
+    FROM public.grainline_seller_actor_listing_detail_profile(
+           p_listing_id
+         ) AS authorized_seller
+    CROSS JOIN public.grainline_listing_detail_source_core(
+      p_listing_id
+    ) AS source
+   WHERE authorized_seller."listingId" = source.id
+$grainline_listing_actor_detail_source$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_actor_detail_source(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_detail_source(text)
+  TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_staff_detail_source(
+  p_actor_id text,
+  p_listing_id text
+)
+RETURNS TABLE (
+  id text,
+  "sellerId" text,
+  title text,
+  description text,
+  "metaDescription" text,
+  "priceCents" integer,
+  currency text,
+  status text,
+  "isPrivate" boolean,
+  "archivedAt" timestamp without time zone,
+  "reservedForUserId" text,
+  "listingType" text,
+  "stockQuantity" integer,
+  "shipsWithinDays" integer,
+  "processingTimeMinDays" integer,
+  "processingTimeMaxDays" integer,
+  category text,
+  tags text[],
+  materials text[],
+  "productLengthIn" double precision,
+  "productWidthIn" double precision,
+  "productHeightIn" double precision,
+  "metroId" text,
+  "cityMetroId" text,
+  photos jsonb,
+  "variantGroups" jsonb,
+  metro jsonb,
+  "cityMetro" jsonb
+)
+LANGUAGE sql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_staff_detail_source$
+  SELECT source.*
+    FROM public.grainline_seller_staff_listing_detail_profile(
+           p_actor_id, p_listing_id
+         ) AS authorized_seller
+    CROSS JOIN public.grainline_listing_detail_source_core(
+      p_listing_id
+    ) AS source
+   WHERE authorized_seller."listingId" = source.id
+$grainline_listing_staff_detail_source$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_staff_detail_source(text,text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_staff_detail_source(text,text)
+  TO grainline_staff_read_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_ai_review_context(
   p_listing_id text

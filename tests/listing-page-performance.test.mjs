@@ -7,18 +7,14 @@ function source(path) {
 }
 
 describe("listing detail page query guardrails", () => {
-  it("shares the listing detail loader between metadata and page render", () => {
+  it("shares the actor-keyed listing detail loader between metadata and page render", () => {
     const listingPage = source("src/app/listing/[id]/page.tsx");
 
     assert.match(listingPage, /import \{ cache \} from "react"/);
-    assert.match(listingPage, /const getListingForDetailPage = cache\(async \(listingId: string\) =>/);
-    assert.match(listingPage, /export async function generateMetadata[\s\S]*getListingForDetailPage\(listingId\)/);
-    assert.match(listingPage, /export default async function ListingPage[\s\S]*getListingForDetailPage\(listingId\)/);
-    assert.equal(
-      (listingPage.match(/prisma\.listing\.findUnique\(/g) ?? []).length,
-      1,
-      "metadata and page render should not duplicate the listing findUnique call",
-    );
+    assert.match(listingPage, /const getListingForDetailPage = cache\(\s*async \(viewerUserId: string \| null, listingId: string\) =>/);
+    assert.match(listingPage, /export async function generateMetadata[\s\S]*getListingForDetailPage\(null, listingId\)/);
+    assert.match(listingPage, /export default async function ListingPage[\s\S]*getListingForDetailPage\(meId, listingId\)/);
+    assert.doesNotMatch(listingPage, /prisma\.listing\.findUnique\(/);
   });
 
   it("keeps viewer-specific reads outside the shared listing cache", () => {
@@ -35,23 +31,16 @@ describe("listing detail page query guardrails", () => {
     assert.doesNotMatch(cachedLoader, /prisma\.stockNotification/);
   });
 
-  it("starts the shared listing load before viewer-specific reads", () => {
+  it("resolves the viewer before the actor-bound listing load", () => {
     const listingPage = source("src/app/listing/[id]/page.tsx");
     const renderStart = listingPage.indexOf("export default async function ListingPage");
-    const listingPromise = listingPage.indexOf(
-      "const listingPromise = getListingForDetailPage(listingId)",
-      renderStart,
-    );
-    const searchParamsRead = listingPage.indexOf("const sp = await searchParams", renderStart);
     const authRead = listingPage.indexOf("await auth()", renderStart);
-    const listingAwait = listingPage.indexOf("const listingCore = await listingPromise", renderStart);
+    const listingAwait = listingPage.indexOf("const listingCore = staffClient", renderStart);
     const sellerAwait = listingPage.indexOf("await getListingSellerForDetailPage(meId, listingId)", renderStart);
 
-    assert.ok(listingPromise > renderStart, "page render should start the listing load");
-    assert.ok(listingPromise < searchParamsRead, "listing load should start before search params parsing");
-    assert.ok(listingPromise < authRead, "listing load should start before auth reads");
-    assert.ok(listingAwait > authRead, "viewer checks can still complete before listing visibility decisions");
+    assert.ok(authRead > renderStart, "page render should resolve authentication");
+    assert.ok(listingAwait > authRead, "the Listing authority must receive the server-resolved actor");
     assert.ok(sellerAwait > authRead, "viewer-aware seller access must follow the authenticated actor lookup");
-    assert.doesNotMatch(listingPage.slice(renderStart), /const listing = await getListingForDetailPage\(listingId\)/);
+    assert.doesNotMatch(listingPage.slice(renderStart), /getListingForDetailPage\(null, listingId\)/);
   });
 });
