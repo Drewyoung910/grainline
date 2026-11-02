@@ -85,8 +85,8 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     const restore = source("src/lib/checkoutStockRestore.ts");
     const maintenance = source("src/lib/stripeWebhookMaintenance.ts");
 
-    assert.match(restore, /claimLegacyStockRestore\(sessionId, tx\)/);
-    assert.match(maintenance, /grainline_legacy_stock_restore_claim\(\$\{sessionId\}\)/);
+    assert.match(restore, /applyLegacyStockRestore\(input\.sessionId, items, tx\)/);
+    assert.match(maintenance, /grainline_legacy_stock_restore_apply/);
     assert.doesNotMatch(restore, /beginStripeWebhookEvent/);
     assert.doesNotMatch(restore, /markStripeWebhookEventProcessed/);
     assert.doesNotMatch(restore, /tx\.stripeWebhookEvent\.create/);

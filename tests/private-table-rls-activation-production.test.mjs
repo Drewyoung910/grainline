@@ -380,3 +380,37 @@ test("inspector rejects direct authority after activation", async () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("inspector rejects account-deletion direct table authority", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-deletion-authority-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: true,
+            tableOverrides: {
+              account_deletion_select: true,
+              account_deletion_any_column: true,
+              non_owner_table_acl_count: 1,
+            },
+          }),
+        },
+      ),
+      /accountDeletionSelect drifted/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector resolves reviewed function identities without absorbing unrelated overloads", () => {
+  const inspector = readFileSync(
+    "scripts/private-table-rls-activation-production-inspect.mjs",
+    "utf8",
+  );
+
+  assert.match(inspector, /pg_catalog\.to_regprocedure\(expected\.identity\)/u);
+  assert.doesNotMatch(inspector, /procedure\.proname = ANY\(\$1::text\[\]\)/u);
+});

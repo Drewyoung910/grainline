@@ -2237,7 +2237,8 @@ WITH stripe_webhook_service(function_signature) AS (
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
     ('public."grainline_stripe_webhook_health_summary"()'),
-    ('public."grainline_legacy_stock_restore_claim"(text)')
+    ('public."grainline_legacy_stock_restore_claim"(text)'),
+    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM stripe_webhook_service
@@ -2252,7 +2253,8 @@ WITH stripe_webhook_service(function_signature) AS (
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
     ('public."grainline_stripe_webhook_health_summary"()'),
-    ('public."grainline_legacy_stock_restore_claim"(text)')
+    ('public."grainline_legacy_stock_restore_claim"(text)'),
+    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -2271,7 +2273,8 @@ WITH stripe_webhook_service(function_signature) AS (
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
     ('public."grainline_stripe_webhook_health_summary"()'),
-    ('public."grainline_legacy_stock_restore_claim"(text)')
+    ('public."grainline_legacy_stock_restore_claim"(text)'),
+    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
@@ -3471,6 +3474,8 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_listing_children_replace_core"(text,integer,jsonb,jsonb)', false),
     ('public."grainline_listing_owner_create"(text,text,boolean,text,text,text,text,integer,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
     ('public."grainline_listing_owner_content_update"(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_alt_text_backfill"(text,text[],text[])', true),
+    ('public."grainline_listing_account_deletion_redact"(text,text,bigint,uuid,timestamp without time zone)', true),
     ('public."grainline_listing_owner_delete_lock"(text)', true),
     ('public."grainline_listing_owner_archive"(text,timestamp without time zone)', true),
     ('public."grainline_listing_owner_hard_delete"(text,timestamp without time zone)', true),
@@ -3594,6 +3599,8 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_listing_children_replace_core"(text,integer,jsonb,jsonb)', false),
     ('public."grainline_listing_owner_create"(text,text,boolean,text,text,text,text,integer,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
     ('public."grainline_listing_owner_content_update"(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_alt_text_backfill"(text,text[],text[])', true),
+    ('public."grainline_listing_account_deletion_redact"(text,text,bigint,uuid,timestamp without time zone)', true),
     ('public."grainline_listing_owner_delete_lock"(text)', true),
     ('public."grainline_listing_owner_archive"(text,timestamp without time zone)', true),
     ('public."grainline_listing_owner_hard_delete"(text,timestamp without time zone)', true),
@@ -4634,6 +4641,7 @@ WITH order_zero_direct_authority(function_signature) AS (
     ('public."grainline_case_legacy_refund_lock_release"(text, text)'),
     ('public."grainline_order_legacy_refund_lock_prune"(integer)'),
     ('public."grainline_legacy_stock_restore_claim"(text)'),
+    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)'),
     ('public."grainline_order_refund_reconciliation_committed"(text, text, bigint)'),
     ('public."grainline_order_staff_mark_reviewed"(text, text)'),
     ('public."grainline_order_staff_record_label_voided"(text, text)'),
@@ -4668,6 +4676,7 @@ WITH order_zero_direct_runtime(function_signature) AS (
     ('public."grainline_case_legacy_refund_lock_release"(text, text)'),
     ('public."grainline_order_legacy_refund_lock_prune"(integer)'),
     ('public."grainline_legacy_stock_restore_claim"(text)'),
+    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)'),
     ('public."grainline_order_refund_reconciliation_committed"(text, text, bigint)'),
     ('public."grainline_order_flag_banned_seller_open_orders"(text, text)'),
     ('public."grainline_order_restore_banned_seller_reviews"(text, text, jsonb)'),

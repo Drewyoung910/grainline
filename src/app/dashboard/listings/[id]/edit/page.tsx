@@ -509,7 +509,7 @@ async function updateListing(
           });
           if (holdResult) {
             const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
-            await backfillEmptyAltTexts(listingId, aiResult.altTexts, reviewedImageUrls);
+            await backfillEmptyAltTexts(actor.id, listingId, aiResult.altTexts, reviewedImageUrls);
             queueCheckoutSessionExpiryForListing(
               listingId,
               sellerCore.sellerProfileId,
@@ -528,7 +528,7 @@ async function updateListing(
           });
           if (activationResult) {
             const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
-            await backfillEmptyAltTexts(listingId, aiResult.altTexts, reviewedImageUrls);
+            await backfillEmptyAltTexts(actor.id, listingId, aiResult.altTexts, reviewedImageUrls);
           }
         }
       } else {

@@ -414,7 +414,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
     // Do not let a stale review write alt text onto a newer photo set.
     if (reviewApplied) {
-      await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
+      await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, imageUrls);
     }
   } catch (error) {
     logServerError(error, {
