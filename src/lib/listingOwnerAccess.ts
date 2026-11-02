@@ -51,6 +51,16 @@ type ListingOwnerContentUpdateRow = {
   approvedStatus: unknown;
 };
 
+type ListingOwnerDeleteLockRow = {
+  id: unknown;
+  sellerId: unknown;
+  status: unknown;
+  isPrivate: unknown;
+  archivedAt: unknown;
+  customOrderConversationId: unknown;
+  updatedAt: unknown;
+};
+
 export type ListingOwnerEditorState = Readonly<{
   id: string;
   sellerId: string;
@@ -300,6 +310,16 @@ export type ListingOwnerActionState = Readonly<{
   reservedForUserId: string | null;
   customOrderConversationId: string | null;
   rejectionReason: string | null;
+}>;
+
+export type ListingOwnerDeleteState = Readonly<{
+  id: string;
+  sellerId: string;
+  status: ListingStatus;
+  isPrivate: boolean;
+  archivedAt: Date | null;
+  customOrderConversationId: string | null;
+  updatedAt: Date;
 }>;
 
 const LISTING_STATUSES = new Set<string>(Object.values(ListingStatus));
@@ -814,6 +834,54 @@ export async function updateListingOwnerContent(
       requiresReview: null,
       approvedStatus: null,
     });
+}
+
+export async function lockListingOwnerDeleteState(
+  client: DbUserContextTransactionClient,
+  listingId: string,
+): Promise<ListingOwnerDeleteState | null> {
+  if (!validId(listingId)) {
+    throw new RangeError("Listing owner delete-lock input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingOwnerDeleteLockRow[]>`
+    SELECT *
+      FROM public.grainline_listing_owner_delete_lock(
+        ${listingId}::text
+      )
+  `;
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || typeof row.id !== "string"
+    || row.id !== listingId
+    || typeof row.sellerId !== "string"
+    || !validId(row.sellerId)
+    || typeof row.status !== "string"
+    || !LISTING_STATUSES.has(row.status)
+    || typeof row.isPrivate !== "boolean"
+    || !(
+      row.archivedAt === null
+      || validDate(row.archivedAt)
+    )
+    || !nullableText(row.customOrderConversationId)
+    || (
+      row.customOrderConversationId !== null
+      && !validId(row.customOrderConversationId)
+    )
+    || !validDate(row.updatedAt)
+  ) {
+    throw new Error("Listing owner delete-lock authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.id,
+    sellerId: row.sellerId,
+    status: row.status as ListingStatus,
+    isPrivate: row.isPrivate,
+    archivedAt: row.archivedAt as Date | null,
+    customOrderConversationId: row.customOrderConversationId as string | null,
+    updatedAt: row.updatedAt as Date,
+  });
 }
 
 export function listingOwnerTransition(

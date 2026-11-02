@@ -16,6 +16,7 @@ import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { deleteCartItemsForSellerListing } from "@/lib/cartServiceAccess";
 import { deleteStockNotificationsForSellerListing } from "@/lib/stockNotificationAccess";
 import { deleteFavoritesForSellerListing } from "@/lib/favoriteAccess";
+import { lockListingOwnerDeleteState } from "@/lib/listingOwnerAccess";
 
 export const LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 
@@ -32,15 +33,6 @@ export function listingDeletePublicError(error: unknown) {
   return error instanceof ListingDeleteError ? error.message : null;
 }
 
-type LockedListingRow = {
-  id: string;
-  sellerId: string;
-  status: ListingStatus;
-  isPrivate: boolean;
-  archivedAt: Date | null;
-  customOrderConversationId: string | null;
-};
-
 export async function deleteListingWithCleanup(
   listingId: string,
   actorUserId: string,
@@ -50,8 +42,7 @@ export async function deleteListingWithCleanup(
   if (normalizedListingId.length < 1 || normalizedListingId.length > 191) {
     throw new ListingDeleteError("Listing not found.");
   }
-  const owner = await sellerOwnerCore(normalizedActorUserId);
-  if (!owner) {
+  if (!(await sellerOwnerCore(normalizedActorUserId))) {
     throw new ListingDeleteError("Listing not found.");
   }
   return withSerializableDbUserContext(
@@ -60,20 +51,10 @@ export async function deleteListingWithCleanup(
       // The row lock keeps the reference decision and delete/archive mutation
       // atomic. New foreign-key references need a conflicting key-share lock,
       // so they cannot appear between this check and the final mutation.
-      const rows = await tx.$queryRaw<LockedListingRow[]>(Prisma.sql`
-        SELECT
-          listing.id,
-          listing."sellerId",
-          listing.status,
-          listing."isPrivate",
-          listing."archivedAt",
-          listing."customOrderConversationId"
-        FROM public."Listing" AS listing
-        WHERE listing.id = ${normalizedListingId}
-          AND listing."sellerId" = ${owner.sellerProfileId}
-        FOR UPDATE OF listing
-      `);
-      const listing = rows[0];
+      const listing = await lockListingOwnerDeleteState(
+        tx,
+        normalizedListingId,
+      );
       if (!listing) {
         throw new ListingDeleteError("Listing not found.");
       }

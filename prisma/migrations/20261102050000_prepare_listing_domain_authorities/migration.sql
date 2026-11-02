@@ -83,6 +83,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner content-update authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_delete_lock(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner delete-lock authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_transition(text,text,timestamp without time zone)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner transition authority already exists';
@@ -1674,6 +1679,79 @@ GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_content_update(
   double precision,double precision,double precision,integer,text,text,
   integer,integer,integer,integer
 ) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_delete_lock(
+  p_listing_id text
+)
+RETURNS TABLE (
+  id text,
+  "sellerId" text,
+  status text,
+  "isPrivate" boolean,
+  "archivedAt" timestamp without time zone,
+  "customOrderConversationId" text,
+  "updatedAt" timestamp without time zone
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_delete_lock$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  source_listing public."Listing"%ROWTYPE;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing owner delete-lock input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  SELECT listing.*
+    INTO source_listing
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY SELECT
+    source_listing.id::text,
+    source_listing."sellerId"::text,
+    source_listing.status::text,
+    source_listing."isPrivate",
+    source_listing."archivedAt",
+    source_listing."customOrderConversationId"::text,
+    source_listing."updatedAt";
+END
+$grainline_listing_owner_delete_lock$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_delete_lock(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_delete_lock(text)
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_transition(
   p_listing_id text,
