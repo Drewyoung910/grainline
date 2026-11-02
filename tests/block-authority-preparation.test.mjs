@@ -72,6 +72,12 @@ describe("Block compatible authority preparation", () => {
     }
   });
 
+  it("preserves the reviewed bilateral account-export representation", () => {
+    const exportBody = functionBody("grainline_user_block_export");
+    assert.match(exportBody, /relationship\."blockerId" = request_user_id/u);
+    assert.match(exportBody, /relationship\."blockedId" = request_user_id/u);
+  });
+
   it("makes creation and reciprocal cleanup one serialized transaction", () => {
     const create = functionBody("grainline_user_block_create");
     const lock = create.indexOf("grainline_user_block_pair_lock(p_target_user_id)");
