@@ -73,6 +73,23 @@ async function seedProviderClaim(database, {
   return Object.freeze({ jobId, claimGeneration: 1, claimToken });
 }
 
+async function seedAccountDeletionClaim(database, userId) {
+  const sideEffectId = `seller_broadcast_delete_${randomUUID()}`;
+  const claimToken = randomUUID();
+  const now = new Date();
+  await database.query(
+    `INSERT INTO public."AccountDeletionSideEffect"
+       (id, "userId", kind, "dedupKey", payload, status, attempts,
+        "claimGeneration", "claimToken", "processingStartedAt", "nextAttemptAt",
+        "createdAt", "updatedAt")
+     VALUES ($1, $2::varchar(191), 'LOCAL_ANONYMIZE',
+             'account-delete:local:' || $2::text,
+             '{}'::jsonb, 'PROCESSING', 1, 1, $3::uuid, $4, NULL, $4, $4)`,
+    [sideEffectId, userId, claimToken, now],
+  );
+  return Object.freeze({ sideEffectId, expectedUserId: userId, claimGeneration: 1, claimToken });
+}
+
 async function beginProviderAttempt(database, actorId, claim) {
   const [result] = await runtimeQuery(
     database,
@@ -293,6 +310,7 @@ async function proveAccountDeletionProviderLockOrder({
     sourceType: "seller_broadcast",
     sourceId: broadcastId,
   });
+  const deletionClaim = await seedAccountDeletionClaim(database, seller.userId);
 
   const deletionClient = new pg.Client({ connectionString });
   const providerClient = new pg.Client({ connectionString });
@@ -309,8 +327,10 @@ async function proveAccountDeletionProviderLockOrder({
       [seller.userId],
     );
     const lockedIds = await deletionClient.query(
-      `SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids($1)`,
-      [seller.sellerProfileId],
+      `SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids(
+         $1,$2,1,$3::uuid
+       )`,
+      [deletionClaim.sideEffectId, deletionClaim.expectedUserId, deletionClaim.claimToken],
     );
     assert.ok(lockedIds.rows.some((row) => row.id === broadcastId));
 
@@ -349,9 +369,11 @@ async function proveAccountDeletionProviderLockOrder({
       [claim.jobId],
     );
     const deleted = await deletionClient.query(
-      `SELECT public.grainline_seller_broadcast_account_deletion_cleanup($1)::integer
+      `SELECT public.grainline_seller_broadcast_account_deletion_cleanup(
+         $1,$2,1,$3::uuid
+       )::integer
          AS count`,
-      [seller.sellerProfileId],
+      [deletionClaim.sideEffectId, deletionClaim.expectedUserId, deletionClaim.claimToken],
     );
     assert.ok(Number(deleted.rows[0]?.count ?? 0) >= 1);
     await deletionClient.query("COMMIT");
@@ -650,18 +672,47 @@ export async function proveSellerBroadcastPreparedAuthorities({
        ($3, $4, 'Deletion foreign', pg_catalog.clock_timestamp() - interval '8 days', 0)`,
     [deletionId, seller.sellerProfileId, foreignId, otherSeller.sellerProfileId],
   );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      seller.userId,
+      `SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids(
+         $1,$2,1,$3::uuid
+       )`,
+      [`missing_${randomUUID()}`, seller.userId, randomUUID()],
+    ),
+    (error) => error?.code === "42501",
+    "an owner without an active account-deletion claim must not lock broadcasts",
+  );
+  const deletionClaim = await seedAccountDeletionClaim(database, seller.userId);
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      otherSeller.userId,
+      `SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids(
+         $1,$2,1,$3::uuid
+       )`,
+      [deletionClaim.sideEffectId, seller.userId, deletionClaim.claimToken],
+    ),
+    (error) => error?.code === "42501",
+    "another actor must not use the owner's account-deletion claim",
+  );
   const deletionIds = await runtimeQuery(
     database,
     seller.userId,
-    "SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids($1)",
-    [seller.sellerProfileId],
+    `SELECT * FROM public.grainline_seller_broadcast_account_deletion_ids(
+       $1,$2,1,$3::uuid
+     )`,
+    [deletionClaim.sideEffectId, seller.userId, deletionClaim.claimToken],
   );
   assert.deepEqual(deletionIds.map((row) => row.id), [deletionId]);
   const [deletedCount] = await runtimeQuery(
     database,
     seller.userId,
-    "SELECT public.grainline_seller_broadcast_account_deletion_cleanup($1)::integer AS count",
-    [seller.sellerProfileId],
+    `SELECT public.grainline_seller_broadcast_account_deletion_cleanup(
+       $1,$2,1,$3::uuid
+     )::integer AS count`,
+    [deletionClaim.sideEffectId, seller.userId, deletionClaim.claimToken],
   );
   assert.equal(deletedCount?.count, 1);
   assert.equal((await database.query(
