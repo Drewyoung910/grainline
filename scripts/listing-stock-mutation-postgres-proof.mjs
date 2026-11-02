@@ -3,8 +3,11 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
-import ts from "typescript";
-import { prepareListingStockMutation, recordListingStockMutation } from "../src/lib/listingStockMutation.ts";
+import {
+  applyListingStockMutation,
+  prepareListingStockMutation,
+  recordListingStockMutation,
+} from "../src/lib/listingStockMutation.ts";
 import { parseInputDraftProofConfig } from "./order-input-correction-drafts-postgres-proof.mjs";
 import { proofServerHostAccepted } from "./disposable-postgres-proof-host.mjs";
 
@@ -19,31 +22,32 @@ export function verifyStockProofIdentity(identity, githubActions = false) {
   assert.ok(identity.version >= 160000 && identity.version < 170000);
   assert.ok(proofServerHostAccepted(identity.host, githubActions));
 }
-// Execute the production tagged stock UPDATE, not a separately maintained copy
-// of its delta/status algorithm. The route behavior is covered separately by the
-// actual-handler PGlite tests; this fixture isolates native row-lock behavior.
-export function loadStockUpdate() {
-  const source = ts.createSourceFile("stock.ts", readFileSync("src/app/api/listings/[id]/stock/route.ts", "utf8"),
-    ts.ScriptTarget.Latest, true);
-  const matches = [];
-  function visit(node) {
-    if (ts.isVariableDeclaration(node) && node.name.getText(source) === "updatedRows") {
-      assert.ok(ts.isAwaitExpression(node.initializer));
-      const tagged = node.initializer.expression;
-      assert.ok(ts.isTaggedTemplateExpression(tagged));
-      assert.equal(tagged.tag.getText(source), "tx.$queryRaw");
-      matches.push(tagged.template.getText(source));
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(source); assert.equal(matches.length, 1);
-  return new Function("tx", "id", "listing", "applyDelta", "stockDelta", "quantity",
-    `return tx.$queryRaw${matches[0]};`);
+// Execute the exact stock authorities shipped by the Listing preparation
+// migration, rewritten only into this proof's disposable schema.
+export function loadStockAuthorityDefinitions(schema = "listing_stock_proof_fixture") {
+  assert.match(schema, /^listing_stock_proof_[a-z0-9_]+$/u);
+  const migration = readFileSync(
+    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    "utf8",
+  );
+  const names = ["lock", "apply"];
+  return names.map((name) => {
+    const marker = `grainline_listing_owner_stock_${name}`;
+    const match = migration.match(new RegExp(
+      `CREATE FUNCTION public\\.${marker}\\([\\s\\S]*?\\$${marker}\\$;`,
+      "u",
+    ));
+    assert.ok(match, `missing ${marker} migration definition`);
+    return match[0].replaceAll("public.", `"${schema}".`);
+  }).join("\n");
 }
-function port(client) {
+function port(client, schema) {
   return {
-    $queryRaw: async (parts, ...values) => (await client.query(parts.reduce((sql, part, index) =>
-      sql + (index ? `$${index}` : "") + part, ""), values)).rows,
+    $queryRaw: async (parts, ...values) => {
+      const sql = parts.reduce((text, part, index) => text + (index ? `$${index}` : "") + part, "")
+        .replaceAll("public.grainline_listing_owner_stock_", `"${schema}".grainline_listing_owner_stock_`);
+      return (await client.query(sql, values)).rows;
+    },
     systemAuditLog: {
       findUnique: async ({ where }) => (await client.query('SELECT * FROM "SystemAuditLog" WHERE id=$1', [where.id])).rows[0] ?? null,
       create: async ({ data }) => {
@@ -91,27 +95,41 @@ export async function runStockMutationPostgresProof(env = process.env, onPhase =
       await client.query("SET lock_timeout = '10s'");
     }
     await observer.query(`CREATE TYPE "ListingStatus" AS ENUM ('ACTIVE','SOLD_OUT','DRAFT');
+      CREATE TABLE "User" (id text PRIMARY KEY, banned boolean NOT NULL DEFAULT false,
+        "deletedAt" timestamp);
+      CREATE TABLE "SellerProfile" (id text PRIMARY KEY, "userId" text NOT NULL,
+        "ownerAccountActive" boolean NOT NULL DEFAULT true);
       CREATE TABLE "Listing" (id text PRIMARY KEY, "sellerId" text, title text,
         "stockQuantity" integer, status "ListingStatus", "isPrivate" boolean DEFAULT false,
         "listingType" text DEFAULT 'IN_STOCK', "rejectionReason" text, "archivedAt" timestamp,
         "updatedAt" timestamp DEFAULT now());
       CREATE TABLE "SystemAuditLog" (id text PRIMARY KEY, "actorType" text, "actorId" text,
         action text, "targetType" text, "targetId" text, metadata jsonb)`);
-    const update = loadStockUpdate();
+    await observer.query(loadStockAuthorityDefinitions(schema));
     const scope = { listingId: "listing", sellerId: "seller", actorId: "owner" };
     const input = () => ({ mutationId: randomUUID(), issuedAt: Date.now() });
     const payload = { kind: "inventory", quantity: 10, expectedQuantity: 5 };
     async function reset() {
-      await observer.query('TRUNCATE "Listing", "SystemAuditLog"');
-      await observer.query(`INSERT INTO "Listing" (id,"sellerId",title,"stockQuantity",status)
-        VALUES ('listing','seller','Synthetic piece',5,'ACTIVE')`);
+      await observer.query('TRUNCATE "User", "SellerProfile", "Listing", "SystemAuditLog"');
+      await observer.query(`INSERT INTO "User" (id) VALUES ('owner');
+        INSERT INTO "SellerProfile" (id,"userId") VALUES ('seller','owner');
+        INSERT INTO "Listing" (id,"sellerId",title,"stockQuantity",status)
+          VALUES ('listing','seller','Synthetic piece',5,'ACTIVE')`);
     }
     async function apply(client, identity) {
-      const tx = port(client);
+      await client.query("SELECT pg_catalog.set_config('app.user_id','owner',true)");
+      const tx = port(client, schema);
       const claim = await prepareListingStockMutation(tx, scope, identity, payload);
       assert.ok(claim);
       if (!claim.replayed) {
-        const [updated] = await update(tx, "listing", { sellerId: "seller" }, true, 5, 10);
+        const updated = await applyListingStockMutation(tx, {
+          listingId: "listing",
+          sellerId: "seller",
+          applyDelta: true,
+          stockDelta: 5,
+          quantity: 10,
+        });
+        assert.ok(updated);
         await recordListingStockMutation(tx, claim, { updated });
       }
       return claim.replayed;
@@ -147,7 +165,7 @@ export async function runStockMutationPostgresProof(env = process.env, onPhase =
     await waitUntilBlocked(observer, b.proofPid, a.proofPid);
     await a.query("COMMIT"); assert.equal(await waiting, false); await b.query("COMMIT");
     await state(15, 2);
-    return { status: "passed", concurrentSchedules: 5, actualStockUpdate: true,
+    return { status: "passed", concurrentSchedules: 5, actualStockAuthorities: true,
       scope: "isolated-native-lock-fixture-not-full-runtime-or-provider-acceptance" };
   } finally {
     // Cleanup touches only this newly created, validated CI-only schema. There

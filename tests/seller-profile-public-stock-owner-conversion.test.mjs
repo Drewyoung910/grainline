@@ -11,6 +11,7 @@ test("listing stock ownership uses the actor-bound Listing action state", () => 
   assert.doesNotMatch(route, /prisma\.listing\.findFirst/u);
   assert.doesNotMatch(route, /sellerOwnerCore/u);
   assert.match(route, /sellerId: listing\.sellerId, actorId: me\.id/u);
-  assert.match(route, /AND "sellerId" = \$\{listing\.sellerId\}/u);
+  assert.match(route, /applyListingStockMutation\(tx, \{[\s\S]*sellerId: listing\.sellerId/u);
+  assert.doesNotMatch(route, /UPDATE "Listing"|FROM "Listing"/u);
   assert.match(route, /userId: me\.id/u);
 });
