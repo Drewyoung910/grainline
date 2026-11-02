@@ -257,6 +257,38 @@ inventory, compatible deployment/drain evidence, activation rollback proof or
 authorization to merge, deploy, release a migration, revoke a grant, or enable
 RLS.
 
+## Isolated activation candidate evidence
+
+The stacked branch `codex/seller-metrics-rls-activation-20261102` now contains
+the separate combined policyless ENABLE-plus-FORCE candidate. It revokes all
+direct `SellerMetrics` table authority from runtime, staff, account-deletion
+and PUBLIC roles while preserving only the exact reviewed fixed-function
+surface. The generic preparation and activation workflows both expose the
+byte-sealed SellerMetrics releases; no copied table-specific workflow was
+added.
+
+Executed evidence on 2026-11-02:
+
+- the activation source, release-catalog, workflow, grant-inventory and runtime
+  provisioning focused suites passed;
+- a clean disposable PostgreSQL 17 database applied all 466 migrations,
+  including the preparation and activation candidates;
+- a real `grainline_app_runtime` login was denied direct SELECT and UPDATE,
+  while the actor-bound owner operation continued to derive and return the
+  correct row under FORCE;
+- hard `SellerProfile` deletion still cascaded its metrics row under FORCE;
+- the database-first rollback restored exact predecessor CRUD before disabling
+  FORCE and ENABLE, direct predecessor statements succeeded, and reactivation
+  restored the policyless zero-direct posture; and
+- the activation and rollback seal the exact constraints, indexes, trigger
+  identity, function owners/bodies/configuration/ACLs, table grants and manual
+  migration-ledger digests.
+
+This remains isolated evidence only. Production inventory, compatible app
+deployment and predecessor-deployment drain, exact-main CI, independent review,
+merge, preparation release and activation each remain separate gates. Drew must
+approve the exact Production action.
+
 ## Go/no-go
 
 **GO for isolated compatible preparation.** Add constraints and fixed

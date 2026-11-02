@@ -205,6 +205,7 @@ test("workflow binds reviewed activations to exact main and Production", async (
     "seller_analytics_daily_v1",
     "seller_broadcast_v1",
     "admin_audit_log_v1",
+    "seller_metrics_v1",
     "owner_social_verification_v1",
     "block_v1",
     "user_report_v1",
@@ -269,6 +270,7 @@ test("workflow is sole-pending, restart-aware, readback-bound, and evidence-reta
   assert.match(workflow, /owner_social_verification_v1/u);
   assert.match(workflow, /seller_broadcast_v1/u);
   assert.match(workflow, /admin_audit_log_v1/u);
+  assert.match(workflow, /seller_metrics_v1/u);
   assert.match(workflow, /block_report_seller_faq_v1/u);
   assert.match(workflow, /--release-ids/u);
   assert.match(workflow, /--migrations/u);

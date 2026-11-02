@@ -138,6 +138,25 @@ test("catalog byte-seals AdminAuditLog and every FORCE-crossing authority", () =
   assert.equal(source.rollbackDigest, audit.rollbackSha256);
 });
 
+test("catalog byte-seals policyless SellerMetrics activation", () => {
+  const metrics = privateTableRlsActivation("seller_metrics_v1");
+  const source = verifyPrivateTableRlsActivationSource("seller_metrics_v1");
+  assert.equal(metrics.table, "SellerMetrics");
+  assert.equal(metrics.mode, "policyless_combined_enable_force");
+  assert.equal(
+    metrics.minimumCompatibleAppCommit,
+    "b4ab428d1e7b62b5bff56ebb0a60a5678fa99aa9",
+  );
+  assert.equal(metrics.preparation.functions.length, 4);
+  assert.equal(metrics.preparation.retainedFunctions.length, 5);
+  assert.deepEqual(metrics.policies, []);
+  assert.deepEqual(metrics.activatedRuntimePrivileges, []);
+  assert.deepEqual(metrics.activatedStaffPrivileges, []);
+  assert.deepEqual(metrics.activatedAccountDeletionPrivileges, []);
+  assert.equal(source.migrationDigest, metrics.migrationSha256);
+  assert.equal(source.rollbackDigest, metrics.rollbackSha256);
+});
+
 test("batch source verification prefers each release's staged paths", () => {
   const sourceByRelease = Object.fromEntries(
     privateTableRlsActivationReleaseIds("owner_social_verification_v1")

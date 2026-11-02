@@ -154,9 +154,13 @@ const USER_REPORT_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("user_report_v1");
 const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_faq_v1");
+const SELLER_METRICS_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("seller_metrics_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
+export const SELLER_METRICS_TABLE =
+  SELLER_METRICS_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -1720,6 +1724,22 @@ export function sellerAnalyticsDailyRlsForceExpected(inventory) {
     && forced.has(SELLER_PROFILE_VIEW_DAILY_TABLE);
 }
 
+export function sellerMetricsRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    SELLER_METRICS_TABLE,
+    "sellerMetricsRlsActivationApplied",
+  );
+}
+
+export function sellerMetricsRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    SELLER_METRICS_TABLE,
+    "sellerMetricsRlsActivationApplied",
+  );
+}
+
 function policylessCatalogActivationExpected(inventory, tableName, stateField) {
   if (typeof inventory?.[stateField] === "boolean") {
     return inventory[stateField];
@@ -2316,6 +2336,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(sellerAnalyticsDailyRlsActivationExpected(inventory)
       ? [LISTING_VIEW_DAILY_TABLE, SELLER_PROFILE_VIEW_DAILY_TABLE]
+      : []),
+    ...(sellerMetricsRlsActivationExpected(inventory)
+      ? [SELLER_METRICS_TABLE]
       : []),
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
@@ -3500,6 +3523,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
         : tableName === LISTING_VIEW_DAILY_TABLE
           || tableName === SELLER_PROFILE_VIEW_DAILY_TABLE
           ? sellerAnalyticsDailyRlsForceExpected(inventory)
+        : tableName === SELLER_METRICS_TABLE
+          ? sellerMetricsRlsForceExpected(inventory)
         : tableName === BLOCK_TABLE
           ? blockRlsForceExpected(inventory)
         : tableName === USER_REPORT_TABLE

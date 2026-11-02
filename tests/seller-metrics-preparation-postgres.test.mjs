@@ -10,14 +10,17 @@ test("SellerMetrics complete-schema PostgreSQL proof is wired into the full-chai
   const fullChain = source("tests/database-full-chain-postgres.test.mjs");
   assert.match(
     fullChain,
-    /import \{\s*SELLER_METRICS_PREPARATION_MIGRATION,\s*proveSellerMetricsPreparedAuthorities,/u,
+    /import \{[\s\S]*SELLER_METRICS_PREPARATION_MIGRATION,[\s\S]*SELLER_METRICS_RLS_MIGRATION,[\s\S]*proveSellerMetricsPreparedAuthorities,[\s\S]*proveSellerMetricsRlsAuthorities,[\s\S]*proveSellerMetricsRlsRollback,/u,
   );
   assert.match(fullChain, /artifact\.name === SELLER_METRICS_PREPARATION_MIGRATION/u);
+  assert.match(fullChain, /artifact\.name === SELLER_METRICS_RLS_MIGRATION/u);
   assert.match(
     fullChain,
     /PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1"/u,
   );
   assert.match(fullChain, /await proveSellerMetricsPreparedAuthorities\(\{/u);
+  assert.match(fullChain, /await proveSellerMetricsRlsAuthorities\(\{/u);
+  assert.match(fullChain, /await proveSellerMetricsRlsRollback\(\{/u);
   assert.match(fullChain, /connectionString: proofDatabaseUrl/u);
 
   const scenario = source(
