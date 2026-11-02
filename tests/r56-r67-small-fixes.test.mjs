@@ -53,10 +53,10 @@ describe("R56-R67 small audit follow-up guardrails", () => {
   it("keeps existing-listing photo writes behind Save and defers safe object cleanup", () => {
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(editPage, /class ListingPhotoConflictError extends Error/);
     assert.match(editPage, /const submittedNewPhotoUrls = new Set<string>\(\)/);
-    assert.match(editPage, /const updatedPhoto = await tx\.photo\.updateMany/);
-    assert.match(editPage, /if \(updatedPhoto\.count === 0\) \{\s*throw new ListingPhotoConflictError\(\);/s);
+    assert.match(editPage, /updateListingOwnerContent\(tx,/);
+    assert.match(editPage, /photos: photoManifest\.photos\.map/);
+    assert.doesNotMatch(editPage, /tx\.photo\.(?:create|update|delete)/);
     assert.match(editPage, /syncListingDirectUploadReferences/);
     assert.doesNotMatch(editPage, /deleteR2ObjectByUrl/);
     assert.match(editPage, /fenced lifecycle\s+\/\/ worker removes them/s);

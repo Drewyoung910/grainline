@@ -78,9 +78,19 @@ BEGIN
     RAISE EXCEPTION 'Listing owner metro-assignment authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
-       'public.grainline_listing_owner_content_update(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer)'
+       'public.grainline_listing_owner_content_update(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner content-update authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_children_replace_core(text,integer,jsonb,jsonb)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing child-manifest core already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_create(text,text,boolean,text,text,text,text,integer,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner-create authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_delete_lock(text)'
@@ -1422,6 +1432,491 @@ GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_assign_metros(
   text,timestamp without time zone,text,text
 ) TO grainline_app_runtime;
 
+CREATE FUNCTION public.grainline_listing_children_replace_core(
+  p_listing_id text,
+  p_base_price_cents integer,
+  p_photos jsonb,
+  p_variant_groups jsonb
+)
+RETURNS TABLE ("photoCount" integer, "variantGroupCount" integer)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_children_replace_core$
+DECLARE
+  photo_value jsonb;
+  group_value jsonb;
+  option_value jsonb;
+  minimum_adjustment bigint;
+  maximum_adjustment bigint;
+  inserted_photos integer := 0;
+  inserted_groups integer := 0;
+BEGIN
+  IF p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_base_price_cents IS NULL
+     OR p_base_price_cents < 1
+     OR p_base_price_cents > 10000000
+     OR p_photos IS NULL
+     OR pg_catalog.jsonb_typeof(p_photos) <> 'array'
+     OR pg_catalog.jsonb_array_length(p_photos) > 10
+     OR p_variant_groups IS NULL
+     OR pg_catalog.jsonb_typeof(p_variant_groups) <> 'array'
+     OR pg_catalog.jsonb_array_length(p_variant_groups) > 3 THEN
+    RAISE EXCEPTION 'Listing child manifest is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_photos)
+           WITH ORDINALITY AS photo(value, ordinal)
+     WHERE pg_catalog.jsonb_typeof(photo.value) <> 'object'
+        OR COALESCE(photo.value->>'id', '') !~ '^[A-Za-z0-9._:-]{1,191}$'
+        OR pg_catalog.jsonb_typeof(photo.value->'url') <> 'string'
+        OR pg_catalog.char_length(photo.value->>'url') NOT BETWEEN 1 AND 2048
+        OR pg_catalog.jsonb_typeof(photo.value->'originalUrl') <> 'string'
+        OR pg_catalog.char_length(photo.value->>'originalUrl') NOT BETWEEN 1 AND 2048
+        OR NOT (photo.value ? 'altText')
+        OR pg_catalog.jsonb_typeof(photo.value->'altText') NOT IN ('string', 'null')
+        OR (
+          pg_catalog.jsonb_typeof(photo.value->'altText') = 'string'
+          AND pg_catalog.char_length(photo.value->>'altText') > 200
+        )
+        OR pg_catalog.jsonb_typeof(photo.value->'sortOrder') <> 'number'
+        OR COALESCE(photo.value->>'sortOrder', '') !~ '^[0-9]+$'
+        OR (photo.value->>'sortOrder')::integer <> photo.ordinal - 1
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_photos) AS photo(value)
+     GROUP BY photo.value->>'id'
+    HAVING pg_catalog.count(*) <> 1
+  ) THEN
+    RAISE EXCEPTION 'Listing photo manifest is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_variant_groups)
+           WITH ORDINALITY AS variant_group(value, ordinal)
+     WHERE pg_catalog.jsonb_typeof(variant_group.value) <> 'object'
+        OR COALESCE(variant_group.value->>'id', '') !~ '^[A-Za-z0-9._:-]{1,191}$'
+        OR pg_catalog.jsonb_typeof(variant_group.value->'name') <> 'string'
+        OR pg_catalog.char_length(variant_group.value->>'name') NOT BETWEEN 1 AND 50
+        OR pg_catalog.jsonb_typeof(variant_group.value->'sortOrder') <> 'number'
+        OR COALESCE(variant_group.value->>'sortOrder', '') !~ '^[0-9]+$'
+        OR (variant_group.value->>'sortOrder')::integer <> variant_group.ordinal - 1
+        OR pg_catalog.jsonb_typeof(variant_group.value->'options') <> 'array'
+        OR pg_catalog.jsonb_array_length(variant_group.value->'options') NOT BETWEEN 1 AND 10
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_variant_groups) AS variant_group(value)
+     GROUP BY variant_group.value->>'id'
+    HAVING pg_catalog.count(*) <> 1
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_variant_groups) AS variant_group(value)
+      CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(variant_group.value->'options')
+           WITH ORDINALITY AS variant_option(value, ordinal)
+     WHERE pg_catalog.jsonb_typeof(variant_option.value) <> 'object'
+        OR COALESCE(variant_option.value->>'id', '') !~ '^[A-Za-z0-9._:-]{1,191}$'
+        OR pg_catalog.jsonb_typeof(variant_option.value->'label') <> 'string'
+        OR pg_catalog.char_length(variant_option.value->>'label') NOT BETWEEN 1 AND 50
+        OR pg_catalog.jsonb_typeof(variant_option.value->'priceAdjustCents') <> 'number'
+        OR COALESCE(variant_option.value->>'priceAdjustCents', '') !~ '^-?[0-9]+$'
+        OR (variant_option.value->>'priceAdjustCents')::bigint NOT BETWEEN -10000000 AND 10000000
+        OR pg_catalog.jsonb_typeof(variant_option.value->'sortOrder') <> 'number'
+        OR COALESCE(variant_option.value->>'sortOrder', '') !~ '^[0-9]+$'
+        OR (variant_option.value->>'sortOrder')::integer <> variant_option.ordinal - 1
+        OR pg_catalog.jsonb_typeof(variant_option.value->'inStock') <> 'boolean'
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_variant_groups) AS variant_group(value)
+      CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(variant_group.value->'options')
+           AS variant_option(value)
+     GROUP BY variant_option.value->>'id'
+    HAVING pg_catalog.count(*) <> 1
+  ) THEN
+    RAISE EXCEPTION 'Listing variant manifest is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT
+    COALESCE(pg_catalog.sum(group_adjustment.minimum_value), 0),
+    COALESCE(pg_catalog.sum(group_adjustment.maximum_value), 0)
+    INTO minimum_adjustment, maximum_adjustment
+    FROM (
+      SELECT
+        pg_catalog.min((variant_option.value->>'priceAdjustCents')::bigint) AS minimum_value,
+        pg_catalog.max((variant_option.value->>'priceAdjustCents')::bigint) AS maximum_value
+        FROM pg_catalog.jsonb_array_elements(p_variant_groups)
+             WITH ORDINALITY AS variant_group(value, ordinal)
+        CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(variant_group.value->'options')
+             AS variant_option(value)
+       GROUP BY variant_group.ordinal
+    ) AS group_adjustment;
+  IF p_base_price_cents::bigint + minimum_adjustment < 1
+     OR p_base_price_cents::bigint + maximum_adjustment > 10000000 THEN
+    RAISE EXCEPTION 'Listing variant prices are invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  DELETE FROM public."Photo" AS photo
+   WHERE photo."listingId" = p_listing_id
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.jsonb_array_elements(p_photos) AS retained(value)
+        WHERE retained.value->>'id' = photo.id
+     );
+
+  FOR photo_value IN
+    SELECT photo.value
+      FROM pg_catalog.jsonb_array_elements(p_photos)
+           WITH ORDINALITY AS photo(value, ordinal)
+     ORDER BY photo.ordinal
+  LOOP
+    UPDATE public."Photo" AS photo
+       SET url = photo_value->>'url',
+           "originalUrl" = photo_value->>'originalUrl',
+           "altText" = CASE
+             WHEN pg_catalog.jsonb_typeof(photo_value->'altText') = 'null' THEN NULL
+             ELSE photo_value->>'altText'
+           END,
+           "sortOrder" = (photo_value->>'sortOrder')::integer
+     WHERE photo.id = photo_value->>'id'
+       AND photo."listingId" = p_listing_id;
+    IF NOT FOUND THEN
+      IF EXISTS (
+        SELECT 1 FROM public."Photo" AS other_photo
+         WHERE other_photo.id = photo_value->>'id'
+      ) THEN
+        RAISE EXCEPTION 'Listing photo id belongs to another listing'
+          USING ERRCODE = '42501';
+      END IF;
+      INSERT INTO public."Photo" (
+        id, "listingId", url, "originalUrl", "altText", "sortOrder", "createdAt"
+      ) VALUES (
+        photo_value->>'id',
+        p_listing_id,
+        photo_value->>'url',
+        photo_value->>'originalUrl',
+        CASE
+          WHEN pg_catalog.jsonb_typeof(photo_value->'altText') = 'null' THEN NULL
+          ELSE photo_value->>'altText'
+        END,
+        (photo_value->>'sortOrder')::integer,
+        (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3)
+      );
+    END IF;
+    inserted_photos := inserted_photos + 1;
+  END LOOP;
+
+  DELETE FROM public."ListingVariantGroup" AS variant_group
+   WHERE variant_group."listingId" = p_listing_id;
+
+  FOR group_value IN
+    SELECT variant_group.value
+      FROM pg_catalog.jsonb_array_elements(p_variant_groups)
+           WITH ORDINALITY AS variant_group(value, ordinal)
+     ORDER BY variant_group.ordinal
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM public."ListingVariantGroup" AS other_group
+       WHERE other_group.id = group_value->>'id'
+    ) THEN
+      RAISE EXCEPTION 'Listing variant group id is already in use'
+        USING ERRCODE = '42501';
+    END IF;
+    INSERT INTO public."ListingVariantGroup" (id, "listingId", name, "sortOrder")
+    VALUES (
+      group_value->>'id', p_listing_id, group_value->>'name',
+      (group_value->>'sortOrder')::integer
+    );
+    inserted_groups := inserted_groups + 1;
+
+    FOR option_value IN
+      SELECT variant_option.value
+        FROM pg_catalog.jsonb_array_elements(group_value->'options')
+             WITH ORDINALITY AS variant_option(value, ordinal)
+       ORDER BY variant_option.ordinal
+    LOOP
+      IF EXISTS (
+        SELECT 1 FROM public."ListingVariantOption" AS other_option
+         WHERE other_option.id = option_value->>'id'
+      ) THEN
+        RAISE EXCEPTION 'Listing variant option id is already in use'
+          USING ERRCODE = '42501';
+      END IF;
+      INSERT INTO public."ListingVariantOption" (
+        id, "groupId", label, "priceAdjustCents", "sortOrder", "inStock"
+      ) VALUES (
+        option_value->>'id',
+        group_value->>'id',
+        option_value->>'label',
+        (option_value->>'priceAdjustCents')::integer,
+        (option_value->>'sortOrder')::integer,
+        (option_value->>'inStock')::boolean
+      );
+    END LOOP;
+  END LOOP;
+
+  RETURN QUERY SELECT inserted_photos, inserted_groups;
+END
+$grainline_listing_children_replace_core$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_children_replace_core(
+  text,integer,jsonb,jsonb
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_create(
+  p_listing_id text,
+  p_status text,
+  p_is_private boolean,
+  p_reserved_for_user_id text,
+  p_custom_order_conversation_id text,
+  p_title text,
+  p_description text,
+  p_price_cents integer,
+  p_tags text[],
+  p_meta_description text,
+  p_materials text[],
+  p_product_length_in double precision,
+  p_product_width_in double precision,
+  p_product_height_in double precision,
+  p_packaged_length_cm double precision,
+  p_packaged_width_cm double precision,
+  p_packaged_height_cm double precision,
+  p_packaged_weight_grams integer,
+  p_category text,
+  p_listing_type text,
+  p_stock_quantity integer,
+  p_ships_within_days integer,
+  p_processing_time_min_days integer,
+  p_processing_time_max_days integer,
+  p_photos jsonb,
+  p_variant_groups jsonb
+)
+RETURNS TABLE (
+  created boolean,
+  id text,
+  title text,
+  description text,
+  "priceCents" integer,
+  currency text,
+  status text,
+  "updatedAt" timestamp without time zone,
+  category text,
+  tags text[]
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_create$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_state public."SellerProfile"%ROWTYPE;
+  pair record;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_status IS NULL
+     OR p_status NOT IN ('DRAFT', 'PENDING_REVIEW')
+     OR p_is_private IS NULL
+     OR p_title IS NULL
+     OR pg_catalog.char_length(p_title) NOT BETWEEN 1 AND 150
+     OR p_description IS NULL
+     OR pg_catalog.char_length(p_description) > 5000
+     OR p_price_cents IS NULL
+     OR p_price_cents NOT BETWEEN 1 AND 10000000
+     OR p_tags IS NULL
+     OR pg_catalog.cardinality(p_tags) > 10
+     OR EXISTS (
+       SELECT 1 FROM pg_catalog.unnest(p_tags) AS tag(value)
+        WHERE tag.value IS NULL OR pg_catalog.char_length(tag.value) > 100
+     )
+     OR (p_meta_description IS NOT NULL AND pg_catalog.char_length(p_meta_description) > 160)
+     OR p_materials IS NULL
+     OR pg_catalog.cardinality(p_materials) > 20
+     OR EXISTS (
+       SELECT 1 FROM pg_catalog.unnest(p_materials) AS material(value)
+        WHERE material.value IS NULL
+           OR pg_catalog.char_length(material.value) NOT BETWEEN 1 AND 100
+     )
+     OR p_product_length_in = 'NaN'::double precision
+     OR p_product_length_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_width_in = 'NaN'::double precision
+     OR p_product_width_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_height_in = 'NaN'::double precision
+     OR p_product_height_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_length_cm = 'NaN'::double precision
+     OR p_packaged_length_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_width_cm = 'NaN'::double precision
+     OR p_packaged_width_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_height_cm = 'NaN'::double precision
+     OR p_packaged_height_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR (p_category IS NOT NULL AND p_category NOT IN (
+       'FURNITURE', 'KITCHEN', 'DECOR', 'TOOLS', 'TOYS',
+       'JEWELRY', 'ART', 'OUTDOOR', 'STORAGE', 'OTHER'
+     ))
+     OR p_listing_type IS NULL
+     OR p_listing_type NOT IN ('MADE_TO_ORDER', 'IN_STOCK')
+     OR (
+       p_listing_type = 'IN_STOCK'
+       AND (
+         p_stock_quantity IS NULL OR p_stock_quantity NOT BETWEEN 1 AND 1000000
+         OR p_processing_time_min_days IS NOT NULL
+         OR p_processing_time_max_days IS NOT NULL
+         OR (p_ships_within_days IS NOT NULL AND p_ships_within_days NOT BETWEEN 1 AND 365)
+       )
+     )
+     OR (
+       p_listing_type = 'MADE_TO_ORDER'
+       AND (
+         p_stock_quantity IS NOT NULL
+         OR p_ships_within_days IS NOT NULL
+         OR (p_processing_time_min_days IS NOT NULL AND p_processing_time_min_days NOT BETWEEN 1 AND 365)
+         OR (p_processing_time_max_days IS NOT NULL AND p_processing_time_max_days NOT BETWEEN 1 AND 365)
+         OR (
+           p_processing_time_min_days IS NOT NULL
+           AND p_processing_time_max_days IS NOT NULL
+           AND p_processing_time_min_days > p_processing_time_max_days
+         )
+       )
+     )
+     OR (
+       p_is_private = false
+       AND (
+         p_reserved_for_user_id IS NOT NULL
+         OR p_custom_order_conversation_id IS NOT NULL
+         OR CASE
+           WHEN pg_catalog.jsonb_typeof(p_photos) = 'array'
+           THEN pg_catalog.jsonb_array_length(p_photos) < 1
+           ELSE true
+         END
+       )
+     )
+     OR (
+       p_is_private = true
+       AND (
+         p_status <> 'PENDING_REVIEW'
+         OR p_reserved_for_user_id IS NULL
+         OR p_reserved_for_user_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+         OR p_custom_order_conversation_id IS NULL
+         OR p_custom_order_conversation_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+         OR CASE
+           WHEN pg_catalog.jsonb_typeof(p_variant_groups) = 'array'
+           THEN pg_catalog.jsonb_array_length(p_variant_groups) <> 0
+           ELSE true
+         END
+       )
+     ) THEN
+    RAISE EXCEPTION 'Listing owner-create input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_is_private THEN
+    SELECT *
+      INTO pair
+      FROM public.grainline_conversation_lock_pair_core(
+        actor_id, p_reserved_for_user_id
+      );
+  END IF;
+
+  SELECT seller.*
+    INTO seller_state
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true
+   FOR SHARE OF actor, seller;
+  IF NOT FOUND OR (
+    p_status = 'PENDING_REVIEW'
+    AND NOT (
+      seller_state."chargesEnabled" = true
+      AND seller_state."stripeAccountSupported" = true
+      AND seller_state."vacationMode" = false
+    )
+  ) THEN
+    RETURN QUERY SELECT
+      false, NULL::text, NULL::text, NULL::text, NULL::integer,
+      NULL::text, NULL::text, NULL::timestamp without time zone,
+      NULL::text, NULL::text[];
+    RETURN;
+  END IF;
+
+  IF p_is_private THEN
+    IF NOT EXISTS (
+      SELECT 1
+        FROM public."Conversation" AS conversation
+       WHERE conversation.id = p_custom_order_conversation_id
+         AND conversation."userAId" = pair.user_a_id
+         AND conversation."userBId" = pair.user_b_id
+    ) THEN
+      RETURN QUERY SELECT
+        false, NULL::text, NULL::text, NULL::text, NULL::integer,
+        NULL::text, NULL::text, NULL::timestamp without time zone,
+        NULL::text, NULL::text[];
+      RETURN;
+    END IF;
+  END IF;
+
+  INSERT INTO public."Listing" (
+    id, "sellerId", title, description, "priceCents", currency, status,
+    "createdAt", "updatedAt", tags, "metaDescription", materials,
+    "productLengthIn", "productWidthIn", "productHeightIn",
+    "packagedLengthCm", "packagedWidthCm", "packagedHeightCm",
+    "packagedWeightGrams", category, "listingType", "stockQuantity",
+    "shipsWithinDays", "processingTimeMinDays", "processingTimeMaxDays",
+    "isPrivate", "reservedForUserId", "customOrderConversationId"
+  ) VALUES (
+    p_listing_id, seller_state.id, p_title, p_description, p_price_cents,
+    'usd', p_status::public."ListingStatus", source_now, source_now,
+    p_tags, p_meta_description, p_materials,
+    p_product_length_in, p_product_width_in, p_product_height_in,
+    p_packaged_length_cm, p_packaged_width_cm, p_packaged_height_cm,
+    p_packaged_weight_grams, p_category::public."Category",
+    p_listing_type::public."ListingType", p_stock_quantity,
+    p_ships_within_days, p_processing_time_min_days, p_processing_time_max_days,
+    p_is_private, p_reserved_for_user_id, p_custom_order_conversation_id
+  );
+
+  PERFORM * FROM public.grainline_listing_children_replace_core(
+    p_listing_id, p_price_cents, p_photos, p_variant_groups
+  );
+
+  RETURN QUERY SELECT
+    true, p_listing_id, p_title, p_description, p_price_cents,
+    'usd'::text, p_status, source_now, p_category, p_tags;
+END
+$grainline_listing_owner_create$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_create(
+  text,text,boolean,text,text,text,text,integer,text[],text,text[],
+  double precision,double precision,double precision,double precision,
+  double precision,double precision,integer,text,text,integer,integer,
+  integer,integer,jsonb,jsonb
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_create(
+  text,text,boolean,text,text,text,text,integer,text[],text,text[],
+  double precision,double precision,double precision,double precision,
+  double precision,double precision,integer,text,text,integer,integer,
+  integer,integer,jsonb,jsonb
+) TO grainline_app_runtime;
+
 CREATE FUNCTION public.grainline_listing_owner_content_update(
   p_listing_id text,
   p_expected_updated_at timestamp without time zone,
@@ -1446,7 +1941,9 @@ CREATE FUNCTION public.grainline_listing_owner_content_update(
   p_stock_quantity integer,
   p_ships_within_days integer,
   p_processing_time_min_days integer,
-  p_processing_time_max_days integer
+  p_processing_time_max_days integer,
+  p_photos jsonb,
+  p_variant_groups jsonb
 )
 RETURNS TABLE (
   applied boolean,
@@ -1577,7 +2074,12 @@ BEGIN
            AND p_processing_time_min_days > p_processing_time_max_days
          )
        )
-     ) THEN
+     )
+     OR (CASE
+       WHEN pg_catalog.jsonb_typeof(p_photos) = 'array'
+       THEN pg_catalog.jsonb_array_length(p_photos) < 1
+       ELSE true
+     END) THEN
     RAISE EXCEPTION 'Listing owner content-update input is invalid'
       USING ERRCODE = '22023';
   END IF;
@@ -1672,6 +2174,10 @@ BEGIN
          "updatedAt" = source_now
    WHERE listing.id = source_listing.id;
 
+  PERFORM * FROM public.grainline_listing_children_replace_core(
+    source_listing.id, p_price_cents, p_photos, p_variant_groups
+  );
+
   RETURN QUERY SELECT
     true, p_title, source_now, requires_review, approved_status;
 END
@@ -1681,13 +2187,13 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_content_update(
   text,timestamp without time zone,text,text,text,text,integer,boolean,
   text[],text,text[],double precision,double precision,double precision,
   double precision,double precision,double precision,integer,text,text,
-  integer,integer,integer,integer
+  integer,integer,integer,integer,jsonb,jsonb
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_content_update(
   text,timestamp without time zone,text,text,text,text,integer,boolean,
   text[],text,text[],double precision,double precision,double precision,
   double precision,double precision,double precision,integer,text,text,
-  integer,integer,integer,integer
+  integer,integer,integer,integer,jsonb,jsonb
 ) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_delete_lock(

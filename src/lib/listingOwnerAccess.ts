@@ -1,8 +1,10 @@
 import { Category, ListingStatus, ListingType, Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import {
   withDbUserContext,
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
+import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type ListingOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
@@ -50,6 +52,47 @@ type ListingOwnerContentUpdateRow = {
   requiresReview: unknown;
   approvedStatus: unknown;
 };
+
+type ListingOwnerCreateRow = {
+  created: unknown;
+  id: unknown;
+  title: unknown;
+  description: unknown;
+  priceCents: unknown;
+  currency: unknown;
+  status: unknown;
+  updatedAt: unknown;
+  category: unknown;
+  tags: unknown;
+};
+
+export type ListingOwnerPhotoInput = Readonly<{
+  id?: string | null;
+  url: string;
+  originalUrl: string;
+  altText: string | null;
+}>;
+
+export type ListingOwnerVariantGroupInput = Readonly<{
+  name: string;
+  options: ReadonlyArray<Readonly<{
+    label: string;
+    priceAdjustCents: number;
+    inStock: boolean;
+  }>>;
+}>;
+
+export type ListingOwnerCreateState = Readonly<{
+  id: string;
+  title: string;
+  description: string;
+  priceCents: number;
+  currency: string;
+  status: ListingStatus;
+  updatedAt: Date;
+  category: Category | null;
+  tags: ReadonlyArray<string>;
+}>;
 
 type ListingOwnerDeleteLockRow = {
   id: unknown;
@@ -373,6 +416,103 @@ function nullableText(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+function buildListingChildManifests(
+  photos: ReadonlyArray<ListingOwnerPhotoInput>,
+  variantGroups: ReadonlyArray<ListingOwnerVariantGroupInput>,
+  basePriceCents: number,
+  allowEmptyPhotos = false,
+) {
+  if (
+    (!allowEmptyPhotos && photos.length < 1)
+    || photos.length > 10
+    || variantGroups.length > 3
+    || !validSafeInteger(basePriceCents)
+    || basePriceCents < 1
+    || basePriceCents > 10_000_000
+  ) {
+    throw new RangeError("Listing child manifest is invalid");
+  }
+
+  const photoIds = new Set<string>();
+  const photoManifest = photos.map((photo, sortOrder) => {
+    const id = photo.id ?? randomUUID();
+    if (
+      !validId(id)
+      || photoIds.has(id)
+      || !isTextWithinCodePointRange(photo.url, 1, 2048)
+      || !isTextWithinCodePointRange(photo.originalUrl, 1, 2048)
+      || !(photo.altText === null || isTextWithinCodePointRange(photo.altText, 0, 200))
+    ) {
+      throw new RangeError("Listing photo manifest is invalid");
+    }
+    photoIds.add(id);
+    return Object.freeze({
+      id,
+      url: photo.url,
+      originalUrl: photo.originalUrl,
+      altText: photo.altText,
+      sortOrder,
+    });
+  });
+
+  const groupIds = new Set<string>();
+  const optionIds = new Set<string>();
+  let minimumAdjustment = 0;
+  let maximumAdjustment = 0;
+  const variantManifest = variantGroups.map((group, sortOrder) => {
+    const id = randomUUID();
+    if (
+      groupIds.has(id)
+      || !isTextWithinCodePointRange(group.name, 1, 50)
+      || group.options.length < 1
+      || group.options.length > 10
+    ) {
+      throw new RangeError("Listing variant manifest is invalid");
+    }
+    groupIds.add(id);
+    let groupMinimum = Number.POSITIVE_INFINITY;
+    let groupMaximum = Number.NEGATIVE_INFINITY;
+    const options = group.options.map((option, optionSortOrder) => {
+      const optionId = randomUUID();
+      if (
+        optionIds.has(optionId)
+        || !isTextWithinCodePointRange(option.label, 1, 50)
+        || !validSafeInteger(option.priceAdjustCents)
+        || option.priceAdjustCents < -10_000_000
+        || option.priceAdjustCents > 10_000_000
+        || typeof option.inStock !== "boolean"
+      ) {
+        throw new RangeError("Listing variant manifest is invalid");
+      }
+      optionIds.add(optionId);
+      groupMinimum = Math.min(groupMinimum, option.priceAdjustCents);
+      groupMaximum = Math.max(groupMaximum, option.priceAdjustCents);
+      return Object.freeze({
+        id: optionId,
+        label: option.label,
+        priceAdjustCents: option.priceAdjustCents,
+        sortOrder: optionSortOrder,
+        inStock: option.inStock,
+      });
+    });
+    minimumAdjustment += groupMinimum;
+    maximumAdjustment += groupMaximum;
+    return Object.freeze({ id, name: group.name, sortOrder, options });
+  });
+
+  if (
+    basePriceCents + minimumAdjustment < 1
+    || basePriceCents + maximumAdjustment > 10_000_000
+  ) {
+    throw new RangeError("Listing variant prices are invalid");
+  }
+
+  return Object.freeze({
+    photos: JSON.stringify(photoManifest),
+    variantGroups: JSON.stringify(variantManifest),
+  });
+}
+
 function parsePhotos(value: unknown) {
   if (!Array.isArray(value) || value.length > 100) return null;
   const ids = new Set<string>();
@@ -676,6 +816,191 @@ export function assignListingOwnerMetros(
   });
 }
 
+export function createListingOwner(
+  userId: string,
+  input: Readonly<{
+    status: ListingStatus;
+    isPrivate: boolean;
+    reservedForUserId: string | null;
+    customOrderConversationId: string | null;
+    title: string;
+    description: string;
+    priceCents: number;
+    tags: ReadonlyArray<string>;
+    metaDescription: string | null;
+    materials: ReadonlyArray<string>;
+    productLengthIn: number | null;
+    productWidthIn: number | null;
+    productHeightIn: number | null;
+    packagedLengthCm: number | null;
+    packagedWidthCm: number | null;
+    packagedHeightCm: number | null;
+    packagedWeightGrams: number | null;
+    category: Category | null;
+    listingType: ListingType;
+    stockQuantity: number | null;
+    shipsWithinDays: number | null;
+    processingTimeMinDays: number | null;
+    processingTimeMaxDays: number | null;
+    photos: ReadonlyArray<ListingOwnerPhotoInput>;
+    variantGroups: ReadonlyArray<ListingOwnerVariantGroupInput>;
+  }>,
+): Promise<ListingOwnerCreateState | null> {
+  const boundedNullableDays = (value: number | null) =>
+    value === null || (validSafeInteger(value) && value >= 1 && value <= 365);
+  if (
+    !validId(userId)
+    || (input.status !== ListingStatus.DRAFT && input.status !== ListingStatus.PENDING_REVIEW)
+    || typeof input.isPrivate !== "boolean"
+    || !isTextWithinCodePointRange(input.title, 1, 150)
+    || !isTextWithinCodePointRange(input.description, 0, 5000)
+    || !validSafeInteger(input.priceCents)
+    || input.priceCents < 1
+    || input.priceCents > 10_000_000
+    || !Array.isArray(input.tags)
+    || input.tags.length > 10
+    || !input.tags.every((tag) => isTextWithinCodePointRange(tag, 0, 100))
+    || !(input.metaDescription === null || isTextWithinCodePointRange(input.metaDescription, 0, 160))
+    || !Array.isArray(input.materials)
+    || input.materials.length > 20
+    || !input.materials.every((material) => isTextWithinCodePointRange(material, 1, 100))
+    || !validNullableFinite(input.productLengthIn)
+    || !validNullableFinite(input.productWidthIn)
+    || !validNullableFinite(input.productHeightIn)
+    || !validNullableFinite(input.packagedLengthCm)
+    || !validNullableFinite(input.packagedWidthCm)
+    || !validNullableFinite(input.packagedHeightCm)
+    || !validNullableSafeInteger(input.packagedWeightGrams)
+    || !(input.category === null || CATEGORIES.has(input.category))
+    || !LISTING_TYPES.has(input.listingType)
+    || !validNullableSafeInteger(input.stockQuantity)
+    || !boundedNullableDays(input.shipsWithinDays)
+    || !boundedNullableDays(input.processingTimeMinDays)
+    || !boundedNullableDays(input.processingTimeMaxDays)
+    || (
+      input.processingTimeMinDays !== null
+      && input.processingTimeMaxDays !== null
+      && input.processingTimeMinDays > input.processingTimeMaxDays
+    )
+    || (
+      input.listingType === ListingType.IN_STOCK
+      && (
+        input.stockQuantity === null
+        || input.stockQuantity < 1
+        || input.stockQuantity > 1_000_000
+        || input.processingTimeMinDays !== null
+        || input.processingTimeMaxDays !== null
+      )
+    )
+    || (
+      input.listingType === ListingType.MADE_TO_ORDER
+      && (input.stockQuantity !== null || input.shipsWithinDays !== null)
+    )
+    || (
+      !input.isPrivate
+      && (input.reservedForUserId !== null || input.customOrderConversationId !== null)
+    )
+    || (
+      input.isPrivate
+      && (
+        input.status !== ListingStatus.PENDING_REVIEW
+        || !validId(input.reservedForUserId)
+        || !validId(input.customOrderConversationId)
+        || input.variantGroups.length !== 0
+      )
+    )
+  ) {
+    throw new RangeError("Listing owner-create input is invalid");
+  }
+
+  const listingId = randomUUID();
+  const manifests = buildListingChildManifests(
+    input.photos,
+    input.variantGroups,
+    input.priceCents,
+    input.isPrivate,
+  );
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<ListingOwnerCreateRow[]>`
+      SELECT *
+        FROM public.grainline_listing_owner_create(
+          ${listingId}::text,
+          ${input.status}::text,
+          ${input.isPrivate}::boolean,
+          ${input.reservedForUserId}::text,
+          ${input.customOrderConversationId}::text,
+          ${input.title}::text,
+          ${input.description}::text,
+          ${input.priceCents}::integer,
+          ${[...input.tags]}::text[],
+          ${input.metaDescription}::text,
+          ${[...input.materials]}::text[],
+          ${input.productLengthIn}::double precision,
+          ${input.productWidthIn}::double precision,
+          ${input.productHeightIn}::double precision,
+          ${input.packagedLengthCm}::double precision,
+          ${input.packagedWidthCm}::double precision,
+          ${input.packagedHeightCm}::double precision,
+          ${input.packagedWeightGrams}::integer,
+          ${input.category}::text,
+          ${input.listingType}::text,
+          ${input.stockQuantity}::integer,
+          ${input.shipsWithinDays}::integer,
+          ${input.processingTimeMinDays}::integer,
+          ${input.processingTimeMaxDays}::integer,
+          ${manifests.photos}::jsonb,
+          ${manifests.variantGroups}::jsonb
+        )
+    `;
+    const row = rows[0];
+    const validCreated =
+      row?.created === true
+      && row.id === listingId
+      && row.title === input.title
+      && row.description === input.description
+      && row.priceCents === input.priceCents
+      && row.currency === "usd"
+      && row.status === input.status
+      && validDate(row.updatedAt)
+      && row.category === input.category
+      && Array.isArray(row.tags)
+      && row.tags.length === input.tags.length
+      && row.tags.every((tag, index) => tag === input.tags[index]);
+    const validRejected =
+      row?.created === false
+      && row.id === null
+      && row.title === null
+      && row.description === null
+      && row.priceCents === null
+      && row.currency === null
+      && row.status === null
+      && row.updatedAt === null
+      && row.category === null
+      && row.tags === null;
+    if (rows.length !== 1 || (!validCreated && !validRejected)) {
+      throw new Error("Listing owner-create authority returned an invalid result");
+    }
+    if (!row.created) return null;
+    await syncListingDirectUploadReferences({
+      client,
+      userId,
+      listingId,
+      requireAllTracked: true,
+    });
+    return Object.freeze({
+      id: row.id as string,
+      title: row.title as string,
+      description: row.description as string,
+      priceCents: row.priceCents as number,
+      currency: row.currency as string,
+      status: row.status as ListingStatus,
+      updatedAt: row.updatedAt as Date,
+      category: row.category as Category | null,
+      tags: Object.freeze([...(row.tags as string[])]),
+    });
+  });
+}
+
 export async function updateListingOwnerContent(
   client: DbUserContextTransactionClient,
   input: Readonly<{
@@ -703,6 +1028,8 @@ export async function updateListingOwnerContent(
     shipsWithinDays: number | null;
     processingTimeMinDays: number | null;
     processingTimeMaxDays: number | null;
+    photos: ReadonlyArray<ListingOwnerPhotoInput>;
+    variantGroups: ReadonlyArray<ListingOwnerVariantGroupInput>;
   }>,
 ) {
   const editableStatuses = new Set<ListingStatus>([
@@ -784,6 +1111,13 @@ export async function updateListingOwnerContent(
     throw new RangeError("Listing owner content-update input is invalid");
   }
 
+  const manifests = buildListingChildManifests(
+    input.photos,
+    input.variantGroups,
+    input.priceCents,
+    false,
+  );
+
   const rows = await client.$queryRaw<ListingOwnerContentUpdateRow[]>`
     SELECT *
       FROM public.grainline_listing_owner_content_update(
@@ -810,7 +1144,9 @@ export async function updateListingOwnerContent(
         ${input.stockQuantity}::integer,
         ${input.shipsWithinDays}::integer,
         ${input.processingTimeMinDays}::integer,
-        ${input.processingTimeMaxDays}::integer
+        ${input.processingTimeMaxDays}::integer,
+        ${manifests.photos}::jsonb,
+        ${manifests.variantGroups}::jsonb
       )
   `;
   const row = rows[0];

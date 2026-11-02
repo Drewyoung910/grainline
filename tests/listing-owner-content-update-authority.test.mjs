@@ -30,6 +30,18 @@ test("listing edit content update is owner-, version-, and state-bound", async (
     /"priceVersion" = CASE[\s\S]*source_listing\."priceVersion" \+ 1/u,
   );
   assert.match(migration, /"updatedAt" = source_now/u);
+  assert.match(
+    migration,
+    /CREATE FUNCTION public\.grainline_listing_children_replace_core\([\s\S]*DELETE FROM public\."Photo"[\s\S]*DELETE FROM public\."ListingVariantGroup"/u,
+  );
+  assert.match(
+    migration,
+    /CREATE FUNCTION public\.grainline_listing_owner_content_update\([\s\S]*grainline_listing_children_replace_core\(\s*source_listing\.id, p_price_cents, p_photos, p_variant_groups/u,
+  );
+  assert.match(
+    migration,
+    /CREATE FUNCTION public\.grainline_listing_owner_content_update\([\s\S]*jsonb_array_length\(p_photos\) < 1/u,
+  );
 
   assert.match(ownerAccess, /export async function updateListingOwnerContent/u);
   assert.match(ownerAccess, /DbUserContextTransactionClient/u);
@@ -39,8 +51,10 @@ test("listing edit content update is owner-, version-, and state-bound", async (
   assert.match(editPage, /withDbUserContext\(actor\.id, async \(tx\) => \{/u);
   assert.match(editPage, /updateListingOwnerContent\(tx,/u);
   assert.doesNotMatch(editPage, /tx\.listing\.update\(/u);
-  assert.match(editPage, /await tx\.listingVariantGroup\.deleteMany/u);
-  assert.match(editPage, /await tx\.photo\.deleteMany/u);
+  assert.doesNotMatch(editPage, /tx\.listingVariantGroup\.(?:create|delete|update)/u);
+  assert.doesNotMatch(editPage, /tx\.photo\.(?:create|delete|update)/u);
+  assert.match(editPage, /photos: photoManifest\.photos\.map/u);
+  assert.match(editPage, /variantGroups: variantGroups\.map/u);
 
   assert.match(
     provision,
