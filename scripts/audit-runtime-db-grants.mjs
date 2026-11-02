@@ -407,6 +407,13 @@ export const STAFF_READ_FUNCTION_IDENTITIES = Object.freeze([
   "grainline_user_report_staff_open_page(text,timestamp without time zone,text,integer)",
   "grainline_user_report_staff_top_reporters(text,timestamp without time zone,integer)",
   "grainline_user_report_staff_resolve(text,text,text,text)",
+  "grainline_admin_audit_staff_count(text,text)",
+  "grainline_admin_audit_staff_page(text,text,integer,integer)",
+  "grainline_admin_audit_staff_undo_source(text,text)",
+  "grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)",
+  "grainline_admin_audit_ban_repair_candidates(integer)",
+  "grainline_admin_audit_ban_repair_state(text,text)",
+  "grainline_admin_audit_ban_repair_append(text,text,text,jsonb)",
 ]);
 export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
   [
@@ -442,6 +449,13 @@ export const MIGRATION_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
     "grainline_user_report_staff_open_page(text,timestamp without time zone,text,integer)",
     "grainline_user_report_staff_top_reporters(text,timestamp without time zone,integer)",
     "grainline_user_report_staff_resolve(text,text,text,text)",
+    "grainline_admin_audit_staff_count(text,text)",
+    "grainline_admin_audit_staff_page(text,text,integer,integer)",
+    "grainline_admin_audit_staff_undo_source(text,text)",
+    "grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)",
+    "grainline_admin_audit_ban_repair_candidates(integer)",
+    "grainline_admin_audit_ban_repair_state(text,text)",
+    "grainline_admin_audit_ban_repair_append(text,text,text,jsonb)",
   ],
 );
 export const MIGRATION_ORDER_STAFF_READ_FUNCTION_IDENTITIES = Object.freeze(
@@ -719,6 +733,13 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_user_report_staff_open_page",
   "grainline_user_report_staff_top_reporters",
   "grainline_user_report_staff_resolve",
+  "grainline_admin_audit_staff_count",
+  "grainline_admin_audit_staff_page",
+  "grainline_admin_audit_staff_undo_source",
+  "grainline_admin_audit_staff_ban_rows",
+  "grainline_admin_audit_ban_repair_candidates",
+  "grainline_admin_audit_ban_repair_state",
+  "grainline_admin_audit_ban_repair_append",
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",
   "grainline_order_seller_key_assert",
@@ -861,6 +882,15 @@ const ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_side_effect_complete(text,bigint,uuid)",
   "grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)",
 ]);
+const ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES = new Set([
+  "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+  "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+]);
+const ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_NAMES = new Set(
+  [...ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES].map(
+    (identity) => identity.slice(0, identity.indexOf("(")),
+  ),
+);
 const ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES = new Set([
   "grainline_account_deletion_media_key_enqueue_claimed(text,bigint,uuid,text[])",
 ]);
@@ -1172,6 +1202,9 @@ export function accountDeletionRuntimeExecuteExpected(row, inventory) {
   if (ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES.has(identity)) {
     return !accountDeletionSideEffectRlsActivationExpected(inventory);
   }
+  if (ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES.has(identity)) {
+    return false;
+  }
   if (ACCOUNT_DELETION_RUNTIME_FUNCTION_IDENTITIES.has(identity)) {
     return true;
   }
@@ -1248,7 +1281,12 @@ export function collectAccountDeletionWorkerBoundaryIssues(state, inventory) {
   const effectiveFunctions = sortedUnique(
     (state.effective_function_identities ?? []).map((value) => String(value).replace(/\s*,\s*/g, ",")),
   );
-  const expectedFunctions = [...ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES].sort();
+  const adminAuditPrepared = [...ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_NAMES]
+    .some((name) => (inventory?.functions ?? []).includes(name));
+  const expectedFunctions = [
+    ...ACCOUNT_DELETION_WORKER_FUNCTION_IDENTITIES,
+    ...(adminAuditPrepared ? ADMIN_AUDIT_ACCOUNT_DELETION_FUNCTION_IDENTITIES : []),
+  ].sort();
   if (actualFunctions.join("|") !== expectedFunctions.join("|")) {
     issues.push(
       `account-deletion worker function authority drifted: ${actualFunctions.join(", ") || "none"}`,
@@ -1453,7 +1491,9 @@ export async function readAccountDeletionWorkerBoundaryState(client) {
              'grainline_user_account_deletion_finalize',
              'grainline_case_account_deletion_redact',
              'grainline_message_redact_for_account_deletion',
-             'grainline_order_account_deletion_scrub'
+             'grainline_order_account_deletion_scrub',
+             'grainline_admin_audit_account_deletion_redaction_apply',
+             'grainline_admin_audit_account_deletion_legacy_redaction_apply'
            )
            AND acl.grantee = 0
            AND acl.privilege_type = 'EXECUTE')

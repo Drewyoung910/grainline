@@ -5656,6 +5656,39 @@ SELECT pg_catalog.format(
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 \endif
+
+-- AdminAuditLog preparation moves the two claim-bound redaction workers onto
+-- the isolated account-deletion login. Keep that grant exact when the
+-- preparation exists, while remaining compatible with earlier chain stages.
+WITH admin_audit_account_deletion(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_account_deletion_redaction_apply"(text, bigint, uuid, text)'),
+    ('public."grainline_admin_audit_account_deletion_legacy_redaction_apply"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I, %I',
+  function_signature,
+  :'runtime_role',
+  'grainline_account_deletion_runtime'
+)
+  FROM admin_audit_account_deletion
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH admin_audit_account_deletion(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_account_deletion_redaction_apply"(text, bigint, uuid, text)'),
+    ('public."grainline_admin_audit_account_deletion_legacy_redaction_apply"(text, bigint, uuid, text)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  'grainline_account_deletion_runtime'
+)
+  FROM admin_audit_account_deletion
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 \if :account_deletion_claim_fence_prepared
 DO $grainline_account_deletion_worker_postflight$
 DECLARE
@@ -5666,7 +5699,33 @@ DECLARE
   );
   worker_table_privileges text[];
   worker_function_identities text[];
+  expected_worker_function_identities text[] := ARRAY[
+    'grainline_account_deletion_side_effect_claim(text)',
+    'grainline_account_deletion_side_effect_complete(text,bigint,uuid)',
+    'grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)'
+  ]::text[];
 BEGIN
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+     ) IS NOT NULL
+     OR pg_catalog.to_regprocedure(
+       'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)'
+     ) IS NOT NULL THEN
+    IF pg_catalog.to_regprocedure(
+         'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+       ) IS NULL
+       OR pg_catalog.to_regprocedure(
+         'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)'
+       ) IS NULL THEN
+      RAISE EXCEPTION
+        'AdminAuditLog account-deletion function set is partial';
+    END IF;
+    expected_worker_function_identities := expected_worker_function_identities || ARRAY[
+      'grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
+      'grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'
+    ]::text[];
+  END IF;
+
   IF pg_catalog.has_database_privilege(
        worker_oid, pg_catalog.current_database(), 'CREATE'
      )
@@ -5764,11 +5823,8 @@ BEGIN
          AND acl.privilege_type = 'EXECUTE'
          AND NOT acl.is_grantable
     ) AS identities;
-  IF worker_function_identities IS DISTINCT FROM ARRAY[
-       'grainline_account_deletion_side_effect_claim(text)',
-       'grainline_account_deletion_side_effect_complete(text,bigint,uuid)',
-       'grainline_account_deletion_side_effect_fail(text,bigint,uuid,text)'
-     ]::text[] OR EXISTS (
+  IF worker_function_identities IS DISTINCT FROM
+       expected_worker_function_identities OR EXISTS (
     SELECT 1
       FROM pg_catalog.pg_proc AS procedure
       JOIN pg_catalog.pg_namespace AS namespace
@@ -5807,7 +5863,9 @@ BEGIN
          'grainline_user_account_deletion_finalize',
          'grainline_case_account_deletion_redact',
          'grainline_message_redact_for_account_deletion',
-         'grainline_order_account_deletion_scrub'
+         'grainline_order_account_deletion_scrub',
+         'grainline_admin_audit_account_deletion_redaction_apply',
+         'grainline_admin_audit_account_deletion_legacy_redaction_apply'
        )
        AND acl.grantee = 0
        AND acl.privilege_type = 'EXECUTE'
@@ -6326,6 +6384,100 @@ SELECT pg_catalog.format(
   :'runtime_role'
 )
   FROM seller_broadcast_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- AdminAuditLog preparation leaves predecessor CRUD in place. After the
+-- reviewed policyless activation, provisioning must never reopen direct audit
+-- history access. The fixed RPC surface is converged in both states.
+WITH posture AS (
+  SELECT class.relrowsecurity AS rls_enabled,
+         class.relforcerowsecurity AS rls_forced,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'AdminAuditLog'
+     AND class.relkind = 'r'
+), state AS (
+  SELECT rls_enabled AND rls_forced AND policy_count = 0 AS active,
+         NOT rls_enabled AND NOT rls_forced AND policy_count = 0
+           AS clean_predecessor
+    FROM posture
+), failure AS (
+  SELECT
+    'AdminAuditLog RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM state
+   WHERE active IS DISTINCT FROM true
+     AND clean_predecessor IS DISTINCT FROM true
+)
+SELECT EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+       COALESCE((SELECT message FROM failure LIMIT 1), '')
+         AS grainline_role_provisioning_failure,
+       COALESCE((SELECT active FROM state), false)
+         AS admin_audit_log_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_admin_audit_log_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_admin_audit_log_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :admin_audit_log_rls_active
+REVOKE ALL ON TABLE public."AdminAuditLog" FROM PUBLIC, :"runtime_role";
+\endif
+\unset admin_audit_log_rls_active
+
+WITH admin_audit_functions(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_admin_audit_insert_write_fence"()', false),
+    ('public."grainline_admin_audit_append"(text, text, text, text, text, jsonb)', true),
+    ('public."grainline_admin_audit_staff_count"(text, text)', false),
+    ('public."grainline_admin_audit_staff_page"(text, text, integer, integer)', false),
+    ('public."grainline_admin_audit_staff_undo_source"(text, text)', false),
+    ('public."grainline_admin_audit_undo_claim"(text, text, text, text, text, text, text, jsonb)', true),
+    ('public."grainline_admin_audit_account_deletion_write_fence"(text, bigint, uuid)', true),
+    ('public."grainline_admin_audit_account_deletion_candidates"(text, bigint, uuid, text[], text[], text, integer)', true),
+    ('public."grainline_admin_audit_account_deletion_redaction_plans_enqueue"(text, bigint, uuid, text[], text[], jsonb)', true),
+    ('public."grainline_admin_audit_account_deletion_redaction_apply"(text, bigint, uuid, text)', false),
+    ('public."grainline_admin_audit_account_deletion_legacy_redaction_apply"(text, bigint, uuid, text)', false),
+    ('public."grainline_admin_audit_staff_ban_rows"(text, text, boolean, integer)', false),
+    ('public."grainline_admin_audit_ban_repair_candidates"(integer)', false),
+    ('public."grainline_admin_audit_ban_repair_state"(text, text)', false),
+    ('public."grainline_admin_audit_ban_repair_append"(text, text, text, jsonb)', false)
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM admin_audit_functions
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH admin_audit_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_admin_audit_append"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_admin_audit_undo_claim"(text, text, text, text, text, text, text, jsonb)'),
+    ('public."grainline_admin_audit_account_deletion_write_fence"(text, bigint, uuid)'),
+    ('public."grainline_admin_audit_account_deletion_candidates"(text, bigint, uuid, text[], text[], text, integer)'),
+    ('public."grainline_admin_audit_account_deletion_redaction_plans_enqueue"(text, bigint, uuid, text[], text[], jsonb)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM admin_audit_runtime
  WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 

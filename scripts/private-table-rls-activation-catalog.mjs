@@ -50,6 +50,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -63,6 +64,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -366,6 +368,30 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
   }),
+  admin_audit_log_v1: Object.freeze({
+    preparationReleaseId: "admin_audit_log_v1",
+    minimumCompatibleAppCommit:
+      "f17482eb25adcf6d8d6c0f7d60eb1d1222414883",
+    migration: "20261102020000_activate_admin_audit_log_rls",
+    migrationSha256:
+      "5c56b89f5261ec9ed250a9ea1d93769a3350bb76a34af0e011aec9f08e948bd2",
+    rollbackPath: "docs/rls-drafts/admin-audit-log-activation-rollback.sql",
+    rollbackSha256:
+      "68525b71f2b7f2ea2e69739eddfdd64ed19a43ec047b070fe7696423e52a69d1",
+    table: "AdminAuditLog",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedAccountDeletionPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/admin-audit-log-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
@@ -562,7 +588,7 @@ export function verifyPrivateTableRlsActivationSource(
   )?.[1] ?? "";
   const activationRevokeTables = [
     ...activation.sql.matchAll(
-      /\bREVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+TABLE\s+([\s\S]*?)\s+FROM\s+PUBLIC,\s*grainline_app_runtime(?:,\s*grainline_staff_read_runtime)?\s*;/giu,
+      /\bREVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+TABLE\s+([\s\S]*?)\s+FROM\s+PUBLIC,\s*grainline_app_runtime(?:,\s*grainline_staff_read_runtime)?(?:,\s*grainline_account_deletion_runtime)?\s*;/giu,
     ),
   ].flatMap((statement) => (
     [...statement[1].matchAll(/public\."([^"]+)"/gu)].map((match) => match[1])
@@ -635,7 +661,10 @@ export function verifyPrivateTableRlsActivationSource(
       throw stopped(`activation runtime grant shape drifted for ${table}`);
     }
   }
-  for (const entry of preparation.release.functions) {
+  for (const entry of [
+    ...preparation.release.functions,
+    ...(preparation.release.retainedFunctions ?? []),
+  ]) {
     const literal = signatureLiteral(entry).replaceAll("'", "''");
     if (!activation.sql.includes(`'${literal}'`)) {
       throw stopped(`reviewed operation ${literal} is absent from activation preflight`);

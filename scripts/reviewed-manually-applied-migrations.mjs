@@ -137,6 +137,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261102010000_prepare_admin_audit_log_authorities",
     "1895bb203781aabaf3c3efebc9419925415f6db639b5c9780d4865504b48ccc8",
   ],
+  [
+    "20261102020000_activate_admin_audit_log_rls",
+    "5c56b89f5261ec9ed250a9ea1d93769a3350bb76a34af0e011aec9f08e948bd2",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {
