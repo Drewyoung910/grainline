@@ -86,17 +86,23 @@ async function runBinding(auxiliaryConclusion = "success") {
   );
 }
 
-function acceptedMigration() {
+function acceptedMigration(selectedRelease = release) {
   return {
-    migration_name: release.migration,
-    checksum: release.migrationSha256,
+    migration_name: selectedRelease.migration,
+    checksum: selectedRelease.migrationSha256,
     finished_at: "2026-10-23T12:00:00.000Z",
     rolled_back_at: null,
     applied_steps_count: 1,
   };
 }
 
-function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
+function fakeClientClass({
+  ledgerApplied,
+  schemaApplied,
+  partial = false,
+  selectedRelease = release,
+  selectedVerified = verified,
+}) {
   return class FakeClient {
     async connect() {}
     async end() {}
@@ -124,21 +130,26 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
         }] };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
-        return { rows: ledgerApplied ? [acceptedMigration()] : [] };
+        return { rows: ledgerApplied ? [acceptedMigration(selectedRelease)] : [] };
       }
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
         return { rows: [{
-          columns: schemaApplied ? release.addedColumns.length : 0,
+          columns: schemaApplied ? selectedRelease.addedColumns.length : 0,
           functions: schemaApplied
-            ? release.functions.length - (partial ? 1 : 0)
+            ? selectedRelease.functions.filter(
+              (entry) => entry.predecessorSourceSha256 === undefined,
+            ).length - (partial ? 1 : 0)
             : 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
-        return { rows: [{ name: "emailDeliveryToken", type: "uuid", nullable: true }] };
+        return {
+          rows: [...selectedRelease.addedColumns]
+            .sort((left, right) => left.name.localeCompare(right.name)),
+        };
       }
       if (sql.includes("procedure.prosrc AS source")) {
-        return { rows: release.functions
+        return { rows: selectedRelease.functions
           .map((entry) => ({
             function_name: entry.name,
             identity_arguments: entry.arguments,
@@ -146,9 +157,9 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
             owner_bypasses_rls: true,
             security_definer: true,
             configuration: ["search_path=pg_catalog"],
-            source: verified.functionSources.get(entry.name),
-            runtime_execute: true,
-            staff_execute: false,
+            source: selectedVerified.functionSources.get(entry.name),
+            runtime_execute: (entry.executeRole ?? "runtime") === "runtime",
+            staff_execute: entry.executeRole === "staff",
             public_execute: false,
           }))
           .sort((left, right) => (
@@ -161,10 +172,10 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
   };
 }
 
-function environment(directory, phase, previousPath) {
+function environment(directory, phase, previousPath, selectedReleaseId = releaseId) {
   return {
     DIRECT_URL: "postgresql://example.invalid/grainline",
-    PRIVATE_TABLE_PREPARATION_RELEASE_ID: releaseId,
+    PRIVATE_TABLE_PREPARATION_RELEASE_ID: selectedReleaseId,
     PRIVATE_TABLE_PREPARATION_PHASE: phase,
     PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(directory, `${phase}.json`),
     PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH: previousPath,
@@ -313,6 +324,21 @@ test("owner social and verification preparation batch is exact and ordered", () 
   );
 });
 
+test("Commission preparation is byte-sealed across both domain tables", () => {
+  const commission = privateTablePreparation("commission_domain_v1");
+  const commissionVerified = verifyPrivateTablePreparationSource(
+    "commission_domain_v1",
+  );
+  assert.equal(commission.table, "CommissionRequest");
+  assert.deepEqual(commission.additionalTables, ["CommissionInterest"]);
+  assert.equal(commission.functions.length, 23);
+  assert.equal(commissionVerified.digest, commission.migrationSha256);
+  const sql = readFileSync(commissionVerified.migrationPath, "utf8");
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -384,6 +410,32 @@ test("inspector admits only an exact applied-but-unrecorded preparation", async 
   }
 });
 
+test("inspector proves both Commission tables as one preparation group", async () => {
+  const selectedReleaseId = "commission_domain_v1";
+  const selectedRelease = privateTablePreparation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTablePreparationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "commission-preparation-"));
+  try {
+    const evidence = await inspectPrivateTablePreparationProduction(
+      environment(directory, "preflight", undefined, selectedReleaseId),
+      {
+        Client: fakeClientClass({
+          ledgerApplied: false,
+          schemaApplied: true,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.equal(evidence.state, "applied_unrecorded");
+    assert.deepEqual(evidence.tables, ["CommissionRequest", "CommissionInterest"]);
+    assert.deepEqual(Object.keys(evidence.postures), evidence.tables);
+    assert.equal(evidence.catalog.functions.length, 23);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("all generic preparation releases admit only their exact manual ledger row", () => {
   for (const releaseId of [
     "support_request_v1",
@@ -420,6 +472,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "review_vote_v1",
       "maker_verification_v1",
       "owner_social_verification_v1",
+      "commission_domain_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");

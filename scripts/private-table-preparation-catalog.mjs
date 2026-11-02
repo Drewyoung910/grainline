@@ -360,6 +360,128 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  commission_domain_v1: Object.freeze({
+    migration: "20261101060000_prepare_commission_domain_authorities",
+    migrationSha256:
+      "5603b77cf28303e5f2b77b2f00b8128c587a3c4b05b705dde0c8a0b3d318aeec",
+    table: "CommissionRequest",
+    additionalTables: Object.freeze(["CommissionInterest"]),
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/commission-interest-count.test.mjs",
+      "tests/commission-observability-followups.test.mjs",
+      "tests/user-public-review-commission-state-source.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_commission_request_public_count",
+        arguments: "text, text, text, double precision, double precision, integer",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_public_page",
+        arguments:
+          "text, text, text, double precision, double precision, integer, integer, integer",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_public_detail",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_public_sitemap_page",
+        arguments: "integer, integer",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_public_metro_ids",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_actor_report_target",
+        arguments: "text, text",
+      }),
+      Object.freeze({
+        name: "grainline_commission_interest_actor_request_ids",
+        arguments: "text[]",
+      }),
+      Object.freeze({
+        name: "grainline_commission_interest_actor_create",
+        arguments: "text, text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_create",
+        arguments:
+          "text, text, text, text, integer, integer, text, text[], boolean, double precision, double precision, integer",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_assign_metros",
+        arguments: "text, text, text",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_page",
+        arguments: "integer",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_active_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_reference_image_urls",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_commission_interest_owner_export",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_owner_transition",
+        arguments: "text, text",
+      }),
+      Object.freeze({
+        name: "grainline_commission_account_deletion_prepare",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_commission_account_deletion_redact",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_staff_ban_close",
+        arguments: "text, text",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_staff_ban_restore",
+        arguments: "text, text, text[], text[]",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_service_expire_batch",
+        arguments: "integer",
+      }),
+      Object.freeze({
+        name: "grainline_commission_request_service_expired_count",
+        arguments: "",
+      }),
+      Object.freeze({
+        name: "grainline_seller_owner_commission_interest_summaries",
+        arguments: "text[], integer",
+        predecessorSourceSha256:
+          "80cb199f7162cf26d7ca76217db9a007d218bde3b8a8c1389806c3800c4330c1",
+      }),
+    ]),
+  }),
 });
 
 export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
@@ -382,6 +504,19 @@ export function privateTablePreparation(releaseId) {
   const release = PRIVATE_TABLE_PREPARATIONS[releaseId];
   if (!release) throw stopped("release id is not reviewed");
   return release;
+}
+
+export function privateTablePreparationTables(release) {
+  const tables = [release.table, ...(release.additionalTables ?? [])];
+  if (
+    tables.some((table) => (
+      typeof table !== "string" || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(table)
+    ))
+    || new Set(tables).size !== tables.length
+  ) {
+    throw stopped("preparation table catalog is invalid");
+  }
+  return Object.freeze(tables);
 }
 
 export function privateTablePreparationReleaseIds(selectionId) {
@@ -431,6 +566,7 @@ export function verifyPrivateTablePreparationSource(
     process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
 ) {
   const release = privateTablePreparation(releaseId);
+  privateTablePreparationTables(release);
   const migrationPath = migrationPathOverride
     ? path.resolve(rootDir, migrationPathOverride)
     : path.join(rootDir, privateTablePreparationMigrationPath(release));
