@@ -193,6 +193,16 @@ table is empty before activation, and revoke all runtime/PUBLIC access. Keep
 the empty table for now; dropping it is a separate destructive cleanup after a
 full-chain inventory.
 
+### `FIX_BEFORE_ACTIVATION`: expired unconfirmed newsletter rows have no retention path
+
+An address that never confirms remains in `NewsletterSubscriber` indefinitely,
+including its expired token hash and send timestamps. The ordinary cleanup cron
+does not inspect this table. Add a bounded retention operation for inactive,
+never-confirmed rows whose confirmation expiry is older than the reviewed
+retention window. It must not remove confirmed consent history or an active
+subscription, and it must use stable keyset/batch behavior rather than an
+unbounded delete.
+
 ### `FIX_BEFORE_ACTIVATION`: activation/release skew
 
 Preparation must be additive and predecessor-compatible. The compatible app
@@ -207,6 +217,10 @@ Acknowledgement fields exist on outbox and Resend event rows, but no complete
 operator workflow uses them. This does not justify direct table access. A later
 staff tool should use a PIN/capability-bound operation and should distinguish
 an acknowledged incident from deleting delivery evidence.
+
+Until that workflow exists, health counts must continue to fail visibly for
+unprocessed provider events and dead outbox jobs; access cleanup must not hide
+them merely to make the health check green.
 
 ### `DEFERRED_PRODUCT_WORK`: physical predecessor-table removal
 
