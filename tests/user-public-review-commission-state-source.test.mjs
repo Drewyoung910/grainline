@@ -6,8 +6,15 @@ import yaml from "js-yaml";
 import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
 
 function read(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  return readFileSync(
+    path.startsWith("/") ? path : new URL(`../${path}`, import.meta.url),
+    "utf8",
+  );
 }
+
+const commissionAuthorityMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ||
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
 
 const functionNames = [
   "grainline_review_reviewer_public_state_bind",
@@ -94,9 +101,7 @@ describe("User public review and commission state source boundary", () => {
     assert.match(distance, /publicCommissionRequestCount\(meId, publicFilter\)/);
     assert.match(distance, /publicCommissionRequestPage\(meId, \{/);
     assert.doesNotMatch(distance, /\$queryRaw(?:Unsafe)?/);
-    const authority = read(
-      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const authority = read(commissionAuthorityMigration);
     assert.match(
       authority,
       /grainline_commission_request_public_count[\s\S]*request\."buyerAccountActive" = true/,

@@ -231,10 +231,10 @@ describe("Conversation and Message application authority conversion", () => {
     );
 
     assert.match(helper, /public\.grainline_message_send_custom_request/);
-    assert.match(helper, /public\.grainline_message_create_commission_interest/);
+    assert.match(helper, /public\.grainline_commission_interest_actor_create/);
     assert.match(helper, /public\.grainline_message_send_custom_order_ready/);
     assert.match(customAccess, /sendActorCustomOrderRequest\(input\)/);
-    assert.match(commissionAccess, /createActorCommissionInterest\(input\)/);
+    assert.match(commissionAccess, /createActorCommissionInterest\(input, client\)/);
     assert.match(readyAccess, /sendActorCustomOrderReady\(/);
     assert.doesNotMatch(customAccess, /prisma\.(?:conversation|message)\./);
     assert.doesNotMatch(commissionAccess, /prisma\.(?:conversation|message)\./);

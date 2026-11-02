@@ -6,6 +6,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+
 describe("DirectUpload RLS audit contracts", () => {
   it("pins converted fixed-operation surfaces while compatible table grants remain", () => {
     const convertedPaths = [
@@ -60,7 +64,7 @@ describe("DirectUpload RLS audit contracts", () => {
       assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
     assert.match(
-      source("prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql"),
+      source(commissionPreparationMigration),
       /grainline_commission_request_owner_create[\s\S]*grainline_direct_upload_sync_commission_request/,
       "Commission creation must bind its verified uploads in the same database transaction",
     );

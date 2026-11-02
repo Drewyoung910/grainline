@@ -6,6 +6,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+
 function getMethodSource(path, method) {
   const text = source(path);
   const start = text.indexOf(`export async function ${method}`);
@@ -389,9 +393,7 @@ describe("public query determinism", () => {
     const commissionDetail = source("src/app/commission/[param]/page.tsx");
     const commissionApi = source("src/app/api/commission/route.ts");
     const commissionDetailApi = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
-    const commissionAuthority = source(
-      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const commissionAuthority = source(commissionPreparationMigration);
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);

@@ -6,6 +6,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+
 function tsSourceFiles(dir) {
   const entries = readdirSync(dir);
   const files = [];
@@ -60,9 +64,7 @@ describe("verified audit follow-up guardrails", () => {
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
     const interestAccess = source("src/lib/commissionInterestMessageAccess.ts");
     const requestAccess = source("src/lib/commissionRequestAccess.ts");
-    const commissionAuthority = source(
-      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const commissionAuthority = source(commissionPreparationMigration);
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
     const commissionFunction = serviceSql.slice(
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),

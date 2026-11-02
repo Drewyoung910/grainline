@@ -6,6 +6,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+
 describe("conversation participant pair guardrails", () => {
   it("keeps a raw unordered unique index for conversation participant pairs", () => {
     const schema = source("prisma/schema.prisma");
@@ -29,9 +33,7 @@ describe("conversation participant pair guardrails", () => {
     const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
     const commissionInterest = source("src/app/api/commission/[id]/interest/route.ts");
     const commissionInterestAccess = source("src/lib/commissionInterestMessageAccess.ts");
-    const commissionAuthority = source(
-      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const commissionAuthority = source(commissionPreparationMigration);
 
     assert.doesNotMatch(messagesNew, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(messagesNew, /startConversationForUser/);
