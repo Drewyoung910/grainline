@@ -3,7 +3,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 
-export function ReviewListingButtons({ listingId }: { listingId: string }) {
+export function ReviewListingButtons({
+  listingId,
+  reviewedAt,
+}: {
+  listingId: string;
+  reviewedAt: string;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null);
@@ -22,7 +28,7 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
       const res = await fetch(`/api/admin/listings/${listingId}/review`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, reason: trimmedReason }),
+        body: JSON.stringify({ action, reason: trimmedReason, reviewedAt }),
       });
       if (res.ok) {
         // The route answers 200 with `skipped` when another tab or staff member

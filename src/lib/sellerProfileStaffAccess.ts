@@ -20,7 +20,8 @@ type SellerProfileStaffListingReviewBlockReason =
   | "SELLER_ACCOUNT_UNAVAILABLE"
   | "SELLER_PAYOUTS_UNAVAILABLE"
   | "SELLER_VACATION"
-  | "REASON_REQUIRED";
+  | "REASON_REQUIRED"
+  | "LISTING_VERSION_CHANGED";
 
 type SellerProfileStaffListingReviewTransitionRow = Readonly<{
   applied: boolean;
@@ -67,6 +68,40 @@ export type SellerProfileStaffListingReviewTransition = Readonly<{
       vacationMode: boolean;
     }>;
   }>;
+}>;
+
+type SellerProfileStaffListingRemovalBlockReason = "LISTING_VERSION_CHANGED";
+
+type SellerProfileStaffListingRemovalTransitionRow = Readonly<{
+  applied: boolean;
+  auditId: string | null;
+  blockReason: SellerProfileStaffListingRemovalBlockReason | null;
+  listingId: string;
+  title: string;
+  sellerProfileId: string;
+  previousStatus: string;
+  previousIsPrivate: boolean;
+  previousRejectionReason: string | null;
+  removedFavorites: number;
+  removedStockNotifications: bigint;
+  removedCartItems: number;
+}>;
+
+export type SellerProfileStaffListingRemovalTransition = Readonly<{
+  applied: boolean;
+  auditId: string | null;
+  blockReason: SellerProfileStaffListingRemovalBlockReason | null;
+  listing: Readonly<{
+    id: string;
+    title: string;
+    sellerId: string;
+    previousStatus: string;
+    previousIsPrivate: boolean;
+    previousRejectionReason: string | null;
+  }>;
+  removedFavorites: number;
+  removedStockNotifications: number;
+  removedCartItems: number;
 }>;
 
 type VerificationStatus =
@@ -134,6 +169,17 @@ const LISTING_REVIEW_BLOCK_REASONS = new Set<SellerProfileStaffListingReviewBloc
   "SELLER_PAYOUTS_UNAVAILABLE",
   "SELLER_VACATION",
   "REASON_REQUIRED",
+  "LISTING_VERSION_CHANGED",
+]);
+
+const LISTING_STATUSES = new Set([
+  "DRAFT",
+  "ACTIVE",
+  "SOLD",
+  "SOLD_OUT",
+  "HIDDEN",
+  "PENDING_REVIEW",
+  "REJECTED",
 ]);
 
 function validId(value: unknown): value is string {
@@ -221,6 +267,7 @@ export async function sellerProfileStaffListingReviewTransition(
     listingId: string;
     operation: SellerProfileStaffListingReviewOperation;
     reason: string;
+    reviewedAt: Date;
   },
 ): Promise<SellerProfileStaffListingReviewTransition | null> {
   if (
@@ -229,6 +276,7 @@ export async function sellerProfileStaffListingReviewTransition(
     || (input.operation !== "APPROVE" && input.operation !== "REJECT")
     || typeof input.reason !== "string"
     || input.reason.length > 500
+    || !validDate(input.reviewedAt)
   ) {
     throw new RangeError("Seller listing review transition input is invalid");
   }
@@ -237,7 +285,8 @@ export async function sellerProfileStaffListingReviewTransition(
       ${input.actorId}::text,
       ${input.listingId}::text,
       ${input.operation}::text,
-      ${input.reason}::text
+      ${input.reason}::text,
+      ${input.reviewedAt}::timestamp
     )
   `;
   if (rows.length === 0) return null;
@@ -306,6 +355,84 @@ export async function sellerProfileStaffListingReviewTransition(
         vacationMode: row.vacationMode,
       }),
     }),
+  });
+}
+
+export async function sellerProfileStaffListingRemovalTransition(
+  client: SellerProfileStaffClient,
+  input: {
+    actorId: string;
+    listingId: string;
+    reviewedAt: Date;
+  },
+): Promise<SellerProfileStaffListingRemovalTransition | null> {
+  if (
+    !validId(input.actorId)
+    || !validId(input.listingId)
+    || !validDate(input.reviewedAt)
+  ) {
+    throw new RangeError("Seller listing removal transition input is invalid");
+  }
+  const rows = await client.$queryRaw<SellerProfileStaffListingRemovalTransitionRow[]>`
+    SELECT * FROM public.grainline_seller_staff_listing_remove_transition(
+      ${input.actorId}::text,
+      ${input.listingId}::text,
+      ${input.reviewedAt}::timestamp
+    )
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller listing removal transition returned multiple rows");
+  }
+  const row = rows[0];
+  const removedStockNotifications = Number(row.removedStockNotifications);
+  if (
+    typeof row.applied !== "boolean"
+    || (row.auditId !== null && !validId(row.auditId))
+    || (
+      row.blockReason !== null
+      && row.blockReason !== "LISTING_VERSION_CHANGED"
+    )
+    || !validId(row.listingId)
+    || row.listingId !== input.listingId
+    || !isTextWithinCodePointRange(row.title, 1, 150)
+    || !validId(row.sellerProfileId)
+    || !LISTING_STATUSES.has(row.previousStatus)
+    || typeof row.previousIsPrivate !== "boolean"
+    || (
+      row.previousRejectionReason !== null
+      && !isTextWithinCodePointRange(row.previousRejectionReason, 0, 1000)
+    )
+    || !validNonnegativeInteger(row.removedFavorites)
+    || typeof row.removedStockNotifications !== "bigint"
+    || !Number.isSafeInteger(removedStockNotifications)
+    || removedStockNotifications < 0
+    || !validNonnegativeInteger(row.removedCartItems)
+    || (row.applied && (row.auditId === null || row.blockReason !== null))
+    || (!row.applied && (row.auditId !== null || row.blockReason === null))
+    || (!row.applied && (
+      row.removedFavorites !== 0
+      || row.removedStockNotifications !== 0n
+      || row.removedCartItems !== 0
+    ))
+  ) {
+    throw new Error("Seller listing removal transition returned an invalid result");
+  }
+  return Object.freeze({
+    applied: row.applied,
+    auditId: row.auditId,
+    blockReason: row.blockReason,
+    listing: Object.freeze({
+      id: row.listingId,
+      title: row.title,
+      sellerId: row.sellerProfileId,
+      previousStatus: row.previousStatus,
+      previousIsPrivate: row.previousIsPrivate,
+      previousRejectionReason: row.previousRejectionReason,
+    }),
+    removedFavorites: row.removedFavorites,
+    removedStockNotifications,
+    removedCartItems: row.removedCartItems,
   });
 }
 
