@@ -52,7 +52,7 @@ describe("Round 9 public PII and notification-link guardrails", () => {
     const followerFanout = source("src/lib/followerListingNotifications.ts");
 
     assert.match(createListing, /import \{ backfillEmptyAltTexts \}/);
-    assert.match(createListing, /backfillEmptyAltTexts\(created\.id, aiResult\.altTexts\)/);
+    assert.match(createListing, /backfillEmptyAltTexts\(created\.id, aiResult\.altTexts, imageUrls\)/);
     assert.doesNotMatch(createListing, /prisma\.photo\.findMany\(\{\s*where: \{ listingId: created\.id \}/s);
 
     assert.match(checkoutSuccess, /orderTotalCents as calculateOrderTotalCents/);

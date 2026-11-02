@@ -259,8 +259,6 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   }));
   const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
-  await backfillEmptyAltTexts(created.id, aiResult.altTexts);
-
   if (shouldHold) {
     const held = await prisma.listing.updateMany({
       where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
@@ -271,6 +269,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       },
     });
     if (held.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+    await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
     revalidatePath(`/messages/${conversationId}`);
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
@@ -284,6 +283,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     },
   });
   if (activated.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+  await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
   await prisma.$executeRaw`
     UPDATE "Listing"
     SET status = 'SOLD_OUT'

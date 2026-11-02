@@ -20,17 +20,23 @@ export {
 export async function backfillEmptyAltTexts(
   listingId: string,
   altTexts: string[] | null | undefined,
+  reviewedImageUrls: readonly string[],
 ): Promise<void> {
   if (!Array.isArray(altTexts) || altTexts.length === 0) return;
   try {
     const photos = await prisma.photo.findMany({
       where: { listingId },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, altText: true },
+      select: { id: true, url: true, altText: true },
     });
-    const updates = planPhotoAltTextBackfill(photos, altTexts).map((update) =>
-      prisma.photo.update({
-        where: { id: update.id },
+    const updates = planPhotoAltTextBackfill(photos, altTexts, reviewedImageUrls).map((update) =>
+      prisma.photo.updateMany({
+        where: {
+          id: update.id,
+          listingId,
+          url: update.url,
+          OR: [{ altText: null }, { altText: "" }],
+        },
         data: { altText: update.altText },
       }),
     );

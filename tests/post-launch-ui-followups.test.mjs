@@ -315,26 +315,28 @@ describe("post-launch UI follow-ups", () => {
     const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
 
     assert.match(helper, /export async function backfillEmptyAltTexts/);
-    assert.match(helper, /planPhotoAltTextBackfill\(photos, altTexts\)/);
+    assert.match(helper, /planPhotoAltTextBackfill\(photos, altTexts, reviewedImageUrls\)/);
     assert.match(helper, /data: \{ altText: update\.altText \}/);
+    assert.match(helper, /url: update\.url/);
+    assert.match(helper, /OR: \[\{ altText: null \}, \{ altText: "" \}\]/);
     assert.match(helper, /\.findMany\(/);
     assert.match(helper, /import \{ logServerError \} from "@\/lib\/serverErrorLogger"/);
     assert.match(helper, /source: "photo_alt_text_backfill"/);
     assert.doesNotMatch(helper, /Sentry\.captureException/);
     assert.doesNotMatch(helper, /console\.error\(/);
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
-    assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
+    assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts, reviewedImageUrls\)/);
     // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
     // The old immediate photo API is disabled so uploads/re-crops/reorders
     // cannot kick a seller into review before they press Save.
     assert.match(editPage, /backfillEmptyAltTexts/);
-    const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
-    assert.equal(backfillCalls.length, 1, "expected the Save/review path to backfill alt text once");
+    const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts, reviewedImageUrls\)/g) ?? [];
+    assert.equal(backfillCalls.length, 2, "expected each successful Save/review transition to backfill alt text");
     assert.match(editPage, /photoManifestJson/);
     assert.match(editPage, /tx\.photo\.create/);
     assert.match(editPage, /tx\.photo\.updateMany/);
     assert.match(customPage, /import \{ backfillEmptyAltTexts \}/);
-    assert.match(customPage, /backfillEmptyAltTexts\(created\.id, aiResult\.altTexts\)/);
+    assert.match(customPage, /backfillEmptyAltTexts\(created\.id, aiResult\.altTexts, imageUrls\)/);
     assert.doesNotMatch(customPage, /prisma\.photo\.findMany\(\{\s*where: \{ listingId: created\.id \}/s);
     assert.doesNotMatch(addPhotosRoute, /reviewListingWithAI/);
     assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);
