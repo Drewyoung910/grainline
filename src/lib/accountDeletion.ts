@@ -88,6 +88,7 @@ import { clearSellerProfileViewDailyForAccountDeletion } from "@/lib/sellerAnaly
 import { clearSellerMetricsForAccountDeletion } from "@/lib/metrics";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import { redactListingsForAccountDeletion } from "@/lib/listingAccountDeletionAccess";
 import {
   cleanupAccountSellerBroadcasts,
 } from "@/lib/sellerBroadcastAccess";
@@ -1096,28 +1097,13 @@ export async function anonymizeUserAccount(
         where: { listing: { sellerId: user.sellerProfile.id } },
         data: { sellerReply: null, sellerReplyAt: null },
       });
-      await tx.photo.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listingVariantGroup.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listing.updateMany({
-        where: { sellerId: user.sellerProfile.id },
-        data: {
-          title: "Deleted listing",
-          status: "HIDDEN",
-          isPrivate: true,
-          archivedAt: now,
-          description: "[Listing removed]",
-          videoUrl: null,
-          tags: [],
-          metaDescription: null,
-          materials: [],
-          aiReviewFlags: [],
-          aiReviewScore: null,
-          rejectionReason: "Seller account deleted",
-        },
+      await redactListingsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        expectedSellerProfileId: user.sellerProfile.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+        archivedAt: now,
       });
       await redactOwnerMakerVerificationForDeletion(tx, now);
       await cleanupFollowsForAccountDeletion(tx, {
