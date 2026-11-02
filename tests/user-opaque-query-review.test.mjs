@@ -40,19 +40,20 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // StockNotification subscribe authority also removes one reviewed
   // publicListingDetailWhere call from the application frontier.
   // UI workspace/search work adds two publicListingWhere reads and one
-  // owner-scoped Workshop listing helper. No SellerProfile relation or raw
-  // table authority is added.
-  assert.equal(report.opaqueShapes.length, 149);
-  assert.equal(reviewedFactories.length, 113);
-  assert.equal(reviewedResidual.length, 36);
+  // owner-scoped Workshop listing helper. The Listing public-catalog boundary
+  // then removes the tag and metro-category direct Listing shapes without
+  // adding SellerProfile relation or raw-table authority.
+  assert.equal(report.opaqueShapes.length, 137);
+  assert.equal(reviewedFactories.length, 108);
+  assert.equal(reviewedResidual.length, 29);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 92,
-    sha256: "ef5a6638bbb144508b48c75b9783499ae36bb46576177ee63834a50fabf6c4a0",
+    unique: 89,
+    sha256: "44faa70360b0c10390875c9e9ff75591b39a2f9038aba7bdc4a5c627098141d4",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 30,
-    sha256: "2005c3bae3264b8456de248ba1ed56709772fe2ab8eafa43e57cbf12ffade9ff",
+    unique: 23,
+    sha256: "8703ecc0783858017e0cd20592197737662acb8bccbc1e0530fb8f1bed2e5d28",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,
