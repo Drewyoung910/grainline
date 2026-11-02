@@ -4788,11 +4788,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 5);
+    assert.equal(auditMatches.length, 6);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 5);
+    assert.equal(combinedStaffStageMatches.length, 6);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -4829,7 +4829,31 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreCorrection,
     );
-    const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
+    const correctionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyCorrection,
+    );
+    const restoreLockOrderCorrection = stagedProof.indexOf(
+      '"$holding/migrations/$lock_order_correction_migration" \\\n            "prisma/migrations/$lock_order_correction_migration"',
+    );
+    const applyLockOrderCorrection = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreLockOrderCorrection,
+    );
+    const lockOrderCorrectionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyLockOrderCorrection,
+    );
+    const restoreBroadcastPreparation = stagedProof.indexOf(
+      '"$holding/migrations/$broadcast_preparation" \\\n            "prisma/migrations/$broadcast_preparation"',
+    );
+    const applyBroadcastPreparation = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreBroadcastPreparation,
+    );
+    const broadcastPreparationAudit = stagedProof.lastIndexOf(
+      "npm run audit:db-grants",
+    );
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
     assert.ok(preparationAudit < restoreDeletionFence);
@@ -4845,7 +4869,17 @@ describe("database grant inventory guardrails", () => {
     assert.ok(
       eligibilityFenceAudit < restoreCorrection
       && restoreCorrection < applyCorrection
-      && applyCorrection < finalAudit,
+      && applyCorrection < correctionAudit,
+    );
+    assert.ok(
+      correctionAudit < restoreLockOrderCorrection
+      && restoreLockOrderCorrection < applyLockOrderCorrection
+      && applyLockOrderCorrection < lockOrderCorrectionAudit,
+    );
+    assert.ok(
+      lockOrderCorrectionAudit < restoreBroadcastPreparation
+      && restoreBroadcastPreparation < applyBroadcastPreparation
+      && applyBroadcastPreparation < broadcastPreparationAudit,
     );
   });
 
