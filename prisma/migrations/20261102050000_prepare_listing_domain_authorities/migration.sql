@@ -49,6 +49,16 @@ BEGIN
     RAISE EXCEPTION 'Listing staff-removal cleanup predecessor is absent';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_message_list(text,text,text,timestamp without time zone,text,integer)'
+     ) IS NULL THEN
+    RAISE EXCEPTION 'Listing message-list predecessor is absent';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_message_context_titles(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing message-context authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_materials_guard()'
      ) IS NOT NULL
      OR EXISTS (
@@ -335,6 +345,189 @@ REVOKE ALL ON FUNCTION public.grainline_seller_staff_listing_remove_transition(
 GRANT EXECUTE ON FUNCTION public.grainline_seller_staff_listing_remove_transition(
   text,text,timestamp without time zone
 ) TO grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_listing_message_context_titles(
+  p_conversation_id text
+)
+RETURNS TABLE (
+  "listingId" text,
+  title text
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_message_context_titles$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_conversation_id IS NULL
+     OR p_conversation_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing message-context input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  SELECT DISTINCT listing.id::text, listing.title::text
+    FROM public."Conversation" AS conversation
+    JOIN public."Message" AS message
+      ON message."conversationId" = conversation.id
+    JOIN public."Listing" AS listing
+      ON message."contextListingId" = listing.id
+   WHERE conversation.id = p_conversation_id
+     AND (
+       conversation."userAId" = actor_id
+       OR conversation."userBId" = actor_id
+       OR public.grainline_conversation_staff_report_visible(conversation.id)
+     );
+END
+$grainline_listing_message_context_titles$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_message_context_titles(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_message_context_titles(text)
+  TO grainline_app_runtime;
+
+CREATE OR REPLACE FUNCTION public.grainline_message_list(
+  p_user_id text,
+  p_conversation_id text,
+  p_direction text,
+  p_cursor_at timestamp(3),
+  p_cursor_id text,
+  p_limit integer
+)
+RETURNS TABLE (
+  id text,
+  "conversationId" text,
+  "senderId" text,
+  "recipientId" text,
+  body text,
+  kind text,
+  "contextListingId" text,
+  "contextListingTitle" text,
+  "createdAt" timestamp(3),
+  "readAt" timestamp(3)
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY INVOKER
+SET search_path = pg_catalog
+AS $grainline_message_list$
+DECLARE
+  bounded_limit integer;
+BEGIN
+  IF p_user_id IS NULL
+     OR p_user_id !~ '^[A-Za-z0-9._:-]{1,128}$' THEN
+    RAISE EXCEPTION 'message actor is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF p_conversation_id IS NULL
+     OR p_conversation_id = ''
+     OR pg_catalog.char_length(p_conversation_id) > 191 THEN
+    RAISE EXCEPTION 'message conversation is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF p_direction IS NULL OR p_direction NOT IN ('before', 'after') THEN
+    RAISE EXCEPTION 'message page direction is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF (p_cursor_at IS NULL) <> (p_cursor_id IS NULL)
+     OR (
+       p_cursor_id IS NOT NULL
+       AND (
+         p_cursor_id = ''
+         OR pg_catalog.char_length(p_cursor_id) > 191
+       )
+     ) THEN
+    RAISE EXCEPTION 'message cursor is invalid' USING ERRCODE = '22023';
+  END IF;
+  IF p_direction = 'before'
+     AND (p_cursor_at IS NULL OR p_cursor_id IS NULL) THEN
+    RAISE EXCEPTION 'older-message cursor is incomplete' USING ERRCODE = '22023';
+  END IF;
+  IF pg_catalog.set_config('app.user_id', p_user_id, true) <> p_user_id THEN
+    RAISE EXCEPTION 'message actor context was not set'
+      USING ERRCODE = '55000';
+  END IF;
+  bounded_limit := GREATEST(1, LEAST(COALESCE(p_limit, 50), 201));
+
+  IF p_direction = 'before' THEN
+    RETURN QUERY
+    SELECT
+      message.id,
+      message."conversationId",
+      message."senderId",
+      message."recipientId",
+      message.body::text,
+      message.kind::text,
+      message."contextListingId",
+      context_listing.title::text,
+      message."createdAt",
+      message."readAt"
+      FROM public."Message" AS message
+      LEFT JOIN public.grainline_listing_message_context_titles(
+        p_conversation_id
+      ) AS context_listing
+        ON context_listing."listingId" = message."contextListingId"
+     WHERE message."conversationId" = p_conversation_id
+       AND (
+         p_user_id IN (message."senderId", message."recipientId")
+         OR public.grainline_conversation_staff_report_visible(
+              message."conversationId"
+            )
+       )
+       AND (
+         message."createdAt" < p_cursor_at
+         OR (
+           message."createdAt" = p_cursor_at
+           AND message.id < p_cursor_id
+         )
+       )
+     ORDER BY message."createdAt" DESC, message.id DESC
+     LIMIT bounded_limit;
+  ELSE
+    RETURN QUERY
+    SELECT
+      message.id,
+      message."conversationId",
+      message."senderId",
+      message."recipientId",
+      message.body::text,
+      message.kind::text,
+      message."contextListingId",
+      context_listing.title::text,
+      message."createdAt",
+      message."readAt"
+      FROM public."Message" AS message
+      LEFT JOIN public.grainline_listing_message_context_titles(
+        p_conversation_id
+      ) AS context_listing
+        ON context_listing."listingId" = message."contextListingId"
+     WHERE message."conversationId" = p_conversation_id
+       AND (
+         p_user_id IN (message."senderId", message."recipientId")
+         OR public.grainline_conversation_staff_report_visible(
+              message."conversationId"
+            )
+       )
+       AND (
+         p_cursor_at IS NULL
+         OR message."createdAt" > p_cursor_at
+         OR (
+           p_cursor_id IS NOT NULL
+           AND message."createdAt" = p_cursor_at
+           AND message.id > p_cursor_id
+         )
+       )
+     ORDER BY message."createdAt" ASC, message.id ASC
+     LIMIT bounded_limit;
+  END IF;
+END
+$grainline_message_list$;
 
 ALTER TABLE public."Listing"
   ADD CONSTRAINT "Listing_materials_count_chk"
