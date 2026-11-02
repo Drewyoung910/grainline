@@ -550,6 +550,7 @@ async function updateListing(
           const holdResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
             listingId,
             reviewedAt: updatedListing.updatedAt,
+            sourceStatus: ListingStatus.PENDING_REVIEW,
             status: ListingStatus.PENDING_REVIEW,
             flags: aiResult.flags,
             score: aiResult.confidence,
@@ -568,6 +569,7 @@ async function updateListing(
           const activationResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
             listingId,
             reviewedAt: updatedListing.updatedAt,
+            sourceStatus: ListingStatus.PENDING_REVIEW,
             status: approvedPublicStatus,
             flags: aiResult.flags,
             score: aiResult.confidence,
@@ -602,6 +604,7 @@ async function updateListing(
       const pendingResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
         listingId,
         reviewedAt: updatedListing.updatedAt,
+        sourceStatus: ListingStatus.PENDING_REVIEW,
         status: ListingStatus.PENDING_REVIEW,
         flags: ["AI review error"],
         score: 0,

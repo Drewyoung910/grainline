@@ -264,6 +264,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     const held = await applyVersionBoundListingAiReviewTransition(seller.userId, {
       listingId: created.id,
       reviewedAt: created.updatedAt,
+      sourceStatus: ListingStatus.PENDING_REVIEW,
       status: ListingStatus.PENDING_REVIEW,
       flags: aiResult.flags,
       score: aiResult.confidence,
@@ -277,21 +278,13 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   const activated = await applyVersionBoundListingAiReviewTransition(seller.userId, {
     listingId: created.id,
     reviewedAt: created.updatedAt,
+    sourceStatus: ListingStatus.PENDING_REVIEW,
     status: ListingStatus.ACTIVE,
     flags: aiResult.flags,
     score: aiResult.confidence,
   });
   if (!activated) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
   await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
-  await prisma.$executeRaw`
-    UPDATE "Listing"
-    SET status = 'SOLD_OUT'
-    WHERE id = ${created.id}
-      AND "sellerId" = ${seller.id}
-      AND "listingType" = 'IN_STOCK'
-      AND COALESCE("stockQuantity", 0) <= 0
-      AND status = 'ACTIVE'
-  `;
 
   const readyLink = await sendCustomOrderReadyLink({
     listingId: created.id,
