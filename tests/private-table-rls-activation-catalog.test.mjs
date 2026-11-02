@@ -111,6 +111,25 @@ test("catalog pins the exact reviewed suffix after the block/report/FAQ batch", 
   );
 });
 
+test("catalog byte-seals policyless SellerMetrics activation", () => {
+  const metrics = privateTableRlsActivation("seller_metrics_v1");
+  const source = verifyPrivateTableRlsActivationSource("seller_metrics_v1");
+  assert.equal(metrics.table, "SellerMetrics");
+  assert.equal(metrics.mode, "policyless_combined_enable_force");
+  assert.equal(
+    metrics.minimumCompatibleAppCommit,
+    "887ff0c9fc88a65f5b9854f1312d0000d5fc3878",
+  );
+  assert.equal(metrics.preparation.functions.length, 4);
+  assert.equal(metrics.preparation.retainedFunctions.length, 5);
+  assert.deepEqual(metrics.policies, []);
+  assert.deepEqual(metrics.activatedRuntimePrivileges, []);
+  assert.deepEqual(metrics.activatedStaffPrivileges, []);
+  assert.deepEqual(metrics.activatedAccountDeletionPrivileges, []);
+  assert.equal(source.migrationDigest, metrics.migrationSha256);
+  assert.equal(source.rollbackDigest, metrics.rollbackSha256);
+});
+
 test("batch source verification prefers each release's staged paths", () => {
   const sourceByRelease = Object.fromEntries(
     privateTableRlsActivationReleaseIds("owner_social_verification_v1")
