@@ -43,6 +43,7 @@ import {
   sellerOwnerListingMetroSource,
   sellerOwnerListingReview,
 } from "@/lib/sellerProfileOwnerAccess";
+import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -301,6 +302,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     });
     return listing;
   });
+  let reviewedListingVersion = created.updatedAt;
 
   revalidatePath("/browse");
   revalidatePath("/dashboard");
@@ -312,7 +314,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(sellerLocation.lat, sellerLocation.lng);
       if (metroId || cityMetroId) {
-        await prisma.listing.update({ where: { id: created.id }, data: { metroId, cityMetroId } });
+        const located = await prisma.listing.update({
+          where: { id: created.id },
+          data: { metroId, cityMetroId },
+          select: { updatedAt: true },
+        });
+        reviewedListingVersion = located.updatedAt;
       }
     }
   } catch (e) {
@@ -329,6 +336,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
 
   // Non-draft: run all side effects unchanged
+  let activatedByThisReview = false;
   try {
     const firstListing = await prisma.listing.findFirst({
       where: { sellerId: seller.id },
@@ -386,26 +394,28 @@ async function createListing(_prevState: unknown, formData: FormData) {
     }))
 
     const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8
+    let reviewApplied = false;
 
     if (shouldHold) {
-      await prisma.listing.updateMany({
-        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-        data: {
-          status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
-        }
-      })
+      reviewApplied = await applyVersionBoundListingAiReviewTransition(prisma, {
+        listingId: created.id,
+        sellerId: seller.id,
+        reviewedAt: reviewedListingVersion,
+        status: ListingStatus.PENDING_REVIEW,
+        flags: aiResult.flags,
+        score: aiResult.confidence,
+      });
     } else {
-      const updated = await prisma.listing.updateMany({
-        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-        data: {
-          status: ListingStatus.ACTIVE,
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
-        },
-      })
-      if (updated.count === 1) {
+      reviewApplied = await applyVersionBoundListingAiReviewTransition(prisma, {
+        listingId: created.id,
+        sellerId: seller.id,
+        reviewedAt: reviewedListingVersion,
+        status: ListingStatus.ACTIVE,
+        flags: aiResult.flags,
+        score: aiResult.confidence,
+      });
+      activatedByThisReview = reviewApplied;
+      if (reviewApplied) {
         await prisma.$executeRaw`
           UPDATE "Listing"
           SET status = 'SOLD_OUT'
@@ -418,21 +428,23 @@ async function createListing(_prevState: unknown, formData: FormData) {
       }
     }
 
-    // Backfill AI-generated alt text through the shared non-fatal helper.
-    await backfillEmptyAltTexts(created.id, aiResult.altTexts);
+    // Do not let a stale review write alt text onto a newer photo set.
+    if (reviewApplied) {
+      await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
+    }
   } catch (error) {
     logServerError(error, {
       source: "listing_create_ai_review",
       level: "warning",
       extra: { listingId: created.id, sellerProfileId: seller.id },
     });
-    await prisma.listing.updateMany({
-      where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["AI review error"],
-        aiReviewScore: 0,
-      },
+    await applyVersionBoundListingAiReviewTransition(prisma, {
+      listingId: created.id,
+      sellerId: seller.id,
+      reviewedAt: reviewedListingVersion,
+      status: ListingStatus.PENDING_REVIEW,
+      flags: ["AI review error"],
+      score: 0,
     }).catch((updateError) => {
       logServerError(updateError, {
         source: "listing_create_ai_error_mark_failed",
@@ -447,7 +459,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     where: { id: created.id },
     select: { status: true },
   });
-  if (finalListing?.status === "ACTIVE") {
+  if (finalListing?.status === "ACTIVE" && activatedByThisReview) {
     await syncGuildMemberListingThreshold(seller.id);
     revalidateListingSearchCaches();
     revalidateFeaturedMakerCaches();
