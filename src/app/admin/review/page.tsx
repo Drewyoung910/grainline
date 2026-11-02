@@ -32,6 +32,7 @@ export default async function AdminReviewPage() {
         priceCents: true,
         currency: true,
         createdAt: true,
+        updatedAt: true,
         aiReviewFlags: true,
         aiReviewScore: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
@@ -149,8 +150,14 @@ export default async function AdminReviewPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <ReviewListingButtons listingId={listing.id} />
-                  <DeleteListingButton listingId={listing.id} />
+                  <ReviewListingButtons
+                    listingId={listing.id}
+                    reviewedAt={listing.updatedAt.toISOString()}
+                  />
+                  <DeleteListingButton
+                    listingId={listing.id}
+                    reviewedAt={listing.updatedAt.toISOString()}
+                  />
                   <Link
                     href={`${publicListingPath(listing.id, listing.title)}?preview=admin`}
                     target="_blank"
