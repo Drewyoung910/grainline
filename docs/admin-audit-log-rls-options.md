@@ -2,9 +2,12 @@
 
 Date: 2026-11-02
 
-Status: design selected and isolated compatible preparation in progress. This
-document authorizes no merge, deployment, Production database change, grant
-change, or RLS activation.
+Status: design selected. The isolated compatible application conversion is
+zero-direct and its 12-operation migration passes focused and complete-chain
+PostgreSQL 17 proof, but preparation remains unaccepted while its crash,
+plan/race, catalog, rollback and release gates are open. This document
+authorizes no merge, deployment, Production database change, grant change, or
+RLS activation.
 
 ## Decision context
 
@@ -21,8 +24,8 @@ Block, UserReport, SellerFaq, SellerBroadcast, seller-analytics, Commission and
 email-service candidates. The AdminAuditLog design must compose after that
 serial chain without changing its release order.
 
-Current source has 20 executable direct AdminAuditLog accesses across six
-files. The complete PostgreSQL 17 schema has 23 installed functions whose
+The audited baseline had 20 executable direct AdminAuditLog accesses across
+six files; the current isolated candidate has zero. The complete PostgreSQL 17 schema has 23 installed functions whose
 current bodies read or write AdminAuditLog. Two immutable service ledgers have
 restricting foreign keys to audit rows. Any design therefore has to preserve
 atomic cross-domain writes and durable references, not merely protect the
@@ -92,7 +95,7 @@ authority generic and easy to misuse. It is rejected.
 
 Shape:
 
-- convert the remaining six application consumers to fixed operations;
+- retain the completed conversion of the six application consumers to fixed operations;
 - retain the 23 installed domain functions after exact catalog review;
 - use the isolated staff role for global page, repair and staff-transition
   operations;
@@ -161,8 +164,9 @@ rejected for the current release.
 
 ## Selected preparation boundary
 
-The compatible preparation will leave RLS off and predecessor CRUD grants in
-place. It must add and convert only the following authority families:
+The compatible preparation leaves RLS off and predecessor CRUD grants in
+place. The current candidate adds and converts only the following authority
+families:
 
 1. isolated-staff bounded count/page and action filter;
 2. actor-bound terms-acceptance and export evidence;
@@ -174,6 +178,14 @@ place. It must add and convert only the following authority families:
 7. retained current-function writers/readers, sealed by exact signature,
    owner, ACL, security mode, search path and source digest.
 
+The candidate adds 12 named operations and has zero direct source consumers.
+Its account-deletion retry format stores only an already-redacted patch plus
+source SHA-256 fingerprints; the apply operation preserves undo fields,
+refuses changed source and atomically completes the exact claimed job. It does
+not yet close the earlier crash window between local anonymization completion
+and durable redaction-plan creation, so the compatible preparation is not yet
+accepted.
+
 The activation is separate. It may combine `ENABLE ROW LEVEL SECURITY` and
 `FORCE ROW LEVEL SECURITY` only after:
 
@@ -181,6 +193,7 @@ The activation is separate. It may combine `ENABLE ROW LEVEL SECURITY` and
 - the compatible app is live and predecessor traffic is drained;
 - the installed 23-function catalog and any new operations are exact;
 - account-deletion and undo races pass on full PostgreSQL 17;
+- audit-redaction plans are durable before local anonymization is marked done;
 - runtime, staff and `PUBLIC` direct table/column authority are zero;
 - existing foreign-key cascades/restrict behavior is executed under FORCE;
 - the database-first rollback restores predecessor access and behavior; and

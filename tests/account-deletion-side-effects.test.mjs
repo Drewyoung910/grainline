@@ -109,9 +109,13 @@ describe("account deletion side-effect retries", () => {
       sideEffects,
       /activation refuses[\s\S]*no unfinished URL-form media row remains/,
     );
-    assert.match(sideEffects, /adminAuditLogAccountDeletionRedactionSource/);
     assert.match(sideEffects, /applyAdminAuditLogAccountDeletionRedaction/);
-    assert.match(sideEffects, /for \(let attempt = 0; attempt < 3; attempt \+= 1\)/);
+    assert.match(sideEffects, /planVersion: 2/);
+    assert.match(sideEffects, /expectedMetadataSha256: update\.expectedMetadataSha256/);
+    assert.match(sideEffects, /expectedReasonSha256: update\.expectedReasonSha256/);
+    assert.match(sideEffects, /Audit redaction source changed during account deletion/);
+    assert.doesNotMatch(sideEffects, /sensitiveValues:/);
+    assert.doesNotMatch(sideEffects, /adminAuditLogAccountDeletionRedactionSource/);
     assert.doesNotMatch(sideEffects, /prisma\.adminAuditLog\./);
     assert.match(claimFence, /payload = '\{}'::jsonb/);
     assert.match(mediaKeyFence, /grainline_account_deletion_media_key_enqueue_claimed/);

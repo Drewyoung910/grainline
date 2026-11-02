@@ -26,8 +26,7 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_undo_source(text,text)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer)'),
-       pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_redaction_source(text,bigint,uuid,text)'),
-       pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_candidates(integer)'),
@@ -757,7 +756,9 @@ CREATE FUNCTION public.grainline_admin_audit_account_deletion_candidates(
 RETURNS TABLE (
   id text,
   metadata jsonb,
-  reason text
+  reason text,
+  "metadataSha256" text,
+  "reasonSha256" text
 )
 LANGUAGE plpgsql
 STABLE
@@ -804,7 +805,24 @@ BEGIN
   END IF;
 
   RETURN QUERY
-  SELECT audit.id::text, audit.metadata, audit.reason::text
+  SELECT audit.id::text,
+         audit.metadata,
+         audit.reason::text,
+         pg_catalog.encode(
+           pg_catalog.sha256(
+             pg_catalog.convert_to(audit.metadata::text, 'UTF8')
+           ),
+           'hex'
+         ),
+         pg_catalog.encode(
+           pg_catalog.sha256(
+             pg_catalog.convert_to(
+               pg_catalog.jsonb_build_object('reason', audit.reason)::text,
+               'UTF8'
+             )
+           ),
+           'hex'
+         )
     FROM public."AdminAuditLog" AS audit
    WHERE (p_after_id IS NULL OR audit.id > p_after_id)
      AND (
@@ -829,94 +847,11 @@ BEGIN
 END;
 $grainline_admin_audit_account_deletion_candidates$;
 
-CREATE FUNCTION public.grainline_admin_audit_account_deletion_redaction_source(
-  p_side_effect_id text,
-  p_claim_generation bigint,
-  p_claim_token uuid,
-  p_log_id text
-)
-RETURNS TABLE (
-  metadata jsonb,
-  reason text
-)
-LANGUAGE plpgsql
-STABLE
-PARALLEL UNSAFE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $grainline_admin_audit_account_deletion_redaction_source$
-DECLARE
-  source_user_id text;
-BEGIN
-  IF SESSION_USER <> 'grainline_account_deletion_runtime'
-     OR p_side_effect_id IS NULL
-     OR p_side_effect_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-     OR p_claim_generation IS NULL
-     OR p_claim_generation < 1
-     OR p_claim_token IS NULL
-     OR p_log_id IS NULL
-     OR p_log_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
-    RAISE EXCEPTION 'Admin audit account-deletion redaction claim is invalid'
-      USING ERRCODE = '22023';
-  END IF;
-
-  SELECT effect."userId"::text
-    INTO source_user_id
-    FROM public."AccountDeletionSideEffect" AS effect
-   WHERE effect.id = p_side_effect_id
-     AND effect.status = 'PROCESSING'
-     AND effect.kind = 'AUDIT_REDACT'
-     AND effect."dedupKey" = 'account-delete:audit:' || effect."userId" || ':' || p_log_id
-     AND effect."claimGeneration" = p_claim_generation
-     AND effect."claimToken" = p_claim_token
-     AND effect.payload->>'logId' = p_log_id
-     AND pg_catalog.jsonb_typeof(effect.payload->'sensitiveValues') = 'array'
-     AND pg_catalog.jsonb_array_length(effect.payload->'sensitiveValues') >= 1
-     AND NOT EXISTS (
-       SELECT 1
-         FROM pg_catalog.jsonb_array_elements(
-           effect.payload->'sensitiveValues'
-         ) AS sensitive_value
-        WHERE pg_catalog.jsonb_typeof(sensitive_value) <> 'string'
-           OR pg_catalog.char_length(sensitive_value #>> '{}') > 2048
-     )
-     AND pg_catalog.jsonb_typeof(effect.payload->'directAccountReference') = 'boolean'
-     AND pg_catalog.octet_length(effect.payload::text) <= 1000000;
-  IF NOT FOUND
-     OR NOT EXISTS (
-       SELECT 1 FROM public."User" AS deleted_user
-        WHERE deleted_user.id = source_user_id
-          AND deleted_user."deletedAt" IS NOT NULL
-     )
-     OR NOT EXISTS (
-       SELECT 1 FROM public."AdminAuditLog" AS deletion_audit
-        WHERE deletion_audit."adminId" = source_user_id
-          AND deletion_audit.action = 'USER_ACCOUNT_DELETE'
-          AND deletion_audit."targetType" = 'USER'
-          AND deletion_audit."targetId" = source_user_id
-     ) THEN
-    RAISE EXCEPTION 'Admin audit account-deletion redaction claim is not authorized'
-      USING ERRCODE = '42501';
-  END IF;
-
-  RETURN QUERY
-  SELECT audit.metadata, audit.reason::text
-    FROM public."AdminAuditLog" AS audit
-   WHERE audit.id = p_log_id;
-END;
-$grainline_admin_audit_account_deletion_redaction_source$;
-
 CREATE FUNCTION public.grainline_admin_audit_account_deletion_redaction_apply(
   p_side_effect_id text,
   p_claim_generation bigint,
   p_claim_token uuid,
-  p_log_id text,
-  p_expected_metadata jsonb,
-  p_expected_reason text,
-  p_next_metadata jsonb,
-  p_next_reason text,
-  p_update_metadata boolean,
-  p_update_reason boolean
+  p_log_id text
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -927,7 +862,14 @@ SET search_path = pg_catalog
 AS $grainline_admin_audit_account_deletion_redaction_apply$
 DECLARE
   source_effect public."AccountDeletionSideEffect"%ROWTYPE;
-  updated_id text;
+  current_metadata jsonb;
+  current_reason text;
+  current_metadata_sha256 text;
+  current_reason_sha256 text;
+  next_metadata jsonb;
+  next_reason text;
+  update_metadata boolean;
+  update_reason boolean;
   source_now timestamp(3) without time zone :=
     (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
 BEGIN
@@ -938,18 +880,7 @@ BEGIN
      OR p_claim_generation < 1
      OR p_claim_token IS NULL
      OR p_log_id IS NULL
-     OR p_log_id !~ '^[A-Za-z0-9._:-]{1,191}$'
-     OR p_expected_metadata IS NULL
-     OR p_update_metadata IS NULL
-     OR p_update_reason IS NULL
-     OR (p_update_metadata AND p_next_metadata IS NULL)
-     OR (p_update_reason AND p_next_reason IS NULL)
-     OR (p_next_reason IS NOT NULL AND pg_catalog.char_length(p_next_reason) > 1000)
-     OR pg_catalog.octet_length(p_expected_metadata::text) > 1000000
-     OR (
-       p_next_metadata IS NOT NULL
-       AND pg_catalog.octet_length(p_next_metadata::text) > 1000000
-     ) THEN
+     OR p_log_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
     RAISE EXCEPTION 'Admin audit account-deletion redaction input is invalid'
       USING ERRCODE = '22023';
   END IF;
@@ -964,17 +895,29 @@ BEGIN
      AND effect."claimGeneration" = p_claim_generation
      AND effect."claimToken" = p_claim_token
      AND effect.payload->>'logId' = p_log_id
-     AND pg_catalog.jsonb_typeof(effect.payload->'sensitiveValues') = 'array'
-     AND pg_catalog.jsonb_array_length(effect.payload->'sensitiveValues') >= 1
-     AND NOT EXISTS (
-       SELECT 1
-         FROM pg_catalog.jsonb_array_elements(
-           effect.payload->'sensitiveValues'
-         ) AS sensitive_value
-        WHERE pg_catalog.jsonb_typeof(sensitive_value) <> 'string'
-           OR pg_catalog.char_length(sensitive_value #>> '{}') > 2048
+     AND pg_catalog.jsonb_typeof(effect.payload->'planVersion') = 'number'
+     AND effect.payload->>'planVersion' = '2'
+     AND effect.payload->>'expectedMetadataSha256' ~ '^[0-9a-f]{64}$'
+     AND effect.payload->>'expectedReasonSha256' ~ '^[0-9a-f]{64}$'
+     AND NOT (effect.payload ? 'sensitiveValues')
+     AND (
+       pg_catalog.jsonb_typeof(effect.payload->'metadata') = 'object'
+       OR pg_catalog.jsonb_typeof(effect.payload->'reason') = 'string'
      )
-     AND pg_catalog.jsonb_typeof(effect.payload->'directAccountReference') = 'boolean'
+     AND (
+       NOT (effect.payload ? 'metadata')
+       OR (
+         pg_catalog.jsonb_typeof(effect.payload->'metadata') = 'object'
+         AND pg_catalog.octet_length((effect.payload->'metadata')::text) <= 1000000
+       )
+     )
+     AND (
+       NOT (effect.payload ? 'reason')
+       OR (
+         pg_catalog.jsonb_typeof(effect.payload->'reason') = 'string'
+         AND pg_catalog.char_length(effect.payload->>'reason') <= 1000
+       )
+     )
      AND pg_catalog.octet_length(effect.payload::text) <= 1000000
    FOR UPDATE;
   IF NOT FOUND
@@ -994,22 +937,51 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  SELECT audit.metadata, audit.reason::text
+    INTO current_metadata, current_reason
+    FROM public."AdminAuditLog" AS audit
+   WHERE audit.id = p_log_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Admin audit account-deletion redaction target is missing'
+      USING ERRCODE = '55000';
+  END IF;
+
+  current_metadata_sha256 := pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(current_metadata::text, 'UTF8')
+    ),
+    'hex'
+  );
+  current_reason_sha256 := pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(
+        pg_catalog.jsonb_build_object('reason', current_reason)::text,
+        'UTF8'
+      )
+    ),
+    'hex'
+  );
+  IF current_metadata_sha256 <> source_effect.payload->>'expectedMetadataSha256'
+     OR current_reason_sha256 <> source_effect.payload->>'expectedReasonSha256' THEN
+    RETURN false;
+  END IF;
+
+  update_metadata := source_effect.payload ? 'metadata';
+  update_reason := source_effect.payload ? 'reason';
+  next_metadata := source_effect.payload->'metadata';
+  next_reason := source_effect.payload->>'reason';
+
   UPDATE public."AdminAuditLog" AS audit
      SET metadata = CASE
-           WHEN p_update_metadata THEN p_next_metadata
+           WHEN update_metadata THEN next_metadata
            ELSE audit.metadata
          END,
          reason = CASE
-           WHEN p_update_reason THEN p_next_reason
+           WHEN update_reason THEN next_reason
            ELSE audit.reason
          END
-   WHERE audit.id = p_log_id
-     AND audit.metadata IS NOT DISTINCT FROM p_expected_metadata
-     AND audit.reason IS NOT DISTINCT FROM p_expected_reason
-  RETURNING audit.id INTO updated_id;
-  IF NOT FOUND THEN
-    RETURN false;
-  END IF;
+   WHERE audit.id = p_log_id;
 
   UPDATE public."AccountDeletionSideEffect" AS effect
      SET status = 'DONE',
@@ -1395,8 +1367,7 @@ REVOKE ALL ON FUNCTION
   public.grainline_admin_audit_staff_undo_source(text,text),
   public.grainline_admin_audit_undo_claim(text,text,text,text,text,text,text,jsonb),
   public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer),
-  public.grainline_admin_audit_account_deletion_redaction_source(text,bigint,uuid,text),
-  public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean),
+  public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text),
   public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text),
   public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer),
   public.grainline_admin_audit_ban_repair_candidates(integer),
@@ -1422,8 +1393,7 @@ TO grainline_staff_read_runtime;
 
 GRANT EXECUTE ON FUNCTION
   public.grainline_admin_audit_account_deletion_candidates(text,text[],text[],text,integer),
-  public.grainline_admin_audit_account_deletion_redaction_source(text,bigint,uuid,text),
-  public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean),
+  public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text),
   public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)
 TO grainline_account_deletion_runtime;
 
@@ -1461,12 +1431,7 @@ BEGIN
      )
      OR pg_catalog.has_function_privilege(
        'grainline_app_runtime',
-       'public.grainline_admin_audit_account_deletion_redaction_source(text,bigint,uuid,text)',
-       'EXECUTE'
-     )
-     OR pg_catalog.has_function_privilege(
-       'grainline_app_runtime',
-       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean)',
+       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)',
        'EXECUTE'
      )
      OR pg_catalog.has_function_privilege(
@@ -1546,12 +1511,7 @@ BEGIN
      )
      OR pg_catalog.has_function_privilege(
        'grainline_staff_read_runtime',
-       'public.grainline_admin_audit_account_deletion_redaction_source(text,bigint,uuid,text)',
-       'EXECUTE'
-     )
-     OR pg_catalog.has_function_privilege(
-       'grainline_staff_read_runtime',
-       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean)',
+       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)',
        'EXECUTE'
      )
      OR pg_catalog.has_function_privilege(
@@ -1566,12 +1526,7 @@ BEGIN
      )
      OR NOT pg_catalog.has_function_privilege(
        'grainline_account_deletion_runtime',
-       'public.grainline_admin_audit_account_deletion_redaction_source(text,bigint,uuid,text)',
-       'EXECUTE'
-     )
-     OR NOT pg_catalog.has_function_privilege(
-       'grainline_account_deletion_runtime',
-       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean)',
+       'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)',
        'EXECUTE'
      )
      OR NOT pg_catalog.has_function_privilege(

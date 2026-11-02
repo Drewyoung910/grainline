@@ -47,6 +47,7 @@ export type AdminAuditLogUndoSource = Readonly<{
 
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,255}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 const ACTOR_KINDS = new Set(["staff", "user", "automated"]);
 const BAN_REPAIR_ACTIONS = new Set([
   "BAN_USER_CLERK_SYNC",
@@ -330,6 +331,10 @@ export async function adminAuditLogAccountDeletionCandidates(
       !validId(row.id, 191)
       || !validJsonValue(row.metadata)
       || (row.reason !== null && !isTextWithinCodePointRange(row.reason, 0, 1000))
+      || typeof row.metadataSha256 !== "string"
+      || !SHA256_PATTERN.test(row.metadataSha256)
+      || typeof row.reasonSha256 !== "string"
+      || !SHA256_PATTERN.test(row.reasonSha256)
     ) {
       throw new TypeError("Admin audit account-deletion candidate authority returned an invalid row");
     }
@@ -337,6 +342,8 @@ export async function adminAuditLogAccountDeletionCandidates(
       id: row.id,
       metadata: row.metadata,
       reason: row.reason,
+      metadataSha256: row.metadataSha256,
+      reasonSha256: row.reasonSha256,
     });
   });
 }
@@ -353,7 +360,7 @@ function validAccountDeletionClaim(input: {
     && validId(input.logId, 191);
 }
 
-export async function adminAuditLogAccountDeletionRedactionSource(
+export async function applyAdminAuditLogAccountDeletionRedaction(
   client: StaffQueryClient,
   input: {
     sideEffectId: string;
@@ -363,52 +370,6 @@ export async function adminAuditLogAccountDeletionRedactionSource(
   },
 ) {
   if (!validAccountDeletionClaim(input)) {
-    throw new RangeError("Admin audit account-deletion redaction source input is invalid");
-  }
-  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
-    SELECT * FROM public.grainline_admin_audit_account_deletion_redaction_source(
-      ${input.sideEffectId}::text,
-      ${input.claimGeneration}::bigint,
-      ${input.claimToken}::uuid,
-      ${input.logId}::text
-    )
-  `);
-  const row = rows[0];
-  if (
-    rows.length !== 1
-    || !row
-    || !validJsonValue(row.metadata)
-    || (row.reason !== null && !isTextWithinCodePointRange(row.reason, 0, 1000))
-  ) {
-    throw new TypeError("Admin audit account-deletion redaction source returned an invalid row");
-  }
-  return Object.freeze({ metadata: row.metadata, reason: row.reason });
-}
-
-export async function applyAdminAuditLogAccountDeletionRedaction(
-  client: StaffQueryClient,
-  input: {
-    sideEffectId: string;
-    claimGeneration: bigint;
-    claimToken: string;
-    logId: string;
-    expectedMetadata: Prisma.JsonValue;
-    expectedReason: string | null;
-    nextMetadata: Prisma.JsonValue;
-    nextReason: string | null;
-    updateMetadata: boolean;
-    updateReason: boolean;
-  },
-) {
-  if (
-    !validAccountDeletionClaim(input)
-    || !validJsonValue(input.expectedMetadata)
-    || (input.expectedReason !== null && !isTextWithinCodePointRange(input.expectedReason, 0, 1000))
-    || !validJsonValue(input.nextMetadata)
-    || (input.nextReason !== null && !isTextWithinCodePointRange(input.nextReason, 0, 1000))
-    || typeof input.updateMetadata !== "boolean"
-    || typeof input.updateReason !== "boolean"
-  ) {
     throw new RangeError("Admin audit account-deletion redaction apply input is invalid");
   }
   const rows = await client.$queryRaw<Array<{ applied: unknown }>>(Prisma.sql`
@@ -416,13 +377,7 @@ export async function applyAdminAuditLogAccountDeletionRedaction(
       ${input.sideEffectId}::text,
       ${input.claimGeneration}::bigint,
       ${input.claimToken}::uuid,
-      ${input.logId}::text,
-      ${JSON.stringify(input.expectedMetadata)}::jsonb,
-      ${input.expectedReason}::text,
-      ${JSON.stringify(input.nextMetadata)}::jsonb,
-      ${input.nextReason}::text,
-      ${input.updateMetadata}::boolean,
-      ${input.updateReason}::boolean
+      ${input.logId}::text
     ) AS applied
   `);
   const applied = rows[0]?.applied;

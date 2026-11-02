@@ -433,8 +433,14 @@ describe("Round 9 account deletion PII guardrails", () => {
       deletion,
       /redactAccountDeletionText\(candidate\.reason, sensitiveValues, undefined, 1000\)/,
     );
-    assert.match(deletion, /sensitiveValues,/);
-    assert.match(deletion, /directAccountReference: candidate\.directAccountReference/);
+    assert.match(deletion, /expectedMetadataSha256: candidate\.metadataSha256/);
+    assert.match(deletion, /expectedReasonSha256: candidate\.reasonSha256/);
+    assert.match(deletion, /metadataSha256: log\.metadataSha256/);
+    assert.match(deletion, /reasonSha256: log\.reasonSha256/);
+    assert.doesNotMatch(
+      source("src/lib/accountDeletionSideEffects.ts"),
+      /sensitiveValues:/,
+    );
   });
 
   it("resets retained deleted-account role while keeping deleted accounts blocked", () => {

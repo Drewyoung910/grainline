@@ -3,9 +3,13 @@
 Date: 2026-11-02
 
 Status: domain audit complete; Option B selected in
-`docs/admin-audit-log-rls-options.md`. Compatible preparation is in progress
-on an isolated branch. No Production, merge, deployment, grant, or RLS action
-is authorized by this document.
+`docs/admin-audit-log-rls-options.md`. The isolated compatible source
+conversion is zero-direct and its 12-operation migration passes focused PGlite
+and complete-chain PostgreSQL 17 behavior/ACL proof. Preparation is not yet
+accepted: the account-deletion plan-creation crash window, realistic plans,
+two-session races, catalog sealing, rollback and release proof remain open. No
+Production, merge, deployment, grant, or RLS action is authorized by this
+document.
 
 ## Baseline and method
 
@@ -77,8 +81,10 @@ The 23 current dependencies cover:
 
 ## Exact application caller inventory
 
-Six files perform 20 executable direct operations on the audited isolated
-baseline:
+Six files performed 20 executable direct operations on the audited isolated
+baseline. The current isolated candidate has converted all six and the
+machine-checked inventory reports zero delegate operations and zero raw SQL
+callers outside `src/lib/adminAuditLogAccess.ts`:
 
 The machine-checked inventory runs with:
 
@@ -193,19 +199,32 @@ Candidate collection now includes only rows structurally related through
 or seller-profile id. It no longer scans for generic city/state/name
 substrings.
 
-The collection is still expensive: it performs one whole-table JSON-path scan
+Collection now runs through a fixed operation in batches of at most 500, but
+the structurally exact JSON-path predicate still performs one whole-table scan
 per account reference value because no normalized reference index exists. It
 runs after local anonymization, so it does not hold the main deletion
 transaction, but it can delay privacy cleanup as the log grows. Preparation
-must move collection behind a bounded fixed operation, measure a realistic
-large-table plan, and either add a reviewed reference/index strategy or record
-a scale trigger and operator metric. It must not silently add a broad GIN index
-without proving the exact query uses it.
+still needs a realistic large-table plan and either a reviewed reference/index
+strategy or a recorded scale trigger and operator metric. It must not silently
+add a broad GIN index without proving the exact query uses it.
 
 Redaction side effects replace only `reason` and `metadata`; identity, action,
-target, undo fields and time remain immutable. The current retry writes a
-snapshot prepared earlier. The proof must race redaction with undo and
-follow-up evidence to demonstrate that allowed newer state is not lost.
+target, undo fields and time remain immutable. Version-two retry rows contain
+only the already-redacted patch and PostgreSQL-computed SHA-256 fingerprints
+of the source metadata/reason; they never persist the raw account-deletion
+needles. The claim-bound database operation locks the exact audit row, refuses
+a fingerprint mismatch, applies the patch and clears/completes the exact side
+effect atomically. The complete-chain PostgreSQL 17 proof covers current and
+predecessor payloads, preserved undo evidence, stale-fingerprint refusal and
+exact role denial. A two-session undo/redaction race is still required.
+
+There is one separate crash-recovery gap that this conversion does not hide:
+the current application marks `LOCAL_ANONYMIZE` done before it scans candidates
+and creates `AUDIT_REDACT` rows. A process loss in that interval leaves no
+durable plan, and the already-anonymized account no longer retains every
+needle needed to reconstruct one. Preparation cannot be accepted until plan
+creation is durably ordered before local completion or an equivalent reviewed
+recovery source exists.
 
 ### Existing database writers and readers
 
@@ -229,7 +248,7 @@ a `SECURITY DEFINER` function.
 | Two repair workers | duplicate provider calls may be idempotent | one durable outcome family or safe replay evidence |
 | Domain transition vs audit insert failure | primary fail-closed paths roll back | executed atomic rollback for each converted transaction family |
 | External provider success vs audit failure | provider effect may succeed while result log is missing | existing retry/telemetry remains; no duplicate destructive effect |
-| Account deletion crash before candidate collection | local anonymization may be complete | durable side-effect/retry path can finish redaction later |
+| Account deletion crash before candidate collection | local anonymization may be complete but no redaction plan exists | **open blocker**: durably create the plan before local completion or retain an equivalent private recovery source |
 | Account deletion retry after newer undo | stale payload must not erase undo state | redaction touches reason/metadata only and preserves later allowed fields |
 | Direct row delete/PK update attempt | currently allowed to runtime | denied after activation, including referenced rows |
 | User/ledger foreign-key action under FORCE | owner functions and database FK checks continue | executed hard-delete/restrict/cascade behavior on PostgreSQL 17 |
@@ -248,6 +267,7 @@ a `SECURITY DEFINER` function.
 | JSON exact-reference collection is an unindexed whole-table scan per reference | Medium scalability/privacy latency | **FIX_BEFORE_ACTIVATION** with executed plan/bound or normalized reference strategy |
 | Metadata size constraint is `NOT VALID` | Low catalog debt | **FIX_BEFORE_ACTIVATION** inventory and validate or fail closed on historical violations |
 | Current indexes do not match stable page/action pagination | Low scalability | **FIX_IN_PREPARATION** after realistic plan proof |
+| `LOCAL_ANONYMIZE` is completed before audit-redaction plans are durable | Medium privacy/recovery | **BLOCKS_PREPARATION_ACCEPTANCE**; a crash can strand retained audit PII with no reconstructible needles |
 | Old global substring redaction corrupted unrelated rows | Historical high | **VERIFIED_FIXED** on current source; retain two-user noninterference regression |
 | Old deterministic case-mark id could block a second mark | Historical medium | **VERIFIED_FIXED** in installed PostgreSQL function; fresh random suffix retained |
 
@@ -263,18 +283,22 @@ scan, catalog drift, or rollback gap remains.
 
 ## Required evidence before compatible preparation is accepted
 
-1. Machine-checked source inventory proving zero direct delegate, relation and
-   raw SQL access outside the new fixed-operation module.
+1. **Passed locally:** machine-checked source inventory proves zero direct
+   delegate and raw SQL access outside the new fixed-operation module.
 2. Failing-first behavior tests on current public main, then passing tests for
    staff page bounds, actor-self writes, automated listing evidence, ban
    repair, undo concurrency and deletion noninterference.
-3. Complete PostgreSQL 17 migration chain with exact installed-function and
-   foreign-key catalog.
+3. **Partially passed:** the complete 462-migration PostgreSQL 17 schema proves
+   the 12 new functions, exact role split, current/legacy redaction, atomic
+   completion and stale-fingerprint refusal. The complete retained 23-function
+   catalog/foreign-key seal remains an activation artifact.
 4. Two-session undo/undo, undo/redaction and repair/repair races.
 5. Realistic high-row-count query plans for page/action pagination and deletion
    candidate collection.
 6. Predecessor-app/new-database and new-app/predecessor-database compatibility.
 7. Exact preparation migration bytes, owners, grants, search paths and
    source digests in the reusable release catalog.
+8. Durable redaction-plan creation ordered so a crash after local anonymization
+   cannot strand retained audit PII.
 
 Activation remains a later separately reviewed and authorized release.
