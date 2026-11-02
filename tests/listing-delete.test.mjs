@@ -37,17 +37,20 @@ describe("listing delete lifecycle", () => {
     );
 
     assert.match(source, /lockListingOwnerDeleteState/);
+    assert.match(source, /archiveListingOwnerDeleteState/);
+    assert.match(source, /hardDeleteListingOwnerDeleteState/);
     assert.match(source, /withSerializableDbUserContext/);
     assert.match(source, /sellerOwnerCore\(normalizedActorUserId\)/);
     assert.doesNotMatch(source, /FROM public\."Listing" AS listing/);
     assert.doesNotMatch(source, /FOR UPDATE OF listing/);
+    assert.doesNotMatch(source, /tx\.listing\.updateMany/);
     assert.match(source, /grainline_listing_delete_reference_state/);
     assert.match(source, /while a buyer checkout is in progress/);
     assert.doesNotMatch(source, /FROM public\."OrderItem"/);
     assert.match(source, /syncListingDirectUploadReferences/);
     assert.match(source, /requireAllTracked: true/);
-    assert.match(source, /tx\.photo\.deleteMany/);
-    assert.match(source, /tx\.listing\.deleteMany/);
+    assert.doesNotMatch(source, /tx\.photo\.deleteMany/);
+    assert.doesNotMatch(source, /tx\.listing\.deleteMany/);
     assert.match(source, /deleteCartItemsForSellerListing/);
     assert.doesNotMatch(source, /tx\.cartItem\.deleteMany/);
     assert.match(uploadMigration, /grainline_direct_upload_release_listing_delete/);
