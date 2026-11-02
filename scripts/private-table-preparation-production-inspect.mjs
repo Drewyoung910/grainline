@@ -44,6 +44,8 @@ async function readPreparationMarkers(client, release) {
   const newFunctions = release.functions.filter(
     (entry) => entry.predecessorSourceSha256 === undefined,
   );
+  const constraints = release.addedConstraints ?? [];
+  const tableNames = [release.table, ...(release.additionalTables ?? [])];
   return (await client.query(`
     SELECT
       (SELECT pg_catalog.count(*)::integer
@@ -58,10 +60,23 @@ async function readPreparationMarkers(client, release) {
            ON namespace.oid = procedure.pronamespace
         WHERE namespace.nspname = 'public'
           AND procedure.proname = ANY($3::text[])) AS functions
+      ,(SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.pg_constraint AS constraint_state
+          JOIN pg_catalog.pg_class AS relation
+            ON relation.oid = constraint_state.conrelid
+          JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.oid = relation.relnamespace
+         WHERE namespace.nspname = 'public'
+           AND relation.relname = ANY($4::text[])
+           AND constraint_state.conname = ANY($5::text[])
+           AND constraint_state.contype = 'c'
+           AND constraint_state.convalidated) AS constraints
   `, [
     `public."${release.table}"`,
     release.addedColumns.map((entry) => entry.name),
     newFunctions.map((entry) => entry.name),
+    tableNames,
+    constraints.map((entry) => entry.name),
   ])).rows[0];
 }
 
@@ -169,6 +184,36 @@ async function readInstalledCatalog(client, verified, tableOwner) {
     "reviewed column catalog drifted",
   );
 
+  const expectedConstraints = [...(release.addedConstraints ?? [])]
+    .sort((left, right) => (
+      left.table.localeCompare(right.table) || left.name.localeCompare(right.name)
+    ));
+  const constraintRows = expectedConstraints.length === 0
+    ? []
+    : (await client.query(`
+      SELECT relation.relname AS table,
+             constraint_state.conname AS name
+        FROM pg_catalog.pg_constraint AS constraint_state
+        JOIN pg_catalog.pg_class AS relation
+          ON relation.oid = constraint_state.conrelid
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = relation.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND relation.relname = ANY($1::text[])
+         AND constraint_state.conname = ANY($2::text[])
+         AND constraint_state.contype = 'c'
+         AND constraint_state.convalidated
+       ORDER BY relation.relname, constraint_state.conname
+    `, [
+      [...new Set(expectedConstraints.map((entry) => entry.table))],
+      expectedConstraints.map((entry) => entry.name),
+    ])).rows;
+  assert.deepEqual(
+    constraintRows,
+    expectedConstraints,
+    "reviewed constraint catalog drifted",
+  );
+
   const functionRows = await readFunctionRows(client, release.functions);
   assert.equal(functionRows.length, release.functions.length, "reviewed function count drifted");
 
@@ -191,6 +236,7 @@ async function readInstalledCatalog(client, verified, tableOwner) {
   assert.equal(expectedByIdentity.size, 0, "reviewed function is absent");
   return Object.freeze({
     columns: columnRows,
+    constraints: constraintRows,
     functions: functionRows.map(functionEvidence),
   });
 }
@@ -201,7 +247,11 @@ async function readPendingCatalog(client, verified, tableOwner) {
     (entry) => entry.predecessorSourceSha256 !== undefined,
   );
   const collisions = await readPreparationMarkers(client, release);
-  assert.deepEqual(collisions, { columns: 0, functions: 0 }, "preparation catalog collides");
+  assert.deepEqual(
+    collisions,
+    { columns: 0, functions: 0, constraints: 0 },
+    "preparation catalog collides",
+  );
 
   const functionRows = await readFunctionRows(client, predecessorFunctions);
   assert.equal(
@@ -228,6 +278,7 @@ async function readPendingCatalog(client, verified, tableOwner) {
   assert.equal(expectedByIdentity.size, 0, "reviewed predecessor function is absent");
   return Object.freeze({
     columns: [],
+    constraints: [],
     functions: functionRows.map(functionEvidence),
   });
 }
@@ -333,11 +384,17 @@ export async function inspectPrivateTablePreparationProduction(
       functions: release.functions.filter(
         (entry) => entry.predecessorSourceSha256 === undefined,
       ).length,
+      constraints: (release.addedConstraints ?? []).length,
     };
-    const hasNoMarkers = markers.columns === 0 && markers.functions === 0;
+    const hasNoMarkers = (
+      markers.columns === 0
+      && markers.functions === 0
+      && markers.constraints === 0
+    );
     const hasAllMarkers = (
       markers.columns === expectedMarkers.columns
       && markers.functions === expectedMarkers.functions
+      && markers.constraints === expectedMarkers.constraints
     );
     assert.ok(hasNoMarkers || hasAllMarkers, "preparation catalog is partially applied");
     if (applied) {

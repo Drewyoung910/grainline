@@ -1,0 +1,369 @@
+import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import pg from "pg";
+
+import { runPsqlScript } from "./psql-script.mjs";
+
+const EXPECTED_DENIAL_CODE = "42501";
+
+function runtimeConnectionString(connectionString, runtimeProofPassword) {
+  const value = new URL(connectionString);
+  value.username = "grainline_app_runtime";
+  value.password = runtimeProofPassword;
+  return value.toString();
+}
+
+async function assertDenied(client, sql, params = []) {
+  await assert.rejects(
+    client.query(sql, params),
+    (error) => error?.code === EXPECTED_DENIAL_CODE,
+  );
+}
+
+const TARGET_TABLES = `
+  public."FoundingMakerGrant",
+  public."Metro",
+  public."SiteConfig",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+`;
+
+async function restoreReviewedGrants(ownerClient) {
+  await ownerClient.query(`REVOKE ALL ON TABLE ${TARGET_TABLES} FROM grainline_app_runtime`);
+  await ownerClient.query(`
+    GRANT SELECT ON TABLE
+      public."FoundingMakerGrant",
+      public."Metro",
+      public."SiteConfig",
+      public."SiteMetricsSnapshot",
+      public."SystemAuditLog"
+    TO grainline_app_runtime
+  `);
+  await ownerClient.query(`
+    GRANT INSERT ON TABLE
+      public."Metro",
+      public."SiteMetricsSnapshot",
+      public."SystemAuditLog"
+    TO grainline_app_runtime
+  `);
+  await ownerClient.query(`
+    GRANT UPDATE ON TABLE
+      public."Metro",
+      public."SiteMetricsSnapshot"
+    TO grainline_app_runtime
+  `);
+}
+
+export async function proveServiceReferenceLeastPrivilege({
+  connectionString,
+  database,
+  ownerClient,
+  repositoryRoot,
+}) {
+  const suffix = `service-reference-${Date.now()}`;
+  const runtimeProofPassword = randomBytes(24).toString("base64url");
+  await ownerClient.query(
+    `ALTER ROLE grainline_app_runtime PASSWORD '${runtimeProofPassword}'`,
+  );
+  const runtime = new pg.Client({
+    connectionString: runtimeConnectionString(connectionString, runtimeProofPassword),
+  });
+  let runtimeConnected = false;
+
+  const auditId = `${suffix}:audit`;
+  const metroId = `${suffix}:metro`;
+  const metroSlug = `${suffix}-tx`;
+  const foundingGrantId = `${suffix}:founding`;
+  const deniedFoundingGrantId = `${foundingGrantId}:denied`;
+  const foundingMakerNumber = 249;
+  const siteConfigId = 2_147_483_000;
+  const deniedSiteConfigId = 2_147_483_001;
+  const siteMetricsId = 2_147_483_000;
+  let rollbackStarted = false;
+
+  try {
+    await runtime.connect();
+    runtimeConnected = true;
+    const identity = (await runtime.query(
+      "SELECT current_user, session_user",
+    )).rows[0];
+    assert.deepEqual(identity, {
+      current_user: "grainline_app_runtime",
+      session_user: "grainline_app_runtime",
+    });
+
+    await ownerClient.query(
+      `INSERT INTO public."FoundingMakerGrant" (
+         id, "sellerProfileId", "foundingMakerNumber", "grantedAt", "createdAt", "updatedAt"
+       ) VALUES ($1, NULL, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT ("foundingMakerNumber") DO NOTHING`,
+      [foundingGrantId, foundingMakerNumber],
+    );
+    await ownerClient.query(
+      `INSERT INTO public."SiteConfig" (id, "fallbackShippingCents")
+       VALUES ($1, 1500)
+       ON CONFLICT (id) DO UPDATE
+         SET "fallbackShippingCents" = EXCLUDED."fallbackShippingCents"`,
+      [siteConfigId],
+    );
+    await ownerClient.query(
+      `INSERT INTO public."SiteMetricsSnapshot" (
+         id, "avgConversion", "avgCtr", "avgRating", "calculatedAt", "updatedAt"
+       ) VALUES ($1, 0, 0, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE
+         SET "avgConversion" = EXCLUDED."avgConversion",
+             "avgCtr" = EXCLUDED."avgCtr",
+             "avgRating" = EXCLUDED."avgRating",
+             "calculatedAt" = EXCLUDED."calculatedAt",
+             "updatedAt" = EXCLUDED."updatedAt"`,
+      [siteMetricsId],
+    );
+
+    const config = await runtime.query(
+      'SELECT id, "fallbackShippingCents" FROM public."SiteConfig" WHERE id = $1',
+      [siteConfigId],
+    );
+    assert.equal(config.rows.length, 1);
+    await assertDenied(
+      runtime,
+      'UPDATE public."SiteConfig" SET "fallbackShippingCents" = "fallbackShippingCents" WHERE id = $1',
+      [siteConfigId],
+    );
+    await assertDenied(
+      runtime,
+      'INSERT INTO public."SiteConfig" (id, "fallbackShippingCents") VALUES ($1, 1500)',
+      [deniedSiteConfigId],
+    );
+    await assertDenied(
+      runtime,
+      'DELETE FROM public."SiteConfig" WHERE id = $1',
+      [siteConfigId],
+    );
+
+    await runtime.query(
+      `INSERT INTO public."SystemAuditLog" (
+         id, "actorType", "actorId", action, "targetType", "targetId", metadata, "createdAt"
+       ) VALUES ($1, 'system', NULL, 'SERVICE_REFERENCE_PROOF', 'PROOF', $2, '{}'::jsonb, CURRENT_TIMESTAMP)`,
+      [auditId, auditId],
+    );
+    const audit = await runtime.query(
+      'SELECT id FROM public."SystemAuditLog" WHERE id = $1',
+      [auditId],
+    );
+    assert.deepEqual(audit.rows, [{ id: auditId }]);
+    await assertDenied(
+      runtime,
+      'UPDATE public."SystemAuditLog" SET reason = NULL WHERE id = $1',
+      [auditId],
+    );
+    await assertDenied(
+      runtime,
+      'DELETE FROM public."SystemAuditLog" WHERE id = $1',
+      [auditId],
+    );
+
+    const founding = await runtime.query(
+      'SELECT "foundingMakerNumber" FROM public."FoundingMakerGrant" ORDER BY "foundingMakerNumber" LIMIT 1',
+    );
+    assert.equal(founding.rows.length, 1);
+    await assertDenied(
+      runtime,
+      `INSERT INTO public."FoundingMakerGrant" (
+         id, "sellerProfileId", "foundingMakerNumber", "grantedAt", "createdAt", "updatedAt"
+       ) VALUES ($1, NULL, 250, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [deniedFoundingGrantId],
+    );
+    await assertDenied(
+      runtime,
+      'UPDATE public."FoundingMakerGrant" SET "updatedAt" = CURRENT_TIMESTAMP WHERE id = $1',
+      [foundingGrantId],
+    );
+    await assertDenied(
+      runtime,
+      'DELETE FROM public."FoundingMakerGrant" WHERE id = $1',
+      [foundingGrantId],
+    );
+
+    const metro = await runtime.query(
+      `INSERT INTO public."Metro" (
+         id, slug, name, state, latitude, longitude, "radiusMiles", "isActive", "createdAt", "updatedAt"
+       ) VALUES ($1, $2, 'Service Reference Proof', 'Texas', 30.0, -97.0, 45, true,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (slug) DO UPDATE
+         SET name = EXCLUDED.name,
+             "updatedAt" = CURRENT_TIMESTAMP
+       RETURNING id, slug`,
+      [metroId, metroSlug],
+    );
+    assert.deepEqual(metro.rows, [{ id: metroId, slug: metroSlug }]);
+    await assertDenied(
+      runtime,
+      'DELETE FROM public."Metro" WHERE id = $1',
+      [metroId],
+    );
+
+    const metrics = await runtime.query(
+      `INSERT INTO public."SiteMetricsSnapshot" (
+         id, "avgConversion", "avgCtr", "avgRating", "calculatedAt", "updatedAt"
+       ) VALUES ($1, 0, 0, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (id) DO UPDATE
+         SET "avgConversion" = EXCLUDED."avgConversion",
+             "avgCtr" = EXCLUDED."avgCtr",
+             "avgRating" = EXCLUDED."avgRating",
+             "calculatedAt" = EXCLUDED."calculatedAt",
+             "updatedAt" = CURRENT_TIMESTAMP
+       RETURNING id`,
+      [siteMetricsId],
+    );
+    assert.deepEqual(metrics.rows, [{ id: siteMetricsId }]);
+    await assertDenied(
+      runtime,
+      'DELETE FROM public."SiteMetricsSnapshot" WHERE id = $1',
+      [siteMetricsId],
+    );
+
+    await assertDenied(
+      runtime,
+      'SELECT id FROM public."SellerExactMapConsentEvent" LIMIT 1',
+    );
+    await assertDenied(
+      runtime,
+      `INSERT INTO public."SellerExactMapConsentEvent" (
+         id, "sellerProfileId", "actorUserId", "eventType", "consentTextVersion",
+         "consentTextSha256", "coordinateHash", reason, "createdAt"
+       ) VALUES ($1, 'seller', NULL, 'GRANTED', 1, repeat('a', 64), repeat('b', 64), NULL,
+                 CURRENT_TIMESTAMP)`,
+      [`${suffix}:consent`],
+    );
+
+    const ledgerMigration =
+      "20261101020000_narrow_service_reference_runtime_privileges";
+    const ledgerChecksum =
+      "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c";
+    const manualLedger = await ownerClient.query(
+      `UPDATE public._prisma_migrations
+          SET applied_steps_count = 0
+        WHERE migration_name = $1
+          AND checksum = $2
+          AND finished_at IS NOT NULL
+          AND rolled_back_at IS NULL
+      RETURNING migration_name`,
+      [ledgerMigration, ledgerChecksum],
+    );
+    assert.deepEqual(manualLedger.rows, [{ migration_name: ledgerMigration }]);
+    try {
+      await runPsqlScript(
+        database,
+        readFileSync(
+          join(repositoryRoot, "scripts/provision-runtime-db-role.sql"),
+          "utf8",
+        ),
+        { runtime_role: "grainline_app_runtime", migration_role: "ci" },
+      );
+    } finally {
+      await ownerClient.query(
+        `UPDATE public._prisma_migrations
+            SET applied_steps_count = 1
+          WHERE migration_name = $1
+            AND checksum = $2`,
+        [ledgerMigration, ledgerChecksum],
+      );
+    }
+    const manualLedgerConfig = await runtime.query(
+      'SELECT id FROM public."SiteConfig" WHERE id = $1',
+      [siteConfigId],
+    );
+    assert.deepEqual(manualLedgerConfig.rows, [{ id: siteConfigId }]);
+    await assertDenied(
+      runtime,
+      'UPDATE public."SiteConfig" SET "fallbackShippingCents" = 1600 WHERE id = $1',
+      [siteConfigId],
+    );
+
+    const rollbackSql = readFileSync(
+      join(
+        repositoryRoot,
+        "docs/rls-drafts/service-reference-least-privilege-rollback.sql",
+      ),
+      "utf8",
+    );
+    rollbackStarted = true;
+    await ownerClient.query(`
+      GRANT SELECT ON TABLE public."SiteConfig"
+      TO grainline_app_runtime WITH GRANT OPTION
+    `);
+    await assert.rejects(
+      ownerClient.query(rollbackSql),
+      (error) => error?.code === "55000",
+    );
+    await ownerClient.query("ROLLBACK");
+    await ownerClient.query(`
+      REVOKE GRANT OPTION FOR SELECT ON TABLE public."SiteConfig"
+      FROM grainline_app_runtime
+    `);
+    await ownerClient.query(rollbackSql);
+    await runtime.query(
+      'INSERT INTO public."SiteConfig" (id, "fallbackShippingCents") VALUES ($1, 1600)',
+      [deniedSiteConfigId],
+    );
+    await runtime.query(
+      'UPDATE public."SiteConfig" SET "fallbackShippingCents" = 1700 WHERE id = $1',
+      [deniedSiteConfigId],
+    );
+    await runtime.query(
+      'DELETE FROM public."SiteConfig" WHERE id = $1',
+      [deniedSiteConfigId],
+    );
+    await restoreReviewedGrants(ownerClient);
+    rollbackStarted = false;
+    await assertDenied(
+      runtime,
+      'INSERT INTO public."SiteConfig" (id, "fallbackShippingCents") VALUES ($1, 1500)',
+      [deniedSiteConfigId],
+    );
+
+    return Object.freeze({
+      siteConfig: ["SELECT"],
+      systemAuditLog: ["INSERT", "SELECT"],
+      foundingMakerGrant: ["SELECT"],
+      metro: ["INSERT", "SELECT", "UPDATE"],
+      siteMetricsSnapshot: ["INSERT", "SELECT", "UPDATE"],
+      sellerExactMapConsentEvent: [],
+    });
+  } finally {
+    if (rollbackStarted) {
+      await restoreReviewedGrants(ownerClient).catch(() => {});
+    }
+    if (runtimeConnected) await runtime.end().catch(() => {});
+    await ownerClient.query(
+      "ALTER ROLE grainline_app_runtime PASSWORD NULL",
+    ).catch(() => {});
+    await ownerClient.query(
+      'DELETE FROM public."SystemAuditLog" WHERE id = $1',
+      [auditId],
+    ).catch(() => {});
+    await ownerClient.query(
+      'DELETE FROM public."Metro" WHERE id = $1',
+      [metroId],
+    ).catch(() => {});
+    await ownerClient.query(
+      'DELETE FROM public."FoundingMakerGrant" WHERE id = $1',
+      [foundingGrantId],
+    ).catch(() => {});
+    await ownerClient.query(
+      'DELETE FROM public."FoundingMakerGrant" WHERE id = $1',
+      [deniedFoundingGrantId],
+    ).catch(() => {});
+    await ownerClient.query(
+      'DELETE FROM public."SiteConfig" WHERE id = ANY($1::integer[])',
+      [[siteConfigId, deniedSiteConfigId]],
+    ).catch(() => {});
+    await ownerClient.query(
+      'DELETE FROM public."SiteMetricsSnapshot" WHERE id = $1',
+      [siteMetricsId],
+    ).catch(() => {});
+  }
+}

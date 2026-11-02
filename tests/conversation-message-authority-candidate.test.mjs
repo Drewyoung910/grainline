@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+  CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
   CONVERSATION_MESSAGE_RECIPIENT_FUNCTIONS,
   CONVERSATION_MESSAGE_SERVICE_FUNCTIONS,
@@ -233,7 +234,7 @@ describe("Conversation and Message functions-only authority candidate", () => {
     assert.ok(staticTests > fullProof);
   });
 
-  it("keeps future role convergence aligned with 19 public and six private functions", () => {
+  it("keeps future role convergence aligned with the prepared public catalog and six private functions", () => {
     for (const entry of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
       assert.match(
         provision,
@@ -252,13 +253,19 @@ describe("Conversation and Message functions-only authority candidate", () => {
       /WITH conversation_message_public_authority\(function_signature\) AS \(\s+VALUES([\s\S]*?)\n\)\nSELECT format/,
     );
     assert.ok(publicCatalog);
+    const predecessorPublicCount =
+      CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.filter(
+        (entry) => entry.runtimeExecute,
+      ).length;
+    assert.equal(predecessorPublicCount, 19);
     assert.equal(
       (
         publicCatalog[1].match(
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      19,
+      predecessorPublicCount
+        + CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS.length,
     );
   });
 });
