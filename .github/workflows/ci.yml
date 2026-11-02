@@ -512,33 +512,42 @@ jobs:
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
-      - name: Isolate Block preparation until historical release guards pass
+      - name: Isolate Block source packages until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/block-preparation"
-          migration=20261030010000_prepare_block_authorities
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "BLOCK_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
-      - name: Isolate UserReport preparation until historical release guards pass
+          preparation=20261030010000_prepare_block_authorities
+          activation=20261030040000_activate_block_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
+          echo "BLOCK_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate UserReport source packages until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/user-report-preparation"
-          migration=20261030020000_prepare_user_report_authorities
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "USER_REPORT_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
-      - name: Isolate SellerFaq preparation until historical release guards pass
+          preparation=20261030020000_prepare_user_report_authorities
+          activation=20261030050000_activate_user_report_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "USER_REPORT_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
+          echo "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate SellerFaq source packages until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-faq-preparation"
-          migration=20261030030000_prepare_seller_faq_authorities
           mkdir -p "$holding/migrations"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
-          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration" >> "$GITHUB_ENV"
+          preparation=20261030030000_prepare_seller_faq_authorities
+          activation=20261030060000_activate_seller_faq_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
+          echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -7076,33 +7085,48 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore Block preparation after historical release guards
+      - name: Restore Block source packages after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/block-preparation"
-          migration=20261030010000_prepare_block_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for migration in \
+            20261030010000_prepare_block_authorities \
+            20261030040000_activate_block_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           rmdir "$holding/migrations" "$holding"
           echo "BLOCK_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore UserReport preparation after historical release guards
+          echo "BLOCK_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore UserReport source packages after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/user-report-preparation"
-          migration=20261030020000_prepare_user_report_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for migration in \
+            20261030020000_prepare_user_report_authorities \
+            20261030050000_activate_user_report_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           rmdir "$holding/migrations" "$holding"
           echo "USER_REPORT_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore SellerFaq preparation after historical release guards
+          echo "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerFaq source packages after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/seller-faq-preparation"
-          migration=20261030030000_prepare_seller_faq_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          for migration in \
+            20261030030000_prepare_seller_faq_authorities \
+            20261030060000_activate_seller_faq_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
           rmdir "$holding/migrations" "$holding"
           echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
