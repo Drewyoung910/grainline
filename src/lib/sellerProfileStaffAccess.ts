@@ -118,6 +118,38 @@ export type SellerProfileStaffListingUndoTransition = Readonly<{
   auditId: string;
 }>;
 
+type SellerProfileStaffListingReviewQueueRow = Readonly<{
+  totalPending: bigint;
+  listingId: string;
+  sellerProfileId: string;
+  title: string;
+  priceCents: number;
+  currency: string;
+  createdAt: Date;
+  updatedAt: Date;
+  aiReviewFlags: string[];
+  aiReviewScore: number | null;
+  photoUrl: string | null;
+  sellerListingCount: bigint;
+}>;
+
+export type SellerProfileStaffListingReviewQueue = Readonly<{
+  totalPending: number;
+  listings: ReadonlyArray<Readonly<{
+    id: string;
+    sellerId: string;
+    title: string;
+    priceCents: number;
+    currency: string;
+    createdAt: Date;
+    updatedAt: Date;
+    aiReviewFlags: ReadonlyArray<string>;
+    aiReviewScore: number | null;
+    photoUrl: string | null;
+    sellerListingCount: number;
+  }>>;
+}>;
+
 type VerificationStatus =
   | "PENDING"
   | "APPROVED"
@@ -240,6 +272,77 @@ export async function sellerProfileStaffReportTargets(
     throw new Error("Seller report target authority returned an invalid result");
   }
   return rows;
+}
+
+export async function sellerProfileStaffListingReviewQueue(
+  client: SellerProfileStaffClient,
+  input: { actorId: string; limit: number },
+): Promise<SellerProfileStaffListingReviewQueue> {
+  if (
+    !validId(input.actorId)
+    || !Number.isInteger(input.limit)
+    || input.limit < 1
+    || input.limit > 100
+  ) {
+    throw new RangeError("Seller listing review queue input is invalid");
+  }
+  const rows = await client.$queryRaw<SellerProfileStaffListingReviewQueueRow[]>`
+    SELECT * FROM public.grainline_seller_staff_listing_review_queue(
+      ${input.actorId}::text,
+      ${input.limit}::integer
+    )
+  `;
+  if (rows.length === 0) {
+    return Object.freeze({ totalPending: 0, listings: Object.freeze([]) });
+  }
+  const totalPending = Number(rows[0]?.totalPending);
+  const listingIds = new Set<string>();
+  if (
+    rows.length > input.limit
+    || !Number.isSafeInteger(totalPending)
+    || totalPending < rows.length
+    || rows.some((row) => {
+      const sellerListingCount = Number(row.sellerListingCount);
+      const valid = row.totalPending === rows[0]?.totalPending
+        && validId(row.listingId)
+        && !listingIds.has(row.listingId)
+        && validId(row.sellerProfileId)
+        && isTextWithinCodePointRange(row.title, 1, 150)
+        && Number.isSafeInteger(row.priceCents)
+        && row.priceCents > 0
+        && typeof row.currency === "string"
+        && row.currency.length === 3
+        && validDate(row.createdAt)
+        && validDate(row.updatedAt)
+        && Array.isArray(row.aiReviewFlags)
+        && row.aiReviewFlags.every((flag) => isTextWithinCodePointRange(flag, 0, 5000))
+        && (row.aiReviewScore === null || validFiniteNumber(row.aiReviewScore))
+        && (row.photoUrl === null || isTextWithinCodePointRange(row.photoUrl, 1, 2048))
+        && typeof row.sellerListingCount === "bigint"
+        && Number.isSafeInteger(sellerListingCount)
+        && sellerListingCount >= 1;
+      listingIds.add(row.listingId);
+      return !valid;
+    })
+  ) {
+    throw new Error("Seller listing review queue authority returned an invalid result");
+  }
+  return Object.freeze({
+    totalPending,
+    listings: Object.freeze(rows.map((row) => Object.freeze({
+      id: row.listingId,
+      sellerId: row.sellerProfileId,
+      title: row.title,
+      priceCents: row.priceCents,
+      currency: row.currency,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      aiReviewFlags: Object.freeze([...row.aiReviewFlags]),
+      aiReviewScore: row.aiReviewScore,
+      photoUrl: row.photoUrl,
+      sellerListingCount: Number(row.sellerListingCount),
+    }))),
+  });
 }
 
 export async function sellerProfileStaffBroadcastTargets(

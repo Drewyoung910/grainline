@@ -270,7 +270,8 @@ WITH required(function_signature) AS (
   VALUES
     ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
     ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
-    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)')
+    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_queue"(text, integer)')
 ), candidate_state AS (
   SELECT pg_catalog.count(*) FILTER (
     WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
@@ -457,7 +458,8 @@ WITH optional_listing_domain_staff(function_signature) AS (
   VALUES
     ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
     ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
-    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)')
+    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_queue"(text, integer)')
 )
 SELECT pg_catalog.format(
   'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'staff_role'
@@ -606,7 +608,8 @@ WITH table_authority AS (
     VALUES
       ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
       ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
-      ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)')
+      ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
+      ('public."grainline_seller_staff_listing_review_queue"(text, integer)')
   ) AS listing_domain_candidate(function_signature)
   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
 ), expected_authority AS (
