@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
@@ -18,6 +19,7 @@ const RELEASE_SELECTIONS = Object.freeze([
   "owner_social_verification_v1",
   "block_report_seller_faq_v1",
   "seller_broadcast_v1",
+  "admin_audit_log_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
@@ -56,11 +58,15 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
         process.cwd(),
         privateTableRuntimeReadinessMigrationOverride(releaseId),
       );
-      return verified.release.functions.map((entry) => Object.freeze({
-        identity: `${entry.name}(${entry.arguments})`,
-        executeRole: entry.executeRole ?? "runtime",
-        sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
-      }));
+      return verified.release.functions.flatMap((entry) => (
+        privateTableFunctionExecuteRoles(entry)
+          .filter((executeRole) => executeRole === "runtime" || executeRole === "staff")
+          .map((executeRole) => Object.freeze({
+            identity: `${entry.name}(${entry.arguments})`,
+            executeRole,
+            sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
+          }))
+      ));
     }),
 );
 

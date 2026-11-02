@@ -6,11 +6,14 @@ Status: domain audit complete; Option B selected in
 `docs/admin-audit-log-rls-options.md`. The isolated compatible source
 conversion is zero-direct and its 14-operation migration plus private insert
 fence passes focused PGlite and complete-chain PostgreSQL 17 behavior/ACL
-proof. Durable in-transaction deletion plans, deterministic two-session races
-and 100,000-row query plans now pass. Preparation is not yet accepted: exact
-retained-function catalog sealing, compatibility, rollback and release proof
-remain open. No Production, merge, deployment, grant, or RLS action is
-authorized by this document.
+proof. Durable in-transaction deletion plans, deterministic concurrency cases
+and 100,000-row query plans now pass. The reusable release catalog seals all
+15 new functions, 23 retained functions, two indexes and one trigger, and its
+real-catalog inspector proof passes. Compatibility, rollback and the complete
+local release-workflow proof now pass, including pending, applied-unrecorded and
+applied restart states with the actual Prisma ledger command. Exact-branch
+PostgreSQL 17 CI remains the preparation acceptance gate. No Production, merge,
+deployment, grant, or RLS action is authorized by this document.
 
 ## Baseline and method
 
@@ -295,22 +298,34 @@ scan, catalog drift, or rollback gap remains.
 2. Failing-first behavior tests on current public main, then passing tests for
    staff page bounds, actor-self writes, automated listing evidence, ban
    repair, undo concurrency and deletion noninterference.
-3. **Partially passed:** the complete 462-migration PostgreSQL 17 schema proves
+3. **Passed for preparation:** the complete 462-migration PostgreSQL 17 schema proves
    the 14 purpose-bound operations plus private trigger, exact role split,
    current/legacy redaction, atomic completion and stale-fingerprint refusal.
-   The complete retained 23-function catalog/foreign-key seal remains an
-   activation artifact.
+   The reusable inspector also seals the exact retained 23-function catalog;
+   the foreign-key seal remains an activation artifact.
 4. **Passed:** deterministic parallel-writer, two-session insert/deletion,
    undo/undo and undo/redaction races. Repair/repair remains part of the retained-domain
    catalog proof, not the account-redaction boundary.
 5. **Passed:** 100,000-row PostgreSQL 17 plans for unfiltered and action-filtered
    staff pages plus deletion candidate collection (about 0.3 ms, 0.3 ms and
    70 ms respectively on the disposable proof server).
-6. Predecessor-app/new-database and new-app/predecessor-database compatibility.
-7. Exact preparation migration bytes, owners, grants, search paths and
-   source digests in the reusable release catalog.
+6. **Passed:** predecessor-app/new-database CRUD works after the additive
+   migration, while the production build checks the exact runtime, staff and
+   account-deletion function bodies and fails closed if the new app is built
+   against the predecessor database. The app-first rollback removed only the
+   15 additive functions, two indexes and trigger on PostgreSQL 17; predecessor
+   CRUD then passed and the 28-row audit fingerprint was unchanged before the
+   exact migration reapplied.
+7. **Passed:** exact preparation migration bytes, owners, grants, volatility,
+   search paths, source digests, indexes and trigger are in the reusable
+   release catalog and pass a real PostgreSQL catalog readback.
 8. **Passed:** durable redaction-plan creation and local anonymization are one
    transaction, with retry payloads containing only redacted patches and
    source fingerprints.
+9. **Locally passed; exact CI open:** the reusable preparation workflow passed
+   its exact pending, applied-unrecorded and applied restart paths with the real
+   `prisma migrate resolve --applied` ledger command and mode-600 sanitized
+   evidence containing no row data. The exact branch must still pass the full
+   PostgreSQL 17 CI job, including the deterministic concurrency proof.
 
 Activation remains a later separately reviewed and authorized release.

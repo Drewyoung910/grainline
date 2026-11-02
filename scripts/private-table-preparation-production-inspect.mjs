@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparation,
   privateTablePreparationTables,
   verifyPrivateTablePreparationSource,
@@ -46,7 +47,7 @@ async function readPreparationMarkers(client, release) {
   );
   const constraints = release.addedConstraints ?? [];
   const tableNames = [release.table, ...(release.additionalTables ?? [])];
-  return (await client.query(`
+  const markers = (await client.query(`
     SELECT
       (SELECT pg_catalog.count(*)::integer
          FROM pg_catalog.pg_attribute AS attribute
@@ -78,6 +79,30 @@ async function readPreparationMarkers(client, release) {
     tableNames,
     constraints.map((entry) => entry.name),
   ])).rows[0];
+  if ((release.addedIndexes ?? []).length > 0) {
+    markers.indexes = (await client.query(`
+      SELECT pg_catalog.count(*)::integer AS count
+        FROM pg_catalog.pg_class AS index_relation
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = index_relation.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND index_relation.relkind = 'i'
+         AND index_relation.relname = ANY($1::text[])
+    `, [release.addedIndexes.map((entry) => entry.name)])).rows[0].count;
+  }
+  if ((release.addedTriggers ?? []).length > 0) {
+    markers.triggers = (await client.query(`
+      SELECT pg_catalog.count(*)::integer AS count
+        FROM pg_catalog.pg_trigger AS trigger_state
+       WHERE trigger_state.tgrelid = $1::pg_catalog.regclass
+         AND trigger_state.tgname = ANY($2::text[])
+         AND NOT trigger_state.tgisinternal
+    `, [
+      `public."${release.table}"`,
+      release.addedTriggers.map((entry) => entry.name),
+    ])).rows[0].count;
+  }
+  return markers;
 }
 
 function evidencePosture(row) {
@@ -95,6 +120,14 @@ function evidencePosture(row) {
   });
 }
 
+export function preparationMarkersAreAbsent(markers) {
+  return markers !== null
+    && typeof markers === "object"
+    && !Array.isArray(markers)
+    && Object.values(markers).length >= 3
+    && Object.values(markers).every((count) => count === 0);
+}
+
 function assertExpectedPosture(actual, expected) {
   for (const [key, value] of Object.entries(expected)) {
     assert.equal(actual[key], value, `${key} drifted`);
@@ -107,9 +140,11 @@ function functionEvidence(row) {
     arguments: row.identity_arguments,
     owner: row.owner_name,
     securityDefiner: row.security_definer,
+    volatility: row.volatility,
     configuration: row.configuration,
     runtimeExecute: row.runtime_execute,
     staffExecute: row.staff_execute,
+    accountDeletionExecute: row.account_deletion_execute,
     publicExecute: row.public_execute,
     sourceSha256: createHash("sha256").update(row.source, "utf8").digest("hex"),
   });
@@ -123,6 +158,7 @@ async function readFunctionRows(client, functions) {
            owner.rolname AS owner_name,
            owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
            procedure.prosecdef AS security_definer,
+           procedure.provolatile AS volatility,
            procedure.proconfig AS configuration,
            procedure.prosrc AS source,
            pg_catalog.has_function_privilege(
@@ -131,6 +167,9 @@ async function readFunctionRows(client, functions) {
            pg_catalog.has_function_privilege(
              'grainline_staff_read_runtime', procedure.oid, 'EXECUTE'
            ) AS staff_execute,
+           pg_catalog.has_function_privilege(
+             'grainline_account_deletion_runtime', procedure.oid, 'EXECUTE'
+           ) AS account_deletion_execute,
            pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
              AS public_execute
       FROM pg_catalog.pg_proc AS procedure
@@ -148,21 +187,128 @@ function assertFunctionPosture(row, expected, tableOwner) {
   assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
   assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
   assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
+  assert.equal(row.volatility, expected.volatility ?? "v", `${identity} volatility drifted`);
   assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
-  const executeRole = expected.executeRole ?? "runtime";
+  const executeRoles = privateTableFunctionExecuteRoles(expected);
   assert.equal(
-    row.runtime_execute,
-    executeRole === "runtime",
+    Boolean(row.runtime_execute),
+    executeRoles.includes("runtime"),
     `${identity} runtime EXECUTE drifted`,
   );
   assert.equal(
-    row.staff_execute,
-    executeRole === "staff",
+    Boolean(row.staff_execute),
+    executeRoles.includes("staff"),
     `${identity} staff EXECUTE drifted`,
+  );
+  assert.equal(
+    Boolean(row.account_deletion_execute),
+    executeRoles.includes("account_deletion"),
+    `${identity} account-deletion EXECUTE drifted`,
   );
   assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
   assert.equal(identity, `${expected.name}(${expected.arguments})`);
   return identity;
+}
+
+async function readRetainedFunctionCatalog(client, release, tableOwner) {
+  const retained = release.retainedFunctions ?? [];
+  const rows = await readFunctionRows(client, retained);
+  assert.equal(rows.length, retained.length, "retained function count drifted");
+  const expectedByIdentity = new Map(retained.map((entry) => [
+    `${entry.name}(${entry.arguments})`,
+    entry,
+  ]));
+  for (const row of rows) {
+    const identity = `${row.function_name}(${row.identity_arguments})`;
+    const expected = expectedByIdentity.get(identity);
+    assert.ok(expected, `unexpected retained function overload ${identity}`);
+    assertFunctionPosture(row, expected, tableOwner);
+    assert.equal(
+      createHash("sha256").update(row.source, "utf8").digest("hex"),
+      expected.sourceSha256,
+      `${identity} retained body drifted`,
+    );
+    expectedByIdentity.delete(identity);
+  }
+  assert.equal(expectedByIdentity.size, 0, "reviewed retained function is absent");
+  return rows.map(functionEvidence);
+}
+
+async function readAddedIndexes(client, release) {
+  const expected = [...(release.addedIndexes ?? [])]
+    .sort((left, right) => left.name.localeCompare(right.name));
+  if (expected.length === 0) return [];
+  const rows = (await client.query(`
+    SELECT index_relation.relname AS name,
+           pg_catalog.pg_get_indexdef(index_relation.oid) AS definition,
+           index_state.indisunique AS unique,
+           index_state.indisvalid AS valid,
+           index_state.indisready AS ready
+      FROM pg_catalog.pg_index AS index_state
+      JOIN pg_catalog.pg_class AS index_relation
+        ON index_relation.oid = index_state.indexrelid
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = index_relation.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND index_relation.relname = ANY($1::text[])
+     ORDER BY index_relation.relname
+  `, [expected.map((entry) => entry.name)])).rows;
+  assert.deepEqual(rows, expected.map((entry) => ({
+    ...entry,
+    unique: false,
+    valid: true,
+    ready: true,
+  })), "reviewed index catalog drifted");
+  return rows;
+}
+
+async function readAddedTriggers(client, release, tableOwner) {
+  const expected = [...(release.addedTriggers ?? [])]
+    .sort((left, right) => left.name.localeCompare(right.name));
+  if (expected.length === 0) return [];
+  const rows = (await client.query(`
+    SELECT trigger_state.tgname AS name,
+           procedure.proname AS function,
+           trigger_state.tgenabled AS enabled,
+           trigger_state.tgtype::integer AS type,
+           owner.rolname AS function_owner,
+           owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
+           procedure.prosecdef AS security_definer,
+           procedure.proconfig AS configuration
+      FROM pg_catalog.pg_trigger AS trigger_state
+      JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger_state.tgfoid
+      JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+     WHERE trigger_state.tgrelid = $1::pg_catalog.regclass
+       AND trigger_state.tgname = ANY($2::text[])
+       AND NOT trigger_state.tgisinternal
+     ORDER BY trigger_state.tgname
+  `, [
+    `public."${release.table}"`,
+    expected.map((entry) => entry.name),
+  ])).rows;
+  assert.equal(rows.length, expected.length, "reviewed trigger count drifted");
+  for (const [index, row] of rows.entries()) {
+    assert.deepEqual(
+      {
+        name: row.name,
+        function: row.function,
+        enabled: row.enabled,
+        type: row.type,
+      },
+      expected[index],
+      `${row.name} trigger definition drifted`,
+    );
+    assert.equal(row.function_owner, tableOwner, `${row.name} function owner drifted`);
+    assert.equal(row.owner_bypasses_rls, true, `${row.name} owner cannot bypass RLS`);
+    assert.equal(row.security_definer, true, `${row.name} function is not SECURITY DEFINER`);
+    assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${row.name} search_path drifted`);
+  }
+  return rows.map((row) => Object.freeze({
+    name: row.name,
+    function: row.function,
+    enabled: row.enabled,
+    type: row.type,
+  }));
 }
 
 async function readInstalledCatalog(client, verified, tableOwner) {
@@ -234,10 +380,20 @@ async function readInstalledCatalog(client, verified, tableOwner) {
     expectedByIdentity.delete(identity);
   }
   assert.equal(expectedByIdentity.size, 0, "reviewed function is absent");
+  const retainedFunctions = await readRetainedFunctionCatalog(
+    client,
+    release,
+    tableOwner,
+  );
+  const indexes = await readAddedIndexes(client, release);
+  const triggers = await readAddedTriggers(client, release, tableOwner);
   return Object.freeze({
     columns: columnRows,
     constraints: constraintRows,
     functions: functionRows.map(functionEvidence),
+    retainedFunctions,
+    indexes,
+    triggers,
   });
 }
 
@@ -247,9 +403,9 @@ async function readPendingCatalog(client, verified, tableOwner) {
     (entry) => entry.predecessorSourceSha256 !== undefined,
   );
   const collisions = await readPreparationMarkers(client, release);
-  assert.deepEqual(
-    collisions,
-    { columns: 0, functions: 0, constraints: 0 },
+  assert.equal(
+    preparationMarkersAreAbsent(collisions),
+    true,
     "preparation catalog collides",
   );
 
@@ -276,10 +432,18 @@ async function readPendingCatalog(client, verified, tableOwner) {
     expectedByIdentity.delete(identity);
   }
   assert.equal(expectedByIdentity.size, 0, "reviewed predecessor function is absent");
+  const retainedFunctions = await readRetainedFunctionCatalog(
+    client,
+    release,
+    tableOwner,
+  );
   return Object.freeze({
     columns: [],
     constraints: [],
     functions: functionRows.map(functionEvidence),
+    retainedFunctions,
+    indexes: [],
+    triggers: [],
   });
 }
 
@@ -385,16 +549,16 @@ export async function inspectPrivateTablePreparationProduction(
         (entry) => entry.predecessorSourceSha256 === undefined,
       ).length,
       constraints: (release.addedConstraints ?? []).length,
+      ...((release.addedIndexes ?? []).length > 0
+        ? { indexes: release.addedIndexes.length }
+        : {}),
+      ...((release.addedTriggers ?? []).length > 0
+        ? { triggers: release.addedTriggers.length }
+        : {}),
     };
-    const hasNoMarkers = (
-      markers.columns === 0
-      && markers.functions === 0
-      && markers.constraints === 0
-    );
-    const hasAllMarkers = (
-      markers.columns === expectedMarkers.columns
-      && markers.functions === expectedMarkers.functions
-      && markers.constraints === expectedMarkers.constraints
+    const hasNoMarkers = Object.values(markers).every((count) => count === 0);
+    const hasAllMarkers = Object.entries(expectedMarkers).every(
+      ([name, count]) => markers[name] === count,
     );
     assert.ok(hasNoMarkers || hasAllMarkers, "preparation catalog is partially applied");
     if (applied) {

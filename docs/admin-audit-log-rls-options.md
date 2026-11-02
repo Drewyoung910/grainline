@@ -4,9 +4,13 @@ Date: 2026-11-02
 
 Status: design selected. The isolated compatible application conversion is
 zero-direct and its 14-operation migration plus private insert fence passes
-focused and complete-chain PostgreSQL 17 proof. Atomic deletion-plan creation,
-five deterministic concurrency scenarios and 100,000-row plans pass, but preparation remains
-unaccepted while catalog, compatibility, rollback and release gates are open.
+focused and complete-chain PostgreSQL 17 proof. Atomic deletion-plan creation
+and five deterministic concurrency scenarios pass, as do the 100,000-row
+plans. The reusable manifest and real-catalog inspector seal the 15 new and 23
+retained functions, indexes and trigger. Deploy-order compatibility, the
+app-first rollback and the full local release-workflow restart sequence now pass
+on PostgreSQL 17. Preparation remains unaccepted until exact-branch PostgreSQL
+17 CI passes.
 This document authorizes no merge, deployment, Production database change, grant change, or
 RLS activation.
 
@@ -212,3 +216,11 @@ reviewed predecessor grants, disable FORCE and RLS, remove activation-only
 objects, and execute the predecessor read/write/undo/redaction statements
 before any app rollback. A successfully applied migration ledger row remains
 applied; later reactivation requires a new reviewed forward migration.
+
+The preparation rollback has been executed on the complete disposable
+PostgreSQL 17 chain. It removed the 15 new functions, two indexes and one
+trigger, preserved the 28-row audit-data fingerprint, admitted predecessor
+runtime SELECT/INSERT/UPDATE/DELETE, and then admitted exact reapplication.
+The production build gate separately pins the new runtime, isolated-staff and
+account-deletion function bodies so the prepared app cannot deploy before the
+database preparation.

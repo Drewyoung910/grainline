@@ -19,6 +19,7 @@ import {
 } from "../scripts/reviewed-manually-applied-migrations.mjs";
 import {
   inspectPrivateTablePreparationProduction,
+  preparationMarkersAreAbsent,
 } from "../scripts/private-table-preparation-production-inspect.mjs";
 
 const releaseId = "support_request_v1";
@@ -160,10 +161,16 @@ function fakeClientClass({
             owner_name: "neondb_owner",
             owner_bypasses_rls: true,
             security_definer: true,
+            volatility: entry.volatility ?? "v",
             configuration: ["search_path=pg_catalog"],
             source: selectedVerified.functionSources.get(entry.name),
-            runtime_execute: (entry.executeRole ?? "runtime") === "runtime",
-            staff_execute: entry.executeRole === "staff",
+            runtime_execute: (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+              .includes("runtime"),
+            staff_execute: (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+              .includes("staff"),
+            account_deletion_execute:
+              (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+                .includes("account_deletion"),
             public_execute: false,
           }))
           .sort((left, right) => (
@@ -244,10 +251,12 @@ function analyticsAppliedClientClass() {
           owner_name: "neondb_owner",
           owner_bypasses_rls: true,
           security_definer: true,
+          volatility: entry.volatility ?? "v",
           configuration: ["search_path=pg_catalog"],
           source: candidateSource.functionSources.get(entry.name),
           runtime_execute: true,
           staff_execute: false,
+          account_deletion_execute: false,
           public_execute: false,
         })).sort((left, right) => (
           left.function_name.localeCompare(right.function_name)
@@ -519,6 +528,52 @@ test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", 
   );
 });
 
+test("AdminAuditLog preparation seals new and retained authorities", () => {
+  const candidate = privateTablePreparation("admin_audit_log_v1");
+  const verifiedCandidate = verifyPrivateTablePreparationSource(
+    "admin_audit_log_v1",
+  );
+  assert.equal(candidate.table, "AdminAuditLog");
+  assert.equal(candidate.functions.length, 15);
+  assert.equal(candidate.retainedFunctions.length, 23);
+  assert.equal(candidate.addedIndexes.length, 2);
+  assert.equal(candidate.addedTriggers.length, 1);
+  assert.equal(verifiedCandidate.functionSources.size, 15);
+  assert.equal(verifiedCandidate.digest, candidate.migrationSha256);
+  assert.deepEqual(
+    candidate.functions
+      .filter((entry) => entry.executeRole === "account_deletion")
+      .map((entry) => entry.name),
+    [
+      "grainline_admin_audit_account_deletion_redaction_apply",
+      "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+    ],
+  );
+  assert.deepEqual(
+    candidate.functions.find(
+      (entry) => entry.name === "grainline_admin_audit_insert_write_fence",
+    ).executeRoles,
+    [],
+  );
+});
+
+test("pending preparation accepts clean index and trigger marker families", () => {
+  assert.equal(preparationMarkersAreAbsent({
+    columns: 0,
+    functions: 0,
+    constraints: 0,
+    indexes: 0,
+    triggers: 0,
+  }), true);
+  assert.equal(preparationMarkersAreAbsent({
+    columns: 0,
+    functions: 0,
+    constraints: 0,
+    indexes: 1,
+    triggers: 0,
+  }), false);
+});
+
 test("inspector proves pending and applied states without recording row data", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-"));
   try {
@@ -655,6 +710,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "seller_faq_v1",
     "seller_broadcast_v1",
     "email_service_v1",
+    "admin_audit_log_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -685,6 +741,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "seller_broadcast_v1",
       "email_service_v1",
       "seller_analytics_daily_v1",
+      "admin_audit_log_v1",
       "owner_social_verification_v1",
       "commission_domain_v1",
       "block_report_seller_faq_v1",
