@@ -88,6 +88,16 @@ BEGIN
     RAISE EXCEPTION 'Listing owner delete-lock authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_archive(text,timestamp without time zone)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner archive authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_hard_delete(text,timestamp without time zone)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner hard-delete authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_transition(text,text,timestamp without time zone)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner transition authority already exists';
@@ -1752,6 +1762,207 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_delete_lock(text)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_delete_lock(text)
   TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_archive(
+  p_listing_id text,
+  p_expected_updated_at timestamp without time zone
+)
+RETURNS TABLE (
+  applied boolean,
+  "updatedAt" timestamp without time zone,
+  "archivedAt" timestamp without time zone
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_archive$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  source_listing public."Listing"%ROWTYPE;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_updated_at IS NULL THEN
+    RAISE EXCEPTION 'Listing owner archive input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::timestamp, NULL::timestamp;
+    RETURN;
+  END IF;
+
+  SELECT listing.*
+    INTO source_listing
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+     AND listing."updatedAt" = p_expected_updated_at
+     AND listing."archivedAt" IS NULL
+     AND listing.status <> 'PENDING_REVIEW'::public."ListingStatus"
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::timestamp, NULL::timestamp;
+    RETURN;
+  END IF;
+
+  UPDATE public."Listing" AS listing
+     SET status = 'HIDDEN'::public."ListingStatus",
+         "isPrivate" = true,
+         "archivedAt" = source_now,
+         "updatedAt" = source_now
+   WHERE listing.id = source_listing.id
+     AND listing."sellerId" = seller_id;
+
+  RETURN QUERY SELECT true, source_now, source_now;
+END
+$grainline_listing_owner_archive$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_archive(
+  text,timestamp without time zone
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_archive(
+  text,timestamp without time zone
+) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_hard_delete(
+  p_listing_id text,
+  p_expected_updated_at timestamp without time zone
+)
+RETURNS TABLE (
+  applied boolean,
+  "removedPhotos" integer
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_hard_delete$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  reference_state record;
+  upload_result record;
+  removed_photos integer := 0;
+  deleted_count integer := 0;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_updated_at IS NULL THEN
+    RAISE EXCEPTION 'Listing owner hard-delete input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, 0;
+    RETURN;
+  END IF;
+
+  PERFORM 1
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+     AND listing."updatedAt" = p_expected_updated_at
+     AND listing."archivedAt" IS NULL
+     AND listing."customOrderConversationId" IS NULL
+     AND listing.status <> 'PENDING_REVIEW'::public."ListingStatus"
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, 0;
+    RETURN;
+  END IF;
+
+  SELECT *
+    INTO reference_state
+    FROM public.grainline_listing_delete_reference_state(
+      actor_id,
+      p_listing_id
+    );
+  IF NOT FOUND
+     OR reference_state."hasOrderItems"
+     OR reference_state."hasReviews"
+     OR reference_state."hasConversations"
+     OR reference_state."hasMessages"
+     OR reference_state."hasCheckoutReservations" THEN
+    RETURN QUERY SELECT false, 0;
+    RETURN;
+  END IF;
+
+  -- Re-run the durable media reconciliation inside the deleting authority.
+  -- The application performs the same check first for its actionable error,
+  -- but this fence prevents a future caller from bypassing it.
+  SELECT *
+    INTO upload_result
+    FROM public.grainline_direct_upload_sync_listing(
+      actor_id,
+      p_listing_id
+    );
+  IF NOT FOUND OR upload_result.untracked <> 0 THEN
+    RAISE EXCEPTION 'Listing upload lifecycle is incomplete'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Photo intentionally uses RESTRICT. Delete it only after the upload ledger
+  -- is reconciled; the Listing delete trigger then releases those references.
+  DELETE FROM public."Photo" AS photo
+   WHERE photo."listingId" = p_listing_id;
+  GET DIAGNOSTICS removed_photos = ROW_COUNT;
+
+  DELETE FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+     AND listing."updatedAt" = p_expected_updated_at
+     AND listing."archivedAt" IS NULL;
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  IF deleted_count <> 1 THEN
+    RAISE EXCEPTION 'Listing owner hard-delete lost its locked row'
+      USING ERRCODE = '40001';
+  END IF;
+
+  RETURN QUERY SELECT true, removed_photos;
+END
+$grainline_listing_owner_hard_delete$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_hard_delete(
+  text,timestamp without time zone
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_hard_delete(
+  text,timestamp without time zone
+) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_transition(
   p_listing_id text,

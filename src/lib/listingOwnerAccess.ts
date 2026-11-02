@@ -61,6 +61,17 @@ type ListingOwnerDeleteLockRow = {
   updatedAt: unknown;
 };
 
+type ListingOwnerArchiveRow = {
+  applied: unknown;
+  updatedAt: unknown;
+  archivedAt: unknown;
+};
+
+type ListingOwnerHardDeleteRow = {
+  applied: unknown;
+  removedPhotos: unknown;
+};
+
 export type ListingOwnerEditorState = Readonly<{
   id: string;
   sellerId: string;
@@ -881,6 +892,85 @@ export async function lockListingOwnerDeleteState(
     archivedAt: row.archivedAt as Date | null,
     customOrderConversationId: row.customOrderConversationId as string | null,
     updatedAt: row.updatedAt as Date,
+  });
+}
+
+export async function archiveListingOwnerDeleteState(
+  client: DbUserContextTransactionClient,
+  listingId: string,
+  expectedUpdatedAt: Date,
+): Promise<Readonly<{
+  applied: boolean;
+  updatedAt: Date | null;
+  archivedAt: Date | null;
+}>> {
+  if (!validId(listingId) || !validDate(expectedUpdatedAt)) {
+    throw new RangeError("Listing owner archive input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingOwnerArchiveRow[]>`
+    SELECT *
+      FROM public.grainline_listing_owner_archive(
+        ${listingId}::text,
+        ${expectedUpdatedAt}::timestamp
+      )
+  `;
+  const row = rows[0];
+  const validAppliedResult =
+    row?.applied === true
+    && validDate(row.updatedAt)
+    && validDate(row.archivedAt)
+    && row.updatedAt.getTime() === row.archivedAt.getTime();
+  const validRejectedResult =
+    row?.applied === false
+    && row.updatedAt === null
+    && row.archivedAt === null;
+  if (rows.length !== 1 || (!validAppliedResult && !validRejectedResult)) {
+    throw new Error("Listing owner archive authority returned an invalid result");
+  }
+  return row.applied
+    ? Object.freeze({
+      applied: true,
+      updatedAt: row.updatedAt as Date,
+      archivedAt: row.archivedAt as Date,
+    })
+    : Object.freeze({
+      applied: false,
+      updatedAt: null,
+      archivedAt: null,
+    });
+}
+
+export async function hardDeleteListingOwnerDeleteState(
+  client: DbUserContextTransactionClient,
+  listingId: string,
+  expectedUpdatedAt: Date,
+): Promise<Readonly<{
+  applied: boolean;
+  removedPhotos: number;
+}>> {
+  if (!validId(listingId) || !validDate(expectedUpdatedAt)) {
+    throw new RangeError("Listing owner hard-delete input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingOwnerHardDeleteRow[]>`
+    SELECT *
+      FROM public.grainline_listing_owner_hard_delete(
+        ${listingId}::text,
+        ${expectedUpdatedAt}::timestamp
+      )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || typeof row?.applied !== "boolean"
+    || !Number.isInteger(row.removedPhotos)
+    || (row.removedPhotos as number) < 0
+    || (!row.applied && row.removedPhotos !== 0)
+  ) {
+    throw new Error("Listing owner hard-delete authority returned an invalid result");
+  }
+  return Object.freeze({
+    applied: row.applied,
+    removedPhotos: row.removedPhotos as number,
   });
 }
 

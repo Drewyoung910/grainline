@@ -1,4 +1,4 @@
-import { ListingStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   DirectUploadClaimError,
   syncListingDirectUploadReferences,
@@ -16,7 +16,11 @@ import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { deleteCartItemsForSellerListing } from "@/lib/cartServiceAccess";
 import { deleteStockNotificationsForSellerListing } from "@/lib/stockNotificationAccess";
 import { deleteFavoritesForSellerListing } from "@/lib/favoriteAccess";
-import { lockListingOwnerDeleteState } from "@/lib/listingOwnerAccess";
+import {
+  archiveListingOwnerDeleteState,
+  hardDeleteListingOwnerDeleteState,
+  lockListingOwnerDeleteState,
+} from "@/lib/listingOwnerAccess";
 
 export const LISTING_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 
@@ -105,19 +109,12 @@ export async function deleteListingWithCleanup(
           );
         }
 
-        const archived = await tx.listing.updateMany({
-          where: {
-            id: normalizedListingId,
-            sellerId: listing.sellerId,
-            archivedAt: null,
-          },
-          data: {
-            status: ListingStatus.HIDDEN,
-            isPrivate: true,
-            archivedAt: new Date(),
-          },
-        });
-        if (archived.count !== 1) {
+        const archived = await archiveListingOwnerDeleteState(
+          tx,
+          normalizedListingId,
+          listing.updatedAt,
+        );
+        if (!archived.applied) {
           throw new ListingDeleteError("Listing state changed; refresh and try again.");
         }
 
@@ -145,18 +142,12 @@ export async function deleteListingWithCleanup(
         throw error;
       }
 
-      // Photo has an intentional RESTRICT foreign key. Delete the rows only
-      // after media tracking has been proven; all changes roll back together
-      // if the final Listing delete or its cleanup trigger fails.
-      await tx.photo.deleteMany({ where: { listingId: normalizedListingId } });
-      const deleted = await tx.listing.deleteMany({
-        where: {
-          id: normalizedListingId,
-          sellerId: listing.sellerId,
-          archivedAt: null,
-        },
-      });
-      if (deleted.count !== 1) {
+      const deleted = await hardDeleteListingOwnerDeleteState(
+        tx,
+        normalizedListingId,
+        listing.updatedAt,
+      );
+      if (!deleted.applied) {
         throw new ListingDeleteError("Listing state changed; refresh and try again.");
       }
       return "deleted";
