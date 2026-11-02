@@ -13,9 +13,9 @@ describe("SEO landing route guardrails", () => {
     assert.match(page, /normalizeTag\(rawSlug\)/);
     assert.match(page, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
     assert.match(page, /permanentRedirect\(`\$\{publicTagPath\(tag\)\}\$\{requestedPage > 1 \? `\?page=\$\{requestedPage\}` : ""\}`\)/);
-    assert.match(page, /where: publicListingWhere\(\{/);
-    assert.match(page, /tags: \{ has: tag \}/);
-    assert.match(page, /getBlockedSellerProfileIdsFor\(meDbId\)/);
+    assert.match(page, /listingPublicCatalogCount\(meDbId, \{ tag \}\)/);
+    assert.match(page, /listingPublicCatalogPage\([\s\S]*\{ tag, sort: "quality" \}/);
+    assert.doesNotMatch(page, /prisma\.listing\.(?:count|findMany)/);
     assert.match(page, /getSellerRatingMap/);
     assert.match(page, /ListingCard/);
     assert.doesNotMatch(page, /status: "ACTIVE"/);
