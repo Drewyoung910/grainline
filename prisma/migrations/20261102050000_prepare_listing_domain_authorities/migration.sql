@@ -98,6 +98,16 @@ BEGIN
     RAISE EXCEPTION 'Listing actor transaction-source authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_actor_transaction_source_core(text,boolean)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing actor transaction-source core already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_actor_cart_transaction_sources(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing actor cart transaction-source authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_legacy_stock_restore_apply(text,jsonb)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Legacy checkout stock-restore apply authority already exists';
@@ -2221,8 +2231,9 @@ GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_content_update(
   integer,integer,integer,integer,jsonb,jsonb
 ) TO grainline_app_runtime;
 
-CREATE FUNCTION public.grainline_listing_actor_transaction_source(
-  p_listing_id text
+CREATE FUNCTION public.grainline_listing_actor_transaction_source_core(
+  p_listing_id text,
+  p_allow_cart_owner boolean
 )
 RETURNS TABLE (
   id text,
@@ -2266,7 +2277,7 @@ STABLE
 PARALLEL UNSAFE
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $grainline_listing_actor_transaction_source$
+AS $grainline_listing_actor_transaction_source_core$
 DECLARE
   actor_id text := NULLIF(
     pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
@@ -2276,7 +2287,8 @@ BEGIN
   IF actor_id IS NULL
      OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
      OR p_listing_id IS NULL
-     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_allow_cart_owner IS NULL THEN
     RAISE EXCEPTION 'Listing actor transaction-source input is invalid'
       USING ERRCODE = '22023';
   END IF;
@@ -2364,24 +2376,216 @@ BEGIN
    WHERE actor.id = actor_id
      AND actor.banned = false
      AND actor."deletedAt" IS NULL
-     AND listing."archivedAt" IS NULL
      AND (
        (
-         listing."isPrivate" = false
-         AND listing.status IN ('ACTIVE', 'SOLD_OUT')
+         listing."archivedAt" IS NULL
+         AND (
+           (
+             listing."isPrivate" = false
+             AND listing.status IN ('ACTIVE', 'SOLD_OUT')
+           )
+           OR (
+             listing."isPrivate" = true
+             AND listing."reservedForUserId" = actor_id
+             AND listing.status IN ('ACTIVE', 'SOLD')
+           )
+         )
        )
        OR (
-         listing."isPrivate" = true
-         AND listing."reservedForUserId" = actor_id
-         AND listing.status IN ('ACTIVE', 'SOLD')
+         p_allow_cart_owner
+         AND EXISTS (
+         SELECT 1
+           FROM public."Cart" AS actor_cart
+           JOIN public."CartItem" AS actor_cart_item
+             ON actor_cart_item."cartId" = actor_cart.id
+          WHERE actor_cart."userId" = actor_id
+            AND actor_cart_item."listingId" = listing.id
+         )
        )
      );
 END
+$grainline_listing_actor_transaction_source_core$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_actor_transaction_source_core(text,boolean)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_listing_actor_transaction_source(
+  p_listing_id text
+)
+RETURNS TABLE (
+  id text,
+  "sellerId" text,
+  title text,
+  description text,
+  "priceCents" integer,
+  "priceVersion" integer,
+  currency text,
+  status text,
+  "listingType" text,
+  "processingTimeMinDays" integer,
+  "processingTimeMaxDays" integer,
+  "shipsWithinDays" integer,
+  category text,
+  tags text[],
+  "stockQuantity" integer,
+  "packagedWeightGrams" integer,
+  "packagedLengthCm" double precision,
+  "packagedWidthCm" double precision,
+  "packagedHeightCm" double precision,
+  "isPrivate" boolean,
+  "reservedForUserId" text,
+  photos jsonb,
+  "variantGroups" jsonb,
+  "sellerUserId" text,
+  "sellerDisplayName" text,
+  "sellerChargesEnabled" boolean,
+  "sellerStripeAccountSupported" boolean,
+  "sellerOwnerAccountActive" boolean,
+  "sellerVacationMode" boolean,
+  "sellerAcceptingNewOrders" boolean,
+  "sellerFreeShippingOverCents" integer,
+  "sellerShippingFlatRateCents" integer,
+  "sellerAllowLocalPickup" boolean,
+  "sellerOffersGiftWrapping" boolean,
+  "sellerGiftWrappingPriceCents" integer
+)
+LANGUAGE sql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_actor_transaction_source$
+  SELECT *
+    FROM public.grainline_listing_actor_transaction_source_core(
+      p_listing_id,
+      false
+    )
 $grainline_listing_actor_transaction_source$;
 
 REVOKE ALL ON FUNCTION public.grainline_listing_actor_transaction_source(text)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_transaction_source(text)
+  TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_actor_cart_transaction_sources(
+  p_cart_id text
+)
+RETURNS TABLE (
+  "cartItemId" text,
+  id text,
+  "sellerId" text,
+  title text,
+  description text,
+  "priceCents" integer,
+  "priceVersion" integer,
+  currency text,
+  status text,
+  "listingType" text,
+  "processingTimeMinDays" integer,
+  "processingTimeMaxDays" integer,
+  "shipsWithinDays" integer,
+  category text,
+  tags text[],
+  "stockQuantity" integer,
+  "packagedWeightGrams" integer,
+  "packagedLengthCm" double precision,
+  "packagedWidthCm" double precision,
+  "packagedHeightCm" double precision,
+  "isPrivate" boolean,
+  "reservedForUserId" text,
+  photos jsonb,
+  "variantGroups" jsonb,
+  "sellerUserId" text,
+  "sellerDisplayName" text,
+  "sellerChargesEnabled" boolean,
+  "sellerStripeAccountSupported" boolean,
+  "sellerOwnerAccountActive" boolean,
+  "sellerVacationMode" boolean,
+  "sellerAcceptingNewOrders" boolean,
+  "sellerFreeShippingOverCents" integer,
+  "sellerShippingFlatRateCents" integer,
+  "sellerAllowLocalPickup" boolean,
+  "sellerOffersGiftWrapping" boolean,
+  "sellerGiftWrappingPriceCents" integer
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_actor_cart_transaction_sources$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_cart_id IS NULL
+     OR p_cart_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing actor cart transaction-source input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  SELECT cart_item.id::text,
+         source.id,
+         source."sellerId",
+         source.title,
+         source.description,
+         source."priceCents",
+         source."priceVersion",
+         source.currency,
+         source.status,
+         source."listingType",
+         source."processingTimeMinDays",
+         source."processingTimeMaxDays",
+         source."shipsWithinDays",
+         source.category,
+         source.tags,
+         source."stockQuantity",
+         source."packagedWeightGrams",
+         source."packagedLengthCm",
+         source."packagedWidthCm",
+         source."packagedHeightCm",
+         source."isPrivate",
+         source."reservedForUserId",
+         source.photos,
+         source."variantGroups",
+         source."sellerUserId",
+         source."sellerDisplayName",
+         source."sellerChargesEnabled",
+         source."sellerStripeAccountSupported",
+         source."sellerOwnerAccountActive",
+         source."sellerVacationMode",
+         source."sellerAcceptingNewOrders",
+         source."sellerFreeShippingOverCents",
+         source."sellerShippingFlatRateCents",
+         source."sellerAllowLocalPickup",
+         source."sellerOffersGiftWrapping",
+         source."sellerGiftWrappingPriceCents"
+    FROM public."User" AS actor
+    JOIN public."Cart" AS cart
+      ON cart.id = p_cart_id
+     AND cart."userId" = actor.id
+    JOIN public."CartItem" AS cart_item
+      ON cart_item."cartId" = cart.id
+    CROSS JOIN LATERAL public.grainline_listing_actor_transaction_source_core(
+      cart_item."listingId",
+      true
+    ) AS source
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+   ORDER BY cart_item."createdAt", cart_item.id
+   LIMIT 51;
+END
+$grainline_listing_actor_cart_transaction_sources$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(text)
   TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_ai_review_context(

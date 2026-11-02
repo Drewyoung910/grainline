@@ -64,6 +64,11 @@ const LISTING_TRANSACTION_SOURCE_SQL = `
     FROM public.grainline_listing_actor_transaction_source($1::text)
 `;
 
+const LISTING_CART_TRANSACTION_SOURCES_SQL = `
+  SELECT *
+    FROM public.grainline_listing_actor_cart_transaction_sources($1::text)
+`;
+
 const LEGACY_STOCK_RESTORE_SQL = `
   SELECT claimed, stock_visibility_changed
     FROM public.grainline_legacy_stock_restore_apply(
@@ -486,9 +491,44 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
     LISTING_TRANSACTION_SOURCE_SQL,
     [transactionListingId],
   )).length, 1, "Exact reserved buyer must retain transaction access");
+
+  const transactionCartId = `listing-transaction-cart-${suffix}`;
+  const transactionCartItemId = `listing-transaction-cart-item-${suffix}`;
+  await database.query(
+    `INSERT INTO public."Cart" (id, "userId", "createdAt", "updatedAt")
+     VALUES ($1, $2, pg_catalog.clock_timestamp(), pg_catalog.clock_timestamp())`,
+    [transactionCartId, buyerId],
+  );
+  await database.query(
+    `INSERT INTO public."CartItem"
+       (id, "cartId", "listingId", quantity, "priceCents", "priceVersion",
+        "selectedVariantOptionIds", "variantKey", "createdAt")
+     VALUES ($1, $2, $3, 1, 25500, 1, $4::text[], $5, pg_catalog.clock_timestamp())`,
+    [
+      transactionCartItemId,
+      transactionCartId,
+      transactionListingId,
+      [transactionOptionId],
+      transactionOptionId,
+    ],
+  );
+  const activeCartSource = rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_CART_TRANSACTION_SOURCES_SQL,
+    [transactionCartId],
+  ));
+  assert.equal(activeCartSource.length, 1);
+  assert.equal(activeCartSource[0]?.cartItemId, transactionCartItemId);
+  assert.equal(activeCartSource[0]?.id, transactionListingId);
+  assert.equal(
+    Object.hasOwn(activeCartSource[0]?.photos?.[0] ?? {}, "originalUrl"),
+    false,
+    "Cart transaction source must not expose pre-crop photo URLs",
+  );
   await database.query(
     `UPDATE public."Listing"
-        SET "archivedAt" = pg_catalog.clock_timestamp()
+        SET status = 'HIDDEN', "archivedAt" = pg_catalog.clock_timestamp()
       WHERE id = $1`,
     [transactionListingId],
   );
@@ -498,6 +538,30 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
     LISTING_TRANSACTION_SOURCE_SQL,
     [transactionListingId],
   )), [], "Archived listings must be absent from transaction source");
+  const archivedCartSource = rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_CART_TRANSACTION_SOURCES_SQL,
+    [transactionCartId],
+  ));
+  assert.equal(archivedCartSource.length, 1);
+  assert.equal(archivedCartSource[0]?.status, "HIDDEN");
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LISTING_CART_TRANSACTION_SOURCES_SQL,
+    [transactionCartId],
+  )), [], "Another actor must not read the cart owner's listing sources");
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      LISTING_CART_TRANSACTION_SOURCES_SQL,
+      [transactionCartId],
+    ),
+    /Listing actor cart transaction-source input is invalid/u,
+    "Cart transaction source must reject an absent actor",
+  );
 
   const stockListingId = `listing-stock-restore-proof-${suffix}`;
   const stockPhotoId = `listing-stock-restore-photo-${suffix}`;
