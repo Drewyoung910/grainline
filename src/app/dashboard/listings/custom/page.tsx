@@ -34,7 +34,11 @@ import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
-import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
+import { listingOwnerTransition } from "@/lib/listingOwnerAccess";
+import {
+  applyVersionBoundListingAiReviewTransition,
+  applyVersionBoundListingAiReviewTransitionState,
+} from "@/lib/listingAiReviewTransition";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -275,7 +279,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
 
-  const activated = await applyVersionBoundListingAiReviewTransition(seller.userId, {
+  const activation = await applyVersionBoundListingAiReviewTransitionState(seller.userId, {
     listingId: created.id,
     reviewedAt: created.updatedAt,
     sourceStatus: ListingStatus.PENDING_REVIEW,
@@ -283,7 +287,9 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     flags: aiResult.flags,
     score: aiResult.confidence,
   });
-  if (!activated) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+  if (!activation.applied) {
+    return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+  }
   await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
 
   const readyLink = await sendCustomOrderReadyLink({
@@ -292,14 +298,17 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   });
 
   if (!readyLink.messageDelivered) {
-    await prisma.listing.updateMany({
-      where: {
-        id: created.id,
-        sellerId: seller.id,
-        status: ListingStatus.ACTIVE,
-      },
-      data: { status: ListingStatus.DRAFT },
+    const returnedToDraft = await listingOwnerTransition(seller.userId, {
+      listingId: created.id,
+      operation: "RETURN_TO_DRAFT",
+      expectedUpdatedAt: activation.updatedAt,
     });
+    if (!returnedToDraft) {
+      return {
+        ok: false,
+        error: "Listing state changed after review. Refresh and verify the buyer notification.",
+      };
+    }
     revalidatePath(`/messages/${conversationId}`);
     revalidatePath("/dashboard");
     redirect(

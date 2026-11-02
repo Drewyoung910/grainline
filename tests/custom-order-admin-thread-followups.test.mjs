@@ -39,7 +39,10 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(customPage, /startActorConversation\(me\.id, reservedForUserId, null\)/);
     assert.match(customPage, /availableConversation\.conversationId !== conversationId/);
     assert.match(customPage, /if \(!readyLink\.messageDelivered\)/);
-    assert.match(customPage, /status: ListingStatus\.DRAFT/);
+    assert.match(
+      customPage,
+      /if \(!readyLink\.messageDelivered\)[\s\S]*listingOwnerTransition\(seller\.userId,[\s\S]*operation: "RETURN_TO_DRAFT"[\s\S]*expectedUpdatedAt: activation\.updatedAt/,
+    );
     assert.match(customPage, /readyLink=unavailable/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.equal(
