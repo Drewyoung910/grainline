@@ -285,9 +285,72 @@ incremental protection does not justify another per-table RLS program now.
 7. The database-first rollback restores predecessor grants before rollback app
    traffic is permitted.
 
+## Preparation candidate and independent security review
+
+The isolated preparation candidate now implements the selected Option C
+boundary without revoking predecessor grants. It replaces every ordinary
+source-level read or write of the five tables with a purpose-bound operation,
+removes the obsolete `EmailFailureCount` export/deletion compatibility calls,
+and keeps the predecessor application compatible until a separate activation.
+
+The candidate also closes the behavior findings required before activation:
+
+- optional followed-maker and seller-broadcast outbox jobs recheck follow,
+  block, broadcast and listing eligibility immediately before provider contact;
+- owner export and deletion preserve the conflict-filtered historical-address
+  semantics, including address reuse by a second live account;
+- inactive, never-confirmed newsletter rows receive a bounded 30-day cleanup;
+- outbox and processed webhook retention use bounded batches and fixed policy
+  floors; and
+- the staff broadcast mutation performs its own admin-PIN check and cancels
+  only that actor's exact broadcast jobs.
+
+Before commit, Codex Security reviewed an immutable snapshot of the complete
+working-tree diff (scan `dc131a85-0d1a-4977-9abb-51b1712397fb`). It found one
+medium and two low issues in that snapshot. All three were corrected in the
+candidate before commit:
+
+1. Resend receipt reservations now issue a random claim token and increment a
+   claim generation. Completion and failure require both values, so a stale
+   worker cannot overwrite a reclaimed lease.
+2. Clerk account-reuse cleanup now accepts the newly ensured local user id and
+   derives the user's current exact and canonical address keys inside the
+   database function. The runtime role can no longer supply arbitrary target
+   addresses.
+3. Destructive retention functions clamp caller cutoffs to the database clock
+   minus the fixed policy window: 30 days for unconfirmed newsletter and
+   terminal outbox rows, and 90 days for processed Resend events. A future
+   caller cutoff cannot weaken retention policy.
+
+The immutable report intentionally describes the pre-correction snapshot. The
+post-correction tree was verified separately with the executed behavior proof
+below.
+
+## Executed evidence
+
+The complete schema, including all 448 migrations and this preparation, was
+built on disposable PostgreSQL 17. The current-function rollback/reactivation
+proofs and the email-service behavior matrix passed. The matrix includes:
+
+- newsletter reserve, confirmation, unsubscribe and retention behavior;
+- conflict-filtered export and deletion with reused addresses;
+- signed Resend event reservation, replay, stale-generation rejection and
+  successful current-lease completion;
+- future-cutoff retention attempts that leave recent rows intact;
+- optional audience invalidation after unfollow, either-direction block,
+  deleted broadcast and non-public listing; and
+- operations-health aggregation without exposing recipient or rendered-body
+  data.
+
+The focused source tests, changed-file ESLint, `npx tsc --noEmit`,
+`git diff --check`, and the zero-direct-source-access search also pass. The
+source search contains no direct use of `NewsletterSubscriber`,
+`EmailSuppression`, `ResendWebhookEvent`, `EmailOutbox` or
+`EmailFailureCount` through the application database client.
+
 ## Go/no-go
 
-**GO for the isolated Option C preparation. NO-GO for activation, merge,
+**GO for review of the isolated Option C preparation. NO-GO for activation,
 deployment or Production changes.**
 
 Activation remains blocked until every `FIX_BEFORE_ACTIVATION` item above has
