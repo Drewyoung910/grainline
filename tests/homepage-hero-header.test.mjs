@@ -122,6 +122,28 @@ describe("homepage hero and header contracts", () => {
     assert.match(source("src/components/FilterSidebar.tsx"), /100dvh-var\(--site-header-offset\)-2rem/);
   });
 
+  it("does not opt mobile Safari and installed web apps into an inset white top band", () => {
+    const layout = source("src/app/layout.tsx");
+    const manifest = JSON.parse(source("public/manifest.json"));
+
+    assert.match(layout, /viewportFit: "cover"/);
+    // Modern WebKit derives the system-bar treatment from the page. Setting
+    // the legacy `default` mode explicitly insets web content below that bar.
+    assert.doesNotMatch(layout, /statusBarStyle:/);
+    assert.match(layout, /<html[^>]*bg-\[#F7F5F0\]/);
+    assert.match(layout, /<body[^>]*bg-\[#F7F5F0\]/);
+    assert.equal(manifest.background_color, "#F7F5F0");
+    assert.equal(manifest.theme_color, "#1C1917");
+
+    const home = source("src/app/page.tsx");
+    const hero = openingTagWith(home, "data-home-hero");
+    const header = source("src/components/Header.tsx");
+    assert.match(hero, /relative isolate/);
+    assert.doesNotMatch(hero, /mt-|pt-|top-/);
+    assert.match(header, /isHome \? "fixed"/);
+    assert.match(header, /pt-\[env\(safe-area-inset-top\)\]/);
+  });
+
   it("uses the deeper cream and touch-safe frosted CTA states", () => {
     const home = source("src/app/page.tsx");
     const primary = openingTagWith(home, "data-home-primary-cta");
