@@ -272,7 +272,9 @@ WITH required(function_signature) AS (
     ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
     ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
     ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
-    ('public."grainline_seller_staff_listing_review_queue"(text, integer)')
+    ('public."grainline_seller_staff_listing_review_queue"(text, integer)'),
+    ('public."grainline_listing_staff_reference_targets"(text, text[])'),
+    ('public."grainline_listing_staff_seller_active_public_count"(text, text)')
 ), candidate_state AS (
   SELECT pg_catalog.count(*) FILTER (
     WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
@@ -461,7 +463,9 @@ WITH optional_listing_domain_staff(function_signature) AS (
     ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
     ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
     ('public."grainline_seller_staff_listing_review_queue"(text, integer)'),
-    ('public."grainline_listing_staff_detail_source"(text, text)')
+    ('public."grainline_listing_staff_detail_source"(text, text)'),
+    ('public."grainline_listing_staff_reference_targets"(text, text[])'),
+    ('public."grainline_listing_staff_seller_active_public_count"(text, text)')
 )
 SELECT pg_catalog.format(
   'GRANT EXECUTE ON FUNCTION %s TO %I', function_signature, :'staff_role'
@@ -612,7 +616,9 @@ WITH table_authority AS (
       ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
       ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
       ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
-      ('public."grainline_seller_staff_listing_review_queue"(text, integer)')
+      ('public."grainline_seller_staff_listing_review_queue"(text, integer)'),
+      ('public."grainline_listing_staff_reference_targets"(text, text[])'),
+      ('public."grainline_listing_staff_seller_active_public_count"(text, text)')
   ) AS listing_domain_candidate(function_signature)
   WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL
 ), expected_authority AS (
