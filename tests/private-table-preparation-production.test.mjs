@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import yaml from "js-yaml";
 
 import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
+  functionSourceFromMigration,
   privateTablePreparation,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
@@ -326,6 +328,38 @@ test("SellerBroadcast preparation is byte-sealed and remains compatible", () => 
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("email service preparation is byte-sealed and remains compatible", () => {
+  const emailService = verifyPrivateTablePreparationSource("email_service_v1");
+  assert.equal(emailService.release.table, "EmailOutbox");
+  assert.equal(emailService.functionSources.size, 21);
+  assert.deepEqual(emailService.release.addedColumns, []);
+  const sql = readFileSync(emailService.migrationPath, "utf8");
+  assert.match(sql, /grainline_email_service_owner_export/u);
+  assert.match(sql, /grainline_email_service_account_deletion_apply/u);
+  assert.match(sql, /grainline_resend_webhook_event_reserve/u);
+  assert.match(sql, /grainline_email_outbox_begin_provider_attempt/u);
+  assert.match(sql, /Email provider-attempt predecessor definition drifted/u);
+  const providerAttempt = emailService.release.functions.find(
+    (entry) => entry.name === "grainline_email_outbox_begin_provider_attempt",
+  );
+  assert.ok(providerAttempt?.predecessorSourceSha256);
+  const predecessorSql = readFileSync(
+    "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
+    "utf8",
+  );
+  const predecessorSource = functionSourceFromMigration(
+    predecessorSql,
+    providerAttempt.name,
+  );
+  assert.equal(
+    createHash("sha256").update(predecessorSource, "utf8").digest("hex"),
+    providerAttempt.predecessorSourceSha256,
+  );
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("owner social and verification preparation batch is exact and ordered", () => {
   const releaseIds = privateTablePreparationReleaseIds(
     "owner_social_verification_v1",
@@ -449,6 +483,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "user_report_v1",
     "seller_faq_v1",
     "seller_broadcast_v1",
+    "email_service_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -477,6 +512,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "review_vote_v1",
       "maker_verification_v1",
       "seller_broadcast_v1",
+      "email_service_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
     ],
