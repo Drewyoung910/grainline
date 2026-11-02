@@ -268,7 +268,7 @@ describe("seller operational route hardening", () => {
       "chartOrderRowsPromise",
       "topListingRowsPromise",
       "ratingRowsPromise",
-      "existingMetricsPromise",
+      "metricsPromise",
     ]) {
       const declarationIndex = analytics.indexOf(`const ${promiseName}`);
       assert.ok(declarationIndex > -1, `${promiseName} should be declared`);
@@ -299,9 +299,11 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /readSellerOrderAnalyticsBuckets\(\{/);
     assert.match(analytics, /readSellerOrderTopListings\(\{/);
     assert.doesNotMatch(analytics, /JOIN "Cart"|FROM "Order"|JOIN "OrderItem"/);
-    assert.match(analytics, /import \{[\s\S]*getFreshSellerMetrics[\s\S]*SELLER_METRICS_SELECT[\s\S]*\} from "@\/lib\/metrics"/);
-    assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?select: SELLER_METRICS_SELECT/s);
-    assert.match(analytics, /const metrics = await getFreshSellerMetrics\(sellerId, 3, existingMetrics\);/);
+    assert.match(analytics, /import \{[\s\S]*getFreshSellerMetrics[\s\S]*\} from "@\/lib\/metrics"/);
+    assert.match(analytics, /const metricsPromise = getFreshSellerMetrics\(me\.id, 3\);/);
+    assert.match(analytics, /metrics\.sellerProfileId !== sellerId/u);
+    assert.doesNotMatch(analytics, /SELLER_METRICS_SELECT/u);
+    assert.doesNotMatch(analytics, /prisma\.sellerMetrics\./u);
     assert.doesNotMatch(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
     assert.doesNotMatch(analytics, /const isStale = !existingMetrics/);
     assert.match(analytics, /AND r\."createdAt" >= \$\{startDate\}/);
@@ -309,7 +311,7 @@ describe("seller operational route hardening", () => {
     assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);
     assert.doesNotMatch(analytics, /const topFavsRows/);
     assert.doesNotMatch(analytics, /const topStockRows/);
-    assert.doesNotMatch(analytics, /await prisma\.sellerMetrics\.findUnique\(\{ where: \{ sellerProfileId: sellerId \} \}\)/);
+    assert.doesNotMatch(analytics, /await prisma\.sellerMetrics\.findUnique/u);
   });
 
   it("keeps listing stock updates owner-scoped in the final mutation", () => {

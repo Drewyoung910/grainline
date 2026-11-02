@@ -91,16 +91,21 @@ async function readPreparationMarkers(client, release) {
     `, [release.addedIndexes.map((entry) => entry.name)])).rows[0].count;
   }
   if ((release.addedTriggers ?? []).length > 0) {
-    markers.triggers = (await client.query(`
-      SELECT pg_catalog.count(*)::integer AS count
-        FROM pg_catalog.pg_trigger AS trigger_state
-       WHERE trigger_state.tgrelid = $1::pg_catalog.regclass
-         AND trigger_state.tgname = ANY($2::text[])
-         AND NOT trigger_state.tgisinternal
-    `, [
-      `public."${release.table}"`,
-      release.addedTriggers.map((entry) => entry.name),
-    ])).rows[0].count;
+    const triggerCounts = await Promise.all(
+      release.addedTriggers.map(async (entry) => (
+        (await client.query(`
+          SELECT pg_catalog.count(*)::integer AS count
+            FROM pg_catalog.pg_trigger AS trigger_state
+           WHERE trigger_state.tgrelid = $1::pg_catalog.regclass
+             AND trigger_state.tgname = $2
+             AND NOT trigger_state.tgisinternal
+        `, [
+          `public."${entry.table ?? release.table}"`,
+          entry.name,
+        ])).rows[0].count
+      )),
+    );
+    markers.triggers = triggerCounts.reduce((sum, count) => sum + count, 0);
   }
   return markers;
 }
@@ -266,32 +271,35 @@ async function readAddedTriggers(client, release, tableOwner) {
   const expected = [...(release.addedTriggers ?? [])]
     .sort((left, right) => left.name.localeCompare(right.name));
   if (expected.length === 0) return [];
-  const rows = (await client.query(`
-    SELECT trigger_state.tgname AS name,
-           procedure.proname AS function,
-           trigger_state.tgenabled AS enabled,
-           trigger_state.tgtype::integer AS type,
-           owner.rolname AS function_owner,
-           owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
-           procedure.prosecdef AS security_definer,
-           procedure.proconfig AS configuration
-      FROM pg_catalog.pg_trigger AS trigger_state
-      JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger_state.tgfoid
-      JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
-     WHERE trigger_state.tgrelid = $1::pg_catalog.regclass
-       AND trigger_state.tgname = ANY($2::text[])
-       AND NOT trigger_state.tgisinternal
-     ORDER BY trigger_state.tgname
-  `, [
-    `public."${release.table}"`,
-    expected.map((entry) => entry.name),
-  ])).rows;
+  const rows = [];
+  for (const entry of expected) {
+    const result = await client.query(`
+      SELECT trigger_state.tgname AS name,
+             procedure.proname AS function,
+             trigger_state.tgenabled AS enabled,
+             trigger_state.tgtype::integer AS type,
+             owner.rolname AS function_owner,
+             owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
+             procedure.prosecdef AS security_definer,
+             procedure.proconfig AS configuration
+        FROM pg_catalog.pg_trigger AS trigger_state
+        JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger_state.tgfoid
+        JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+       WHERE trigger_state.tgrelid = $1::pg_catalog.regclass
+         AND trigger_state.tgname = $2
+         AND NOT trigger_state.tgisinternal
+    `, [`public."${entry.table ?? release.table}"`, entry.name]);
+    rows.push(...result.rows);
+  }
   assert.equal(rows.length, expected.length, "reviewed trigger count drifted");
   for (const [index, row] of rows.entries()) {
     assert.deepEqual(
       {
         name: row.name,
         function: row.function,
+        ...(expected[index].table !== undefined
+          ? { table: expected[index].table }
+          : {}),
         enabled: row.enabled,
         type: row.type,
       },
@@ -303,9 +311,12 @@ async function readAddedTriggers(client, release, tableOwner) {
     assert.equal(row.security_definer, true, `${row.name} function is not SECURITY DEFINER`);
     assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${row.name} search_path drifted`);
   }
-  return rows.map((row) => Object.freeze({
+  return rows.map((row, index) => Object.freeze({
     name: row.name,
     function: row.function,
+    ...(expected[index].table !== undefined
+      ? { table: expected[index].table }
+      : {}),
     enabled: row.enabled,
     type: row.type,
   }));

@@ -91,6 +91,7 @@ import {
 } from "../scripts/private-table-preparation-catalog.mjs";
 
 const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
+const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -4076,6 +4077,13 @@ describe("database grant inventory guardrails", () => {
       source(SELLER_ANALYTICS_PREPARATION_MIGRATION).includes(
         `public.${functionName}(`,
       ));
+    const sellerMetricsAuthorityPrepared = existsSync(
+      `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
+    ) && SELLER_METRICS_PREPARATION.functions.every((entry) =>
+      source(
+        `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
+      ).includes(`FUNCTION public.${entry.name}(`),
+    );
     const sellerAnalyticsRlsActivationPresent = existsSync(
       SELLER_ANALYTICS_ACTIVATION_MIGRATION,
     ) && source(SELLER_ANALYTICS_ACTIVATION_MIGRATION).includes(
@@ -4336,6 +4344,9 @@ describe("database grant inventory guardrails", () => {
       ...(sellerAnalyticsAuthorityPrepared
         ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerMetricsAuthorityPrepared
+        ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
+        : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES
         : []),
@@ -4457,6 +4468,9 @@ describe("database grant inventory guardrails", () => {
         + (sellerAnalyticsAuthorityPrepared
           ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES.length
             - 1 // seller-profile view recording already has an exact PUBLIC revoke
+          : 0)
+        + (sellerMetricsAuthorityPrepared
+          ? SELLER_METRICS_PREPARATION.functions.length
           : 0)
         + (sellerAnalyticsRlsActivationPresent ? 2 : 0)
         + (typeof followRlsActivationExpected === "function"
@@ -4625,6 +4639,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(sellerAnalyticsAuthorityPrepared
         ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerMetricsAuthorityPrepared
+        ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
         : []),
       ...(blockAuthorityPrepared
         ? BLOCK_PREPARATION_FUNCTION_NAMES

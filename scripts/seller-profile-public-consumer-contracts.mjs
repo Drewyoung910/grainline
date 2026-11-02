@@ -180,7 +180,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // calls from the application frontier.
       // UserReport submission now validates its three remaining public target
       // shapes inside one actor-bound SQL authority.
-      || reviewedNonTargetResiduals.length !== 22) {
+      // SellerMetrics preparation moves its Review aggregate and cache upsert
+      // behind the fixed metrics authorities, removing two more non-target
+      // opaque shapes from this SellerProfile-adjacent source inventory.
+      || reviewedNonTargetResiduals.length !== 20) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,
