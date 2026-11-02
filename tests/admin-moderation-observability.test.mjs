@@ -88,7 +88,7 @@ describe("admin moderation hardening follow-ups", () => {
       "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
     );
 
-    assert.match(route, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(route, /await withDbUserContext\(admin\.id, async \(tx\) => \{/);
     assert.match(route, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
     assert.doesNotMatch(route, /source: "admin_review_rating_summary_refresh"/);
     assert.doesNotMatch(route, /deletePublicObjectsBestEffort|deleteObject\(|directUpload\./);
