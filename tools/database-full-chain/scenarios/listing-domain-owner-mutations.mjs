@@ -54,6 +54,11 @@ const ALT_TEXT_BACKFILL_SQL = `
   ) AS updated_count
 `;
 
+const AI_REVIEW_CONTEXT_SQL = `
+  SELECT *
+    FROM public.grainline_listing_owner_ai_review_context($1::text)
+`;
+
 const LEGACY_STOCK_RESTORE_SQL = `
   SELECT claimed, stock_visibility_changed
     FROM public.grainline_legacy_stock_restore_apply(
@@ -304,6 +309,32 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
       WHERE variant_group."listingId" = $1`,
     [listingId],
   )), [{ groupId: replacementGroupId, optionId: replacementOptionId }]);
+
+  const aiReviewContext = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    AI_REVIEW_CONTEXT_SQL,
+    [listingId],
+  ));
+  assert.equal(aiReviewContext.length, 1);
+  assert.equal(aiReviewContext[0]?.sellerProfileId, seller.sellerProfileId);
+  assert.equal(
+    aiReviewContext[0]?.listingUpdatedAt?.getTime(),
+    listing.updatedAt.getTime(),
+  );
+  assert.deepEqual(aiReviewContext[0]?.photoUrls, replacementPhotos.map((photo) => photo.url));
+  assert.equal(Array.isArray(aiReviewContext[0]?.recentTitles), true);
+  assert.equal(
+    aiReviewContext[0]?.recentTitles.includes("Updated full-chain listing authority proof"),
+    false,
+    "AI-review duplicate titles must exclude the listing under review",
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    AI_REVIEW_CONTEXT_SQL,
+    [listingId],
+  )), [], "AI-review context must reject a cross-owner actor");
 
   const exactBackfill = rowsOf(await runtimeQuery(
     database,

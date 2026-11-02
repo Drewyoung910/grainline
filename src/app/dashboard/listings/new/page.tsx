@@ -52,6 +52,7 @@ import {
   assignListingOwnerMetros,
   createListingOwner,
   listingOwnerActionState,
+  listingOwnerAiReviewContext,
   listingOwnerCounts,
 } from "@/lib/listingOwnerAccess";
 import type { Metadata } from "next";
@@ -365,6 +366,15 @@ async function createListing(_prevState: unknown, formData: FormData) {
     }
 
     const listingCount = sellerInfo?.totalListingCount ?? 0
+    const aiContext = await listingOwnerAiReviewContext(seller.userId, created.id)
+    if (
+      !aiContext
+      || aiContext.sellerProfileId !== seller.id
+      || aiContext.listingUpdatedAt.getTime() !== reviewedListingVersion.getTime()
+    ) {
+      throw new Error("Listing AI-review context changed before review")
+    }
+    const reviewedImageUrls = [...aiContext.photoUrls]
 
     const { reviewListingWithAI } = await import('@/lib/ai-review')
 
@@ -379,7 +389,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
       tags: [...created.tags],
       sellerName: sellerInfo?.displayName ?? seller.displayName ?? 'Unknown',
       listingCount,
-      imageUrls,
+      imageUrls: reviewedImageUrls,
+      recentListingTitles: aiContext.recentTitles.map((title) => ({ title })),
     }).catch((): AIReviewResult => ({
       approved: false,
       flags: ['AI review error'],
@@ -414,7 +425,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
     // Do not let a stale review write alt text onto a newer photo set.
     if (reviewApplied) {
-      await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, imageUrls);
+      await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, reviewedImageUrls);
     }
   } catch (error) {
     logServerError(error, {

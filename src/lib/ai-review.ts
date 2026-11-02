@@ -20,18 +20,6 @@ type AIReviewDependencies = {
   sleep?: (ms: number) => Promise<void>;
 };
 
-async function defaultFindRecentListingTitles(sellerId: string, excludeListingId?: string | null) {
-  const { prisma } = await import("./db.ts");
-  return prisma.listing.findMany({
-    where: {
-      ...(excludeListingId ? { id: { not: excludeListingId } } : {}),
-      sellerId,
-      createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-    },
-    select: { title: true },
-  });
-}
-
 let missingOpenAIKeyReported = false;
 
 class OpenAIReviewRequestError extends Error {
@@ -107,8 +95,8 @@ export async function reviewListingWithAI(listing: {
   sellerName: string
   listingCount: number
   imageUrls?: string[]
+  recentListingTitles: Array<{ title: string }>
 }, deps: AIReviewDependencies = {}): Promise<AIReviewResult> {
-  const findRecentListingTitles = deps.findRecentListingTitles ?? defaultFindRecentListingTitles;
   const requestWithTimeout = deps.fetchWithTimeout ?? defaultFetchWithTimeout;
   const wait = deps.sleep ?? sleep;
 
@@ -133,7 +121,11 @@ export async function reviewListingWithAI(listing: {
   // Normalize aggressively so punctuation, spacing, and emoji changes do not bypass the check.
   try {
     // Fetch recent titles from same seller for normalized comparison
-    const recentListings = await findRecentListingTitles(listing.sellerId, listing.listingId);
+    const recentListings = Array.isArray(listing.recentListingTitles)
+      ? listing.recentListingTitles
+      : deps.findRecentListingTitles
+        ? await deps.findRecentListingTitles(listing.sellerId, listing.listingId)
+        : [];
     const normalizedNew = normalizeDuplicateListingTitle(listing.title);
     const duplicateCount = normalizedNew ? recentListings.filter(
       (l) => normalizeDuplicateListingTitle(l.title) === normalizedNew
