@@ -2628,7 +2628,8 @@ CREATE FUNCTION public.grainline_listing_public_catalog_page(
 )
 RETURNS TABLE (
   "totalCount" bigint,
-  listings jsonb
+  listings jsonb,
+  "categoryCounts" jsonb
 )
 LANGUAGE plpgsql
 STABLE
@@ -2648,6 +2649,7 @@ DECLARE
   city_metro_filter text;
   seller_filter text;
   sort_filter text := 'newest';
+  include_category_counts boolean := false;
   bounded_offset integer;
   bounded_limit integer;
 BEGIN
@@ -2656,7 +2658,8 @@ BEGIN
        SELECT 1
          FROM pg_catalog.jsonb_object_keys(source_filter) AS filter_key(value)
         WHERE filter_key.value NOT IN (
-          'tag', 'category', 'metroId', 'cityMetroId', 'sellerId', 'sort'
+          'tag', 'category', 'metroId', 'cityMetroId', 'sellerId', 'sort',
+          'includeCategoryCounts'
         )
      ) THEN
     RAISE EXCEPTION 'Public catalog filter is invalid'
@@ -2680,7 +2683,11 @@ BEGIN
      OR (source_filter ? 'sellerId'
       AND pg_catalog.jsonb_typeof(source_filter -> 'sellerId') <> 'string')
      OR (source_filter ? 'sort'
-      AND pg_catalog.jsonb_typeof(source_filter -> 'sort') <> 'string') THEN
+      AND pg_catalog.jsonb_typeof(source_filter -> 'sort') <> 'string')
+     OR (source_filter ? 'includeCategoryCounts'
+      AND pg_catalog.jsonb_typeof(
+        source_filter -> 'includeCategoryCounts'
+      ) <> 'boolean') THEN
     RAISE EXCEPTION 'Public catalog filter value is invalid'
       USING ERRCODE = '22023';
   END IF;
@@ -2691,6 +2698,10 @@ BEGIN
   city_metro_filter := NULLIF(source_filter ->> 'cityMetroId', '');
   seller_filter := NULLIF(source_filter ->> 'sellerId', '');
   sort_filter := COALESCE(NULLIF(source_filter ->> 'sort', ''), 'newest');
+  include_category_counts := COALESCE(
+    (source_filter ->> 'includeCategoryCounts')::boolean,
+    false
+  );
 
   IF (tag_filter IS NOT NULL AND (
         pg_catalog.char_length(tag_filter) > 24
@@ -2731,6 +2742,7 @@ BEGIN
            listing.status,
            listing."listingType",
            listing."stockQuantity",
+           listing.category,
            listing."createdAt",
            listing."sellerId",
            listing."qualityScore",
@@ -2823,7 +2835,30 @@ BEGIN
                FROM page_rows AS page
            ),
            '[]'::jsonb
-         );
+         ),
+         CASE
+           WHEN include_category_counts THEN COALESCE(
+             (
+               SELECT pg_catalog.jsonb_agg(
+                        pg_catalog.jsonb_build_object(
+                          'category', category_count.category::text,
+                          'count', category_count.value
+                        )
+                        ORDER BY category_count.value DESC,
+                                 category_count.category::text ASC
+                      )
+                 FROM (
+                   SELECT eligible.category,
+                          pg_catalog.count(*) AS value
+                     FROM eligible
+                    WHERE eligible.category IS NOT NULL
+                    GROUP BY eligible.category
+                 ) AS category_count
+             ),
+             '[]'::jsonb
+           )
+           ELSE '[]'::jsonb
+         END;
 END
 $grainline_listing_public_catalog_page$;
 

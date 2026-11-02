@@ -4,11 +4,12 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("tag and metro-category pages share one bounded public catalog authority", async () => {
-  const [migration, access, tagPage, metroCategoryPage, provision, scenario, runner] = await Promise.all([
+test("tag and metro pages share one bounded public catalog authority", async () => {
+  const [migration, access, tagPage, metroPage, metroCategoryPage, provision, scenario, runner] = await Promise.all([
     readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
     readFile(new URL("src/lib/listingPublicCatalogAccess.ts", root), "utf8"),
     readFile(new URL("src/app/tag/[slug]/page.tsx", root), "utf8"),
+    readFile(new URL("src/app/browse/[metroSlug]/page.tsx", root), "utf8"),
     readFile(new URL("src/app/browse/[metroSlug]/[category]/page.tsx", root), "utf8"),
     readFile(new URL("scripts/provision-runtime-db-role.sql", root), "utf8"),
     readFile(new URL("tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs", root), "utf8"),
@@ -45,6 +46,10 @@ test("tag and metro-category pages share one bounded public catalog authority", 
   assert.doesNotMatch(tagPage, /prisma\.listing\.(?:count|findMany)/u);
   assert.match(metroCategoryPage, /listingPublicCatalogPage/u);
   assert.doesNotMatch(metroCategoryPage, /prisma\.listing\.(?:count|findMany)/u);
+  assert.match(access, /categoryCounts/u);
+  assert.match(metroPage, /includeCategoryCounts: true/u);
+  assert.match(metroPage, /categoryCounts/u);
+  assert.doesNotMatch(metroPage, /prisma\.listing\.(?:count|findMany)/u);
   assert.match(
     provision,
     /public\."grainline_listing_public_catalog_page"\(jsonb, integer, integer\)'\s*,\s*true/u,
@@ -58,6 +63,7 @@ test("tag and metro-category pages share one bounded public catalog authority", 
     "sold-out listing exclusion",
     "originalUrl",
     "unknown public-catalog filters fail closed",
+    "category facets",
   ]) {
     assert.match(scenario, new RegExp(expected, "u"));
   }
