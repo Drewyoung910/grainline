@@ -40,6 +40,7 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
   const photoId = `listing-catalog-photo-${suffix}`;
   const blockId = `listing-catalog-block-${suffix}`;
   const metroId = `listing-catalog-metro-${suffix}`;
+  const ownerTag = `owner-${suffix.slice(0, 12)}`;
   const now = "2026-11-02 13:00:00";
   const [originalSellerLocation] = rowsOf(await database.query(
     `SELECT lat, lng, "radiusMeters"
@@ -96,7 +97,28 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
                'public.grainline_listing_public_title_suggestions(text)'
              ),
              'EXECUTE'
-           ) AS "suggestionPublicExecute"
+           ) AS "suggestionPublicExecute",
+           pg_catalog.has_function_privilege(
+             'grainline_app_runtime',
+             pg_catalog.to_regprocedure(
+               'public.grainline_listing_owner_catalog_page(text,jsonb,integer,integer)'
+             ),
+             'EXECUTE'
+           ) AS "ownerRuntimeExecute",
+           pg_catalog.has_function_privilege(
+             'grainline_staff_read_runtime',
+             pg_catalog.to_regprocedure(
+               'public.grainline_listing_owner_catalog_page(text,jsonb,integer,integer)'
+             ),
+             'EXECUTE'
+           ) AS "ownerStaffExecute",
+           pg_catalog.has_function_privilege(
+             'public',
+             pg_catalog.to_regprocedure(
+               'public.grainline_listing_owner_catalog_page(text,jsonb,integer,integer)'
+             ),
+             'EXECUTE'
+           ) AS "ownerPublicExecute"
   `))[0];
   assert.deepEqual(privilege, {
     runtimeExecute: true,
@@ -105,6 +127,9 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     suggestionRuntimeExecute: true,
     suggestionStaffExecute: false,
     suggestionPublicExecute: false,
+    ownerRuntimeExecute: true,
+    ownerStaffExecute: false,
+    ownerPublicExecute: false,
   });
 
   await database.query(
@@ -179,6 +204,12 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
       now,
       actorId,
     ],
+  );
+  await database.query(
+    `UPDATE public."Listing"
+        SET tags = pg_catalog.array_append(tags, $2)
+      WHERE id = ANY($1::text[])`,
+    [[listingIds.matching, listingIds.private, listingIds.soldOut], ownerTag],
   );
   await database.query(
     `UPDATE public."Listing"
@@ -511,6 +542,90 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     popularPage.listings[0]?.id,
     listingIds.wrongTag,
     "browse popular fallback",
+  );
+
+  const ownerSql = `
+    SELECT *
+      FROM public.grainline_listing_owner_catalog_page(
+        $1::text, $2::jsonb, $3::integer, $4::integer
+      )
+  `;
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(
+      database,
+      actorId,
+      ownerSql,
+      [seller.sellerProfileId, JSON.stringify({ tag: ownerTag }), 0, 20],
+    )),
+    [],
+    "cross-user owner catalog denial",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      ownerSql,
+      [seller.sellerProfileId, JSON.stringify({ tag: ownerTag }), 0, 20],
+    ),
+    /Listing owner-catalog input is invalid/u,
+    "missing-actor owner catalog denial",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      seller.userId,
+      ownerSql,
+      [seller.sellerProfileId, JSON.stringify({ unexpected: true }), 0, 20],
+    ),
+    /Listing owner-catalog input is invalid/u,
+    "unknown owner-catalog filters fail closed",
+  );
+  const ownerActivePage = pageOf(await runtimeQuery(
+    database,
+    seller.userId,
+    ownerSql,
+    [seller.sellerProfileId, JSON.stringify({
+      tag: ownerTag,
+      status: "ACTIVE",
+      category: "FURNITURE",
+      sort: "price_desc",
+      includeCategoryCounts: true,
+    }), 0, 20],
+  ));
+  assert.equal(Number(ownerActivePage.totalCount), 2, "owner active total");
+  assert.deepEqual(
+    ownerActivePage.listings.map((listing) => listing.id),
+    [listingIds.private, listingIds.matching],
+    "owner price ordering includes the private listing",
+  );
+  assert.deepEqual(
+    ownerActivePage.categoryCounts,
+    [{ category: "FURNITURE", count: 2 }],
+    "owner category facets preserve status and tag filters",
+  );
+  assert.equal(
+    JSON.stringify(ownerActivePage).includes("originalUrl"),
+    false,
+    "owner catalog excludes original media",
+  );
+  assert.deepEqual(ownerActivePage.listings[1].photos, [{
+    url: "https://cdn.example.test/catalog.jpg",
+    altText: "Catalog photo",
+  }]);
+  const ownerSoldOutPage = pageOf(await runtimeQuery(
+    database,
+    seller.userId,
+    ownerSql,
+    [seller.sellerProfileId, JSON.stringify({
+      tag: ownerTag,
+      status: "SOLD_OUT",
+      sort: "newest",
+    }), 0, 20],
+  ));
+  assert.deepEqual(
+    ownerSoldOutPage.listings.map((listing) => listing.id),
+    [listingIds.soldOut],
+    "owner nonpublic status filter",
   );
 
   await database.query(
