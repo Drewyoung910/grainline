@@ -91,6 +91,11 @@ const LISTING_OWNER_RATING_BUCKETS_SQL = `
     )
 `;
 
+const LISTING_SELLER_RATING_SUMMARY_REFRESH_SQL = `
+  SELECT *
+    FROM public.grainline_listing_seller_rating_summary_refresh($1::text)
+`;
+
 function createArgs({
   listingId,
   status = "DRAFT",
@@ -188,7 +193,6 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
      )`,
     [buyerId, `clerk_${buyerId}`, `${buyerId}@example.test`],
   );
-
   const createResult = rowsOf(await runtimeQuery(
     database,
     seller.userId,
@@ -471,6 +475,29 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
     staff_execute: false,
     public_execute: false,
   });
+  const ratingRefreshPrivilege = rowsOf(await database.query(
+    `SELECT
+       pg_catalog.has_function_privilege(
+         'grainline_app_runtime',
+         'public.grainline_listing_seller_rating_summary_refresh(text)',
+         'EXECUTE'
+       ) AS runtime_execute,
+       pg_catalog.has_function_privilege(
+         'grainline_staff_read_runtime',
+         'public.grainline_listing_seller_rating_summary_refresh(text)',
+         'EXECUTE'
+       ) AS staff_execute,
+       pg_catalog.has_function_privilege(
+         'public',
+         'public.grainline_listing_seller_rating_summary_refresh(text)',
+         'EXECUTE'
+       ) AS public_execute`,
+  ))[0];
+  assert.deepEqual(ratingRefreshPrivilege, {
+    runtime_execute: true,
+    staff_execute: false,
+    public_execute: false,
+  });
   const ratingReviewIds = [
     `listing-rating-review-a-${suffix}`,
     `listing-rating-review-b-${suffix}`,
@@ -491,6 +518,55 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
       new Date("2026-01-15T12:00:00.000Z"),
       new Date("2026-02-10T12:00:00.000Z"),
     ],
+  );
+  await database.query(
+    `INSERT INTO public."SellerRatingSummary"
+       ("sellerProfileId", "averageRating", "reviewCount", "updatedAt")
+     VALUES ($1, 1.25, 99, pg_catalog.clock_timestamp())
+     ON CONFLICT ("sellerProfileId") DO UPDATE
+       SET "averageRating" = EXCLUDED."averageRating",
+           "reviewCount" = EXCLUDED."reviewCount",
+           "updatedAt" = EXCLUDED."updatedAt"`,
+    [seller.sellerProfileId],
+  );
+  const expectedRatingSummary = rowsOf(await database.query(
+    `SELECT
+       COALESCE(
+         pg_catalog.avg(review."ratingX2")::double precision / 2.0,
+         0.0
+       ) AS "averageRating",
+       pg_catalog.count(review.id)::integer AS "reviewCount"
+       FROM public."Review" AS review
+       JOIN public."Listing" AS listing
+         ON listing.id = review."listingId"
+      WHERE listing."sellerId" = $1`,
+    [seller.sellerProfileId],
+  ))[0];
+  const refreshedRatingSummary = rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_SELLER_RATING_SUMMARY_REFRESH_SQL,
+    [seller.sellerProfileId],
+  ));
+  assert.deepEqual(
+    refreshedRatingSummary,
+    [expectedRatingSummary],
+    "seller rating refresh computes the exact aggregate",
+  );
+  assert.notDeepEqual(
+    refreshedRatingSummary,
+    [{ averageRating: 1.25, reviewCount: 99 }],
+    "seller rating refresh replaces stale summary values",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      buyerId,
+      LISTING_SELLER_RATING_SUMMARY_REFRESH_SQL,
+      ["bad seller id with spaces"],
+    ),
+    /Listing seller rating-summary input is invalid/u,
+    "seller rating refresh rejects malformed seller ids",
   );
   const ratingStart = Date.parse("2026-01-01T00:00:00.000Z");
   const ratingEnd = Date.parse("2026-03-01T00:00:00.000Z");

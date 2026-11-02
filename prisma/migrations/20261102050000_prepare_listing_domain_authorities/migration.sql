@@ -88,6 +88,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner rating-bucket authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_seller_rating_summary_refresh(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing seller rating-summary refresh authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_action_state(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner action-state authority already exists';
@@ -1740,6 +1745,63 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_rating_buckets(
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_rating_buckets(
   bigint,bigint,boolean
 ) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_seller_rating_summary_refresh(
+  p_seller_profile_id text
+)
+RETURNS TABLE (
+  "averageRating" double precision,
+  "reviewCount" integer
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_seller_rating_summary_refresh$
+BEGIN
+  IF p_seller_profile_id IS NULL
+     OR p_seller_profile_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing seller rating-summary input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    913343,
+    pg_catalog.hashtext(p_seller_profile_id)
+  );
+
+  RETURN QUERY
+  INSERT INTO public."SellerRatingSummary" AS rating_summary (
+    "sellerProfileId",
+    "averageRating",
+    "reviewCount",
+    "updatedAt"
+  )
+  SELECT
+    p_seller_profile_id,
+    COALESCE(
+      pg_catalog.avg(review."ratingX2")::double precision / 2.0,
+      0.0
+    ),
+    pg_catalog.count(review.id)::integer,
+    pg_catalog.clock_timestamp()
+    FROM public."Review" AS review
+    JOIN public."Listing" AS listing
+      ON listing.id = review."listingId"
+   WHERE listing."sellerId" = p_seller_profile_id
+  ON CONFLICT ("sellerProfileId") DO UPDATE
+  SET "averageRating" = EXCLUDED."averageRating",
+      "reviewCount" = EXCLUDED."reviewCount",
+      "updatedAt" = EXCLUDED."updatedAt"
+  RETURNING rating_summary."averageRating", rating_summary."reviewCount";
+END
+$grainline_listing_seller_rating_summary_refresh$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_seller_rating_summary_refresh(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_seller_rating_summary_refresh(text)
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_action_state(
   p_listing_id text
