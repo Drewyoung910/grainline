@@ -49,7 +49,11 @@ import {
   sellerOwnerListingReview,
 } from "@/lib/sellerProfileOwnerAccess";
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
-import { listingOwnerActionState, listingOwnerCounts } from "@/lib/listingOwnerAccess";
+import {
+  assignListingOwnerMetros,
+  listingOwnerActionState,
+  listingOwnerCounts,
+} from "@/lib/listingOwnerAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -318,13 +322,14 @@ async function createListing(_prevState: unknown, formData: FormData) {
     if (sellerLocation?.lat != null && sellerLocation?.lng != null) {
       const { findOrCreateMetro } = await import("@/lib/geo-metro");
       const { metroId, cityMetroId } = await findOrCreateMetro(sellerLocation.lat, sellerLocation.lng);
-      if (metroId || cityMetroId) {
-        const located = await prisma.listing.update({
-          where: { id: created.id },
-          data: { metroId, cityMetroId },
-          select: { updatedAt: true },
+      if (metroId) {
+        const assignment = await assignListingOwnerMetros(seller.userId, {
+          listingId: created.id,
+          expectedUpdatedAt: reviewedListingVersion,
+          metroId,
+          cityMetroId,
         });
-        reviewedListingVersion = located.updatedAt;
+        if (assignment.applied) reviewedListingVersion = assignment.updatedAt;
       }
     }
   } catch (e) {

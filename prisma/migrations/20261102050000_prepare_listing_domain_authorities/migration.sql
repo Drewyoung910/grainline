@@ -73,6 +73,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner action-state authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_assign_metros(text,timestamp without time zone,text,text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner metro-assignment authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_transition(text,text,timestamp without time zone)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner transition authority already exists';
@@ -1286,6 +1291,116 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_action_state(text)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_action_state(text)
   TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_assign_metros(
+  p_listing_id text,
+  p_expected_updated_at timestamp without time zone,
+  p_metro_id text,
+  p_city_metro_id text
+)
+RETURNS TABLE (applied boolean, "updatedAt" timestamp without time zone)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_assign_metros$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  source_listing public."Listing"%ROWTYPE;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_updated_at IS NULL
+     OR p_metro_id IS NULL
+     OR p_metro_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR (
+       p_city_metro_id IS NOT NULL
+       AND p_city_metro_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     ) THEN
+    RAISE EXCEPTION 'Listing owner metro-assignment input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::timestamp without time zone;
+    RETURN;
+  END IF;
+
+  SELECT listing.*
+    INTO source_listing
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::timestamp without time zone;
+    RETURN;
+  END IF;
+
+  IF source_listing."updatedAt" IS DISTINCT FROM p_expected_updated_at
+     OR source_listing."archivedAt" IS NOT NULL
+     OR source_listing.status::text NOT IN ('DRAFT', 'PENDING_REVIEW')
+     OR source_listing."metroId" IS NOT NULL
+     OR source_listing."cityMetroId" IS NOT NULL THEN
+    RETURN QUERY SELECT false, NULL::timestamp without time zone;
+    RETURN;
+  END IF;
+
+  UPDATE public."Listing" AS listing
+     SET "metroId" = p_metro_id,
+         "cityMetroId" = p_city_metro_id,
+         "updatedAt" = source_now
+   WHERE listing.id = source_listing.id
+     AND EXISTS (
+       SELECT 1
+         FROM public."Metro" AS major_metro
+        WHERE major_metro.id = p_metro_id
+          AND major_metro."isActive" = true
+          AND major_metro."parentMetroId" IS NULL
+     )
+     AND (
+       p_city_metro_id IS NULL
+       OR EXISTS (
+         SELECT 1
+           FROM public."Metro" AS city_metro
+          WHERE city_metro.id = p_city_metro_id
+            AND city_metro."isActive" = true
+            AND city_metro."parentMetroId" = p_metro_id
+       )
+     );
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::timestamp without time zone;
+    RETURN;
+  END IF;
+
+  RETURN QUERY SELECT true, source_now;
+END
+$grainline_listing_owner_assign_metros$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_assign_metros(
+  text,timestamp without time zone,text,text
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_assign_metros(
+  text,timestamp without time zone,text,text
+) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_transition(
   p_listing_id text,
