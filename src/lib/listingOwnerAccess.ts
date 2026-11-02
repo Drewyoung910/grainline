@@ -222,6 +222,12 @@ type ListingOwnerActionStateRow = {
   rejectionReason: unknown;
 };
 
+type ListingOwnerTransitionRow = {
+  applied: unknown;
+};
+
+export type ListingOwnerTransitionOperation = "HIDE" | "MARK_SOLD" | "WITHDRAW_REVIEW";
+
 export type ListingOwnerSummaryState = Readonly<{
   id: string;
   title: string;
@@ -571,6 +577,41 @@ export function listingOwnerActionState(userId: string, listingId: string) {
     userId,
     (client) => readListingOwnerActionState(client, listingId),
   );
+}
+
+export function listingOwnerTransition(
+  userId: string,
+  input: Readonly<{
+    listingId: string;
+    operation: ListingOwnerTransitionOperation;
+    expectedUpdatedAt?: Date | null;
+  }>,
+) {
+  if (
+    !validId(input.listingId)
+    || !(["HIDE", "MARK_SOLD", "WITHDRAW_REVIEW"] as const).includes(input.operation)
+    || (
+      input.operation === "WITHDRAW_REVIEW"
+        ? !validDate(input.expectedUpdatedAt)
+        : input.expectedUpdatedAt != null
+    )
+  ) {
+    throw new RangeError("Listing owner transition input is invalid");
+  }
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<ListingOwnerTransitionRow[]>`
+      SELECT *
+        FROM public.grainline_listing_owner_transition(
+          ${input.listingId}::text,
+          ${input.operation}::text,
+          ${input.expectedUpdatedAt ?? null}::timestamp
+        )
+    `;
+    if (rows.length !== 1 || typeof rows[0]?.applied !== "boolean") {
+      throw new Error("Listing owner transition authority returned an invalid result");
+    }
+    return rows[0].applied;
+  });
 }
 
 function parseExportPhotos(value: unknown) {
