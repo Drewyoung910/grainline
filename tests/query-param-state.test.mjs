@@ -151,9 +151,9 @@ describe("query parameter parsing helpers", () => {
     );
 
     assert.match(review, /const REVIEW_QUEUE_LIMIT = 100/);
-    assert.match(review, /prisma\.listing\.count\(\{ where: \{ status: "PENDING_REVIEW" \} \}\)/);
-    assert.match(review, /orderBy: \[\{ createdAt: "asc" \}, \{ id: "asc" \}\]/);
-    assert.match(review, /take: REVIEW_QUEUE_LIMIT/);
+    assert.match(review, /sellerProfileStaffListingReviewQueue\(staffClient, \{/);
+    assert.match(review, /actorId: staff\.id,[\s\S]*limit: REVIEW_QUEUE_LIMIT/);
+    assert.match(review, /const \{ totalPending, listings \} = reviewQueue/);
 
     assert.match(verification, /makerVerificationStaffPendingCount\(staffClient, staff\.id\)/);
     assert.match(verification, /makerVerificationStaffPendingPage\(staffClient, \{[\s\S]*actorId: staff\.id,[\s\S]*take: STAFF_FETCH_SIZE/);
