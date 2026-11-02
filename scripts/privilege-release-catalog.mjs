@@ -33,7 +33,7 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     preparationMigration: Object.freeze({
       name: "20261101080000_prepare_email_service_least_privilege",
       sha256:
-        "032209f22a02ff0145e69b7aa2c164bb823d376f41218c932878c8e8b4f0df37",
+        "1d231bf5df2652765a2f0c48509bc232d9976dc2a2a775a93900fe606616537a",
     }),
     compatibleDeployment: Object.freeze({
       minimumAppCommit: "e4d35863b22a1694d96f9582732ff66e26ba770d",
