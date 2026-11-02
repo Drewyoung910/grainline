@@ -864,6 +864,22 @@ BEGIN
     identity_row."sourceType"::text,
     identity_row."sourceId"::text
   );
+
+  IF identity_row."sourceType" IN (
+    'seller_broadcast',
+    'followed_maker_new_listing'
+  ) THEN
+    -- User-mutating email paths lock User rows before the stable advisory
+    -- keys. Keep that global order here so account deletion, bans, preference
+    -- changes, and Clerk identity updates cannot deadlock provider start.
+    PERFORM 1
+      FROM public."User" AS pair_user
+     WHERE pair_user.id = identity_row."userId"
+        OR pair_user.id = initial_source_user_id
+     ORDER BY pair_user.id
+     FOR SHARE;
+  END IF;
+
   PERFORM public.grainline_email_outbox_lock_keys(
     ARRAY[identity_row."userId"::text, initial_source_user_id],
     ARRAY[identity_row."recipientEmail"::text]
@@ -873,14 +889,6 @@ BEGIN
     'seller_broadcast',
     'followed_maker_new_listing'
   ) THEN
-    -- Block writers lock this same sorted pair before changing Block rows.
-    PERFORM 1
-      FROM public."User" AS pair_user
-     WHERE pair_user.id = identity_row."userId"
-        OR pair_user.id = initial_source_user_id
-     ORDER BY pair_user.id
-     FOR SHARE;
-
     IF identity_row."sourceType" = 'seller_broadcast' THEN
       SELECT true
         INTO source_recipient_eligible
