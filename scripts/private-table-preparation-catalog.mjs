@@ -565,7 +565,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   email_service_v1: Object.freeze({
     migration: "20261101080000_prepare_email_service_least_privilege",
-    migrationSha256: "032209f22a02ff0145e69b7aa2c164bb823d376f41218c932878c8e8b4f0df37",
+    migrationSha256: "1d231bf5df2652765a2f0c48509bc232d9976dc2a2a775a93900fe606616537a",
     // This preparation replaces direct callers across five related email
     // service tables. EmailOutbox is the representative predecessor table for
     // the generic preparation inspector; the migration itself verifies all

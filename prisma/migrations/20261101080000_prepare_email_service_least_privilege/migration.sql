@@ -1125,9 +1125,7 @@ BEGIN
      OR locked_row."sourceId" IS DISTINCT FROM identity_row."sourceId" THEN
     RETURN 'stale_claim';
   END IF;
-  IF locked_row.status IN ('SENT','SKIPPED','DEAD') THEN
-    RETURN 'already_terminal';
-  END IF;
+  IF locked_row.status IN ('SENT','SKIPPED','DEAD') THEN RETURN 'already_terminal'; END IF;
   IF locked_row.status <> 'PROCESSING'
      OR locked_row."claimGeneration" <> p_claim_generation
      OR locked_row."claimToken" IS DISTINCT FROM p_claim_token THEN
