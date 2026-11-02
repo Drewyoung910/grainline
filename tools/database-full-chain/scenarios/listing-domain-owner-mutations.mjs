@@ -84,6 +84,13 @@ const LISTING_ACCOUNT_DELETION_SQL = `
     )
 `;
 
+const LISTING_OWNER_RATING_BUCKETS_SQL = `
+  SELECT *
+    FROM public.grainline_listing_owner_rating_buckets(
+      $1::bigint, $2::bigint, $3::boolean
+    )
+`;
+
 function createArgs({
   listingId,
   status = "DRAFT",
@@ -440,6 +447,90 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
         SET status = 'ACTIVE'
       WHERE id = $1`,
     [transactionListingId],
+  );
+  const ratingPrivilege = rowsOf(await database.query(
+    `SELECT
+       pg_catalog.has_function_privilege(
+         'grainline_app_runtime',
+         'public.grainline_listing_owner_rating_buckets(bigint,bigint,boolean)',
+         'EXECUTE'
+       ) AS runtime_execute,
+       pg_catalog.has_function_privilege(
+         'grainline_staff_read_runtime',
+         'public.grainline_listing_owner_rating_buckets(bigint,bigint,boolean)',
+         'EXECUTE'
+       ) AS staff_execute,
+       pg_catalog.has_function_privilege(
+         'public',
+         'public.grainline_listing_owner_rating_buckets(bigint,bigint,boolean)',
+         'EXECUTE'
+       ) AS public_execute`,
+  ))[0];
+  assert.deepEqual(ratingPrivilege, {
+    runtime_execute: true,
+    staff_execute: false,
+    public_execute: false,
+  });
+  const ratingReviewIds = [
+    `listing-rating-review-a-${suffix}`,
+    `listing-rating-review-b-${suffix}`,
+  ];
+  await database.query(
+    `INSERT INTO public."Review"
+       (id, "listingId", "reviewerId", "reviewerAccountActive",
+        "ratingX2", verified, "createdAt", "updatedAt")
+     VALUES
+       ($1, $3, $5, true, 10, true, $6, $6),
+       ($2, $4, $5, true, 8, true, $7, $7)`,
+    [
+      ratingReviewIds[0],
+      ratingReviewIds[1],
+      listingId,
+      transactionListingId,
+      buyerId,
+      new Date("2026-01-15T12:00:00.000Z"),
+      new Date("2026-02-10T12:00:00.000Z"),
+    ],
+  );
+  const ratingStart = Date.parse("2026-01-01T00:00:00.000Z");
+  const ratingEnd = Date.parse("2026-03-01T00:00:00.000Z");
+  const ratingBuckets = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LISTING_OWNER_RATING_BUCKETS_SQL,
+    [ratingStart, ratingEnd, true],
+  )).map((row) => ({
+    ...row,
+    bucketEpochMillis: Number(row.bucketEpochMillis),
+    reviewCount: Number(row.reviewCount),
+  }));
+  assert.deepEqual(ratingBuckets, [
+    {
+      bucketEpochMillis: Date.parse("2026-01-01T00:00:00.000Z"),
+      averageRating: 5,
+      reviewCount: 1,
+    },
+    {
+      bucketEpochMillis: Date.parse("2026-02-01T00:00:00.000Z"),
+      averageRating: 4,
+      reviewCount: 1,
+    },
+  ], "owner rating buckets preserve monthly averages");
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_OWNER_RATING_BUCKETS_SQL,
+    [ratingStart, ratingEnd, true],
+  )), [], "cross-owner rating buckets are empty");
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      LISTING_OWNER_RATING_BUCKETS_SQL,
+      [ratingStart, ratingEnd, true],
+    ),
+    /Listing owner rating-bucket input is invalid/u,
+    "missing-actor rating buckets fail closed",
   );
   const publicTransactionSource = rowsOf(await runtimeQuery(
     database,
