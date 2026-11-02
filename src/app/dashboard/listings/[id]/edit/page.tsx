@@ -47,8 +47,10 @@ import {
   listingOwnerActionState,
   listingOwnerEditor,
   listingOwnerTransition,
+  updateListingOwnerContent,
 } from "@/lib/listingOwnerAccess";
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -365,19 +367,14 @@ async function updateListing(
   // photos route used to flip status mid-edit). The seller controls
   // when review runs by clicking Save. Bypassing review by skipping
   // Save isn't possible because Save is the only way to commit edits.
-  const needsPublicContentReview =
-    listing.status === ListingStatus.ACTIVE ||
-    listing.status === ListingStatus.SOLD_OUT;
-  let approvedPublicStatus =
-    listing.status === ListingStatus.ACTIVE &&
-    listingType === "IN_STOCK" &&
-    (stockQuantity ?? 0) <= 0
-      ? ListingStatus.SOLD_OUT
-      : listing.status;
-
-  let updatedListing: { title: string; updatedAt: Date };
+  let updatedListing: {
+    title: string;
+    updatedAt: Date;
+    requiresReview: boolean;
+    approvedStatus: ListingStatus;
+  };
   try {
-    updatedListing = await prisma.$transaction(async (tx) => {
+    updatedListing = await withDbUserContext(actor.id, async (tx) => {
       // Ordinary content saves never rewrite stock. A listing-type conversion
       // is an explicit, separately identified inventory operation in this same
       // transaction, so replay cannot recreate stock after a later conversion.
@@ -394,36 +391,37 @@ async function updateListing(
       }
       const lockedBlockReason = listingEditBlockReason({ ...locked, status: locked.status as ListingStatus });
       if (lockedBlockReason) throw new StockMutationConflict(lockedBlockReason);
-      const nextStock = listingType === stockContext.listingType ? locked.stockQuantity : stockQuantity;
-      approvedPublicStatus = locked.status === ListingStatus.ACTIVE && listingType === "IN_STOCK" && (nextStock ?? 0) <= 0
-        ? ListingStatus.SOLD_OUT : listing.status;
-      const updated = await tx.listing.update({
-        where: { id: listingId },
-        data: {
-          title,
-          description,
-          priceCents,
-          ...(priceValueChanged || variantsChanged ? { priceVersion: { increment: 1 } } : {}),
-          tags,
-          metaDescription,
-          materials,
-          productLengthIn,
-          productWidthIn,
-          productHeightIn,
-          packagedLengthCm,
-          packagedWidthCm,
-          packagedHeightCm,
-          packagedWeightGrams,
-          category,
-          listingType,
-          ...(listingType !== stockContext.listingType ? { stockQuantity } : {}),
-          shipsWithinDays,
-          processingTimeMinDays,
-          processingTimeMaxDays,
-          ...(needsPublicContentReview ? { status: ListingStatus.PENDING_REVIEW } : {}),
-        },
-        select: { title: true, updatedAt: true },
+      const updated = await updateListingOwnerContent(tx, {
+        listingId,
+        expectedUpdatedAt: listing.updatedAt,
+        expectedStatus: listing.status,
+        expectedListingType: stockContext.listingType,
+        title,
+        description,
+        priceCents,
+        incrementPriceVersion: priceValueChanged || variantsChanged,
+        tags,
+        metaDescription,
+        materials,
+        productLengthIn,
+        productWidthIn,
+        productHeightIn,
+        packagedLengthCm,
+        packagedWidthCm,
+        packagedHeightCm,
+        packagedWeightGrams,
+        category,
+        listingType,
+        stockQuantity,
+        shipsWithinDays,
+        processingTimeMinDays,
+        processingTimeMaxDays,
       });
+      if (!updated.applied) {
+        throw new StockMutationConflict(
+          "Listing state changed. Refresh before saving; newer edits were preserved.",
+        );
+      }
 
       // Update variants with the listing row so failures cannot leave mixed old/new state.
       await tx.listingVariantGroup.deleteMany({ where: { listingId } });
@@ -492,7 +490,7 @@ async function updateListing(
 
       return updated;
     });
-    if (needsPublicContentReview && listing.status === ListingStatus.ACTIVE) {
+    if (updatedListing.requiresReview && listing.status === ListingStatus.ACTIVE) {
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_pending_review");
     }
   } catch (error) {
@@ -513,7 +511,7 @@ async function updateListing(
   // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
   //   stays on the edit page (?saved=pending banner) instead of being
   //   redirected to a 404'd public listing path.
-  if (needsPublicContentReview) {
+  if (updatedListing.requiresReview) {
     try {
       const sellerReview = await sellerOwnerListingReview(actor.id);
       if (
@@ -574,7 +572,7 @@ async function updateListing(
             listingId,
             reviewedAt: updatedListing.updatedAt,
             sourceStatus: ListingStatus.PENDING_REVIEW,
-            status: approvedPublicStatus,
+            status: updatedListing.approvedStatus,
             flags: aiResult.flags,
             score: aiResult.confidence,
           });
