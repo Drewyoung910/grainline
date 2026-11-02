@@ -44,6 +44,7 @@ import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
 import { listingOwnerActionState, listingOwnerEditor } from "@/lib/listingOwnerAccess";
+import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -546,15 +547,14 @@ async function updateListing(
         const shouldHold =
           !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
         if (shouldHold) {
-          const holdResult = await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-            data: {
-              status: ListingStatus.PENDING_REVIEW,
-              aiReviewFlags: aiResult.flags,
-              aiReviewScore: aiResult.confidence,
-            },
+          const holdResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
+            listingId,
+            reviewedAt: updatedListing.updatedAt,
+            status: ListingStatus.PENDING_REVIEW,
+            flags: aiResult.flags,
+            score: aiResult.confidence,
           });
-          if (holdResult.count > 0) {
+          if (holdResult) {
             const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
             await backfillEmptyAltTexts(listingId, aiResult.altTexts, reviewedImageUrls);
             queueCheckoutSessionExpiryForListing(
@@ -565,15 +565,14 @@ async function updateListing(
           }
         } else {
           // Stays in the current public status; refresh AI metadata for this pass.
-          const activationResult = await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-            data: {
-              status: approvedPublicStatus,
-              aiReviewFlags: aiResult.flags,
-              aiReviewScore: aiResult.confidence,
-            },
+          const activationResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
+            listingId,
+            reviewedAt: updatedListing.updatedAt,
+            status: approvedPublicStatus,
+            flags: aiResult.flags,
+            score: aiResult.confidence,
           });
-          if (activationResult.count > 0) {
+          if (activationResult) {
             const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
             await backfillEmptyAltTexts(listingId, aiResult.altTexts, reviewedImageUrls);
           }
@@ -600,15 +599,14 @@ async function updateListing(
       });
       // AI infrastructure error — flip to PENDING_REVIEW conservatively so
       // staff can review the new content.
-      const pendingResult = await prisma.listing.updateMany({
-        where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-        data: {
-          status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: ["AI review error"],
-          aiReviewScore: 0,
-        },
+      const pendingResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
+        listingId,
+        reviewedAt: updatedListing.updatedAt,
+        status: ListingStatus.PENDING_REVIEW,
+        flags: ["AI review error"],
+        score: 0,
       });
-      if (pendingResult.count > 0) {
+      if (pendingResult) {
         queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_ai_error");
       }
     }

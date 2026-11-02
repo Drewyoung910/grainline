@@ -310,9 +310,9 @@ describe("seller operational route hardening", () => {
   it("keeps listing stock updates owner-scoped in the final mutation", () => {
     const route = source("src/app/api/listings/[id]/stock/route.ts");
 
-    assert.match(route, /const seller = await sellerOwnerCore\(me\.id\)/);
-    assert.match(route, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
-    assert.match(route, /AND "sellerId" = \$\{seller\.sellerProfileId\}/);
+    assert.match(route, /const listing = await listingOwnerActionState\(me\.id, id\)/);
+    assert.match(route, /listingId: id, sellerId: listing\.sellerId, actorId: me\.id/);
+    assert.match(route, /AND "sellerId" = \$\{listing\.sellerId\}/);
     assert.match(route, /source: "stock_back_in_stock_fanout"/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
@@ -326,7 +326,10 @@ describe("seller operational route hardening", () => {
     assert.match(shopActions, /WHERE id = \$\{listingId\}\s+AND "sellerId" = \$\{listing\.sellerId\}/);
     assert.match(createListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
     assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
-    assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.PENDING_REVIEW, updatedAt: updatedListing\.updatedAt \}/);
+    assert.equal(
+      (editListing.match(/applyVersionBoundListingAiReviewTransition\(actor\.id,/g) ?? []).length,
+      3,
+    );
     assert.match(editListing, /status: approvedPublicStatus/);
   });
 
