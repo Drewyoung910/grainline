@@ -78,6 +78,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner metro-assignment authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_content_update(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner content-update authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_transition(text,text,timestamp without time zone)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner transition authority already exists';
@@ -1400,6 +1405,274 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_assign_metros(
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_assign_metros(
   text,timestamp without time zone,text,text
+) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_content_update(
+  p_listing_id text,
+  p_expected_updated_at timestamp without time zone,
+  p_expected_status text,
+  p_expected_listing_type text,
+  p_title text,
+  p_description text,
+  p_price_cents integer,
+  p_increment_price_version boolean,
+  p_tags text[],
+  p_meta_description text,
+  p_materials text[],
+  p_product_length_in double precision,
+  p_product_width_in double precision,
+  p_product_height_in double precision,
+  p_packaged_length_cm double precision,
+  p_packaged_width_cm double precision,
+  p_packaged_height_cm double precision,
+  p_packaged_weight_grams integer,
+  p_category text,
+  p_listing_type text,
+  p_stock_quantity integer,
+  p_ships_within_days integer,
+  p_processing_time_min_days integer,
+  p_processing_time_max_days integer
+)
+RETURNS TABLE (
+  applied boolean,
+  title text,
+  "updatedAt" timestamp without time zone,
+  "requiresReview" boolean,
+  "approvedStatus" text
+)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_content_update$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  source_listing public."Listing"%ROWTYPE;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+  next_stock integer;
+  requires_review boolean;
+  approved_status text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_expected_updated_at IS NULL
+     OR p_expected_status IS NULL
+     OR p_expected_status NOT IN ('DRAFT', 'ACTIVE', 'SOLD_OUT', 'HIDDEN', 'REJECTED')
+     OR p_expected_listing_type IS NULL
+     OR p_expected_listing_type NOT IN ('MADE_TO_ORDER', 'IN_STOCK')
+     OR p_title IS NULL
+     OR pg_catalog.char_length(p_title) < 1
+     OR pg_catalog.char_length(p_title) > 150
+     OR p_description IS NULL
+     OR pg_catalog.char_length(p_description) > 5000
+     OR p_price_cents IS NULL
+     OR p_price_cents < 1
+     OR p_price_cents > 10000000
+     OR p_increment_price_version IS NULL
+     OR p_tags IS NULL
+     OR pg_catalog.cardinality(p_tags) > 10
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(p_tags) AS tag(value)
+        WHERE tag.value IS NULL
+           OR pg_catalog.char_length(tag.value) > 100
+     )
+     OR (
+       p_meta_description IS NOT NULL
+       AND pg_catalog.char_length(p_meta_description) > 160
+     )
+     OR p_materials IS NULL
+     OR pg_catalog.cardinality(p_materials) > 20
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.unnest(p_materials) AS material(value)
+        WHERE material.value IS NULL
+           OR pg_catalog.char_length(material.value) < 1
+           OR pg_catalog.char_length(material.value) > 100
+     )
+     OR p_product_length_in = 'NaN'::double precision
+     OR p_product_length_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_width_in = 'NaN'::double precision
+     OR p_product_width_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_height_in = 'NaN'::double precision
+     OR p_product_height_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_length_cm = 'NaN'::double precision
+     OR p_packaged_length_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_width_cm = 'NaN'::double precision
+     OR p_packaged_width_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_height_cm = 'NaN'::double precision
+     OR p_packaged_height_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR (
+       p_category IS NOT NULL
+       AND p_category NOT IN (
+         'FURNITURE', 'KITCHEN', 'DECOR', 'TOOLS', 'TOYS',
+         'JEWELRY', 'ART', 'OUTDOOR', 'STORAGE', 'OTHER'
+       )
+     )
+     OR p_listing_type IS NULL
+     OR p_listing_type NOT IN ('MADE_TO_ORDER', 'IN_STOCK')
+     OR (
+       p_expected_listing_type <> p_listing_type
+       AND p_listing_type = 'IN_STOCK'
+       AND (
+         p_stock_quantity IS NULL
+         OR p_stock_quantity < 1
+         OR p_stock_quantity > 1000000
+       )
+     )
+     OR (
+       p_expected_listing_type <> p_listing_type
+       AND p_listing_type = 'MADE_TO_ORDER'
+       AND p_stock_quantity IS NOT NULL
+     )
+     OR (
+       p_listing_type = 'IN_STOCK'
+       AND (
+         p_processing_time_min_days IS NOT NULL
+         OR p_processing_time_max_days IS NOT NULL
+         OR (
+           p_ships_within_days IS NOT NULL
+           AND (p_ships_within_days < 1 OR p_ships_within_days > 365)
+         )
+       )
+     )
+     OR (
+       p_listing_type = 'MADE_TO_ORDER'
+       AND (
+         p_ships_within_days IS NOT NULL
+         OR (
+           p_processing_time_min_days IS NOT NULL
+           AND (p_processing_time_min_days < 1 OR p_processing_time_min_days > 365)
+         )
+         OR (
+           p_processing_time_max_days IS NOT NULL
+           AND (p_processing_time_max_days < 1 OR p_processing_time_max_days > 365)
+         )
+         OR (
+           p_processing_time_min_days IS NOT NULL
+           AND p_processing_time_max_days IS NOT NULL
+           AND p_processing_time_min_days > p_processing_time_max_days
+         )
+       )
+     ) THEN
+    RAISE EXCEPTION 'Listing owner content-update input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT
+      false, NULL::text, NULL::timestamp without time zone,
+      NULL::boolean, NULL::text;
+    RETURN;
+  END IF;
+
+  SELECT listing.*
+    INTO source_listing
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT
+      false, NULL::text, NULL::timestamp without time zone,
+      NULL::boolean, NULL::text;
+    RETURN;
+  END IF;
+
+  IF source_listing."updatedAt" IS DISTINCT FROM p_expected_updated_at
+     OR source_listing.status::text <> p_expected_status
+     OR source_listing."listingType"::text <> p_expected_listing_type
+     OR source_listing."archivedAt" IS NOT NULL
+     OR source_listing.status::text = 'PENDING_REVIEW'
+     OR source_listing.status::text = 'SOLD'
+     OR (
+       source_listing.status::text = 'REJECTED'
+       AND source_listing."rejectionReason" = 'Removed by Grainline staff.'
+     ) THEN
+    RETURN QUERY SELECT
+      false, NULL::text, NULL::timestamp without time zone,
+      NULL::boolean, NULL::text;
+    RETURN;
+  END IF;
+
+  next_stock := CASE
+    WHEN p_expected_listing_type <> p_listing_type THEN p_stock_quantity
+    ELSE source_listing."stockQuantity"
+  END;
+  requires_review := source_listing.status::text IN ('ACTIVE', 'SOLD_OUT');
+  approved_status := CASE
+    WHEN source_listing.status::text = 'ACTIVE'
+      AND p_listing_type = 'IN_STOCK'
+      AND COALESCE(next_stock, 0) <= 0
+    THEN 'SOLD_OUT'
+    ELSE source_listing.status::text
+  END;
+
+  UPDATE public."Listing" AS listing
+     SET title = p_title,
+         description = p_description,
+         "priceCents" = p_price_cents,
+         "priceVersion" = CASE
+           WHEN p_increment_price_version
+           THEN source_listing."priceVersion" + 1
+           ELSE source_listing."priceVersion"
+         END,
+         tags = p_tags,
+         "metaDescription" = p_meta_description,
+         materials = p_materials,
+         "productLengthIn" = p_product_length_in,
+         "productWidthIn" = p_product_width_in,
+         "productHeightIn" = p_product_height_in,
+         "packagedLengthCm" = p_packaged_length_cm,
+         "packagedWidthCm" = p_packaged_width_cm,
+         "packagedHeightCm" = p_packaged_height_cm,
+         "packagedWeightGrams" = p_packaged_weight_grams,
+         category = p_category::public."Category",
+         "listingType" = p_listing_type::public."ListingType",
+         "stockQuantity" = next_stock,
+         "shipsWithinDays" = p_ships_within_days,
+         "processingTimeMinDays" = p_processing_time_min_days,
+         "processingTimeMaxDays" = p_processing_time_max_days,
+         status = CASE
+           WHEN requires_review THEN 'PENDING_REVIEW'::public."ListingStatus"
+           ELSE source_listing.status
+         END,
+         "updatedAt" = source_now
+   WHERE listing.id = source_listing.id;
+
+  RETURN QUERY SELECT
+    true, p_title, source_now, requires_review, approved_status;
+END
+$grainline_listing_owner_content_update$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_content_update(
+  text,timestamp without time zone,text,text,text,text,integer,boolean,
+  text[],text,text[],double precision,double precision,double precision,
+  double precision,double precision,double precision,integer,text,text,
+  integer,integer,integer,integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_content_update(
+  text,timestamp without time zone,text,text,text,text,integer,boolean,
+  text[],text,text[],double precision,double precision,double precision,
+  double precision,double precision,double precision,integer,text,text,
+  integer,integer,integer,integer
 ) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_transition(

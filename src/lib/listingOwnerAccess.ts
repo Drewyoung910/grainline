@@ -1,5 +1,8 @@
 import { Category, ListingStatus, ListingType, Prisma } from "@prisma/client";
-import { withDbUserContext } from "@/lib/dbUserContext";
+import {
+  withDbUserContext,
+  type DbUserContextTransactionClient,
+} from "@/lib/dbUserContext";
 import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type ListingOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
@@ -38,6 +41,14 @@ type ListingOwnerEditorRow = {
   productHeightIn: unknown;
   photos: unknown;
   variantGroups: unknown;
+};
+
+type ListingOwnerContentUpdateRow = {
+  applied: unknown;
+  title: unknown;
+  updatedAt: unknown;
+  requiresReview: unknown;
+  approvedStatus: unknown;
 };
 
 export type ListingOwnerEditorState = Readonly<{
@@ -632,6 +643,177 @@ export function assignListingOwnerMetros(
       ? Object.freeze({ applied: true as const, updatedAt: row.updatedAt as Date })
       : Object.freeze({ applied: false as const, updatedAt: null });
   });
+}
+
+export async function updateListingOwnerContent(
+  client: DbUserContextTransactionClient,
+  input: Readonly<{
+    listingId: string;
+    expectedUpdatedAt: Date;
+    expectedStatus: ListingStatus;
+    expectedListingType: ListingType;
+    title: string;
+    description: string;
+    priceCents: number;
+    incrementPriceVersion: boolean;
+    tags: ReadonlyArray<string>;
+    metaDescription: string | null;
+    materials: ReadonlyArray<string>;
+    productLengthIn: number | null;
+    productWidthIn: number | null;
+    productHeightIn: number | null;
+    packagedLengthCm: number | null;
+    packagedWidthCm: number | null;
+    packagedHeightCm: number | null;
+    packagedWeightGrams: number | null;
+    category: Category | null;
+    listingType: ListingType;
+    stockQuantity: number | null;
+    shipsWithinDays: number | null;
+    processingTimeMinDays: number | null;
+    processingTimeMaxDays: number | null;
+  }>,
+) {
+  const editableStatuses = new Set<ListingStatus>([
+    ListingStatus.DRAFT,
+    ListingStatus.ACTIVE,
+    ListingStatus.SOLD_OUT,
+    ListingStatus.HIDDEN,
+    ListingStatus.REJECTED,
+  ]);
+  const boundedNullableDays = (value: number | null) =>
+    value === null || (Number.isSafeInteger(value) && value >= 1 && value <= 365);
+  if (
+    !validId(input.listingId)
+    || !validDate(input.expectedUpdatedAt)
+    || !editableStatuses.has(input.expectedStatus)
+    || !LISTING_TYPES.has(input.expectedListingType)
+    || !isTextWithinCodePointRange(input.title, 1, 150)
+    || !isTextWithinCodePointRange(input.description, 0, 5000)
+    || !validSafeInteger(input.priceCents)
+    || input.priceCents < 1
+    || input.priceCents > 10_000_000
+    || typeof input.incrementPriceVersion !== "boolean"
+    || !Array.isArray(input.tags)
+    || input.tags.length > 10
+    || !input.tags.every((tag) => isTextWithinCodePointRange(tag, 0, 100))
+    || !(
+      input.metaDescription === null
+      || isTextWithinCodePointRange(input.metaDescription, 0, 160)
+    )
+    || !Array.isArray(input.materials)
+    || input.materials.length > 20
+    || !input.materials.every((material) =>
+      isTextWithinCodePointRange(material, 1, 100)
+    )
+    || !validNullableFinite(input.productLengthIn)
+    || !validNullableFinite(input.productWidthIn)
+    || !validNullableFinite(input.productHeightIn)
+    || !validNullableFinite(input.packagedLengthCm)
+    || !validNullableFinite(input.packagedWidthCm)
+    || !validNullableFinite(input.packagedHeightCm)
+    || !validNullableSafeInteger(input.packagedWeightGrams)
+    || !(input.category === null || CATEGORIES.has(input.category))
+    || !LISTING_TYPES.has(input.listingType)
+    || !validNullableSafeInteger(input.stockQuantity)
+    || !boundedNullableDays(input.shipsWithinDays)
+    || !boundedNullableDays(input.processingTimeMinDays)
+    || !boundedNullableDays(input.processingTimeMaxDays)
+    || (
+      input.processingTimeMinDays !== null
+      && input.processingTimeMaxDays !== null
+      && input.processingTimeMinDays > input.processingTimeMaxDays
+    )
+    || (
+      input.listingType === ListingType.IN_STOCK
+      && (
+        input.processingTimeMinDays !== null
+        || input.processingTimeMaxDays !== null
+      )
+    )
+    || (
+      input.listingType === ListingType.MADE_TO_ORDER
+      && input.shipsWithinDays !== null
+    )
+    || (
+      input.expectedListingType !== input.listingType
+      && input.listingType === ListingType.IN_STOCK
+      && (
+        input.stockQuantity === null
+        || input.stockQuantity < 1
+        || input.stockQuantity > 1_000_000
+      )
+    )
+    || (
+      input.expectedListingType !== input.listingType
+      && input.listingType === ListingType.MADE_TO_ORDER
+      && input.stockQuantity !== null
+    )
+  ) {
+    throw new RangeError("Listing owner content-update input is invalid");
+  }
+
+  const rows = await client.$queryRaw<ListingOwnerContentUpdateRow[]>`
+    SELECT *
+      FROM public.grainline_listing_owner_content_update(
+        ${input.listingId}::text,
+        ${input.expectedUpdatedAt}::timestamp,
+        ${input.expectedStatus}::text,
+        ${input.expectedListingType}::text,
+        ${input.title}::text,
+        ${input.description}::text,
+        ${input.priceCents}::integer,
+        ${input.incrementPriceVersion}::boolean,
+        ${[...input.tags]}::text[],
+        ${input.metaDescription}::text,
+        ${[...input.materials]}::text[],
+        ${input.productLengthIn}::double precision,
+        ${input.productWidthIn}::double precision,
+        ${input.productHeightIn}::double precision,
+        ${input.packagedLengthCm}::double precision,
+        ${input.packagedWidthCm}::double precision,
+        ${input.packagedHeightCm}::double precision,
+        ${input.packagedWeightGrams}::integer,
+        ${input.category}::text,
+        ${input.listingType}::text,
+        ${input.stockQuantity}::integer,
+        ${input.shipsWithinDays}::integer,
+        ${input.processingTimeMinDays}::integer,
+        ${input.processingTimeMaxDays}::integer
+      )
+  `;
+  const row = rows[0];
+  const validAppliedResult =
+    row?.applied === true
+    && row.title === input.title
+    && validDate(row.updatedAt)
+    && typeof row.requiresReview === "boolean"
+    && typeof row.approvedStatus === "string"
+    && editableStatuses.has(row.approvedStatus as ListingStatus);
+  const validRejectedResult =
+    row?.applied === false
+    && row.title === null
+    && row.updatedAt === null
+    && row.requiresReview === null
+    && row.approvedStatus === null;
+  if (rows.length !== 1 || (!validAppliedResult && !validRejectedResult)) {
+    throw new Error("Listing owner content-update authority returned an invalid result");
+  }
+  return row.applied
+    ? Object.freeze({
+      applied: true as const,
+      title: row.title as string,
+      updatedAt: row.updatedAt as Date,
+      requiresReview: row.requiresReview as boolean,
+      approvedStatus: row.approvedStatus as ListingStatus,
+    })
+    : Object.freeze({
+      applied: false as const,
+      title: null,
+      updatedAt: null,
+      requiresReview: null,
+      approvedStatus: null,
+    });
 }
 
 export function listingOwnerTransition(
