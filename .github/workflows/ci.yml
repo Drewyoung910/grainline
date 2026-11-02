@@ -356,6 +356,7 @@ jobs:
           migration=20261101060000_prepare_commission_domain_authorities
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
@@ -7025,6 +7026,7 @@ jobs:
           migration=20261101060000_prepare_commission_domain_authorities
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
+          echo "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |

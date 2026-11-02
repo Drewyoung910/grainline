@@ -700,7 +700,9 @@ test("Commission preparation is proved, isolated, and restored around historical
   const isolate = step(isolateName);
   const restore = step(restoreName);
   assert.match(isolate, new RegExp(commissionPreparationMigration));
+  assert.match(isolate, /COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH=/);
   assert.match(restore, new RegExp(commissionPreparationMigration));
+  assert.match(restore, /COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH=/);
   assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
   assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));

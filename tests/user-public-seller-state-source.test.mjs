@@ -4,8 +4,13 @@ import { describe, it } from "node:test";
 import yaml from "js-yaml";
 
 function read(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const target = path.startsWith("/") ? path : new URL(`../${path}`, import.meta.url);
+  return readFileSync(target, "utf8");
 }
+
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
 
 describe("User public seller-state source boundary", () => {
   it("keeps only the bounded account-state and image fallback on SellerProfile", () => {
@@ -99,9 +104,7 @@ describe("User public seller-state source boundary", () => {
     assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
 
     const commission = read("src/app/commission/page.tsx");
-    const commissionPreparation = read(
-      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
-    );
+    const commissionPreparation = read(commissionPreparationMigration);
     assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
     assert.match(commission, /publicCommissionRequestCount\(meId, publicFilter\)/);
     assert.match(commission, /publicCommissionRequestPage\(meId, \{/);
