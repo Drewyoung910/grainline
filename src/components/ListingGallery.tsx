@@ -11,7 +11,7 @@ export default function ListingGallery({
   photos,
   title,
 }: {
-  photos: Photo[];
+  photos: readonly Photo[];
   title: string;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
