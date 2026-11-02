@@ -302,7 +302,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.userReport.create",
+      "createUserReport({",
     ]);
   });
 });
