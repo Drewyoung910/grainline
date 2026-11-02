@@ -3,10 +3,11 @@
 Date: 2026-11-02
 
 Status: design selected. The isolated compatible application conversion is
-zero-direct and its 12-operation migration passes focused and complete-chain
-PostgreSQL 17 proof, but preparation remains unaccepted while its crash,
-plan/race, catalog, rollback and release gates are open. This document
-authorizes no merge, deployment, Production database change, grant change, or
+zero-direct and its 14-operation migration plus private insert fence passes
+focused and complete-chain PostgreSQL 17 proof. Atomic deletion-plan creation,
+five deterministic concurrency scenarios and 100,000-row plans pass, but preparation remains
+unaccepted while catalog, compatibility, rollback and release gates are open.
+This document authorizes no merge, deployment, Production database change, grant change, or
 RLS activation.
 
 ## Decision context
@@ -178,13 +179,16 @@ families:
 7. retained current-function writers/readers, sealed by exact signature,
    owner, ACL, security mode, search path and source digest.
 
-The candidate adds 12 named operations and has zero direct source consumers.
+The candidate adds 14 named operations plus one private insert-fence trigger
+and has zero direct source consumers.
 Its account-deletion retry format stores only an already-redacted patch plus
 source SHA-256 fingerprints; the apply operation preserves undo fields,
-refuses changed source and atomically completes the exact claimed job. It does
-not yet close the earlier crash window between local anonymization completion
-and durable redaction-plan creation, so the compatible preparation is not yet
-accepted.
+refuses changed source and atomically completes the exact claimed job. Plan
+creation now commits in the same transaction as local anonymization, while a
+shared insert fence keeps ordinary writers concurrent while ordering retained
+domain writers on both sides of deletion
+and rejects post-deletion structural references. No raw deletion needle is
+stored for retry.
 
 The activation is separate. It may combine `ENABLE ROW LEVEL SECURITY` and
 `FORCE ROW LEVEL SECURITY` only after:

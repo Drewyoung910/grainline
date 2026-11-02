@@ -101,6 +101,7 @@ import {
   redactDeletedSellerEmailOutbox,
 } from "@/lib/emailServiceAccess";
 import {
+  acquireAdminAuditLogAccountDeletionWriteFence,
   adminAuditLogAccountDeletionCandidates,
   appendAdminAuditLog,
 } from "@/lib/adminAuditLogAccess";
@@ -210,12 +211,18 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
 
 async function collectAdminAuditLogRedactionUpdates({
   db,
+  claim,
   adminId,
   targetIds,
   accountReferenceValues,
   sensitiveValues,
 }: {
   db: AuditLogRedactionDb;
+  claim: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  };
   adminId: string;
   targetIds: string[];
   accountReferenceValues: string[];
@@ -225,6 +232,7 @@ async function collectAdminAuditLogRedactionUpdates({
   let cursor: string | null = null;
   for (;;) {
     const matches = await adminAuditLogAccountDeletionCandidates(db, {
+      ...claim,
       userId: adminId,
       targetIds,
       referenceValues: accountReferenceValues,
@@ -833,6 +841,12 @@ export async function anonymizeUserAccount(
   });
 
   const result = await withDbUserContext(userId, async (tx) => {
+    await acquireAdminAuditLogAccountDeletionWriteFence(tx, {
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
+      userId,
+    });
     // This is the account-lifecycle side of the message send protocol. Sends
     // take FOR SHARE on both participants before their final block check and
     // insert. Deletion takes FOR UPDATE before scanning/redacting messages, so
@@ -889,10 +903,6 @@ export async function anonymizeUserAccount(
       return {
         ok: true,
         alreadyDeleted: true,
-        auditTargetIds: [],
-        accountAuditReferenceValues: [],
-        accountAuditSensitiveValues: [],
-        accountSensitiveValues: [],
       };
     }
 
@@ -1190,6 +1200,31 @@ export async function anonymizeUserAccount(
       },
     });
 
+    const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
+      db: tx,
+      claim: {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      },
+      adminId: user.id,
+      targetIds: auditTargetIds,
+      accountReferenceValues: accountAuditReferenceValues,
+      sensitiveValues: accountAuditSensitiveValues,
+    });
+    await enqueueAccountDeletionAuditRedactionSideEffects(
+      tx,
+      {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      },
+      user.id,
+      auditTargetIds,
+      accountAuditReferenceValues,
+      redactionUpdates,
+    );
+
     await deleteCurrentUserEmailAddressHistory(tx);
 
     await finalizeUserAccountDeletion(tx, {
@@ -1202,12 +1237,13 @@ export async function anonymizeUserAccount(
     return {
       ok: true,
       alreadyDeleted: false,
-      auditTargetIds,
-      accountAuditReferenceValues,
-      accountAuditSensitiveValues,
-      accountSensitiveValues,
     };
-  }, { timeout: 30000, maxWait: 10000 }).catch((error) => {
+  }, {
+    timeout: 30000,
+    maxWait: 10000,
+    transactionRetry: true,
+    attempts: 3,
+  }).catch((error) => {
     if (stripeRejectSucceeded && stripeAccountId) {
       Sentry.captureException(error, {
         tags: { source: "account_delete_partial" },
@@ -1233,33 +1269,14 @@ export async function anonymizeUserAccount(
     revalidateDeletedAccountSearchCaches(userId);
     await refreshRatingSummariesForReviewer(userId);
 
-    try {
-      const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
-        db: getAccountDeletionSideEffectClient(),
-        adminId: userId,
-        targetIds: result.auditTargetIds,
-        accountReferenceValues: result.accountAuditReferenceValues,
-        sensitiveValues: result.accountAuditSensitiveValues,
-      });
-      await enqueueAccountDeletionAuditRedactionSideEffects(
-        getAccountDeletionSideEffectClient(),
-        userId,
-        redactionUpdates,
-      );
-      const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
-        ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
-      ]);
-      if (redactionResult.failed > 0) {
-        Sentry.captureMessage("Account deletion audit redaction side effects pending retry", {
-          level: "warning",
-          tags: { source: "account_delete_audit_redaction" },
-          extra: { userId, failed: redactionResult.failed },
-        });
-      }
-    } catch (error) {
-      Sentry.captureException(error, {
+    const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
+      ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
+    ]);
+    if (redactionResult.failed > 0) {
+      Sentry.captureMessage("Account deletion audit redaction side effects pending retry", {
+        level: "warning",
         tags: { source: "account_delete_audit_redaction" },
-        extra: { userId },
+        extra: { userId, failed: redactionResult.failed },
       });
     }
 

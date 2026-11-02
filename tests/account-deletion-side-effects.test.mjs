@@ -53,7 +53,8 @@ describe("account deletion side-effect retries", () => {
         deletion.indexOf("runAccountDeletionStripeRejectSideEffect", deletionFunction),
       "local recovery row must exist before Stripe rejection",
     );
-    const transactionEnd = deletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
+    const transactionStart = deletion.indexOf("const result = await withDbUserContext");
+    const transactionEnd = deletion.indexOf("  }).catch((error) => {", transactionStart);
     assert.ok(
       transactionEnd <
         deletion.indexOf("markAccountDeletionLocalAnonymizeDone(", transactionEnd),
@@ -87,8 +88,10 @@ describe("account deletion side-effect retries", () => {
     assert.match(deletion, /collectAdminAuditLogRedactionUpdates\(\{/);
     assert.match(
       deletion,
-      /enqueueAccountDeletionAuditRedactionSideEffects\(\s*getAccountDeletionSideEffectClient\(\),\s*userId,\s*redactionUpdates,/s,
+      /enqueueAccountDeletionAuditRedactionSideEffects\(\s*tx,\s*\{\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\},\s*user\.id,\s*auditTargetIds,\s*accountAuditReferenceValues,\s*redactionUpdates,/s,
     );
+    assert.match(sideEffects, /grainline_admin_audit_account_deletion_redaction_plans_enqueue/);
+    assert.match(sideEffects, /ACCOUNT_DELETION_AUDIT_PLAN_BATCH_SIZE = 16/);
     assert.match(deletion, /processAccountDeletionSideEffectsForUser\(userId, \[/);
     assert.doesNotMatch(deletion, /deleteR2ObjectByUrl/);
     assert.doesNotMatch(deletion, /mapWithConcurrency\(mediaKeys/);
