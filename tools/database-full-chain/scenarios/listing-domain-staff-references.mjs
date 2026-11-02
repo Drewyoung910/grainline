@@ -113,9 +113,21 @@ export async function proveListingDomainStaffReferences({ database, seller }) {
          )`,
       [staffId, [listingIds[2], listingIds[0], listingIds[1]]],
     )), [
-      { id: listingIds[2], title: "Staff hidden target" },
-      { id: listingIds[0], title: "Staff public target" },
-      { id: listingIds[1], title: "Staff private target" },
+      {
+        id: listingIds[2],
+        title: "Staff hidden target",
+        sellerProfileId: seller.sellerProfileId,
+      },
+      {
+        id: listingIds[0],
+        title: "Staff public target",
+        sellerProfileId: seller.sellerProfileId,
+      },
+      {
+        id: listingIds[1],
+        title: "Staff private target",
+        sellerProfileId: seller.sellerProfileId,
+      },
     ]);
 
     const activeCount = Number(rowsOf(await database.query(

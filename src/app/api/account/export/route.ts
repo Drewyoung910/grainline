@@ -52,6 +52,7 @@ import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess"
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
 import { listingOwnerExportRows } from "@/lib/listingOwnerAccess";
+import { listingActorReviewContexts } from "@/lib/listingReviewHistoryAccess";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,38 @@ type ExportableUser = Awaited<ReturnType<typeof ensureUser>>;
 
 function jsonDownload(data: unknown, userId: string) {
   return accountExportJsonResponse(data, userId);
+}
+
+async function exportOwnerReviews(userId: string) {
+  const reviews = await prisma.review.findMany({
+    where: { reviewerId: userId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      listingId: true,
+      ratingX2: true,
+      comment: true,
+      verified: true,
+      helpfulCount: true,
+      sellerReply: true,
+      sellerReplyAt: true,
+      createdAt: true,
+      updatedAt: true,
+      photos: { orderBy: { sortOrder: "asc" }, select: { url: true, altText: true, sortOrder: true } },
+    },
+  });
+  const contexts = await listingActorReviewContexts(
+    userId,
+    reviews.map((review) => review.id),
+  );
+  const contextByReviewId = new Map(contexts.map((context) => [context.reviewId, context]));
+  if (contextByReviewId.size !== reviews.length) {
+    throw new Error("Account export Listing review history is incomplete");
+  }
+  return reviews.map((review) => ({
+    ...review,
+    listing: { title: contextByReviewId.get(review.id)!.listingTitle },
+  }));
 }
 
 async function buildExport(user: NonNullable<ExportableUser>) {
@@ -115,24 +148,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     sellerProfile ? exportSellerOrderPaymentHistory(user.id) : new Map(),
     exportActorMessages(user.id),
     exportParticipantCases(user.id),
-    prisma.review.findMany({
-      where: { reviewerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        listingId: true,
-        ratingX2: true,
-        comment: true,
-        verified: true,
-        helpfulCount: true,
-        sellerReply: true,
-        sellerReplyAt: true,
-        createdAt: true,
-        updatedAt: true,
-        photos: { orderBy: { sortOrder: "asc" }, select: { url: true, altText: true, sortOrder: true } },
-        listing: { select: { title: true } },
-      },
-    }),
+    exportOwnerReviews(user.id),
     prisma.blogPost.findMany({
       where: { authorId: user.id },
       orderBy: { createdAt: "desc" },

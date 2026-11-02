@@ -1332,10 +1332,6 @@ export async function anonymizeUserAccount(
         where: { sellerProfileId: user.sellerProfile.id },
       });
       await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
-      await tx.review.updateMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-        data: { sellerReply: null, sellerReplyAt: null },
-      });
       await redactListingsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,
         expectedUserId: user.id,

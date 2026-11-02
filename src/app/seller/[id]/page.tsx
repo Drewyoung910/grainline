@@ -34,7 +34,7 @@ import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
+import { publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -46,6 +46,7 @@ import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 import { listingPublicCatalogCount } from "@/lib/listingPublicCatalogAccess";
+import { listingPublicCustomerPhotoPage } from "@/lib/listingReviewHistoryAccess";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -201,7 +202,7 @@ async function SellerPublicContent({
     sellerRatingMap,
     publicSellerStats,
     topTags,
-    customerPhotoRows,
+    customerPhotoPage,
   ] = await Promise.all([
     sellerPublicFollowState(seller.id, meId ?? undefined),
     prisma.sellerBroadcast.findFirst({
@@ -226,23 +227,12 @@ async function SellerPublicContent({
     getSellerRatingMap([seller.id]),
     getCachedPublicSellerStats(seller.id),
     getCachedPublicSellerTopTags(seller.id),
-    prisma.reviewPhoto.findMany({
-      where: {
-        review: {
-          listing: publicListingDetailWhere({ sellerId: seller.id }),
-          reviewerAccountActive: true,
-          ...(blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {}),
-        },
-      },
-      orderBy: [{ review: { createdAt: "desc" } }, { id: "desc" }],
-      take: CUSTOMER_PHOTO_PREVIEW_SIZE + 1,
-      select: {
-        id: true,
-        url: true,
-        altText: true,
-        review: { select: { listingId: true, reviewerId: true, listing: { select: { title: true } } } },
-      },
-    }),
+    listingPublicCustomerPhotoPage(
+      meId,
+      seller.id,
+      0,
+      CUSTOMER_PHOTO_PREVIEW_SIZE + 1,
+    ),
   ]);
   const followerCount = followState?.followerCount ?? 0;
   const isFollowing = followState?.following ?? false;
@@ -277,9 +267,9 @@ async function SellerPublicContent({
   const isNewSeller = soldCount === 0 && (shopRating?.count ?? 0) === 0;
   const showPickupMap = seller.allowLocalPickup && pickupMapPoint != null;
 
-  const hasMoreCustomerPhotos = customerPhotoRows.length > CUSTOMER_PHOTO_PREVIEW_SIZE;
-  const customerPhotos = customerPhotoRows.slice(0, CUSTOMER_PHOTO_PREVIEW_SIZE);
-  const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewerId)).size;
+  const hasMoreCustomerPhotos = customerPhotoPage.total > CUSTOMER_PHOTO_PREVIEW_SIZE;
+  const customerPhotos = customerPhotoPage.photos.slice(0, CUSTOMER_PHOTO_PREVIEW_SIZE);
+  const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.reviewerId)).size;
 
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
   const hasStructuredAddress = Boolean(cityState);
@@ -758,8 +748,8 @@ async function SellerPublicContent({
                   id: p.id,
                   url: p.url,
                   altText: p.altText,
-                  listingId: p.review.listingId,
-                  listingTitle: p.review.listing?.title ?? null,
+                  listingId: p.listingId,
+                  listingTitle: p.listingTitle,
                 }))}
               />
             </section>

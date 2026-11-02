@@ -911,6 +911,7 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
   const deletionSellerId = `listing-deletion-seller-${suffix}`;
   const deletionListingId = `listing-deletion-listing-${suffix}`;
   const deletionPhotoId = `listing-deletion-photo-${suffix}`;
+  const deletionReviewId = `listing-deletion-review-${suffix}`;
   const deletionGroupId = `listing-deletion-group-${suffix}`;
   const deletionOptionId = `listing-deletion-option-${suffix}`;
   const deletionEffectId = `listing-deletion-effect-${suffix}`;
@@ -957,6 +958,14 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
        (id, "listingId", url, "originalUrl", "altText", "sortOrder", "createdAt")
      VALUES ($1, $2, $3, $3, 'Sensitive seller photo', 0, $4)`,
     [deletionPhotoId, deletionListingId, "https://example.test/deletion.jpg", deletionAt],
+  );
+  await database.query(
+    `INSERT INTO public."Review"
+       (id, "listingId", "reviewerId", "reviewerAccountActive", "ratingX2",
+        comment, "sellerReply", "sellerReplyAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, true, 10, 'Deletion proof review',
+             'Sensitive seller reply', $4, $4, $4)`,
+    [deletionReviewId, deletionListingId, buyerId, deletionAt],
   );
   await database.query(
     `INSERT INTO public."ListingVariantGroup" (id, "listingId", name, "sortOrder")
@@ -1033,6 +1042,13 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
        (SELECT pg_catalog.count(*)::integer FROM public."ListingVariantOption" WHERE "groupId" = $2) AS options`,
     [deletionListingId, deletionGroupId],
   )), [{ photos: 0, groups: 0, options: 0 }]);
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT "sellerReply" AS "sellerReply", "sellerReplyAt" AS "sellerReplyAt"
+       FROM public."Review"
+      WHERE id = $1`,
+    [deletionReviewId],
+  )), [{ sellerReply: null, sellerReplyAt: null }],
+  "Listing deletion authority must clear retained seller replies");
 
   await assert.rejects(
     runtimeQuery(

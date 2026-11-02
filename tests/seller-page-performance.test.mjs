@@ -22,7 +22,7 @@ describe("seller public page query guardrails", () => {
   it("keeps independent seller-page queries grouped in one parallel batch", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
 
-    assert.match(sellerPage, /const \[\s*followState,[\s\S]*customerPhotoRows,\s*\] = await Promise\.all\(\[/);
+    assert.match(sellerPage, /const \[\s*followState,[\s\S]*customerPhotoPage,\s*\] = await Promise\.all\(\[/);
     assert.match(sellerPage, /sellerPublicFollowState\(seller\.id, meId \?\? undefined\)/);
     assert.match(sellerPage, /prisma\.sellerBroadcast\.findFirst/);
     assert.match(sellerPage, /prisma\.blogPost\.findMany/);
@@ -41,11 +41,22 @@ describe("seller public page query guardrails", () => {
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
 
     assert.match(sellerPage, /const CUSTOMER_PHOTO_PREVIEW_SIZE = 12/);
-    assert.match(sellerPage, /take: CUSTOMER_PHOTO_PREVIEW_SIZE \+ 1/);
-    assert.match(sellerPage, /const hasMoreCustomerPhotos = customerPhotoRows\.length > CUSTOMER_PHOTO_PREVIEW_SIZE/);
-    assert.match(sellerPage, /const customerPhotos = customerPhotoRows\.slice\(0, CUSTOMER_PHOTO_PREVIEW_SIZE\)/);
+    assert.match(
+      sellerPage,
+      /listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,\s*0,\s*CUSTOMER_PHOTO_PREVIEW_SIZE \+ 1,\s*\)/,
+    );
+    assert.match(sellerPage, /const hasMoreCustomerPhotos = customerPhotoPage\.total > CUSTOMER_PHOTO_PREVIEW_SIZE/);
+    assert.match(sellerPage, /const customerPhotos = customerPhotoPage\.photos\.slice\(0, CUSTOMER_PHOTO_PREVIEW_SIZE\)/);
     assert.doesNotMatch(sellerPage, /prisma\.reviewPhoto\.count\(/);
-    assert.match(customerPhotosPage, /const totalCount = await prisma\.reviewPhoto\.count\(\{ where: photoWhere \}\)/);
+    assert.doesNotMatch(sellerPage, /prisma\.reviewPhoto\./);
+    assert.match(customerPhotosPage, /const PAGE_SIZE = 24/);
+    assert.match(
+      customerPhotosPage,
+      /const requestedPhotoPage = await listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,\s*\(requestedPage - 1\) \* PAGE_SIZE,\s*PAGE_SIZE,\s*\)/,
+    );
+    assert.match(customerPhotosPage, /const totalCount = requestedPhotoPage\.total/);
+    assert.match(customerPhotosPage, /const totalPages = Math\.max\(1, Math\.ceil\(totalCount \/ PAGE_SIZE\)\)/);
+    assert.doesNotMatch(customerPhotosPage, /prisma\.reviewPhoto\./);
     assert.match(sellerPage, /href=\{\`\$\{publicSellerPath\(seller\.id, seller\.displayName\)\}\/customer-photos`\}/);
     assert.doesNotMatch(sellerPage, /href=\{`\/seller\/\$\{seller\.id\}\/customer-photos`\}/);
     assert.match(customerPhotosPage, /canonical: `https:\/\/thegrainline\.com\$\{publicSellerPath\(seller\.id, name\)\}\/customer-photos`/);

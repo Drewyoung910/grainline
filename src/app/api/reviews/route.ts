@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
   // Ensure no duplicate review
   const exists = await prisma.review.findFirst({
     where: { listingId, reviewerId: me.id },
-    select: { id: true, listing: { select: { sellerId: true } } },
+    select: { id: true },
   });
   if (exists) return privateJson({ error: "Already reviewed" }, { status: 409 });
 

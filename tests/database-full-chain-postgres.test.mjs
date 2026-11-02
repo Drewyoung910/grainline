@@ -43,6 +43,7 @@ import { proveListingDomainOwnerMutations } from "../tools/database-full-chain/s
 import { proveListingDomainDetailAuthorities } from "../tools/database-full-chain/scenarios/listing-domain-detail-authorities.mjs";
 import { proveListingDomainPublicCatalog } from "../tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs";
 import { proveListingDomainStaffReferences } from "../tools/database-full-chain/scenarios/listing-domain-staff-references.mjs";
+import { proveListingDomainReviewHistory } from "../tools/database-full-chain/scenarios/listing-domain-review-history.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -796,6 +797,10 @@ test(
         seller: fixture,
       });
       await proveListingDomainStaffReferences({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainReviewHistory({
         database: adapter,
         seller: fixture,
       });
