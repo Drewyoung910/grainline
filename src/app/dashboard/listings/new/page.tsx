@@ -398,18 +398,16 @@ async function createListing(_prevState: unknown, formData: FormData) {
     let reviewApplied = false;
 
     if (shouldHold) {
-      reviewApplied = await applyVersionBoundListingAiReviewTransition(prisma, {
+      reviewApplied = await applyVersionBoundListingAiReviewTransition(seller.userId, {
         listingId: created.id,
-        sellerId: seller.id,
         reviewedAt: reviewedListingVersion,
         status: ListingStatus.PENDING_REVIEW,
         flags: aiResult.flags,
         score: aiResult.confidence,
       });
     } else {
-      reviewApplied = await applyVersionBoundListingAiReviewTransition(prisma, {
+      reviewApplied = await applyVersionBoundListingAiReviewTransition(seller.userId, {
         listingId: created.id,
-        sellerId: seller.id,
         reviewedAt: reviewedListingVersion,
         status: ListingStatus.ACTIVE,
         flags: aiResult.flags,
@@ -439,9 +437,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
       level: "warning",
       extra: { listingId: created.id, sellerProfileId: seller.id },
     });
-    await applyVersionBoundListingAiReviewTransition(prisma, {
+    await applyVersionBoundListingAiReviewTransition(seller.userId, {
       listingId: created.id,
-      sellerId: seller.id,
       reviewedAt: reviewedListingVersion,
       status: ListingStatus.PENDING_REVIEW,
       flags: ["AI review error"],

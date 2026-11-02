@@ -1,83 +1,33 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const { applyVersionBoundListingAiReviewTransition } = await import(
-  "../src/lib/listingAiReviewTransition.ts"
-);
+const root = new URL("../", import.meta.url);
 
-function fakeClient(current) {
-  return {
-    listing: {
-      async updateMany({ where, data }) {
-        const matches = current.id === where.id
-          && current.sellerId === where.sellerId
-          && current.status === where.status
-          && current.updatedAt.getTime() === where.updatedAt.getTime();
-        if (!matches) return { count: 0 };
-        Object.assign(current, data, { updatedAt: new Date(current.updatedAt.getTime() + 1) });
-        return { count: 1 };
-      },
-    },
-  };
-}
+const [migration, helper] = await Promise.all([
+  readFile(new URL("prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql", root), "utf8"),
+  readFile(new URL("src/lib/listingAiReviewTransition.ts", root), "utf8"),
+]);
 
-test("a stale AI approval cannot activate content from a newer resubmission", async () => {
-  const reviewedAt = new Date("2026-11-02T12:00:00.000Z");
-  const current = {
-    id: "listing_1",
-    sellerId: "seller_1",
-    status: "PENDING_REVIEW",
-    updatedAt: new Date("2026-11-02T12:01:00.000Z"),
-    title: "edited after review began",
-  };
-
-  const applied = await applyVersionBoundListingAiReviewTransition(fakeClient(current), {
-    listingId: current.id,
-    sellerId: current.sellerId,
-    reviewedAt,
-    status: "ACTIVE",
-    flags: [],
-    score: 0.99,
-  });
-
-  assert.equal(applied, false);
-  assert.equal(current.status, "PENDING_REVIEW");
-  assert.equal(current.title, "edited after review began");
+test("a stale AI approval cannot activate content from a newer resubmission", () => {
+  assert.match(migration, /source_listing\.status::text <> 'PENDING_REVIEW'/u);
+  assert.match(migration, /source_listing\."updatedAt" IS DISTINCT FROM p_reviewed_at/u);
+  assert.match(migration, /RETURN QUERY SELECT false;[\s\S]*UPDATE public\."Listing"/u);
 });
 
-test("the AI transition applies once to the exact reviewed listing version", async () => {
-  const reviewedAt = new Date("2026-11-02T12:00:00.000Z");
-  const current = {
-    id: "listing_1",
-    sellerId: "seller_1",
-    status: "PENDING_REVIEW",
-    updatedAt: reviewedAt,
-  };
-
-  const applied = await applyVersionBoundListingAiReviewTransition(fakeClient(current), {
-    listingId: current.id,
-    sellerId: current.sellerId,
-    reviewedAt,
-    status: "ACTIVE",
-    flags: [],
-    score: 0.99,
-  });
-
-  assert.equal(applied, true);
-  assert.equal(current.status, "ACTIVE");
+test("the AI transition is actor-bound and updates one locked listing", () => {
+  assert.match(migration, /current_setting\('app\.user_id', true\)/u);
+  assert.match(migration, /listing\."sellerId" = seller_id[\s\S]*FOR UPDATE/u);
+  assert.match(migration, /NOT source_listing\."sellerPubliclyOrderable"/u);
+  assert.match(migration, /SET status = p_status::public\."ListingStatus"/u);
+  assert.match(helper, /withDbUserContext\(userId,/u);
+  assert.doesNotMatch(helper, /listing\.updateMany/u);
 });
 
-test("an authority returning more than one updated row fails closed", async () => {
-  const client = { listing: { updateMany: async () => ({ count: 2 }) } };
-  await assert.rejects(
-    applyVersionBoundListingAiReviewTransition(client, {
-      listingId: "listing_1",
-      sellerId: "seller_1",
-      reviewedAt: new Date("2026-11-02T12:00:00.000Z"),
-      status: "ACTIVE",
-      flags: [],
-      score: 0.99,
-    }),
-    /invalid row count/,
-  );
+test("review results fail closed on malformed status, flags, score, or result cardinality", () => {
+  assert.match(helper, /REVIEW_TARGET_STATUSES\.has\(input\.status\)/u);
+  assert.match(helper, /input\.flags\.length > 20/u);
+  assert.match(helper, /isTextWithinCodePointRange\(flag, 0, 80\)/u);
+  assert.match(helper, /!Number\.isFinite\(input\.score\)/u);
+  assert.match(helper, /rows\.length !== 1 \|\| typeof rows\[0\]\?\.applied !== "boolean"/u);
 });

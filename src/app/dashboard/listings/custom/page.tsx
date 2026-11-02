@@ -34,6 +34,7 @@ import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
+import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -260,29 +261,27 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
   if (shouldHold) {
-    const held = await prisma.listing.updateMany({
-      where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: aiResult.flags,
-        aiReviewScore: aiResult.confidence,
-      },
+    const held = await applyVersionBoundListingAiReviewTransition(seller.userId, {
+      listingId: created.id,
+      reviewedAt: created.updatedAt,
+      status: ListingStatus.PENDING_REVIEW,
+      flags: aiResult.flags,
+      score: aiResult.confidence,
     });
-    if (held.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+    if (!held) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
     await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
     revalidatePath(`/messages/${conversationId}`);
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
 
-  const activated = await prisma.listing.updateMany({
-    where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
-    data: {
-      status: ListingStatus.ACTIVE,
-      aiReviewFlags: aiResult.flags,
-      aiReviewScore: aiResult.confidence,
-    },
+  const activated = await applyVersionBoundListingAiReviewTransition(seller.userId, {
+    listingId: created.id,
+    reviewedAt: created.updatedAt,
+    status: ListingStatus.ACTIVE,
+    flags: aiResult.flags,
+    score: aiResult.confidence,
   });
-  if (activated.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+  if (!activated) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
   await backfillEmptyAltTexts(created.id, aiResult.altTexts, imageUrls);
   await prisma.$executeRaw`
     UPDATE "Listing"
