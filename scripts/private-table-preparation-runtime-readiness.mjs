@@ -14,12 +14,20 @@ import {
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
-const RELEASE_SELECTION = "owner_social_verification_v1";
+const RELEASE_SELECTIONS = Object.freeze([
+  "owner_social_verification_v1",
+  "block_report_seller_faq_v1",
+  "seller_broadcast_v1",
+]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
   follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -39,7 +47,9 @@ function sourceSha256(source) {
 }
 
 export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
-  privateTablePreparationReleaseIds(RELEASE_SELECTION)
+  RELEASE_SELECTIONS.flatMap((selection) => (
+    privateTablePreparationReleaseIds(selection)
+  ))
     .flatMap((releaseId) => {
       const verified = verifyPrivateTablePreparationSource(
         releaseId,
@@ -195,7 +205,7 @@ export async function verifyPrivateTableRuntimeReadiness({
   return Object.freeze({
     enforced: true,
     environment: "production",
-    releaseSelection: RELEASE_SELECTION,
+    releaseSelections: RELEASE_SELECTIONS,
     runtimeFunctionCount: runtimeFunctions.length,
     staffFunctionCount: staffFunctions.length,
     readOnly: true,

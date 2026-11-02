@@ -174,6 +174,7 @@ function expectedFunctions(verified, active) {
     entries.push({
       name: retained.name,
       arguments: retained.arguments,
+      securityDefiner: retained.securityDefiner,
       executeRole: active
         ? retained.activatedExecuteRole
         : retained.predecessorExecuteRole,
@@ -249,7 +250,11 @@ async function readFunctions(client, verified, tableOwner, active) {
     assert.ok(entry, `unexpected function overload ${identity}`);
     assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
     assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
-    assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
+    assert.equal(
+      row.security_definer,
+      entry.securityDefiner ?? true,
+      `${identity} SECURITY mode drifted`,
+    );
     assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
     assert.equal(
       row.runtime_execute,
