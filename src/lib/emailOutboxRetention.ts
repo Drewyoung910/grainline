@@ -4,6 +4,7 @@ import {
   EMAIL_OUTBOX_RETENTION_TIME_BUDGET_MS,
   emailOutboxRetentionCutoffs,
 } from "@/lib/emailOutboxRetentionState";
+import { deleteEmailOutboxRetentionBatch } from "@/lib/emailServiceAccess";
 
 export async function pruneEmailOutboxRetention({
   now = new Date(),
@@ -19,24 +20,11 @@ export async function pruneEmailOutboxRetention({
   let totalDeleted = 0;
 
   while (Date.now() < deadline) {
-    const deleted = await prisma.$executeRaw<number>`
-      DELETE FROM "EmailOutbox"
-      WHERE id IN (
-        SELECT id
-        FROM "EmailOutbox"
-        WHERE (
-          status IN ('SENT', 'SKIPPED')
-          AND COALESCE("sentAt", "updatedAt") < ${sentOrSkippedCutoff}
-        )
-        OR (
-          status = 'DEAD'
-          AND "updatedAt" < ${deadCutoff}
-        )
-        ORDER BY "updatedAt" ASC
-        LIMIT ${batchSize}
-      )
-    `;
-    const count = Number(deleted);
+    const count = await deleteEmailOutboxRetentionBatch(prisma, {
+      sentOrSkippedCutoff,
+      deadCutoff,
+      limit: batchSize,
+    });
     totalDeleted += count;
     if (count === 0 || count < batchSize) {
       return { count: totalDeleted, complete: true };

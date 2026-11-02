@@ -1,6 +1,7 @@
 import {
   createActorCommissionInterest,
 } from "@/lib/conversationMessageAuthority";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 type CommissionInterestMessageResult =
@@ -34,7 +35,10 @@ export async function createCommissionInterestMessage(input: {
 }): Promise<CommissionInterestMessageResult> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const interest = await createActorCommissionInterest(input);
+      const interest = await withDbUserContext(
+        input.sellerUserId,
+        (client) => createActorCommissionInterest(input, client),
+      );
       const common = {
         ok: true as const,
         conversationId: interest.conversationId,

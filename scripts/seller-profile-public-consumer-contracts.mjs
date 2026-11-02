@@ -150,7 +150,14 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 120
+      // The Commission compatible preparation replaces the remaining 17
+      // openCommissionWhere calls and one openCommissionMutationWhere call
+      // with fixed database authorities.
+      // SellerBroadcast's fixed authorities replace two public seller query
+      // factory calls while preserving their reviewed public visibility rules.
+      // Email-service preparation then moves the remaining direct outbox
+      // shapes behind fixed SQL authorities.
+      || reviewedNonTargetFactoryCalls.length !== 93
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
@@ -164,7 +171,16 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // deliberately removes three duplicate non-target residual shapes.
       // StockNotification subscription now validates listing availability in
       // its fixed SQL authority, removing one publicListingDetailWhere call.
-      || reviewedNonTargetResiduals.length !== 26) {
+      // Email-service preparation moves seven remaining EmailOutbox query-shape
+      // occurrences (three reviewed factory calls and four residuals) behind
+      // fixed SQL authorities. The User opaque-query digest test pins the
+      // exact remaining frontier.
+      // Seller analytics recording now validates listing visibility in its
+      // fixed SQL authority, removing the view and click publicListingWhere
+      // calls from the application frontier.
+      // UserReport submission now validates its three remaining public target
+      // shapes inside one actor-bound SQL authority.
+      || reviewedNonTargetResiduals.length !== 22) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

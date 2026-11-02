@@ -43,11 +43,11 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /logServerError\(err, \{/);
     assert.doesNotMatch(route, /Sentry\.captureException\(err/);
     assert.doesNotMatch(route, /console\.error\("POST \/api\/newsletter error:", err\)/);
-    assert.match(route, /isEmailSuppressedForNewsletterSignup\(email\)/);
-    assert.doesNotMatch(route, /isEmailSuppressed\(email\)/);
+    assert.match(route, /reserveNewsletterSignup\(prisma, \{/);
+    assert.doesNotMatch(route, /isEmailSuppressed/);
     assert.match(route, /confirmationRequired: true/);
     assert.match(route, /sendNewsletterConfirmationEmail/);
-    assert.match(route, /active: false/);
+    assert.doesNotMatch(route, /newsletterSubscriber\./);
     assert.doesNotMatch(route, /suppressed: true/);
     assert.doesNotMatch(route, /subscribed: false/);
   });
@@ -193,16 +193,8 @@ describe("account and privacy route observability guardrails", () => {
       "preference opt-in should write the preference before clearing one-click suppression",
     );
 
-    assert.match(clearHelper, /emailSuppressionLookupForEmails\(\[email\]\)/);
-    assert.match(clearHelper, /DELETE FROM "EmailSuppression"/);
-    assert.match(clearHelper, /emailSuppressionMatchWhereSql\(lookup\)/);
-    assert.match(clearHelper, /EmailSuppressionReason\.MANUAL/);
-    assert.match(clearHelper, /one_click_unsubscribe/);
-    assert.doesNotMatch(clearHelper, /account_deletion/);
-    assert.doesNotMatch(
-      clearHelper,
-      /reason: EmailSuppressionReason\.BOUNCE|reason: EmailSuppressionReason\.COMPLAINT/,
-    );
+    assert.match(clearHelper, /clearOneClickEmailSuppressionAuthority\(client, normalized\)/);
+    assert.doesNotMatch(clearHelper, /DELETE FROM|emailSuppression\./);
   });
 
   it("keeps one-click unsubscribe separate from hard email delivery suppression", () => {
@@ -228,17 +220,12 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(email, /isEmailDeliverySuppressed\(recipient\)/);
     assert.doesNotMatch(email, /isEmailSuppressed\(recipient\)/);
 
-    assert.match(deliveryHelper, /EmailSuppressionReason\.BOUNCE/);
-    assert.match(deliveryHelper, /EmailSuppressionReason\.COMPLAINT/);
-    assert.match(deliveryHelper, /"source" = 'account_deletion'/);
-    assert.doesNotMatch(deliveryHelper, /source: "one_click_unsubscribe"/);
+    assert.match(deliveryHelper, /emailSuppressionExists\(email, "delivery"\)/);
 
-    assert.match(newsletterRoute, /isEmailSuppressedForNewsletterSignup\(email\)/);
-    assert.doesNotMatch(newsletterRoute, /isEmailSuppressed\(email\)/);
+    assert.match(newsletterRoute, /reserveNewsletterSignup\(prisma, \{/);
+    assert.doesNotMatch(newsletterRoute, /isEmailSuppressed/);
     assert.match(suppression, /export async function isEmailSuppressedForNewsletterSignup/);
-    assert.match(suppression, /"source" = 'account_deletion'/);
-    assert.match(suppression, /"reason"::text = \$\{EmailSuppressionReason\.MANUAL\} AND "source" IS NULL/);
-    assert.match(suppression, /"reason"::text = \$\{EmailSuppressionReason\.MANUAL\} AND "source" <> 'one_click_unsubscribe'/);
+    assert.match(suppression, /emailSuppressionExists\(email, "newsletter"\)/);
     assert.match(
       adminEmailRoute,
       /isEmailSuppressed\(normalizedRecipientEmail\)/,
@@ -254,64 +241,19 @@ describe("account and privacy route observability guardrails", () => {
   });
 
   it("preserves hard email suppressions per key when lower-priority manual suppression is written", () => {
-    const unsubscribe = source("src/lib/unsubscribe.ts");
+    const suppression = source("src/lib/emailSuppression.ts");
     const deletion = source("src/lib/accountDeletion.ts");
-    const oneClickStart = unsubscribe.indexOf(
-      "async function setOneClickEmailSuppression",
-    );
-    const oneClickHelper = unsubscribe.slice(
-      oneClickStart,
-      unsubscribe.indexOf(
-        "export async function unsubscribeTokenSuperseded",
-        oneClickStart,
-      ),
-    );
-    const deletionStart = deletion.indexOf(
-      "const existingEmailSuppressions = await tx.emailSuppression.findMany",
-    );
-    const deletionSuppressionBlock = deletion.slice(
-      deletionStart,
-      deletion.indexOf("await tx.commissionRequest.updateMany", deletionStart),
+    const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
+    const migration = source(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
     );
 
-    assert.ok(
-      oneClickStart >= 0,
-      "unsubscribe should use an explicit one-click suppression writer",
-    );
-    assert.match(oneClickHelper, /emailSuppressionAddressKeys\(email\)/);
-    assert.match(oneClickHelper, /EmailSuppressionReason\.BOUNCE/);
-    assert.match(oneClickHelper, /EmailSuppressionReason\.COMPLAINT/);
-    assert.match(oneClickHelper, /source === "account_deletion"/);
-    assert.match(oneClickHelper, /reason: EmailSuppressionReason\.MANUAL/);
-    assert.match(oneClickHelper, /source: "one_click_unsubscribe"/);
-    assert.doesNotMatch(oneClickHelper, /emailSuppression\.upsert/);
-
-    assert.ok(
-      deletionStart >= 0,
-      "account deletion should inspect existing suppression before writing",
-    );
-    assert.match(deletionSuppressionBlock, /providerHardSuppressionEmails/);
-    assert.match(deletionSuppressionBlock, /EmailSuppressionReason\.BOUNCE/);
-    assert.match(deletionSuppressionBlock, /EmailSuppressionReason\.COMPLAINT/);
-    assert.match(
-      deletionSuppressionBlock,
-      /manualSuppressionEmails = suppressionEmailMatches\.filter/,
-    );
-    assert.match(
-      deletionSuppressionBlock,
-      /!providerHardSuppressionEmails\.has\(email\)/,
-    );
-    assert.match(
-      deletionSuppressionBlock,
-      /email: \{ in: manualSuppressionEmails \}/,
-    );
-    assert.match(
-      deletionSuppressionBlock,
-      /reason: EmailSuppressionReason\.MANUAL/,
-    );
-    assert.match(deletionSuppressionBlock, /source: "account_deletion"/);
-    assert.doesNotMatch(deletionSuppressionBlock, /emailSuppression\.upsert/);
-    assert.doesNotMatch(deletionSuppressionBlock, /hasProviderHardSuppression/);
+    assert.match(suppression, /clearOneClickEmailSuppressionAuthority\(client, normalized\)/);
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx\)/);
+    assert.match(emailServiceAccess, /public\.grainline_email_service_account_deletion_apply/);
+    assert.match(migration, /suppression\.reason::text = 'MANUAL'/);
+    assert.match(migration, /WHERE NOT EXISTS \([\s\S]*suppression\.email = candidate\.email/s);
+    assert.match(migration, /ON CONFLICT \(email\) DO NOTHING/);
   });
 
   it("rejects unsubscribe links issued before a later signed-in email opt-in", () => {
@@ -376,10 +318,6 @@ describe("account and privacy route observability guardrails", () => {
       /export async function unsubscribeTokenSuperseded/,
     );
     assert.match(unsubscribe, /emailSuppressionAddressKeys\(normalized\)/);
-    assert.match(unsubscribe, /emailSuppressionLookupForEmails\(emails\)/);
-    assert.match(unsubscribe, /function emailSuppressionMatchWhereSql/);
-    assert.match(unsubscribe, /split_part\(\$\{emailColumn\}, '@', 2\) IN \('gmail\.com', 'googlemail\.com'\)/);
-    assert.match(unsubscribe, /replace\(split_part\(split_part\(\$\{emailColumn\}, '@', 1\), '\+', 1\), '\.', ''\) IN/);
     assert.match(unsubscribe, /userSignedUnsubscribeTokenSuperseded\(prisma, \{/);
     assert.match(unsubscribe, /suppressionKeys: emails/);
     assert.match(unsubscribe, /issuedAt: new Date\(issuedAt\)/);
@@ -393,16 +331,8 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(unsubscribe, /if \(newerCurrentEmailClaim\.superseded\) return true/);
     assert.doesNotMatch(unsubscribe, /FROM "User"/);
     assert.doesNotMatch(unsubscribe, /emailPreferenceOptInAt/);
-    assert.match(unsubscribe, /FROM "NewsletterSubscriber"/);
-    assert.match(
-      unsubscribe,
-      /AND "confirmedAt" IS NOT NULL/,
-    );
-    assert.match(unsubscribe, /ORDER BY "confirmedAt" DESC/);
-    assert.match(
-      unsubscribe,
-      /newsletter\.confirmedAt\.getTime\(\) > issuedAt/,
-    );
+    assert.match(unsubscribe, /newsletterTokenSuperseded\(prisma, \{/);
+    assert.doesNotMatch(unsubscribe, /FROM "NewsletterSubscriber"/);
   });
 
   it("applies Gmail suppression keys to one-click unsubscribe preference and newsletter updates", () => {
@@ -420,14 +350,7 @@ describe("account and privacy route observability guardrails", () => {
       unsubscribeEmailHelper,
       /const emails =\s*suppressionEmailKeys\.length > 0 \? suppressionEmailKeys : \[normalized\]/,
     );
-    assert.match(
-      unsubscribeEmailHelper,
-      /newsletterIdsMatchingSuppressionLookup\(tx, lookup\)/,
-    );
-    assert.match(
-      unsubscribeEmailHelper,
-      /newsletterSubscriber\.updateMany\(\{\s*where: \{ id: \{ in: newsletterIds \} \}/s,
-    );
+    assert.match(unsubscribeEmailHelper, /applyEmailUnsubscribe\(tx, \{/);
     assert.match(
       unsubscribeEmailHelper,
       /disableUserSignedUnsubscribeEmailPreferences\(\s*tx,\s*emails,\s*\)/,
@@ -501,9 +424,10 @@ describe("account and privacy route observability guardrails", () => {
     const suppression = source("src/lib/emailSuppression.ts");
     const launch = source("docs/launch-checklist.md");
 
-    assert.match(route, /markWebhookFailed\(id, err\)\.catch/);
+    assert.match(route, /markWebhookFailed\(id, reservation, err\)\.catch/);
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
-    assert.match(route, /processingStartedAt: null/);
+    assert.match(route, /failResendWebhookEvent\(prisma, \{/);
+    assert.match(route, /\.\.\.lease,/);
     assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
     assert.match(route, /resendRecipientAction\(\s*event\.type,/);
     assert.match(
@@ -516,7 +440,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(state, /type === "email\.delivery_delayed"/);
     assert.doesNotMatch(route, /INSERT INTO "EmailFailureCount"/);
     assert.doesNotMatch(route, /resend_transient_failure/);
-    assert.match(suppression, /"source" IS DISTINCT FROM 'resend_transient_failure'/);
+    assert.match(suppression, /applyEmailHardSuppression\(prisma,/);
     assert.match(launch, /Delivery-delayed provider events may be monitored in the Resend dashboard/);
     assert.match(launch, /app intentionally ignores them for durable suppression/);
     assert.doesNotMatch(
@@ -530,9 +454,9 @@ describe("account and privacy route observability guardrails", () => {
   it("returns retryable status for in-progress Resend webhook reservations", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
 
-    assert.match(route, /reservation === "processed"/);
-    assert.match(route, /reservation === "in_progress"/);
-    const inProgressStart = route.indexOf('reservation === "in_progress"');
+    assert.match(route, /reservation\.action === "processed"/);
+    assert.match(route, /reservation\.action === "in_progress"/);
+    const inProgressStart = route.indexOf('reservation.action === "in_progress"');
     const processStart = route.indexOf("try {", inProgressStart);
     const inProgressBlock = route.slice(inProgressStart, processStart);
     assert.match(inProgressBlock, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);

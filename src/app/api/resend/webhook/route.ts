@@ -17,6 +17,12 @@ import {
   resendSuppressionReason,
   resendSuppressionSource,
 } from "@/lib/resendWebhookEventState";
+import {
+  completeResendWebhookEvent,
+  failResendWebhookEvent,
+  reserveResendWebhookEvent,
+  type ResendWebhookLease,
+} from "@/lib/emailServiceAccess";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,66 +37,35 @@ function emailsFromEvent(event: WebhookEventPayload): string[] {
   return typeof to === "string" && to ? [to] : [];
 }
 
-function isUniqueViolation(err: unknown) {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
-}
-
-async function reserveWebhookEvent(svixId: string, type: string): Promise<"process" | "processed" | "in_progress"> {
+async function reserveWebhookEvent(svixId: string, type: string) {
   const now = new Date();
-  try {
-    await prisma.resendWebhookEvent.create({
-      data: {
-        svixId,
-        type,
-        processingStartedAt: now,
-      },
-    });
-    return "process";
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-  }
-
-  const existing = await prisma.resendWebhookEvent.findUnique({
-    where: { svixId },
-    select: { processedAt: true, processingStartedAt: true },
-  });
-
-  if (existing?.processedAt) return "processed";
-
   const retryBefore = new Date(now.getTime() - RESEND_WEBHOOK_RETRY_AFTER_MS);
-  const claimed = await prisma.resendWebhookEvent.updateMany({
-    where: {
-      svixId,
-      processedAt: null,
-      OR: [{ lastError: { not: null } }, { processingStartedAt: null }, { processingStartedAt: { lt: retryBefore } }],
-    },
-    data: {
-      type,
-      processingStartedAt: now,
-      lastError: null,
-    },
-  });
-
-  return claimed.count === 1 ? "process" : "in_progress";
-}
-
-async function markWebhookProcessed(svixId: string) {
-  await prisma.resendWebhookEvent.update({
-    where: { svixId },
-    data: {
-      processedAt: new Date(),
-      lastError: null,
-    },
+  return reserveResendWebhookEvent(prisma, {
+    svixId,
+    type,
+    now,
+    retryBefore,
   });
 }
 
-async function markWebhookFailed(svixId: string, err: unknown) {
-  await prisma.resendWebhookEvent.update({
-    where: { svixId },
-    data: {
-      processingStartedAt: null,
-      lastError: sanitizeEmailOutboxError(err),
-    },
+async function markWebhookProcessed(svixId: string, lease: ResendWebhookLease) {
+  await completeResendWebhookEvent(prisma, {
+    ...lease,
+    svixId,
+    now: new Date(),
+  });
+}
+
+async function markWebhookFailed(
+  svixId: string,
+  lease: ResendWebhookLease,
+  err: unknown,
+) {
+  await failResendWebhookEvent(prisma, {
+    ...lease,
+    svixId,
+    error: sanitizeEmailOutboxError(err),
+    now: new Date(),
   });
 }
 
@@ -207,12 +182,12 @@ export async function POST(request: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
-  if (reservation === "processed") {
-    return NextResponse.json({ ok: true, duplicate: true, status: reservation, type: event.type });
+  if (reservation.action === "processed") {
+    return NextResponse.json({ ok: true, duplicate: true, status: reservation.action, type: event.type });
   }
-  if (reservation === "in_progress") {
+  if (reservation.action === "in_progress") {
     return NextResponse.json(
-      { ok: false, duplicate: true, status: reservation, type: event.type },
+      { ok: false, duplicate: true, status: reservation.action, type: event.type },
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(RESEND_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
@@ -249,7 +224,7 @@ export async function POST(request: Request) {
           });
         },
       );
-      await markWebhookProcessed(id);
+      await markWebhookProcessed(id, reservation);
       return NextResponse.json({ ok: true, type: event.type, suppressed: emails.length });
     }
 
@@ -259,7 +234,7 @@ export async function POST(request: Request) {
         tags: { source: "resend_webhook_provider_failure" },
         extra: safeDetails,
       });
-      await markWebhookProcessed(id);
+      await markWebhookProcessed(id, reservation);
       return NextResponse.json({
         ok: true,
         type: event.type,
@@ -267,10 +242,10 @@ export async function POST(request: Request) {
       });
     }
 
-    await markWebhookProcessed(id);
+    await markWebhookProcessed(id, reservation);
     return NextResponse.json({ ok: true, ignored: true, type: event.type });
   } catch (err) {
-    await markWebhookFailed(id, err).catch((markError) => {
+    await markWebhookFailed(id, reservation, err).catch((markError) => {
       Sentry.captureException(markError, {
         tags: { source: "resend_webhook_mark_failed", type: event.type },
         extra: { svixId: id },

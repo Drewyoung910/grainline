@@ -81,6 +81,54 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261028080000_activate_maker_verification_rls",
     "7868277f03b599768784c0f3a44a3c7bb28c8b64772a24f6183c538ec6f3401c",
   ],
+  [
+    "20261030010000_prepare_block_authorities",
+    "3bc49fc721e4bf8067f2222c9d47bc2e01c91d6ed93d7ed70fc25d5dd14251cb",
+  ],
+  [
+    "20261030020000_prepare_user_report_authorities",
+    "23a39d693ac959d3f1ca81dbb598752ee75d9f9adef90874082ec23693ca105a",
+  ],
+  [
+    "20261030030000_prepare_seller_faq_authorities",
+    "45cf9935bd9c6492a26ebc167dab20962395e1834f2191d293f0776597803e99",
+  ],
+  [
+    "20261030040000_activate_block_rls",
+    "cec9c1c6345225304fcae3b2d433ade6c73e1d6d98f0d461126390f7f0c29e73",
+  ],
+  [
+    "20261030050000_activate_user_report_rls",
+    "0c488a187a0f2389d32c2860f03e39d6a93dede288a9caf43483fe87c1f626fc",
+  ],
+  [
+    "20261030060000_activate_seller_faq_rls",
+    "d79661da61c150e893e927ea389afcaede307ad3c8b45b95977ce38e26634154",
+  ],
+  [
+    "20261101010000_prepare_seller_broadcast_authorities",
+    "2fd1b027f87e640b254d6be065a376777c5bf4eecb32fda6962d24126dbf7617",
+  ],
+  [
+    "20261101080000_prepare_email_service_least_privilege",
+    "1d231bf5df2652765a2f0c48509bc232d9976dc2a2a775a93900fe606616537a",
+  ],
+  [
+    "20261101020000_narrow_service_reference_runtime_privileges",
+    "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c",
+  ],
+  [
+    "20261101030000_prepare_seller_analytics_daily_authorities",
+    "f0f7c974d84e8132eb2271874f266db8ee94c9b80a7be421cba39ec70e95247d",
+  ],
+  [
+    "20261101040000_activate_seller_analytics_daily_rls",
+    "460aa8dacd516918af35f42fa041c533396b363a6384f9bf156400fa0d69206d",
+  ],
+  [
+    "20261101050000_activate_seller_broadcast_rls",
+    "9e71df11bc80f2acebc56b0148031943be07db45244c52e6236d4a2c88bf6990",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {

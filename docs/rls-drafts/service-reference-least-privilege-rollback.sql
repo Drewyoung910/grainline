@@ -1,0 +1,131 @@
+-- Emergency database-first rollback for
+-- 20261101020000_narrow_service_reference_runtime_privileges.
+--
+-- Run only through the protected migration owner after reviewing the exact
+-- production catalog. This restores the predecessor application's direct CRUD
+-- authority; it does not change rows, RLS, policies, functions or PUBLIC.
+-- After the database rollback, restore compatible application source and the
+-- predecessor provisioning/audit expectations. Keep the successfully applied
+-- Prisma ledger row intact: Prisma's rollback resolution accepts failed
+-- migrations only and cannot rewrite this completed row. If the narrowing is
+-- needed again, ship a new reviewed forward migration with a new name.
+
+BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '60s';
+
+DO $grainline_service_reference_rollback_preflight$
+DECLARE
+  runtime_oid oid;
+  target record;
+  actual_runtime text[];
+  public_privileges text[];
+  runtime_grant_options text[];
+  runtime_column_privileges text[];
+BEGIN
+  SELECT oid
+    INTO runtime_oid
+    FROM pg_catalog.pg_roles
+   WHERE rolname = 'grainline_app_runtime';
+
+  IF runtime_oid IS NULL THEN
+    RAISE EXCEPTION 'grainline_app_runtime is missing'
+      USING ERRCODE = '55000';
+  END IF;
+
+  FOR target IN
+    SELECT *
+      FROM (VALUES
+        ('FoundingMakerGrant'::text, ARRAY['SELECT']::text[]),
+        ('Metro'::text, ARRAY['INSERT', 'SELECT', 'UPDATE']::text[]),
+        ('SiteConfig'::text, ARRAY['SELECT']::text[]),
+        ('SiteMetricsSnapshot'::text, ARRAY['INSERT', 'SELECT', 'UPDATE']::text[]),
+        ('SystemAuditLog'::text, ARRAY['INSERT', 'SELECT']::text[])
+      ) AS expected(table_name, privileges)
+  LOOP
+    SELECT
+      coalesce(
+        pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+          ORDER BY pg_catalog.upper(acl.privilege_type))
+          FILTER (WHERE acl.grantee = runtime_oid),
+        ARRAY[]::text[]
+      ),
+      coalesce(
+        pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+          ORDER BY pg_catalog.upper(acl.privilege_type))
+          FILTER (WHERE acl.grantee = 0),
+        ARRAY[]::text[]
+      ),
+      coalesce(
+        pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
+          ORDER BY pg_catalog.upper(acl.privilege_type))
+          FILTER (WHERE acl.grantee = runtime_oid AND acl.is_grantable),
+        ARRAY[]::text[]
+      )
+      INTO actual_runtime, public_privileges, runtime_grant_options
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        coalesce(class.relacl, pg_catalog.acldefault('r', class.relowner))
+      ) AS acl
+     WHERE namespace.nspname = 'public'
+       AND class.relname = target.table_name
+       AND class.relkind = 'r'
+       AND (acl.grantee = 0 OR acl.grantee = runtime_oid);
+
+    SELECT coalesce(
+      pg_catalog.array_agg(
+        DISTINCT pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
+        ORDER BY pg_catalog.format('%I:%s', attribute.attname, pg_catalog.upper(acl.privilege_type))
+      ),
+      ARRAY[]::text[]
+    )
+      INTO runtime_column_privileges
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+      JOIN pg_catalog.pg_attribute AS attribute
+        ON attribute.attrelid = class.oid
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+      CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+     WHERE namespace.nspname = 'public'
+       AND class.relname = target.table_name
+       AND class.relkind = 'r'
+       AND acl.grantee = runtime_oid;
+
+    IF actual_runtime IS DISTINCT FROM target.privileges THEN
+      RAISE EXCEPTION 'refusing rollback: runtime privileges for % are %, expected %',
+        target.table_name, actual_runtime, target.privileges
+        USING ERRCODE = '55000';
+    END IF;
+    IF public_privileges <> ARRAY[]::text[] THEN
+      RAISE EXCEPTION 'refusing rollback: PUBLIC privileges remain on %: %',
+        target.table_name, public_privileges
+        USING ERRCODE = '55000';
+    END IF;
+    IF runtime_grant_options <> ARRAY[]::text[] THEN
+      RAISE EXCEPTION 'refusing rollback: runtime grant options remain on %: %',
+        target.table_name, runtime_grant_options
+        USING ERRCODE = '55000';
+    END IF;
+    IF runtime_column_privileges <> ARRAY[]::text[] THEN
+      RAISE EXCEPTION 'refusing rollback: runtime column privileges remain on %: %',
+        target.table_name, runtime_column_privileges
+        USING ERRCODE = '55000';
+    END IF;
+  END LOOP;
+END
+$grainline_service_reference_rollback_preflight$;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  public."FoundingMakerGrant",
+  public."Metro",
+  public."SiteConfig",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+TO grainline_app_runtime;
+
+COMMIT;

@@ -85,14 +85,21 @@ by protected run `38837514490`. Follow
 `docs/seller-profile-private-boundary-pre-rls-audit.md` for the completed split
 and retained evidence.
 
-The next RLS domain is the remaining public `SellerProfile` table. It still
-mixes anonymous catalog data with raw coordinates, owner settings and
-staff/system-controlled state, while the runtime role retains broad CRUD.
-Drew selected Option B on 2026-10-18: keep the schema intact, expose bounded
-public projections, move non-public reads and all writes behind fixed
-operations, prove zero direct base-table callers, then revoke grants and apply
-ENABLE and FORCE as separate releases. No security release drops another
-column. See `docs/seller-profile-public-rls-options.md`.
+The public `SellerProfile` conversion is now complete: Production is policyless
+FORCE with zero direct runtime/staff/`PUBLIC` table authority. Drew selected
+Option B on 2026-10-18: keep the schema intact, expose bounded public
+projections, move non-public reads and all writes behind fixed operations, and
+never drop columns in the security release. See
+`docs/seller-profile-public-rls-options.md`.
+
+The 2026-10-29 child-table audit selected the same zero-direct pattern for
+`SellerFaq`, rather than duplicating the complete parent visibility and block
+contract in a broad public policy. Compatible preparation converts the four
+direct caller families to actor-bound create/remove/export and claim-bound
+deletion while retaining the existing public-profile and owner-editor readers.
+After that app is live, one separately approved activation may combine
+policyless ENABLE and FORCE. See `docs/seller-faq-pre-rls-audit.md` and
+`docs/seller-faq-rls-options.md`.
 
 Phase 0 closed on 2026-10-19. The schema-aware AST inventory on exact main
 `e92b7a329cf3f7c1d45e8c2857e26b336d26ff65` finds 99 direct operations, 103
@@ -3506,6 +3513,22 @@ builds containing the converted callers must fail closed until every reviewed
 runtime and staff function in the preparation batch is installed with its
 exact source body and EXECUTE role.
 
+### Service and reference table alternative (2026-11-01)
+
+Do not add full RLS to singleton configuration, public reference, derived
+aggregate or append-only service tables merely to raise the RLS count. Use the
+smallest durable database boundary that matches the actual operations. The
+first candidate group narrows `SiteConfig`, `SystemAuditLog`,
+`FoundingMakerGrant`, `Metro` and `SiteMetricsSnapshot` to exact runtime
+privileges and keeps `SellerExactMapConsentEvent` at zero direct authority.
+The cross-user email/cron ledgers retain CRUD until a dedicated service
+identity exists; app-only ownership rules would not protect them.
+
+Every alternative must still have a complete domain audit, exact recurring
+grant check, provisioning convergence, real-runtime PostgreSQL 17 proof,
+rollback and protected production release. See
+`docs/service-reference-least-privilege-audit.md`.
+
 ### Favorite RLS aggregate boundary (2026-10-28)
 
 Use a transactionally maintained raw-current-row favorite count on `Listing`
@@ -3581,3 +3604,79 @@ policyless ENABLE plus FORCE and must preserve database-first rollback,
 account-deletion cleanup and User/SellerProfile cascades. Preparation,
 compatible deployment, skew drain and Production activation remain separate
 reviewed gates; this decision is not standing Production authorization.
+
+### Commission domain RLS direction (2026-11-01)
+
+Treat `CommissionRequest` and `CommissionInterest` as one lifecycle and use
+policyless zero-direct Option B. Anonymous discovery receives only a
+column-sealed open-request projection; buyers, interested makers, cron, staff,
+export and account deletion use distinct bounded operations. Retain the
+existing atomic interest/conversation/message authority and trigger-owned
+public buyer/location snapshots rather than duplicating them.
+
+Preparation and activation remain separate, but each is one batched release
+for both tables. Preparation must close participant access to terminal
+requests, status/expiry recipient races, destructive ban cleanup, inconsistent
+block/lifecycle filtering, false "Local makers only" copy, session-dependent
+expiry comparisons and all remaining direct callers. Activation may then use
+policyless ENABLE plus FORCE and revoke direct runtime/staff-read table access
+only after the compatible application is live and drained. Chosen-maker/payment
+linkage and commission email delivery remain explicit product work whose future
+authority boundaries are recorded in `docs/commission-domain-pre-rls-audit.md`.
+This decision is not standing merge, deploy, inspection or production-migration
+authorization.
+
+### Seller daily analytics RLS boundary (2026-11-01)
+
+Treat `ListingViewDaily` and `SellerProfileViewDaily` as private aggregate
+service tables, not owner-authored rows. Use policyless Option B with zero
+ordinary runtime, staff or `PUBLIC` table/column authority. Public listing and
+shop telemetry stays behind the existing application abuse controls and one
+atomic database recorder; seller dashboards receive only actor-bound totals
+and grouped buckets; retention and account deletion use bounded, source-bound
+operations. Retain and pin the existing profile-view and top-listings
+functions.
+
+Before compatible preparation, inventory and reject negative counters,
+non-midnight dates, listing/seller mismatches and exhausted counters. Add the
+data invariants, convert all eight direct daily-table operations, aggregate
+chart data in PostgreSQL, and prove parent-first lock ordering, cascades,
+retention, rollback and reactivation on the complete PostgreSQL 17 chain.
+Activation later combines ENABLE and FORCE with zero policies only after the
+compatible app is live and every predecessor deployment is drained. This
+decision authorizes isolated preparation only, not a merge, deployment, grant
+change or Production action. See `docs/seller-analytics-daily-pre-rls-audit.md`
+and `docs/seller-analytics-daily-rls-options.md`.
+
+### Block RLS direction (2026-10-29)
+
+Use policyless zero-direct Option B. Block enforcement is symmetric, while
+record disclosure and management are intentionally asymmetric, so a generic
+row policy would reveal who blocked whom. Compatible preparation must make
+block creation and reciprocal Follow/StockNotification cleanup one locked
+transition, replace the two invoker-mode messaging reads, preserve outgoing-
+only management/deletion and current export pending legal review, and catalog
+every installed Block reader. No pair-projection table, column drop, RLS
+activation, or production change is part of the preparation decision.
+
+The isolated compatible candidate implements that boundary in
+`20261030010000_prepare_block_authorities`: all application Block ORM callers
+use five actor-bound fixed operations, block creation atomically owns Follow
+and StockNotification cleanup, and the exact source-pinned inbox/unread
+projections use fixed ownership. The reusable `block_v1` release catalog keeps
+this preparation byte-sealed and restart-safe. RLS and predecessor table grants
+remain unchanged; production preparation and activation remain separate exact
+approvals.
+
+### UserReport RLS direction (2026-10-29)
+
+Use policyless zero-direct Option B. UserReport is an asymmetric trust ledger:
+submission, received export, submitted export, staff investigation, resolution,
+notification validation, and deletion require different bounded projections.
+Compatible preparation must fix target attribution, oldest-first complete staff
+reachability, accepted-target staff context, and reviewed data invariants.
+Resolution storage splits participant-visible rationale from an internal staff
+note; staff UI labels each audience, participant exports never include the
+internal note, and the privacy-minimized audit witness remains. No purge,
+retention change, column drop, RLS activation, or production change is part of
+the preparation decision.

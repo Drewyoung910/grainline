@@ -4,8 +4,13 @@ import { describe, it } from "node:test";
 import yaml from "js-yaml";
 
 function read(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const target = path.startsWith("/") ? path : new URL(`../${path}`, import.meta.url);
+  return readFileSync(target, "utf8");
 }
+
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
 
 describe("User public seller-state source boundary", () => {
   it("keeps only the bounded account-state and image fallback on SellerProfile", () => {
@@ -99,11 +104,15 @@ describe("User public seller-state source boundary", () => {
     assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
 
     const commission = read("src/app/commission/page.tsx");
+    const commissionPreparation = read(commissionPreparationMigration);
     assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
-    assert.match(commission, /cr\."buyerAccountActive" = true/);
-    assert.match(commission, /cr\."buyerName", cr\."buyerImageUrl"/);
-    assert.match(commission, /buyer: \{ name: r\.buyerName, imageUrl: r\.buyerImageUrl \}/);
-    assert.match(commission, /publicCommissionInterestCounts\(rawResults\.map/);
+    assert.match(commission, /publicCommissionRequestCount\(meId, publicFilter\)/);
+    assert.match(commission, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(commissionPreparation, /request\."buyerAccountActive" = true/);
+    assert.match(commissionPreparation, /request\."buyerName"::text/);
+    assert.match(commissionPreparation, /request\."buyerImageUrl"::text/);
+    assert.match(commission, /buyer: \{ name: request\.buyerName, imageUrl: request\.buyerImageUrl \}/);
+    assert.match(commission, /publicCommissionInterestCounts\(found\.map/);
     assert.doesNotMatch(commission, /JOIN (?:public\.)?"SellerProfile"/);
 
     const quality = read("src/lib/quality-score.ts");

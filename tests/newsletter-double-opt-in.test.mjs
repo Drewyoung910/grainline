@@ -22,18 +22,14 @@ describe("newsletter double opt-in guardrails", () => {
     assert.match(migration, /ALTER COLUMN "active" SET DEFAULT false/);
 
     assert.match(route, /sendNewsletterConfirmationEmail\(\{ email, confirmationUrl \}, \{ throwOnFailure: true \}\)/);
-    assert.match(route, /active: false/);
+    assert.match(route, /reserveNewsletterSignup\(prisma, \{/);
     assert.match(route, /NEWSLETTER_CONFIRMATION_RESEND_COOLDOWN_MS/);
     assert.match(route, /const reservedSentAt = new Date\(\)/);
-    assert.match(route, /confirmationSentAt: \{ lte: resendCutoff \}/);
-    assert.match(route, /confirmationTokenHash: tokenHash/);
-    assert.match(route, /confirmationSentAt: reservedSentAt/);
+    assert.match(route, /tokenHash,/);
+    assert.match(route, /sentAt: reservedSentAt/);
     assert.match(route, /confirmationRequired: true/);
-    assert.match(route, /isUniqueConstraintError/);
     assert.match(route, /clearReservedNewsletterConfirmation\(email, tokenHash, emailHash\)/);
-    assert.doesNotMatch(route, /newsletterSubscriber\.upsert/);
-    assert.doesNotMatch(route, /create: \{ email, name, active: true \}/);
-    assert.doesNotMatch(route, /update: \{ name: name \?\? undefined, active: true \}/);
+    assert.doesNotMatch(route, /newsletterSubscriber\./);
     assert.match(component, /Check your email to confirm your subscription\./);
   });
 
@@ -52,11 +48,8 @@ describe("newsletter double opt-in guardrails", () => {
     assert.match(route, /readBoundedText\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)/);
     assert.match(route, /new URLSearchParams\(await readBoundedText\(req, NEWSLETTER_CONFIRM_FORM_BODY_MAX_BYTES\)\)/);
     assert.doesNotMatch(route, /await req\.formData\(\)/);
-    assert.match(route, /import \{ clearOneClickEmailSuppression \} from "@\/lib\/emailSuppression"/);
-    assert.match(route, /select: \{ id: true, email: true, confirmationTokenHash: true \}/);
-    assert.match(route, /prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(route, /updateMany\(\{[\s\S]*?active: true,[\s\S]*?confirmedAt: now,[\s\S]*?confirmationTokenHash: null,[\s\S]*?confirmationExpiresAt: null,[\s\S]*?confirmationSentAt: null,/);
-    assert.match(route, /clearOneClickEmailSuppression\(subscriber\.email, tx\)/);
+    assert.match(route, /confirmNewsletterSubscription\(prisma, \{/);
+    assert.doesNotMatch(route, /newsletterSubscriber\./);
     assert.doesNotMatch(route, /token:\s*validated\.token/);
   });
 
@@ -65,14 +58,8 @@ describe("newsletter double opt-in guardrails", () => {
     const suppression = source("src/lib/emailSuppression.ts");
     const exportRoute = source("src/app/api/account/export/route.ts");
 
-    for (const field of [
-      /active: false/,
-      /confirmationTokenHash: null/,
-      /confirmationExpiresAt: null/,
-      /confirmationSentAt: null/,
-    ]) {
-      assert.match(unsubscribe, field);
-    }
+    assert.match(unsubscribe, /applyEmailUnsubscribe\(tx, \{/);
+    assert.doesNotMatch(unsubscribe, /newsletterSubscriber\./);
     // Hard provider suppression now clears equivalent newsletter rows inside
     // the fixed SQL authority. The full-chain PostgreSQL scenario executes and
     // verifies that behavior; this source guard only keeps the app on that
@@ -80,8 +67,7 @@ describe("newsletter double opt-in guardrails", () => {
     assert.match(suppression, /applyEmailHardSuppression\(prisma,/);
     assert.doesNotMatch(suppression, /newsletterSubscriber\./);
 
-    assert.match(exportRoute, /confirmedAt: true/);
-    assert.match(exportRoute, /confirmationSentAt: true/);
-    assert.doesNotMatch(exportRoute, /confirmationTokenHash: true/);
+    assert.match(exportRoute, /exportOwnerEmailServiceData/);
+    assert.doesNotMatch(exportRoute, /prisma\.newsletterSubscriber\./);
   });
 });

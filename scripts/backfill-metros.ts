@@ -1,6 +1,8 @@
 // scripts/backfill-metros.ts
 // One-time script: assigns metroId/cityMetroId to all existing listings,
-// commission requests, and seller profiles that have coordinates but no metroId.
+// listings and seller profiles that have coordinates but no metroId.
+// CommissionRequest geography is assigned by its owner create authority; the
+// historical Commission backfill was completed before direct table lockdown.
 //
 // Run with:
 //   npx dotenv-cli -e .env -- npx ts-node --transpile-only scripts/backfill-metros.ts
@@ -191,23 +193,6 @@ async function main() {
     }
   }
   console.log(`  Updated ${listingUpdated} listings.\n`);
-
-  // --- Commission requests ---
-  const commissions = await prisma.commissionRequest.findMany({
-    where: { metroId: null, lat: { not: null }, lng: { not: null } },
-    select: { id: true, lat: true, lng: true },
-  });
-  console.log(`Backfilling ${commissions.length} commission requests...`);
-  let commissionUpdated = 0;
-  for (const c of commissions) {
-    if (c.lat == null || c.lng == null) continue;
-    const { metroId, cityMetroId } = await resolveOrCreate(c.lat, c.lng);
-    if (metroId || cityMetroId) {
-      await prisma.commissionRequest.update({ where: { id: c.id }, data: { metroId, cityMetroId } });
-      commissionUpdated++;
-    }
-  }
-  console.log(`  Updated ${commissionUpdated} commission requests.\n`);
 
   console.log("Backfill complete.");
 }

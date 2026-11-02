@@ -48,12 +48,9 @@ async function clearUploadthingUrls() {
   });
   console.log(`Cleared ${blogResult.count} blog post covers`);
 
-  // Commission reference images
-  const commissionResult = await prisma.commissionRequest.updateMany({
-    where: { referenceImageUrls: { isEmpty: false } },
-    data: { referenceImageUrls: [] },
-  });
-  console.log(`Cleared ${commissionResult.count} commission reference images`);
+  // Commission reference images are now protected by the DirectUpload
+  // lifecycle and the Commission owner/deletion authorities. This historical
+  // non-production script must not bypass those references.
 
   console.log("Done.");
   await prisma.$disconnect();

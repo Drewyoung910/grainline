@@ -150,8 +150,9 @@ describe("public visibility follow-ups", () => {
       const source = read(routePath);
       assert.match(source, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(source, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(source, /sellerOwnerCore\(viewerUserId\)/);
-      assert.match(source, /sellerId: \{ not: viewerSellerProfileId \}/);
+      assert.match(source, /const viewerUserId = viewer\?\.id \?\? null/);
+      assert.match(source, /recordListingAnalytics\(id, "(?:view|click)", viewerUserId\)/);
+      assert.doesNotMatch(source, /sellerOwnerCore|sellerId: \{ not:/);
       assert.doesNotMatch(source, /seller: \{ user: \{ clerkId:/);
     }
   });

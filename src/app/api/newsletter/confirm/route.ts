@@ -3,8 +3,11 @@ import { prisma } from "@/lib/db";
 import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { isRequestBodyTooLargeError, readBoundedText, readOptionalBoundedJson } from "@/lib/requestBody";
-import { clearOneClickEmailSuppression } from "@/lib/emailSuppression";
-import { hashNewsletterConfirmationToken, safeEqualNewsletterTokenHash } from "@/lib/newsletterConfirmation";
+import { hashNewsletterConfirmationToken } from "@/lib/newsletterConfirmation";
+import {
+  confirmNewsletterSubscription,
+  newsletterConfirmationValid,
+} from "@/lib/emailServiceAccess";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -95,16 +98,10 @@ export async function GET(req: NextRequest) {
   const validated = await validateConfirmationToken(req, "html");
   if ("response" in validated) return validated.response;
 
-  const subscriber = await prisma.newsletterSubscriber.findFirst({
-    where: {
-      confirmationTokenHash: validated.tokenHash,
-      active: false,
-      confirmationExpiresAt: { gt: new Date() },
-    },
-    select: { confirmationTokenHash: true },
-  });
-
-  if (!subscriber?.confirmationTokenHash || !safeEqualNewsletterTokenHash(subscriber.confirmationTokenHash, validated.tokenHash)) {
+  if (!await newsletterConfirmationValid(prisma, {
+    tokenHash: validated.tokenHash,
+    now: new Date(),
+  })) {
     return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST);
   }
 
@@ -134,43 +131,10 @@ export async function POST(req: NextRequest) {
   if ("response" in validated) return validated.response;
 
   try {
-    const subscriber = await prisma.newsletterSubscriber.findFirst({
-      where: {
-        confirmationTokenHash: validated.tokenHash,
-        active: false,
-        confirmationExpiresAt: { gt: new Date() },
-      },
-      select: { id: true, email: true, confirmationTokenHash: true },
-    });
-
-    if (!subscriber?.confirmationTokenHash || !safeEqualNewsletterTokenHash(subscriber.confirmationTokenHash, validated.tokenHash)) {
-      if (mode === "html") {
-        return htmlResponse("Invalid confirmation link", "This confirmation link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST);
-      }
-      return privateJson({ ok: false, error: "Invalid confirmation link" }, { status: HTTP_STATUS.BAD_REQUEST });
-    }
-
     const now = new Date();
-    const confirmed = await prisma.$transaction(async (tx) => {
-      const updated = await tx.newsletterSubscriber.updateMany({
-        where: {
-          id: subscriber.id,
-          active: false,
-          confirmationTokenHash: validated.tokenHash,
-          confirmationExpiresAt: { gt: now },
-        },
-        data: {
-          active: true,
-          confirmedAt: now,
-          subscribedAt: now,
-          confirmationTokenHash: null,
-          confirmationExpiresAt: null,
-          confirmationSentAt: null,
-        },
-      });
-      if (updated.count !== 1) return false;
-      await clearOneClickEmailSuppression(subscriber.email, tx);
-      return true;
+    const confirmed = await confirmNewsletterSubscription(prisma, {
+      tokenHash: validated.tokenHash,
+      now,
     });
 
     if (!confirmed) {
