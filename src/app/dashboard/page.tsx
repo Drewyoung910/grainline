@@ -45,7 +45,6 @@ async function readOptional<T>(part: string, read: () => Promise<T>): Promise<T 
     return null;
   }
 }
-
 export default function DashboardPage(props: DashboardPageProps) {
   return (
     <Suspense fallback={<WorkshopSkeleton />}>

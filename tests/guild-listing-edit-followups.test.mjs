@@ -112,7 +112,7 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(dashboard, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
-    assert.match(stockRoute, /syncGuildMemberListingThreshold\(seller\.sellerProfileId\)/);
+    assert.match(stockRoute, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(adminRemoveRoute, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(adminReviewRoute, /syncGuildThresholdAfterAdminReview\(id, listing\.sellerId, 'admin_listing_approve_guild_threshold'\)/);
     assert.match(adminReviewRoute, /syncGuildThresholdAfterAdminReview\(id, listing\.sellerId, 'admin_listing_reject_guild_threshold'\)/);

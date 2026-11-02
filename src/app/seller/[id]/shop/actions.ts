@@ -29,7 +29,7 @@ import {
   sellerOwnerCore,
   sellerOwnerListingPublishReview,
 } from "@/lib/sellerProfileOwnerAccess";
-import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
+import { listingOwnerActionState, listingOwnerTransition } from "@/lib/listingOwnerAccess";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 const customOrderReadyWarning = "Listing is live, but the buyer was not notified. Contact support; delivery is safe to retry.";
@@ -147,16 +147,11 @@ export async function hideListingAction(listingId: string) {
   const listing = owned.listing;
   const blockReason = hideListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
-  const result = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
-      archivedAt: null,
-    },
-    data: { status: ListingStatus.HIDDEN },
+  const result = await listingOwnerTransition(listing.seller.userId, {
+    listingId,
+    operation: "HIDE",
   });
-  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
+  if (!result) return { ok: false, error: "Listing state changed; refresh and try again." };
   await syncThreshold(listing.sellerId);
   queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_hide");
   revalidateListingSurfaces(listingId, listing.sellerId);
@@ -182,15 +177,11 @@ export async function markSoldAction(listingId: string) {
   if (listing.status !== "ACTIVE" && listing.status !== "SOLD_OUT") {
     return { ok: false, error: "Only active or sold-out listings can be marked sold." };
   }
-  const result = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
-    },
-    data: { status: ListingStatus.SOLD },
+  const result = await listingOwnerTransition(listing.seller.userId, {
+    listingId,
+    operation: "MARK_SOLD",
   });
-  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
+  if (!result) return { ok: false, error: "Listing state changed; refresh and try again." };
   await syncThreshold(listing.sellerId);
   queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_mark_sold");
   revalidateListingSurfaces(listingId, listing.sellerId);
@@ -235,23 +226,12 @@ export async function withdrawListingReviewAction(listingId: string) {
   const blockReason = withdrawReviewBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  const result = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: ListingStatus.PENDING_REVIEW,
-      updatedAt: listing.updatedAt,
-    },
-    data: {
-      status: ListingStatus.DRAFT,
-      aiReviewFlags: [],
-      aiReviewScore: null,
-      reviewedByAdmin: false,
-      reviewedAt: null,
-      rejectionReason: null,
-    },
+  const result = await listingOwnerTransition(listing.seller.userId, {
+    listingId,
+    operation: "WITHDRAW_REVIEW",
+    expectedUpdatedAt: listing.updatedAt,
   });
-  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
+  if (!result) return { ok: false, error: "Listing state changed; refresh and try again." };
 
   revalidateListingSurfaces(listingId, listing.sellerId);
   return { ok: true };

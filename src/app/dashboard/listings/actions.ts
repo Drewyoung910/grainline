@@ -14,7 +14,7 @@ import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { listingOwnerActionState } from "@/lib/listingOwnerAccess";
+import { listingOwnerActionState, listingOwnerTransition } from "@/lib/listingOwnerAccess";
 
 type DashboardActionState = { ok: boolean; error?: string };
 
@@ -57,16 +57,11 @@ export async function setStatus(
     return { ok: false, error: "That status change is not available here." };
   }
 
-  const updated = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: listing.status,
-      archivedAt: null,
-    },
-    data: { status: nextStatus },
+  const updated = await listingOwnerTransition(me.id, {
+    listingId,
+    operation: nextStatus === ListingStatus.HIDDEN ? "HIDE" : "MARK_SOLD",
   });
-  if (updated.count === 0) {
+  if (!updated) {
     return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
   }
 
@@ -172,23 +167,12 @@ export async function withdrawListingReview(
   const blockReason = withdrawReviewBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  const updated = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: ListingStatus.PENDING_REVIEW,
-      updatedAt: listing.updatedAt,
-    },
-    data: {
-      status: ListingStatus.DRAFT,
-      aiReviewFlags: [],
-      aiReviewScore: null,
-      reviewedByAdmin: false,
-      reviewedAt: null,
-      rejectionReason: null,
-    },
+  const updated = await listingOwnerTransition(me.id, {
+    listingId,
+    operation: "WITHDRAW_REVIEW",
+    expectedUpdatedAt: listing.updatedAt,
   });
-  if (updated.count === 0) {
+  if (!updated) {
     return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
   }
 

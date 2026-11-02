@@ -13,9 +13,10 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     const end = text.indexOf("export async function deleteListingAction");
     const body = text.slice(start, end);
 
-    assert.match(body, /prisma\.listing\.updateMany/);
-    assert.match(body, /sellerId: listing\.sellerId/);
-    assert.match(body, /status: \{ in: \[ListingStatus\.ACTIVE, ListingStatus\.SOLD_OUT\] \}/);
+    assert.match(body, /listingOwnerTransition\(listing\.seller\.userId, \{/);
+    assert.match(body, /operation: "MARK_SOLD"/);
+    assert.match(body, /if \(!result\) return \{ ok: false, error: "Listing state changed; refresh and try again\." \}/);
+    assert.doesNotMatch(body, /prisma\.listing\.updateMany/);
     assert.doesNotMatch(body, /prisma\.listing\.update\(\{ where: \{ id: listingId \}/);
   });
 

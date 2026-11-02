@@ -73,6 +73,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner action-state authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_transition(text,text,timestamp without time zone)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner transition authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -1276,6 +1281,119 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_action_state(text)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_action_state(text)
   TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_transition(
+  p_listing_id text,
+  p_operation text,
+  p_expected_updated_at timestamp without time zone
+)
+RETURNS TABLE (applied boolean)
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_transition$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  source_listing public."Listing"%ROWTYPE;
+  source_now timestamp(3) without time zone :=
+    (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_operation IS NULL
+     OR p_operation NOT IN ('HIDE', 'MARK_SOLD', 'WITHDRAW_REVIEW')
+     OR (
+       p_operation = 'WITHDRAW_REVIEW'
+       AND p_expected_updated_at IS NULL
+     )
+     OR (
+       p_operation <> 'WITHDRAW_REVIEW'
+       AND p_expected_updated_at IS NOT NULL
+     ) THEN
+    RAISE EXCEPTION 'Listing owner transition input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false;
+    RETURN;
+  END IF;
+
+  SELECT listing.*
+    INTO source_listing
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false;
+    RETURN;
+  END IF;
+
+  IF p_operation = 'HIDE' THEN
+    IF source_listing."archivedAt" IS NOT NULL
+       OR source_listing.status::text NOT IN ('ACTIVE', 'SOLD_OUT') THEN
+      RETURN QUERY SELECT false;
+      RETURN;
+    END IF;
+    UPDATE public."Listing" AS listing
+       SET status = 'HIDDEN'::public."ListingStatus",
+           "updatedAt" = source_now
+     WHERE listing.id = source_listing.id;
+  ELSIF p_operation = 'MARK_SOLD' THEN
+    IF source_listing."archivedAt" IS NOT NULL
+       OR source_listing.status::text NOT IN ('ACTIVE', 'SOLD_OUT') THEN
+      RETURN QUERY SELECT false;
+      RETURN;
+    END IF;
+    UPDATE public."Listing" AS listing
+       SET status = 'SOLD'::public."ListingStatus",
+           "updatedAt" = source_now
+     WHERE listing.id = source_listing.id;
+  ELSE
+    IF source_listing.status::text <> 'PENDING_REVIEW'
+       OR source_listing."updatedAt" IS DISTINCT FROM p_expected_updated_at THEN
+      RETURN QUERY SELECT false;
+      RETURN;
+    END IF;
+    UPDATE public."Listing" AS listing
+       SET status = 'DRAFT'::public."ListingStatus",
+           "aiReviewFlags" = ARRAY[]::text[],
+           "aiReviewScore" = NULL,
+           "reviewedByAdmin" = false,
+           "reviewedAt" = NULL,
+           "rejectionReason" = NULL,
+           "updatedAt" = source_now
+     WHERE listing.id = source_listing.id;
+  END IF;
+
+  RETURN QUERY SELECT true;
+END
+$grainline_listing_owner_transition$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_transition(
+  text,text,timestamp without time zone
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_transition(
+  text,text,timestamp without time zone
+) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(
   p_conversation_id text
