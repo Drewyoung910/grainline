@@ -1,16 +1,18 @@
 // Database reads for the Workshop sidebar, overview and Listings page. Kept in
 // one file so a change to how seller listings are read has one place to land.
 import { cache } from "react";
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { ListingStatus, ListingType } from "@prisma/client";
 import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { readSellerOrderSummaryPage } from "@/lib/orderParticipantReadAuthority";
 import { ordersAwaitingFulfillment, workshopListingFilterStatus, type WorkshopListingFilter } from "@/lib/workshopQueue";
+import {
+  listingOwnerSummaryRows,
+  listingOwnerWorkshopSummary,
+} from "@/lib/listingOwnerAccess";
 
 const ORDER_QUEUE_LIMIT = 50;
 const RECENT_ORDER_ROWS = 4;
 export const WORKSHOP_LISTINGS_PAGE_SIZE = 30;
-const LOW_STOCK_MAX = 2;
 
 // Shared by the sidebar and the overview within one request.
 export const readWorkshopOrderQueue = cache(async (actorUserId: string) => {
@@ -26,88 +28,37 @@ export const readWorkshopOrderQueue = cache(async (actorUserId: string) => {
   };
 });
 
-export async function readWorkshopListingAttention(sellerProfileId: string) {
-  const [listingCount, underReview, underReviewFirst, rejected, lowStock] = await Promise.all([
-    prisma.listing.count({ where: { sellerId: sellerProfileId, archivedAt: null } }),
-    prisma.listing.count({
-      where: { sellerId: sellerProfileId, archivedAt: null, status: "PENDING_REVIEW" },
-    }),
-    prisma.listing.findFirst({
-      where: { sellerId: sellerProfileId, archivedAt: null, status: "PENDING_REVIEW" },
-      select: { title: true },
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    }),
-    prisma.listing.count({ where: { sellerId: sellerProfileId, archivedAt: null, status: "REJECTED" } }),
-    prisma.listing.findMany({
-      where: {
-        sellerId: sellerProfileId,
-        archivedAt: null,
-        status: "ACTIVE",
-        listingType: "IN_STOCK",
-        stockQuantity: { gte: 1, lte: LOW_STOCK_MAX },
-      },
-      select: { title: true, stockQuantity: true },
-      orderBy: [{ stockQuantity: "asc" }, { id: "asc" }],
-      take: 3,
-    }),
-  ]);
+const readWorkshopListingSummary = cache(listingOwnerWorkshopSummary);
+
+export async function readWorkshopListingAttention(actorUserId: string) {
+  const summary = await readWorkshopListingSummary(actorUserId);
   return {
-    listingCount,
-    underReview,
-    underReviewTitle: underReviewFirst?.title ?? null,
-    rejected,
-    lowStock: lowStock.map((item) => ({ title: item.title, stockQuantity: item.stockQuantity ?? 0 })),
+    listingCount: summary.listingCount,
+    underReview: summary.statusCounts.PENDING_REVIEW ?? 0,
+    underReviewTitle: summary.underReviewTitle,
+    rejected: summary.statusCounts.REJECTED ?? 0,
+    lowStock: summary.lowStock,
   };
 }
 
-function listingFilterWhere(sellerProfileId: string, filter: WorkshopListingFilter): Prisma.ListingWhereInput {
-  const where: Prisma.ListingWhereInput = { sellerId: sellerProfileId, archivedAt: null };
-  if (filter === "stock") return { ...where, listingType: "IN_STOCK" };
-  const status = workshopListingFilterStatus(filter);
-  return status ? { ...where, status: status as Prisma.ListingWhereInput["status"] } : where;
-}
-
-export async function readWorkshopListingFilterCounts(sellerProfileId: string) {
-  const [statusRows, inStock] = await Promise.all([
-    prisma.listing.groupBy({
-      by: ["status"],
-      where: { sellerId: sellerProfileId, archivedAt: null },
-      _count: { _all: true },
-    }),
-    prisma.listing.count({ where: { sellerId: sellerProfileId, archivedAt: null, listingType: "IN_STOCK" } }),
-  ]);
+export async function readWorkshopListingFilterCounts(actorUserId: string) {
+  const summary = await readWorkshopListingSummary(actorUserId);
   return {
-    statusCounts: Object.fromEntries(statusRows.map((row) => [row.status, row._count._all])) as Record<string, number>,
-    inStock,
+    statusCounts: summary.statusCounts,
+    inStock: summary.inStock,
   };
 }
 
 export async function readWorkshopListingsPage(
-  sellerProfileId: string,
+  actorUserId: string,
   filter: WorkshopListingFilter,
   page: number,
 ) {
-  return prisma.listing.findMany({
-    where: listingFilterWhere(sellerProfileId, filter),
-    select: {
-      id: true,
-      title: true,
-      priceCents: true,
-      currency: true,
-      status: true,
-      listingType: true,
-      stockQuantity: true,
-      isPrivate: true,
-      viewCount: true,
-      clickCount: true,
-      favoriteCount: true,
-      aiReviewFlags: true,
-      reviewedByAdmin: true,
-      createdAt: true,
-      updatedAt: true,
-      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-    },
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  const status = workshopListingFilterStatus(filter) as ListingStatus | null;
+  return listingOwnerSummaryRows(actorUserId, {
+    status: status ?? undefined,
+    listingType: filter === "stock" ? ListingType.IN_STOCK : undefined,
+    includeArchived: false,
     skip: (page - 1) * WORKSHOP_LISTINGS_PAGE_SIZE,
     take: WORKSHOP_LISTINGS_PAGE_SIZE,
   });

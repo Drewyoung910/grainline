@@ -58,6 +58,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner-export authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_summary_page(text,text,boolean,timestamp without time zone,text,integer)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner-summary authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -966,6 +971,146 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_export_page(
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_export_page(
   timestamp without time zone,text,integer
+) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_summary_page(
+  p_status text,
+  p_listing_type text,
+  p_include_archived boolean,
+  p_before_updated_at timestamp without time zone,
+  p_before_listing_id text,
+  p_limit integer
+)
+RETURNS TABLE (
+  id text,
+  title text,
+  "priceCents" integer,
+  currency text,
+  status text,
+  "isPrivate" boolean,
+  "listingType" text,
+  "stockQuantity" integer,
+  "viewCount" integer,
+  "clickCount" integer,
+  "favoriteCount" integer,
+  "aiReviewFlags" text[],
+  "reviewedByAdmin" boolean,
+  "createdAt" timestamp(3) without time zone,
+  "updatedAt" timestamp(3) without time zone,
+  "archivedAt" timestamp(3) without time zone,
+  photos jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_summary_page$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR (
+       p_status IS NOT NULL
+       AND p_status NOT IN (
+         'DRAFT', 'ACTIVE', 'SOLD', 'SOLD_OUT', 'HIDDEN',
+         'PENDING_REVIEW', 'REJECTED'
+       )
+     )
+     OR (
+       p_listing_type IS NOT NULL
+       AND p_listing_type NOT IN ('MADE_TO_ORDER', 'IN_STOCK')
+     )
+     OR p_include_archived IS NULL
+     OR (p_before_updated_at IS NULL) <> (p_before_listing_id IS NULL)
+     OR (
+       p_before_listing_id IS NOT NULL
+       AND p_before_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     )
+     OR p_limit IS NULL
+     OR p_limit < 1
+     OR p_limit > 100 THEN
+    RAISE EXCEPTION 'Listing owner-summary input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    listing.id::text,
+    listing.title::text,
+    listing."priceCents",
+    listing.currency::text,
+    listing.status::text,
+    listing."isPrivate",
+    listing."listingType"::text,
+    listing."stockQuantity",
+    listing."viewCount",
+    listing."clickCount",
+    listing."favoriteCount",
+    listing."aiReviewFlags"::text[],
+    listing."reviewedByAdmin",
+    listing."createdAt",
+    listing."updatedAt",
+    listing."archivedAt",
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object('url', photo.url)
+        ORDER BY photo."sortOrder" ASC, photo.id ASC
+      )
+        FROM (
+          SELECT source_photo.id,
+                 source_photo.url,
+                 source_photo."sortOrder"
+            FROM public."Photo" AS source_photo
+           WHERE source_photo."listingId" = listing.id
+           ORDER BY source_photo."sortOrder" ASC, source_photo.id ASC
+           LIMIT 1
+        ) AS photo
+    ), '[]'::jsonb)
+    FROM public."Listing" AS listing
+   WHERE listing."sellerId" = seller_id
+     AND (p_status IS NULL OR listing.status::text = p_status)
+     AND (
+       p_listing_type IS NULL
+       OR listing."listingType"::text = p_listing_type
+     )
+     AND (p_include_archived OR listing."archivedAt" IS NULL)
+     AND (
+       p_before_updated_at IS NULL
+       OR listing."updatedAt" < p_before_updated_at
+       OR (
+         listing."updatedAt" = p_before_updated_at
+         AND listing.id < p_before_listing_id
+       )
+     )
+   ORDER BY listing."updatedAt" DESC, listing.id DESC
+   LIMIT p_limit;
+END
+$grainline_listing_owner_summary_page$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_summary_page(
+  text,text,boolean,timestamp without time zone,text,integer
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_summary_page(
+  text,text,boolean,timestamp without time zone,text,integer
 ) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(

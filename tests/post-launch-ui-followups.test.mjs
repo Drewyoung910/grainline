@@ -310,11 +310,15 @@ describe("post-launch UI follow-ups", () => {
 
   it("dashboard listing card click goes to public path for active and to preview URL for non-public statuses", () => {
     const dashboard = source("src/app/dashboard/listings/page.tsx");
+    const workshopData = source("src/lib/workshopData.ts");
     // The card link branches on isPublicStatus and appends ?preview=1 for the
     // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
     assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
     assert.match(dashboard, /\?preview=1`/);
-    assert.match(source("src/lib/workshopData.ts"), /where: \{ sellerId: sellerProfileId, archivedAt: null \}/);
+    assert.match(
+      workshopData,
+      /listingOwnerSummaryRows\(actorUserId,[\s\S]*includeArchived: false,[\s\S]*take: WORKSHOP_LISTINGS_PAGE_SIZE/u,
+    );
   });
 
   it("AI alt-text backfill helper exists and is wired into every reviewListingWithAI path", () => {
