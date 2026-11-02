@@ -93,6 +93,9 @@ import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess"
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
 import { deleteAllOwnerFavorites } from "@/lib/favoriteAccess";
 import { cleanupFollowsForAccountDeletion } from "@/lib/sellerFollowAccess";
+import { deleteAllOwnerBlocks } from "@/lib/blockAccess";
+import { redactUserReportsForAccountDeletion } from "@/lib/userReportAccess";
+import { cleanupSellerFaqsForAccountDeletion } from "@/lib/sellerFaqAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -1170,7 +1173,7 @@ export async function anonymizeUserAccount(
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
     await deleteAllOwnerReviewVotes(tx);
-    await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await deleteAllOwnerBlocks(tx);
     await redactActorMessagesForAccountDeletion({
       sideEffectId: localAnonymizeSideEffectId,
       userId: user.id,
@@ -1207,28 +1210,11 @@ export async function anonymizeUserAccount(
     await tx.reviewPhoto.deleteMany({
       where: { review: { reviewerId: user.id } },
     });
-    await tx.userReport.updateMany({
-      where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
-      data: { details: null },
-    });
-    await tx.userReport.updateMany({
-      where: {
-        OR: [{ reporterId: user.id }, { reportedId: user.id }],
-        resolved: true,
-        resolutionNote: { not: null },
-      },
-      data: {
-        resolutionNote: "Resolution note removed after an involved account was deleted.",
-      },
-    });
-    await tx.userReport.updateMany({
-      where: { reportedId: user.id, resolved: false },
-      data: {
-        resolved: true,
-        resolvedAt: now,
-        resolvedById: null,
-        resolutionNote: "Auto-resolved after the reported account was deleted.",
-      },
+    await redactUserReportsForAccountDeletion(tx, {
+      expectedUserId: user.id,
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
     await redactSupportRequestsForAccountDeletion(
       tx,
@@ -1371,8 +1357,11 @@ export async function anonymizeUserAccount(
       await tx.sellerBroadcast.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await tx.sellerFaq.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupSellerFaqsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await anonymizeSellerForAccountDeletion(tx, {
         sellerProfileId: user.sellerProfile.id,
