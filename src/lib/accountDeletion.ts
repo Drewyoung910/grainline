@@ -142,6 +142,8 @@ export type AccountDeletionBlocker = {
 type AuditLogRedactionCandidate = {
   metadata: Prisma.JsonValue;
   reason: string | null;
+  metadataSha256: string;
+  reasonSha256: string;
   directAccountReference: boolean;
 };
 
@@ -231,6 +233,8 @@ async function collectAdminAuditLogRedactionUpdates({
       candidates.set(log.id, {
         metadata: log.metadata,
         reason: log.reason,
+        metadataSha256: log.metadataSha256,
+        reasonSha256: log.reasonSha256,
         directAccountReference: true,
       });
     }
@@ -255,8 +259,10 @@ async function collectAdminAuditLogRedactionUpdates({
     if (!redacted.changed && !marked.changed && !reason.changed) continue;
     updates.push({
       logId: id,
-      sensitiveValues,
-      directAccountReference: candidate.directAccountReference,
+      expectedMetadataSha256: candidate.metadataSha256,
+      expectedReasonSha256: candidate.reasonSha256,
+      ...(redacted.changed || marked.changed ? { metadata: marked.metadata } : {}),
+      ...(reason.changed && reason.text !== null ? { reason: reason.text } : {}),
     });
   }
   return updates;

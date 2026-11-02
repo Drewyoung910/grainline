@@ -224,9 +224,14 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
              ) AS runtime_deletion_candidates,
              pg_catalog.has_function_privilege(
                'grainline_staff_read_runtime',
-               'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text,jsonb,text,jsonb,text,boolean,boolean)',
+               'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)',
                'EXECUTE'
              ) AS staff_deletion_apply,
+             pg_catalog.has_function_privilege(
+               'grainline_account_deletion_runtime',
+               'public.grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)',
+               'EXECUTE'
+             ) AS deletion_apply,
              pg_catalog.has_function_privilege(
                'grainline_account_deletion_runtime',
                'public.grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)',
@@ -258,6 +263,7 @@ test("AdminAuditLog preparation preserves predecessor access and adds exact ACLs
       deletion_candidates: true,
       runtime_deletion_candidates: false,
       staff_deletion_apply: false,
+      deletion_apply: true,
       deletion_legacy_apply: true,
       runtime_deletion_legacy_apply: false,
     });
@@ -405,19 +411,51 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
     );
     await database.query(
       `INSERT INTO public."AdminAuditLog" (
-         id, "adminId", action, "targetType", "targetId", metadata
+         id, "adminId", action, "targetType", "targetId", metadata,
+         reason, undone, "undoneAt", "undoneBy", "undoneReason"
        ) VALUES
        (
          'proof-current-delete-audit', 'proof-current-deleted',
          'USER_ACCOUNT_DELETE', 'USER', 'proof-current-deleted',
-         '{"actorKind":"user"}'::jsonb
+         '{"actorKind":"user"}'::jsonb, NULL, false, NULL, NULL, NULL
        ),
        (
          'proof-current-target', 'proof-admin', 'BAN_USER', 'USER',
          'proof-current-deleted',
-         '{"userId":"proof-current-deleted","safe":"keep"}'::jsonb
+         '{"userId":"proof-current-deleted","safe":"keep"}'::jsonb,
+         'deleted proof-current-deleted', true,
+         '2026-11-02 11:01:00'::timestamp, 'proof-admin-two', 'reviewed reversal'
        )`,
     );
+    const candidates = await asAccountDeletionRuntime(
+      database,
+      `SELECT * FROM public.grainline_admin_audit_account_deletion_candidates(
+         $1, $2::text[], $3::text[], NULL, 10
+       )`,
+      [
+        "proof-current-deleted",
+        ["proof-current-deleted"],
+        ["proof-current-deleted"],
+      ],
+    );
+    const candidate = candidates.rows.find((row) => row.id === "proof-current-target");
+    assert.ok(candidate);
+    assert.match(candidate.metadataSha256, /^[0-9a-f]{64}$/u);
+    assert.match(candidate.reasonSha256, /^[0-9a-f]{64}$/u);
+
+    const payload = {
+      logId: "proof-current-target",
+      planVersion: 2,
+      expectedMetadataSha256: candidate.metadataSha256,
+      expectedReasonSha256: candidate.reasonSha256,
+      metadata: {
+        userId: "[deleted account]",
+        safe: "keep",
+        redactedForAccountDeletion: true,
+      },
+      reason: "deleted [deleted account]",
+    };
+    assert.doesNotMatch(JSON.stringify(payload), /proof-current-deleted/u);
     await database.query(
       `INSERT INTO public."AccountDeletionSideEffect" (
          id, "userId", kind, "dedupKey", payload, status,
@@ -427,48 +465,24 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
          'account-delete:audit:proof-current-deleted:proof-current-target',
          $1::jsonb, 'PROCESSING', 1, $2::uuid, CURRENT_TIMESTAMP
        )`,
-      [
-        JSON.stringify({
-          logId: "proof-current-target",
-          sensitiveValues: ["proof-current-deleted"],
-          directAccountReference: true,
-        }),
-        claimToken,
-      ],
+      [JSON.stringify(payload), claimToken],
     );
-    const source = await asAccountDeletionRuntime(
-      database,
-      `SELECT * FROM public.grainline_admin_audit_account_deletion_redaction_source(
-         $1, 1, $2::uuid, $3
-       )`,
-      ["proof-current-effect", claimToken, "proof-current-target"],
-    );
-    assert.deepEqual(source.rows[0], {
-      metadata: { userId: "proof-current-deleted", safe: "keep" },
-      reason: null,
-    });
 
     const applied = await asAccountDeletionRuntime(
       database,
       `SELECT public.grainline_admin_audit_account_deletion_redaction_apply(
-         $1, 1, $2::uuid, $3,
-         $4::jsonb, NULL, $5::jsonb, NULL, true, false
+         $1, 1, $2::uuid, $3
        ) AS applied`,
       [
         "proof-current-effect",
         claimToken,
         "proof-current-target",
-        JSON.stringify(source.rows[0].metadata),
-        JSON.stringify({
-          userId: "[deleted account]",
-          safe: "keep",
-          redactedForAccountDeletion: true,
-        }),
       ],
     );
     assert.equal(applied.rows[0].applied, true);
     const stored = await database.query(
-      `SELECT audit.metadata, effect.status, effect.payload,
+      `SELECT audit.metadata, audit.reason, audit.undone, audit."undoneBy",
+              audit."undoneReason", effect.status, effect.payload,
               effect."processedAt", effect."processingStartedAt"
          FROM public."AdminAuditLog" AS audit
          JOIN public."AccountDeletionSideEffect" AS effect
@@ -480,10 +494,80 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
       safe: "keep",
       redactedForAccountDeletion: true,
     });
+    assert.equal(stored.rows[0].reason, "deleted [deleted account]");
+    assert.equal(stored.rows[0].undone, true);
+    assert.equal(stored.rows[0].undoneBy, "proof-admin-two");
+    assert.equal(stored.rows[0].undoneReason, "reviewed reversal");
     assert.equal(stored.rows[0].status, "DONE");
     assert.deepEqual(stored.rows[0].payload, {});
     assert.ok(stored.rows[0].processedAt instanceof Date);
     assert.equal(stored.rows[0].processingStartedAt, null);
+  } finally {
+    await database.close();
+  }
+});
+
+test("account deletion redaction refuses a stale source fingerprint without changing either row", async () => {
+  const database = await readyDatabase();
+  try {
+    const claimToken = "33333333-3333-4333-8333-333333333333";
+    await database.query(
+      `INSERT INTO public."User" (id, "deletedAt")
+       VALUES ('proof-stale-deleted', '2026-11-02 12:00:00'::timestamp)`,
+    );
+    await database.query(
+      `INSERT INTO public."AdminAuditLog" (
+         id, "adminId", action, "targetType", "targetId", metadata
+       ) VALUES
+       (
+         'proof-stale-delete-audit', 'proof-stale-deleted',
+         'USER_ACCOUNT_DELETE', 'USER', 'proof-stale-deleted',
+         '{"actorKind":"user"}'::jsonb
+       ),
+       (
+         'proof-stale-target', 'proof-admin', 'BAN_USER', 'USER',
+         'proof-stale-deleted', '{"safe":"newer"}'::jsonb
+       )`,
+    );
+    await database.query(
+      `INSERT INTO public."AccountDeletionSideEffect" (
+         id, "userId", kind, "dedupKey", payload, status,
+         "claimGeneration", "claimToken", "processingStartedAt"
+       ) VALUES (
+         'proof-stale-effect', 'proof-stale-deleted', 'AUDIT_REDACT',
+         'account-delete:audit:proof-stale-deleted:proof-stale-target',
+         $1::jsonb, 'PROCESSING', 1, $2::uuid, CURRENT_TIMESTAMP
+       )`,
+      [
+        JSON.stringify({
+          logId: "proof-stale-target",
+          planVersion: 2,
+          expectedMetadataSha256: "0".repeat(64),
+          expectedReasonSha256: "0".repeat(64),
+          metadata: { safe: "older", redactedForAccountDeletion: true },
+        }),
+        claimToken,
+      ],
+    );
+
+    const applied = await asAccountDeletionRuntime(
+      database,
+      `SELECT public.grainline_admin_audit_account_deletion_redaction_apply(
+         $1, 1, $2::uuid, $3
+       ) AS applied`,
+      ["proof-stale-effect", claimToken, "proof-stale-target"],
+    );
+    assert.equal(applied.rows[0].applied, false);
+    const state = await database.query(
+      `SELECT audit.metadata, effect.status, effect.payload
+         FROM public."AdminAuditLog" AS audit
+         JOIN public."AccountDeletionSideEffect" AS effect
+           ON effect.id = 'proof-stale-effect'
+        WHERE audit.id = 'proof-stale-target'`,
+    );
+    assert.deepEqual(state.rows[0].metadata, { safe: "newer" });
+    assert.equal(state.rows[0].status, "PROCESSING");
+    assert.equal(state.rows[0].payload.expectedMetadataSha256, "0".repeat(64));
   } finally {
     await database.close();
   }

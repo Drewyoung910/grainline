@@ -16,13 +16,7 @@ import { clearSellerAccountDeletionReconciliation } from "@/lib/sellerAccountDel
 import {
   applyAdminAuditLogAccountDeletionRedaction,
   applyLegacyAdminAuditLogAccountDeletionRedaction,
-  adminAuditLogAccountDeletionRedactionSource,
 } from "@/lib/adminAuditLogAccess";
-import {
-  markAccountDeletionAuditMetadata,
-  redactAccountDeletionAuditMetadata,
-  redactAccountDeletionText,
-} from "@/lib/accountDeletionAuditRedaction";
 
 export const ACCOUNT_DELETION_SIDE_EFFECT_STATUS = {
   PENDING: "PENDING",
@@ -64,8 +58,10 @@ type AccountDeletionSideEffectClaimResult =
 
 export type AccountDeletionAuditRedactionUpdate = {
   logId: string;
-  sensitiveValues: string[];
-  directAccountReference: boolean;
+  expectedMetadataSha256: string;
+  expectedReasonSha256: string;
+  metadata?: Prisma.JsonValue;
+  reason?: string;
 };
 
 function hashDedupPart(value: string) {
@@ -334,8 +330,11 @@ export async function enqueueAccountDeletionAuditRedactionSideEffects(
       dedupKey: accountDeletionAuditRedactDedupKey(userId, update.logId),
       payload: {
         logId: update.logId,
-        sensitiveValues: update.sensitiveValues,
-        directAccountReference: update.directAccountReference,
+        planVersion: 2,
+        expectedMetadataSha256: update.expectedMetadataSha256,
+        expectedReasonSha256: update.expectedReasonSha256,
+        ...(update.metadata !== undefined ? { metadata: update.metadata } : {}),
+        ...(update.reason !== undefined ? { reason: update.reason } : {}),
       } as Prisma.InputJsonObject,
     })),
     skipDuplicates: true,
@@ -435,8 +434,9 @@ async function performAccountDeletionSideEffect(effect: {
     if (typeof payload.logId !== "string") {
       throw new Error("Missing audit log id for account deletion side effect");
     }
-    const legacyPayload = payload.sensitiveValues === undefined
-      && payload.directAccountReference === undefined
+    const legacyPayload = payload.planVersion === undefined
+      && payload.expectedMetadataSha256 === undefined
+      && payload.expectedReasonSha256 === undefined
       && (payload.metadata !== undefined || typeof payload.reason === "string");
     if (legacyPayload) {
       await applyLegacyAdminAuditLogAccountDeletionRedaction(
@@ -450,61 +450,32 @@ async function performAccountDeletionSideEffect(effect: {
       );
       return;
     }
-    const rawSensitiveValues = payload.sensitiveValues;
-    const sensitiveValues = Array.isArray(rawSensitiveValues)
-      ? rawSensitiveValues.filter((value): value is string => typeof value === "string")
-      : [];
     if (
-      sensitiveValues.length === 0
-      || !Array.isArray(rawSensitiveValues)
-      || sensitiveValues.length !== rawSensitiveValues.length
-      || sensitiveValues.some((value) => Array.from(value).length > 2048)
+      payload.planVersion !== 2
+      || typeof payload.expectedMetadataSha256 !== "string"
+      || !/^[0-9a-f]{64}$/u.test(payload.expectedMetadataSha256)
+      || typeof payload.expectedReasonSha256 !== "string"
+      || !/^[0-9a-f]{64}$/u.test(payload.expectedReasonSha256)
+      || (payload.metadata === undefined && typeof payload.reason !== "string")
       || new TextEncoder().encode(JSON.stringify(payload)).byteLength
         > ACCOUNT_DELETION_AUDIT_PAYLOAD_BYTE_LIMIT
-      || typeof payload.directAccountReference !== "boolean"
     ) {
       throw new Error("Invalid audit redaction plan for account deletion side effect");
     }
 
-    const accountDeletionClient = getAccountDeletionSideEffectClient();
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const source = await adminAuditLogAccountDeletionRedactionSource(
-        accountDeletionClient,
-        {
-          sideEffectId: effect.id,
-          claimGeneration: effect.claimGeneration,
-          claimToken: effect.claimToken,
-          logId: payload.logId,
-        },
-      );
-      const redacted = redactAccountDeletionAuditMetadata(
-        source.metadata as Parameters<typeof redactAccountDeletionAuditMetadata>[0],
-        sensitiveValues,
-      );
-      const marked = payload.directAccountReference
-        ? markAccountDeletionAuditMetadata(redacted.metadata)
-        : { metadata: redacted.metadata, changed: false };
-      const reason = source.reason
-        ? redactAccountDeletionText(source.reason, sensitiveValues, undefined, 1000)
-        : { text: null, changed: false };
-      const applied = await applyAdminAuditLogAccountDeletionRedaction(
-        accountDeletionClient,
-        {
-          sideEffectId: effect.id,
-          claimGeneration: effect.claimGeneration,
-          claimToken: effect.claimToken,
-          logId: payload.logId,
-          expectedMetadata: source.metadata,
-          expectedReason: source.reason,
-          nextMetadata: marked.metadata,
-          nextReason: reason.text,
-          updateMetadata: redacted.changed || marked.changed,
-          updateReason: reason.changed,
-        },
-      );
-      if (applied) return;
+    const applied = await applyAdminAuditLogAccountDeletionRedaction(
+      getAccountDeletionSideEffectClient(),
+      {
+        sideEffectId: effect.id,
+        claimGeneration: effect.claimGeneration,
+        claimToken: effect.claimToken,
+        logId: payload.logId,
+      },
+    );
+    if (!applied) {
+      throw new Error("Audit redaction source changed during account deletion");
     }
-    throw new Error("Audit redaction source changed repeatedly during account deletion");
+    return;
   }
 
   throw new Error(`Unknown account deletion side effect kind: ${effect.kind}`);
