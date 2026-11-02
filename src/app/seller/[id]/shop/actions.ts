@@ -28,7 +28,11 @@ import {
   sellerOwnerCore,
   sellerOwnerListingPublishReview,
 } from "@/lib/sellerProfileOwnerAccess";
-import { listingOwnerActionState, listingOwnerTransition } from "@/lib/listingOwnerAccess";
+import {
+  listingOwnerActionState,
+  listingOwnerAiReviewContext,
+  listingOwnerTransition,
+} from "@/lib/listingOwnerAccess";
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
@@ -271,13 +275,18 @@ export async function publishListingAction(listingId: string): Promise<PublishLi
     const { reviewListingWithAI } = await import("@/lib/ai-review");
     const { logAdminAction } = await import("@/lib/audit");
 
-    const photos = await prisma.photo.findMany({
-      where: { listingId: listing.id },
-      select: { url: true },
-      orderBy: { sortOrder: "asc" },
-      take: 10,
-    });
-    const reviewedImageUrls = photos.map((photo) => photo.url);
+    const aiContext = await listingOwnerAiReviewContext(
+      listing.seller.userId,
+      listing.id,
+    );
+    if (
+      !aiContext
+      || aiContext.sellerProfileId !== listing.sellerId
+      || aiContext.listingUpdatedAt.getTime() !== listing.updatedAt.getTime()
+    ) {
+      return { error: "Listing state changed; refresh and try again." };
+    }
+    const reviewedImageUrls = [...aiContext.photoUrls];
 
     const aiResult = await reviewListingWithAI({
       listingId: listing.id,
@@ -291,6 +300,7 @@ export async function publishListingAction(listingId: string): Promise<PublishLi
       sellerName: sellerReview.displayName,
       listingCount,
       imageUrls: reviewedImageUrls,
+      recentListingTitles: aiContext.recentTitles.map((title) => ({ title })),
     }).catch((error) => {
       logServerError(error, {
         source: "listing_publish_ai_review",

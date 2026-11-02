@@ -45,6 +45,7 @@ import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
 import {
   listingOwnerActionState,
+  listingOwnerAiReviewContext,
   listingOwnerEditor,
   listingOwnerTransition,
   updateListingOwnerContent,
@@ -468,14 +469,16 @@ async function updateListing(
         sellerReview?.sellerProfileId === listing.sellerId
         && sellerCore.chargesEnabled
       ) {
-        const photos = await prisma.photo.findMany({
-          where: { listingId },
-          select: { url: true },
-          orderBy: { sortOrder: "asc" },
-          take: 10,
-        });
+        const aiContext = await listingOwnerAiReviewContext(actor.id, listingId);
+        if (
+          !aiContext
+          || aiContext.sellerProfileId !== listing.sellerId
+          || aiContext.listingUpdatedAt.getTime() !== updatedListing.updatedAt.getTime()
+        ) {
+          throw new Error("Listing AI-review context changed before review");
+        }
         const { reviewListingWithAI } = await import("@/lib/ai-review");
-        const reviewedImageUrls = photos.map((photo) => photo.url);
+        const reviewedImageUrls = [...aiContext.photoUrls];
         const aiResult = await reviewListingWithAI({
           listingId,
           sellerId: sellerCore.sellerProfileId,
@@ -488,6 +491,9 @@ async function updateListing(
           sellerName: sellerCore.displayName,
           listingCount: sellerReview.totalListingCount,
           imageUrls: reviewedImageUrls,
+          recentListingTitles: aiContext.recentTitles.map((recentTitle) => ({
+            title: recentTitle,
+          })),
         }).catch(() => ({
           approved: false,
           flags: ["AI review error"] as string[],

@@ -9,6 +9,13 @@ import { isTextWithinCodePointRange } from "@/lib/textLength";
 
 type ListingOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
+type ListingOwnerAiReviewContextRow = {
+  sellerProfileId: unknown;
+  listingUpdatedAt: unknown;
+  recentTitles: unknown;
+  photoUrls: unknown;
+};
+
 type ListingOwnerEditorRow = {
   listingId: unknown;
   sellerProfileId: unknown;
@@ -694,6 +701,48 @@ export function listingOwnerEditor(userId: string, listingId: string) {
   return withDbUserContext(
     userId,
     (client) => readListingOwnerEditor(client, listingId),
+  );
+}
+
+async function readListingOwnerAiReviewContext(
+  client: ListingOwnerClient,
+  listingId: string,
+) {
+  if (!validId(listingId)) {
+    throw new RangeError("Listing owner AI-review context input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingOwnerAiReviewContextRow[]>`
+    SELECT *
+      FROM public.grainline_listing_owner_ai_review_context(${listingId}::text)
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Listing owner AI-review context authority returned multiple rows");
+  }
+  const row = rows[0];
+  if (
+    !validId(row.sellerProfileId)
+    || !validDate(row.listingUpdatedAt)
+    || !Array.isArray(row.recentTitles)
+    || row.recentTitles.some((title) => !isTextWithinCodePointRange(title, 1, 150))
+    || !Array.isArray(row.photoUrls)
+    || row.photoUrls.length > 10
+    || row.photoUrls.some((url) => !isTextWithinCodePointRange(url, 1, 2048))
+  ) {
+    throw new Error("Listing owner AI-review context authority returned an invalid result");
+  }
+  return Object.freeze({
+    sellerProfileId: row.sellerProfileId,
+    listingUpdatedAt: row.listingUpdatedAt,
+    recentTitles: Object.freeze([...row.recentTitles]),
+    photoUrls: Object.freeze([...row.photoUrls]),
+  });
+}
+
+export function listingOwnerAiReviewContext(userId: string, listingId: string) {
+  return withDbUserContext(
+    userId,
+    (client) => readListingOwnerAiReviewContext(client, listingId),
   );
 }
 
