@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - email_service_v1
+          - listing_catalog_v1
           - service_reference_v1
       release_commit:
         description: Exact reviewed main commit

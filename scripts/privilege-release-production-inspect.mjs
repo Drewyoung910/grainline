@@ -54,7 +54,26 @@ function quoteIdentifier(value) {
   return `"${value}"`;
 }
 
-function classify(rows, release) {
+function tableContract(release, tableName) {
+  const contract = release.tableContracts?.[tableName];
+  return Object.freeze({
+    rlsEnabled: contract?.rlsEnabled ?? false,
+    rlsForced: contract?.rlsForced ?? false,
+    runtimeColumnPrivileges: sorted(contract?.runtimeColumnPrivileges ?? []),
+    policies: contract?.policies ?? [],
+  });
+}
+
+function same(left, right) {
+  try {
+    assert.deepEqual(left, right);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function classifyTables(rows, release) {
   const expectedTables = Object.keys(release.tables).sort();
   assert.deepEqual(
     rows.map((row) => row.table_name),
@@ -67,21 +86,44 @@ function classify(rows, release) {
     assert.equal(row.current_user_name, row.session_user_name, "session role drifted");
     assert.equal(row.current_user_name, row.table_owner_name, "table owner drifted");
     assert.equal(row.owner_bypasses_rls, true, "table owner cannot bypass RLS");
-    assert.equal(row.rls_enabled, false, `${row.table_name} unexpectedly enables RLS`);
-    assert.equal(row.rls_forced, false, `${row.table_name} unexpectedly forces RLS`);
-    assert.equal(row.policy_count, 0, `${row.table_name} unexpectedly has policies`);
     assert.deepEqual(row.public_privileges, [], `${row.table_name} PUBLIC privileges drifted`);
     assert.deepEqual(row.staff_privileges, [], `${row.table_name} staff privileges drifted`);
     assert.deepEqual(row.runtime_grant_options, [], `${row.table_name} grant options drifted`);
     assert.deepEqual(row.staff_grant_options, [], `${row.table_name} staff grant options drifted`);
-    assert.deepEqual(row.runtime_column_privileges, [], `${row.table_name} column grants drifted`);
     assert.deepEqual(row.staff_column_privileges, [], `${row.table_name} staff column grants drifted`);
     const actual = sorted(row.runtime_privileges);
     const successor = sorted(release.tables[row.table_name]);
-    if (actual.join("|") === PREDECESSOR_PRIVILEGES.join("|")) predecessorCount += 1;
-    else if (actual.join("|") === successor.join("|")) successorCount += 1;
-    else assert.fail(`${row.table_name} runtime privileges drifted: ${actual.join(",")}`);
-    return Object.freeze({ table: row.table_name, runtimePrivileges: actual });
+    const contract = tableContract(release, row.table_name);
+    const actualColumnPrivileges = sorted(row.runtime_column_privileges);
+    const actualPolicies = row.policies ?? [];
+    assert.equal(
+      row.policy_count,
+      actualPolicies.length,
+      `${row.table_name} policy inventory drifted`,
+    );
+    const predecessor =
+      actual.join("|") === PREDECESSOR_PRIVILEGES.join("|")
+      && !row.rls_enabled
+      && !row.rls_forced
+      && actualColumnPrivileges.length === 0
+      && actualPolicies.length === 0;
+    const successorPosture =
+      actual.join("|") === successor.join("|")
+      && row.rls_enabled === contract.rlsEnabled
+      && row.rls_forced === contract.rlsForced
+      && same(actualColumnPrivileges, contract.runtimeColumnPrivileges)
+      && same(actualPolicies, contract.policies);
+    if (predecessor) predecessorCount += 1;
+    else if (successorPosture) successorCount += 1;
+    else assert.fail(`${row.table_name} privilege/RLS contract drifted`);
+    return Object.freeze({
+      table: row.table_name,
+      runtimePrivileges: actual,
+      runtimeColumnPrivileges: actualColumnPrivileges,
+      rlsEnabled: row.rls_enabled,
+      rlsForced: row.rls_forced,
+      policies: actualPolicies,
+    });
   });
   assert.ok(
     predecessorCount === rows.length || successorCount === rows.length,
@@ -91,6 +133,20 @@ function classify(rows, release) {
     posture: predecessorCount === rows.length ? "predecessor" : "successor",
     tables,
   });
+}
+
+export function classifyConstraints(rows, release, posture) {
+  const expected = release.constraints ?? [];
+  const sortedRows = [...rows].sort((left, right) =>
+    `${left.table}:${left.name}`.localeCompare(`${right.table}:${right.name}`));
+  if (posture === "predecessor") {
+    assert.deepEqual(sortedRows, [], "successor constraint exists before release");
+    return Object.freeze([]);
+  }
+  const sortedExpected = [...expected].sort((left, right) =>
+    `${left.table}:${left.name}`.localeCompare(`${right.table}:${right.name}`));
+  assert.deepEqual(sortedRows, sortedExpected, "reviewed constraint catalog drifted");
+  return Object.freeze(sortedRows);
 }
 
 export function classifyFunctions(rows, release) {
@@ -186,6 +242,39 @@ export async function inspectPrivilegeReleaseProduction(
                 FROM pg_catalog.pg_policy AS policy
                WHERE policy.polrelid = target.oid) AS policy_count,
              coalesce((
+               SELECT pg_catalog.jsonb_agg(
+                        pg_catalog.jsonb_build_object(
+                          'name', policy.polname,
+                          'permissive', policy.polpermissive,
+                          'command', CASE policy.polcmd
+                            WHEN 'r' THEN 'SELECT'
+                            WHEN 'a' THEN 'INSERT'
+                            WHEN 'w' THEN 'UPDATE'
+                            WHEN 'd' THEN 'DELETE'
+                            WHEN '*' THEN 'ALL'
+                          END,
+                          'roles', coalesce((
+                            SELECT pg_catalog.jsonb_agg(role.rolname ORDER BY role.rolname)
+                              FROM pg_catalog.unnest(policy.polroles) AS policy_role(role_oid)
+                              JOIN pg_catalog.pg_roles AS role ON role.oid = policy_role.role_oid
+                          ), '[]'::pg_catalog.jsonb),
+                          'usingExpression', pg_catalog.pg_get_expr(
+                            policy.polqual,
+                            policy.polrelid,
+                            true
+                          ),
+                          'checkExpression', pg_catalog.pg_get_expr(
+                            policy.polwithcheck,
+                            policy.polrelid,
+                            true
+                          )
+                        )
+                        ORDER BY policy.polname
+                      )
+                 FROM pg_catalog.pg_policy AS policy
+                WHERE policy.polrelid = target.oid
+             ), '[]'::pg_catalog.jsonb) AS policies,
+             coalesce((
                SELECT pg_catalog.array_agg(DISTINCT pg_catalog.upper(acl.privilege_type)
                         ORDER BY pg_catalog.upper(acl.privilege_type))
                  FROM pg_catalog.aclexplode(coalesce(
@@ -232,9 +321,9 @@ export async function inspectPrivilegeReleaseProduction(
              ), ARRAY[]::text[]) AS staff_grant_options,
              coalesce((
                SELECT pg_catalog.array_agg(
-                        DISTINCT pg_catalog.format('%I:%s', attribute.attname,
+                        DISTINCT pg_catalog.format('%s:%s', attribute.attname,
                           pg_catalog.upper(acl.privilege_type))
-                        ORDER BY pg_catalog.format('%I:%s', attribute.attname,
+                        ORDER BY pg_catalog.format('%s:%s', attribute.attname,
                           pg_catalog.upper(acl.privilege_type)))
                  FROM pg_catalog.pg_attribute AS attribute
                  CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
@@ -246,9 +335,9 @@ export async function inspectPrivilegeReleaseProduction(
              ), ARRAY[]::text[]) AS runtime_column_privileges,
              coalesce((
                SELECT pg_catalog.array_agg(
-                        DISTINCT pg_catalog.format('%I:%s', attribute.attname,
+                        DISTINCT pg_catalog.format('%s:%s', attribute.attname,
                           pg_catalog.upper(acl.privilege_type))
-                        ORDER BY pg_catalog.format('%I:%s', attribute.attname,
+                        ORDER BY pg_catalog.format('%s:%s', attribute.attname,
                           pg_catalog.upper(acl.privilege_type)))
                  FROM pg_catalog.pg_attribute AS attribute
                  CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
@@ -270,7 +359,41 @@ export async function inspectPrivilegeReleaseProduction(
          AND staff_role.rolname = 'grainline_staff_read_runtime'
        ORDER BY target.relname
     `, [tableNames])).rows;
-    const catalog = classify(rows, release);
+    const catalog = classifyTables(rows, release);
+    const expectedConstraints = release.constraints ?? [];
+    const constraintRows = expectedConstraints.length === 0 ? [] : (await client.query(`
+      SELECT relation.relname AS table_name,
+             constraint_state.conname AS name,
+             constraint_state.contype AS type,
+             constraint_state.convalidated AS validated,
+             pg_catalog.pg_get_constraintdef(
+               constraint_state.oid,
+               true
+             ) AS definition
+        FROM pg_catalog.pg_constraint AS constraint_state
+        JOIN pg_catalog.pg_class AS relation
+          ON relation.oid = constraint_state.conrelid
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = relation.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND relation.relname = ANY($1::text[])
+         AND constraint_state.conname = ANY($2::text[])
+       ORDER BY relation.relname, constraint_state.conname
+    `, [
+      [...new Set(expectedConstraints.map((constraint) => constraint.table))].sort(),
+      [...new Set(expectedConstraints.map((constraint) => constraint.name))].sort(),
+    ])).rows.map((row) => Object.freeze({
+      table: row.table_name,
+      name: row.name,
+      type: row.type,
+      validated: row.validated,
+      definition: row.definition,
+    }));
+    const constraints = classifyConstraints(
+      constraintRows,
+      release,
+      catalog.posture,
+    );
     const functionSignatures = Object.keys(release.functions ?? {}).sort();
     const functionRows = functionSignatures.length === 0 ? [] : (await client.query(`
       WITH expected(signature) AS (
@@ -390,6 +513,7 @@ export async function inspectPrivilegeReleaseProduction(
       databaseName: rows[0]?.database_name,
       migrationRole: rows[0]?.current_user_name,
       catalog,
+      constraints,
       functions,
       emptyTables: release.emptyTables ?? [],
       rollbackSha256: verified.rollbackDigest,

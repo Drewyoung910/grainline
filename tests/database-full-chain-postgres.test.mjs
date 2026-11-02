@@ -196,6 +196,7 @@ import { inspectSellerProfilePublicPreparationProduction } from "../scripts/sell
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
 import { inspectPrivateTableRlsActivationProduction } from "../scripts/private-table-rls-activation-production-inspect.mjs";
+import { inspectPrivilegeReleaseProduction } from "../scripts/privilege-release-production-inspect.mjs";
 import {
   SELLER_PROFILE_PUBLIC_ENABLE,
   SELLER_PROFILE_PUBLIC_PREPARATIONS,
@@ -358,6 +359,10 @@ test(
       let sellerFaqPreparationPreflightPath;
       let sellerFaqPreparationPostflightClosed = false;
       let sellerFaqFixture;
+      const listingPrivilegePreflightPath = join(
+        preparationEvidenceDirectory,
+        "listing-catalog-privilege-preflight.json",
+      );
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -402,6 +407,24 @@ test(
               database: adapter,
               forced: false,
             });
+          }
+          if (artifact.name === "20261102060000_activate_listing_domain_rls") {
+            const listingPrivilegePreflight =
+              await inspectPrivilegeReleaseProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVILEGE_RELEASE_ID: "listing_catalog_v1",
+                  PRIVILEGE_RELEASE_PHASE: "preflight",
+                  PRIVILEGE_RELEASE_EVIDENCE_PATH:
+                    listingPrivilegePreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+                },
+                {
+                  Client: DisposableOwnerClient,
+                  rootDir: repositoryRoot,
+                },
+              );
+            assert.equal(listingPrivilegePreflight.state, "pending");
           }
           if (artifact.name === CASE_REFUND_FOLLOWUP_MIGRATION) {
             fixture = await seedSellerProfilePrivateFixture(adapter);
@@ -1448,6 +1471,26 @@ test(
         repositoryRoot,
         seller: fixture,
       });
+      const listingPrivilegeEnvironment = {
+        DIRECT_URL: proofDatabaseUrl,
+        PRIVILEGE_RELEASE_ID: "listing_catalog_v1",
+        PRIVILEGE_RELEASE_PHASE: "postflight",
+        PRIVILEGE_RELEASE_EVIDENCE_PATH: join(
+          preparationEvidenceDirectory,
+          "listing-catalog-privilege-postflight.json",
+        ),
+        PRIVILEGE_RELEASE_PREVIOUS_EVIDENCE_PATH:
+          listingPrivilegePreflightPath,
+        PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+      };
+      const listingPrivilegePostflight = await inspectPrivilegeReleaseProduction(
+        listingPrivilegeEnvironment,
+        {
+          Client: DisposableOwnerClient,
+          rootDir: repositoryRoot,
+        },
+      );
+      assert.equal(listingPrivilegePostflight.state, "applied");
       await proveSellerProfileActorReviewListingTarget({
         database: adapter,
         seller: fixture,
