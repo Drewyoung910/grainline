@@ -1,9 +1,7 @@
 // src/app/admin/broadcasts/page.tsx
 import { prisma } from "@/lib/db";
-import { userClerkGate } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminActionOrThrow } from "@/lib/audit";
@@ -20,16 +18,14 @@ import { userStaffAdminLabels } from "@/lib/userStaffAccess";
 import {
   sellerProfileStaffBroadcastTargets,
 } from "@/lib/sellerProfileStaffAccess";
-import { sellerBroadcastOutboxCancellationWhere } from "@/lib/emailOutboxContentLifecycle";
+import { cancelSellerBroadcastEmails } from "@/lib/emailServiceAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  const user = await requireAdminPageAccess();
+  if (!user) redirect("/admin/broadcasts");
+  const { success } = await safeRateLimit(adminActionRatelimit, user.id);
   if (!success) return;
-  const user = await userClerkGate(prisma, userId);
-  if (!user || user.banned || user.deletedAt || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
   const id = String(formData.get("id") ?? "");
   if (id) {
@@ -46,9 +42,7 @@ async function deleteBroadcast(formData: FormData) {
       const deleted = await tx.sellerBroadcast.deleteMany({ where: { id } });
       if (deleted.count !== 1) return;
       await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
-      await tx.emailOutbox.deleteMany({
-        where: sellerBroadcastOutboxCancellationWhere(broadcast.id),
-      });
+      await cancelSellerBroadcastEmails(tx, broadcast.id);
       await logAdminActionOrThrow({
         client: tx,
         adminId: user.id,

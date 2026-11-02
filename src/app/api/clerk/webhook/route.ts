@@ -27,7 +27,7 @@ import {
   markClerkWebhookProcessed,
   reserveClerkWebhookEvent,
 } from "@/lib/clerkWebhookEvents";
-import { emailSuppressionAddressKeys } from "@/lib/emailSuppression";
+import { clearAccountDeletionEmailSuppressions } from "@/lib/emailServiceAccess";
 import { sanitizeUserName } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedWebhookText as readBoundedText } from "@/lib/requestBody";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
@@ -216,15 +216,6 @@ export async function POST(req: Request) {
       });
     }
 
-    if (event.type === "user.created") {
-      const suppressionEmailKeys = emailSuppressionAddressKeys(email);
-      if (suppressionEmailKeys.length > 0) {
-        await prisma.emailSuppression.deleteMany({
-          where: { email: { in: suppressionEmailKeys }, source: "account_deletion" },
-        });
-      }
-    }
-
     if (
       shouldRevokeSessionsForClerkEmailChange({
         eventType: event.type,
@@ -251,6 +242,9 @@ export async function POST(req: Request) {
       name,
       imageUrl: currentIdentity.imageUrl,
     });
+    if (event.type === "user.created" && email) {
+      await clearAccountDeletionEmailSuppressions(prisma, user.id);
+    }
 
     if (
       shouldReserveClerkWelcomeEmail({

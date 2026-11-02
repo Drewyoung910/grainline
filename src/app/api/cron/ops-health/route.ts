@@ -18,6 +18,7 @@ import { runSavedSearchRlsCanary } from "@/lib/savedSearchRlsCanary";
 import { orderOpsHealthSummary } from "@/lib/orderOpsHealth";
 import { orderDisputeRecoveryHealthSummary } from "@/lib/orderDisputeRecoveryAuthority";
 import { overdueSupportRequestCount as readOverdueSupportRequestCount } from "@/lib/supportRequestAccess";
+import { emailServiceOpsHealth } from "@/lib/emailServiceAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,11 +50,9 @@ export async function GET(request: Request) {
         failedCronRuns,
         staleRunningCronRuns,
         recentCompletedCronRuns,
-        staleEmailOutboxCount,
-        deadEmailOutboxCount,
+        emailServiceHealth,
         overdueSupportRequestCount,
         stripeWebhookHealth,
-        resendWebhookFailureCount,
         clerkWebhookHealth,
         accountDeletionSideEffectFailureCount,
         orderHealth,
@@ -90,27 +89,12 @@ export async function GET(request: Request) {
           take: RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT,
           select: { id: true, jobName: true, bucket: true, startedAt: true, result: true },
         }),
-        prisma.emailOutbox.count({
-          where: {
-            status: { in: ["PENDING", "PROCESSING"] },
-            nextAttemptAt: { lt: staleEmailBefore },
-          },
-        }),
-        prisma.emailOutbox.count({
-          where: { status: "DEAD" },
+        emailServiceOpsHealth(prisma, {
+          staleEmailBefore,
+          staleSvixBefore: staleSvixWebhookBefore,
         }),
         readOverdueSupportRequestCount(),
         stripeWebhookHealthSummary(),
-        prisma.resendWebhookEvent.count({
-          where: {
-            processedAt: null,
-            OR: [
-              { lastError: { not: null } },
-              { processingStartedAt: null },
-              { processingStartedAt: { lt: staleSvixWebhookBefore } },
-            ],
-          },
-        }),
         clerkWebhookHealthSummary(),
         getAccountDeletionSideEffectClient().accountDeletionSideEffect.count({
           where: {
@@ -170,14 +154,14 @@ export async function GET(request: Request) {
         staleRunningCronRunCount: staleRunningCronRuns.length,
         partialFailureCronRunCount: partialFailureCronRuns.length,
         partialCronRunIssueCount,
-        staleEmailOutboxCount,
-        deadEmailOutboxCount,
+        staleEmailOutboxCount: emailServiceHealth.staleEmailCount,
+        deadEmailOutboxCount: emailServiceHealth.deadEmailCount,
         overdueSupportRequestCount,
         stripeWebhookFailureCount: stripeWebhookHealth.issueCount,
         stripeWebhookFailedLeaseCount: stripeWebhookHealth.failedCount,
         stripeWebhookReleasedLeaseCount: stripeWebhookHealth.releasedCount,
         stripeWebhookStaleLeaseCount: stripeWebhookHealth.staleCount,
-        resendWebhookFailureCount,
+        resendWebhookFailureCount: emailServiceHealth.stalledResendCount,
         clerkWebhookFailureCount: clerkWebhookHealth.issueCount,
         clerkWebhookFailedLeaseCount: clerkWebhookHealth.failedCount,
         clerkWebhookReleasedLeaseCount: clerkWebhookHealth.releasedCount,
