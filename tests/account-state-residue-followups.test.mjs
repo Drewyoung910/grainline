@@ -166,7 +166,7 @@ describe("account-state residue hardening", () => {
         helperStart,
       ),
     );
-    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now)");
+    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now, {");
     const broadcastDeleteIndex = deletion.indexOf("await cleanupAccountSellerBroadcasts(tx");
     const listingAnonymizeIndex = deletion.indexOf("await tx.listing.updateMany");
     const blogArchiveIndex = deletion.indexOf("await archiveBlogPostsForDeletedAccount");
