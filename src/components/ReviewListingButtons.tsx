@@ -28,7 +28,9 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
         // The route answers 200 with `skipped` when another tab or staff member
         // already moved the listing out of review; say so instead of failing silently.
         const data = await res.json().catch(() => null);
-        if (data?.skipped) {
+        if (data?.warning) {
+          toast(data.warning, "error");
+        } else if (data?.skipped) {
           toast(
             typeof data.reason === "string" && data.reason
               ? data.reason
