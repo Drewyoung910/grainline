@@ -73,7 +73,7 @@ describe("server-action rate-limit sweep", () => {
     );
     assert.ok(
       page.indexOf("safeRateLimit(listingMutationRatelimit, userId)") <
-        page.indexOf("prisma.listing.findFirst"),
+        page.indexOf("listingOwnerEditor(actor.id, listingId)"),
       "listing edit should rate-limit before ownership lookup",
     );
   });

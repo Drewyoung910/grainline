@@ -43,6 +43,7 @@ import { lockListingStock, prepareListingStockMutation, recordListingStockMutati
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
+import { listingOwnerEditor } from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -72,10 +73,10 @@ const toInt = (v: unknown) => {
 };
 
 function normalizeVariantGroupsForCompare(
-  groups: Array<{
+  groups: ReadonlyArray<{
     name: string;
     sortOrder: number;
-    options: Array<{ label: string; priceAdjustCents: number; sortOrder: number; inStock: boolean }>;
+    options: ReadonlyArray<{ label: string; priceAdjustCents: number; sortOrder: number; inStock: boolean }>;
   }>
 ) {
   return groups
@@ -117,7 +118,7 @@ class ListingPhotoConflictError extends Error {
 
 function parsePhotoManifestField(
   value: FormDataEntryValue | null,
-  existingPhotos: ExistingPhotoForManifest[],
+  existingPhotos: ReadonlyArray<ExistingPhotoForManifest>,
   clerkUserId: string,
 ): { ok: true; photos: PhotoManifestItem[] } | { ok: false; error: string } {
   if (typeof value !== "string" || value.trim() === "") {
@@ -305,16 +306,7 @@ async function updateListing(
   if (processingWindowError) return { ok: false, error: processingWindowError };
 
   // Guard ownership
-  const listing = await prisma.listing.findFirst({
-    where: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    include: {
-      photos: { orderBy: { sortOrder: "asc" } },
-      variantGroups: {
-        orderBy: { sortOrder: "asc" },
-        include: { options: { orderBy: { sortOrder: "asc" } } },
-      },
-    },
-  });
+  const listing = await listingOwnerEditor(actor.id, listingId);
   if (!listing) return { ok: false, error: "Not allowed" };
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
@@ -706,16 +698,7 @@ export default async function EditListingPage(props: {
   const sellerCore = await sellerOwnerCore(actor.id);
   if (!sellerCore) return notFound();
 
-  const listing = await prisma.listing.findFirst({
-    where: { id, sellerId: sellerCore.sellerProfileId },
-    include: {
-      photos: { orderBy: { sortOrder: "asc" } },
-      variantGroups: {
-        orderBy: { sortOrder: "asc" },
-        include: { options: { orderBy: { sortOrder: "asc" } } },
-      },
-    },
-  });
+  const listing = await listingOwnerEditor(actor.id, id);
   if (!listing) return notFound();
   if (listing.archivedAt) return notFound();
   const editBlockReason = listingEditBlockReason(listing);

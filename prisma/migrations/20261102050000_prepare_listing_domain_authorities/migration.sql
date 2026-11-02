@@ -48,6 +48,11 @@ BEGIN
     RAISE EXCEPTION 'Listing protected staff-review queue already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_editor(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner-editor authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -633,6 +638,163 @@ REVOKE ALL ON FUNCTION public.grainline_seller_staff_listing_review_queue(
 GRANT EXECUTE ON FUNCTION public.grainline_seller_staff_listing_review_queue(
   text,integer
 ) TO grainline_staff_read_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_editor(
+  p_listing_id text
+)
+RETURNS TABLE (
+  "listingId" text,
+  "sellerProfileId" text,
+  title text,
+  description text,
+  "priceCents" integer,
+  "priceVersion" integer,
+  currency text,
+  status text,
+  "createdAt" timestamp(3) without time zone,
+  "updatedAt" timestamp(3) without time zone,
+  "archivedAt" timestamp(3) without time zone,
+  "processingTimeMinDays" integer,
+  "processingTimeMaxDays" integer,
+  "listingType" text,
+  "stockQuantity" integer,
+  category text,
+  tags text[],
+  "shipsWithinDays" integer,
+  "packagedWeightGrams" integer,
+  "packagedLengthCm" double precision,
+  "packagedWidthCm" double precision,
+  "packagedHeightCm" double precision,
+  "isPrivate" boolean,
+  "reservedForUserId" text,
+  "customOrderConversationId" text,
+  "rejectionReason" text,
+  "metaDescription" text,
+  materials text[],
+  "productLengthIn" double precision,
+  "productWidthIn" double precision,
+  "productHeightIn" double precision,
+  photos jsonb,
+  "variantGroups" jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_editor$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing owner-editor input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive";
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    listing.id::text,
+    listing."sellerId"::text,
+    listing.title::text,
+    listing.description::text,
+    listing."priceCents",
+    listing."priceVersion",
+    listing.currency::text,
+    listing.status::text,
+    listing."createdAt",
+    listing."updatedAt",
+    listing."archivedAt",
+    listing."processingTimeMinDays",
+    listing."processingTimeMaxDays",
+    listing."listingType"::text,
+    listing."stockQuantity",
+    listing.category::text,
+    listing.tags::text[],
+    listing."shipsWithinDays",
+    listing."packagedWeightGrams",
+    listing."packagedLengthCm",
+    listing."packagedWidthCm",
+    listing."packagedHeightCm",
+    listing."isPrivate",
+    listing."reservedForUserId"::text,
+    listing."customOrderConversationId"::text,
+    listing."rejectionReason"::text,
+    listing."metaDescription"::text,
+    listing.materials::text[],
+    listing."productLengthIn",
+    listing."productWidthIn",
+    listing."productHeightIn",
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'id', photo.id,
+          'url', photo.url,
+          'originalUrl', photo."originalUrl",
+          'altText', photo."altText",
+          'sortOrder', photo."sortOrder"
+        )
+        ORDER BY photo."sortOrder" ASC, photo.id ASC
+      )
+        FROM public."Photo" AS photo
+       WHERE photo."listingId" = listing.id
+    ), '[]'::jsonb),
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'id', variant_group.id,
+          'name', variant_group.name,
+          'sortOrder', variant_group."sortOrder",
+          'options', COALESCE((
+            SELECT pg_catalog.jsonb_agg(
+              pg_catalog.jsonb_build_object(
+                'id', variant_option.id,
+                'label', variant_option.label,
+                'priceAdjustCents', variant_option."priceAdjustCents",
+                'sortOrder', variant_option."sortOrder",
+                'inStock', variant_option."inStock"
+              )
+              ORDER BY variant_option."sortOrder" ASC, variant_option.id ASC
+            )
+              FROM public."ListingVariantOption" AS variant_option
+             WHERE variant_option."groupId" = variant_group.id
+          ), '[]'::jsonb)
+        )
+        ORDER BY variant_group."sortOrder" ASC, variant_group.id ASC
+      )
+        FROM public."ListingVariantGroup" AS variant_group
+       WHERE variant_group."listingId" = listing.id
+    ), '[]'::jsonb)
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing."sellerId" = seller_id
+     AND listing."archivedAt" IS NULL;
+END
+$grainline_listing_owner_editor$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_editor(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_editor(text)
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(
   p_conversation_id text
