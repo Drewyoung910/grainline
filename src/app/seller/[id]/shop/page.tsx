@@ -24,6 +24,7 @@ import { sellerPublicProfile } from "@/lib/sellerProfilePublicAccess";
 import { normalizeTag } from "@/lib/tags";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
+import { listingPublicCatalogCount, listingPublicCatalogPage } from "@/lib/listingPublicCatalogAccess";
 
 const PAGE_SIZE = 20;
 
@@ -119,16 +120,15 @@ export default async function SellerShopPage({
     permanentRedirect(`${sellerShopHref}${canonicalQuery ? `?${canonicalQuery}` : ""}`);
   }
 
-  // Distinct categories — for owner show all statuses (optionally filtered by status), for buyers show ACTIVE only
-  const categoryGroupWhere = isOwner
-    ? {
-        sellerId,
-        archivedAt: null,
-        category: { not: null },
-        ...(tag ? { tags: { has: tag } } : {}),
-        ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
-      }
-    : publicListingWhere({ sellerId, category: { not: null }, ...(tag ? { tags: { has: tag } } : {}) });
+  // Owner-only states stay on the owner read path. Public counts and facets use
+  // the bounded catalog authority so they remain safe after Listing RLS.
+  const ownerCategoryGroupWhere = {
+    sellerId,
+    archivedAt: null,
+    category: { not: null },
+    ...(tag ? { tags: { has: tag } } : {}),
+    ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
+  };
 
   // Build where clause — owner sees all listings (filtered by status); buyers see ACTIVE + chargesEnabled only
   const categoryFilter = category ? { category } : {};
@@ -147,26 +147,44 @@ export default async function SellerShopPage({
     : sort === "popular" ? [{ favoriteCount: "desc" }, { createdAt: "desc" }, { id: "desc" }]
     : [{ createdAt: "desc" }, { id: "desc" }];
 
+  const publicCatalogBaseFilter = {
+    sellerId,
+    ...(tag ? { tag } : {}),
+  };
+  const categoryPromise: Promise<readonly Category[]> = isOwner
+    ? prisma.listing.groupBy({
+        by: ["category"],
+        where: ownerCategoryGroupWhere,
+        _count: { _all: true },
+      }).then((groups) => groups.flatMap((group) => (
+        group.category === null ? [] : [group.category]
+      )))
+    : listingPublicCatalogPage(
+        meId,
+        { ...publicCatalogBaseFilter, includeCategoryCounts: true },
+        0,
+        0,
+      ).then(({ categoryCounts }) => categoryCounts.map(({ category: value }) => value));
+  const totalPromise = isOwner
+    ? prisma.listing.count({ where })
+    : listingPublicCatalogCount(meId, {
+        ...publicCatalogBaseFilter,
+        ...(category ? { category } : {}),
+      });
+
   const [
     followState,
-    categoryGroups,
+    availableCategoryRows,
     total,
   ] = await Promise.all([
     sellerPublicFollowState(sellerId, meId ?? undefined),
-    prisma.listing.groupBy({
-      by: ["category"],
-      where: categoryGroupWhere,
-      _count: { _all: true },
-    }),
-    prisma.listing.count({ where }),
+    categoryPromise,
+    totalPromise,
   ]);
   const followerCount = followState?.followerCount ?? 0;
   const isFollowing = followState?.following ?? false;
 
-  const availableCategories = categoryGroups
-    .filter((g) => g.category != null)
-    .map((g) => g.category as Category)
-    .sort();
+  const availableCategories = [...availableCategoryRows].sort();
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const clampedPage = Math.min(Math.max(page, 1), totalPages);
