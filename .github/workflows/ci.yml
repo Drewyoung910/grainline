@@ -366,6 +366,7 @@ jobs:
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
           --experimental-strip-types --test --test-concurrency=1
           tests/db-grant-inventory.test.mjs
+          tests/privilege-release-production.test.mjs
           tests/rls-coverage-matrix.test.mjs
           tests/service-reference-least-privilege.test.mjs
       - name: Isolate Favorite source packages until historical release guards pass
