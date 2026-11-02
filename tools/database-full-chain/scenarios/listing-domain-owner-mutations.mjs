@@ -59,6 +59,11 @@ const AI_REVIEW_CONTEXT_SQL = `
     FROM public.grainline_listing_owner_ai_review_context($1::text)
 `;
 
+const LISTING_TRANSACTION_SOURCE_SQL = `
+  SELECT *
+    FROM public.grainline_listing_actor_transaction_source($1::text)
+`;
+
 const LEGACY_STOCK_RESTORE_SQL = `
   SELECT claimed, stock_visibility_changed
     FROM public.grainline_legacy_stock_restore_apply(
@@ -389,6 +394,110 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
     0,
     "AI backfill must reject a cross-owner actor",
   );
+
+  const transactionListingId = `listing-transaction-source-proof-${suffix}`;
+  const transactionPhotoId = `listing-transaction-source-photo-${suffix}`;
+  const transactionGroupId = `listing-transaction-source-group-${suffix}`;
+  const transactionOptionId = `listing-transaction-source-option-${suffix}`;
+  const transactionCreate = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    CREATE_SQL,
+    createArgs({
+      listingId: transactionListingId,
+      title: "Actor-bound transaction source proof",
+      listingType: "IN_STOCK",
+      stockQuantity: 2,
+      photos: [{
+        id: transactionPhotoId,
+        url: "https://example.test/transaction-source.jpg",
+        originalUrl: "https://example.test/transaction-source-original.jpg",
+        altText: "Transaction source proof",
+        sortOrder: 0,
+      }],
+      variantGroups: [{
+        id: transactionGroupId,
+        name: "Finish",
+        sortOrder: 0,
+        options: [{
+          id: transactionOptionId,
+          label: "Natural",
+          priceAdjustCents: 500,
+          sortOrder: 0,
+          inStock: true,
+        }],
+      }],
+    }),
+  ));
+  assert.equal(transactionCreate[0]?.created, true);
+  await database.query(
+    `UPDATE public."Listing"
+        SET status = 'ACTIVE'
+      WHERE id = $1`,
+    [transactionListingId],
+  );
+  const publicTransactionSource = rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_TRANSACTION_SOURCE_SQL,
+    [transactionListingId],
+  ));
+  assert.equal(publicTransactionSource.length, 1);
+  assert.equal(publicTransactionSource[0]?.sellerId, seller.sellerProfileId);
+  assert.deepEqual(publicTransactionSource[0]?.photos, [{
+    url: "https://example.test/transaction-source.jpg",
+  }]);
+  assert.deepEqual(publicTransactionSource[0]?.variantGroups, [{
+    id: transactionGroupId,
+    name: "Finish",
+    options: [{
+      id: transactionOptionId,
+      label: "Natural",
+      priceAdjustCents: 500,
+      inStock: true,
+    }],
+  }]);
+  assert.equal(
+    Object.hasOwn(publicTransactionSource[0]?.photos?.[0] ?? {}, "originalUrl"),
+    false,
+    "Transaction source must not expose pre-crop photo URLs",
+  );
+  await database.query(
+    `UPDATE public."Listing"
+        SET "isPrivate" = true, "reservedForUserId" = NULL
+      WHERE id = $1`,
+    [transactionListingId],
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_TRANSACTION_SOURCE_SQL,
+    [transactionListingId],
+  )), [], "Unreserved private listings must be absent from transaction source");
+  await database.query(
+    `UPDATE public."Listing"
+        SET "reservedForUserId" = $2
+      WHERE id = $1`,
+    [transactionListingId, buyerId],
+  );
+  assert.equal(rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_TRANSACTION_SOURCE_SQL,
+    [transactionListingId],
+  )).length, 1, "Exact reserved buyer must retain transaction access");
+  await database.query(
+    `UPDATE public."Listing"
+        SET "archivedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [transactionListingId],
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_TRANSACTION_SOURCE_SQL,
+    [transactionListingId],
+  )), [], "Archived listings must be absent from transaction source");
 
   const stockListingId = `listing-stock-restore-proof-${suffix}`;
   const stockPhotoId = `listing-stock-restore-photo-${suffix}`;
