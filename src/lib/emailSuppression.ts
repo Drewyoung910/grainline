@@ -1,4 +1,4 @@
-import { EmailSuppressionReason, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
@@ -13,80 +13,38 @@ import {
   normalizeEmailAddress,
   normalizeEmailSuppressionAddress,
 } from "./emailAddressNormalization.ts";
+import {
+  clearOneClickEmailSuppressionAuthority,
+  emailSuppressionExistsAuthority,
+  type EmailSuppressionMode,
+} from "./emailServiceAccess.ts";
 
 export { emailSuppressionAddressKeys, emailSuppressionLookupForEmails, normalizeEmailAddress, normalizeEmailSuppressionAddress };
 
-type EmailSuppressionLookup = ReturnType<typeof emailSuppressionLookupForEmails>;
-
-export function emailSuppressionMatchWhereSql(
-  lookup: EmailSuppressionLookup,
-  emailColumn: Prisma.Sql = Prisma.sql`"email"`,
-) {
-  const exactMatch = lookup.exactEmails.length > 0
-    ? Prisma.sql`${emailColumn} IN (${Prisma.join(lookup.exactEmails)})`
-    : Prisma.sql`false`;
-  const gmailMatch = lookup.gmailLocalParts.length > 0
-    ? Prisma.sql`(
-        lower(split_part(${emailColumn}, '@', 2)) IN ('gmail.com', 'googlemail.com')
-        AND replace(split_part(lower(split_part(${emailColumn}, '@', 1)), '+', 1), '.', '') IN (${Prisma.join(lookup.gmailLocalParts)})
-      )`
-    : Prisma.sql`false`;
-
-  return Prisma.sql`(${exactMatch} OR ${gmailMatch})`;
-}
-
 async function emailSuppressionExists(
   email: string | null | undefined,
-  predicate: Prisma.Sql = Prisma.empty,
+  mode: EmailSuppressionMode,
 ): Promise<boolean> {
-  const lookup = emailSuppressionLookupForEmails([email]);
-  if (lookup.exactEmails.length === 0) return true;
-  const [row] = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT "id"
-    FROM "EmailSuppression"
-    WHERE ${emailSuppressionMatchWhereSql(lookup)}
-      AND "source" IS DISTINCT FROM 'resend_transient_failure'
-      ${predicate}
-    LIMIT 1
-  `);
-  return !!row;
+  const normalized = normalizeEmailAddress(email);
+  if (!normalized) return true;
+  return emailSuppressionExistsAuthority(prisma, { email: normalized, mode });
 }
 
 export async function isEmailSuppressedForNewsletterSignup(email: string | null | undefined): Promise<boolean> {
-  return emailSuppressionExists(email, Prisma.sql`
-    AND (
-      "reason"::text IN (${EmailSuppressionReason.BOUNCE}, ${EmailSuppressionReason.COMPLAINT})
-      OR "source" = 'account_deletion'
-      OR ("reason"::text = ${EmailSuppressionReason.MANUAL} AND "source" IS NULL)
-      OR ("reason"::text = ${EmailSuppressionReason.MANUAL} AND "source" <> 'one_click_unsubscribe')
-    )
-  `);
+  return emailSuppressionExists(email, "newsletter");
 }
 
 export async function isEmailDeliverySuppressed(email: string | null | undefined): Promise<boolean> {
-  return emailSuppressionExists(email, Prisma.sql`
-    AND (
-      "reason"::text IN (${EmailSuppressionReason.BOUNCE}, ${EmailSuppressionReason.COMPLAINT})
-      OR "source" = 'account_deletion'
-    )
-  `);
+  return emailSuppressionExists(email, "delivery");
 }
 
 export async function clearOneClickEmailSuppression(
   email: string | null | undefined,
-  client: Pick<Prisma.TransactionClient, "$executeRaw"> = prisma,
+  client: Pick<Prisma.TransactionClient, "$queryRaw"> = prisma,
 ): Promise<number> {
-  const lookup = emailSuppressionLookupForEmails([email]);
-  if (lookup.exactEmails.length === 0) return 0;
-
-  const deleted = await client.$executeRaw(Prisma.sql`
-    DELETE FROM "EmailSuppression"
-    WHERE ${emailSuppressionMatchWhereSql(lookup)}
-      AND "reason"::text = ${EmailSuppressionReason.MANUAL}
-      AND "source" = 'one_click_unsubscribe'
-  `);
-
-  return Number(deleted);
+  const normalized = normalizeEmailAddress(email);
+  if (!normalized) return 0;
+  return clearOneClickEmailSuppressionAuthority(client, normalized);
 }
 
 export async function suppressEmail(opts: {

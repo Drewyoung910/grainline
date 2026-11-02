@@ -4,13 +4,15 @@ import { prisma } from "@/lib/db";
 import { sendNewsletterConfirmationEmail } from "@/lib/email";
 import { getIP, newsletterAddressRatelimit, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import {
-  isEmailSuppressedForNewsletterSignup,
   normalizeEmailAddress,
   normalizeEmailSuppressionAddress,
 } from "@/lib/emailSuppression";
 import {
+  releaseNewsletterSignup,
+  reserveNewsletterSignup,
+} from "@/lib/emailServiceAccess";
+import {
   buildNewsletterConfirmationUrl,
-  canSendNewsletterConfirmation,
   createNewsletterConfirmationToken,
   hashNewsletterConfirmationToken,
   NEWSLETTER_CONFIRMATION_RESEND_COOLDOWN_MS,
@@ -34,19 +36,8 @@ const NewsletterSchema = z.object({
   name: z.string().max(200).optional().nullable(),
 });
 
-function isUniqueConstraintError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "P2002";
-}
-
 async function clearReservedNewsletterConfirmation(email: string, tokenHash: string, emailHash: string | null) {
-  await prisma.newsletterSubscriber.updateMany({
-    where: { email, active: false, confirmationTokenHash: tokenHash },
-    data: {
-      confirmationTokenHash: null,
-      confirmationExpiresAt: null,
-      confirmationSentAt: null,
-    },
-  }).catch((error) => {
+  await releaseNewsletterSignup(prisma, { email, tokenHash }).catch((error) => {
     logServerError(error, {
       level: "warning",
       source: "newsletter_confirmation_reservation_cleanup",
@@ -88,19 +79,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
     }
 
-    if (await isEmailSuppressedForNewsletterSignup(email)) {
-      return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
-    }
-
-    const existing = await prisma.newsletterSubscriber.findUnique({
-      where: { email },
-      select: { active: true, confirmationSentAt: true },
-    });
-
-    if (existing?.active || !canSendNewsletterConfirmation(existing?.confirmationSentAt)) {
-      return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
-    }
-
     // Rotating IPs can name any address, so cap the mail per address as well. The
     // answer stays the same so this cannot be used to probe an address.
     const addressLimit = await safeRateLimit(
@@ -110,7 +88,6 @@ export async function POST(req: NextRequest) {
     if (!addressLimit.success) {
       return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
     }
-
     const token = createNewsletterConfirmationToken();
     const tokenHash = hashNewsletterConfirmationToken(token);
     const confirmationUrl = buildNewsletterConfirmationUrl(token);
@@ -118,47 +95,16 @@ export async function POST(req: NextRequest) {
     const reservedSentAt = new Date();
     const resendCutoff = new Date(reservedSentAt.getTime() - NEWSLETTER_CONFIRMATION_RESEND_COOLDOWN_MS);
 
-    if (existing) {
-      const pendingUpdate = await prisma.newsletterSubscriber.updateMany({
-        where: {
-          email,
-          active: false,
-          OR: [
-            { confirmationSentAt: null },
-            { confirmationSentAt: { lte: resendCutoff } },
-          ],
-        },
-        data: {
-          name: name ?? undefined,
-          confirmationTokenHash: tokenHash,
-          confirmationExpiresAt: expiresAt,
-          confirmationSentAt: reservedSentAt,
-          confirmedAt: null,
-        },
-      });
-
-      if (pendingUpdate.count !== 1) {
-        return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
-      }
-    } else {
-      try {
-        await prisma.newsletterSubscriber.create({
-          data: {
-            email,
-            name,
-            active: false,
-            confirmationTokenHash: tokenHash,
-            confirmationExpiresAt: expiresAt,
-            confirmationSentAt: reservedSentAt,
-            confirmedAt: null,
-          },
-        });
-      } catch (error) {
-        if (isUniqueConstraintError(error)) {
-          return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
-        }
-        throw error;
-      }
+    const reservation = await reserveNewsletterSignup(prisma, {
+      email,
+      name,
+      tokenHash,
+      expiresAt,
+      sentAt: reservedSentAt,
+      resendCutoff,
+    });
+    if (reservation !== "reserved") {
+      return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
     }
 
     try {

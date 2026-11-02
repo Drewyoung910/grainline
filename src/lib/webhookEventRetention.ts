@@ -7,6 +7,7 @@ import {
 } from "@/lib/webhookEventRetentionState";
 import { pruneStripeWebhookEventServiceBatch } from "@/lib/stripeWebhookMaintenance";
 import { pruneClerkWebhookEventServiceBatch } from "@/lib/clerkWebhookMaintenance";
+import { deleteResendWebhookEventRetentionBatch } from "@/lib/emailServiceAccess";
 
 type PruneResult = { count: number; complete: boolean };
 
@@ -47,15 +48,8 @@ export async function pruneWebhookEventRetention({
 }
 
 function pruneResendWebhookEvents(cutoff: Date, batchSize: number) {
-  return prisma.$executeRaw<number>`
-    DELETE FROM "ResendWebhookEvent"
-    WHERE "svixId" IN (
-      SELECT "svixId"
-      FROM "ResendWebhookEvent"
-      WHERE "processedAt" IS NOT NULL
-        AND "processedAt" < ${cutoff}
-      ORDER BY "processedAt" ASC
-      LIMIT ${batchSize}
-    )
-  `;
+  return deleteResendWebhookEventRetentionBatch(prisma, {
+    cutoff,
+    limit: batchSize,
+  });
 }
