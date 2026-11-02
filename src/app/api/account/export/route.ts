@@ -6,7 +6,10 @@ import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/
 import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { exportActorMessages } from "@/lib/conversationMessageAuthority";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import {
+  ownerCommissionInterestExport,
+  ownerCommissionRequestExport,
+} from "@/lib/commissionRequestAccess";
 import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -210,37 +213,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     listOwnerSavedSearches(user.id, prisma),
     sellerOwnerFollowExportRows(user.id),
     ownerSavedBlogPostExportRows(user.id),
-    prisma.commissionRequest.findMany({
-      where: { buyerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        category: true,
-        budgetMinCents: true,
-        budgetMaxCents: true,
-        timeline: true,
-        referenceImageUrls: true,
-        status: true,
-        interestedCount: true,
-        _count: { select: { interests: true } },
-        expiresAt: true,
-        isNational: true,
-        lat: true,
-        lng: true,
-        radiusMeters: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    sellerProfile
-      ? prisma.commissionInterest.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { createdAt: "desc" },
-          select: { commissionRequestId: true, conversationId: true, createdAt: true },
-        })
-      : [],
+    ownerCommissionRequestExport(user.id),
+    ownerCommissionInterestExport(user.id),
     ownerNotificationExportRows(user.id),
     prisma.block.findMany({
       where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
@@ -339,13 +313,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
   const messagesReceived = messageRows
     .filter((message) => message.recipientId === user.id)
     .map(({ recipientId: _recipientId, ...message }) => message);
-  const commissionRequests = commissionRequestRows.map(({ _count, ...request }) => ({
-    ...request,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: request.interestedCount,
-      _count,
-    }),
-  }));
+  const commissionRequests = commissionRequestRows;
   const checkoutStockReservations = checkoutStockReservationRows;
   const buyerOrdersWithPaymentHistory = buyerOrders.map((order) => ({
     ...order,

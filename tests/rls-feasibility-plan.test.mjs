@@ -1273,6 +1273,25 @@ describe("RLS feasibility plan guardrails", () => {
     assert.deepEqual(directCallsByFile, {});
   });
 
+  it("blocks direct CommissionRequest and CommissionInterest access after compatible conversion", () => {
+    const directDelegatePattern =
+      /\b[A-Za-z_$][\w$]*\.commission(?:Request|Interest)\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|groupBy|upsert|update|updateMany)\b/g;
+    const rawTablePattern =
+      /\b(?:DELETE\s+FROM|FROM|INSERT\s+INTO|JOIN|UPDATE)\s+(?:public\.)?["']Commission(?:Request|Interest)["']/g;
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      const fileSource = source(file);
+      const matches = [
+        ...fileSource.matchAll(directDelegatePattern),
+        ...fileSource.matchAll(rawTablePattern),
+      ].map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, {});
+  });
+
   it("keeps public discovery tables out of the first RLS pass", () => {
     const plan = source("docs/rls-feasibility-plan.md");
 

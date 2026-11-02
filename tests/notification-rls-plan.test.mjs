@@ -57,7 +57,7 @@ describe("Bucket B Notification RLS inventory", () => {
         + databaseOwnedLabelCount,
       56,
     );
-    assert.equal(createCallers.length, 30);
+    assert.equal(createCallers.length, 29);
     assert.deepEqual(directAccess.sort(), []);
   });
 
@@ -175,6 +175,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const commissionInterest = fs.readFileSync("src/app/api/commission/[id]/interest/route.ts", "utf8");
     const commissionStatus = fs.readFileSync("src/app/api/commission/[id]/route.ts", "utf8");
     const commissionExpire = fs.readFileSync("src/app/api/cron/commission-expire/route.ts", "utf8");
+    const commissionRequestAccess = fs.readFileSync("src/lib/commissionRequestAccess.ts", "utf8");
     const sellerBroadcast = fs.readFileSync("src/app/api/seller/broadcast/route.ts", "utf8");
     const stripeWebhook = fs.readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
     const stripePayoutWebhook = fs.readFileSync("src/lib/stripePayoutWebhook.ts", "utf8");
@@ -242,8 +243,9 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal((caseAutoClose.match(/runCaseCronTransitionBatch\(\{/g) ?? []).length, 3);
     assert.doesNotMatch(caseAutoClose, /logSystemActionOrThrow|prisma\.case\./);
     assert.match(commissionInterest, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_INTEREST,\s*sourceId: result\.commissionInterestId/);
-    assert.match(commissionStatus, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST,\s*sourceId: id/);
-    assert.equal((commissionExpire.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/g) ?? []).length, 2);
+    assert.doesNotMatch(commissionStatus, /createNotification(?:OrThrow)?/);
+    assert.doesNotMatch(commissionExpire, /createNotification(?:OrThrow)?/);
+    assert.equal((commissionRequestAccess.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/g) ?? []).length, 3);
     assert.match(stripeWebhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.CHECKOUT_LOW_STOCK,\s*sourceId: sourceItem\.orderItemId/);
     assert.match(stockRoute, /sourceType: NOTIFICATION_SOURCE_TYPES\.MANUAL_LOW_STOCK,\s*sourceId: lowStockAuthoritySourceId/);
     const taggedCreationCount = [
@@ -262,8 +264,7 @@ describe("Bucket B Notification RLS inventory", () => {
       caseResolve,
       caseAutoClose,
       commissionInterest,
-      commissionStatus,
-      commissionExpire,
+      commissionRequestAccess,
       sellerBroadcast,
       stripeWebhook,
       stripePayoutWebhook,

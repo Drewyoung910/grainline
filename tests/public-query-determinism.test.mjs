@@ -389,6 +389,9 @@ describe("public query determinism", () => {
     const commissionDetail = source("src/app/commission/[param]/page.tsx");
     const commissionApi = source("src/app/api/commission/route.ts");
     const commissionDetailApi = getMethodSource("src/app/api/commission/[id]/route.ts", "GET");
+    const commissionAuthority = source(
+      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
+    );
 
     assert.match(browse, /const relevantPage = Math\.min\(Math\.max\(pageNum, 1\), relevantTotalPages\)/);
     assert.match(browse, /const standardPage = Math\.min\(Math\.max\(pageNum, 1\), standardTotalPages\)/);
@@ -417,23 +420,25 @@ describe("public query determinism", () => {
     assert.match(commissionPage, /page = Math\.min\(requestedPage, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
     assert.match(commissionPage, /\(page - 1\) \* pageSize/);
     assert.match(commissionPage, /Page \{page\} of \{totalPages\}/);
-    assert.match(commissionPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*skip: \(page - 1\) \* pageSize,\s*take: pageSize/);
-    assert.match(commissionPage, /cr\."createdAt" DESC,\s*cr\.id DESC/);
+    assert.match(commissionPage, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(commissionPage, /offset: \(page - 1\) \* pageSize/);
+    assert.match(commissionPage, /limit: pageSize/);
+    assert.match(commissionAuthority, /ORDER BY request\."createdAt" DESC, request\.id DESC/);
 
-    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 500/);
-    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 20/);
+    assert.match(commissionDetail, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(commissionDetail, /publicCommissionRequestDetail\(meId, id\)/);
     assert.match(commissionDetail, /publicCommissionInterestCounts\(\[request\.id\], meId\)/);
     assert.match(commissionDetail, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);
     assert.doesNotMatch(commissionDetail, /sellerProfile: \{\s*chargesEnabled: true,\s*vacationMode: false,\s*user: \{ banned: false, deletedAt: null \}/s);
 
     assert.match(commissionApi, /const currentPage = Math\.min\(page, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
-    assert.match(commissionApi, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "asc" \}\]/);
-    assert.match(commissionApi, /skip: \(currentPage - 1\) \* pageSize/);
+    assert.match(commissionApi, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(commissionApi, /offset: \(currentPage - 1\) \* pageSize/);
+    assert.match(commissionApi, /limit: pageSize/);
     assert.match(commissionApi, /page: currentPage/);
 
-    assert.match(commissionDetailApi, /prisma\.commissionRequest\.findFirst\(\{/);
-    assert.match(commissionDetailApi, /where: openCommissionWhere\(\{[\s\S]*id,[\s\S]*buyerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
-    assert.doesNotMatch(commissionDetailApi, /prisma\.commissionRequest\.findUnique\(\{\s*where: \{ id \}/);
+    assert.match(commissionDetailApi, /publicCommissionRequestDetail\(meId, id\)/);
+    assert.doesNotMatch(commissionDetailApi, /prisma\.commissionRequest\./);
     assert.doesNotMatch(commissionDetailApi, /request\.buyer\.banned \|\| request\.buyer\.deletedAt/);
     assert.match(commissionDetailApi, /interests: interests\.map\(\(interest\) => \(\{/);
     assert.match(commissionDetailApi, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);

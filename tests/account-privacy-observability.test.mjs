@@ -271,7 +271,7 @@ describe("account and privacy route observability guardrails", () => {
     );
     const deletionSuppressionBlock = deletion.slice(
       deletionStart,
-      deletion.indexOf("await tx.commissionRequest.updateMany", deletionStart),
+      deletion.indexOf("await prepareCommissionAccountDeletion(tx)", deletionStart),
     );
 
     assert.ok(

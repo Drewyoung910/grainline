@@ -76,7 +76,10 @@ describe("social interaction route hardening", () => {
   it("keeps commission-request reports limited to public open commission targets", () => {
     const route = source("src/app/api/users/[id]/report/route.ts");
 
-    assert.match(route, /openCommissionWhere/);
-    assert.match(route, /openCommissionWhere\(\{ id: body\.targetId, buyerId: reportedId \}\)/);
+    assert.match(
+      route,
+      /actorCanReportCommissionRequest\(\s*me\.id,\s*body\.targetId,\s*reportedId,?\s*\)/s,
+    );
+    assert.doesNotMatch(route, /prisma\.commissionRequest\./);
   });
 });

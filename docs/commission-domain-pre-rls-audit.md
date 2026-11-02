@@ -19,6 +19,41 @@ authoritative for the already-live buyer identity and location snapshots. That
 work removed public commission reads from the private `User` row. It did not
 audit or authorize the complete CommissionRequest/CommissionInterest boundary.
 
+## Compatible-preparation implementation status (2026-11-01)
+
+The additive compatible preparation is now implemented on
+`codex/commission-rls-preparation-20261101`, based on exact `main`
+`12a4dfc492412ff52ff94d921e20e7026c4cff38`. It adds migration
+`20261101060000_prepare_commission_domain_authorities`, converts the ordinary
+application to the fixed Commission operations, and deliberately leaves RLS
+off plus predecessor table privileges intact.
+
+Verified preparation evidence:
+
+- source inventory reports zero direct `CommissionRequest` or
+  `CommissionInterest` Prisma/raw-SQL access in `src`;
+- 235 focused source/behavior guardrails pass, including owner/public reads,
+  account state, rate limits, location privacy, direct-upload references,
+  notification routing and atomic interest creation;
+- the complete 448-migration chain plus the Commission scenario passes on both
+  disposable PostgreSQL 16 and PostgreSQL 17;
+- the PostgreSQL scenario covers public column shape, anonymous/viewer block
+  filtering, owner isolation, actor-bound interest, upload binding, ban/unban,
+  account deletion, expiry, function ownership/ACLs and both two-session race
+  orders between interest creation and owner transition. Staff ban/restore
+  operations require the same short-lived PIN-authorized capability as their
+  parent account operation, a different authorized administrator can perform
+  restore, and a reciprocal block removes retained interested makers from
+  detail access and close/expiry notification targets;
+- TypeScript passes, lint has zero errors, and the remaining five lint warnings
+  are unchanged navigation warnings outside this Commission batch.
+
+This evidence makes the branch a **compatible preparation candidate**, not an
+activation candidate. Activation remains separately blocked on the denial,
+query-plan-at-volume, deployment-skew, hard-cascade and database-first rollback
+proofs listed below, plus compatible deployment/drain and exact production
+authorization.
+
 ## Product contract
 
 ### Public discovery

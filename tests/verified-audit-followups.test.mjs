@@ -59,41 +59,45 @@ describe("verified audit follow-up guardrails", () => {
     const patchRoute = source("src/app/api/commission/[id]/route.ts");
     const interestRoute = source("src/app/api/commission/[id]/interest/route.ts");
     const interestAccess = source("src/lib/commissionInterestMessageAccess.ts");
+    const requestAccess = source("src/lib/commissionRequestAccess.ts");
+    const commissionAuthority = source(
+      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
+    );
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
     const commissionFunction = serviceSql.slice(
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
     );
-    assert.match(patchRoute, /commissionRequest\.updateMany/);
-    assert.match(patchRoute, /openCommissionMutationWhere\(id, new Date\(\), \{ buyerId: me\.id \}\)/);
+    assert.match(patchRoute, /transitionOwnerCommissionRequest\(\s*me\.id,\s*id,\s*status/);
+    assert.match(requestAccess, /grainline_commission_request_owner_transition/);
+    assert.match(
+      commissionAuthority,
+      /grainline_commission_request_owner_transition[\s\S]*FROM public\."CommissionRequest" AS request[\s\S]*FOR UPDATE;[\s\S]*request_row\.status <> 'OPEN'/,
+    );
     assert.match(interestRoute, /createCommissionInterestMessage\(\{/);
-    assert.match(interestAccess, /createActorCommissionInterest\(input\)/);
+    assert.match(interestAccess, /createActorCommissionInterest\(input, client\)/);
+    assert.match(commissionAuthority, /grainline_commission_interest_actor_create[\s\S]*grainline_message_create_commission_interest/);
     assert.match(commissionFunction, /commission\.status = 'OPEN'/);
     assert.match(commissionFunction, /commission\."expiresAt" IS NULL/);
     assert.match(commissionFunction, /FROM public\."CommissionRequest"[\s\S]*FOR UPDATE/);
     assert.match(commissionFunction, /UPDATE public\."CommissionRequest"/);
   });
 
-  it("keeps commission near-me raw SQL inputs parameterized", () => {
+  it("keeps commission near-me reads behind bounded database authorities", () => {
     const page = source("src/app/commission/page.tsx");
+    const access = source("src/lib/commissionRequestAccess.ts");
 
     assert.match(page, /CATEGORY_VALUES\.includes\(categoryFilter\)/);
-    assert.match(page, /const categoryConditionSelect = categoryValid \? `AND cr\.category::text = \$9` : ""/);
-    assert.match(page, /const categoryConditionCount = categoryValid \? `AND cr\.category::text = \$5` : ""/);
-    assert.doesNotMatch(page, /JOIN "User" u ON u\.id = cr\."buyerId"/);
-    assert.match(page, /cr\."buyerAccountActive" = true/);
-    assert.match(page, /NOT \(cr\."buyerId" = ANY\(\$8::text\[\]\)\)/);
-    assert.match(page, /NOT \(cr\."buyerId" = ANY\(\$4::text\[\]\)\)/);
-    assert.match(page, /\[viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, \(page - 1\) \* pageSize, \[\.\.\.blockedUserIds\]\]/);
-    assert.match(page, /\[viewerLat, viewerLng, radius, \[\.\.\.blockedUserIds\]\]/);
-    assert.match(page, /args\.push\(categoryFilter\)/);
-    assert.match(page, /countArgs\.push\(categoryFilter\)/);
+    assert.match(page, /publicCommissionRequestCount\(meId, publicFilter\)/);
+    assert.match(page, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(access, /grainline_commission_request_public_count/);
+    assert.match(access, /grainline_commission_request_public_page/);
+    assert.doesNotMatch(page, /\$queryRaw(?:Unsafe)?|JOIN "User"/);
     assert.match(page, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 1000\)/);
     assert.match(page, /page = Math\.min\(requestedPage, Math\.max\(1, Math\.ceil\(total \/ pageSize\)\)\)/);
     assert.doesNotMatch(page, /Number\.parseInt\(sp\.page/);
-    assert.match(page, /cr\."createdAt" DESC,\s*cr\.id DESC/);
-    assert.match(page, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.doesNotMatch(page, /\$\{categoryFilter\}/);
+    assert.match(page, /category: categoryValid \? categoryFilter as Category : null/);
+    assert.match(page, /radiusMeters: 80000/);
   });
 
   it("keeps order total displays and emails on the gift-wrap-aware helper", () => {

@@ -5,7 +5,7 @@ import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecy
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
-import { removeSellerCommissionInterests } from './commissionInterestCleanup'
+import { closeCommissionRequestsForStaffBan } from './commissionRequestAccess'
 import { revalidatePublicSellerVisibilityCaches } from './searchCache'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { readBanAuditMetadata } from './banAuditMetadata'
@@ -30,8 +30,6 @@ import {
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
 import * as Sentry from '@sentry/nextjs'
-
-const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
 
 export class BanUserPolicyError extends Error {
   status: number;
@@ -338,10 +336,11 @@ export async function banUser({ userId, adminId, reason }: {
     } catch (error) {
       throwBanAuthorityPolicyError(error)
     }
-    const commissionRequests = await tx.commissionRequest.findMany({
-      where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
-      select: { id: true, status: true },
-    })
+    const commissionRequests = await closeCommissionRequestsForStaffBan(
+      tx,
+      banReviewCapability,
+      userId,
+    )
     let sellerPublic: Awaited<ReturnType<typeof transitionSellerStaffOrderability>>
     try {
       sellerPublic = await transitionSellerStaffOrderability(tx, {
@@ -361,15 +360,10 @@ export async function banUser({ userId, adminId, reason }: {
     const sellerProfile = sellerPublic
       ? { ...sellerPublic, stripeAccountId: reviewedSeller?.stripeAccountId ?? null }
       : null
-    let removedCommissionInterestRequestIds: string[] = []
-    if (sellerProfile) {
-      const cleanup = await removeSellerCommissionInterests(tx, sellerProfile.id)
-      removedCommissionInterestRequestIds = cleanup.commissionRequestIds
-    }
-    await tx.commissionRequest.updateMany({
-      where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
-      data: { status: 'CLOSED' }
-    })
+    // Preserve durable interest relationships. Public/owner projections hide
+    // banned makers, and an accepted unban can make the same interest eligible
+    // again without reconstructing private conversation evidence.
+    const removedCommissionInterestRequestIds: string[] = []
     const flaggedOpenOrders = await flagBannedSellerOpenOrders(
       banReviewCapability,
       userId,

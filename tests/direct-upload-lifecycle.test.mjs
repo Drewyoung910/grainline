@@ -148,7 +148,7 @@ describe("direct upload lifecycle", () => {
       ["src/app/dashboard/listings/[id]/edit/page.tsx", /syncListingDirectUploadReferences/],
       ["src/app/api/reviews/route.ts", /syncReviewDirectUploadReferences/],
       ["src/app/api/reviews/[id]/route.ts", /syncReviewDirectUploadReferences/],
-      ["src/app/api/commission/route.ts", /syncCommissionRequestDirectUploadReferences/],
+      ["src/lib/commissionRequestAccess.ts", /createOwnerCommissionRequest/],
       ["src/app/dashboard/profile/page.tsx", /syncSellerProfileDirectUploadReferences/],
       ["src/app/dashboard/onboarding/actions.ts", /syncSellerProfileDirectUploadReferences/],
       ["src/app/api/seller/broadcast/route.ts", /syncSellerBroadcastDirectUploadReferences/],
@@ -159,7 +159,12 @@ describe("direct upload lifecycle", () => {
     for (const [path, syncPattern] of checked) {
       const text = source(path);
       assert.match(text, syncPattern, path);
-      if (path.startsWith("src/app/dashboard/blog/")) {
+      if (path === "src/lib/commissionRequestAccess.ts") {
+        const authority = source(
+          "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
+        );
+        assert.match(authority, /grainline_commission_request_owner_create[\s\S]*grainline_direct_upload_sync_commission_request/);
+      } else if (path.startsWith("src/app/dashboard/blog/")) {
         assert.match(text, /normalizeBlogCoverImageUrl\([\s\S]*author\.id/, path);
       } else {
         assert.match(text, /accountUserId:/, path);

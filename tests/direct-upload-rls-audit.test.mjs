@@ -49,7 +49,7 @@ describe("DirectUpload RLS audit contracts", () => {
       ["src/app/api/reviews/[id]/route.ts", "syncReviewDirectUploadReferences"],
       ["src/app/dashboard/blog/new/page.tsx", "syncBlogPostDirectUploadReferences"],
       ["src/app/dashboard/blog/[id]/edit/page.tsx", "syncBlogPostDirectUploadReferences"],
-      ["src/app/api/commission/route.ts", "syncCommissionRequestDirectUploadReferences"],
+      ["src/app/api/commission/route.ts", "createOwnerCommissionRequest"],
       ["src/app/api/seller/broadcast/route.ts", "syncSellerBroadcastDirectUploadReferences"],
       ["src/app/messages/[id]/page.tsx", "syncLegacyMessageDirectUploadReference"],
     ];
@@ -59,6 +59,11 @@ describe("DirectUpload RLS audit contracts", () => {
       assert.match(text, new RegExp(syncHelper), path);
       assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
+    assert.match(
+      source("prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql"),
+      /grainline_commission_request_owner_create[\s\S]*grainline_direct_upload_sync_commission_request/,
+      "Commission creation must bind its verified uploads in the same database transaction",
+    );
     assert.match(
       source("src/app/api/cases/[id]/messages/route.ts"),
       /replyToCaseWithFixedAuthority/,

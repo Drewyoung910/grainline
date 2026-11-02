@@ -29,6 +29,9 @@ describe("conversation participant pair guardrails", () => {
     const customOrderAccess = source("src/lib/customOrderRequestAccess.ts");
     const commissionInterest = source("src/app/api/commission/[id]/interest/route.ts");
     const commissionInterestAccess = source("src/lib/commissionInterestMessageAccess.ts");
+    const commissionAuthority = source(
+      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
+    );
 
     assert.doesNotMatch(messagesNew, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(messagesNew, /startConversationForUser/);
@@ -49,7 +52,11 @@ describe("conversation participant pair guardrails", () => {
 
     assert.doesNotMatch(commissionInterest, /conversation\.(?:create|update|updateMany|upsert)/);
     assert.match(commissionInterest, /createCommissionInterestMessage/);
-    assert.match(commissionInterestAccess, /createActorCommissionInterest\(input\)/);
-    assert.match(authority, /public\.grainline_message_create_commission_interest/);
+    assert.match(commissionInterestAccess, /createActorCommissionInterest\(input, client\)/);
+    assert.match(authority, /public\.grainline_commission_interest_actor_create/);
+    assert.match(
+      commissionAuthority,
+      /grainline_commission_interest_actor_create[\s\S]*grainline_message_create_commission_interest/,
+    );
   });
 });

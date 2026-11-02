@@ -54,6 +54,7 @@ import { proveSellerProfileOwnerFollowExport } from "../tools/database-full-chai
 import { proveSellerProfilePublicRecentlyViewedListings } from "../tools/database-full-chain/scenarios/seller-profile-public-recently-viewed-listings.mjs";
 import { proveSellerProfileOwnerReviewReply } from "../tools/database-full-chain/scenarios/seller-profile-owner-review-reply.mjs";
 import { proveSellerProfilePublicCommissionInterestAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-commission-interest.mjs";
+import { proveCommissionDomainPreparedAuthorities } from "../tools/database-full-chain/scenarios/commission-domain-authorities.mjs";
 import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-guild-application.mjs";
 import { proveMakerVerificationPreparedAuthorities } from "../tools/database-full-chain/scenarios/maker-verification-authorities.mjs";
 import { proveSellerProfileOwnerBootstrapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-bootstrap.mjs";
@@ -1224,6 +1225,11 @@ test(
       await proveSellerProfileSavedBlogPostRollback({
         database: adapter,
         repositoryRoot,
+      });
+      await proveCommissionDomainPreparedAuthorities({
+        database: adapter,
+        seller: fixture,
+        connectionString: proofDatabaseUrl,
       });
     } finally {
       await client.end();

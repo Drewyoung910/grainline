@@ -150,7 +150,10 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      || reviewedNonTargetFactoryCalls.length !== 120
+      // The Commission compatible preparation replaces the remaining 17
+      // openCommissionWhere calls and one openCommissionMutationWhere call
+      // with fixed database authorities.
+      || reviewedNonTargetFactoryCalls.length !== 102
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.

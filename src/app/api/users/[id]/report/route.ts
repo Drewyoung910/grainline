@@ -7,7 +7,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { openCommissionWhere } from "@/lib/commissionExpiry";
+import { actorCanReportCommissionRequest } from "@/lib/commissionRequestAccess";
 import {
   sellerActorReportResourceTarget,
   sellerPublicReportTarget,
@@ -151,9 +151,11 @@ export async function POST(
         reporterCanAccess = exists;
         break;
       case "COMMISSION_REQUEST":
-        exists = await prisma.commissionRequest.count({
-          where: openCommissionWhere({ id: body.targetId, buyerId: reportedId }),
-        }) > 0;
+        exists = await actorCanReportCommissionRequest(
+          me.id,
+          body.targetId,
+          reportedId,
+        );
         reporterCanAccess = exists;
         break;
       case "SELLER_PROFILE":

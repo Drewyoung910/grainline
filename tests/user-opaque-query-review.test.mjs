@@ -38,14 +38,17 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // The provider/eligibility fence replaces three direct Prisma
   // EmailSuppression write arguments with one fixed SQL authority. The
   // StockNotification subscribe authority also removes one reviewed
-  // publicListingDetailWhere call from the application frontier.
-  assert.equal(report.opaqueShapes.length, 146);
-  assert.equal(reviewedFactories.length, 111);
+  // publicListingDetailWhere call from the application frontier. The
+  // Commission compatible preparation replaces the remaining 17
+  // openCommissionWhere calls and one openCommissionMutationWhere call with
+  // fixed database authorities.
+  assert.equal(report.opaqueShapes.length, 128);
+  assert.equal(reviewedFactories.length, 93);
   assert.equal(reviewedResidual.length, 35);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 90,
-    sha256: "b6292589e8c18026b1b6ac0f7403e56b0439546ea9849958cb05f591eecae845",
+    unique: 74,
+    sha256: "9a1f8cc157b3db957e7bc43f5b192ba8c48f60b96da024f2be444dc46f31a7cf",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 29,

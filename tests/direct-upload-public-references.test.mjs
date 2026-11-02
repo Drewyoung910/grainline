@@ -169,7 +169,7 @@ describe("DirectUpload fixed public reference families", () => {
       ["src/app/api/reviews/[id]/route.ts", "syncReviewDirectUploadReferences"],
       ["src/app/dashboard/blog/new/page.tsx", "syncBlogPostDirectUploadReferences"],
       ["src/app/dashboard/blog/[id]/edit/page.tsx", "syncBlogPostDirectUploadReferences"],
-      ["src/app/api/commission/route.ts", "syncCommissionRequestDirectUploadReferences"],
+      ["src/lib/commissionRequestAccess.ts", "createOwnerCommissionRequest"],
       ["src/app/api/seller/broadcast/route.ts", "syncSellerBroadcastDirectUploadReferences"],
       ["src/app/messages/[id]/page.tsx", "syncLegacyMessageDirectUploadReference"],
     ];
@@ -181,5 +181,12 @@ describe("DirectUpload fixed public reference families", () => {
       assert.match(text, new RegExp(helper), path);
       assert.doesNotMatch(text, /claimDirectUploadFor(?:Url|Key)|claimDirectUploadsForUrls/, path);
     }
+    const commissionAuthority = source(
+      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
+    );
+    assert.match(
+      commissionAuthority,
+      /grainline_commission_request_owner_create[\s\S]*grainline_direct_upload_sync_commission_request/,
+    );
   });
 });
