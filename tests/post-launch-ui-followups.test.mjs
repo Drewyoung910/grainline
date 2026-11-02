@@ -348,7 +348,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(editPage, /photoManifestJson/);
     assert.doesNotMatch(editPage, /tx\.photo\.(?:create|updateMany)/);
     assert.match(customPage, /import \{ backfillEmptyAltTexts \}/);
-    assert.match(customPage, /backfillEmptyAltTexts\(seller\.userId, created\.id, aiResult\.altTexts, imageUrls\)/);
+    assert.match(customPage, /backfillEmptyAltTexts\(seller\.userId, created\.id, aiResult\.altTexts, reviewedImageUrls\)/);
     assert.doesNotMatch(customPage, /prisma\.photo\.findMany\(\{\s*where: \{ listingId: created\.id \}/s);
     assert.doesNotMatch(addPhotosRoute, /reviewListingWithAI/);
     assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);

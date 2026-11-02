@@ -88,6 +88,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner alt-text backfill authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_ai_review_context(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner AI-review context authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_legacy_stock_restore_apply(text,jsonb)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Legacy checkout stock-restore apply authority already exists';
@@ -2210,6 +2215,89 @@ GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_content_update(
   double precision,double precision,double precision,integer,text,text,
   integer,integer,integer,integer,jsonb,jsonb
 ) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_ai_review_context(
+  p_listing_id text
+)
+RETURNS TABLE (
+  "sellerProfileId" text,
+  "listingUpdatedAt" timestamp without time zone,
+  "recentTitles" text[],
+  "photoUrls" text[]
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_ai_review_context$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  listing_updated_at timestamp without time zone;
+  source_now timestamp without time zone :=
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing owner AI-review context input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id, listing."updatedAt"
+    INTO seller_id, listing_updated_at
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+    JOIN public."Listing" AS listing
+      ON listing."sellerId" = seller.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true
+     AND listing.id = p_listing_id
+     AND listing."archivedAt" IS NULL;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    seller_id,
+    listing_updated_at,
+    COALESCE(
+      ARRAY(
+        SELECT recent_listing.title::text
+          FROM public."Listing" AS recent_listing
+         WHERE recent_listing."sellerId" = seller_id
+           AND recent_listing.id <> p_listing_id
+           AND recent_listing."createdAt" >= source_now - INTERVAL '7 days'
+         ORDER BY recent_listing."createdAt" DESC, recent_listing.id DESC
+      ),
+      ARRAY[]::text[]
+    ),
+    COALESCE(
+      ARRAY(
+        SELECT photo.url::text
+          FROM public."Photo" AS photo
+         WHERE photo."listingId" = p_listing_id
+         ORDER BY photo."sortOrder", photo.id
+         LIMIT 10
+      ),
+      ARRAY[]::text[]
+    );
+END
+$grainline_listing_owner_ai_review_context$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_ai_review_context(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_ai_review_context(text)
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_alt_text_backfill(
   p_listing_id text,

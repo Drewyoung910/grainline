@@ -33,7 +33,11 @@ import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
-import { createListingOwner, listingOwnerTransition } from "@/lib/listingOwnerAccess";
+import {
+  createListingOwner,
+  listingOwnerAiReviewContext,
+  listingOwnerTransition,
+} from "@/lib/listingOwnerAccess";
 import {
   applyVersionBoundListingAiReviewTransition,
   applyVersionBoundListingAiReviewTransitionState,
@@ -253,6 +257,15 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
     throw new Error("Seller listing-review authority returned a different seller");
   }
+  const aiContext = await listingOwnerAiReviewContext(seller.userId, created.id);
+  if (
+    !aiContext
+    || aiContext.sellerProfileId !== seller.id
+    || aiContext.listingUpdatedAt.getTime() !== created.updatedAt.getTime()
+  ) {
+    return { ok: false, error: "The listing changed before review. Refresh and try again." };
+  }
+  const reviewedImageUrls = [...aiContext.photoUrls];
   const { reviewListingWithAI } = await import("@/lib/ai-review");
   const aiResult = await reviewListingWithAI({
     listingId: created.id,
@@ -265,7 +278,8 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     tags: [...created.tags],
     sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
     listingCount: sellerInfo?.totalListingCount ?? 0,
-    imageUrls,
+    imageUrls: reviewedImageUrls,
+    recentListingTitles: aiContext.recentTitles.map((title) => ({ title })),
   }).catch((): AIReviewResult => ({
     approved: false,
     flags: ["AI review error"],
@@ -285,7 +299,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       score: aiResult.confidence,
     });
     if (!held) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
-    await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, imageUrls);
+    await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, reviewedImageUrls);
     revalidatePath(`/messages/${conversationId}`);
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
@@ -301,7 +315,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (!activation.applied) {
     return { ok: false, error: "Listing state changed during review. Refresh and try again." };
   }
-  await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, imageUrls);
+  await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, reviewedImageUrls);
 
   const readyLink = await sendCustomOrderReadyLink({
     listingId: created.id,
