@@ -2,8 +2,9 @@
 
 Date: 2026-11-02
 
-Status: design selected for isolated preparation. This document authorizes no
-merge, deployment, Production database change, grant change, or RLS activation.
+Status: design selected and isolated compatible preparation in progress. This
+document authorizes no merge, deployment, Production database change, grant
+change, or RLS activation.
 
 ## Decision context
 

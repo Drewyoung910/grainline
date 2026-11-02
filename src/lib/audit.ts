@@ -29,10 +29,14 @@ import {
   sellerStaffOrderabilityState,
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
+import {
+  appendAdminAuditLog,
+  appendAdminAuditLogForActor,
+} from './adminAuditLogAccess'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
-type AdminAuditLogClient = Pick<Prisma.TransactionClient, 'adminAuditLog'>
+type AdminAuditLogClient = Pick<Prisma.TransactionClient, '$queryRaw'>
 
 type AdminAuditLogInput = {
   adminId: string
@@ -138,7 +142,7 @@ async function retryUndoBanClerkSyncIfPending(log: {
 }
 
 async function createAdminAuditLog({
-  client = prisma,
+  client,
   adminId,
   action,
   targetType,
@@ -146,16 +150,17 @@ async function createAdminAuditLog({
   reason,
   metadata = {},
 }: AdminAuditLogInput & { client?: AdminAuditLogClient }): Promise<string> {
-  const log = await client.adminAuditLog.create({
-    data: {
-      adminId,
-      action,
-      targetType,
-      targetId,
-      reason: sanitizeAdminAuditReason(reason),
-      metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
-    }
-  })
+  const auditInput = {
+    adminId,
+    action,
+    targetType,
+    targetId,
+    reason: sanitizeAdminAuditReason(reason) ?? undefined,
+    metadata,
+  }
+  const log = client
+    ? await appendAdminAuditLog(client, auditInput)
+    : await appendAdminAuditLogForActor(auditInput)
   return log.id
 }
 

@@ -1,12 +1,15 @@
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
-import { prisma } from "@/lib/db";
 import { UndoActionButton } from "@/components/UndoActionButton";
 import { isUndoableAdminAction } from "@/lib/audit";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { truncateText } from "@/lib/sanitize";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { userStaffAdminLabels } from "@/lib/userStaffAccess";
+import {
+  adminAuditLogStaffCount,
+  adminAuditLogStaffPage,
+} from "@/lib/adminAuditLogAccess";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Audit Log — Admin" };
@@ -38,7 +41,6 @@ export default async function AdminAuditPage({
   const requestedPage = parseBoundedPositiveIntParam(pageStr, 1, 1000);
   const perPage = 30;
   const actionFilter = actionParam ? truncateText(actionParam.trim(), 80) : "";
-  const where = actionFilter ? { action: actionFilter } : {};
 
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams();
@@ -47,17 +49,21 @@ export default async function AdminAuditPage({
     return `/admin/audit?${params.toString()}`;
   };
 
-  const total = await prisma.adminAuditLog.count({ where });
+  const staffClient = getOrderStaffReadClient();
+  const total = await adminAuditLogStaffCount(staffClient, {
+    actorId: staff.id,
+    action: actionFilter || null,
+  });
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   const page = Math.min(requestedPage, totalPages);
 
-  const logs = await prisma.adminAuditLog.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * perPage,
-    take: perPage,
+  const logs = await adminAuditLogStaffPage(staffClient, {
+    actorId: staff.id,
+    action: actionFilter || null,
+    offset: (page - 1) * perPage,
+    limit: perPage,
   });
-  const adminLabels = await userStaffAdminLabels(getOrderStaffReadClient(), {
+  const adminLabels = await userStaffAdminLabels(staffClient, {
     actorId: staff.id,
     userIds: logs.map((log) => log.adminId),
   });
@@ -110,7 +116,7 @@ export default async function AdminAuditPage({
           <thead className="border-b border-neutral-200 bg-neutral-50">
             <tr>
               <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Action</th>
-              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Admin</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Actor</th>
               <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Target</th>
               <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Reason</th>
               <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Time</th>
@@ -142,8 +148,18 @@ export default async function AdminAuditPage({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium">{adminLabel?.name ?? "—"}</div>
-                    <div className="text-xs text-neutral-500">{adminLabel?.email ?? "Unknown"}</div>
+                    <div className="font-medium">
+                      {log.actorKind === "automated"
+                        ? "Automated review"
+                        : adminLabel?.name ?? "—"}
+                    </div>
+                    <div className="text-xs text-neutral-500">
+                      {log.actorKind === "automated"
+                        ? "System action"
+                        : log.actorKind === "user"
+                          ? "User action"
+                          : adminLabel?.email ?? "Unknown"}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-xs text-neutral-500">{log.targetType}</div>

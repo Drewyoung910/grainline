@@ -3,9 +3,9 @@
 Date: 2026-11-02
 
 Status: domain audit complete; Option B selected in
-`docs/admin-audit-log-rls-options.md`. Implementation has not started. No
-Production, merge, deployment, grant, or RLS action is authorized by this
-document.
+`docs/admin-audit-log-rls-options.md`. Compatible preparation is in progress
+on an isolated branch. No Production, merge, deployment, grant, or RLS action
+is authorized by this document.
 
 ## Baseline and method
 

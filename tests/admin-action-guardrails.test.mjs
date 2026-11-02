@@ -79,7 +79,7 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/broadcasts/page.tsx", "staffSellerBroadcastCount("],
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
       ["src/app/admin/verification/page.tsx", "makerVerificationStaffPendingPage("],
-      ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
+      ["src/app/admin/audit/page.tsx", "adminAuditLogStaffCount("],
       ["src/app/admin/users/page.tsx", "userStaffDirectoryCount("],
       ["src/app/admin/reviews/page.tsx", "prisma.review.count"],
       ["src/app/admin/review/page.tsx", "prisma.listing.count"],

@@ -24,10 +24,9 @@ const OPERATIONS = Object.freeze([
 // Baseline at isolated serial head 2a10b3d354e766ef787249f790a19b4d3a92212b.
 // Compatible preparation must drive this object and rawSqlCallers to empty.
 const EXPECTED_DIRECT_CALLERS = Object.freeze({
-  "src/app/admin/audit/page.tsx": ["count", "findMany"],
   "src/lib/accountDeletion.ts": ["create", "findMany"],
   "src/lib/accountDeletionSideEffects.ts": ["update"],
-  "src/lib/audit.ts": ["create", "create", "findMany", "findUnique", "updateMany"],
+  "src/lib/audit.ts": ["create", "findMany", "findUnique", "updateMany"],
   "src/lib/ban.ts": ["create", "create", "create", "findFirst", "findMany"],
   "src/lib/banSideEffectRepair.ts": ["create", "findMany", "findMany", "findMany"],
 });

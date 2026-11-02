@@ -6,6 +6,7 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 export async function DELETE(
   _request: Request,
@@ -33,7 +34,7 @@ export async function DELETE(
   });
   if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
-  await prisma.$transaction(async (tx) => {
+  await withDbUserContext(admin.id, async (tx) => {
     await tx.review.delete({ where: { id } });
     await refreshSellerRatingSummary(review.listing.sellerId, tx);
     await logAdminActionOrThrow({

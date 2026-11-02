@@ -8,13 +8,13 @@ import {
 describe("AdminAuditLog pre-RLS consumer contracts", () => {
   it("pins every current direct delegate operation until conversion reaches zero", () => {
     const inventory = assertAdminAuditLogConsumerContracts();
-    assert.equal(Object.keys(inventory.directCallers).length, 6);
+    assert.equal(Object.keys(inventory.directCallers).length, 5);
     assert.equal(
       Object.values(inventory.directCallers).reduce(
         (count, operations) => count + operations.length,
         0,
       ),
-      19,
+      16,
     );
   });
 
