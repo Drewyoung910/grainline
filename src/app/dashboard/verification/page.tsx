@@ -2,7 +2,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
 import {
   calculateSellerMetrics,
@@ -29,6 +28,7 @@ import {
   applyOwnerGuildMasterVerification,
   applyOwnerGuildMemberVerification,
 } from "@/lib/makerVerificationAccess";
+import { listingOwnerCounts } from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -59,7 +59,7 @@ async function getGuildMemberEligibility({
   accountCreatedAt: Date | null | undefined;
 }) {
   const [listingCount, totalSalesCents, caseCount] = await Promise.all([
-    prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false } }),
+    listingOwnerCounts(sellerUserId).then((counts) => counts.activePublicCount),
     getSellerVerificationOrderSales({
       actorUserId: sellerUserId,
       sellerProfileId,

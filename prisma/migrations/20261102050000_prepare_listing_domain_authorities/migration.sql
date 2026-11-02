@@ -63,6 +63,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner-summary authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_counts()'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner-count authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_favorite_admin_listing_cleanup(text)'
      ) IS NULL
      OR pg_catalog.to_regprocedure(
@@ -1112,6 +1117,66 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_summary_page(
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_summary_page(
   text,text,boolean,timestamp without time zone,text,integer
 ) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_counts()
+RETURNS TABLE (
+  "draftCount" bigint,
+  "activeCount" bigint,
+  "activePublicCount" bigint
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_counts$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing owner-count actor is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    pg_catalog.count(*) FILTER (
+      WHERE listing.status = 'DRAFT'
+    ) AS "draftCount",
+    pg_catalog.count(*) FILTER (
+      WHERE listing.status = 'ACTIVE'
+    ) AS "activeCount",
+    pg_catalog.count(*) FILTER (
+      WHERE listing.status = 'ACTIVE'
+        AND listing."isPrivate" = false
+    ) AS "activePublicCount"
+    FROM public."Listing" AS listing
+   WHERE listing."sellerId" = seller_id;
+END
+$grainline_listing_owner_counts$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_counts()
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_counts()
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_message_context_titles(
   p_conversation_id text
