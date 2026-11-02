@@ -219,7 +219,11 @@ export async function proveBlockPreparedAuthorities({ database }) {
        FROM public.grainline_user_block_export()`,
   );
   assert.deepEqual(actorExport, [{ blockerId: actorId, blockedId: targetId }]);
-  assert.deepEqual(targetExport, [], "a blocked user must not learn who blocked them");
+  assert.deepEqual(
+    targetExport,
+    [{ blockerId: actorId, blockedId: targetId }],
+    "account export preserves the reviewed bilateral predecessor representation",
+  );
 
   await database.query(
     `REVOKE SELECT, INSERT, UPDATE, DELETE
