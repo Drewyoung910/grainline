@@ -23,6 +23,7 @@ import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { sellerStockNotificationRangeCount } from "@/lib/stockNotificationAccess";
 import { sellerFavoriteRangeCount } from "@/lib/favoriteAccess";
+import { readSellerEngagementAnalytics } from "@/lib/sellerAnalyticsDailyAccess";
 
 export const runtime = "nodejs";
 
@@ -188,8 +189,6 @@ export async function GET(req: Request) {
 
     const { startDate, endDate, chartGrouping } = getRangeDates(range, new Date(sellerProfile.createdAt));
     const endExclusive = range === "yesterday";
-    const dateEndFilter = endExclusive ? { lt: endDate } : { lte: endDate };
-    const analyticsDateRange = { gte: startDate, ...dateEndFilter };
     const rangeEndSql = endExclusive ? Prisma.sql`< ${endDate}` : Prisma.sql`<= ${endDate}`;
 
     // ── Start independent reads before awaiting broad analytics work ───────────
@@ -203,13 +202,11 @@ export async function GET(req: Request) {
     const activeListingCountPromise = prisma.listing.count({
       where: { sellerId, status: "ACTIVE" },
     });
-    const rangeViewAggPromise = prisma.listingViewDaily.aggregate({
-      where: { sellerProfileId: sellerId, date: analyticsDateRange },
-      _sum: { views: true, clicks: true },
-    });
-    const profileViewAggPromise = prisma.sellerProfileViewDaily.aggregate({
-      where: { sellerProfileId: sellerId, date: analyticsDateRange },
-      _sum: { views: true },
+    const engagementPromise = readSellerEngagementAnalytics(me.id, {
+      startDate,
+      endDate,
+      endExclusive,
+      grouping: chartGrouping,
     });
     const favoritesCountPromise = sellerFavoriteRangeCount(
       me.id,
@@ -223,10 +220,6 @@ export async function GET(req: Request) {
       endDate,
       endExclusive,
     );
-    const dailyViewDataPromise = prisma.listingViewDaily.findMany({
-      where: { sellerProfileId: sellerId, date: analyticsDateRange },
-      select: { date: true, views: true, clicks: true },
-    });
     const chartOrderRowsPromise = readSellerOrderAnalyticsBuckets({
       actorUserId: me.id,
       startDate,
@@ -264,11 +257,9 @@ export async function GET(req: Request) {
     const [
       orderSummary,
       activeListingCount,
-      rangeViewAgg,
-      profileViewAgg,
+      engagement,
       favoritesCount,
       stockNotificationSubs,
-      dailyViewData,
       chartOrderRows,
       topListingRows,
       ratingRows,
@@ -276,11 +267,9 @@ export async function GET(req: Request) {
     ] = await Promise.all([
       orderSummaryPromise,
       activeListingCountPromise,
-      rangeViewAggPromise,
-      profileViewAggPromise,
+      engagementPromise,
       favoritesCountPromise,
       stockNotificationSubsPromise,
-      dailyViewDataPromise,
       chartOrderRowsPromise,
       topListingRowsPromise,
       ratingRowsPromise,
@@ -294,10 +283,13 @@ export async function GET(req: Request) {
     const totalOrders = orderSummary.totalOrders;
     const avgOrderValueCents = totalOrders > 0 ? Math.round(totalRevenueCents / totalOrders) : 0;
 
-    const totalViews = rangeViewAgg._sum.views ?? 0;
-    const totalClicks = rangeViewAgg._sum.clicks ?? 0;
+    if (!engagement) {
+      throw new Error("Seller engagement analytics authority returned no seller");
+    }
+    const totalViews = engagement.listingViews;
+    const totalClicks = engagement.listingClicks;
     const profileVisits =
-      range === "alltime" ? sellerPrivate.profileViews : profileViewAgg._sum.views ?? 0;
+      range === "alltime" ? sellerPrivate.profileViews : engagement.profileViews;
     // Conversion rate: null when no view data but orders exist (ListingViewDaily tracking wasn't active yet)
     // Cap at 100% to handle edge cases. Returns 0 when both are 0.
     const conversionRate: number | null =
@@ -320,7 +312,7 @@ export async function GET(req: Request) {
     const avgProcessingHours = orderSummary.avgProcessingHours;
 
     const dailyMap = new Map<string, { views: number; clicks: number }>();
-    for (const dv of dailyViewData) {
+    for (const dv of engagement.buckets) {
       const key = new Date(dv.date).toISOString().slice(0, 10);
       const existing = dailyMap.get(key) ?? { views: 0, clicks: 0 };
       dailyMap.set(key, { views: existing.views + dv.views, clicks: existing.clicks + dv.clicks });

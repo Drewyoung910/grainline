@@ -80,6 +80,7 @@ function fakeClientClass({ applied, predecessorBody = predecessorSource }) {
           database_name: "grainline",
           current_user_name: "neondb_owner",
           session_user_name: "neondb_owner",
+          table_name: release.table,
           table_owner_name: "neondb_owner",
           owner_bypasses_rls: true,
           rls_enabled: false,
@@ -105,6 +106,7 @@ function fakeClientClass({ applied, predecessorBody = predecessorSource }) {
                 (entry) => entry.predecessorSourceSha256 === undefined,
               ).length
             : 0,
+          constraints: 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) return { rows: [] };

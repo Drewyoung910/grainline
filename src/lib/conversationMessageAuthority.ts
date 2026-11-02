@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import type { MessageCursor } from "@/lib/messageCursor";
 import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
+import { withDbUserContext } from "@/lib/dbUserContext";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
 
 export type ConversationMessageAuthorityClient = Pick<
@@ -516,18 +517,17 @@ export async function listLatestActorMessages(
 
 export async function countActorUnreadMessages(
   userId: string,
-  db: ConversationMessageAuthorityClient = prisma,
 ): Promise<number> {
   const actorId = normalizeDbUserContextUserId(userId);
-  const rows = await db.$queryRaw<Array<{ count: CountValue }>>`
-    SELECT public.grainline_message_unread_count(
-      ${actorId}::text
-    ) AS count
-  `;
-  if (rows.length !== 1) {
-    throw new TypeError("message unread RPC returned no row");
-  }
-  return requireSafeCount(rows[0].count, "message unread RPC");
+  return withDbUserContext(actorId, async (db) => {
+    const rows = await db.$queryRaw<Array<{ count: CountValue }>>`
+      SELECT public.grainline_message_unread_count_owner() AS count
+    `;
+    if (rows.length !== 1) {
+      throw new TypeError("message unread RPC returned no row");
+    }
+    return requireSafeCount(rows[0].count, "message unread RPC");
+  });
 }
 
 export async function listActorConversationInbox(
@@ -543,7 +543,6 @@ export async function listActorConversationInbox(
     cursor: MessageCursor | null;
     limit: number;
   },
-  db: ConversationMessageAuthorityClient = prisma,
 ): Promise<ActorInboxConversation[]> {
   const actorId = normalizeDbUserContextUserId(userId);
   if (
@@ -565,20 +564,21 @@ export async function listActorConversationInbox(
   ) {
     throw new TypeError("conversation inbox RPC input is invalid");
   }
-  const rows = await db.$queryRaw<ConversationInboxRpcRow[]>`
-    SELECT *
-      FROM public.grainline_conversation_inbox(
-        ${actorId}::text,
-        ${archived}::boolean,
-        ${query}::text,
-        ${cursor?.createdAt ?? null}::timestamp,
-        ${cursor?.id ?? null}::text,
-        ${limit}::integer
-      )
-  `;
-  return rows.map((row) =>
-    validateConversationInboxRow(row, actorId, archived)
-  );
+  return withDbUserContext(actorId, async (db) => {
+    const rows = await db.$queryRaw<ConversationInboxRpcRow[]>`
+      SELECT *
+        FROM public.grainline_conversation_inbox_owner(
+          ${archived}::boolean,
+          ${query}::text,
+          ${cursor?.createdAt ?? null}::timestamp,
+          ${cursor?.id ?? null}::text,
+          ${limit}::integer
+        )
+    `;
+    return rows.map((row) =>
+      validateConversationInboxRow(row, actorId, archived)
+    );
+  });
 }
 
 export async function markActorConversationMessagesRead(

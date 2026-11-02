@@ -38,7 +38,8 @@ test("remaining seller preflight callers reuse durable owner identity and activi
 
   assert.match(broadcast, /sellerOwnerCore\(me\.id\)/);
   assert.match(broadcast, /canDeliverSellerBroadcast\(/);
-  assert.match(broadcast, /currentBroadcast\?\.sellerProfileId \?\? null/);
+  assert.match(broadcast, /ownerSellerBroadcastDeliverySource\(me\.id, broadcast\.id\)/);
+  assert.match(broadcast, /canDeliverSellerBroadcast\(\s*currentBroadcast,\s*currentSeller,\s*\)/s);
   assert.doesNotMatch(broadcast, /currentBroadcast\.sellerProfile/);
 
   assert.match(

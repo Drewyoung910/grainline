@@ -25,13 +25,14 @@ import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } fr
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { logSystemAction } from "@/lib/systemAudit";
 import { formatCurrencyCents } from "@/lib/money";
-import { runBoundedDeletionBatches, runCronCursorPages } from "@/lib/cronBatchState";
+import { runCronCursorPages } from "@/lib/cronBatchState";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import {
   applySellerGuildMetrics,
   sellerGuildMetricsCronBatch,
   type SellerGuildMetricsCronRow,
 } from "@/lib/sellerGuildPrivateAccess";
+import { pruneSellerAnalyticsDaily } from "@/lib/sellerAnalyticsDailyAccess";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -105,14 +106,14 @@ async function runGuildMetricsCron() {
   let deletedProfileViewRows = 0;
   let deletedProfileViewRowsComplete = true;
   try {
-    const [viewCleanup, profileViewCleanup] = await Promise.all([
-      deleteOldListingViewDaily(twoYearsAgo),
-      deleteOldSellerProfileViewDaily(twoYearsAgo),
-    ]);
-    deletedViewRows = viewCleanup.count;
-    deletedViewRowsComplete = viewCleanup.complete;
-    deletedProfileViewRows = profileViewCleanup.count;
-    deletedProfileViewRowsComplete = profileViewCleanup.complete;
+    const cleanup = await pruneSellerAnalyticsDaily({
+      batchSize: VIEW_CLEANUP_BATCH_SIZE,
+      timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS,
+    });
+    deletedViewRows = cleanup.listingDeleted;
+    deletedViewRowsComplete = cleanup.listingComplete;
+    deletedProfileViewRows = cleanup.profileDeleted;
+    deletedProfileViewRowsComplete = cleanup.profileComplete;
     if (deletedViewRows > 0) {
       await logSystemAction({
         actorType: "cron",
@@ -243,40 +244,6 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   }
 
   return { processed: 1, warned: 0, revokedMaster: 1 };
-}
-
-async function deleteOldListingViewDaily(cutoff: Date): Promise<{ count: number; complete: boolean }> {
-  return runBoundedDeletionBatches({
-    batchSize: VIEW_CLEANUP_BATCH_SIZE,
-    timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS,
-    deleteBatch: async () => prisma.$executeRaw<number>`
-      DELETE FROM "ListingViewDaily"
-      WHERE id IN (
-        SELECT id
-        FROM "ListingViewDaily"
-        WHERE date < ${cutoff}
-        ORDER BY date ASC
-        LIMIT ${VIEW_CLEANUP_BATCH_SIZE}
-      )
-    `,
-  });
-}
-
-async function deleteOldSellerProfileViewDaily(cutoff: Date): Promise<{ count: number; complete: boolean }> {
-  return runBoundedDeletionBatches({
-    batchSize: VIEW_CLEANUP_BATCH_SIZE,
-    timeBudgetMs: VIEW_CLEANUP_TIME_BUDGET_MS,
-    deleteBatch: async () => prisma.$executeRaw<number>`
-      DELETE FROM "SellerProfileViewDaily"
-      WHERE id IN (
-        SELECT id
-        FROM "SellerProfileViewDaily"
-        WHERE date < ${cutoff}
-        ORDER BY date ASC
-        LIMIT ${VIEW_CLEANUP_BATCH_SIZE}
-      )
-    `,
-  });
 }
 
 function getErrorCode(err: unknown): string {
