@@ -175,6 +175,53 @@ export type ListingOwnerExportState = Readonly<{
   }>>;
 }>;
 
+type ListingOwnerSummaryRow = {
+  id: unknown;
+  title: unknown;
+  priceCents: unknown;
+  currency: unknown;
+  status: unknown;
+  isPrivate: unknown;
+  listingType: unknown;
+  stockQuantity: unknown;
+  viewCount: unknown;
+  clickCount: unknown;
+  favoriteCount: unknown;
+  aiReviewFlags: unknown;
+  reviewedByAdmin: unknown;
+  createdAt: unknown;
+  updatedAt: unknown;
+  archivedAt: unknown;
+  photos: unknown;
+};
+
+export type ListingOwnerSummaryState = Readonly<{
+  id: string;
+  title: string;
+  priceCents: number;
+  currency: string;
+  status: ListingStatus;
+  isPrivate: boolean;
+  listingType: ListingType;
+  stockQuantity: number | null;
+  viewCount: number;
+  clickCount: number;
+  favoriteCount: number;
+  aiReviewFlags: ReadonlyArray<string>;
+  reviewedByAdmin: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt: Date | null;
+  photos: ReadonlyArray<Readonly<{ url: string }>>;
+}>;
+
+export type ListingOwnerSummaryOptions = Readonly<{
+  status?: ListingStatus;
+  listingType?: ListingType;
+  includeArchived?: boolean;
+  take?: number;
+}>;
+
 const LISTING_STATUSES = new Set<string>(Object.values(ListingStatus));
 const LISTING_TYPES = new Set<string>(Object.values(ListingType));
 const CATEGORIES = new Set<string>(Object.values(Category));
@@ -590,6 +637,159 @@ export function listingOwnerExportRows(userId: string) {
         throw new Error("Listing owner export cursor did not advance");
       }
       beforeCreatedAt = last.createdAt;
+      beforeListingId = last.id;
+    }
+  }, {
+    isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    maxWait: 10_000,
+    timeout: 30_000,
+  });
+}
+
+function parseListingOwnerSummaryRow(
+  row: ListingOwnerSummaryRow,
+): ListingOwnerSummaryState {
+  const photos = Array.isArray(row.photos)
+    ? row.photos.map((candidate) => {
+      const photo = recordValue(candidate);
+      if (!photo || !isTextWithinCodePointRange(photo.url, 1, 2048)) return null;
+      return Object.freeze({ url: photo.url });
+    })
+    : null;
+  if (
+    !validId(row.id)
+    || !isTextWithinCodePointRange(row.title, 1, 150)
+    || !validSafeInteger(row.priceCents)
+    || row.priceCents < 1
+    || typeof row.currency !== "string"
+    || row.currency.length !== 3
+    || typeof row.status !== "string"
+    || !LISTING_STATUSES.has(row.status)
+    || typeof row.isPrivate !== "boolean"
+    || typeof row.listingType !== "string"
+    || !LISTING_TYPES.has(row.listingType)
+    || !validNullableSafeInteger(row.stockQuantity)
+    || (row.stockQuantity !== null && row.stockQuantity < 0)
+    || !validSafeInteger(row.viewCount)
+    || row.viewCount < 0
+    || !validSafeInteger(row.clickCount)
+    || row.clickCount < 0
+    || !validSafeInteger(row.favoriteCount)
+    || row.favoriteCount < 0
+    || !Array.isArray(row.aiReviewFlags)
+    || !row.aiReviewFlags.every((flag) => typeof flag === "string")
+    || typeof row.reviewedByAdmin !== "boolean"
+    || !validDate(row.createdAt)
+    || !validDate(row.updatedAt)
+    || !(row.archivedAt === null || validDate(row.archivedAt))
+    || photos === null
+    || photos.length > 1
+    || photos.some((photo) => photo === null)
+  ) {
+    throw new Error("Listing owner-summary authority returned an invalid row");
+  }
+  return Object.freeze({
+    id: row.id,
+    title: row.title,
+    priceCents: row.priceCents,
+    currency: row.currency,
+    status: row.status as ListingStatus,
+    isPrivate: row.isPrivate,
+    listingType: row.listingType as ListingType,
+    stockQuantity: row.stockQuantity,
+    viewCount: row.viewCount,
+    clickCount: row.clickCount,
+    favoriteCount: row.favoriteCount,
+    aiReviewFlags: Object.freeze([...row.aiReviewFlags]),
+    reviewedByAdmin: row.reviewedByAdmin,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt as Date | null,
+    photos: Object.freeze(photos as Array<NonNullable<(typeof photos)[number]>>),
+  });
+}
+
+const LISTING_OWNER_SUMMARY_PAGE_LIMIT = 100;
+
+export function listingOwnerSummaryRows(
+  userId: string,
+  options: ListingOwnerSummaryOptions = {},
+) {
+  const status = options.status ?? null;
+  const listingType = options.listingType ?? null;
+  const includeArchived = options.includeArchived ?? false;
+  const take = options.take ?? null;
+  if (
+    (status !== null && !LISTING_STATUSES.has(status))
+    || (listingType !== null && !LISTING_TYPES.has(listingType))
+    || typeof includeArchived !== "boolean"
+    || (take !== null && (!Number.isSafeInteger(take) || take < 1 || take > 1_000))
+  ) {
+    throw new RangeError("Listing owner-summary options are invalid");
+  }
+
+  return withDbUserContext(userId, async (client) => {
+    const result: ListingOwnerSummaryState[] = [];
+    const ids = new Set<string>();
+    let beforeUpdatedAt: Date | null = null;
+    let beforeListingId: string | null = null;
+
+    for (;;) {
+      const remaining = take === null ? LISTING_OWNER_SUMMARY_PAGE_LIMIT : take - result.length;
+      if (remaining <= 0) return result;
+      const pageLimit = Math.min(LISTING_OWNER_SUMMARY_PAGE_LIMIT, remaining);
+      const rows = await client.$queryRaw<ListingOwnerSummaryRow[]>`
+        SELECT *
+          FROM public.grainline_listing_owner_summary_page(
+            ${status}::text,
+            ${listingType}::text,
+            ${includeArchived}::boolean,
+            ${beforeUpdatedAt}::timestamp,
+            ${beforeListingId}::text,
+            ${pageLimit}::integer
+          )
+      `;
+      if (rows.length > pageLimit) {
+        throw new Error("Listing owner-summary authority exceeded its page limit");
+      }
+
+      let previous = result.at(-1) ?? null;
+      for (const row of rows) {
+        const value = parseListingOwnerSummaryRow(row);
+        if (ids.has(value.id)) {
+          throw new Error("Listing owner-summary authority repeated a listing id");
+        }
+        if (
+          previous
+          && !(
+            value.updatedAt < previous.updatedAt
+            || (
+              value.updatedAt.getTime() === previous.updatedAt.getTime()
+              && value.id < previous.id
+            )
+          )
+        ) {
+          throw new Error("Listing owner-summary authority returned an invalid order");
+        }
+        ids.add(value.id);
+        result.push(value);
+        previous = value;
+      }
+
+      if (rows.length < pageLimit || (take !== null && result.length >= take)) {
+        return result;
+      }
+      const last = result.at(-1);
+      if (
+        !last
+        || (
+          beforeUpdatedAt?.getTime() === last.updatedAt.getTime()
+          && beforeListingId === last.id
+        )
+      ) {
+        throw new Error("Listing owner-summary cursor did not advance");
+      }
+      beforeUpdatedAt = last.updatedAt;
       beforeListingId = last.id;
     }
   }, {

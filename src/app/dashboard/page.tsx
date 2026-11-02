@@ -32,6 +32,7 @@ import { Suspense } from "react";
 import { WorkshopSkeleton } from "@/components/RouteSkeletons";
 import { sellerOwnerCore, sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
+import { listingOwnerSummaryRows } from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -286,25 +287,8 @@ async function DashboardPageContent({
   const forceSetupBanner = params.setup === "required";
 
   const [listingRows, savedSearches, verification, notifUnreadCount, dashboardSeller] = await Promise.all([
-    prisma.listing.findMany({
-      where: { sellerId: seller.id, archivedAt: null },
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        status: true,
-        isPrivate: true,
-        viewCount: true,
-        clickCount: true,
-        favoriteCount: true,
-        aiReviewFlags: true,
-        reviewedByAdmin: true,
-        createdAt: true,
-        updatedAt: true,
-        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-      },
-      orderBy: { updatedAt: "desc" },
+    listingOwnerSummaryRows(me.id, {
+      includeArchived: false,
       take: 6,
     }),
     listOwnerSavedSearches(me.id, prisma, { take: 20 }),
