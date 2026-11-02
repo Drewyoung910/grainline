@@ -45,6 +45,7 @@ import { SellerProfileSkeleton } from "@/components/SellerRouteSkeletons";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 import { publicLatestSellerBroadcast } from "@/lib/sellerBroadcastAccess";
+import { listingPublicCatalogCount } from "@/lib/listingPublicCatalogAccess";
 
 const SOCIAL_LINK_ALLOWED_HOSTS = {
   Instagram: ["instagram.com"],
@@ -217,7 +218,7 @@ async function SellerPublicContent({
           select: sellerProfileListingCardSelect,
         })
       : Promise.resolve([]),
-    prisma.listing.count({ where: publicListingWhere({ sellerId: seller.id }) }),
+    listingPublicCatalogCount(meId, { sellerId: seller.id }),
     getSellerRatingMap([seller.id]),
     getCachedPublicSellerStats(seller.id),
     getCachedPublicSellerTopTags(seller.id),

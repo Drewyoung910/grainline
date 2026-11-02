@@ -37,7 +37,8 @@ describe("homepage deterministic query guardrails", () => {
     assert.match(stats, /import \{ unstable_cache \} from "next\/cache"/);
     assert.match(stats, /HOMEPAGE_STATS_REVALIDATE_SECONDS = 5 \* 60/);
     assert.match(stats, /await Promise\.all\(\[/);
-    assert.match(stats, /prisma\.listing\.count\(\{ where: publicListingWhere\(\) \}\)/);
+    assert.match(stats, /listingPublicCatalogCount\(null, \{\}\)/);
+    assert.doesNotMatch(stats, /prisma\.listing\.count\(/);
     assert.match(stats, /sellerPublicMarketplaceCounts\(\)/);
     assert.match(stats, /makers: marketplaceCounts\.activeSellerCount/);
     assert.doesNotMatch(stats, /prisma\.sellerProfile\./);
