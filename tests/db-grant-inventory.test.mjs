@@ -328,6 +328,31 @@ const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH =
 const EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
   "grainline_email_hard_suppression_apply",
 ];
+const EMAIL_SERVICE_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql";
+const EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES = [
+  "grainline_email_suppression_exists",
+  "grainline_email_one_click_suppression_clear",
+  "grainline_newsletter_signup_reserve",
+  "grainline_newsletter_signup_release",
+  "grainline_newsletter_confirmation_valid",
+  "grainline_newsletter_confirm",
+  "grainline_newsletter_token_superseded",
+  "grainline_email_unsubscribe_apply",
+  "grainline_email_account_deletion_suppression_clear",
+  "grainline_email_service_owner_export",
+  "grainline_email_service_account_deletion_apply",
+  "grainline_resend_webhook_event_reserve",
+  "grainline_resend_webhook_event_complete",
+  "grainline_resend_webhook_event_fail",
+  "grainline_email_outbox_begin_provider_attempt",
+  "grainline_newsletter_expired_unconfirmed_delete_batch",
+  "grainline_email_outbox_retention_delete_batch",
+  "grainline_resend_webhook_event_retention_delete_batch",
+  "grainline_email_service_ops_health",
+  "grainline_email_outbox_cancel_seller_broadcast",
+  "grainline_email_outbox_redact_deleted_seller",
+];
 const REVIEW_VOTE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql";
 const REVIEW_VOTE_PREPARATION_FUNCTION_NAMES = [
@@ -3731,6 +3756,12 @@ describe("database grant inventory guardrails", () => {
     const emailProviderEligibilitySubstitutesUnsubscribeRevoke =
       emailProviderEligibilityFencePrepared
       && !userUnsubscribeOptionalPreferencesCorrectionPresent;
+    const emailServiceAuthorityPrepared = existsSync(
+      EMAIL_SERVICE_PREPARATION_MIGRATION,
+    ) && EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_SERVICE_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3938,6 +3969,9 @@ describe("database grant inventory guardrails", () => {
       ...(emailProviderEligibilityFencePrepared
         ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
         : []),
+      ...(emailServiceAuthorityPrepared
+        ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -4023,6 +4057,10 @@ describe("database grant inventory guardrails", () => {
           : 0)
         + (emailProviderEligibilityFencePrepared
           ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES.length
+          : 0)
+        + (emailServiceAuthorityPrepared
+          ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES.length
+            - 1 // begin_provider_attempt already has a semantic PUBLIC revoke
           : 0)
         // CI proves the C-875 release before isolating this successor. While
         // C-875 is held aside, the successor's redefinition still contributes
@@ -4143,6 +4181,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(emailProviderEligibilityFencePrepared
         ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
+        : []),
+      ...(emailServiceAuthorityPrepared
+        ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES
         : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
