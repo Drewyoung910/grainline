@@ -428,6 +428,17 @@ test(
               emailServiceLeastPrivilegeFixture,
               "email service predecessor fixture must precede activation",
             );
+            await proveEmailServiceDeliveryLedger({ database: adapter });
+            await proveEmailProviderDeletionFence({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+              seller: fixture,
+              historical: historicalEmailProviderDeletionFenceRows,
+            });
+            await proveEmailProviderEligibilityFence({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
             await proveEmailServiceLeastPrivilegeAuthorities({
               database: adapter,
               fixture: emailServiceLeastPrivilegeFixture,
@@ -1061,17 +1072,6 @@ test(
       await proveCartCartItemRlsAuthorities({
         database: adapter,
         fixture: cartCartItemFixture,
-        connectionString: proofDatabaseUrl,
-      });
-      await proveEmailServiceDeliveryLedger({ database: adapter });
-      await proveEmailProviderDeletionFence({
-        database: adapter,
-        connectionString: proofDatabaseUrl,
-        seller: fixture,
-        historical: historicalEmailProviderDeletionFenceRows,
-      });
-      await proveEmailProviderEligibilityFence({
-        database: adapter,
         connectionString: proofDatabaseUrl,
       });
       assert.ok(

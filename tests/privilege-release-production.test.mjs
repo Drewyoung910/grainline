@@ -45,8 +45,11 @@ function tableRows(posture, partial = false) {
         ? ["DELETE", "INSERT", "SELECT", "UPDATE"]
         : successor,
       public_privileges: [],
+      staff_privileges: [],
       runtime_grant_options: [],
+      staff_grant_options: [],
       runtime_column_privileges: [],
+      staff_column_privileges: [],
     }));
 }
 
@@ -114,6 +117,27 @@ test("catalog byte-seals the reviewed reusable privilege release", () => {
     SystemAuditLog: ["INSERT", "SELECT"],
   });
   assert.throws(() => privilegeRelease("unreviewed"), /release id is not reviewed/u);
+});
+
+test("catalog byte-seals the reviewed email-service activation boundary", () => {
+  const emailRelease = privilegeRelease("email_service_v1");
+  const verified = verifyPrivilegeReleaseSource("email_service_v1", rootDir);
+  assert.equal(verified.digest, emailRelease.migrationSha256);
+  assert.equal(verified.rollbackDigest, emailRelease.rollback.sha256);
+  assert.equal(
+    emailRelease.preparationMigration.name,
+    "20261101080000_prepare_email_service_least_privilege",
+  );
+  assert.match(emailRelease.compatibleDeployment.minimumAppCommit, /^[0-9a-f]{40}$/u);
+  assert.deepEqual(emailRelease.emptyTables, ["EmailFailureCount"]);
+  assert.equal(Object.keys(emailRelease.functions).length, 21);
+  assert.deepEqual(emailRelease.tables, {
+    EmailFailureCount: [],
+    EmailOutbox: [],
+    EmailSuppression: [],
+    NewsletterSubscriber: [],
+    ResendWebhookEvent: [],
+  });
 });
 
 test("production inspector recognizes all three restart-safe release states", async () => {
@@ -184,11 +208,13 @@ test("workflow is exact-main, serialized, restart-safe, and evidence preserving"
   assert.equal(parsed.concurrency["cancel-in-progress"], false);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    [releaseId],
+    ["email_service_v1", releaseId],
   );
   assert.match(source, /github\.ref == 'refs\/heads\/main'/u);
   assert.match(source, /main\.commit\.sha !== sha/u);
   assert.match(source, /Exact-main push workflows are not all green/u);
+  assert.match(source, /Compatible application ancestry drifted/u);
+  assert.match(source, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(source, /guard-production-migration-runner\.mjs/u);
   assert.match(source, /assert-reviewed-pending-migrations\.mjs/u);
   assert.match(source, /steps\.preflight\.outputs\.state == 'pending'/u);
