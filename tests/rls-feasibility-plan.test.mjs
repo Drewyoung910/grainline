@@ -512,8 +512,8 @@ describe("RLS feasibility plan guardrails", () => {
       assert.match(doc, /Webhook\/cron\/admin\s+low-stock/);
       assert.match(doc, /service\/write-path/);
     }
-    assert.match(stockRoute, /const seller = await sellerOwnerCore\(me\.id\)/);
-    assert.match(stockRoute, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
+    assert.match(stockRoute, /const listing = await listingOwnerActionState\(me\.id, id\)/);
+    assert.match(stockRoute, /listingId: id, sellerId: listing\.sellerId, actorId: me\.id/);
     assert.doesNotMatch(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
     assert.match(messageReadRoute, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
     assert.match(stockRoute, /findRecentOwnerLowStockNotification\(/);

@@ -93,6 +93,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner AI-review context authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_actor_transaction_source(text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing actor transaction-source authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_legacy_stock_restore_apply(text,jsonb)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Legacy checkout stock-restore apply authority already exists';
@@ -2215,6 +2220,169 @@ GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_content_update(
   double precision,double precision,double precision,integer,text,text,
   integer,integer,integer,integer,jsonb,jsonb
 ) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_actor_transaction_source(
+  p_listing_id text
+)
+RETURNS TABLE (
+  id text,
+  "sellerId" text,
+  title text,
+  description text,
+  "priceCents" integer,
+  "priceVersion" integer,
+  currency text,
+  status text,
+  "listingType" text,
+  "processingTimeMinDays" integer,
+  "processingTimeMaxDays" integer,
+  "shipsWithinDays" integer,
+  category text,
+  tags text[],
+  "stockQuantity" integer,
+  "packagedWeightGrams" integer,
+  "packagedLengthCm" double precision,
+  "packagedWidthCm" double precision,
+  "packagedHeightCm" double precision,
+  "isPrivate" boolean,
+  "reservedForUserId" text,
+  photos jsonb,
+  "variantGroups" jsonb,
+  "sellerUserId" text,
+  "sellerDisplayName" text,
+  "sellerChargesEnabled" boolean,
+  "sellerStripeAccountSupported" boolean,
+  "sellerOwnerAccountActive" boolean,
+  "sellerVacationMode" boolean,
+  "sellerAcceptingNewOrders" boolean,
+  "sellerFreeShippingOverCents" integer,
+  "sellerShippingFlatRateCents" integer,
+  "sellerAllowLocalPickup" boolean,
+  "sellerOffersGiftWrapping" boolean,
+  "sellerGiftWrappingPriceCents" integer
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_actor_transaction_source$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing actor transaction-source input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  SELECT listing.id::text,
+         listing."sellerId"::text,
+         listing.title::text,
+         listing.description::text,
+         listing."priceCents",
+         listing."priceVersion",
+         listing.currency::text,
+         listing.status::text,
+         listing."listingType"::text,
+         listing."processingTimeMinDays",
+         listing."processingTimeMaxDays",
+         listing."shipsWithinDays",
+         listing.category::text,
+         listing.tags,
+         listing."stockQuantity",
+         listing."packagedWeightGrams",
+         listing."packagedLengthCm",
+         listing."packagedWidthCm",
+         listing."packagedHeightCm",
+         listing."isPrivate",
+         listing."reservedForUserId"::text,
+         COALESCE(
+           (
+             SELECT pg_catalog.jsonb_agg(
+                      pg_catalog.jsonb_build_object('url', photo.url)
+                      ORDER BY photo."sortOrder", photo.id
+                    )
+               FROM public."Photo" AS photo
+              WHERE photo."listingId" = listing.id
+           ),
+           '[]'::jsonb
+         ),
+         COALESCE(
+           (
+             SELECT pg_catalog.jsonb_agg(
+                      pg_catalog.jsonb_build_object(
+                        'id', variant_group.id,
+                        'name', variant_group.name,
+                        'options', COALESCE(
+                          (
+                            SELECT pg_catalog.jsonb_agg(
+                                     pg_catalog.jsonb_build_object(
+                                       'id', variant_option.id,
+                                       'label', variant_option.label,
+                                       'priceAdjustCents', variant_option."priceAdjustCents",
+                                       'inStock', variant_option."inStock"
+                                     )
+                                     ORDER BY variant_option."sortOrder", variant_option.id
+                                   )
+                              FROM public."ListingVariantOption" AS variant_option
+                             WHERE variant_option."groupId" = variant_group.id
+                          ),
+                          '[]'::jsonb
+                        )
+                      )
+                      ORDER BY variant_group."sortOrder", variant_group.id
+                    )
+               FROM public."ListingVariantGroup" AS variant_group
+              WHERE variant_group."listingId" = listing.id
+           ),
+           '[]'::jsonb
+         ),
+         seller."userId"::text,
+         seller."displayName"::text,
+         seller."chargesEnabled",
+         seller."stripeAccountSupported",
+         seller."ownerAccountActive",
+         seller."vacationMode",
+         seller."acceptingNewOrders",
+         seller."freeShippingOverCents",
+         seller."shippingFlatRateCents",
+         seller."allowLocalPickup",
+         seller."offersGiftWrapping",
+         seller."giftWrappingPriceCents"
+    FROM public."User" AS actor
+    JOIN public."Listing" AS listing
+      ON listing.id = p_listing_id
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = listing."sellerId"
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND listing."archivedAt" IS NULL
+     AND (
+       (
+         listing."isPrivate" = false
+         AND listing.status IN ('ACTIVE', 'SOLD_OUT')
+       )
+       OR (
+         listing."isPrivate" = true
+         AND listing."reservedForUserId" = actor_id
+         AND listing.status IN ('ACTIVE', 'SOLD')
+       )
+     );
+END
+$grainline_listing_actor_transaction_source$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_actor_transaction_source(text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_transaction_source(text)
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_ai_review_context(
   p_listing_id text
