@@ -76,7 +76,6 @@ describe("seller order mutation ownership guardrails", () => {
 
   it("keeps seller order read surfaces on durable whole-order ownership", () => {
     for (const path of [
-      "src/app/api/account/export/route.ts",
       "src/lib/accountDeletion.ts",
       "src/lib/ban.ts",
     ]) {
@@ -92,6 +91,22 @@ describe("seller order mutation ownership guardrails", () => {
         `${path} must not derive seller Order authority from current Listings`,
       );
     }
+
+    const accountExport = source("src/app/api/account/export/route.ts");
+    const participantExportAuthority = source(
+      "prisma/migrations/20260901030000_prepare_order_participant_export_authority/migration.sql",
+    );
+    assert.match(accountExport, /exportSellerOrders\(user\.id\)/);
+    assert.doesNotMatch(accountExport, /\bprisma\.order\b/);
+    assert.match(
+      participantExportAuthority,
+      /seller\.id = source_order\."sellerProfileId"/,
+    );
+    assert.match(participantExportAuthority, /seller\."userId" = p_actor_user_id/);
+    assert.doesNotMatch(
+      participantExportAuthority,
+      /JOIN public\."Listing"[\s\S]*listing\."sellerId"/u,
+    );
 
     const sales = source("src/app/dashboard/sales/page.tsx");
     const summaryAuthority = source(
