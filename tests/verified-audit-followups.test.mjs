@@ -293,7 +293,7 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(similarListingAuthority, /seller\."stripeAccountSupported" = true/);
     assert.doesNotMatch(similarListingAuthority, /stripeAccountVersion/);
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
-    assert.match(globalSuggestions, /grainline_seller_public_follower_listing_target/);
+    assert.match(globalSuggestions, /listingPublicTitleSuggestions\(meDbId, q\)/);
     assert.doesNotMatch(globalSuggestions, /JOIN "SellerProfile"|stripeAccountVersion/);
     for (const path of [
       "src/app/blog/page.tsx",

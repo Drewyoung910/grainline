@@ -3,16 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = readFileSync("src/app/api/search/suggestions/route.ts", "utf8");
+const authority = readFileSync(
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  "utf8",
+);
 
 test("listing suggestions delegate seller eligibility to an exact listing authority", () => {
-  const listingSuggestionSource = source.slice(
-    source.indexOf("async function listingFuzzySuggestionRows"),
-    source.indexOf("async function blogFuzzySuggestionRows"),
-  );
-  assert.match(listingSuggestionSource, /grainline_seller_public_follower_listing_target/u);
-  assert.doesNotMatch(listingSuggestionSource, /JOIN "SellerProfile"/u);
-  assert.equal(
-    listingSuggestionSource.match(/grainline_seller_public_follower_listing_target/gu)?.length,
-    1,
-  );
+  assert.match(source, /listingPublicTitleSuggestions\(meDbId, q\)/u);
+  assert.doesNotMatch(source, /prisma\.listing\.|FROM "Listing"/u);
+  assert.match(authority, /grainline_listing_public_title_suggestions/u);
+  assert.match(authority, /listing\."sellerPubliclyOrderable" = true/u);
+  assert.match(authority, /public\."Block"/u);
 });

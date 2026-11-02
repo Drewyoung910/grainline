@@ -75,12 +75,36 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
                'public.grainline_listing_public_catalog_page(jsonb,integer,integer)'
              ),
              'EXECUTE'
-           ) AS "publicExecute"
+           ) AS "publicExecute",
+           pg_catalog.has_function_privilege(
+             'grainline_app_runtime',
+             pg_catalog.to_regprocedure(
+               'public.grainline_listing_public_title_suggestions(text)'
+             ),
+             'EXECUTE'
+           ) AS "suggestionRuntimeExecute",
+           pg_catalog.has_function_privilege(
+             'grainline_staff_read_runtime',
+             pg_catalog.to_regprocedure(
+               'public.grainline_listing_public_title_suggestions(text)'
+             ),
+             'EXECUTE'
+           ) AS "suggestionStaffExecute",
+           pg_catalog.has_function_privilege(
+             'public',
+             pg_catalog.to_regprocedure(
+               'public.grainline_listing_public_title_suggestions(text)'
+             ),
+             'EXECUTE'
+           ) AS "suggestionPublicExecute"
   `))[0];
   assert.deepEqual(privilege, {
     runtimeExecute: true,
     staffExecute: false,
     publicExecute: false,
+    suggestionRuntimeExecute: true,
+    suggestionStaffExecute: false,
+    suggestionPublicExecute: false,
   });
 
   await database.query(
@@ -305,6 +329,46 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     "excluded listing-id catalog filter",
   );
 
+  const suggestionSql = `
+    SELECT *
+      FROM public.grainline_listing_public_title_suggestions($1::text)
+  `;
+  const exactSuggestions = rowsOf(await runtimeQuery(
+    database,
+    null,
+    suggestionSql,
+    ["Catalog"],
+  ));
+  assert.deepEqual(
+    new Set(exactSuggestions.map((row) => row.id)),
+    new Set([listingIds.matching, listingIds.wrongTag]),
+    "exact title suggestions",
+  );
+  assert.equal(
+    exactSuggestions.every((row) => row.matchKind === "exact"),
+    true,
+    "exact title suggestion kinds",
+  );
+
+  const fuzzySuggestions = rowsOf(await runtimeQuery(
+    database,
+    null,
+    suggestionSql,
+    ["Catlog oak tabel"],
+  ));
+  assert.equal(
+    fuzzySuggestions.some(
+      (row) => row.id === listingIds.matching && row.matchKind === "fuzzy",
+    ),
+    true,
+    "fuzzy title suggestions",
+  );
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(database, null, suggestionSql, ["%_"])),
+    [],
+    "suggestion wildcard characters are literal",
+  );
+
   const metroCategoryPage = pageOf(await runtimeQuery(
     database,
     null,
@@ -462,6 +526,11 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
   ));
   assert.equal(Number(blockedPage.totalCount), 0, "blocked seller exclusion");
   assert.deepEqual(blockedPage.listings, []);
+  assert.deepEqual(
+    rowsOf(await runtimeQuery(database, actorId, suggestionSql, ["Catalog"])),
+    [],
+    "blocked title suggestions",
+  );
 
   await database.query(
     `UPDATE public."SellerProfile"
