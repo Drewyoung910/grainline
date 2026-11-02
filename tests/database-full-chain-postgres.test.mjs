@@ -104,6 +104,11 @@ import {
 import { proveEmailProviderEligibilityFence } from
   "../tools/database-full-chain/scenarios/email-provider-eligibility-fence.mjs";
 import {
+  EMAIL_SERVICE_LEAST_PRIVILEGE_PREPARATION_MIGRATION,
+  proveEmailServiceLeastPrivilegeAuthorities,
+  seedEmailServiceLeastPrivilegePredecessor,
+} from "../tools/database-full-chain/scenarios/email-service-least-privilege.mjs";
+import {
   STOCK_NOTIFICATION_PREPARATION_MIGRATION,
   STOCK_NOTIFICATION_RLS_MIGRATION,
   proveStockNotificationPredecessorBlockGap,
@@ -269,6 +274,7 @@ test(
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
+      let emailServiceLeastPrivilegeFixture;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -401,6 +407,14 @@ test(
               migrationSql: artifact.sql,
               historical: historicalEmailProviderDeletionFenceRows,
             });
+          }
+          if (
+            artifact.name === EMAIL_SERVICE_LEAST_PRIVILEGE_PREPARATION_MIGRATION
+          ) {
+            emailServiceLeastPrivilegeFixture =
+              await seedEmailServiceLeastPrivilegePredecessor({
+                database: adapter,
+              });
           }
           if (artifact.name === STOCK_NOTIFICATION_PREPARATION_MIGRATION) {
             assert.ok(fixture, "seller fixture must exist before StockNotification proof");
@@ -1041,6 +1055,14 @@ test(
       await proveEmailProviderEligibilityFence({
         database: adapter,
         connectionString: proofDatabaseUrl,
+      });
+      assert.ok(
+        emailServiceLeastPrivilegeFixture,
+        "email service predecessor fixture must precede preparation",
+      );
+      await proveEmailServiceLeastPrivilegeAuthorities({
+        database: adapter,
+        fixture: emailServiceLeastPrivilegeFixture,
       });
       assert.deepEqual(stockNotificationPredecessorEvidence, {
         blockedNotificationCreated: true,
