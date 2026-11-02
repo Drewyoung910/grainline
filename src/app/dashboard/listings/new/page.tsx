@@ -11,7 +11,6 @@ import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
-import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
@@ -51,6 +50,7 @@ import {
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 import {
   assignListingOwnerMetros,
+  createListingOwner,
   listingOwnerActionState,
   listingOwnerCounts,
 } from "@/lib/listingOwnerAccess";
@@ -257,60 +257,49 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (processingWindowError) return { ok: false, error: processingWindowError };
 
   // 3. Create listing with status based on saveAsDraft
-  const created = await prisma.$transaction(async (tx) => {
-    const listing = await tx.listing.create({
-      data: {
-        sellerId: seller.id,
-        title,
-        description,
-        priceCents,
-        tags,
-        metaDescription,
-        materials,
-        productLengthIn,
-        productWidthIn,
-        productHeightIn,
-        packagedLengthCm,
-        packagedWidthCm,
-        packagedHeightCm,
-        packagedWeightGrams,
-        category,
-        listingType,
-        stockQuantity,
-        shipsWithinDays,
-        processingTimeMinDays,
-        processingTimeMaxDays,
-        status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
-        photos: { create: photoPairs.map((photo, i) => ({
-          url: photo.url,
-          originalUrl: photo.originalUrl,
-          sortOrder: i,
-          altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
-        })) },
-        variantGroups: variantGroups.length > 0 ? {
-          create: variantGroups.map((g, gi) => ({
-            name: g.name,
-            sortOrder: gi,
-            options: {
-              create: g.options.filter((o) => o.label).map((o, oi) => ({
-                label: o.label,
-                priceAdjustCents: o.priceAdjustCents,
-                sortOrder: oi,
-                inStock: o.inStock,
-              })),
-            },
-          })),
-        } : undefined,
-      },
-    });
-    await syncListingDirectUploadReferences({
-      client: tx,
-      userId: seller.userId,
-      listingId: listing.id,
-      requireAllTracked: true,
-    });
-    return listing;
+  const created = await createListingOwner(seller.userId, {
+    status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
+    isPrivate: false,
+    reservedForUserId: null,
+    customOrderConversationId: null,
+    title,
+    description,
+    priceCents,
+    tags,
+    metaDescription,
+    materials,
+    productLengthIn,
+    productWidthIn,
+    productHeightIn,
+    packagedLengthCm,
+    packagedWidthCm,
+    packagedHeightCm,
+    packagedWeightGrams,
+    category,
+    listingType,
+    stockQuantity,
+    shipsWithinDays,
+    processingTimeMinDays,
+    processingTimeMaxDays,
+    photos: photoPairs.map((photo, index) => ({
+      url: photo.url,
+      originalUrl: photo.originalUrl,
+      altText: imageAltTexts[index]
+        ? truncateText(sanitizeText(imageAltTexts[index].trim()), 200) || null
+        : null,
+    })),
+    variantGroups: variantGroups.map((group) => ({
+      name: group.name,
+      options: group.options.filter((option) => option.label).map((option) => ({
+        label: option.label,
+        priceAdjustCents: option.priceAdjustCents,
+        inStock: option.inStock,
+      })),
+    })),
   });
+  if (!created) {
+    return { ok: false, error: "Your shop changed while the listing was being saved. Refresh and try again." };
+  }
   let reviewedListingVersion = created.updatedAt;
 
   revalidatePath("/browse");
@@ -387,7 +376,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       priceCents: created.priceCents,
       currency: created.currency,
       category: created.category ?? null,
-      tags: created.tags,
+      tags: [...created.tags],
       sellerName: sellerInfo?.displayName ?? seller.displayName ?? 'Unknown',
       listingCount,
       imageUrls,

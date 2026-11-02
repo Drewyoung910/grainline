@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
-import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
@@ -34,7 +33,7 @@ import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
-import { listingOwnerTransition } from "@/lib/listingOwnerAccess";
+import { createListingOwner, listingOwnerTransition } from "@/lib/listingOwnerAccess";
 import {
   applyVersionBoundListingAiReviewTransition,
   applyVersionBoundListingAiReviewTransitionState,
@@ -201,42 +200,54 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   const processingWindowError = listingProcessingWindowError(processingTimeMinDays, processingTimeMaxDays);
   if (processingWindowError) return { ok: false, error: processingWindowError };
 
-  const created = await prisma.$transaction(async (tx) => {
-    const listing = await tx.listing.create({
-      data: {
-        sellerId: seller.id,
-        title,
-        description,
-        priceCents,
-        status: ListingStatus.PENDING_REVIEW,
-        isPrivate: true,
-        reservedForUserId,
-        customOrderConversationId: conversationId,
-        listingType,
-        stockQuantity,
-        shipsWithinDays,
-        processingTimeMinDays,
-        processingTimeMaxDays,
-        packagedLengthCm,
-        packagedWidthCm,
-        packagedHeightCm,
-        packagedWeightGrams,
-        photos: { create: photoPairs.map((photo, i) => ({
-          url: photo.url,
-          originalUrl: photo.originalUrl,
-          sortOrder: i,
-          altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
-        })) },
-      },
+  let created: Awaited<ReturnType<typeof createListingOwner>>;
+  try {
+    created = await createListingOwner(seller.userId, {
+      status: ListingStatus.PENDING_REVIEW,
+      isPrivate: true,
+      reservedForUserId,
+      customOrderConversationId: conversationId,
+      title,
+      description,
+      priceCents,
+      tags: [],
+      metaDescription: null,
+      materials: [],
+      productLengthIn: null,
+      productWidthIn: null,
+      productHeightIn: null,
+      packagedLengthCm,
+      packagedWidthCm,
+      packagedHeightCm,
+      packagedWeightGrams,
+      category: null,
+      listingType,
+      stockQuantity,
+      shipsWithinDays,
+      processingTimeMinDays,
+      processingTimeMaxDays,
+      photos: photoPairs.map((photo, index) => ({
+        url: photo.url,
+        originalUrl: photo.originalUrl,
+        altText: imageAltTexts[index]
+          ? truncateText(sanitizeText(imageAltTexts[index].trim()), 200) || null
+          : null,
+      })),
+      variantGroups: [],
     });
-    await syncListingDirectUploadReferences({
-      client: tx,
-      userId: seller.userId,
-      listingId: listing.id,
-      requireAllTracked: true,
-    });
-    return listing;
-  });
+  } catch (error) {
+    const sqlState = getPrismaRawSqlState(error);
+    if (sqlState === "22023" || sqlState === "42501") {
+      return {
+        ok: false,
+        error: "This buyer is no longer available for custom orders. Check the conversation and block settings before trying again.",
+      };
+    }
+    throw error;
+  }
+  if (!created) {
+    return { ok: false, error: "The conversation or shop changed. Return to Messages and try again." };
+  }
 
   const sellerInfo = await sellerOwnerListingReview(seller.userId);
   if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
@@ -251,7 +262,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     priceCents: created.priceCents,
     currency: created.currency,
     category: created.category ?? null,
-    tags: created.tags,
+    tags: [...created.tags],
     sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
     listingCount: sellerInfo?.totalListingCount ?? 0,
     imageUrls,

@@ -39,6 +39,7 @@ import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
 import { proveSellerProfilePublicReviewVoteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-review-vote-target.mjs";
 import { proveReviewVoteAuthorities } from "../tools/database-full-chain/scenarios/review-vote-authorities.mjs";
+import { proveListingDomainOwnerMutations } from "../tools/database-full-chain/scenarios/listing-domain-owner-mutations.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -777,6 +778,10 @@ test(
         connectionString: proofDatabaseUrl,
         database: adapter,
         repositoryRoot,
+        seller: fixture,
+      });
+      await proveListingDomainOwnerMutations({
+        database: adapter,
         seller: fixture,
       });
       await proveSellerProfileActorReviewListingTarget({

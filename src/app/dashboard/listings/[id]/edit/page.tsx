@@ -116,13 +116,6 @@ type PhotoManifestItem = {
   altText: string | null;
 };
 
-class ListingPhotoConflictError extends Error {
-  constructor() {
-    super("Listing photos changed. Refresh and try again.");
-    this.name = "ListingPhotoConflictError";
-  }
-}
-
 function parsePhotoManifestField(
   value: FormDataEntryValue | null,
   existingPhotos: ReadonlyArray<ExistingPhotoForManifest>,
@@ -416,6 +409,20 @@ async function updateListing(
         shipsWithinDays,
         processingTimeMinDays,
         processingTimeMaxDays,
+        photos: photoManifest.photos.map((photo) => ({
+          id: photo.id,
+          url: photo.url,
+          originalUrl: photo.originalUrl ?? photo.url,
+          altText: photo.altText,
+        })),
+        variantGroups: variantGroups.map((group) => ({
+          name: group.name,
+          options: group.options.filter((option) => option.label).map((option) => ({
+            label: option.label,
+            priceAdjustCents: option.priceAdjustCents,
+            inStock: option.inStock,
+          })),
+        })),
       });
       if (!updated.applied) {
         throw new StockMutationConflict(
@@ -423,63 +430,6 @@ async function updateListing(
         );
       }
 
-      // Update variants with the listing row so failures cannot leave mixed old/new state.
-      await tx.listingVariantGroup.deleteMany({ where: { listingId } });
-      for (let gi = 0; gi < variantGroups.length; gi++) {
-        const g = variantGroups[gi];
-        if (!g.name || g.options.length === 0) continue;
-        await tx.listingVariantGroup.create({
-          data: {
-            listingId,
-            name: g.name,
-            sortOrder: gi,
-            options: {
-              create: g.options.filter((o) => o.label).map((o, oi) => ({
-                label: o.label,
-                priceAdjustCents: o.priceAdjustCents,
-                sortOrder: oi,
-                inStock: o.inStock,
-              })),
-            },
-          },
-        });
-      }
-
-      const retainedPhotoIds = photoManifest.photos
-        .map((photo) => photo.id)
-        .filter((id): id is string => Boolean(id));
-      await tx.photo.deleteMany({
-        where: retainedPhotoIds.length
-          ? { listingId, id: { notIn: retainedPhotoIds } }
-          : { listingId },
-      });
-      for (let index = 0; index < photoManifest.photos.length; index++) {
-        const photo = photoManifest.photos[index];
-        if (photo.id) {
-          const updatedPhoto = await tx.photo.updateMany({
-            where: { id: photo.id, listingId },
-            data: {
-              url: photo.url,
-              originalUrl: photo.originalUrl ?? photo.url,
-              altText: photo.altText,
-              sortOrder: index,
-            },
-          });
-          if (updatedPhoto.count === 0) {
-            throw new ListingPhotoConflictError();
-          }
-        } else {
-          await tx.photo.create({
-            data: {
-              listingId,
-              url: photo.url,
-              originalUrl: photo.originalUrl ?? photo.url,
-              altText: photo.altText,
-              sortOrder: index,
-            },
-          });
-        }
-      }
       await syncListingDirectUploadReferences({
         client: tx,
         userId: actor.id,
@@ -494,7 +444,7 @@ async function updateListing(
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_pending_review");
     }
   } catch (error) {
-    if (error instanceof ListingPhotoConflictError || error instanceof StockMutationConflict) {
+    if (error instanceof StockMutationConflict) {
       // The transaction left new uploads unreferenced. The fenced lifecycle
       // worker removes them without racing a valid public reuse.
       return { ok: false, error: error.message };
