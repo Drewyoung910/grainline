@@ -247,6 +247,26 @@ function blockedCheckoutRefundWitnessSourcePath() {
   return path.dirname(isolatedMigrationPath);
 }
 
+function commissionPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    commissionPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const isolatedMigrationPath =
+    process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH;
+  assert.ok(
+    isolatedMigrationPath && path.isAbsolute(isolatedMigrationPath),
+    "missing absolute isolated Commission preparation migration path",
+  );
+  assert.ok(
+    existsSync(isolatedMigrationPath),
+    "missing isolated Commission preparation migration",
+  );
+  return path.dirname(isolatedMigrationPath);
+}
+
 function supportRequestCandidateMigrationPath(migration) {
   const livePath = path.join(
     "prisma",
@@ -1024,6 +1044,19 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       cpSync(
         reviewVoteActivationMigrationSourcePath(),
         reviewVoteActivationTarget,
+        { recursive: true },
+      );
+    }
+    const commissionPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      commissionPreparationMigration,
+    );
+    if (!existsSync(commissionPreparationTarget)) {
+      cpSync(
+        commissionPreparationMigrationSourcePath(),
+        commissionPreparationTarget,
         { recursive: true },
       );
     }
