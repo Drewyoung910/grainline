@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { Shield, Hammer, Eye, MessageCircle, MapPin, CheckCircle } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import { listingPublicCatalogCount } from "@/lib/listingPublicCatalogAccess";
 import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 
 export const metadata: Metadata = {
@@ -17,7 +16,7 @@ export const revalidate = 300;
 
 export default async function WhyGrainlinePage() {
   const [listingCount, marketplaceCounts] = await Promise.all([
-    prisma.listing.count({ where: publicListingWhere() }),
+    listingPublicCatalogCount(null, {}),
     sellerPublicMarketplaceCounts(),
   ]);
   const sellerCount = marketplaceCounts.activeSellerCount;
