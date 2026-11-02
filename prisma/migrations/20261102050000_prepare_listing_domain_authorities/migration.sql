@@ -83,6 +83,11 @@ BEGIN
     RAISE EXCEPTION 'Listing owner-count authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_rating_buckets(bigint,bigint,boolean)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner rating-bucket authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_action_state(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner action-state authority already exists';
@@ -1646,6 +1651,95 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_counts()
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_counts()
   TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_rating_buckets(
+  p_start_epoch_millis bigint,
+  p_end_epoch_millis bigint,
+  p_end_exclusive boolean
+)
+RETURNS TABLE (
+  "bucketEpochMillis" bigint,
+  "averageRating" double precision,
+  "reviewCount" bigint
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_rating_buckets$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+  range_start timestamp without time zone;
+  range_end timestamp without time zone;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_start_epoch_millis IS NULL
+     OR p_end_epoch_millis IS NULL
+     OR p_end_exclusive IS NULL
+     OR p_start_epoch_millis < 0
+     OR p_end_epoch_millis < p_start_epoch_millis
+     OR p_end_epoch_millis > 253402300799999 THEN
+    RAISE EXCEPTION 'Listing owner rating-bucket input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  range_start := pg_catalog.to_timestamp(
+    p_start_epoch_millis::double precision / 1000.0
+  ) AT TIME ZONE 'UTC';
+  range_end := pg_catalog.to_timestamp(
+    p_end_epoch_millis::double precision / 1000.0
+  ) AT TIME ZONE 'UTC';
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    pg_catalog.floor(
+      pg_catalog.date_part(
+        'epoch',
+        pg_catalog.date_trunc('month', review."createdAt")
+        AT TIME ZONE 'UTC'
+      ) * 1000
+    )::bigint,
+    pg_catalog.avg(review."ratingX2")::double precision / 2.0,
+    pg_catalog.count(*)::bigint
+    FROM public."Review" AS review
+    JOIN public."Listing" AS listing
+      ON listing.id = review."listingId"
+   WHERE listing."sellerId" = seller_id
+     AND review."createdAt" >= range_start
+     AND (
+       (p_end_exclusive AND review."createdAt" < range_end)
+       OR (NOT p_end_exclusive AND review."createdAt" <= range_end)
+     )
+   GROUP BY pg_catalog.date_trunc('month', review."createdAt")
+   ORDER BY pg_catalog.date_trunc('month', review."createdAt") ASC;
+END
+$grainline_listing_owner_rating_buckets$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_rating_buckets(
+  bigint,bigint,boolean
+) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_rating_buckets(
+  bigint,bigint,boolean
+) TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_action_state(
   p_listing_id text

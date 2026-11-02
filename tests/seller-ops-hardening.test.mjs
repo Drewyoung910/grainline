@@ -239,7 +239,7 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /const analyticsDateRange = \{ gte: startDate, \.\.\.dateEndFilter \}/);
     assert.match(
       analytics,
-      /const rangeEndSql = endExclusive \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
+      /listingOwnerRatingBuckets\(me\.id, \{\s*startDate,\s*endDate,\s*endExclusive,\s*\}\)/s,
     );
     assert.doesNotMatch(analytics, /date: \{ gte: startDate, lte: endDate \}/);
     assert.doesNotMatch(analytics, /createdAt: \{ gte: startDate, lte: endDate \}/);
@@ -299,8 +299,8 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /const metrics = await getFreshSellerMetrics\(sellerId, 3, existingMetrics\);/);
     assert.doesNotMatch(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
     assert.doesNotMatch(analytics, /const isStale = !existingMetrics/);
-    assert.match(analytics, /AND r\."createdAt" >= \$\{startDate\}/);
-    assert.match(analytics, /AND r\."createdAt" \$\{rangeEndSql\}/);
+    assert.match(analytics, /listingOwnerRatingBuckets\(me\.id, \{/);
+    assert.doesNotMatch(analytics, /JOIN "Listing" l ON l\.id = r\."listingId"/);
     assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);
     assert.doesNotMatch(analytics, /const topFavsRows/);
     assert.doesNotMatch(analytics, /const topStockRows/);
