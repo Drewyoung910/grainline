@@ -117,9 +117,12 @@ describe("cron batch termination helpers", () => {
     const guildMemberCheck = source("src/app/api/cron/guild-member-check/route.ts");
     const notificationPrune = source("src/app/api/cron/notification-prune/route.ts");
     const emailOutbox = source("src/app/api/cron/email-outbox/route.ts");
+    const sellerAnalytics = source("src/lib/sellerAnalyticsDailyAccess.ts");
 
     assert.match(guildMetrics, /runCronCursorPages\(\{/);
-    assert.match(guildMetrics, /runBoundedDeletionBatches\(\{/);
+    assert.match(guildMetrics, /pruneSellerAnalyticsDaily\(\{/);
+    assert.match(sellerAnalytics, /const deadline = now\(\) \+ input\.timeBudgetMs/);
+    assert.match(sellerAnalytics, /while \(now\(\) < deadline && \(!listingComplete \|\| !profileComplete\)\)/);
     assert.match(guildMemberCheck, /runCronCursorPages\(\{/);
     assert.match(notificationPrune, /runBoundedDeletionBatches\(\{/);
     assert.match(emailOutbox, /processEmailOutboxBatch\(\{ take: 50, concurrency: 2 \}\)/);

@@ -25,7 +25,6 @@ const boundedSellerSummaryRenderers = [
 ];
 
 const durableSellerConsumers = [
-  "src/app/api/account/export/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
   "src/lib/ban.ts",
@@ -91,6 +90,18 @@ describe("core Order historical compatibility", () => {
         file,
       );
     }
+    const accountExport = read("src/app/api/account/export/route.ts");
+    const participantExport = read(
+      "prisma/migrations/20260901030000_prepare_order_participant_export_authority/migration.sql",
+    );
+    assert.match(accountExport, /exportSellerOrders\(user\.id\)/);
+    assert.doesNotMatch(accountExport, /\bprisma\.order\b/);
+    assert.match(participantExport, /seller\.id = source_order\."sellerProfileId"/);
+    assert.match(participantExport, /seller\."userId" = p_actor_user_id/);
+    assert.doesNotMatch(
+      participantExport,
+      /JOIN public\."Listing"[\s\S]*listing\."sellerId"/u,
+    );
     const sellerRefundPreflight = read(
       "docs/rls-drafts/order-seller-refund-preflight-authority.sql",
     );
