@@ -41,6 +41,7 @@ describe("Notification prelaunch legacy inspection operator", () => {
   const accountDeletion = fs.readFileSync("src/lib/accountDeletion.ts", "utf8");
   const blogAdmin = fs.readFileSync("src/app/admin/blog/page.tsx", "utf8");
   const broadcastAdmin = fs.readFileSync("src/app/admin/broadcasts/page.tsx", "utf8");
+  const broadcastAccess = fs.readFileSync("src/lib/sellerBroadcastAccess.ts", "utf8");
 
   it("requires exact main dispatch, source, prerequisite, and inspect acknowledgement", () => {
     assert.equal(parseNotificationLegacyInspectionConfig(configEnv()).mode, "inspect");
@@ -164,6 +165,7 @@ describe("Notification prelaunch legacy inspection operator", () => {
     assert.doesNotMatch(blogAdmin, /tx\.notification\./);
     assert.doesNotMatch(broadcastAdmin, /tx\.notification\./);
     assert.match(blogAdmin, /deleteBlogCommentNotificationServiceRows/);
-    assert.match(broadcastAdmin, /deleteSellerBroadcastNotificationServiceRows/);
+    assert.match(broadcastAdmin, /deleteStaffSellerBroadcast\(/);
+    assert.match(broadcastAccess, /grainline_seller_broadcast_staff_delete/);
   });
 });

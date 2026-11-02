@@ -338,6 +338,38 @@ jobs:
           tests/round10-state-machine-guardrails.test.mjs
           tests/round9-account-deletion-pii-guardrails.test.mjs
           tests/seller-profile-private-boundary-preparation.test.mjs
+      - name: Verify SellerBroadcast preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/admin-action-guardrails.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/seller-broadcast-consumer-contracts.test.mjs
+          tests/seller-ops-hardening.test.mjs
+      - name: Verify Block preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/block-authority-preparation.test.mjs
+          tests/block-preparation-production.test.mjs
+          tests/db-grant-inventory.test.mjs
+      - name: Verify UserReport preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/user-report-authority-preparation.test.mjs
+          tests/user-report-target-access.test.mjs
+      - name: Verify SellerFaq preparation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/db-grant-inventory.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/seller-faq-authority-preparation.test.mjs
+          tests/seller-ops-hardening.test.mjs
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
         run: |
@@ -471,6 +503,51 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate SellerBroadcast preparation until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-broadcast-preparation"
+          migration=20261101010000_prepare_seller_broadcast_authorities
+          mkdir -p "$holding/migrations"
+          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate Block source packages until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/block-preparation"
+          mkdir -p "$holding/migrations"
+          preparation=20261030010000_prepare_block_authorities
+          activation=20261030040000_activate_block_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
+          echo "BLOCK_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate UserReport source packages until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-report-preparation"
+          mkdir -p "$holding/migrations"
+          preparation=20261030020000_prepare_user_report_authorities
+          activation=20261030050000_activate_user_report_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "USER_REPORT_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
+          echo "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
+      - name: Isolate SellerFaq source packages until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-faq-preparation"
+          mkdir -p "$holding/migrations"
+          preparation=20261030030000_prepare_seller_faq_authorities
+          activation=20261030060000_activate_seller_faq_rls
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
+          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation" >> "$GITHUB_ENV"
+          echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
       - name: Verify Case refund recovery source package
         run: >-
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
@@ -5249,7 +5326,7 @@ jobs:
           predecessor=e92b7a329cf3f7c1d45e8c2857e26b336d26ff65
           predecessor_schema_blob=8a28e26d614771b9ce0a2febf8bc8a717b3ed1b9
           predecessor_staff_blob=43e85a986eb4790e222482e81a00afbfcc91dce5
-          current_schema_blob=10b25135465208259c72e5423370d93e5040a020
+          current_schema_blob=73007bc9366844815d391d1eeea1f374c42dba13
           git cat-file -e "$predecessor^{commit}"
           git merge-base --is-ancestor "$predecessor" HEAD
           test "$(git hash-object prisma/schema.prisma)" = "$current_schema_blob"
@@ -5269,11 +5346,11 @@ jobs:
           schema="$root/prisma/schema.prisma"
           current="$holding/current-schema.$$.prisma"
           test ! -e "$current"
-          test "$(git hash-object "$schema")" = 10b25135465208259c72e5423370d93e5040a020
+          test "$(git hash-object "$schema")" = 73007bc9366844815d391d1eeea1f374c42dba13
           cp "$schema" "$current"
           cleanup() {
             mv "$current" "$schema"
-            test "$(git hash-object "$schema")" = 10b25135465208259c72e5423370d93e5040a020
+            test "$(git hash-object "$schema")" = 73007bc9366844815d391d1eeea1f374c42dba13
           }
           trap cleanup EXIT
           cp "$holding/predecessor-schema.prisma" "$schema"
@@ -6999,6 +7076,57 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerBroadcast preparation after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-broadcast-preparation"
+          migration=20261101010000_prepare_seller_broadcast_authorities
+          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          rmdir "$holding/migrations" "$holding"
+          echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Block source packages after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/block-preparation"
+          for migration in \
+            20261030010000_prepare_block_authorities \
+            20261030040000_activate_block_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding/migrations" "$holding"
+          echo "BLOCK_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "BLOCK_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore UserReport source packages after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/user-report-preparation"
+          for migration in \
+            20261030020000_prepare_user_report_authorities \
+            20261030050000_activate_user_report_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding/migrations" "$holding"
+          echo "USER_REPORT_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore SellerFaq source packages after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/seller-faq-preparation"
+          for migration in \
+            20261030030000_prepare_seller_faq_authorities \
+            20261030060000_activate_seller_faq_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding/migrations" "$holding"
+          echo "SELLER_FAQ_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash
         run: |
@@ -7124,11 +7252,13 @@ jobs:
           eligibility_migration=20261025030000_fence_email_provider_and_eligibility_changes
           correction_migration=20261027020000_correct_email_outbox_contracts
           lock_order_correction_migration=20261027030000_correct_email_eligibility_lock_order
+          broadcast_preparation=20261101010000_prepare_seller_broadcast_authorities
           mkdir -p "$holding/migrations"
           mv "prisma/migrations/$deletion_migration" "$holding/migrations/$deletion_migration"
           mv "prisma/migrations/$eligibility_migration" "$holding/migrations/$eligibility_migration"
           mv "prisma/migrations/$correction_migration" "$holding/migrations/$correction_migration"
           mv "prisma/migrations/$lock_order_correction_migration" "$holding/migrations/$lock_order_correction_migration"
+          mv "prisma/migrations/$broadcast_preparation" "$holding/migrations/$broadcast_preparation"
           # Historical release proofs intentionally reconstruct some accepted
           # states outside Prisma's ledger. Recreate only this disposable CI
           # database, then use the same reviewed full-chain runner that handles
@@ -7209,8 +7339,25 @@ jobs:
           mv \
             "$holding/migrations/$lock_order_correction_migration" \
             "prisma/migrations/$lock_order_correction_migration"
-          rmdir "$holding/migrations" "$holding"
           echo "EMAIL_ELIGIBILITY_LOCK_ORDER_CORRECTION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          npx prisma migrate deploy
+          npx prisma migrate status
+          GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \
+            RUNTIME_DB_ROLE=grainline_app_runtime \
+            MIGRATION_DB_ROLE=ci \
+            npm run audit:db-grants -- \
+              --allow-loopback-ci \
+              --staff-read-stage=order-user-combined
+
+          # SellerBroadcast replaces the provider-attempt function only after
+          # the email fences and both corrections above. Keep its preparation
+          # out of the historical email stages, then prove its exact Production
+          # ordering as the final database transition.
+          mv \
+            "$holding/migrations/$broadcast_preparation" \
+            "prisma/migrations/$broadcast_preparation"
+          rmdir "$holding/migrations" "$holding"
+          echo "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           npx prisma migrate deploy
           npx prisma migrate status
           GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" \

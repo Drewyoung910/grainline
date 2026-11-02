@@ -81,6 +81,34 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261028080000_activate_maker_verification_rls",
     "7868277f03b599768784c0f3a44a3c7bb28c8b64772a24f6183c538ec6f3401c",
   ],
+  [
+    "20261030010000_prepare_block_authorities",
+    "f62bcebf43fa9fccd220aa3cdd3bab41544730f77e72c12ec6884937e0d3cddd",
+  ],
+  [
+    "20261030020000_prepare_user_report_authorities",
+    "f194866b13fd85848e9f15c43b85ca5ac05a00dfe70ec4efddbdb0b4f01e4944",
+  ],
+  [
+    "20261030030000_prepare_seller_faq_authorities",
+    "45cf9935bd9c6492a26ebc167dab20962395e1834f2191d293f0776597803e99",
+  ],
+  [
+    "20261030040000_activate_block_rls",
+    "cec9c1c6345225304fcae3b2d433ade6c73e1d6d98f0d461126390f7f0c29e73",
+  ],
+  [
+    "20261030050000_activate_user_report_rls",
+    "0c488a187a0f2389d32c2860f03e39d6a93dede288a9caf43483fe87c1f626fc",
+  ],
+  [
+    "20261030060000_activate_seller_faq_rls",
+    "d79661da61c150e893e927ea389afcaede307ad3c8b45b95977ce38e26634154",
+  ],
+  [
+    "20261101010000_prepare_seller_broadcast_authorities",
+    "2fd1b027f87e640b254d6be065a376777c5bf4eecb32fda6962d24126dbf7617",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {

@@ -83,13 +83,13 @@ const pages = [
   ["cases/page.tsx", "getStaffCaseQueue("],
   ["cases/[id]/page.tsx", "getVisibleCaseById("],
   ["blog/page.tsx", "prisma.blogPost.findMany("],
-  ["broadcasts/page.tsx", "prisma.sellerBroadcast.count("],
+  ["broadcasts/page.tsx", "staffSellerBroadcastCount("],
   ["verification/page.tsx", "makerVerificationStaffPendingPage("],
   ["audit/page.tsx", "prisma.adminAuditLog.count("],
   ["users/page.tsx", "userStaffDirectoryCount("],
   ["reviews/page.tsx", "prisma.review.count("],
   ["review/page.tsx", "prisma.listing.count("],
-  ["reports/page.tsx", "prisma.userReport.findMany("],
+  ["reports/page.tsx", "userReportStaffOpenPage("],
   ["support/page.tsx", "readSupportRequestStaffState("],
 ];
 
