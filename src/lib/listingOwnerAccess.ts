@@ -1,0 +1,308 @@
+import { Category, ListingStatus, ListingType, type Prisma } from "@prisma/client";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
+
+type ListingOwnerClient = Pick<Prisma.TransactionClient, "$queryRaw">;
+
+type ListingOwnerEditorRow = {
+  listingId: unknown;
+  sellerProfileId: unknown;
+  title: unknown;
+  description: unknown;
+  priceCents: unknown;
+  priceVersion: unknown;
+  currency: unknown;
+  status: unknown;
+  createdAt: unknown;
+  updatedAt: unknown;
+  archivedAt: unknown;
+  processingTimeMinDays: unknown;
+  processingTimeMaxDays: unknown;
+  listingType: unknown;
+  stockQuantity: unknown;
+  category: unknown;
+  tags: unknown;
+  shipsWithinDays: unknown;
+  packagedWeightGrams: unknown;
+  packagedLengthCm: unknown;
+  packagedWidthCm: unknown;
+  packagedHeightCm: unknown;
+  isPrivate: unknown;
+  reservedForUserId: unknown;
+  customOrderConversationId: unknown;
+  rejectionReason: unknown;
+  metaDescription: unknown;
+  materials: unknown;
+  productLengthIn: unknown;
+  productWidthIn: unknown;
+  productHeightIn: unknown;
+  photos: unknown;
+  variantGroups: unknown;
+};
+
+export type ListingOwnerEditorState = Readonly<{
+  id: string;
+  sellerId: string;
+  title: string;
+  description: string;
+  priceCents: number;
+  priceVersion: number;
+  currency: string;
+  status: ListingStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt: Date | null;
+  processingTimeMinDays: number | null;
+  processingTimeMaxDays: number | null;
+  listingType: ListingType;
+  stockQuantity: number | null;
+  category: Category | null;
+  tags: ReadonlyArray<string>;
+  shipsWithinDays: number | null;
+  packagedWeightGrams: number | null;
+  packagedLengthCm: number | null;
+  packagedWidthCm: number | null;
+  packagedHeightCm: number | null;
+  isPrivate: boolean;
+  reservedForUserId: string | null;
+  customOrderConversationId: string | null;
+  rejectionReason: string | null;
+  metaDescription: string | null;
+  materials: ReadonlyArray<string>;
+  productLengthIn: number | null;
+  productWidthIn: number | null;
+  productHeightIn: number | null;
+  photos: ReadonlyArray<Readonly<{
+    id: string;
+    url: string;
+    originalUrl: string | null;
+    altText: string | null;
+    sortOrder: number;
+  }>>;
+  variantGroups: ReadonlyArray<Readonly<{
+    id: string;
+    name: string;
+    sortOrder: number;
+    options: ReadonlyArray<Readonly<{
+      id: string;
+      label: string;
+      priceAdjustCents: number;
+      sortOrder: number;
+      inStock: boolean;
+    }>>;
+  }>>;
+}>;
+
+const LISTING_STATUSES = new Set<string>(Object.values(ListingStatus));
+const LISTING_TYPES = new Set<string>(Object.values(ListingType));
+const CATEGORIES = new Set<string>(Object.values(Category));
+
+function validId(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,191}$/u.test(value);
+}
+
+function validDate(value: unknown): value is Date {
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
+function validSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value);
+}
+
+function validNullableSafeInteger(value: unknown): value is number | null {
+  return value === null || validSafeInteger(value);
+}
+
+function validNullableFinite(value: unknown): value is number | null {
+  return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parsePhotos(value: unknown) {
+  if (!Array.isArray(value) || value.length > 100) return null;
+  const ids = new Set<string>();
+  const photos = value.map((candidate) => {
+    const photo = recordValue(candidate);
+    if (
+      !photo
+      || !validId(photo.id)
+      || ids.has(photo.id)
+      || !isTextWithinCodePointRange(photo.url, 1, 2048)
+      || (photo.originalUrl !== null && !isTextWithinCodePointRange(photo.originalUrl, 1, 2048))
+      || (photo.altText !== null && !isTextWithinCodePointRange(photo.altText, 0, 200))
+      || !validSafeInteger(photo.sortOrder)
+    ) return null;
+    ids.add(photo.id);
+    return Object.freeze({
+      id: photo.id,
+      url: photo.url,
+      originalUrl: photo.originalUrl as string | null,
+      altText: photo.altText as string | null,
+      sortOrder: photo.sortOrder,
+    });
+  });
+  return photos.some((photo) => photo === null)
+    ? null
+    : Object.freeze(photos as Array<NonNullable<(typeof photos)[number]>>);
+}
+
+function parseVariantGroups(value: unknown) {
+  if (!Array.isArray(value) || value.length > 100) return null;
+  const groupIds = new Set<string>();
+  const groups = value.map((candidate) => {
+    const group = recordValue(candidate);
+    if (
+      !group
+      || !validId(group.id)
+      || groupIds.has(group.id)
+      || !isTextWithinCodePointRange(group.name, 1, 100)
+      || !validSafeInteger(group.sortOrder)
+      || !Array.isArray(group.options)
+      || group.options.length > 100
+    ) return null;
+    const optionIds = new Set<string>();
+    const options = group.options.map((optionCandidate) => {
+      const option = recordValue(optionCandidate);
+      if (
+        !option
+        || !validId(option.id)
+        || optionIds.has(option.id)
+        || !isTextWithinCodePointRange(option.label, 1, 100)
+        || !validSafeInteger(option.priceAdjustCents)
+        || !validSafeInteger(option.sortOrder)
+        || typeof option.inStock !== "boolean"
+      ) return null;
+      optionIds.add(option.id);
+      return Object.freeze({
+        id: option.id,
+        label: option.label,
+        priceAdjustCents: option.priceAdjustCents,
+        sortOrder: option.sortOrder,
+        inStock: option.inStock,
+      });
+    });
+    if (options.some((option) => option === null)) return null;
+    groupIds.add(group.id);
+    return Object.freeze({
+      id: group.id,
+      name: group.name,
+      sortOrder: group.sortOrder,
+      options: Object.freeze(options as Array<NonNullable<(typeof options)[number]>>),
+    });
+  });
+  return groups.some((group) => group === null)
+    ? null
+    : Object.freeze(groups as Array<NonNullable<(typeof groups)[number]>>);
+}
+
+async function readListingOwnerEditor(
+  client: ListingOwnerClient,
+  listingId: string,
+): Promise<ListingOwnerEditorState | null> {
+  if (!validId(listingId)) {
+    throw new RangeError("Listing owner-editor input is invalid");
+  }
+  const rows = await client.$queryRaw<ListingOwnerEditorRow[]>`
+    SELECT * FROM public.grainline_listing_owner_editor(${listingId}::text)
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Listing owner-editor authority returned multiple rows");
+  }
+  const row = rows[0];
+  const photos = parsePhotos(row.photos);
+  const variantGroups = parseVariantGroups(row.variantGroups);
+  const validNullableId = (value: unknown) => value === null || validId(value);
+  if (
+    row.listingId !== listingId
+    || !validId(row.sellerProfileId)
+    || !isTextWithinCodePointRange(row.title, 1, 150)
+    || !isTextWithinCodePointRange(row.description, 0, 5000)
+    || !validSafeInteger(row.priceCents)
+    || row.priceCents < 1
+    || !validSafeInteger(row.priceVersion)
+    || row.priceVersion < 1
+    || typeof row.currency !== "string"
+    || row.currency.length !== 3
+    || typeof row.status !== "string"
+    || !LISTING_STATUSES.has(row.status)
+    || !validDate(row.createdAt)
+    || !validDate(row.updatedAt)
+    || row.archivedAt !== null
+    || !validNullableSafeInteger(row.processingTimeMinDays)
+    || !validNullableSafeInteger(row.processingTimeMaxDays)
+    || typeof row.listingType !== "string"
+    || !LISTING_TYPES.has(row.listingType)
+    || !validNullableSafeInteger(row.stockQuantity)
+    || (row.category !== null && (typeof row.category !== "string" || !CATEGORIES.has(row.category)))
+    || !Array.isArray(row.tags)
+    || !row.tags.every((tag) => isTextWithinCodePointRange(tag, 0, 100))
+    || !validNullableSafeInteger(row.shipsWithinDays)
+    || !validNullableSafeInteger(row.packagedWeightGrams)
+    || !validNullableFinite(row.packagedLengthCm)
+    || !validNullableFinite(row.packagedWidthCm)
+    || !validNullableFinite(row.packagedHeightCm)
+    || typeof row.isPrivate !== "boolean"
+    || !validNullableId(row.reservedForUserId)
+    || !validNullableId(row.customOrderConversationId)
+    || (row.rejectionReason !== null && !isTextWithinCodePointRange(row.rejectionReason, 0, 1000))
+    || (row.metaDescription !== null && !isTextWithinCodePointRange(row.metaDescription, 0, 320))
+    || !Array.isArray(row.materials)
+    || row.materials.length > 20
+    || !row.materials.every((material) => isTextWithinCodePointRange(material, 1, 100))
+    || !validNullableFinite(row.productLengthIn)
+    || !validNullableFinite(row.productWidthIn)
+    || !validNullableFinite(row.productHeightIn)
+    || photos === null
+    || variantGroups === null
+  ) {
+    throw new Error("Listing owner-editor authority returned an invalid result");
+  }
+  return Object.freeze({
+    id: row.listingId,
+    sellerId: row.sellerProfileId,
+    title: row.title,
+    description: row.description,
+    priceCents: row.priceCents,
+    priceVersion: row.priceVersion,
+    currency: row.currency,
+    status: row.status as ListingStatus,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: null,
+    processingTimeMinDays: row.processingTimeMinDays,
+    processingTimeMaxDays: row.processingTimeMaxDays,
+    listingType: row.listingType as ListingType,
+    stockQuantity: row.stockQuantity,
+    category: row.category as Category | null,
+    tags: Object.freeze([...row.tags]),
+    shipsWithinDays: row.shipsWithinDays,
+    packagedWeightGrams: row.packagedWeightGrams,
+    packagedLengthCm: row.packagedLengthCm,
+    packagedWidthCm: row.packagedWidthCm,
+    packagedHeightCm: row.packagedHeightCm,
+    isPrivate: row.isPrivate,
+    reservedForUserId: row.reservedForUserId as string | null,
+    customOrderConversationId: row.customOrderConversationId as string | null,
+    rejectionReason: row.rejectionReason as string | null,
+    metaDescription: row.metaDescription as string | null,
+    materials: Object.freeze([...row.materials]),
+    productLengthIn: row.productLengthIn,
+    productWidthIn: row.productWidthIn,
+    productHeightIn: row.productHeightIn,
+    photos,
+    variantGroups,
+  });
+}
+
+export function listingOwnerEditor(userId: string, listingId: string) {
+  return withDbUserContext(
+    userId,
+    (client) => readListingOwnerEditor(client, listingId),
+  );
+}

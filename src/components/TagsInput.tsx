@@ -11,12 +11,12 @@ export default function TagsInput({
   placeholder = "Add a tag and press Enter",
 }: {
   name?: string;          // hidden input name
-  initial?: string[];     // starting tags
+  initial?: ReadonlyArray<string>; // starting tags
   max?: number;           // max chips
   placeholder?: string;
 }) {
   const [tags, setTags] = React.useState<string[]>(
-    Array.isArray(initial) ? initial : []
+    Array.isArray(initial) ? [...initial] : []
   );
   const [value, setValue] = React.useState("");
 
