@@ -111,12 +111,12 @@ describe("durable checkout stock reservation guardrails", () => {
     const editRoute = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const transactionStart = editRoute.indexOf("withDbUserContext(actor.id, async (tx) =>");
     const parentUpdate = editRoute.indexOf("updateListingOwnerContent(tx,", transactionStart);
-    const variantDelete = editRoute.indexOf("tx.listingVariantGroup.deleteMany", transactionStart);
-    const photoDelete = editRoute.indexOf("tx.photo.deleteMany", transactionStart);
+    const uploadSync = editRoute.indexOf("syncListingDirectUploadReferences({", transactionStart);
     assert.ok(transactionStart >= 0);
     assert.ok(parentUpdate > transactionStart);
-    assert.ok(variantDelete > parentUpdate);
-    assert.ok(photoDelete > parentUpdate);
+    assert.ok(uploadSync > parentUpdate);
+    assert.doesNotMatch(editRoute.slice(transactionStart), /tx\.listingVariantGroup\./u);
+    assert.doesNotMatch(editRoute.slice(transactionStart), /tx\.photo\./u);
     assert.match(
       sourceConsistencySql,
       /compatible function already holds every target Listing[\s\S]*FOR UPDATE/,
