@@ -207,6 +207,16 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
       database,
       null,
       sourceSql,
+      [JSON.stringify({ listingIds: [] }), 0, 24],
+    ),
+    /Public catalog filter is outside the supported range/u,
+    "empty listing-id filters fail closed",
+  );
+  await assert.rejects(
+    runtimeQuery(
+      database,
+      null,
+      sourceSql,
       [JSON.stringify({ locationLat: 30.2672 }), 0, 24],
     ),
     /Public catalog filter is outside the supported range/u,
@@ -262,6 +272,38 @@ export async function proveListingDomainPublicCatalog({ database, seller }) {
     url: "https://cdn.example.test/catalog.jpg",
     altText: "Catalog photo",
   }]);
+
+  const exactListingPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({
+      sellerId: seller.sellerProfileId,
+      listingIds: [listingIds.wrongTag],
+    }), 0, 4],
+  ));
+  assert.deepEqual(
+    exactListingPage.listings.map((listing) => listing.id),
+    [listingIds.wrongTag],
+    "exact listing-id catalog filter",
+  );
+
+  const excludedListingPage = pageOf(await runtimeQuery(
+    database,
+    null,
+    sourceSql,
+    [JSON.stringify({
+      sellerId: seller.sellerProfileId,
+      listingIds: [listingIds.matching, listingIds.wrongTag],
+      excludeListingId: listingIds.wrongTag,
+      sort: "quality",
+    }), 0, 4],
+  ));
+  assert.deepEqual(
+    excludedListingPage.listings.map((listing) => listing.id),
+    [listingIds.matching],
+    "excluded listing-id catalog filter",
+  );
 
   const metroCategoryPage = pageOf(await runtimeQuery(
     database,
