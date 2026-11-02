@@ -1,6 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { prisma } from "@/lib/db";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import { listingPublicCatalogCount } from "@/lib/listingPublicCatalogAccess";
 import { sellerPublicMarketplaceCounts } from "@/lib/sellerProfilePublicAccess";
 import { getPublicFulfilledOrderCount } from "@/lib/orderPublicAggregateAuthority";
 import { getPublicActiveMemberCount } from "@/lib/userPublicIdentityAccess";
@@ -16,7 +15,7 @@ export type HomepageStats = {
 
 async function loadHomepageStats(): Promise<HomepageStats> {
   const [pieces, marketplaceCounts, members, fulfilledOrders] = await Promise.all([
-    prisma.listing.count({ where: publicListingWhere() }),
+    listingPublicCatalogCount(null, {}),
     sellerPublicMarketplaceCounts(),
     getPublicActiveMemberCount(),
     getPublicFulfilledOrderCount(),
