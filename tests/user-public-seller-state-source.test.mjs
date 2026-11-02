@@ -99,11 +99,17 @@ describe("User public seller-state source boundary", () => {
     assert.doesNotMatch(popularBlogTags, /prisma\.\$queryRaw|JOIN "SellerProfile"|JOIN "User"/);
 
     const commission = read("src/app/commission/page.tsx");
+    const commissionPreparation = read(
+      "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql",
+    );
     assert.doesNotMatch(commission, /JOIN "User" u ON u\.id = cr\."buyerId"/);
-    assert.match(commission, /cr\."buyerAccountActive" = true/);
-    assert.match(commission, /cr\."buyerName", cr\."buyerImageUrl"/);
-    assert.match(commission, /buyer: \{ name: r\.buyerName, imageUrl: r\.buyerImageUrl \}/);
-    assert.match(commission, /publicCommissionInterestCounts\(rawResults\.map/);
+    assert.match(commission, /publicCommissionRequestCount\(meId, publicFilter\)/);
+    assert.match(commission, /publicCommissionRequestPage\(meId, \{/);
+    assert.match(commissionPreparation, /request\."buyerAccountActive" = true/);
+    assert.match(commissionPreparation, /request\."buyerName"::text/);
+    assert.match(commissionPreparation, /request\."buyerImageUrl"::text/);
+    assert.match(commission, /buyer: \{ name: request\.buyerName, imageUrl: request\.buyerImageUrl \}/);
+    assert.match(commission, /publicCommissionInterestCounts\(found\.map/);
     assert.doesNotMatch(commission, /JOIN (?:public\.)?"SellerProfile"/);
 
     const quality = read("src/lib/quality-score.ts");
