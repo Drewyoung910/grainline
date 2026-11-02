@@ -17,17 +17,25 @@ describe("ban side-effect guardrails", () => {
     assert.match(ban, /await banClerkUserAndRevokeSessions\(clerkSync\.clerkId\)/);
   });
 
-  it("closes active buyer commissions and restores ban-added order review markers on unban", () => {
+  it("closes owned commissions, preserves seller interests, and restores ban side effects on unban", () => {
     const ban = source("src/lib/ban.ts");
     const audit = source("src/lib/audit.ts");
     const authority = source("src/lib/orderBanReviewAuthority.ts");
 
-    assert.match(ban, /const BANNED_BUYER_COMMISSION_STATUSES = \['OPEN', 'IN_PROGRESS'\] as const/);
-    assert.match(ban, /status: \{ in: \[\.\.\.BANNED_BUYER_COMMISSION_STATUSES\] \}/);
+    assert.match(
+      ban,
+      /closeCommissionRequestsForStaffBan\(\s*tx,\s*banReviewCapability,\s*userId,\s*\)/s,
+    );
+    assert.match(ban, /const removedCommissionInterestRequestIds: string\[\] = \[\]/);
+    assert.doesNotMatch(ban, /removeSellerCommissionInterests/);
     assert.match(ban, /flagBannedSellerOpenOrders\(\s*banReviewCapability,\s*userId,\s*tx/s);
     assert.match(ban, /openOrderSnapshots: flaggedOpenOrders/);
     assert.match(ban, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*userId,\s*capabilityBanMetadata\.flaggedOpenOrders,\s*tx/s);
     assert.match(audit, /restoreBannedSellerOrderReviews\(\s*banReviewCapability,\s*log\.targetId,\s*banMetadata\?\.flaggedOpenOrders \?\? \[\],\s*tx/s);
+    assert.match(
+      audit,
+      /restoreCommissionRequestsForStaffBan\(\s*tx,\s*banReviewCapability,\s*log\.targetId,\s*banMetadata\.previousCommissionRequests,\s*\)/s,
+    );
     assert.match(authority, /grainline_order_flag_banned_seller_open_orders/);
     assert.match(authority, /grainline_order_restore_banned_seller_reviews/);
     assert.doesNotMatch(ban, /(?:prisma|tx)\.order\./);

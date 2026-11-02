@@ -58,6 +58,7 @@ describe("site-wide RLS coverage matrix", () => {
       "ACTIVATION_CANDIDATE",
       "BLOCKED_DESIGN",
       "ALTERNATIVE_REVIEW",
+      "ALTERNATIVE_CANDIDATE",
     ]);
     const rows = matrixRows();
 

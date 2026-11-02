@@ -243,11 +243,11 @@ export default function NewCommissionPage() {
                 onChange={() => setScope("local")}
                 className="accent-neutral-900"
               />
-              <span className="text-sm">Local makers only</span>
+              <span className="text-sm">Prefer nearby makers</span>
             </label>
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Local shows your request to makers within ~50 miles of your location (requires location set in your account)
+            Nearby makers are prioritized using your maker-profile location, but makers elsewhere can still see and respond.
           </p>
         </div>
 

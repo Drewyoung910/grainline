@@ -9,6 +9,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+
 describe("DirectUpload fixed public reference families", () => {
   it("keeps caller-chosen source identity behind runtime-inaccessible cores", () => {
     const migration = source(migrationPath);
@@ -169,7 +173,7 @@ describe("DirectUpload fixed public reference families", () => {
       ["src/app/api/reviews/[id]/route.ts", "syncReviewDirectUploadReferences"],
       ["src/app/dashboard/blog/new/page.tsx", "syncBlogPostDirectUploadReferences"],
       ["src/app/dashboard/blog/[id]/edit/page.tsx", "syncBlogPostDirectUploadReferences"],
-      ["src/app/api/commission/route.ts", "syncCommissionRequestDirectUploadReferences"],
+      ["src/lib/commissionRequestAccess.ts", "createOwnerCommissionRequest"],
       ["src/app/api/seller/broadcast/route.ts", "syncSellerBroadcastDirectUploadReferences"],
       ["src/app/messages/[id]/page.tsx", "syncLegacyMessageDirectUploadReference"],
     ];
@@ -181,5 +185,10 @@ describe("DirectUpload fixed public reference families", () => {
       assert.match(text, new RegExp(helper), path);
       assert.doesNotMatch(text, /claimDirectUploadFor(?:Url|Key)|claimDirectUploadsForUrls/, path);
     }
+    const commissionAuthority = source(commissionPreparationMigration);
+    assert.match(
+      commissionAuthority,
+      /grainline_commission_request_owner_create[\s\S]*grainline_direct_upload_sync_commission_request/,
+    );
   });
 });

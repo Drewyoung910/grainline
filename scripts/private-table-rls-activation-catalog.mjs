@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import {
   functionSourceFromMigration,
   privateTablePreparation,
+  privateTablePreparationTables,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
 
@@ -20,6 +21,10 @@ const OWNER_USER_ID_QUAL =
   "(\"userId\" = NULLIF(current_setting('app.user_id'::text, true), ''::text))";
 const OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT =
   "0c0e9e67081c2ad7b27d97bc3f5956ecd2090549";
+const SELLER_ANALYTICS_MINIMUM_COMPATIBLE_COMMIT =
+  "ee7dbad06c4f45479fc316ad60f862f38b8281d9";
+const BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT =
+  "42cd3fd3db89ef2e9a02e37ff56bff80502be802";
 const PREDECESSOR_CRUD = Object.freeze([
   "SELECT",
   "INSERT",
@@ -38,12 +43,26 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+  seller_analytics_daily_v1:
+    "SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH",
+  block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
   follow_v1: "FOLLOW_RLS_ACTIVATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_ACTIVATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
+  seller_analytics_daily_v1:
+    "SELLER_ANALYTICS_DAILY_ACTIVATION_MIGRATION_PATH",
+  block_v1: "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -108,6 +127,7 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
           name: "grainline_user_follower_notification_page",
           arguments: "text, text, integer",
           sourceMd5: "471b1caf9907d6d370ec1cb8ea5aa718",
+          securityDefiner: true,
           predecessorExecuteRole: "runtime",
           activatedExecuteRole: "none",
         }),
@@ -175,6 +195,177 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
   }),
+  commission_domain_v1: Object.freeze({
+    preparationReleaseId: "commission_domain_v1",
+    minimumCompatibleAppCommit:
+      "461d10dbe86b34e6f286a4fe62b5a9ad28bea1a8",
+    migration: "20261101070000_activate_commission_domain_rls",
+    migrationSha256:
+      "c21445e3c09ebc85041daef861629d871c11f9676cc0116c9d621ffcda3d1f9f",
+    rollbackPath: "docs/rls-drafts/commission-domain-activation-rollback.sql",
+    rollbackSha256:
+      "57618bffcffeb3b0f775219f7c805668e8395054b757dbb44b172c969136cbdb",
+    table: "CommissionRequest",
+    additionalTables: Object.freeze(["CommissionInterest"]),
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/commission-domain-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  block_v1: Object.freeze({
+    preparationReleaseId: "block_v1",
+    minimumCompatibleAppCommit: BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261030040000_activate_block_rls",
+    migrationSha256:
+      "cec9c1c6345225304fcae3b2d433ade6c73e1d6d98f0d461126390f7f0c29e73",
+    rollbackPath: "docs/rls-drafts/block-activation-rollback.sql",
+    rollbackSha256:
+      "e1d0d020ca072149e441c7db5110209579d7d2449692cc3728b98b920c7bea28",
+    table: "Block",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/block-report-seller-faq-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: Object.freeze({
+      retained: Object.freeze([
+        Object.freeze({
+          name: "grainline_conversation_inbox",
+          arguments: "text, boolean, text, timestamp without time zone, text, integer",
+          sourceMd5: "4b2884765f4ca0db432c4678f98b1bdd",
+          securityDefiner: false,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+        Object.freeze({
+          name: "grainline_message_unread_count",
+          arguments: "text",
+          sourceMd5: "6465832d045b72cc2762907f66a461f3",
+          securityDefiner: false,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "none",
+        }),
+      ]),
+      replacements: Object.freeze([]),
+      additions: Object.freeze([]),
+    }),
+  }),
+  user_report_v1: Object.freeze({
+    preparationReleaseId: "user_report_v1",
+    minimumCompatibleAppCommit: BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261030050000_activate_user_report_rls",
+    migrationSha256:
+      "0c488a187a0f2389d32c2860f03e39d6a93dede288a9caf43483fe87c1f626fc",
+    rollbackPath: "docs/rls-drafts/user-report-activation-rollback.sql",
+    rollbackSha256:
+      "db500b9c9f25092946c9742ee4fbe5ab20d069741dd4a43d157c4ddb6514c1dc",
+    table: "UserReport",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/block-report-seller-faq-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  seller_faq_v1: Object.freeze({
+    preparationReleaseId: "seller_faq_v1",
+    minimumCompatibleAppCommit: BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261030060000_activate_seller_faq_rls",
+    migrationSha256:
+      "d79661da61c150e893e927ea389afcaede307ad3c8b45b95977ce38e26634154",
+    rollbackPath: "docs/rls-drafts/seller-faq-activation-rollback.sql",
+    rollbackSha256:
+      "877666c051dacca7ef4e9ff169437fde8d01360b972966d6914bd79ebfb45150",
+    table: "SellerFaq",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/block-report-seller-faq-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  seller_analytics_daily_v1: Object.freeze({
+    preparationReleaseId: "seller_analytics_daily_v1",
+    minimumCompatibleAppCommit: SELLER_ANALYTICS_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261101040000_activate_seller_analytics_daily_rls",
+    migrationSha256:
+      "460aa8dacd516918af35f42fa041c533396b363a6384f9bf156400fa0d69206d",
+    rollbackPath:
+      "docs/rls-drafts/seller-analytics-daily-activation-rollback.sql",
+    rollbackSha256:
+      "f126710f9469ace8e80a19809cddfd3b7fa5b962ef103d0e56aa2b923f621ef3",
+    table: "ListingViewDaily",
+    additionalTables: Object.freeze(["SellerProfileViewDaily"]),
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/seller-analytics-daily-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: Object.freeze({
+      retained: Object.freeze([
+        Object.freeze({
+          name: "grainline_order_seller_analytics_top_listings",
+          arguments: "text, bigint, bigint, boolean, boolean",
+          sourceMd5: "195c87faa7dab7e74006f768b0a2e488",
+          securityDefiner: true,
+          predecessorExecuteRole: "runtime",
+          activatedExecuteRole: "runtime",
+        }),
+      ]),
+      replacements: Object.freeze([]),
+      additions: Object.freeze([]),
+    }),
+  }),
+  seller_broadcast_v1: Object.freeze({
+    preparationReleaseId: "seller_broadcast_v1",
+    minimumCompatibleAppCommit:
+      "d956364ead259e5ae26b49171af57e5a89e522a2",
+    migration: "20261101050000_activate_seller_broadcast_rls",
+    migrationSha256:
+      "9e71df11bc80f2acebc56b0148031943be07db45244c52e6236d4a2c88bf6990",
+    rollbackPath: "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+    rollbackSha256:
+      "a6167ce605c8f4bd7df4b5ca6c5a7d59688f79b23207c36a1de3b0e99acd8050",
+    table: "SellerBroadcast",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/seller-broadcast-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
@@ -183,6 +374,11 @@ export const PRIVATE_TABLE_RLS_ACTIVATION_BATCHES = Object.freeze({
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+  ]),
+  block_report_seller_faq_v1: Object.freeze([
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
   ]),
 });
 
@@ -219,10 +415,27 @@ export function privateTableRlsActivation(releaseId) {
   const release = PRIVATE_TABLE_RLS_ACTIVATIONS[releaseId];
   if (!release) throw stopped("release id is not reviewed");
   const preparation = privateTablePreparation(release.preparationReleaseId);
-  if (preparation.table !== release.table) {
+  const activationTables = privateTableRlsActivationTables(release);
+  if (
+    privateTablePreparationTables(preparation).join("|")
+      !== activationTables.join("|")
+  ) {
     throw stopped("preparation table drifted");
   }
   return Object.freeze({ ...release, preparation });
+}
+
+export function privateTableRlsActivationTables(release) {
+  const tables = [release.table, ...(release.additionalTables ?? [])];
+  if (
+    tables.some((table) => (
+      typeof table !== "string" || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(table)
+    ))
+    || new Set(tables).size !== tables.length
+  ) {
+    throw stopped("activation table catalog is invalid");
+  }
+  return Object.freeze(tables);
 }
 
 export function privateTableRlsActivationReleaseIds(selectionId) {
@@ -333,11 +546,34 @@ export function verifyPrivateTableRlsActivationSource(
   ) {
     throw stopped("source-test catalog is invalid");
   }
-  const quotedTable = escapeRegExp(release.table);
-  const tablePattern = `public\\."${quotedTable}"`;
-  const activationTableStatements = [
-    ...activation.sql.matchAll(/\b(?:ALTER|LOCK)\s+TABLE\s+public\."([^"]+)"/giu),
+  const tables = privateTableRlsActivationTables(release);
+  if (tables.length > 1 && release.policies.length > 0) {
+    throw stopped("multi-table activation must be policyless");
+  }
+  const tablePatterns = tables.map(
+    (table) => `public\\."${escapeRegExp(table)}"`,
+  );
+  const tablePattern = tablePatterns[0];
+  const activationAlterTables = [
+    ...activation.sql.matchAll(/\bALTER\s+TABLE\s+public\."([^"]+)"/giu),
   ].map((match) => match[1]);
+  const activationLock = activation.sql.match(
+    /\bLOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE\s*;/iu,
+  )?.[1] ?? "";
+  const activationRevokeTables = [
+    ...activation.sql.matchAll(
+      /\bREVOKE\s+ALL(?:\s+PRIVILEGES)?\s+ON\s+TABLE\s+([\s\S]*?)\s+FROM\s+PUBLIC,\s*grainline_app_runtime(?:,\s*grainline_staff_read_runtime)?\s*;/giu,
+    ),
+  ].flatMap((statement) => (
+    [...statement[1].matchAll(/public\."([^"]+)"/gu)].map((match) => match[1])
+  ));
+  const activationTablesExact = tables.every((table) => (
+    activationAlterTables.filter((candidate) => candidate === table).length === 2
+    && activationLock.includes('public."' + table + '"')
+    && activationRevokeTables.filter((candidate) => candidate === table).length === 1
+  ))
+    && activationAlterTables.every((table) => tables.includes(table))
+    && activationRevokeTables.every((table) => tables.includes(table));
   if (
     !["owner_policy_combined_enable_force", "policyless_combined_enable_force"]
       .includes(release.mode)
@@ -345,28 +581,25 @@ export function verifyPrivateTableRlsActivationSource(
       && release.policies.length !== 0)
     || (release.mode === "owner_policy_combined_enable_force"
       && release.policies.length === 0)
-    || !new RegExp(
-      `ALTER\\s+TABLE\\s+${tablePattern}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
-      "iu",
-    ).test(activation.sql)
-    || !new RegExp(
-      `ALTER\\s+TABLE\\s+${tablePattern}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
-      "iu",
-    ).test(activation.sql)
-    || !new RegExp(
-      `REVOKE\\s+ALL(?:\\s+PRIVILEGES)?\\s+ON\\s+TABLE\\s+${tablePattern}[\\s\\S]*?FROM\\s+PUBLIC,\\s*grainline_app_runtime(?:,\\s*grainline_staff_read_runtime)?`,
-      "iu",
-    ).test(activation.sql)
-    || !new RegExp(
-      `LOCK\\s+TABLE\\s+${tablePattern}\\s+IN\\s+ACCESS\\s+EXCLUSIVE\\s+MODE`,
-      "iu",
-    ).test(activation.sql)
-    || activationTableStatements.length !== 3
-    || activationTableStatements.some((table) => table !== release.table)
+    || !activationTablesExact
     || /\b(?:NO\s+FORCE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(activation.sql)
     || /\bDROP\s+(?:TABLE|COLUMN|POLICY|TRIGGER)\b/iu.test(activation.sql)
   ) {
     throw stopped("migration is not the reviewed combined activation shape");
+  }
+  for (const candidateTablePattern of tablePatterns) {
+    if (
+      !new RegExp(
+        `ALTER\\s+TABLE\\s+${candidateTablePattern}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+        "iu",
+      ).test(activation.sql)
+      || !new RegExp(
+        `ALTER\\s+TABLE\\s+${candidateTablePattern}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+        "iu",
+      ).test(activation.sql)
+    ) {
+      throw stopped("migration table authority shape drifted");
+    }
   }
   for (const policy of release.policies) {
     if (!new RegExp(
@@ -384,17 +617,23 @@ export function verifyPrivateTableRlsActivationSource(
     throw stopped("activation policy set drifted");
   }
   const activatedPrivileges = release.activatedRuntimePrivileges.join(",\\s*");
-  const activationGrant = new RegExp(
-    `GRANT\\s+${activatedPrivileges}\\s+ON\\s+TABLE\\s+${tablePattern}\\s+TO\\s+grainline_app_runtime`,
-    "iu",
-  );
-  if (
-    (release.activatedRuntimePrivileges.length > 0 && !activationGrant.test(activation.sql))
-    || (release.activatedRuntimePrivileges.length === 0
-      && new RegExp(`GRANT[\\s\\S]{0,120}ON\\s+TABLE\\s+${tablePattern}`, "iu")
-        .test(activation.sql))
-  ) {
-    throw stopped("activation runtime grant shape drifted");
+  for (const table of tables) {
+    const activatedTablePattern = `public\\."${escapeRegExp(table)}"`;
+    const activationGrant = new RegExp(
+      `GRANT\\s+${activatedPrivileges}\\s+ON\\s+TABLE\\s+${activatedTablePattern}\\s+TO\\s+grainline_app_runtime`,
+      "iu",
+    );
+    if (
+      (release.activatedRuntimePrivileges.length > 0
+        && !activationGrant.test(activation.sql))
+      || (release.activatedRuntimePrivileges.length === 0
+        && new RegExp(
+          `GRANT[\\s\\S]{0,120}ON\\s+TABLE[\\s\\S]{0,120}${activatedTablePattern}`,
+          "iu",
+        ).test(activation.sql))
+    ) {
+      throw stopped(`activation runtime grant shape drifted for ${table}`);
+    }
   }
   for (const entry of preparation.release.functions) {
     const literal = signatureLiteral(entry).replaceAll("'", "''");
@@ -402,28 +641,28 @@ export function verifyPrivateTableRlsActivationSource(
       throw stopped(`reviewed operation ${literal} is absent from activation preflight`);
     }
   }
-  const rollbackTableStatements = [
-    ...rollback.sql.matchAll(/\b(?:ALTER|LOCK)\s+TABLE\s+public\."([^"]+)"/giu),
+  const rollbackAlterTables = [
+    ...rollback.sql.matchAll(/\bALTER\s+TABLE\s+public\."([^"]+)"/giu),
   ].map((match) => match[1]);
+  const rollbackLock = rollback.sql.match(
+    /\bLOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE\s*;/iu,
+  )?.[1] ?? "";
+  const rollbackGrantTables = [
+    ...rollback.sql.matchAll(
+      /\bGRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE\s+ON\s+TABLE\s+([\s\S]*?)\s+TO\s+grainline_app_runtime\s*;/giu,
+    ),
+  ].flatMap((statement) => (
+    [...statement[1].matchAll(/public\."([^"]+)"/gu)].map((match) => match[1])
+  ));
+  const rollbackTablesExact = tables.every((table) => (
+    rollbackAlterTables.filter((candidate) => candidate === table).length === 2
+    && rollbackLock.includes('public."' + table + '"')
+    && rollbackGrantTables.filter((candidate) => candidate === table).length === 1
+  ))
+    && rollbackAlterTables.every((table) => tables.includes(table))
+    && rollbackGrantTables.every((table) => tables.includes(table));
   if (
-    !new RegExp(
-      `GRANT\\s+SELECT,\\s*INSERT,\\s*UPDATE,\\s*DELETE\\s+ON\\s+TABLE\\s+${tablePattern}\\s+TO\\s+grainline_app_runtime`,
-      "iu",
-    ).test(rollback.sql)
-    || !new RegExp(
-      `ALTER\\s+TABLE\\s+${tablePattern}\\s+NO\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
-      "iu",
-    ).test(rollback.sql)
-    || !new RegExp(
-      `ALTER\\s+TABLE\\s+${tablePattern}\\s+DISABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
-      "iu",
-    ).test(rollback.sql)
-    || !new RegExp(
-      `LOCK\\s+TABLE\\s+${tablePattern}\\s+IN\\s+ACCESS\\s+EXCLUSIVE\\s+MODE`,
-      "iu",
-    ).test(rollback.sql)
-    || rollbackTableStatements.length !== 3
-    || rollbackTableStatements.some((table) => table !== release.table)
+    !rollbackTablesExact
     || /\b(?:ENABLE|FORCE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(
       rollback.sql.replace(/NO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY/giu, ""),
     )
@@ -431,6 +670,20 @@ export function verifyPrivateTableRlsActivationSource(
     || /\bDROP\s+(?:TABLE|COLUMN)\b/iu.test(rollback.sql)
   ) {
     throw stopped("rollback is not the reviewed predecessor-restoration shape");
+  }
+  for (const candidateTablePattern of tablePatterns) {
+    if (
+      !new RegExp(
+        `ALTER\\s+TABLE\\s+${candidateTablePattern}\\s+NO\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+        "iu",
+      ).test(rollback.sql)
+      || !new RegExp(
+        `ALTER\\s+TABLE\\s+${candidateTablePattern}\\s+DISABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+        "iu",
+      ).test(rollback.sql)
+    ) {
+      throw stopped("rollback table authority shape drifted");
+    }
   }
   for (const policy of release.policies) {
     if (!new RegExp(
@@ -459,6 +712,7 @@ export function verifyPrivateTableRlsActivationSource(
       !activation.sql.includes(literal)
       || !rollback.sql.includes(literal)
       || !/^[0-9a-f]{32}$/u.test(change.sourceMd5)
+      || typeof change.securityDefiner !== "boolean"
     ) {
       throw stopped(`retained function transition drifted for ${literal}`);
     }

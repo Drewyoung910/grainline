@@ -88,17 +88,23 @@ async function runBinding(auxiliaryConclusion = "success") {
   );
 }
 
-function acceptedMigration() {
+function acceptedMigration(selectedRelease = release) {
   return {
-    migration_name: release.migration,
-    checksum: release.migrationSha256,
+    migration_name: selectedRelease.migration,
+    checksum: selectedRelease.migrationSha256,
     finished_at: "2026-10-23T12:00:00.000Z",
     rolled_back_at: null,
     applied_steps_count: 1,
   };
 }
 
-function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
+function fakeClientClass({
+  ledgerApplied,
+  schemaApplied,
+  partial = false,
+  selectedRelease = release,
+  selectedVerified = verified,
+}) {
   return class FakeClient {
     async connect() {}
     async end() {}
@@ -111,6 +117,7 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
           database_name: "grainline",
           current_user_name: "neondb_owner",
           session_user_name: "neondb_owner",
+          table_name: release.table,
           table_owner_name: "neondb_owner",
           owner_bypasses_rls: true,
           rls_enabled: false,
@@ -126,21 +133,27 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
         }] };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
-        return { rows: ledgerApplied ? [acceptedMigration()] : [] };
+        return { rows: ledgerApplied ? [acceptedMigration(selectedRelease)] : [] };
       }
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
         return { rows: [{
-          columns: schemaApplied ? release.addedColumns.length : 0,
+          columns: schemaApplied ? selectedRelease.addedColumns.length : 0,
           functions: schemaApplied
-            ? release.functions.length - (partial ? 1 : 0)
+            ? selectedRelease.functions.filter(
+              (entry) => entry.predecessorSourceSha256 === undefined,
+            ).length - (partial ? 1 : 0)
             : 0,
+          constraints: schemaApplied ? (release.addedConstraints ?? []).length : 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
-        return { rows: [{ name: "emailDeliveryToken", type: "uuid", nullable: true }] };
+        return {
+          rows: [...selectedRelease.addedColumns]
+            .sort((left, right) => left.name.localeCompare(right.name)),
+        };
       }
       if (sql.includes("procedure.prosrc AS source")) {
-        return { rows: release.functions
+        return { rows: selectedRelease.functions
           .map((entry) => ({
             function_name: entry.name,
             identity_arguments: entry.arguments,
@@ -148,9 +161,9 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
             owner_bypasses_rls: true,
             security_definer: true,
             configuration: ["search_path=pg_catalog"],
-            source: verified.functionSources.get(entry.name),
-            runtime_execute: true,
-            staff_execute: false,
+            source: selectedVerified.functionSources.get(entry.name),
+            runtime_execute: (entry.executeRole ?? "runtime") === "runtime",
+            staff_execute: entry.executeRole === "staff",
             public_execute: false,
           }))
           .sort((left, right) => (
@@ -163,14 +176,86 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
   };
 }
 
-function environment(directory, phase, previousPath) {
+function environment(directory, phase, previousPath, selectedReleaseId = releaseId) {
   return {
     DIRECT_URL: "postgresql://example.invalid/grainline",
-    PRIVATE_TABLE_PREPARATION_RELEASE_ID: releaseId,
+    PRIVATE_TABLE_PREPARATION_RELEASE_ID: selectedReleaseId,
     PRIVATE_TABLE_PREPARATION_PHASE: phase,
     PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(directory, `${phase}.json`),
     PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH: previousPath,
     PRODUCTION_MIGRATION_RELEASE_COMMIT: "a".repeat(40),
+  };
+}
+
+function analyticsAppliedClientClass() {
+  const candidate = privateTablePreparation("seller_analytics_daily_v1");
+  const candidateSource = verifyPrivateTablePreparationSource(
+    "seller_analytics_daily_v1",
+  );
+  return class FakeAnalyticsClient {
+    async connect() {}
+    async end() {}
+
+    async query(statement) {
+      const sql = String(statement);
+      if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
+      if (sql.includes("current_database() AS database_name")) {
+        return { rows: [candidate.table, ...candidate.additionalTables].sort()
+          .map((tableName) => ({
+            database_name: "grainline",
+            current_user_name: "neondb_owner",
+            session_user_name: "neondb_owner",
+            table_name: tableName,
+            table_owner_name: "neondb_owner",
+            owner_bypasses_rls: true,
+            rls_enabled: false,
+            rls_forced: false,
+            table_acl: "{neondb_owner=arwdDxt/neondb_owner,grainline_app_runtime=arwd/neondb_owner}",
+            policy_count: 0,
+            runtime_select: true,
+            runtime_insert: true,
+            runtime_update: true,
+            runtime_delete: true,
+            staff_select: false,
+            public_select: false,
+          })) };
+      }
+      if (sql.includes("FROM public._prisma_migrations")) return { rows: [] };
+      if (sql.includes("AS columns") && sql.includes("AS functions")) {
+        return { rows: [{
+          columns: 0,
+          functions: candidate.functions.filter(
+            (entry) => entry.predecessorSourceSha256 === undefined,
+          ).length,
+          constraints: candidate.addedConstraints.length,
+        }] };
+      }
+      if (sql.includes("pg_catalog.format_type")) return { rows: [] };
+      if (sql.includes("constraint_state.conname AS name")) {
+        return { rows: [...candidate.addedConstraints]
+          .sort((left, right) => (
+            left.table.localeCompare(right.table) || left.name.localeCompare(right.name)
+          )) };
+      }
+      if (sql.includes("procedure.prosrc AS source")) {
+        return { rows: candidate.functions.map((entry) => ({
+          function_name: entry.name,
+          identity_arguments: entry.arguments,
+          owner_name: "neondb_owner",
+          owner_bypasses_rls: true,
+          security_definer: true,
+          configuration: ["search_path=pg_catalog"],
+          source: candidateSource.functionSources.get(entry.name),
+          runtime_execute: true,
+          staff_execute: false,
+          public_execute: false,
+        })).sort((left, right) => (
+          left.function_name.localeCompare(right.function_name)
+          || left.identity_arguments.localeCompare(right.identity_arguments)
+        )) };
+      }
+      throw new Error(`unexpected analytics query: ${sql.slice(0, 100)}`);
+    }
   };
 }
 
@@ -294,6 +379,25 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("SellerAnalyticsDaily preparation is byte-sealed across both daily tables", () => {
+  const analytics = verifyPrivateTablePreparationSource(
+    "seller_analytics_daily_v1",
+  );
+  assert.equal(analytics.release.table, "ListingViewDaily");
+  assert.deepEqual(analytics.release.additionalTables, ["SellerProfileViewDaily"]);
+  assert.equal(analytics.functionSources.size, 5);
+  assert.equal(analytics.release.addedConstraints.length, 4);
+  assert.deepEqual(analytics.release.addedColumns, []);
+  const sql = readFileSync(analytics.migrationPath, "utf8");
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '15min'/u);
+  assert.match(sql, /ListingViewDaily_counts_non_negative_chk/u);
+  assert.match(sql, /SellerProfileViewDaily_date_midnight_utc_chk/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("SellerBroadcast preparation is byte-sealed and remains compatible", () => {
   const broadcast = verifyPrivateTablePreparationSource("seller_broadcast_v1");
   assert.equal(broadcast.release.table, "SellerBroadcast");
@@ -381,6 +485,21 @@ test("owner social and verification preparation batch is exact and ordered", () 
   );
 });
 
+test("Commission preparation is byte-sealed across both domain tables", () => {
+  const commission = privateTablePreparation("commission_domain_v1");
+  const commissionVerified = verifyPrivateTablePreparationSource(
+    "commission_domain_v1",
+  );
+  assert.equal(commission.table, "CommissionRequest");
+  assert.deepEqual(commission.additionalTables, ["CommissionInterest"]);
+  assert.equal(commission.functions.length, 23);
+  assert.equal(commissionVerified.digest, commission.migrationSha256);
+  const sql = readFileSync(commissionVerified.migrationPath, "utf8");
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", () => {
   const releaseIds = privateTablePreparationReleaseIds(
     "block_report_seller_faq_v1",
@@ -439,6 +558,31 @@ test("inspector proves pending and applied states without recording row data", a
   }
 });
 
+test("inspector recognizes an applied-unrecorded two-table analytics preparation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "seller-analytics-preparation-"));
+  try {
+    const evidencePath = join(directory, "analytics-preflight.json");
+    const evidence = await inspectPrivateTablePreparationProduction({
+      DIRECT_URL: "postgresql://example.invalid/grainline",
+      PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_analytics_daily_v1",
+      PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+      PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: evidencePath,
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: "a".repeat(40),
+    }, { Client: analyticsAppliedClientClass() });
+    assert.equal(evidence.state, "applied_unrecorded");
+    assert.deepEqual(evidence.tables, [
+      "ListingViewDaily",
+      "SellerProfileViewDaily",
+    ]);
+    assert.deepEqual(Object.keys(evidence.postures), evidence.tables);
+    assert.equal(evidence.catalog.constraints.length, 4);
+    assert.equal(evidence.catalog.functions.length, 5);
+    assert.equal(statSync(evidencePath).mode & 0o777, 0o600);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("inspector admits only an exact applied-but-unrecorded preparation", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-restart-"));
   try {
@@ -471,6 +615,32 @@ test("inspector admits only an exact applied-but-unrecorded preparation", async 
   }
 });
 
+test("inspector proves both Commission tables as one preparation group", async () => {
+  const selectedReleaseId = "commission_domain_v1";
+  const selectedRelease = privateTablePreparation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTablePreparationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "commission-preparation-"));
+  try {
+    const evidence = await inspectPrivateTablePreparationProduction(
+      environment(directory, "preflight", undefined, selectedReleaseId),
+      {
+        Client: fakeClientClass({
+          ledgerApplied: false,
+          schemaApplied: true,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.equal(evidence.state, "applied_unrecorded");
+    assert.deepEqual(evidence.tables, ["CommissionRequest", "CommissionInterest"]);
+    assert.deepEqual(Object.keys(evidence.postures), evidence.tables);
+    assert.equal(evidence.catalog.functions.length, 23);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("all generic preparation releases admit only their exact manual ledger row", () => {
   for (const releaseId of [
     "support_request_v1",
@@ -479,6 +649,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+    "seller_analytics_daily_v1",
     "block_v1",
     "user_report_v1",
     "seller_faq_v1",
@@ -513,7 +684,9 @@ test("Production workflow is exact-main bound and fails on another red push work
       "maker_verification_v1",
       "seller_broadcast_v1",
       "email_service_v1",
+      "seller_analytics_daily_v1",
       "owner_social_verification_v1",
+      "commission_domain_v1",
       "block_report_seller_faq_v1",
     ],
   );

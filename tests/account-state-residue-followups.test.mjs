@@ -23,18 +23,14 @@ describe("account-state residue hardening", () => {
     assert.doesNotMatch(reviews, /r\.reviewer\.(?:banned|deletedAt|imageUrl)/);
   });
 
-  it("removes banned or deleted sellers from commission interest counts", () => {
-    const helper = source("src/lib/commissionInterestCleanup.ts");
+  it("preserves banned-maker commission evidence and uses the deletion authority", () => {
     const ban = source("src/lib/ban.ts");
     const deletion = source("src/lib/accountDeletion.ts");
 
-    assert.match(helper, /commissionInterest\.findMany/);
-    assert.match(helper, /commissionInterest\.deleteMany\(\{ where: \{ sellerProfileId \} \}\)/);
-    assert.match(helper, /commissionInterest\.count\(\{\s*where: \{ commissionRequestId \}/s);
-    assert.match(helper, /commissionRequest\.update\(\{\s*where: \{ id: commissionRequestId \}/s);
-    assert.match(helper, /data: \{ interestedCount \}/);
-    assert.match(ban, /removeSellerCommissionInterests\(tx, sellerProfile\.id\)/);
-    assert.match(deletion, /removeSellerCommissionInterests\(tx, user\.sellerProfile\.id\)/);
+    assert.match(ban, /Preserve durable interest relationships/);
+    assert.doesNotMatch(ban, /commissionInterest\.(?:findMany|deleteMany|count)/);
+    assert.match(deletion, /prepareCommissionAccountDeletion\(tx\)/);
+    assert.doesNotMatch(deletion, /commissionInterest\.(?:findMany|deleteMany|count)/);
   });
 
   it("invalidates public seller visibility caches when account state removes public content", () => {
@@ -83,8 +79,9 @@ describe("account-state residue hardening", () => {
 
     assert.match(
       deletion,
-      /sellerProfileViewDaily\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s,
+      /clearSellerProfileViewDailyForAccountDeletion\(tx, \{\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\}\)/s,
     );
+    assert.doesNotMatch(deletion, /sellerProfileViewDaily\.deleteMany/);
   });
 
   it("removes deleted seller FAQs from retained seller profiles", () => {

@@ -7,6 +7,8 @@ import { seedSellerProfilePrivateFixture } from "./seller-profile-private-fixtur
 
 export const SELLER_BROADCAST_PREPARATION_MIGRATION =
   "20261101010000_prepare_seller_broadcast_authorities";
+export const SELLER_BROADCAST_RLS_MIGRATION =
+  "20261101050000_activate_seller_broadcast_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -181,23 +183,41 @@ export async function proveSellerBroadcastEligibilityGapClosed({
       predecessor.claim.claimToken,
     ],
   )).rows[0]?.result;
-  assert.equal(
-    replayResult,
-    "ready",
-    "an already-marked provider attempt must retain its ambiguous generation",
-  );
-  const completion = (await database.query(
-    `SELECT public.grainline_email_outbox_complete(
-       $1, $2::bigint, $3::uuid, $4
-     ) AS result`,
-    [
-      predecessor.claim.jobId,
+  if (replayResult === "ready") {
+    const completion = (await database.query(
+      `SELECT public.grainline_email_outbox_complete(
+         $1, $2::bigint, $3::uuid, $4
+       ) AS result`,
+      [
+        predecessor.claim.jobId,
+        predecessor.claim.claimGeneration,
+        predecessor.claim.claimToken,
+        `provider-${predecessor.claim.jobId}`,
+      ],
+    )).rows[0]?.result;
+    assert.equal(completion, "applied");
+  } else {
+    assert.equal(
+      replayResult,
+      "already_terminal",
+      "an already-marked provider attempt must remain replay-safe after completion",
+    );
+    const completed = (await database.query(
+      `SELECT status, "providerAttemptGeneration", "providerMessageId"
+         FROM public."EmailOutbox"
+        WHERE id = $1`,
+      [predecessor.claim.jobId],
+    )).rows[0];
+    assert.equal(completed?.status, "SENT");
+    assert.equal(
+      Number(completed?.providerAttemptGeneration),
       predecessor.claim.claimGeneration,
-      predecessor.claim.claimToken,
+    );
+    assert.equal(
+      completed?.providerMessageId,
       `provider-${predecessor.claim.jobId}`,
-    ],
-  )).rows[0]?.result;
-  assert.equal(completion, "applied");
+    );
+  }
 
   const freshClaim = await seedProviderClaim(database, {
     followerId: predecessor.followerId,
@@ -843,10 +863,186 @@ export async function proveSellerBroadcastPreparedAuthorities({
     seller,
     deletionClaim,
   });
+  await database.query(
+    `DELETE FROM public."Listing" WHERE id = $1`,
+    [listingId],
+  );
+  await database.query(
+    `DELETE FROM public."SellerProfile"
+      WHERE id = ANY($1::text[])`,
+    [[
+      seller.sellerProfileId,
+      otherSeller.sellerProfileId,
+      concurrencySeller.sellerProfileId,
+    ]],
+  );
   return Object.freeze({
     ownerCreateSerialized: true,
     unsupportedStripeAccountRejected: true,
     staffBoundaryProven: true,
     accountDeletionProviderLockOrderProven: true,
   });
+}
+
+export async function proveSellerBroadcastRlsAuthorities({
+  database,
+  connectionString,
+}) {
+  const posture = (await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'SellerBroadcast'
+       AND class.relkind = 'r'
+  `)).rows[0];
+  assert.deepEqual(posture, {
+    rls_enabled: true,
+    rls_forced: true,
+    runtime_select: false,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: false,
+    policy_count: 0,
+  });
+
+  const deniedActor = `broadcast_direct_denied_${randomUUID()}`;
+  await createUser(database, deniedActor);
+  for (const statement of [
+    'SELECT 1 FROM public."SellerBroadcast" LIMIT 1',
+    `INSERT INTO public."SellerBroadcast"
+       (id, "sellerProfileId", message, "sentAt", "recipientCount")
+     VALUES ('broadcast_direct_denied', 'missing', 'denied',
+             pg_catalog.clock_timestamp(), 0)`,
+    `UPDATE public."SellerBroadcast" SET "recipientCount" = 0
+      WHERE id = 'missing'`,
+    `DELETE FROM public."SellerBroadcast" WHERE id = 'missing'`,
+  ]) {
+    await assert.rejects(
+      runtimeQuery(database, deniedActor, statement),
+      (error) => error?.code === "42501",
+      `runtime direct SellerBroadcast statement must be denied: ${statement}`,
+    );
+  }
+
+  const behavior = await proveSellerBroadcastPreparedAuthorities({
+    database,
+    connectionString,
+  });
+
+  const cascadeSeller = await seedSellerProfilePrivateFixture(database, {
+    suffix: `broadcast_force_cascade_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+  });
+  const cascadeId = randomUUID();
+  await database.query(
+    `INSERT INTO public."SellerBroadcast"
+       (id, "sellerProfileId", message, "sentAt", "recipientCount")
+     VALUES ($1, $2, 'FORCE cascade proof', pg_catalog.clock_timestamp(), 0)`,
+    [cascadeId, cascadeSeller.sellerProfileId],
+  );
+  await database.query(
+    'DELETE FROM public."SellerProfile" WHERE id = $1',
+    [cascadeSeller.sellerProfileId],
+  );
+  assert.equal((await database.query(
+    'SELECT 1 FROM public."SellerBroadcast" WHERE id = $1',
+    [cascadeId],
+  )).rows.length, 0, "SellerProfile deletion must cascade under FORCE");
+  await database.query('DELETE FROM public."User" WHERE id = $1', [
+    cascadeSeller.userId,
+  ]);
+
+  return Object.freeze({
+    ...behavior,
+    directRuntimeDenied: true,
+    sellerCascadeProven: true,
+  });
+}
+
+export async function proveSellerBroadcastRlsRollback({ database }) {
+  const posture = (await database.query(`
+    SELECT class.relrowsecurity AS rls_enabled,
+           class.relforcerowsecurity AS rls_forced,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', class.oid, 'DELETE'
+           ) AS runtime_delete,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid) AS policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = 'SellerBroadcast'
+       AND class.relkind = 'r'
+  `)).rows[0];
+  assert.deepEqual(posture, {
+    rls_enabled: false,
+    rls_forced: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+    policy_count: 0,
+  });
+
+  const seller = await seedSellerProfilePrivateFixture(database, {
+    suffix: `broadcast_rollback_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+  });
+  const broadcastId = randomUUID();
+  const inserted = await runtimeQuery(
+    database,
+    seller.userId,
+    `INSERT INTO public."SellerBroadcast"
+       (id, "sellerProfileId", message, "sentAt", "recipientCount")
+     VALUES ($1, $2, 'rollback direct', pg_catalog.clock_timestamp(), 0)
+     RETURNING id`,
+    [broadcastId, seller.sellerProfileId],
+  );
+  assert.deepEqual(inserted, [{ id: broadcastId }]);
+  assert.deepEqual(await runtimeQuery(
+    database,
+    seller.userId,
+    'SELECT id FROM public."SellerBroadcast" WHERE id = $1',
+    [broadcastId],
+  ), [{ id: broadcastId }]);
+  assert.deepEqual(await runtimeQuery(
+    database,
+    seller.userId,
+    `UPDATE public."SellerBroadcast" SET "recipientCount" = 1
+      WHERE id = $1 RETURNING "recipientCount"`,
+    [broadcastId],
+  ), [{ recipientCount: 1 }]);
+  assert.deepEqual(await runtimeQuery(
+    database,
+    seller.userId,
+    'DELETE FROM public."SellerBroadcast" WHERE id = $1 RETURNING id',
+    [broadcastId],
+  ), [{ id: broadcastId }]);
 }
