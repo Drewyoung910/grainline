@@ -25,7 +25,10 @@ describe("account deletion timeout and terminal UX guardrails", () => {
 
     const transactionBody = accountDeletion.slice(transactionStart, transactionEnd);
     assert.doesNotMatch(transactionBody, /collectAdminAuditLogRedactionUpdates\(\{/);
-    assert.match(accountDeletion.slice(transactionEnd), /collectAdminAuditLogRedactionUpdates\(\{\s*db: prisma/s);
+    assert.match(
+      accountDeletion.slice(transactionEnd),
+      /collectAdminAuditLogRedactionUpdates\(\{\s*db: getAccountDeletionSideEffectClient\(\)/s,
+    );
     assert.match(
       accountDeletion.slice(transactionEnd),
       /enqueueAccountDeletionAuditRedactionSideEffects\(\s*getAccountDeletionSideEffectClient\(\),\s*userId,\s*redactionUpdates/s,
@@ -172,7 +175,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /targetType: "USER"/);
     assert.match(accountDeletion, /targetId: user\.id/);
     assert.match(accountDeletion, /reason: "User requested account deletion"/);
-    assert.match(accountDeletion, /actorKind: "user"/);
+    assert.match(accountDeletion, /await appendAdminAuditLog\(tx, \{/);
     assert.match(accountDeletion, /hadStripeAccount: Boolean\(stripeAccountId\)/);
     assert.match(accountDeletion, /stripeRejectSucceeded/);
   });

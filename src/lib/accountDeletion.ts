@@ -100,6 +100,10 @@ import {
   applyEmailServiceAccountDeletion,
   redactDeletedSellerEmailOutbox,
 } from "@/lib/emailServiceAccess";
+import {
+  adminAuditLogAccountDeletionCandidates,
+  appendAdminAuditLog,
+} from "@/lib/adminAuditLogAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -140,7 +144,7 @@ type AuditLogRedactionCandidate = {
   directAccountReference: boolean;
 };
 
-type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
+type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw">;
 type AccountDeletionMediaDb = Pick<
   Prisma.TransactionClient,
   "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
@@ -189,21 +193,6 @@ export async function releaseAccountDeletionLock(lock: AccountDeletionLock): Pro
   });
 }
 
-function mergeAuditLogRedactionCandidate(
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  id: string,
-  metadata: Prisma.JsonValue,
-  reason: string | null,
-  directAccountReference: boolean,
-) {
-  const existing = candidates.get(id);
-  candidates.set(id, {
-    metadata: existing?.metadata ?? metadata,
-    reason: existing?.reason ?? reason,
-    directAccountReference: Boolean(existing?.directAccountReference || directAccountReference),
-  });
-}
-
 function normalizedSensitiveValues(values: Iterable<string | null | undefined>) {
   const seen = new Set<string>();
   return [...values]
@@ -215,88 +204,6 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
       seen.add(key);
       return true;
     });
-}
-
-function auditMetadataExactAccountReferenceSql(value: string) {
-  return Prisma.sql`jsonb_path_exists(
-    metadata,
-    '$.** ? (@ == $account_reference)'::jsonpath,
-    jsonb_build_object('account_reference', to_jsonb(${value}::text)),
-    true
-  )`;
-}
-
-async function collectAuditLogsByExactAccountMetadataReference(
-  db: AuditLogRedactionDb,
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  accountReferenceValues: string[],
-) {
-  for (const value of accountReferenceValues) {
-    const exactReferenceSql = auditMetadataExactAccountReferenceSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, metadata, reason
-          FROM "AdminAuditLog"
-          WHERE id > ${cursor}
-            AND ${exactReferenceSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, metadata, reason
-          FROM "AdminAuditLog"
-          WHERE ${exactReferenceSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; metadata: Prisma.JsonValue; reason: string | null }[] = await db.$queryRaw(query);
-      matches.forEach((log) => mergeAuditLogRedactionCandidate(
-        candidates,
-        log.id,
-        log.metadata,
-        log.reason,
-        true,
-      ));
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-}
-
-async function collectAuditLogsByAccountReference(
-  db: AuditLogRedactionDb,
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  adminId: string,
-  targetIds: string[],
-) {
-  let cursor: string | undefined;
-  const where: Prisma.AdminAuditLogWhereInput = {
-    OR: [
-      { adminId },
-      ...(targetIds.length > 0 ? [{ targetId: { in: targetIds } }] : []),
-    ],
-  };
-
-  for (;;) {
-    const matches = await db.adminAuditLog.findMany({
-      where,
-      select: { id: true, metadata: true, reason: true },
-      orderBy: { id: "asc" },
-      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-
-    matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, log.reason, true));
-
-    if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-    cursor = matches[matches.length - 1]?.id;
-    if (!cursor) break;
-  }
 }
 
 async function collectAdminAuditLogRedactionUpdates({
@@ -313,12 +220,26 @@ async function collectAdminAuditLogRedactionUpdates({
   sensitiveValues: string[];
 }): Promise<AccountDeletionAuditRedactionUpdate[]> {
   const candidates = new Map<string, AuditLogRedactionCandidate>();
-  await collectAuditLogsByAccountReference(db, candidates, adminId, targetIds);
-  await collectAuditLogsByExactAccountMetadataReference(
-    db,
-    candidates,
-    accountReferenceValues,
-  );
+  let cursor: string | null = null;
+  for (;;) {
+    const matches = await adminAuditLogAccountDeletionCandidates(db, {
+      userId: adminId,
+      targetIds,
+      referenceValues: accountReferenceValues,
+      afterId: cursor,
+      limit: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+    });
+    for (const log of matches) {
+      candidates.set(log.id, {
+        metadata: log.metadata,
+        reason: log.reason,
+        directAccountReference: true,
+      });
+    }
+    if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+    cursor = matches[matches.length - 1]?.id ?? null;
+    if (!cursor) break;
+  }
 
   const updates: AccountDeletionAuditRedactionUpdate[] = [];
   for (const [id, candidate] of candidates) {
@@ -336,8 +257,8 @@ async function collectAdminAuditLogRedactionUpdates({
     if (!redacted.changed && !marked.changed && !reason.changed) continue;
     updates.push({
       logId: id,
-      metadata: marked.metadata,
-      ...(reason.changed && reason.text !== null ? { reason: reason.text } : {}),
+      sensitiveValues,
+      directAccountReference: candidate.directAccountReference,
     });
   }
   return updates;
@@ -1075,20 +996,17 @@ export async function anonymizeUserAccount(
       userId: user.id,
     });
 
-    await tx.adminAuditLog.create({
-      data: {
-        adminId: user.id,
-        action: "USER_ACCOUNT_DELETE",
-        targetType: "USER",
-        targetId: user.id,
-        reason: "User requested account deletion",
-        metadata: {
-          actorKind: "user",
-          hadSellerProfile: Boolean(user.sellerProfile),
-          hadStripeAccount: Boolean(stripeAccountId),
-          stripeRejectSucceeded,
-          deletedAt: now.toISOString(),
-        },
+    await appendAdminAuditLog(tx, {
+      adminId: user.id,
+      action: "USER_ACCOUNT_DELETE",
+      targetType: "USER",
+      targetId: user.id,
+      reason: "User requested account deletion",
+      metadata: {
+        hadSellerProfile: Boolean(user.sellerProfile),
+        hadStripeAccount: Boolean(stripeAccountId),
+        stripeRejectSucceeded,
+        deletedAt: now.toISOString(),
       },
     });
 
@@ -1311,7 +1229,7 @@ export async function anonymizeUserAccount(
 
     try {
       const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
-        db: prisma,
+        db: getAccountDeletionSideEffectClient(),
         adminId: userId,
         targetIds: result.auditTargetIds,
         accountReferenceValues: result.accountAuditReferenceValues,

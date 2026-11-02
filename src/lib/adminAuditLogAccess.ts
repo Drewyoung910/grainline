@@ -46,6 +46,7 @@ export type AdminAuditLogUndoSource = Readonly<{
 }>;
 
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,255}$/u;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const ACTOR_KINDS = new Set(["staff", "user", "automated"]);
 const BAN_REPAIR_ACTIONS = new Set([
   "BAN_USER_CLERK_SYNC",
@@ -282,6 +283,179 @@ export async function adminAuditLogUndoClaim(
     throw new TypeError("Admin audit undo-claim authority returned an invalid result");
   }
   return id;
+}
+
+export async function adminAuditLogAccountDeletionCandidates(
+  client: StaffQueryClient,
+  input: {
+    userId: string;
+    targetIds: string[];
+    referenceValues: string[];
+    afterId: string | null;
+    limit?: number;
+  },
+) {
+  const limit = input.limit ?? 500;
+  if (
+    !validId(input.userId, 191)
+    || input.targetIds.length < 1
+    || input.targetIds.length > 16
+    || !input.targetIds.includes(input.userId)
+    || input.targetIds.some((value) => !isTextWithinCodePointRange(value, 1, 255))
+    || input.referenceValues.length < 1
+    || input.referenceValues.length > 16
+    || !input.referenceValues.includes(input.userId)
+    || input.referenceValues.some((value) => !isTextWithinCodePointRange(value, 1, 255))
+    || (input.afterId !== null && !validId(input.afterId, 191))
+    || !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 500
+  ) {
+    throw new RangeError("Admin audit account-deletion candidate input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT * FROM public.grainline_admin_audit_account_deletion_candidates(
+      ${input.userId}::text,
+      ${input.targetIds}::text[],
+      ${input.referenceValues}::text[],
+      ${input.afterId}::text,
+      ${limit}::integer
+    )
+  `);
+  if (rows.length > limit) {
+    throw new TypeError("Admin audit account-deletion candidate authority returned too many rows");
+  }
+  return rows.map((row) => {
+    if (
+      !validId(row.id, 191)
+      || !validJsonValue(row.metadata)
+      || (row.reason !== null && !isTextWithinCodePointRange(row.reason, 0, 1000))
+    ) {
+      throw new TypeError("Admin audit account-deletion candidate authority returned an invalid row");
+    }
+    return Object.freeze({
+      id: row.id,
+      metadata: row.metadata,
+      reason: row.reason,
+    });
+  });
+}
+
+function validAccountDeletionClaim(input: {
+  sideEffectId: string;
+  claimGeneration: bigint;
+  claimToken: string;
+  logId: string;
+}) {
+  return validId(input.sideEffectId, 191)
+    && input.claimGeneration >= 1n
+    && UUID_PATTERN.test(input.claimToken)
+    && validId(input.logId, 191);
+}
+
+export async function adminAuditLogAccountDeletionRedactionSource(
+  client: StaffQueryClient,
+  input: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+    logId: string;
+  },
+) {
+  if (!validAccountDeletionClaim(input)) {
+    throw new RangeError("Admin audit account-deletion redaction source input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT * FROM public.grainline_admin_audit_account_deletion_redaction_source(
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid,
+      ${input.logId}::text
+    )
+  `);
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || !row
+    || !validJsonValue(row.metadata)
+    || (row.reason !== null && !isTextWithinCodePointRange(row.reason, 0, 1000))
+  ) {
+    throw new TypeError("Admin audit account-deletion redaction source returned an invalid row");
+  }
+  return Object.freeze({ metadata: row.metadata, reason: row.reason });
+}
+
+export async function applyAdminAuditLogAccountDeletionRedaction(
+  client: StaffQueryClient,
+  input: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+    logId: string;
+    expectedMetadata: Prisma.JsonValue;
+    expectedReason: string | null;
+    nextMetadata: Prisma.JsonValue;
+    nextReason: string | null;
+    updateMetadata: boolean;
+    updateReason: boolean;
+  },
+) {
+  if (
+    !validAccountDeletionClaim(input)
+    || !validJsonValue(input.expectedMetadata)
+    || (input.expectedReason !== null && !isTextWithinCodePointRange(input.expectedReason, 0, 1000))
+    || !validJsonValue(input.nextMetadata)
+    || (input.nextReason !== null && !isTextWithinCodePointRange(input.nextReason, 0, 1000))
+    || typeof input.updateMetadata !== "boolean"
+    || typeof input.updateReason !== "boolean"
+  ) {
+    throw new RangeError("Admin audit account-deletion redaction apply input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<{ applied: unknown }>>(Prisma.sql`
+    SELECT public.grainline_admin_audit_account_deletion_redaction_apply(
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid,
+      ${input.logId}::text,
+      ${JSON.stringify(input.expectedMetadata)}::jsonb,
+      ${input.expectedReason}::text,
+      ${JSON.stringify(input.nextMetadata)}::jsonb,
+      ${input.nextReason}::text,
+      ${input.updateMetadata}::boolean,
+      ${input.updateReason}::boolean
+    ) AS applied
+  `);
+  const applied = rows[0]?.applied;
+  if (rows.length !== 1 || typeof applied !== "boolean") {
+    throw new TypeError("Admin audit account-deletion redaction apply returned an invalid result");
+  }
+  return applied;
+}
+
+export async function applyLegacyAdminAuditLogAccountDeletionRedaction(
+  client: StaffQueryClient,
+  input: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+    logId: string;
+  },
+) {
+  if (!validAccountDeletionClaim(input)) {
+    throw new RangeError("Legacy admin audit account-deletion redaction input is invalid");
+  }
+  const rows = await client.$queryRaw<Array<{ applied: unknown }>>(Prisma.sql`
+    SELECT public.grainline_admin_audit_account_deletion_legacy_redaction_apply(
+      ${input.sideEffectId}::text,
+      ${input.claimGeneration}::bigint,
+      ${input.claimToken}::uuid,
+      ${input.logId}::text
+    ) AS applied
+  `);
+  const applied = rows[0]?.applied;
+  if (rows.length !== 1 || applied !== true) {
+    throw new TypeError("Legacy admin audit account-deletion redaction returned an invalid result");
+  }
 }
 
 export async function adminAuditLogStaffBanRows(

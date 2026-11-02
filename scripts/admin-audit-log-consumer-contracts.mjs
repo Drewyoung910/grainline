@@ -23,14 +23,9 @@ const OPERATIONS = Object.freeze([
 
 // Baseline at isolated serial head 2a10b3d354e766ef787249f790a19b4d3a92212b.
 // Compatible preparation must drive this object and rawSqlCallers to empty.
-const EXPECTED_DIRECT_CALLERS = Object.freeze({
-  "src/lib/accountDeletion.ts": ["create", "findMany"],
-  "src/lib/accountDeletionSideEffects.ts": ["update"],
-});
+const EXPECTED_DIRECT_CALLERS = Object.freeze({});
 
-const EXPECTED_RAW_SQL_CALLERS = Object.freeze([
-  "src/lib/accountDeletion.ts",
-]);
+const EXPECTED_RAW_SQL_CALLERS = Object.freeze([]);
 
 function sourceFiles(directory) {
   const files = [];
