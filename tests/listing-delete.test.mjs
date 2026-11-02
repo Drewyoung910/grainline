@@ -36,11 +36,11 @@ describe("listing delete lifecycle", () => {
       "utf8",
     );
 
-    assert.match(source, /FOR UPDATE OF listing/);
+    assert.match(source, /lockListingOwnerDeleteState/);
     assert.match(source, /withSerializableDbUserContext/);
     assert.match(source, /sellerOwnerCore\(normalizedActorUserId\)/);
-    assert.match(source, /listing\."sellerId" = \$\{owner\.sellerProfileId\}/);
-    assert.doesNotMatch(source, /JOIN public\."SellerProfile"/);
+    assert.doesNotMatch(source, /FROM public\."Listing" AS listing/);
+    assert.doesNotMatch(source, /FOR UPDATE OF listing/);
     assert.match(source, /grainline_listing_delete_reference_state/);
     assert.match(source, /while a buyer checkout is in progress/);
     assert.doesNotMatch(source, /FROM public\."OrderItem"/);
