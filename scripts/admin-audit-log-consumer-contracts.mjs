@@ -26,7 +26,6 @@ const OPERATIONS = Object.freeze([
 const EXPECTED_DIRECT_CALLERS = Object.freeze({
   "src/lib/accountDeletion.ts": ["create", "findMany"],
   "src/lib/accountDeletionSideEffects.ts": ["update"],
-  "src/lib/audit.ts": ["create", "findMany", "findUnique", "updateMany"],
 });
 
 const EXPECTED_RAW_SQL_CALLERS = Object.freeze([
