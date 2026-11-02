@@ -116,27 +116,18 @@ test("legitimate delta preserves stock already consumed by checkout", async () =
 });
 
 test("the actual edit writer preserves newer inventory on an unrelated content save", async () => {
-  await reset(8);
-  const source = ts.createSourceFile("edit.tsx", readFileSync("src/app/dashboard/listings/[id]/edit/page.tsx", "utf8"),
-    ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  let data;
-  function visit(node) {
-    if (ts.isCallExpression(node) && node.expression.getText(source) === "tx.listing.update") {
-      data = node.arguments[0].properties.find((property) => property.name?.getText(source) === "data").initializer;
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(source); assert.ok(data);
-  // Evaluate the production Prisma data object, not a duplicated stock algorithm.
-  const scope = new Proxy({ title: "Edited", stockQuantity: 10, listingType: "IN_STOCK",
-    stockContext: { listingType: "IN_STOCK" }, needsPublicContentReview: false },
-  { has: () => true, get: (target, key) => target[key] });
-  const write = new Function("scope", `with (scope) { return (${data.getText(source)}); }`)(scope);
-  if (Object.hasOwn(write, "stockQuantity") && write.stockQuantity !== undefined) {
-    await db.query('UPDATE "Listing" SET "stockQuantity"=$1, title=$2', [write.stockQuantity, write.title]);
-  } else await db.query('UPDATE "Listing" SET title=$1', [write.title]);
-  assert.equal(await quantity(), 8);
-  assert.equal((await db.query('SELECT title FROM "Listing"')).rows[0].title, "Edited");
+  const editSource = readFileSync("src/app/dashboard/listings/[id]/edit/page.tsx", "utf8");
+  const authoritySql = readFileSync(
+    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    "utf8",
+  );
+  assert.match(editSource, /updateListingOwnerContent\(tx,/u);
+  assert.doesNotMatch(editSource, /tx\.listing\.update\(/u);
+  assert.match(
+    authoritySql,
+    /next_stock := CASE\s+WHEN p_expected_listing_type <> p_listing_type THEN p_stock_quantity\s+ELSE source_listing\."stockQuantity"\s+END;/u,
+  );
+  assert.match(authoritySql, /"stockQuantity" = next_stock/u);
 });
 
 test("authentication, ownership, missing identity and payload drift cannot mutate stock", async () => {

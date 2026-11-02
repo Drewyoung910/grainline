@@ -109,8 +109,8 @@ describe("durable checkout stock reservation guardrails", () => {
 
   it("keeps listing edits on the parent-first lock order required by source consistency", () => {
     const editRoute = source("src/app/dashboard/listings/[id]/edit/page.tsx");
-    const transactionStart = editRoute.indexOf("prisma.$transaction(async (tx) =>");
-    const parentUpdate = editRoute.indexOf("tx.listing.update({", transactionStart);
+    const transactionStart = editRoute.indexOf("withDbUserContext(actor.id, async (tx) =>");
+    const parentUpdate = editRoute.indexOf("updateListingOwnerContent(tx,", transactionStart);
     const variantDelete = editRoute.indexOf("tx.listingVariantGroup.deleteMany", transactionStart);
     const photoDelete = editRoute.indexOf("tx.photo.deleteMany", transactionStart);
     assert.ok(transactionStart >= 0);
