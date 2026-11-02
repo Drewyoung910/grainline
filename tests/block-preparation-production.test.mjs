@@ -44,6 +44,7 @@ function fakeClientClass({ applied }) {
           database_name: "grainline",
           current_user_name: "neondb_owner",
           session_user_name: "neondb_owner",
+          table_name: "Block",
           table_owner_name: "neondb_owner",
           owner_bypasses_rls: true,
           rls_enabled: false,
@@ -66,6 +67,7 @@ function fakeClientClass({ applied }) {
           rows: [{
             columns: 0,
             functions: applied ? release.functions.length : 0,
+            constraints: 0,
           }],
         };
       }
@@ -127,7 +129,11 @@ test("Block preparation inspector proves restart-safe pending and applied states
       },
     );
     assert.equal(pending.state, "pending");
-    assert.deepEqual(pending.catalog, { columns: [], functions: [] });
+    assert.deepEqual(pending.catalog, {
+      columns: [],
+      constraints: [],
+      functions: [],
+    });
 
     const appliedPreflightEnv = {
       ...environment(directory, "preflight"),

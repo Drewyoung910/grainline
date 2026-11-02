@@ -3513,6 +3513,22 @@ builds containing the converted callers must fail closed until every reviewed
 runtime and staff function in the preparation batch is installed with its
 exact source body and EXECUTE role.
 
+### Service and reference table alternative (2026-11-01)
+
+Do not add full RLS to singleton configuration, public reference, derived
+aggregate or append-only service tables merely to raise the RLS count. Use the
+smallest durable database boundary that matches the actual operations. The
+first candidate group narrows `SiteConfig`, `SystemAuditLog`,
+`FoundingMakerGrant`, `Metro` and `SiteMetricsSnapshot` to exact runtime
+privileges and keeps `SellerExactMapConsentEvent` at zero direct authority.
+The cross-user email/cron ledgers retain CRUD until a dedicated service
+identity exists; app-only ownership rules would not protect them.
+
+Every alternative must still have a complete domain audit, exact recurring
+grant check, provisioning convergence, real-runtime PostgreSQL 17 proof,
+rollback and protected production release. See
+`docs/service-reference-least-privilege-audit.md`.
+
 ### Favorite RLS aggregate boundary (2026-10-28)
 
 Use a transactionally maintained raw-current-row favorite count on `Listing`
@@ -3588,6 +3604,28 @@ policyless ENABLE plus FORCE and must preserve database-first rollback,
 account-deletion cleanup and User/SellerProfile cascades. Preparation,
 compatible deployment, skew drain and Production activation remain separate
 reviewed gates; this decision is not standing Production authorization.
+
+### Seller daily analytics RLS boundary (2026-11-01)
+
+Treat `ListingViewDaily` and `SellerProfileViewDaily` as private aggregate
+service tables, not owner-authored rows. Use policyless Option B with zero
+ordinary runtime, staff or `PUBLIC` table/column authority. Public listing and
+shop telemetry stays behind the existing application abuse controls and one
+atomic database recorder; seller dashboards receive only actor-bound totals
+and grouped buckets; retention and account deletion use bounded, source-bound
+operations. Retain and pin the existing profile-view and top-listings
+functions.
+
+Before compatible preparation, inventory and reject negative counters,
+non-midnight dates, listing/seller mismatches and exhausted counters. Add the
+data invariants, convert all eight direct daily-table operations, aggregate
+chart data in PostgreSQL, and prove parent-first lock ordering, cascades,
+retention, rollback and reactivation on the complete PostgreSQL 17 chain.
+Activation later combines ENABLE and FORCE with zero policies only after the
+compatible app is live and every predecessor deployment is drained. This
+decision authorizes isolated preparation only, not a merge, deployment, grant
+change or Production action. See `docs/seller-analytics-daily-pre-rls-audit.md`
+and `docs/seller-analytics-daily-rls-options.md`.
 
 ### Block RLS direction (2026-10-29)
 

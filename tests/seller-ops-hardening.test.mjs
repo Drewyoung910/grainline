@@ -204,9 +204,10 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /sellerOwnerCore\(me\.id\)/);
     assert.match(analytics, /const sellerId = sellerProfile\.sellerProfileId/);
     assert.match(analytics, /accountAccessErrorResponse\(err\)/);
-    assert.match(analytics, /const profileViewAggPromise = prisma\.sellerProfileViewDaily\.aggregate\(\{/);
-    assert.match(analytics, /where: \{ sellerProfileId: sellerId, date: analyticsDateRange \}/);
-    assert.match(analytics, /const profileVisits =\s*range === "alltime" \? sellerPrivate\.profileViews : profileViewAgg\._sum\.views \?\? 0/s);
+    assert.match(analytics, /const engagementPromise = readSellerEngagementAnalytics\(me\.id, \{/);
+    assert.match(analytics, /startDate,\s*endDate,\s*endExclusive,\s*grouping: chartGrouping,/s);
+    assert.match(analytics, /const profileVisits =\s*range === "alltime" \? sellerPrivate\.profileViews : engagement\.profileViews/s);
+    assert.doesNotMatch(analytics, /prisma\.(?:listingViewDaily|sellerProfileViewDaily)\./);
 
     const sellerProfileView = source("src/app/api/seller/[id]/view/route.ts");
     assert.match(sellerProfileView, /function todayUtcBucket\(\)/);
@@ -242,8 +243,7 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /case "last30":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 29\)/);
     assert.match(analytics, /case "last365":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 364\)/);
     assert.match(analytics, /const endExclusive = range === "yesterday"/);
-    assert.match(analytics, /const dateEndFilter = endExclusive \? \{ lt: endDate \} : \{ lte: endDate \}/);
-    assert.match(analytics, /const analyticsDateRange = \{ gte: startDate, \.\.\.dateEndFilter \}/);
+    assert.match(analytics, /readSellerEngagementAnalytics\(me\.id, \{\s*startDate,\s*endDate,\s*endExclusive,\s*grouping: chartGrouping,\s*\}\)/s);
     assert.match(
       analytics,
       /const rangeEndSql = endExclusive \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
@@ -262,11 +262,9 @@ describe("seller operational route hardening", () => {
     for (const promiseName of [
       "orderSummaryPromise",
       "activeListingCountPromise",
-      "rangeViewAggPromise",
-      "profileViewAggPromise",
+      "engagementPromise",
       "favoritesCountPromise",
       "stockNotificationSubsPromise",
-      "dailyViewDataPromise",
       "chartOrderRowsPromise",
       "topListingRowsPromise",
       "ratingRowsPromise",

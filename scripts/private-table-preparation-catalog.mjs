@@ -6,6 +6,9 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const RELEASE_ID_PATTERN = /^[a-z][a-z0-9_]{2,63}$/u;
+const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
+  seller_analytics_daily_v1: "SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH",
+});
 
 export const PRIVATE_TABLE_PREPARATION_CONFIRMATION =
   "apply-reviewed-private-table-preparation";
@@ -438,6 +441,70 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  seller_analytics_daily_v1: Object.freeze({
+    migration: "20261101030000_prepare_seller_analytics_daily_authorities",
+    migrationSha256: "f0f7c974d84e8132eb2271874f266db8ee94c9b80a7be421cba39ec70e95247d",
+    table: "ListingViewDaily",
+    additionalTables: Object.freeze(["SellerProfileViewDaily"]),
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    addedConstraints: Object.freeze([
+      Object.freeze({
+        table: "ListingViewDaily",
+        name: "ListingViewDaily_counts_non_negative_chk",
+      }),
+      Object.freeze({
+        table: "ListingViewDaily",
+        name: "ListingViewDaily_date_midnight_utc_chk",
+      }),
+      Object.freeze({
+        table: "SellerProfileViewDaily",
+        name: "SellerProfileViewDaily_views_non_negative_chk",
+      }),
+      Object.freeze({
+        table: "SellerProfileViewDaily",
+        name: "SellerProfileViewDaily_date_midnight_utc_chk",
+      }),
+    ]),
+    sourceTests: Object.freeze([
+      "tests/listing-analytics-route.test.mjs",
+      "tests/seller-analytics-daily-preparation.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_listing_analytics_record",
+        arguments: "text, text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_profile_view_record",
+        arguments: "text, date",
+        predecessorSourceSha256:
+          "a079e68ab4ab0d4d6dc1351a3724f2751e626569b36652cdc6b6df69853487cf",
+      }),
+      Object.freeze({
+        name: "grainline_seller_engagement_analytics",
+        arguments: "bigint, bigint, boolean, text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_analytics_retention_prune",
+        arguments: "integer",
+      }),
+      Object.freeze({
+        name: "grainline_seller_profile_view_daily_account_deletion_clear",
+        arguments: "text, bigint, uuid",
+      }),
+    ]),
+  }),
   block_v1: Object.freeze({
     migration: "20261030010000_prepare_block_authorities",
     migrationSha256: "3bc49fc721e4bf8067f2222c9d47bc2e01c91d6ed93d7ed70fc25d5dd14251cb",
@@ -666,12 +733,17 @@ export function functionSourceFromMigration(sql, name) {
 export function verifyPrivateTablePreparationSource(
   releaseId,
   rootDir = process.cwd(),
-  migrationPathOverride =
-    process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim() || undefined,
+  migrationPathOverride,
 ) {
   const release = privateTablePreparation(releaseId);
-  const migrationPath = migrationPathOverride
-    ? path.resolve(rootDir, migrationPathOverride)
+  const releasePathEnvironment = PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE[releaseId];
+  const configuredMigrationPath = migrationPathOverride
+    || (releasePathEnvironment
+      ? process.env[releasePathEnvironment]?.trim()
+      : undefined)
+    || process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH?.trim();
+  const migrationPath = configuredMigrationPath
+    ? path.resolve(rootDir, configuredMigrationPath)
     : path.join(rootDir, privateTablePreparationMigrationPath(release));
   const bytes = readFileSync(migrationPath);
   const digest = createHash("sha256").update(bytes).digest("hex");
@@ -709,6 +781,23 @@ export function verifyPrivateTablePreparationSource(
     && entry.executeRole !== "staff"
   ))) {
     throw stopped("function execution role is invalid");
+  }
+  const tableNames = [release.table, ...(release.additionalTables ?? [])];
+  if (
+    new Set(tableNames).size !== tableNames.length
+    || tableNames.some((tableName) => (
+      typeof tableName !== "string"
+      || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(tableName)
+    ))
+  ) {
+    throw stopped("preparation table catalog is invalid");
+  }
+  if ((release.addedConstraints ?? []).some((entry) => (
+    !tableNames.includes(entry.table)
+    || typeof entry.name !== "string"
+    || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/u.test(entry.name)
+  ))) {
+    throw stopped("constraint catalog is invalid");
   }
   const functionSources = new Map(release.functions.map((entry) => [
     entry.name,

@@ -83,8 +83,9 @@ describe("account-state residue hardening", () => {
 
     assert.match(
       deletion,
-      /sellerProfileViewDaily\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s,
+      /clearSellerProfileViewDailyForAccountDeletion\(tx, \{\s*sideEffectId: localAnonymizeSideEffectId,\s*claimGeneration: localClaimGeneration,\s*claimToken: localClaimToken,\s*\}\)/s,
     );
+    assert.doesNotMatch(deletion, /sellerProfileViewDaily\.deleteMany/);
   });
 
   it("removes deleted seller FAQs from retained seller profiles", () => {

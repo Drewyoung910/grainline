@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 
 export const USER_REPORT_PREPARATION_MIGRATION =
   "20261030020000_prepare_user_report_authorities";
+export const USER_REPORT_RLS_MIGRATION =
+  "20261030050000_activate_user_report_rls";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : result?.rows ?? [];
@@ -357,4 +359,115 @@ export async function proveUserReportPreparedAuthorities({ database, fixture }) 
     `DELETE FROM public."AccountDeletionSideEffect" WHERE id = $1`,
     [deletionSideEffectId],
   );
+}
+
+export async function proveUserReportRlsAuthorities({ database, fixture }) {
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT relation.relrowsecurity,
+           relation.relforcerowsecurity,
+           (SELECT pg_catalog.count(*)::integer
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = relation.oid) AS policy_count,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete,
+           pg_catalog.has_table_privilege(
+             'grainline_staff_read_runtime', relation.oid, 'SELECT'
+           ) AS staff_select
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."UserReport"'::pg_catalog.regclass
+  `)), [{
+    relrowsecurity: true,
+    relforcerowsecurity: true,
+    policy_count: 0,
+    runtime_select: false,
+    runtime_insert: false,
+    runtime_update: false,
+    runtime_delete: false,
+    staff_select: false,
+  }]);
+
+  const reportId = `${fixture.suffix}_rls_report_${randomUUID()}`;
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await setActor(database, fixture.reporterId);
+    await assert.rejects(
+      database.query('SELECT id FROM public."UserReport" LIMIT 1'),
+      (error) => error?.code === "42501",
+      "runtime direct UserReport reads must remain denied",
+    );
+    assert.equal(rowsOf(await database.query(
+      `SELECT "reportId" FROM public.grainline_user_report_submit(
+         $1, $2, 'OTHER', 'Policyless activation proof', NULL, NULL
+       )`,
+      [reportId, fixture.reviewAuthorId],
+    ))[0]?.reportId, reportId);
+    const submitted = rowsOf(await database.query(
+      "SELECT id FROM public.grainline_user_report_owner_submitted_export()",
+    ));
+    assert.ok(submitted.some((row) => row.id === reportId));
+  } finally {
+    await setActor(database, null);
+    await database.query("RESET ROLE");
+  }
+
+  await database.query("SET SESSION AUTHORIZATION grainline_staff_read_runtime");
+  try {
+    await assert.rejects(
+      database.query('SELECT id FROM public."UserReport" LIMIT 1'),
+      (error) => error?.code === "42501",
+      "staff direct UserReport reads must remain denied",
+    );
+    assert.ok(Number(rowsOf(await database.query(
+      "SELECT public.grainline_user_report_staff_open_count($1) AS value",
+      [fixture.staffId],
+    ))[0]?.value) >= 1);
+  } finally {
+    await database.query("RESET SESSION AUTHORIZATION");
+  }
+}
+
+export async function proveUserReportRlsRollback({ database }) {
+  assert.deepEqual(rowsOf(await database.query(`
+    SELECT relation.relrowsecurity,
+           relation.relforcerowsecurity,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'SELECT'
+           ) AS runtime_select,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'INSERT'
+           ) AS runtime_insert,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'UPDATE'
+           ) AS runtime_update,
+           pg_catalog.has_table_privilege(
+             'grainline_app_runtime', relation.oid, 'DELETE'
+           ) AS runtime_delete
+      FROM pg_catalog.pg_class AS relation
+     WHERE relation.oid = 'public."UserReport"'::pg_catalog.regclass
+  `)), [{
+    relrowsecurity: false,
+    relforcerowsecurity: false,
+    runtime_select: true,
+    runtime_insert: true,
+    runtime_update: true,
+    runtime_delete: true,
+  }]);
+  await database.query("SET ROLE grainline_app_runtime");
+  try {
+    await assert.doesNotReject(
+      database.query('SELECT id FROM public."UserReport" LIMIT 1'),
+    );
+  } finally {
+    await database.query("RESET ROLE");
+  }
 }
