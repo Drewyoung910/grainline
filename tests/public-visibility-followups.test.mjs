@@ -78,7 +78,6 @@ describe("public visibility follow-ups", () => {
     const listingPage = read("src/app/listing/[id]/page.tsx");
     const sellerPage = read("src/app/seller/[id]/page.tsx");
     const sellerShopPage = read("src/app/seller/[id]/shop/page.tsx");
-    const tagPage = read("src/app/tag/[slug]/page.tsx");
 
     for (const [path, source] of [
       ["browse", browsePage],
@@ -86,12 +85,18 @@ describe("public visibility follow-ups", () => {
       ["listing detail", listingPage],
       ["seller profile", sellerPage],
       ["seller shop", sellerShopPage],
-      ["tag landing", tagPage],
     ]) {
       assert.doesNotMatch(source, /include:\s*\{\s*photos:/, `${path} should not fetch full Listing rows for cards`);
       assert.doesNotMatch(source, /Prisma\.ListingInclude/, `${path} should not type public Listing card payloads as includes`);
       assert.match(source, /(?:select:\s*\{|const (?:sellerProfileListingCardSelect|homeListingCardSelect|TAG_LISTING_SELECT) = \{)[\s\S]*?id: true,[\s\S]*?title: true,[\s\S]*?priceCents: true,/);
     }
+
+    const tagPage = read("src/app/tag/[slug]/page.tsx");
+    const publicCatalog = read("src/lib/listingPublicCatalogAccess.ts");
+    assert.match(tagPage, /listingPublicCatalogPage/u);
+    assert.doesNotMatch(tagPage, /prisma\.listing\.(?:findMany|count)/u);
+    assert.match(publicCatalog, /type ListingPublicCatalogItem = Readonly<\{/u);
+    assert.doesNotMatch(publicCatalog, /originalUrl:\s*(?:string|true)/u);
   });
 
   it("derives seller profile tag chips from cached public seller tag counts", () => {

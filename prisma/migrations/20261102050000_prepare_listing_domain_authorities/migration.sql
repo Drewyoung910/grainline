@@ -108,6 +108,11 @@ BEGIN
     RAISE EXCEPTION 'Listing actor cart transaction-source authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_public_catalog_page(jsonb,integer,integer)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing public-catalog authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_detail_source_core(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing detail-source core already exists';
@@ -2608,6 +2613,223 @@ $grainline_listing_actor_cart_transaction_sources$;
 REVOKE ALL ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(text)
   FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(text)
+  TO grainline_app_runtime;
+
+-- Public catalog filters use operators which PostgreSQL cannot safely push
+-- through an RLS barrier. Keep those operators and the active-public
+-- predicate together inside one bounded definer operation, returning only a
+-- pinned card projection. The JSON contract is deliberately narrow and may be
+-- extended by this still-unreleased preparation migration as remaining browse
+-- callers are converted.
+CREATE FUNCTION public.grainline_listing_public_catalog_page(
+  p_filter jsonb,
+  p_offset integer,
+  p_limit integer
+)
+RETURNS TABLE (
+  "totalCount" bigint,
+  listings jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_public_catalog_page$
+DECLARE
+  source_filter jsonb := COALESCE(p_filter, '{}'::jsonb);
+  request_user_id text := NULLIF(
+    pg_catalog.current_setting('app.user_id', true),
+    ''
+  );
+  tag_filter text;
+  category_filter text;
+  metro_filter text;
+  city_metro_filter text;
+  seller_filter text;
+  sort_filter text := 'newest';
+  bounded_offset integer;
+  bounded_limit integer;
+BEGIN
+  IF pg_catalog.jsonb_typeof(source_filter) <> 'object'
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.jsonb_object_keys(source_filter) AS filter_key(value)
+        WHERE filter_key.value NOT IN (
+          'tag', 'category', 'metroId', 'cityMetroId', 'sellerId', 'sort'
+        )
+     ) THEN
+    RAISE EXCEPTION 'Public catalog filter is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF request_user_id IS NOT NULL
+     AND request_user_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Public catalog actor context is invalid'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF (source_filter ? 'tag'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'tag') <> 'string')
+     OR (source_filter ? 'category'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'category') <> 'string')
+     OR (source_filter ? 'metroId'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'metroId') <> 'string')
+     OR (source_filter ? 'cityMetroId'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'cityMetroId') <> 'string')
+     OR (source_filter ? 'sellerId'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'sellerId') <> 'string')
+     OR (source_filter ? 'sort'
+      AND pg_catalog.jsonb_typeof(source_filter -> 'sort') <> 'string') THEN
+    RAISE EXCEPTION 'Public catalog filter value is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  tag_filter := NULLIF(source_filter ->> 'tag', '');
+  category_filter := NULLIF(source_filter ->> 'category', '');
+  metro_filter := NULLIF(source_filter ->> 'metroId', '');
+  city_metro_filter := NULLIF(source_filter ->> 'cityMetroId', '');
+  seller_filter := NULLIF(source_filter ->> 'sellerId', '');
+  sort_filter := COALESCE(NULLIF(source_filter ->> 'sort', ''), 'newest');
+
+  IF (tag_filter IS NOT NULL AND (
+        pg_catalog.char_length(tag_filter) > 24
+        OR tag_filter !~ '^[[:alnum:]-]+$'
+      ))
+     OR (category_filter IS NOT NULL AND category_filter NOT IN (
+       'FURNITURE', 'KITCHEN', 'DECOR', 'TOOLS', 'TOYS', 'JEWELRY',
+       'ART', 'OUTDOOR', 'STORAGE', 'OTHER'
+     ))
+     OR (metro_filter IS NOT NULL
+       AND metro_filter !~ '^[A-Za-z0-9._:-]{1,191}$')
+     OR (city_metro_filter IS NOT NULL
+       AND city_metro_filter !~ '^[A-Za-z0-9._:-]{1,191}$')
+     OR (seller_filter IS NOT NULL
+       AND seller_filter !~ '^[A-Za-z0-9._:-]{1,191}$')
+     OR (metro_filter IS NOT NULL AND city_metro_filter IS NOT NULL)
+     OR sort_filter NOT IN (
+       'newest', 'quality', 'popular', 'price_asc', 'price_desc'
+     ) THEN
+    RAISE EXCEPTION 'Public catalog filter is outside the supported range'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF p_offset IS NULL OR p_offset < 0 OR p_offset > 12000
+     OR p_limit IS NULL OR p_limit < 0 OR p_limit > 200 THEN
+    RAISE EXCEPTION 'Public catalog page bounds are invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  bounded_offset := p_offset;
+  bounded_limit := p_limit;
+
+  RETURN QUERY
+  WITH eligible AS MATERIALIZED (
+    SELECT listing.id,
+           listing.title,
+           listing."priceCents",
+           listing.currency,
+           listing.status,
+           listing."listingType",
+           listing."stockQuantity",
+           listing."createdAt",
+           listing."sellerId",
+           listing."qualityScore",
+           listing."favoriteCount"
+      FROM public."Listing" AS listing
+      JOIN public."SellerProfile" AS seller
+        ON seller.id = listing."sellerId"
+     WHERE listing.status = 'ACTIVE'::public."ListingStatus"
+       AND listing."isPrivate" = false
+       AND listing."archivedAt" IS NULL
+       AND listing."sellerPubliclyOrderable" = true
+       AND (tag_filter IS NULL OR listing.tags @> ARRAY[tag_filter]::text[])
+       AND (category_filter IS NULL OR listing.category::text = category_filter)
+       AND (metro_filter IS NULL OR listing."metroId" = metro_filter)
+       AND (city_metro_filter IS NULL OR listing."cityMetroId" = city_metro_filter)
+       AND (seller_filter IS NULL OR listing."sellerId" = seller_filter)
+       AND (
+         request_user_id IS NULL
+         OR NOT EXISTS (
+           SELECT 1
+             FROM public."Block" AS blocked_pair
+            WHERE (
+              blocked_pair."blockerId" = request_user_id
+              AND blocked_pair."blockedId" = seller."userId"
+            ) OR (
+              blocked_pair."blockerId" = seller."userId"
+              AND blocked_pair."blockedId" = request_user_id
+            )
+         )
+       )
+  ), page_rows AS (
+    SELECT eligible.*,
+           COALESCE(
+             (
+               SELECT pg_catalog.jsonb_agg(
+                        pg_catalog.jsonb_build_object(
+                          'id', photo.id,
+                          'url', photo.url,
+                          'altText', photo."altText"
+                        )
+                        ORDER BY photo."sortOrder", photo.id
+                      )
+                 FROM (
+                   SELECT source_photo.id,
+                          source_photo.url,
+                          source_photo."altText",
+                          source_photo."sortOrder"
+                     FROM public."Photo" AS source_photo
+                    WHERE source_photo."listingId" = eligible.id
+                    ORDER BY source_photo."sortOrder", source_photo.id
+                    LIMIT 2
+                 ) AS photo
+             ),
+             '[]'::jsonb
+           ) AS photos
+      FROM eligible
+     ORDER BY
+       CASE WHEN sort_filter = 'quality' THEN eligible."qualityScore" END DESC NULLS LAST,
+       CASE WHEN sort_filter = 'popular' THEN eligible."favoriteCount" END DESC NULLS LAST,
+       CASE WHEN sort_filter = 'price_asc' THEN eligible."priceCents" END ASC NULLS LAST,
+       CASE WHEN sort_filter = 'price_desc' THEN eligible."priceCents" END DESC NULLS LAST,
+       eligible."createdAt" DESC,
+       eligible.id DESC
+     OFFSET bounded_offset
+     LIMIT bounded_limit
+  )
+  SELECT (SELECT pg_catalog.count(*) FROM eligible),
+         COALESCE(
+           (
+             SELECT pg_catalog.jsonb_agg(
+                      pg_catalog.jsonb_build_object(
+                        'id', page.id,
+                        'title', page.title,
+                        'priceCents', page."priceCents",
+                        'currency', page.currency,
+                        'status', page.status::text,
+                        'listingType', page."listingType"::text,
+                        'stockQuantity', page."stockQuantity",
+                        'sellerId', page."sellerId",
+                        'photos', page.photos
+                      )
+                      ORDER BY
+                        CASE WHEN sort_filter = 'quality' THEN page."qualityScore" END DESC NULLS LAST,
+                        CASE WHEN sort_filter = 'popular' THEN page."favoriteCount" END DESC NULLS LAST,
+                        CASE WHEN sort_filter = 'price_asc' THEN page."priceCents" END ASC NULLS LAST,
+                        CASE WHEN sort_filter = 'price_desc' THEN page."priceCents" END DESC NULLS LAST,
+                        page."createdAt" DESC,
+                        page.id DESC
+                    )
+               FROM page_rows AS page
+           ),
+           '[]'::jsonb
+         );
+END
+$grainline_listing_public_catalog_page$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_public_catalog_page(jsonb,integer,integer)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_public_catalog_page(jsonb,integer,integer)
   TO grainline_app_runtime;
 
 -- One bounded projection serves public, owner, reserved-buyer and staff detail

@@ -127,7 +127,7 @@ describe("public query determinism", () => {
     assert.match(listingPage, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(listingPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
 
-    assert.match(tagPage, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(tagPage, /\{ tag, sort: "quality" \}/);
     assert.match(metroPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(metroPage, /orderBy: \[\{ _count: \{ category: "desc" \} \}, \{ category: "asc" \}\]/);
     assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
@@ -138,7 +138,7 @@ describe("public query determinism", () => {
     assert.match(metroPage, /sellerPublicMetroCount\(meDbId, metro\.id, isMajorMetro, false\)/);
     assert.match(metroPage, /listings: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
     assert.match(metroPage, /listingCityMetros: \{ some: publicListingWhere\(blockedSellerListingWhere\) \}/);
-    assert.match(metroCategoryPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(metroCategoryPage, /sort: "newest" as const/);
     assert.match(metroCategoryPage, /const \[metros, majorGroups, cityGroups\] = await Promise\.all/);
     assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["metroId", "category"\]/);
     assert.match(metroCategoryPage, /prisma\.listing\.groupBy\(\{[\s\S]*by: \["cityMetroId", "category"\]/);
@@ -346,7 +346,7 @@ describe("public query determinism", () => {
 
     assert.match(tagPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
     assert.match(tagPage, /const page = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(tagPage, /skip: \(page - 1\) \* TAG_PAGE_SIZE/);
+    assert.match(tagPage, /\(page - 1\) \* TAG_PAGE_SIZE/);
     assert.doesNotMatch(tagPage, /if \(page > totalPages\) return notFound\(\)/);
 
     assert.match(authorPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);

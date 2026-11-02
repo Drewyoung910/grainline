@@ -11,10 +11,10 @@ import { Category } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { listingPublicCatalogPage } from "@/lib/listingPublicCatalogAccess";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { sellerPublicListingCards } from "@/lib/sellerProfilePublicAccess";
@@ -123,40 +123,23 @@ export default async function BrowseMetroCategoryPage({
   const cityName = formatCityState(metro.name, metro.state);
   const categoryLabel = CATEGORY_LABELS[categoryKey] ?? categoryKey;
 
-  // Auth for favorites + block filter
+  // Auth for favorites and actor-bound block filtering in the catalog source.
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
     const meRow = await userIdByClerkId(prisma, userId);
     meDbId = meRow?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-
-  const listingWhere = publicListingWhere({
+  const catalogFilter = {
     category: categoryKey as Category,
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-    ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-  });
+    sort: "newest" as const,
+  };
 
-  const [listingRows, listingCount] = await Promise.all([
-    prisma.listing.findMany({
-      where: listingWhere,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 24,
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        status: true,
-        listingType: true,
-        stockQuantity: true,
-        sellerId: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-      },
-    }),
-    prisma.listing.count({ where: listingWhere }),
-  ]);
+  const {
+    listings: listingRows,
+    total: listingCount,
+  } = await listingPublicCatalogPage(meDbId, catalogFilter, 0, 24);
   const listingCards = await sellerPublicListingCards(meDbId, listingRows.map((listing) => listing.id));
   const listingCardById = new Map(listingCards.map((seller) => [seller.listingId, seller]));
   const listings = listingRows.flatMap((listing) => {
