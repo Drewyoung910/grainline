@@ -83,6 +83,10 @@ import {
 import { clearSellerProfileViewDailyForAccountDeletion } from "@/lib/sellerAnalyticsDailyAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import {
+  accountDeletionSellerBroadcastIds,
+  cleanupAccountSellerBroadcasts,
+} from "@/lib/sellerBroadcastAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import {
@@ -374,19 +378,21 @@ async function redactEmailOutboxRowsForDeletedMaker(
 }
 
 async function cleanupDeletedSellerFanoutRows(
-  tx: Prisma.TransactionClient,
+  tx: DbUserContextTransactionClient,
   sellerProfileId: string,
   now: Date,
+  claim: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ) {
-  const broadcasts = await tx.sellerBroadcast.findMany({
-    where: { sellerProfileId },
-    select: { id: true },
-  });
+  const broadcastIds = await accountDeletionSellerBroadcastIds(tx, claim);
   const listings = await tx.listing.findMany({
     where: { sellerId: sellerProfileId },
     select: { id: true },
   });
-  const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
   const listingIds = listings.map((listing) => listing.id);
   await redactEmailOutboxRowsForDeletedMaker(
     tx,
@@ -1319,7 +1325,12 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
+      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      });
       await tx.review.updateMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
         data: { sellerReply: null, sellerReplyAt: null },
@@ -1354,8 +1365,11 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await tx.sellerBroadcast.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupAccountSellerBroadcasts(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await cleanupSellerFaqsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,

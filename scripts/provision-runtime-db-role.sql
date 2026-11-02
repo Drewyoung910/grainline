@@ -364,6 +364,80 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."UserReport"
 TO :"runtime_role";
 
+-- These service/reference tables have no user-row ownership boundary. Preserve
+-- predecessor CRUD until the exact privilege migration is durably recorded;
+-- afterwards every provisioning replay must converge to the reviewed exact
+-- operations. Refuse a partial or checksum-drifted ledger row before changing
+-- any grant.
+WITH service_reference_least_privilege_ledger AS (
+  SELECT
+    pg_catalog.count(*)::integer AS row_count,
+    pg_catalog.count(*) FILTER (
+      WHERE checksum = '5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c'
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+        AND applied_steps_count IN (0, 1)
+    )::integer AS exact_count
+  FROM public._prisma_migrations
+  WHERE migration_name =
+    '20261101020000_narrow_service_reference_runtime_privileges'
+), failure AS (
+  SELECT
+    'service/reference least-privilege migration ledger drifted; refusing runtime-role provisioning'
+      AS message
+  FROM service_reference_least_privilege_ledger
+  WHERE row_count <> 0 AND (row_count <> 1 OR exact_count <> 1)
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((
+    SELECT exact_count = 1
+    FROM service_reference_least_privilege_ledger
+  ), false) AS grainline_service_reference_least_privilege_applied;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_service_reference_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_service_reference_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_service_reference_least_privilege_applied
+REVOKE ALL ON TABLE
+  public."FoundingMakerGrant",
+  public."Metro",
+  public."SiteConfig",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+FROM PUBLIC, :"runtime_role";
+
+GRANT SELECT ON TABLE
+  public."FoundingMakerGrant",
+  public."Metro",
+  public."SiteConfig",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+TO :"runtime_role";
+
+GRANT INSERT ON TABLE
+  public."Metro",
+  public."SiteMetricsSnapshot",
+  public."SystemAuditLog"
+TO :"runtime_role";
+
+GRANT UPDATE ON TABLE
+  public."Metro",
+  public."SiteMetricsSnapshot"
+TO :"runtime_role";
+\endif
+\unset grainline_service_reference_least_privilege_applied
+
 -- Public SellerProfile keeps compatible predecessor CRUD only while RLS is
 -- cleanly off. Once the reviewed policyless ENABLE (or later FORCE) posture is
 -- present, every provisioning replay must re-close direct table authority.
@@ -540,6 +614,78 @@ REVOKE ALL ON TABLE public."MakerVerification"
   FROM PUBLIC, :"runtime_role";
 \endif
 \unset maker_verification_rls_active
+
+-- Block, UserReport and SellerFaq share one reviewed policyless activation
+-- batch. A provisioning replay may preserve predecessor CRUD only while each
+-- table is cleanly unprotected; after activation it must restore zero direct
+-- authority. Refuse every partial posture before changing grants.
+DO $grainline_block_report_seller_faq_provisioning_posture$
+DECLARE
+  expected_table text;
+  row_security boolean;
+  force_row_security boolean;
+  policy_count bigint;
+BEGIN
+  FOREACH expected_table IN ARRAY ARRAY['Block', 'UserReport', 'SellerFaq']
+  LOOP
+    SELECT
+      class.relrowsecurity,
+      class.relforcerowsecurity,
+      (SELECT pg_catalog.count(*)
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = class.oid)
+      INTO row_security, force_row_security, policy_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname = expected_table
+       AND class.relkind = 'r';
+
+    IF NOT FOUND OR NOT (
+      (
+        NOT row_security
+        AND NOT force_row_security
+        AND policy_count = 0
+      )
+      OR (
+        row_security
+        AND force_row_security
+        AND policy_count = 0
+      )
+    ) THEN
+      RAISE EXCEPTION
+        '% RLS is partially or unexpectedly configured; refusing runtime-role provisioning',
+        expected_table;
+    END IF;
+  END LOOP;
+END
+$grainline_block_report_seller_faq_provisioning_posture$;
+
+WITH activated(table_name) AS (
+  SELECT class.relname
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = ANY (ARRAY['Block', 'UserReport', 'SellerFaq'])
+     AND class.relkind = 'r'
+     AND class.relrowsecurity
+     AND class.relforcerowsecurity
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_policy AS policy
+        WHERE policy.polrelid = class.oid
+     )
+)
+SELECT format(
+  'REVOKE ALL ON TABLE public.%I FROM PUBLIC, %I',
+  table_name,
+  :'runtime_role'
+)
+  FROM activated
+ ORDER BY table_name;
+\gexec
 
 -- OrderItem and OrderShippingRateQuote remain separate from the Core Order RLS
 -- release, but the application no longer needs ordinary table access. Preserve
@@ -4027,7 +4173,29 @@ SELECT format(
   :'runtime_role'
 )
   FROM conversation_message_public_authority
- WHERE to_regprocedure(function_signature) IS NOT NULL;
+ WHERE to_regprocedure(function_signature) IS NOT NULL
+   AND NOT (
+     function_signature IN (
+       'public."grainline_message_unread_count"(text)',
+       'public."grainline_conversation_inbox"(text, boolean, text, timestamp, text, integer)'
+     )
+     AND EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_class AS class
+         JOIN pg_catalog.pg_namespace AS namespace
+           ON namespace.oid = class.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND class.relname = 'Block'
+          AND class.relkind = 'r'
+          AND class.relrowsecurity
+          AND class.relforcerowsecurity
+          AND NOT EXISTS (
+            SELECT 1
+              FROM pg_catalog.pg_policy AS policy
+             WHERE policy.polrelid = class.oid
+          )
+     )
+   );
 \gexec
 \unset conversation_message_rls_active
 
@@ -5642,6 +5810,60 @@ SELECT format(
 \gexec
 \endif
 \unset order_payment_event_rls_active
+
+-- SellerBroadcast preparation keeps predecessor table CRUD available until
+-- activation. Converge only the reviewed purpose-bound operations; the three
+-- staff operations remain exclusive to the isolated staff role.
+WITH seller_broadcast_functions(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_broadcast_owner_cooldown"()'),
+    ('public."grainline_seller_broadcast_owner_create"(text, text, text, integer)'),
+    ('public."grainline_seller_broadcast_owner_count"()'),
+    ('public."grainline_seller_broadcast_owner_page"(integer, integer)'),
+    ('public."grainline_seller_broadcast_owner_export"()'),
+    ('public."grainline_seller_broadcast_public_latest"(text)'),
+    ('public."grainline_seller_broadcast_actor_feed_page"(text[], timestamp without time zone, timestamp without time zone, text, text, integer)'),
+    ('public."grainline_seller_broadcast_owner_delivery_source"(text)'),
+    ('public."grainline_seller_broadcast_owner_record_delivery"(text, integer)'),
+    ('public."grainline_seller_broadcast_account_deletion_ids"(text, text, bigint, uuid)'),
+    ('public."grainline_seller_broadcast_account_deletion_cleanup"(text, text, bigint, uuid)'),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)'),
+    ('public."grainline_seller_broadcast_staff_count"(text, text)'),
+    ('public."grainline_seller_broadcast_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_seller_broadcast_staff_delete"(text, text)')
+)
+SELECT pg_catalog.format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_broadcast_functions
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_broadcast_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_broadcast_owner_cooldown"()'),
+    ('public."grainline_seller_broadcast_owner_create"(text, text, text, integer)'),
+    ('public."grainline_seller_broadcast_owner_count"()'),
+    ('public."grainline_seller_broadcast_owner_page"(integer, integer)'),
+    ('public."grainline_seller_broadcast_owner_export"()'),
+    ('public."grainline_seller_broadcast_public_latest"(text)'),
+    ('public."grainline_seller_broadcast_actor_feed_page"(text[], timestamp without time zone, timestamp without time zone, text, text, integer)'),
+    ('public."grainline_seller_broadcast_owner_delivery_source"(text)'),
+    ('public."grainline_seller_broadcast_owner_record_delivery"(text, integer)'),
+    ('public."grainline_seller_broadcast_account_deletion_ids"(text, text, bigint, uuid)'),
+    ('public."grainline_seller_broadcast_account_deletion_cleanup"(text, text, bigint, uuid)'),
+    ('public."grainline_email_outbox_begin_provider_attempt"(text, bigint, uuid)')
+)
+SELECT pg_catalog.format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_broadcast_runtime
+ WHERE pg_catalog.to_regprocedure(function_signature) IS NOT NULL;
+\gexec
 
 -- ReviewVote keeps predecessor CRUD while RLS is off. Once the reviewed owner
 -- policy is active, convergence must reduce the runtime role to SELECT only.

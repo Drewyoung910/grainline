@@ -1,0 +1,192 @@
+name: Privilege Release Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Reviewed privilege release
+        required: true
+        type: choice
+        options:
+          - service_reference_v1
+      release_commit:
+        description: Exact reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full push CI run for that exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-privilege-release
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Apply reviewed privilege release
+    if: >-
+      github.repository == 'Drewyoung910/grainline' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.run_attempt == 1 &&
+      inputs.confirmation == 'apply-reviewed-privilege-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRIVILEGE_RELEASE_ID: ${{ inputs.release_id }}
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.2"
+          architecture: x64
+          check-latest: false
+          package-manager-cache: false
+          token: ""
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - name: Bind release to exact main and every exact-main push workflow
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+        with:
+          script: |
+            const sha = process.env.REVIEWED_RELEASE_COMMIT;
+            const value = process.env.REVIEWED_MAIN_CI_RUN_ID;
+            if (!/^[0-9a-f]{40}$/.test(sha ?? '') || sha !== context.sha ||
+                !/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+              throw new Error('Privilege release binding drifted');
+            }
+            const runId = Number(value);
+            if (!Number.isSafeInteger(runId)) throw new Error('CI run id is unsafe');
+            const [{data: main}, {data: ci}] = await Promise.all([
+              github.rest.repos.getBranch({...context.repo, branch: 'main'}),
+              github.rest.actions.getWorkflowRun({...context.repo, run_id: runId}),
+            ]);
+            if (main.commit.sha !== sha || ci.name !== 'CI' ||
+                ci.path !== '.github/workflows/ci.yml' ||
+                ci.event !== 'push' || ci.head_branch !== 'main' ||
+                ci.head_sha !== sha || ci.status !== 'completed' ||
+                ci.conclusion !== 'success') {
+              throw new Error('Privilege release main/CI readback drifted');
+            }
+            const exactPushRuns = await github.paginate(
+              github.rest.actions.listWorkflowRunsForRepo,
+              {...context.repo, branch: 'main', event: 'push', head_sha: sha, per_page: 100},
+            );
+            const latestByWorkflow = new Map();
+            for (const run of exactPushRuns) {
+              if (run.head_sha !== sha || run.head_branch !== 'main' || run.event !== 'push') continue;
+              const key = run.path || run.name;
+              const previous = latestByWorkflow.get(key);
+              if (!previous || Number(run.id) > Number(previous.id)) latestByWorkflow.set(key, run);
+            }
+            const required = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/conversation-message-force-proof.yml',
+              '.github/workflows/notification-rls-ephemeral-proof.yml',
+              '.github/workflows/account-deletion-worker-bootstrap-proof.yml',
+              '.github/workflows/order-staff-bootstrap-proof.yml',
+              '.github/workflows/order-paid-repair-lock-proof.yml',
+              '.github/workflows/order-account-deletion-concurrency-proof.yml',
+            ]);
+            const missing = [...required].filter((path) => !latestByWorkflow.has(path));
+            if (missing.length !== 0) throw new Error(`Required push workflows are absent: ${missing.join(', ')}`);
+            const unacceptable = [...latestByWorkflow.values()]
+              .filter((run) => run.status !== 'completed' || run.conclusion !== 'success');
+            if (unacceptable.length !== 0) {
+              throw new Error(`Exact-main push workflows are not all green: ${unacceptable
+                .map((run) => `${run.name}:${run.status}/${run.conclusion}`).join(', ')}`);
+            }
+      - name: Verify reviewed release source before owner access
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="$(node scripts/privilege-release-catalog.mjs)"
+          test -n "$migration"
+          mapfile -t release_tests < <(node scripts/privilege-release-catalog.mjs --tests)
+          test "${#release_tests[@]}" -gt 0
+          node --test tests/privilege-release-production.test.mjs "${release_tests[@]}"
+      - name: Verify owner connection boundary
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Inspect restart-safe privilege state
+        id: preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PRIVILEGE_RELEASE_PHASE: preflight
+          PRIVILEGE_RELEASE_EVIDENCE_PATH: ${{ runner.temp }}/privilege-release-${{ github.sha }}-preflight.json
+        run: |
+          state="$(node scripts/privilege-release-production-inspect.mjs)"
+          case "$state" in pending|applied_unrecorded|applied) ;; *) exit 1 ;; esac
+          migration="$(node scripts/privilege-release-catalog.mjs)"
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+          if [ "$state" = applied ]; then echo "pending=" >> "$GITHUB_OUTPUT"; else echo "pending=$migration" >> "$GITHUB_OUTPUT"; fi
+      - name: Require only the reviewed privilege migration pending
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ${{ steps.preflight.outputs.pending }}
+        run: node scripts/assert-reviewed-pending-migrations.mjs
+      - name: Apply reviewed privilege transaction outside Prisma's ledger
+        if: steps.preflight.outputs.state == 'pending'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+        run: >-
+          psql "$DIRECT_URL" --set=ON_ERROR_STOP=on
+          --file="prisma/migrations/${{ steps.preflight.outputs.migration }}/migration.sql"
+      - name: Record committed privilege release in Prisma's ledger
+        if: steps.preflight.outputs.state != 'applied'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate resolve --applied "${{ steps.preflight.outputs.migration }}"
+      - name: Read back exact privilege catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PRIVILEGE_RELEASE_PHASE: postflight
+          PRIVILEGE_RELEASE_EVIDENCE_PATH: ${{ runner.temp }}/privilege-release-${{ github.sha }}-postflight.json
+          PRIVILEGE_RELEASE_PREVIOUS_EVIDENCE_PATH: ${{ runner.temp }}/privilege-release-${{ github.sha }}-preflight.json
+        run: node scripts/privilege-release-production-inspect.mjs
+      - name: Require no migrations pending after release
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          REVIEWED_PENDING_MIGRATIONS: ""
+        run: |
+          node scripts/assert-reviewed-pending-migrations.mjs
+          npx prisma migrate status
+      - name: Audit global runtime grants after release
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          GRANT_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Preserve sanitized privilege-release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: privilege-release-production-${{ github.run_id }}
+          path: ${{ runner.temp }}/privilege-release-${{ github.sha }}-*.json
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: false

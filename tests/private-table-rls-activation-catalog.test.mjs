@@ -77,6 +77,16 @@ test("catalog orders and byte-seals the owner social verification activation bat
     ["SELECT"],
     [],
   ]);
+  assert.deepEqual(releases[1]?.functionChanges.retained, [
+    {
+      name: "grainline_user_follower_notification_page",
+      arguments: "text, text, integer",
+      sourceMd5: "471b1caf9907d6d370ec1cb8ea5aa718",
+      securityDefiner: true,
+      predecessorExecuteRole: "runtime",
+      activatedExecuteRole: "none",
+    },
+  ]);
   for (const id of releaseIds) {
     const entry = verifyPrivateTableRlsActivationSource(id);
     assert.equal(entry.migrationDigest, entry.release.migrationSha256);

@@ -363,6 +363,84 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  seller_broadcast_v1: Object.freeze({
+    migration: "20261101010000_prepare_seller_broadcast_authorities",
+    migrationSha256: "2fd1b027f87e640b254d6be065a376777c5bf4eecb32fda6962d24126dbf7617",
+    table: "SellerBroadcast",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/seller-broadcast-consumer-contracts.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({ name: "grainline_seller_broadcast_owner_cooldown", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_create",
+        arguments: "text, text, text, integer",
+      }),
+      Object.freeze({ name: "grainline_seller_broadcast_owner_count", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_page",
+        arguments: "integer, integer",
+      }),
+      Object.freeze({ name: "grainline_seller_broadcast_owner_export", arguments: "" }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_public_latest",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_actor_feed_page",
+        arguments: "text[], timestamp without time zone, timestamp without time zone, text, text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_delivery_source",
+        arguments: "text",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_owner_record_delivery",
+        arguments: "text, integer",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_staff_count",
+        arguments: "text, text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_staff_page",
+        arguments: "text, text, integer, integer",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_staff_delete",
+        arguments: "text, text",
+        executeRole: "staff",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_account_deletion_ids",
+        arguments: "text, text, bigint, uuid",
+      }),
+      Object.freeze({
+        name: "grainline_seller_broadcast_account_deletion_cleanup",
+        arguments: "text, text, bigint, uuid",
+      }),
+      Object.freeze({
+        name: "grainline_email_outbox_begin_provider_attempt",
+        arguments: "text, bigint, uuid",
+        predecessorSourceSha256:
+          "06c8df2412ad8809f2564a886074f95c5190e9238bb6224bbe22cab131aa8436",
+      }),
+    ]),
+  }),
   seller_analytics_daily_v1: Object.freeze({
     migration: "20261101030000_prepare_seller_analytics_daily_authorities",
     migrationSha256: "f0f7c974d84e8132eb2271874f266db8ee94c9b80a7be421cba39ec70e95247d",
