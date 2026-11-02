@@ -1,7 +1,9 @@
 // src/app/admin/broadcasts/page.tsx
 import { prisma } from "@/lib/db";
+import { userClerkGate } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminActionOrThrow } from "@/lib/audit";
@@ -22,10 +24,19 @@ import { cancelSellerBroadcastEmails } from "@/lib/emailServiceAccess";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
-  const user = await requireAdminPageAccess();
-  if (!user) redirect("/admin/broadcasts");
-  const { success } = await safeRateLimit(adminActionRatelimit, user.id);
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) return;
+  const user = await userClerkGate(prisma, userId);
+  if (
+    !user ||
+    user.banned ||
+    user.deletedAt ||
+    (user.role !== "EMPLOYEE" && user.role !== "ADMIN")
+  ) {
+    redirect("/");
+  }
 
   const id = String(formData.get("id") ?? "");
   if (id) {
