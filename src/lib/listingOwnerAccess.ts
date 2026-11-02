@@ -1,4 +1,4 @@
-import { Category, ListingStatus, ListingType, type Prisma } from "@prisma/client";
+import { Category, ListingStatus, ListingType, Prisma } from "@prisma/client";
 import { withDbUserContext } from "@/lib/dbUserContext";
 import { isTextWithinCodePointRange } from "@/lib/textLength";
 
@@ -93,6 +93,88 @@ export type ListingOwnerEditorState = Readonly<{
   }>>;
 }>;
 
+type ListingOwnerExportRow = {
+  id: unknown;
+  title: unknown;
+  description: unknown;
+  priceCents: unknown;
+  priceVersion: unknown;
+  currency: unknown;
+  status: unknown;
+  videoUrl: unknown;
+  isPrivate: unknown;
+  listingType: unknown;
+  stockQuantity: unknown;
+  processingTimeMinDays: unknown;
+  processingTimeMaxDays: unknown;
+  shipsWithinDays: unknown;
+  category: unknown;
+  tags: unknown;
+  packagedWeightGrams: unknown;
+  packagedLengthCm: unknown;
+  packagedWidthCm: unknown;
+  packagedHeightCm: unknown;
+  reservedForUserId: unknown;
+  customOrderConversationId: unknown;
+  metaDescription: unknown;
+  materials: unknown;
+  productLengthIn: unknown;
+  productWidthIn: unknown;
+  productHeightIn: unknown;
+  createdAt: unknown;
+  updatedAt: unknown;
+  photos: unknown;
+  variantGroups: unknown;
+};
+
+export type ListingOwnerExportState = Readonly<{
+  id: string;
+  title: string;
+  description: string;
+  priceCents: number;
+  priceVersion: number;
+  currency: string;
+  status: ListingStatus;
+  videoUrl: string | null;
+  isPrivate: boolean;
+  listingType: ListingType;
+  stockQuantity: number | null;
+  processingTimeMinDays: number | null;
+  processingTimeMaxDays: number | null;
+  shipsWithinDays: number | null;
+  category: Category | null;
+  tags: ReadonlyArray<string>;
+  packagedWeightGrams: number | null;
+  packagedLengthCm: number | null;
+  packagedWidthCm: number | null;
+  packagedHeightCm: number | null;
+  reservedForUserId: string | null;
+  customOrderConversationId: string | null;
+  metaDescription: string | null;
+  materials: ReadonlyArray<string>;
+  productLengthIn: number | null;
+  productWidthIn: number | null;
+  productHeightIn: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  photos: ReadonlyArray<Readonly<{
+    url: string;
+    originalUrl: string | null;
+    altText: string | null;
+    sortOrder: number;
+  }>>;
+  variantGroups: ReadonlyArray<Readonly<{
+    name: string;
+    sortOrder: number;
+    options: ReadonlyArray<Readonly<{
+      label: string;
+      priceAdjustCents: number;
+      sortOrder: number;
+      inStock: boolean;
+    }>>;
+  }>>;
+}>;
+
 const LISTING_STATUSES = new Set<string>(Object.values(ListingStatus));
 const LISTING_TYPES = new Set<string>(Object.values(ListingType));
 const CATEGORIES = new Set<string>(Object.values(Category));
@@ -121,6 +203,10 @@ function recordValue(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function nullableText(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
 }
 
 function parsePhotos(value: unknown) {
@@ -305,4 +391,210 @@ export function listingOwnerEditor(userId: string, listingId: string) {
     userId,
     (client) => readListingOwnerEditor(client, listingId),
   );
+}
+
+function parseExportPhotos(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const photos = value.map((candidate) => {
+    const photo = recordValue(candidate);
+    if (
+      !photo
+      || typeof photo.url !== "string"
+      || !nullableText(photo.originalUrl)
+      || !nullableText(photo.altText)
+      || !validSafeInteger(photo.sortOrder)
+    ) return null;
+    return Object.freeze({
+      url: photo.url,
+      originalUrl: photo.originalUrl,
+      altText: photo.altText,
+      sortOrder: photo.sortOrder,
+    });
+  });
+  return photos.some((photo) => photo === null)
+    ? null
+    : Object.freeze(photos as Array<NonNullable<(typeof photos)[number]>>);
+}
+
+function parseExportVariantGroups(value: unknown) {
+  if (!Array.isArray(value)) return null;
+  const groups = value.map((candidate) => {
+    const group = recordValue(candidate);
+    if (
+      !group
+      || typeof group.name !== "string"
+      || !validSafeInteger(group.sortOrder)
+      || !Array.isArray(group.options)
+    ) return null;
+    const options = group.options.map((optionCandidate) => {
+      const option = recordValue(optionCandidate);
+      if (
+        !option
+        || typeof option.label !== "string"
+        || !validSafeInteger(option.priceAdjustCents)
+        || !validSafeInteger(option.sortOrder)
+        || typeof option.inStock !== "boolean"
+      ) return null;
+      return Object.freeze({
+        label: option.label,
+        priceAdjustCents: option.priceAdjustCents,
+        sortOrder: option.sortOrder,
+        inStock: option.inStock,
+      });
+    });
+    if (options.some((option) => option === null)) return null;
+    return Object.freeze({
+      name: group.name,
+      sortOrder: group.sortOrder,
+      options: Object.freeze(options as Array<NonNullable<(typeof options)[number]>>),
+    });
+  });
+  return groups.some((group) => group === null)
+    ? null
+    : Object.freeze(groups as Array<NonNullable<(typeof groups)[number]>>);
+}
+
+function parseListingOwnerExportRow(row: ListingOwnerExportRow): ListingOwnerExportState {
+  const photos = parseExportPhotos(row.photos);
+  const variantGroups = parseExportVariantGroups(row.variantGroups);
+  const validNullableId = (value: unknown) => value === null || validId(value);
+  if (
+    !validId(row.id)
+    || typeof row.title !== "string"
+    || typeof row.description !== "string"
+    || !validSafeInteger(row.priceCents)
+    || !validSafeInteger(row.priceVersion)
+    || typeof row.currency !== "string"
+    || row.currency.length !== 3
+    || typeof row.status !== "string"
+    || !LISTING_STATUSES.has(row.status)
+    || !nullableText(row.videoUrl)
+    || typeof row.isPrivate !== "boolean"
+    || typeof row.listingType !== "string"
+    || !LISTING_TYPES.has(row.listingType)
+    || !validNullableSafeInteger(row.stockQuantity)
+    || !validNullableSafeInteger(row.processingTimeMinDays)
+    || !validNullableSafeInteger(row.processingTimeMaxDays)
+    || !validNullableSafeInteger(row.shipsWithinDays)
+    || (row.category !== null && (typeof row.category !== "string" || !CATEGORIES.has(row.category)))
+    || !Array.isArray(row.tags)
+    || !row.tags.every((tag) => typeof tag === "string")
+    || !validNullableSafeInteger(row.packagedWeightGrams)
+    || !validNullableFinite(row.packagedLengthCm)
+    || !validNullableFinite(row.packagedWidthCm)
+    || !validNullableFinite(row.packagedHeightCm)
+    || !validNullableId(row.reservedForUserId)
+    || !validNullableId(row.customOrderConversationId)
+    || !nullableText(row.metaDescription)
+    || !Array.isArray(row.materials)
+    || !row.materials.every((material) => typeof material === "string")
+    || !validNullableFinite(row.productLengthIn)
+    || !validNullableFinite(row.productWidthIn)
+    || !validNullableFinite(row.productHeightIn)
+    || !validDate(row.createdAt)
+    || !validDate(row.updatedAt)
+    || photos === null
+    || variantGroups === null
+  ) {
+    throw new Error("Listing owner export authority returned an invalid row");
+  }
+  return Object.freeze({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    priceCents: row.priceCents,
+    priceVersion: row.priceVersion,
+    currency: row.currency,
+    status: row.status as ListingStatus,
+    videoUrl: row.videoUrl,
+    isPrivate: row.isPrivate,
+    listingType: row.listingType as ListingType,
+    stockQuantity: row.stockQuantity,
+    processingTimeMinDays: row.processingTimeMinDays,
+    processingTimeMaxDays: row.processingTimeMaxDays,
+    shipsWithinDays: row.shipsWithinDays,
+    category: row.category as Category | null,
+    tags: Object.freeze([...row.tags]),
+    packagedWeightGrams: row.packagedWeightGrams,
+    packagedLengthCm: row.packagedLengthCm,
+    packagedWidthCm: row.packagedWidthCm,
+    packagedHeightCm: row.packagedHeightCm,
+    reservedForUserId: row.reservedForUserId as string | null,
+    customOrderConversationId: row.customOrderConversationId as string | null,
+    metaDescription: row.metaDescription,
+    materials: Object.freeze([...row.materials]),
+    productLengthIn: row.productLengthIn,
+    productWidthIn: row.productWidthIn,
+    productHeightIn: row.productHeightIn,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    photos,
+    variantGroups,
+  });
+}
+
+const LISTING_OWNER_EXPORT_PAGE_LIMIT = 100;
+
+export function listingOwnerExportRows(userId: string) {
+  return withDbUserContext(userId, async (client) => {
+    const result: ListingOwnerExportState[] = [];
+    const ids = new Set<string>();
+    let beforeCreatedAt: Date | null = null;
+    let beforeListingId: string | null = null;
+
+    for (;;) {
+      const rows = await client.$queryRaw<ListingOwnerExportRow[]>`
+        SELECT *
+          FROM public.grainline_listing_owner_export_page(
+            ${beforeCreatedAt}::timestamp,
+            ${beforeListingId}::text,
+            ${LISTING_OWNER_EXPORT_PAGE_LIMIT}::integer
+          )
+      `;
+      if (rows.length > LISTING_OWNER_EXPORT_PAGE_LIMIT) {
+        throw new Error("Listing owner export authority exceeded its page limit");
+      }
+
+      let previous = result.at(-1) ?? null;
+      for (const row of rows) {
+        const value = parseListingOwnerExportRow(row);
+        if (ids.has(value.id)) {
+          throw new Error("Listing owner export authority repeated a listing id");
+        }
+        if (
+          previous
+          && !(
+            value.createdAt < previous.createdAt
+            || (
+              value.createdAt.getTime() === previous.createdAt.getTime()
+              && value.id < previous.id
+            )
+          )
+        ) {
+          throw new Error("Listing owner export authority returned an invalid order");
+        }
+        ids.add(value.id);
+        result.push(value);
+        previous = value;
+      }
+
+      if (rows.length < LISTING_OWNER_EXPORT_PAGE_LIMIT) return result;
+      const last = result.at(-1);
+      if (
+        !last
+        || (
+          beforeCreatedAt?.getTime() === last.createdAt.getTime()
+          && beforeListingId === last.id
+        )
+      ) {
+        throw new Error("Listing owner export cursor did not advance");
+      }
+      beforeCreatedAt = last.createdAt;
+      beforeListingId = last.id;
+    }
+  }, {
+    isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    maxWait: 10_000,
+    timeout: 30_000,
+  });
 }

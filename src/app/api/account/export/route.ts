@@ -51,6 +51,7 @@ import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAcces
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
+import { listingOwnerExportRows } from "@/lib/listingOwnerAccess";
 
 export const runtime = "nodejs";
 
@@ -107,52 +108,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     directUploads,
     reviewVotes,
   ] = await Promise.all([
-    sellerProfile
-      ? prisma.listing.findMany({
-          where: { sellerId: sellerProfile.id },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            priceCents: true,
-            priceVersion: true,
-            currency: true,
-            status: true,
-            videoUrl: true,
-            isPrivate: true,
-            listingType: true,
-            stockQuantity: true,
-            processingTimeMinDays: true,
-            processingTimeMaxDays: true,
-            shipsWithinDays: true,
-            category: true,
-            tags: true,
-            packagedWeightGrams: true,
-            packagedLengthCm: true,
-            packagedWidthCm: true,
-            packagedHeightCm: true,
-            reservedForUserId: true,
-            customOrderConversationId: true,
-            metaDescription: true,
-            materials: true,
-            productLengthIn: true,
-            productWidthIn: true,
-            productHeightIn: true,
-            createdAt: true,
-            updatedAt: true,
-            photos: { orderBy: { sortOrder: "asc" }, select: { url: true, originalUrl: true, altText: true, sortOrder: true } },
-            variantGroups: {
-              orderBy: { sortOrder: "asc" },
-              select: {
-                name: true,
-                sortOrder: true,
-                options: { orderBy: { sortOrder: "asc" }, select: { label: true, priceAdjustCents: true, sortOrder: true, inStock: true } },
-              },
-            },
-          },
-        })
-      : [],
+    sellerProfile ? listingOwnerExportRows(user.id) : [],
     exportBuyerOrders(user.id),
     sellerProfile ? exportSellerOrders(user.id) : [],
     exportBuyerOrderPaymentHistory(user.id),
