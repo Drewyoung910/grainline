@@ -46,6 +46,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
   seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+  seller_metrics_v1: "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -56,6 +57,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
   seller_broadcast_v1: "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
+  seller_metrics_v1: "SELLER_METRICS_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -317,6 +319,30 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
       replacements: Object.freeze([]),
       additions: Object.freeze([]),
     }),
+  }),
+  seller_metrics_v1: Object.freeze({
+    preparationReleaseId: "seller_metrics_v1",
+    minimumCompatibleAppCommit:
+      "887ff0c9fc88a65f5b9854f1312d0000d5fc3878",
+    migration: "20261102040000_activate_seller_metrics_rls",
+    migrationSha256:
+      "03cccab5eee60dbbe73f3e9204988409f8811b46a9dca1c50c4c8d7adc151772",
+    rollbackPath: "docs/rls-drafts/seller-metrics-activation-rollback.sql",
+    rollbackSha256:
+      "41d2cdadcd854a57624229da09e5dac3a9b4aa185f3e73a9936dbbd488876086",
+    table: "SellerMetrics",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedAccountDeletionPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/seller-metrics-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
   }),
 });
 

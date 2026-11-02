@@ -4135,6 +4135,13 @@ describe("database grant inventory guardrails", () => {
         `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
       ).includes(`FUNCTION public.${entry.name}(`),
     );
+    const sellerMetricsRlsActivationPresent = existsSync(
+      "prisma/migrations/20261102040000_activate_seller_metrics_rls/migration.sql",
+    ) && source(
+      "prisma/migrations/20261102040000_activate_seller_metrics_rls/migration.sql",
+    ).includes(
+      'ALTER TABLE public."SellerMetrics" FORCE ROW LEVEL SECURITY',
+    );
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -4511,6 +4518,7 @@ describe("database grant inventory guardrails", () => {
         + (sellerMetricsAuthorityPrepared
           ? SELLER_METRICS_PREPARATION.functions.length
           : 0)
+        + (sellerMetricsRlsActivationPresent ? 1 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         + (typeof blockRlsActivationExpected === "function"
@@ -5025,6 +5033,7 @@ describe("database grant inventory guardrails", () => {
         "SellerDeauthorizationApplication",
         ...(typeof sellerFaqRlsActivationExpected === "function"
           && sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+        ...(sellerMetricsRlsActivationPresent ? ["SellerMetrics"] : []),
         "SellerPayoutEvent",
         ...(sellerProfilePublicCandidatePresent ? ["SellerProfile"] : []),
         ...(sellerProfilePrivateEnableMigrationPresent
@@ -5094,6 +5103,7 @@ describe("database grant inventory guardrails", () => {
         "SellerDeauthorizationApplication",
         ...(typeof sellerFaqRlsForceExpected === "function"
           && sellerFaqRlsForceExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+        ...(sellerMetricsRlsActivationPresent ? ["SellerMetrics"] : []),
         "SellerPayoutEvent",
         ...(sellerProfilePublicForceMigrationPresent
           ? ["SellerProfile"]
@@ -6742,6 +6752,9 @@ describe("database grant inventory guardrails", () => {
     const emailServiceLeastPrivilegeProvisioningPresent = provision.includes(
       "grainline_email_service_least_privilege_applied",
     );
+    const sellerMetricsProvisioningPresent = provision.includes(
+      "seller_metrics_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6755,7 +6768,8 @@ describe("database grant inventory guardrails", () => {
         + Number(reviewVoteProvisioningPresent)
         + Number(sellerBroadcastProvisioningPresent)
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
-        + Number(emailServiceLeastPrivilegeProvisioningPresent),
+        + Number(emailServiceLeastPrivilegeProvisioningPresent)
+        + Number(sellerMetricsProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);

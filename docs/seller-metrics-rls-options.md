@@ -4,9 +4,10 @@ Date: 2026-11-02
 
 Public-main baseline: `12a4dfc492412ff52ff94d921e20e7026c4cff38`
 
-Status: **Option B selected for isolated compatible preparation.** This follows
-Drew's standing direction to choose the safest scalable design. It authorizes
-no merge, deployment, Production grant change or RLS activation.
+Status: **Option B preparation complete; isolated activation candidate locally
+proved.** This follows Drew's standing direction to choose the safest scalable
+design. It authorizes no merge, deployment, Production grant change or RLS
+activation.
 
 ## Domain shape
 
@@ -101,6 +102,9 @@ copied one-off release framework.
 - [x] Select Option B for isolated compatible preparation (Codex, 2026-11-02,
   under Drew's standing safest/scalable direction).
 - [x] Complete compatible migration and application conversion in isolation.
+- [x] Build and locally prove the separate combined policyless ENABLE-plus-FORCE
+  candidate, database-first rollback and reactivation on the complete
+  PostgreSQL 17 chain.
 - [ ] Pass exact-branch PostgreSQL 17 CI and independent review.
 - [ ] Approve compatible preparation merge/deploy.
 - [ ] Approve exact Production activation.
