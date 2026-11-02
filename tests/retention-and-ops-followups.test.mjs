@@ -55,10 +55,12 @@ describe("retention and ops-health follow-ups", () => {
     );
     assert.match(source, /pruneStripeWebhookEventServiceBatch\(effectiveBatchSize\)/);
     assert.match(source, /pruneClerkWebhookEventServiceBatch\(effectiveBatchSize\)/);
+    assert.match(source, /deleteResendWebhookEventRetentionBatch\(prisma, \{/);
+    assert.match(source, /cutoff,/);
+    assert.match(source, /limit: batchSize/);
     assert.doesNotMatch(source, /FROM "StripeWebhookEvent"/);
-    assert.match(source, /FROM "ResendWebhookEvent"/);
+    assert.doesNotMatch(source, /FROM "ResendWebhookEvent"/);
     assert.doesNotMatch(source, /FROM "ClerkWebhookEvent"/);
-    assert.match(source, /"processedAt" IS NOT NULL/);
     assert.doesNotMatch(source, /lastError/);
     const maintenanceMigration = readFileSync(
       "prisma/migrations/20260805040000_prepare_stripe_webhook_maintenance_authority/migration.sql",
@@ -135,6 +137,9 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS/);
     assert.match(source, /stripeWebhookHealthSummary/);
+    assert.match(source, /emailServiceOpsHealth\(prisma, \{/);
+    assert.match(source, /staleEmailBefore,/);
+    assert.match(source, /staleSvixBefore: staleSvixWebhookBefore/);
     assert.match(source, /STALE_SVIX_WEBHOOK_PROCESSING_MS/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS/);
     assert.doesNotMatch(source, /staleStripeWebhookBefore/);
@@ -150,12 +155,13 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /clerkWebhookFailureCount/);
     assert.match(source, /accountDeletionSideEffectFailureCount/);
     assert.match(source, /lastError:\s*\{\s*not:\s*null\s*\}/);
-    assert.match(source, /processedAt:\s*null/);
     assert.match(source, /processingStartedAt:\s*null/);
+    assert.match(source, /staleEmailOutboxCount: emailServiceHealth\.staleEmailCount/);
+    assert.match(source, /deadEmailOutboxCount: emailServiceHealth\.deadEmailCount/);
+    assert.match(source, /resendWebhookFailureCount: emailServiceHealth\.stalledResendCount/);
     assert.match(source, /stripeWebhookFailedLeaseCount/);
     assert.match(source, /stripeWebhookReleasedLeaseCount/);
     assert.match(source, /stripeWebhookStaleLeaseCount/);
-    assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleSvixWebhookBefore\s*\}/);
     assert.match(source, /status:\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.FAILED/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PENDING/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PROCESSING/);
