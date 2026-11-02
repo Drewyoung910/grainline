@@ -716,14 +716,20 @@ describe("post-launch UI follow-ups", () => {
   it("keeps customer-photo galleries scoped to publicly viewable listing detail pages", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    const listingAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
     const sitemap = source("src/app/sitemap.ts");
 
-    assert.match(sellerPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.match(sellerPage, /listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,/);
     assert.match(customerPhotosPage, /sellerPublicCustomerPhotoHeader\(meId, sellerId\)/);
-    assert.match(customerPhotosPage, /sellerId: seller\.id/);
-    assert.match(customerPhotosPage, /reviewerAccountActive: true/);
-    assert.doesNotMatch(customerPhotosPage, /reviewer: \{ banned: false, deletedAt: null \}/);
-    assert.match(customerPhotosPage, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
+    assert.match(customerPhotosPage, /listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,/);
+    assert.match(listingAuthority, /listing\.status IN \(\s*'ACTIVE'::public\."ListingStatus",\s*'SOLD_OUT'::public\."ListingStatus"\s*\)/);
+    assert.match(listingAuthority, /listing\."isPrivate" = false/);
+    assert.match(listingAuthority, /listing\."archivedAt" IS NULL/);
+    assert.match(listingAuthority, /listing\."sellerPubliclyOrderable" = true/);
+    assert.match(listingAuthority, /review\."reviewerAccountActive" = true/);
+    assert.match(listingAuthority, /relationship\."blockedId" IN \(\s*seller\."userId", review\."reviewerId"\s*\)/);
     assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
     assert.match(sitemap, /sellerPublicSitemapPage\(\s*"CUSTOMER_PHOTOS"/s);
     assert.match(sitemap, /chunk\.kind === "customerPhotos"/);
