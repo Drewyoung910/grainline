@@ -340,7 +340,11 @@ describe("seller operational route hardening", () => {
     );
     assert.equal(
       (customListing.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/g) ?? []).length,
-      2,
+      1,
+    );
+    assert.equal(
+      (customListing.match(/applyVersionBoundListingAiReviewTransitionState\(seller\.userId,/g) ?? []).length,
+      1,
     );
     assert.equal(
       (editListing.match(/applyVersionBoundListingAiReviewTransition\(actor\.id,/g) ?? []).length,

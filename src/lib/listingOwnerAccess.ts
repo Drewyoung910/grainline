@@ -226,7 +226,11 @@ type ListingOwnerTransitionRow = {
   applied: unknown;
 };
 
-export type ListingOwnerTransitionOperation = "HIDE" | "MARK_SOLD" | "WITHDRAW_REVIEW";
+export type ListingOwnerTransitionOperation =
+  | "HIDE"
+  | "MARK_SOLD"
+  | "WITHDRAW_REVIEW"
+  | "RETURN_TO_DRAFT";
 
 export type ListingOwnerSummaryState = Readonly<{
   id: string;
@@ -589,9 +593,9 @@ export function listingOwnerTransition(
 ) {
   if (
     !validId(input.listingId)
-    || !(["HIDE", "MARK_SOLD", "WITHDRAW_REVIEW"] as const).includes(input.operation)
+    || !(["HIDE", "MARK_SOLD", "WITHDRAW_REVIEW", "RETURN_TO_DRAFT"] as const).includes(input.operation)
     || (
-      input.operation === "WITHDRAW_REVIEW"
+      input.operation === "WITHDRAW_REVIEW" || input.operation === "RETURN_TO_DRAFT"
         ? !validDate(input.expectedUpdatedAt)
         : input.expectedUpdatedAt != null
     )

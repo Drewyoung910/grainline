@@ -1314,13 +1314,13 @@ BEGIN
      OR p_listing_id IS NULL
      OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
      OR p_operation IS NULL
-     OR p_operation NOT IN ('HIDE', 'MARK_SOLD', 'WITHDRAW_REVIEW')
+     OR p_operation NOT IN ('HIDE', 'MARK_SOLD', 'WITHDRAW_REVIEW', 'RETURN_TO_DRAFT')
      OR (
-       p_operation = 'WITHDRAW_REVIEW'
+       p_operation IN ('WITHDRAW_REVIEW', 'RETURN_TO_DRAFT')
        AND p_expected_updated_at IS NULL
      )
      OR (
-       p_operation <> 'WITHDRAW_REVIEW'
+       p_operation NOT IN ('WITHDRAW_REVIEW', 'RETURN_TO_DRAFT')
        AND p_expected_updated_at IS NOT NULL
      ) THEN
     RAISE EXCEPTION 'Listing owner transition input is invalid'
@@ -1372,7 +1372,7 @@ BEGIN
        SET status = 'SOLD'::public."ListingStatus",
            "updatedAt" = source_now
      WHERE listing.id = source_listing.id;
-  ELSE
+  ELSIF p_operation = 'WITHDRAW_REVIEW' THEN
     IF source_listing.status::text <> 'PENDING_REVIEW'
        OR source_listing."updatedAt" IS DISTINCT FROM p_expected_updated_at THEN
       RETURN QUERY SELECT false;
@@ -1387,6 +1387,20 @@ BEGIN
            "rejectionReason" = NULL,
            "updatedAt" = source_now
      WHERE listing.id = source_listing.id;
+  ELSIF p_operation = 'RETURN_TO_DRAFT' THEN
+    IF source_listing."archivedAt" IS NOT NULL
+       OR source_listing.status::text NOT IN ('PENDING_REVIEW', 'ACTIVE', 'SOLD_OUT')
+       OR source_listing."updatedAt" IS DISTINCT FROM p_expected_updated_at THEN
+      RETURN QUERY SELECT false;
+      RETURN;
+    END IF;
+    UPDATE public."Listing" AS listing
+       SET status = 'DRAFT'::public."ListingStatus",
+           "updatedAt" = source_now
+     WHERE listing.id = source_listing.id;
+  ELSE
+    RAISE EXCEPTION 'Listing owner transition operation is unsupported'
+      USING ERRCODE = '22023';
   END IF;
 
   RETURN QUERY SELECT true;
@@ -1408,7 +1422,7 @@ CREATE FUNCTION public.grainline_listing_owner_review_transition(
   p_flags text[],
   p_score double precision
 )
-RETURNS TABLE (applied boolean)
+RETURNS TABLE (applied boolean, "updatedAt" timestamp without time zone)
 LANGUAGE plpgsql
 VOLATILE
 PARALLEL UNSAFE
@@ -1468,7 +1482,7 @@ BEGIN
      AND actor."deletedAt" IS NULL
      AND seller."ownerAccountActive" = true;
   IF NOT FOUND THEN
-    RETURN QUERY SELECT false;
+    RETURN QUERY SELECT false, NULL::timestamp without time zone;
     RETURN;
   END IF;
 
@@ -1479,7 +1493,7 @@ BEGIN
      AND listing."sellerId" = seller_id
    FOR UPDATE;
   IF NOT FOUND THEN
-    RETURN QUERY SELECT false;
+    RETURN QUERY SELECT false, NULL::timestamp without time zone;
     RETURN;
   END IF;
 
@@ -1500,7 +1514,7 @@ BEGIN
          )
        )
      ) THEN
-    RETURN QUERY SELECT false;
+    RETURN QUERY SELECT false, NULL::timestamp without time zone;
     RETURN;
   END IF;
 
@@ -1523,7 +1537,7 @@ BEGIN
          "updatedAt" = source_now
    WHERE listing.id = source_listing.id;
 
-  RETURN QUERY SELECT true;
+  RETURN QUERY SELECT true, source_now;
 END
 $grainline_listing_owner_review_transition$;
 
