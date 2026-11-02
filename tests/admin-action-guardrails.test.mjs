@@ -193,7 +193,7 @@ describe("admin server action guardrails", () => {
 
   it("handles stale broadcast deletes without throwing and cleans queued side effects", () => {
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
-    const emailOutboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
+    const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
 
     assert.match(broadcasts, /tx\.sellerBroadcast\.findUnique/);
     assert.match(broadcasts, /tx\.sellerBroadcast\.deleteMany\(\{ where: \{ id \} \}\)/);
@@ -201,10 +201,8 @@ describe("admin server action guardrails", () => {
     assert.doesNotMatch(broadcasts, /sellerBroadcast\.delete\(\{/);
     assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
     assert.doesNotMatch(broadcasts, /tx\.notification\.|sourceType: null|sourceId: null/);
-    assert.match(broadcasts, /tx\.emailOutbox\.deleteMany\(\{/);
-    assert.match(broadcasts, /sellerBroadcastOutboxCancellationWhere\(broadcast\.id\)/);
-    assert.match(emailOutboxLifecycle, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
-    assert.match(emailOutboxLifecycle, /sourceType: "seller_broadcast"/);
-    assert.match(emailOutboxLifecycle, /sourceId: broadcastId/);
+    assert.match(broadcasts, /cancelSellerBroadcastEmails\(tx, broadcast\.id\)/);
+    assert.doesNotMatch(broadcasts, /tx\.emailOutbox\./);
+    assert.match(emailServiceAccess, /public\.grainline_email_outbox_cancel_seller_broadcast/);
   });
 });

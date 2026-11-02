@@ -73,15 +73,15 @@ describe("account export privacy coverage", () => {
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");
 
-    for (const model of [
-      "emailSuppression",
-      "emailOutbox",
-      "emailFailureCount",
-      "newsletterSubscriber",
-      "sellerBroadcast",
-    ]) {
+    for (const model of ["sellerBroadcast"]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
     }
+    assert.match(route, /exportOwnerEmailServiceData/);
+    assert.match(route, /withDbUserContext\(user\.id, \(tx\) => exportOwnerEmailServiceData\(tx\)\)/);
+    assert.doesNotMatch(
+      route,
+      /prisma\.(?:emailSuppression|emailOutbox|emailFailureCount|newsletterSubscriber)\./,
+    );
     assert.match(
       route,
       /ownerBlockExportRows\(user\.id\)/,
@@ -310,40 +310,34 @@ describe("account export privacy coverage", () => {
     ), /emailDeliveryToken/);
   });
 
-  it("exports email suppressions by the same exact and canonical keys used for delivery checks", () => {
+  it("exports email-service rows through the actor-bound fixed authority", () => {
     const route = source("src/app/api/account/export/route.ts");
-    const suppressionStart = route.indexOf("prisma.emailSuppression.findMany");
-    const suppressionBlock = route.slice(
-      suppressionStart,
-      route.indexOf("ownerStockNotificationExportRows(user.id)", suppressionStart),
+    const access = source("src/lib/emailServiceAccess.ts");
+    const migration = source(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
     );
 
-    assert.match(route, /ownerAccountEmailFallbackEmails/);
-    assert.match(route, /accountEmailSuppressionKeysForEmails/);
     assert.match(route, /ownerUserAccountEmailAddressState/);
     assert.match(route, /const accountEmailState = await ownerUserAccountEmailAddressState\(/);
-    assert.match(route, /const accountEmails = await ownerAccountEmailFallbackEmails\(user\.id\)/);
-    assert.match(route, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
-    assert.match(suppressionBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
-    assert.match(suppressionBlock, /id: true/);
-    assert.match(suppressionBlock, /eventId: true/);
-    assert.doesNotMatch(suppressionBlock, /where: \{ email: accountEmail \}/);
+    assert.match(route, /withDbUserContext\(user\.id, \(tx\) => exportOwnerEmailServiceData\(tx\)\)/);
+    assert.match(access, /public\.grainline_email_service_owner_export\(\)/);
+    assert.match(migration, /grainline_user_email_fallback_addresses\(\)/);
+    assert.doesNotMatch(
+      route,
+      /prisma\.(?:emailSuppression|emailOutbox|emailFailureCount|newsletterSubscriber)\./,
+    );
   });
 
-  it("exports local email outbox and transient failure records by account id or delivery email keys", () => {
+  it("exports notifications and the four email-service collections without rendered HTML", () => {
     const route = source("src/app/api/account/export/route.ts");
     const notificationAccess = source("src/lib/notificationOwnerAccess.ts");
-    const outboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
+    const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
+    const migration = source(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+    );
     const payload = source("src/lib/accountExportPayload.ts");
 
     const notificationStart = route.indexOf("ownerNotificationExportRows(user.id)");
-    const outboxStart = route.indexOf("prisma.emailOutbox.findMany");
-    const failureStart = route.indexOf("prisma.emailFailureCount.findMany");
-    const outboxBlock = route.slice(outboxStart, failureStart);
-    const failureBlock = route.slice(
-      failureStart,
-      route.indexOf("ownerStockNotificationExportRows(user.id)", failureStart),
-    );
     const notificationSelectStart = notificationAccess.indexOf("export const NOTIFICATION_EXPORT_SELECT");
     const notificationSelectBlock = notificationAccess.slice(
       notificationSelectStart,
@@ -357,25 +351,25 @@ describe("account export privacy coverage", () => {
     assert.match(notificationSelectBlock, /sourceType: true/);
     assert.match(notificationSelectBlock, /sourceId: true/);
 
-    assert.ok(outboxStart >= 0, "account export must query EmailOutbox");
-    assert.match(outboxBlock, /accountEmailOutboxWhere\(user\.id, accountEmailSuppressionKeys\)/);
-    assert.match(outboxLifecycle, /userId: null/);
-    assert.match(outboxLifecycle, /recipientEmail: \{ in: fallbackEmailKeys \}/);
-    assert.match(outboxBlock, /select: EMAIL_OUTBOX_EXPORT_SELECT/);
-    assert.match(outboxLifecycle, /recipientEmail: true/);
-    assert.match(outboxLifecycle, /templateName: true/);
-    assert.match(outboxLifecycle, /sourceType: true/);
-    assert.match(outboxLifecycle, /sourceId: true/);
-    assert.match(outboxLifecycle, /subject: true/);
-    assert.match(outboxLifecycle, /payloadVersion: true/);
-    assert.match(outboxLifecycle, /payload: true/);
-    assert.match(outboxLifecycle, /lastError: true/);
-    assert.doesNotMatch(outboxLifecycle, /html: true/);
-
-    assert.ok(failureStart >= 0, "account export must query EmailFailureCount");
-    assert.match(failureBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
-    assert.match(failureBlock, /count: true/);
-    assert.match(failureBlock, /lastEventId: true/);
+    for (const collection of [
+      "emailSuppressions",
+      "emailOutboxRows",
+      "emailFailureCounts",
+      "newsletterSubscriptions",
+    ]) {
+      assert.match(emailServiceAccess, new RegExp(`Array\\.isArray\\(${collection}\\)`));
+    }
+    assert.match(migration, /outbox\."recipientEmail"::text AS "recipientEmail"/);
+    assert.match(migration, /outbox\."templateName"::text AS "templateName"/);
+    assert.match(migration, /outbox\."sourceType"::text AS "sourceType"/);
+    assert.match(migration, /outbox\."sourceId"::text AS "sourceId"/);
+    assert.match(migration, /outbox\."payloadVersion"/);
+    assert.match(migration, /outbox\.payload/);
+    assert.match(migration, /outbox\."lastError"::text AS "lastError"/);
+    assert.doesNotMatch(migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_email_service_owner_export"),
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_email_service_account_deletion_apply"),
+    ), /outbox\.html/);
 
     assert.match(payload, /emailOutboxRows: data\.emailOutboxRows/);
     assert.match(payload, /emailFailureCounts: data\.emailFailureCounts/);
@@ -388,20 +382,16 @@ describe("account export privacy coverage", () => {
     const historyStart = route.indexOf("const accountEmailState = await ownerUserAccountEmailAddressState");
     const sellerProfileStart = route.indexOf("const sellerProfile = await sellerOwnerExportProfile");
     const historyBlock = route.slice(historyStart, sellerProfileStart);
-    const newsletterStart = route.indexOf("prisma.newsletterSubscriber.findMany");
-    const newsletterEnd = route.indexOf("sellerProfile\n      ? prisma.sellerBroadcast.findMany", newsletterStart);
-    const newsletterBlock = route.slice(newsletterStart, newsletterEnd);
 
     assert.match(historyBlock, /user\.id/);
     assert.match(historyBlock, /accountEmail/);
     assert.match(source("src/lib/userEmailAddresses.ts"), /grainline_user_email_address_owner_rows/);
-    assert.match(historyBlock, /ownerAccountEmailFallbackEmails\(user\.id\)/);
     assert.match(route, /const accountEmailAddresses = accountEmailState\.rows/);
     assert.match(route, /accountEmailAddresses,/);
     assert.match(payload, /accountEmailAddresses: unknown\[\]/);
     assert.match(payload, /accountEmailAddresses: data\.accountEmailAddresses/);
-    assert.match(newsletterBlock, /where: \{ email: \{ in: accountEmailSuppressionKeys \} \}/);
-    assert.doesNotMatch(newsletterBlock, /where: \{ email: accountEmail \}/);
+    assert.match(route, /exportOwnerEmailServiceData/);
+    assert.doesNotMatch(route, /prisma\.newsletterSubscriber\./);
   });
 
   it("exports seller payout event ledger rows for the seller profile", () => {

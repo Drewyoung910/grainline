@@ -157,7 +157,10 @@ describe("account-state residue hardening", () => {
 
   it("removes deleted seller-authored fanout residue through exact notification and outbox authority", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const emailOutboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
+    const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
+    const migration = source(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+    );
     const helperStart = deletion.indexOf("async function cleanupDeletedSellerFanoutRows");
     const helper = deletion.slice(
       helperStart,
@@ -166,7 +169,7 @@ describe("account-state residue hardening", () => {
         helperStart,
       ),
     );
-    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now)");
+    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id)");
     const broadcastDeleteIndex = deletion.indexOf("await tx.sellerBroadcast.deleteMany");
     const listingAnonymizeIndex = deletion.indexOf("await tx.listing.updateMany");
     const blogArchiveIndex = deletion.indexOf("await archiveBlogPostsForDeletedAccount");
@@ -179,18 +182,17 @@ describe("account-state residue hardening", () => {
     assert.match(deletion, /await deleteAccountNotificationServiceRows\(tx, user\.id\)/);
     assert.doesNotMatch(helper, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
     assert.doesNotMatch(deletion, /notificationTextMatchSql|redactNotificationsAboutDeletedAccount/);
-    assert.match(helper, /sourceType: "seller_broadcast"/);
-    assert.match(helper, /sourceType: "followed_maker_new_listing"/);
-    assert.match(helper, /dedupKey: \{ startsWith: `seller-broadcast:\$\{id\}:` \}/);
-    assert.match(helper, /dedupKey: \{ startsWith: `followed-listing:\$\{id\}:` \}/);
-    assert.match(helper, /dedupKey: \{ startsWith: `admin-approved-listing:\$\{id\}:` \}/);
-    assert.match(helper, /dedupKey: \{ startsWith: `followed-listing-active:\$\{id\}:` \}/);
-    assert.match(deletion, /async function redactEmailOutboxRowsForDeletedMaker/);
-    assert.match(deletion, /status: "SKIPPED"/);
-    assert.match(deletion, /subject: "Email removed after maker deletion"/);
-    assert.match(deletion, /html: "\[Email removed after maker deletion\]"/);
-    assert.match(emailOutboxLifecycle, /payloadVersion: \{ not: null \}/);
-    assert.match(emailOutboxLifecycle, /data: \{ payload: \{} \}/);
+    assert.match(helper, /redactDeletedSellerEmailOutbox\(tx, sellerProfileId\)/);
+    assert.match(emailServiceAccess, /public\.grainline_email_outbox_redact_deleted_seller/);
+    assert.match(migration, /'seller_broadcast'::text AS source_type/);
+    assert.match(migration, /'followed_maker_new_listing'::text, listing\.id/);
+    assert.match(migration, /'seller-broadcast:' \|\| source\.source_id \|\| ':'/);
+    assert.match(migration, /'admin-approved-listing:' \|\| source\.source_id \|\| ':'/);
+    assert.match(migration, /'followed-listing-active:' \|\| source\.source_id \|\| ':'/);
+    assert.match(migration, /THEN 'SKIPPED'/);
+    assert.match(migration, /THEN 'Email removed after maker deletion'/);
+    assert.match(migration, /ELSE '{}'::jsonb/);
+    assert.doesNotMatch(deletion, /tx\.emailOutbox\./);
   });
 
   it("clears deleted staff closure links and redacts support closure evidence text", () => {

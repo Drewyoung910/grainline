@@ -267,35 +267,26 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller gallery alt text and email outbox content on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const emailOutboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
+    const emailServiceAccess = source("src/lib/emailServiceAccess.ts");
+    const emailServiceMigration = source(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+    );
     const sellerDeletionAuthority = source(
       sellerProfilePrivateMigrationPath("20261014160000_prepare_seller_profile_private_account_deletion_app_authorities"),
     );
 
-    assert.match(deletion, /const accountEmails = await accountEmailFallbackEmailsForUser\(tx\)/);
-    assert.match(deletion, /\.\.\.accountEmails/);
-    assert.match(deletion, /const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails\(accountEmails\)/);
-    assert.match(deletion, /const suppressionEmailMatches = accountEmailSuppressionKeys/);
-    assert.doesNotMatch(deletion, /fallbackSuppressionEmail/);
-    assert.doesNotMatch(deletion, /normalizeEmailSuppressionAddress\(user\.email\)/);
     assert.match(deletion, /anonymizeSellerForAccountDeletion\(tx, \{/);
     assert.match(sellerDeletionAuthority, /"galleryImageUrls" = ARRAY\[\]::text\[\]/);
     assert.match(sellerDeletionAuthority, /"galleryAltTexts" = ARRAY\[\]::text\[\]/);
-    assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
-    assert.match(deletion, /accountEmailOutboxWhere\(\s*user\.id,\s*suppressionEmailMatches,/s);
-    assert.match(deletion, /sentAt: null/);
-    assert.match(deletion, /status: \{ in: \["PENDING", "PROCESSING", "FAILED", "DEAD"\] \}/);
-    assert.match(deletion, /status: "SKIPPED"/);
-    assert.match(deletion, /redactEmailOutboxRepresentations\(tx, accountEmailOutboxWhereInput/);
-    assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
-    assert.match(deletion, /recipientEmail: "deleted-account@deleted\.thegrainline\.local"/);
-    assert.match(deletion, /subject: "Email removed after account deletion"/);
-    assert.match(emailOutboxLifecycle, /payloadVersion: \{ not: null \}/);
-    assert.match(emailOutboxLifecycle, /data: \{ payload: \{} \}/);
-    assert.match(emailOutboxLifecycle, /userId: null/);
-    assert.match(emailOutboxLifecycle, /recipientEmail: \{ in: fallbackEmailKeys \}/);
-    assert.match(deletion, /tx\.emailFailureCount\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
-    assert.match(deletion, /tx\.newsletterSubscriber\.deleteMany\(\{\s*where: \{ email: \{ in: suppressionEmailMatches \} \},\s*\}\)/s);
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx\)/);
+    assert.match(emailServiceAccess, /public\.grainline_email_service_account_deletion_apply/);
+    assert.match(emailServiceMigration, /SET status = 'SKIPPED'/);
+    assert.match(emailServiceMigration, /'deleted-account@deleted\.thegrainline\.local'/);
+    assert.match(emailServiceMigration, /THEN '\[Email removed after account deletion\]'/);
+    assert.match(emailServiceMigration, /ELSE '{}'::jsonb/);
+    assert.match(emailServiceMigration, /DELETE FROM public\."EmailFailureCount"/);
+    assert.match(emailServiceMigration, /DELETE FROM public\."NewsletterSubscriber"/);
+    assert.doesNotMatch(deletion, /tx\.(?:emailOutbox|emailFailureCount|newsletterSubscriber|emailSuppression)\./);
     assert.match(deletion, /await deleteCurrentUserEmailAddressHistory\(tx\)/);
     assert.doesNotMatch(deletion, /tx\.userEmailAddress\./);
     assert.match(
@@ -324,12 +315,14 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("does not let one hard provider suppression block account-deletion suppressions for other aliases", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const migration = source(
+      "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql",
+    );
 
-    assert.match(deletion, /const providerHardSuppressionEmails = new Set\(/);
-    assert.match(deletion, /suppressionEmailMatches\.filter\(\s*\(email\) => !providerHardSuppressionEmails\.has\(email\),\s*\)/s);
-    assert.match(deletion, /email: \{ in: manualSuppressionEmails \}/);
-    assert.doesNotMatch(deletion, /const hasProviderHardSuppression/);
-    assert.doesNotMatch(deletion, /if \(!hasProviderHardSuppression\)/);
+    assert.match(deletion, /applyEmailServiceAccountDeletion\(tx\)/);
+    assert.match(migration, /suppression\.reason::text = 'MANUAL'/);
+    assert.match(migration, /WHERE NOT EXISTS \([\s\S]*suppression\.email = candidate\.email/s);
+    assert.match(migration, /ON CONFLICT \(email\) DO NOTHING/);
   });
 
   it("scrubs authored blog comments on account deletion", () => {
