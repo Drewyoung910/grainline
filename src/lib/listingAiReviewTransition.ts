@@ -27,6 +27,15 @@ export type VersionBoundListingAiReviewInput = Readonly<{
   score: number;
 }>;
 
+type VersionBoundListingAiReviewTransitionRow = {
+  applied: unknown;
+  updatedAt: unknown;
+};
+
+export type VersionBoundListingAiReviewTransitionState =
+  | Readonly<{ applied: false; updatedAt: null }>
+  | Readonly<{ applied: true; updatedAt: Date }>;
+
 function validId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9._:-]{1,191}$/u.test(value);
 }
@@ -43,10 +52,10 @@ function validReviewTransition(sourceStatus: ListingStatus, status: ListingStatu
  * Returning false is an expected stale-result outcome; callers must not run
  * activation side effects for that result.
  */
-export async function applyVersionBoundListingAiReviewTransition(
+export async function applyVersionBoundListingAiReviewTransitionState(
   userId: string,
   input: VersionBoundListingAiReviewInput,
-) {
+): Promise<VersionBoundListingAiReviewTransitionState> {
   if (
     !validId(input.listingId)
     || !(input.reviewedAt instanceof Date)
@@ -68,7 +77,7 @@ export async function applyVersionBoundListingAiReviewTransition(
     const flagsSql = input.flags.length > 0
       ? Prisma.sql`ARRAY[${Prisma.join([...input.flags])}]::text[]`
       : Prisma.sql`ARRAY[]::text[]`;
-    const rows = await client.$queryRaw<Array<{ applied: unknown }>>(Prisma.sql`
+    const rows = await client.$queryRaw<VersionBoundListingAiReviewTransitionRow[]>(Prisma.sql`
       SELECT *
         FROM public.grainline_listing_owner_review_transition(
           ${input.listingId}::text,
@@ -82,6 +91,24 @@ export async function applyVersionBoundListingAiReviewTransition(
     if (rows.length !== 1 || typeof rows[0]?.applied !== "boolean") {
       throw new Error("Listing AI review transition authority returned an invalid result");
     }
-    return rows[0].applied;
+    const row = rows[0];
+    if (!row.applied) {
+      if (row.updatedAt !== null) {
+        throw new Error("Listing AI review transition authority returned an invalid result");
+      }
+      return Object.freeze({ applied: false, updatedAt: null });
+    }
+    if (!(row.updatedAt instanceof Date) || !Number.isFinite(row.updatedAt.getTime())) {
+      throw new Error("Listing AI review transition authority returned an invalid result");
+    }
+    return Object.freeze({ applied: true, updatedAt: row.updatedAt });
   });
+}
+
+export async function applyVersionBoundListingAiReviewTransition(
+  userId: string,
+  input: VersionBoundListingAiReviewInput,
+) {
+  const result = await applyVersionBoundListingAiReviewTransitionState(userId, input);
+  return result.applied;
 }

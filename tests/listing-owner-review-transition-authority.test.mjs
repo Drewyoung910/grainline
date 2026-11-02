@@ -32,7 +32,11 @@ test("version-bound owner AI review writes use one actor-bound authority", async
   assert.match(helper, /FROM public\.grainline_listing_owner_review_transition\(/u);
   assert.doesNotMatch(helper, /client\.listing\.updateMany/u);
   assert.equal(newPage.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/gu)?.length, 3);
-  assert.equal(customPage.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/gu)?.length, 2);
+  assert.equal(customPage.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/gu)?.length, 1);
+  assert.equal(
+    customPage.match(/applyVersionBoundListingAiReviewTransitionState\(seller\.userId,/gu)?.length,
+    1,
+  );
   assert.equal(editPage.match(/applyVersionBoundListingAiReviewTransition\(actor\.id,/gu)?.length, 3);
   assert.match(
     provision,

@@ -43,7 +43,11 @@ import { lockListingStock, prepareListingStockMutation, recordListingStockMutati
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
-import { listingOwnerActionState, listingOwnerEditor } from "@/lib/listingOwnerAccess";
+import {
+  listingOwnerActionState,
+  listingOwnerEditor,
+  listingOwnerTransition,
+} from "@/lib/listingOwnerAccess";
 import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -581,11 +585,12 @@ async function updateListing(
         }
       } else {
         // Seller lost chargesEnabled mid-edit: send the listing to draft.
-        const draftResult = await prisma.listing.updateMany({
-          where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-          data: { status: ListingStatus.DRAFT },
+        const returnedToDraft = await listingOwnerTransition(actor.id, {
+          listingId,
+          operation: "RETURN_TO_DRAFT",
+          expectedUpdatedAt: updatedListing.updatedAt,
         });
-        if (draftResult.count > 0) {
+        if (returnedToDraft) {
           queueCheckoutSessionExpiryForListing(
             listingId,
             sellerCore.sellerProfileId,

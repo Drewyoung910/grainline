@@ -25,7 +25,10 @@ test("simple owner listing transitions use one actor-bound locked authority", as
     /CREATE FUNCTION public\.grainline_listing_owner_transition\(\s*p_listing_id text,\s*p_operation text,\s*p_expected_updated_at timestamp without time zone\s*\)/u,
   );
   assert.match(migration, /current_setting\('app\.user_id', true\)/u);
-  assert.match(migration, /p_operation NOT IN \('HIDE', 'MARK_SOLD', 'WITHDRAW_REVIEW'\)/u);
+  assert.match(
+    migration,
+    /p_operation NOT IN \('HIDE', 'MARK_SOLD', 'WITHDRAW_REVIEW', 'RETURN_TO_DRAFT'\)/u,
+  );
   assert.match(migration, /FOR UPDATE/u);
   assert.match(migration, /source_listing\.status::text NOT IN \('ACTIVE', 'SOLD_OUT'\)/u);
   assert.match(migration, /source_listing\."updatedAt" IS DISTINCT FROM p_expected_updated_at/u);
