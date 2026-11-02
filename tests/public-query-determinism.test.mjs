@@ -132,7 +132,7 @@ describe("public query determinism", () => {
     assert.match(sellerPage, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(sellerPage, /orderBy: \[\{ review: \{ createdAt: "desc" \} \}, \{ id: "desc" \}\]/);
 
-    assert.match(listingPage, /orderBy: \[\{ qualityScore: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(listingPage, /listingPublicCatalogPage\([\s\S]*sort: "quality"/);
     assert.match(listingPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
 
     assert.match(tagPage, /\{ tag, sort: "quality" \}/);
@@ -274,16 +274,23 @@ describe("public query determinism", () => {
   it("keeps public search suggestion caps stable on ties", () => {
     const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
+    const listingSuggestionAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
     const sellerPublicNameAuthority = source(
       "prisma/migrations/20261019040000_prepare_seller_profile_public_name_authority/migration.sql",
     );
 
-    assert.match(searchSuggestions, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(searchSuggestions, /listingPublicTitleSuggestions\(meDbId, q\)/);
     assert.match(searchSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
     assert.match(sellerPublicNameAuthority, /ORDER BY seller\."displayNameNormalized" ASC, seller\.id ASC\s+LIMIT p_limit/);
     assert.match(
-      searchSuggestions,
-      /ORDER BY ranked\.sim DESC, ranked\.created_at DESC, ranked\.id DESC\s*LIMIT 2/,
+      listingSuggestionAuthority,
+      /ORDER BY candidate\.similarity_score DESC,[\s\S]*candidate\."createdAt" DESC,[\s\S]*candidate\.id DESC[\s\S]*LIMIT 2/,
+    );
+    assert.match(
+      listingSuggestionAuthority,
+      /ORDER BY eligible\."createdAt" DESC, eligible\.id DESC\s*LIMIT 4/,
     );
     assert.match(searchSuggestions, /ORDER BY similarity\(bp\.title, \$\{q\}\) DESC, bp\."publishedAt" DESC, bp\.id DESC\s*LIMIT 3/);
 
@@ -307,6 +314,9 @@ describe("public query determinism", () => {
   it("keeps public fuzzy suggestions on indexable trigram predicates", () => {
     const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
+    const listingSuggestionAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
 
     for (const text of [searchSuggestions, blogSuggestions]) {
       assert.match(text, /set_config\('pg_trgm\.similarity_threshold'/);
@@ -316,8 +326,9 @@ describe("public query determinism", () => {
       assert.doesNotMatch(text, /SET\s+pg_trgm\.similarity_threshold/i);
     }
 
-    assert.match(searchSuggestions, /l\.title % \$\{q\}/);
-    assert.match(searchSuggestions, /similarity\(l\.title, \$\{q\}\) > \$\{LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY\}/);
+    assert.match(listingSuggestionAuthority, /OPERATOR\(public\.%\) query_filter/);
+    assert.match(listingSuggestionAuthority, /public\.similarity\(eligible\.title, query_filter\) > 0\.35/);
+    assert.match(listingSuggestionAuthority, /set_config\(\s*'pg_trgm\.similarity_threshold',[\s\S]*true/);
   });
 
   it("keeps public blog pagination stable on standard sorts", () => {

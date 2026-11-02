@@ -128,8 +128,8 @@ describe("typed header search suggestions (UI-19)", () => {
 
   it("returns typed items alongside the backward-compatible flat list", () => {
     const route = source("src/app/api/search/suggestions/route.ts");
-    assert.match(route, /select: \{ id: true, title: true \}/);
-    assert.match(route, /Array<\{ id: string; title: string; sim: number \}>/);
+    assert.match(route, /listingPublicTitleSuggestions\(meDbId, q\)/);
+    assert.match(route, /const \{ exact: listings, fuzzy: fuzzyRows \} = listingTitles/);
     assert.match(route, /suggestions: suggestions\.slice\(0, 8\),\s*items,\s*blogs,/);
     assert.match(route, /categories: matchingCategoryValues\.map/);
   });

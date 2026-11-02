@@ -84,6 +84,22 @@ type CatalogSourceRow = Readonly<{
   categoryCounts: unknown;
 }>;
 
+type TitleSuggestionSourceRow = Readonly<{
+  matchKind: unknown;
+  id: unknown;
+  title: unknown;
+}>;
+
+export type ListingPublicTitleSuggestion = Readonly<{
+  id: string;
+  title: string;
+}>;
+
+export type ListingPublicTitleSuggestions = Readonly<{
+  exact: ReadonlyArray<ListingPublicTitleSuggestion>;
+  fuzzy: ReadonlyArray<ListingPublicTitleSuggestion>;
+}>;
+
 const CATEGORIES = new Set<string>(Object.values(Category));
 const LISTING_TYPES = new Set<string>(Object.values(ListingType));
 const SORTS = new Set<ListingPublicCatalogSort>([
@@ -428,4 +444,64 @@ export async function listingPublicCatalogCount(
   filter: ListingPublicCatalogFilter,
 ) {
   return (await listingPublicCatalogPage(viewerUserId, filter, 0, 0)).total;
+}
+
+async function readPublicTitleSuggestions(
+  client: CatalogClient,
+  query: string,
+): Promise<ListingPublicTitleSuggestions> {
+  if (
+    !isTextWithinCodePointRange(query, 2, 80)
+    || query !== query.trim()
+    || query.includes("\0")
+  ) throw new RangeError("Public Listing title-suggestion query is outside the supported range");
+
+  const rows = await client.$queryRaw<TitleSuggestionSourceRow[]>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_listing_public_title_suggestions(${query}::text)
+  `);
+  if (rows.length > 6) {
+    throw new Error("Public Listing title-suggestion authority exceeded its result bound");
+  }
+  const exact: ListingPublicTitleSuggestion[] = [];
+  const fuzzy: ListingPublicTitleSuggestion[] = [];
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (
+      (row.matchKind !== "exact" && row.matchKind !== "fuzzy")
+      || !validId(row.id)
+      || typeof row.title !== "string"
+      || !isTextWithinCodePointRange(row.title, 1, 150)
+      || ids.has(row.id)
+    ) {
+      throw new Error("Public Listing title-suggestion authority returned an invalid row");
+    }
+    ids.add(row.id);
+    const suggestion = Object.freeze({ id: row.id, title: row.title });
+    if (row.matchKind === "exact") exact.push(suggestion);
+    else fuzzy.push(suggestion);
+  }
+  if (exact.length > 4 || fuzzy.length > 2) {
+    throw new Error("Public Listing title-suggestion authority exceeded a group bound");
+  }
+  return Object.freeze({
+    exact: Object.freeze(exact),
+    fuzzy: Object.freeze(fuzzy),
+  });
+}
+
+export function listingPublicTitleSuggestions(
+  viewerUserId: string | null,
+  query: string,
+) {
+  if (viewerUserId !== null) {
+    if (!validId(viewerUserId)) {
+      throw new RangeError("Public Listing title-suggestion viewer is outside the supported range");
+    }
+    return withDbUserContext(
+      viewerUserId,
+      (client) => readPublicTitleSuggestions(client, query),
+    );
+  }
+  return readPublicTitleSuggestions(prisma, query);
 }
