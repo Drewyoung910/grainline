@@ -212,3 +212,198 @@ describe("homepage category counts", async () => {
     assert.equal(categoryCountLabel(1204), "1,204 pieces");
   });
 });
+
+describe("workspace sidebar", async () => {
+  const {
+    workspaceKindForPath,
+    workshopNavGroups,
+    accountNavGroups,
+    currentWorkspaceHref,
+    guildNavLabel,
+  } = await import("../src/lib/workspaceNav.ts");
+
+  it("gives each page the right frame", () => {
+    for (const path of ["/dashboard", "/dashboard/listings", "/dashboard/sales", "/dashboard/sales/abc", "/dashboard/inventory", "/dashboard/analytics", "/dashboard/seller", "/dashboard/profile", "/dashboard/blog", "/dashboard/verification"]) {
+      assert.equal(workspaceKindForPath(path), "workshop", path);
+    }
+    for (const path of ["/account", "/account/orders", "/account/saved", "/account/settings", "/dashboard/orders", "/dashboard/orders/abc", "/dashboard/notifications", "/dashboard/saved"]) {
+      assert.equal(workspaceKindForPath(path), "account", path);
+    }
+  });
+
+  it("leaves focused flows and public pages alone", () => {
+    for (const path of ["/dashboard/onboarding", "/dashboard/listings/new", "/dashboard/listings/custom", "/dashboard/listings/abc/edit", "/dashboard/blog/new", "/dashboard/blog/abc/edit", "/account/deleted", "/", "/messages", "/dashboardish", "/accounting"]) {
+      assert.equal(workspaceKindForPath(path), null, path);
+    }
+  });
+
+  it("lights exactly one row, the most specific match", () => {
+    const workshop = workshopNavGroups();
+    assert.equal(currentWorkspaceHref("/dashboard", workshop), "/dashboard");
+    assert.equal(currentWorkspaceHref("/dashboard/sales/abc", workshop), "/dashboard/sales");
+    assert.equal(currentWorkspaceHref("/dashboard/inventory", workshop), "/dashboard/listings");
+    // The settings page also holds shop updates, but only Settings lights up.
+    assert.equal(currentWorkspaceHref("/dashboard/seller", workshop), "/dashboard/seller");
+    const account = accountNavGroups();
+    assert.equal(currentWorkspaceHref("/account", account), "/account");
+    assert.equal(currentWorkspaceHref("/dashboard/orders/abc", account), "/account/orders");
+    assert.equal(currentWorkspaceHref("/account/saved-searches", account), "/account/saved-searches");
+    assert.equal(currentWorkspaceHref("/account/saved", account), "/account/saved");
+  });
+
+  it("keeps every page the old dashboard buttons reached", () => {
+    const hrefs = (groups) => groups.flatMap((group) => group.items.map((item) => item.href));
+    const workshop = hrefs(workshopNavGroups());
+    for (const href of ["/dashboard/profile", "/dashboard/seller", "/dashboard/sales", "/dashboard/listings", "/dashboard/analytics", "/dashboard/blog", "/dashboard/verification", "/messages", "/account"]) {
+      assert.ok(workshop.includes(href), href);
+    }
+    const account = hrefs(accountNavGroups({ hasSeller: true }));
+    for (const href of ["/account/orders", "/messages", "/dashboard/notifications", "/account/saved", "/account/saved-searches", "/account/following", "/account/feed", "/account/reviews", "/account/commissions", "/account/settings", "/account/blocked", "/dashboard"]) {
+      assert.ok(account.includes(href), href);
+    }
+  });
+
+  it("offers selling only once it knows there is no shop", () => {
+    const hrefs = (input) => accountNavGroups(input).flatMap((group) => group.items.map((item) => item.href));
+    assert.equal(hrefs({ hasSeller: null }).includes("/become-a-maker"), false);
+    assert.equal(hrefs({ hasSeller: null }).includes("/dashboard"), false);
+    assert.equal(hrefs({ hasSeller: false }).includes("/become-a-maker"), true);
+    assert.equal(hrefs({ hasSeller: true }).includes("/dashboard"), true);
+  });
+
+  it("names the Guild row by the seller's state", () => {
+    assert.equal(guildNavLabel({ guildLevel: "GUILD_MASTER" }), "Guild Master");
+    assert.equal(guildNavLabel({ guildLevel: "GUILD_MEMBER" }), "Guild Member");
+    assert.equal(guildNavLabel({ guildLevel: "NONE", verificationStatus: "PENDING" }), "Guild Badge Pending");
+    assert.equal(guildNavLabel({ guildLevel: "NONE" }), "Apply for Guild Badge");
+  });
+
+  it("carries badge counts and leaves zero or unknown blank", () => {
+    const orders = (counts) => workshopNavGroups({ counts })[0].items.find((item) => item.href === "/dashboard/sales").count;
+    assert.equal(orders({ ordersToShip: 3 }), 3);
+    assert.equal(orders({ ordersToShip: null }), undefined);
+  });
+});
+
+describe("workshop queue", async () => {
+  const {
+    ordersAwaitingFulfillment,
+    workshopAttentionRows,
+    parseWorkshopListingFilter,
+    workshopListingFilterCounts,
+    workshopListingFilterStatus,
+  } = await import("../src/lib/workshopQueue.ts");
+
+  const order = (over = {}) => ({
+    id: "o1",
+    paidAt: new Date(),
+    itemsSubtotalCents: 10000,
+    shippingAmountCents: 1000,
+    taxAmountCents: 0,
+    giftWrappingPriceCents: null,
+    sellerRefundAmountCents: null,
+    fulfillmentStatus: "PENDING",
+    ...over,
+  });
+
+  it("counts only paid work that has not started", () => {
+    const none = new Map();
+    assert.equal(ordersAwaitingFulfillment([order()], none).length, 1);
+    assert.equal(ordersAwaitingFulfillment([order({ fulfillmentStatus: null })], none).length, 1);
+    for (const fulfillmentStatus of ["SHIPPED", "DELIVERED", "PICKED_UP", "READY_FOR_PICKUP"]) {
+      assert.equal(ordersAwaitingFulfillment([order({ fulfillmentStatus })], none).length, 0, fulfillmentStatus);
+    }
+    assert.equal(ordersAwaitingFulfillment([order({ paidAt: null })], none).length, 0);
+  });
+
+  it("drops fully refunded orders but keeps partly refunded ones", () => {
+    const none = new Map();
+    assert.equal(ordersAwaitingFulfillment([order({ sellerRefundAmountCents: 11000 })], none).length, 0);
+    assert.equal(ordersAwaitingFulfillment([order({ sellerRefundAmountCents: 500 })], none).length, 1);
+    const provider = new Map([["o1", { amountCents: 11000, status: "succeeded" }]]);
+    assert.equal(ordersAwaitingFulfillment([order()], provider).length, 0);
+  });
+
+  const empty = { ordersToShip: 0, ordersToShipCapped: false, orderNames: [], unreadMessages: 0, underReview: 0, underReviewTitle: null, rejected: 0, lowStock: [] };
+
+  it("is empty when nothing needs doing", () => {
+    assert.deepEqual(workshopAttentionRows(empty), []);
+  });
+
+  it("lists work most urgent first with working links", () => {
+    const rows = workshopAttentionRows({
+      ...empty,
+      ordersToShip: 2,
+      orderNames: ["Maya", "Jordan", "Ben", "Ana"],
+      unreadMessages: 1,
+      underReview: 1,
+      underReviewTitle: "Corner Cabinet",
+      rejected: 2,
+      lowStock: [{ title: "Bowl", stockQuantity: 1 }],
+    });
+    assert.deepEqual(rows.map((row) => row.key), ["orders", "messages", "rejected", "review", "low-stock"]);
+    assert.equal(rows[0].title, "2 orders to ship");
+    assert.equal(rows[0].detail, "Maya · Jordan · Ben");
+    assert.equal(rows[1].title, "1 unread message");
+    assert.equal(rows[2].title, "2 listings sent back");
+    assert.equal(rows[4].detail, "Bowl: 1 left");
+    for (const row of rows) assert.match(row.href, /^\/(dashboard|messages)/);
+  });
+
+  it("does not claim an exact count when the window is full", () => {
+    assert.equal(workshopAttentionRows({ ...empty, ordersToShip: 50, ordersToShipCapped: true })[0].title, "50+ orders to ship");
+  });
+
+  it("falls back to all for an unknown filter", () => {
+    for (const raw of [undefined, "", "nope", ["active"], 7]) assert.equal(parseWorkshopListingFilter(raw), "all");
+    assert.equal(parseWorkshopListingFilter("review"), "review");
+    assert.equal(workshopListingFilterStatus("review"), "PENDING_REVIEW");
+    assert.equal(workshopListingFilterStatus("all"), null);
+    assert.equal(workshopListingFilterStatus("stock"), null);
+  });
+
+  it("adds up tab counts from status totals", () => {
+    const counts = workshopListingFilterCounts({ ACTIVE: 3, DRAFT: 1, SOLD_OUT: 2 }, 4);
+    assert.equal(counts.all, 6);
+    assert.equal(counts.active, 3);
+    assert.equal(counts.soldout, 2);
+    assert.equal(counts.stock, 4);
+    assert.equal(counts.hidden, 0);
+  });
+});
+
+describe("buyer order progress", async () => {
+  const { orderProgressSteps, orderProgressFraction, orderIsPickup, activeOrder } = await import("../src/lib/orderProgress.ts");
+  const states = (input) => orderProgressSteps(input).map((step) => `${step.label}:${step.state}`);
+
+  it("follows a shipped order", () => {
+    assert.deepEqual(states({ fulfillmentStatus: "PENDING" }), ["Ordered:done", "Being made:current", "Shipped:upcoming", "Delivered:upcoming"]);
+    assert.deepEqual(states({ fulfillmentStatus: "SHIPPED" }), ["Ordered:done", "Being made:done", "Shipped:current", "Delivered:upcoming"]);
+    assert.deepEqual(states({ fulfillmentStatus: "DELIVERED" }), ["Ordered:done", "Being made:done", "Shipped:done", "Delivered:current"]);
+  });
+
+  it("uses pickup wording for pickup orders, even before they are ready", () => {
+    assert.equal(orderIsPickup({ shippingTitle: "Local Pickup (Free)", fulfillmentStatus: "PENDING" }), true);
+    assert.deepEqual(states({ fulfillmentStatus: "READY_FOR_PICKUP" }), ["Ordered:done", "Being made:done", "Ready for pickup:current", "Picked up:upcoming"]);
+    assert.equal(orderIsPickup({ shippingTitle: "UPS Ground", fulfillmentStatus: "PENDING" }), false);
+  });
+
+  it("treats a missing or unknown status as still being made", () => {
+    assert.equal(states({})[1], "Being made:current");
+    assert.equal(states({ fulfillmentStatus: "SOMETHING_NEW" })[1], "Being made:current");
+  });
+
+  it("fills the line to the current step", () => {
+    assert.equal(orderProgressFraction(orderProgressSteps({ fulfillmentStatus: "PENDING" })), 1 / 3);
+    assert.equal(orderProgressFraction(orderProgressSteps({ fulfillmentStatus: "SHIPPED" })), 2 / 3);
+    assert.equal(orderProgressFraction(orderProgressSteps({ fulfillmentStatus: "DELIVERED" })), 1);
+  });
+
+  it("skips finished and refunded orders when choosing the one on its way", () => {
+    const orders = [{ id: "a", fulfillmentStatus: "DELIVERED" }, { id: "b", fulfillmentStatus: "PENDING" }, { id: "c", fulfillmentStatus: "SHIPPED" }];
+    assert.equal(activeOrder(orders, () => false).id, "b");
+    assert.equal(activeOrder(orders, (order) => order.id === "b").id, "c");
+    assert.equal(activeOrder(orders, () => true), null);
+    assert.equal(activeOrder([], () => false), null);
+  });
+});

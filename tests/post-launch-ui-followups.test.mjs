@@ -75,7 +75,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("shows the Guild Master path before Guild Member approval and avoids sparkle icons", () => {
     const verification = source("src/app/dashboard/verification/page.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/components/WorkspaceSidebar.tsx");
 
     assert.match(verification, /GUILD_MASTER_PREVIEW_REQUIREMENTS/);
     assert.match(verification, /Available after Guild Member approval/);
@@ -130,7 +130,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/lib/popularBlogTags.ts"), /unstable_cache/);
     assert.match(source("src/app/dashboard/listings/new/page.tsx"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /revalidateListingSearchCaches/);
-    assert.match(source("src/app/dashboard/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/listings/actions.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/api/admin/listings/[id]/review/route.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/api/listings/[id]/stock/route.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/dashboard/blog/new/page.tsx"), /revalidateBlogSearchCaches/);
@@ -303,12 +303,12 @@ describe("post-launch UI follow-ups", () => {
   });
 
   it("dashboard listing card click goes to public path for active and to preview URL for non-public statuses", () => {
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/dashboard/listings/page.tsx");
     // The card link branches on isPublicStatus and appends ?preview=1 for the
     // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
     assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
     assert.match(dashboard, /\?preview=1`/);
-    assert.match(dashboard, /where: \{ sellerId: seller\.id, archivedAt: null \}/);
+    assert.match(source("src/lib/workshopData.ts"), /where: \{ sellerId: sellerProfileId, archivedAt: null \}/);
   });
 
   it("AI alt-text backfill helper exists and is wired into every reviewListingWithAI path", () => {
