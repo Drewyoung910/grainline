@@ -273,6 +273,18 @@ function fakeClientClass({
       if (sql.includes("FROM pg_catalog.pg_policy AS policy")) {
         return { rows: policyRowsByTable[parameters[0]] ?? policyRows };
       }
+      if (sql.includes("FROM pg_catalog.pg_trigger AS trigger_state")) {
+        return {
+          rows: (selectedRelease.preparation.addedTriggers ?? []).map((entry) => ({
+            table_name: entry.table ?? selectedRelease.table,
+            trigger_name: entry.name,
+            enabled: entry.enabled,
+            type: entry.type,
+            function_name: entry.function,
+            function_arguments: "",
+          })),
+        };
+      }
       if (sql.includes("procedure.prosrc AS source")) {
         return { rows: functionRows(selectedRelease, selectedVerified, active) };
       }

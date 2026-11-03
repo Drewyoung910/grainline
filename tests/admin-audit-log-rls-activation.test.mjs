@@ -24,7 +24,7 @@ test("AdminAuditLog activation is policyless and removes all direct authority", 
   assert.deepEqual(release.activatedStaffPrivileges, []);
   assert.deepEqual(release.activatedAccountDeletionPrivileges, []);
   assert.deepEqual(release.activatedPublicPrivileges, []);
-  assert.equal(release.preparation.functions.length, 15);
+  assert.equal(release.preparation.functions.length, 16);
   assert.equal(release.preparation.retainedFunctions.length, 23);
   assert.equal(verified.migrationDigest, release.migrationSha256);
   assert.equal(verified.rollbackDigest, release.rollbackSha256);
@@ -58,6 +58,12 @@ test("AdminAuditLog activation seals the table, trigger, and every function", ()
   ]) {
     assert.match(migration, new RegExp(`public\\.${entry.name}\\(`, "u"));
   }
+  const inspector = readFileSync(
+    "scripts/private-table-rls-activation-production-inspect.mjs",
+    "utf8",
+  );
+  assert.match(inspector, /preparation trigger count drifted/u);
+  assert.match(inspector, /trigger boundary changed during activation/u);
 });
 
 test("AdminAuditLog rollback restores predecessor CRUD before disabling RLS", () => {

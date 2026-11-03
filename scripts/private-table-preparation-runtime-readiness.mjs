@@ -18,7 +18,10 @@ const { Client } = pg;
 const RELEASE_SELECTIONS = Object.freeze([
   "owner_social_verification_v1",
   "block_report_seller_faq_v1",
+  "commission_domain_v1",
   "seller_broadcast_v1",
+  "email_service_v1",
+  "seller_analytics_daily_v1",
   "admin_audit_log_v1",
 ]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
@@ -30,6 +33,11 @@ const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
   seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
+  email_service_v1: "EMAIL_SERVICE_PREPARATION_MIGRATION_PATH",
+  seller_analytics_daily_v1:
+    "SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -48,8 +56,7 @@ function sourceSha256(source) {
   return createHash("sha256").update(source, "utf8").digest("hex");
 }
 
-export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
-  RELEASE_SELECTIONS.flatMap((selection) => (
+const reviewedRuntimeReadinessFunctions = RELEASE_SELECTIONS.flatMap((selection) => (
     privateTablePreparationReleaseIds(selection)
   ))
     .flatMap((releaseId) => {
@@ -67,7 +74,21 @@ export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
             sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
           }))
       ));
-    }),
+    });
+const runtimeReadinessByIdentity = new Map();
+for (const entry of reviewedRuntimeReadinessFunctions) {
+  const existing = runtimeReadinessByIdentity.get(entry.identity);
+  if (
+    existing
+    && (existing.executeRole !== entry.executeRole
+      || existing.sourceSha256 !== entry.sourceSha256)
+  ) {
+    throw new Error(`private-table runtime readiness catalog conflicts for ${entry.identity}`);
+  }
+  runtimeReadinessByIdentity.set(entry.identity, entry);
+}
+export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
+  [...runtimeReadinessByIdentity.values()],
 );
 
 const stopped = () => new Error(

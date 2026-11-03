@@ -7531,6 +7531,15 @@ jobs:
         run: npx prisma generate
       - name: Prove full migration chain and behavior on PostgreSQL 17
         run: npm run test:database-full-chain
+      - name: Audit final full-chain runtime grants on PostgreSQL 17
+        env:
+          GRANT_AUDIT_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci
+          RUNTIME_DB_ROLE: grainline_app_runtime
+          MIGRATION_DB_ROLE: ci
+        run: >-
+          npm run audit:db-grants --
+          --allow-loopback-ci
+          --staff-read-stage=order-user-combined
       - name: Prove AdminAuditLog account-deletion concurrency on PostgreSQL 17
         env:
           ADMIN_AUDIT_LOG_CONCURRENCY_PROOF_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci

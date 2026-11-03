@@ -4388,7 +4388,7 @@ describe("database grant inventory guardrails", () => {
       157 // historical-prefix baseline before the currently staged successors
         + (orderItemQuoteRuntimeLockMigrationPresent ? 1 : 0)
         + (serviceReferenceLeastPrivilegeMigrationPresent ? 1 : 0)
-        + (adminAuditLogPreparationPresent ? 2 : 0)
+        + (adminAuditLogPreparationPresent ? 3 : 0)
         + (adminAuditLogActivationPresent ? 1 : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)

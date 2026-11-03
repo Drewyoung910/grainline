@@ -338,6 +338,53 @@ async function readFunctions(client, verified, tableOwner, active) {
   }));
 }
 
+async function readPreparationTriggers(client, verified) {
+  const expectedEntries = verified.preparation.release.addedTriggers ?? [];
+  if (expectedEntries.length === 0) return [];
+  const rows = (await client.query(`
+    SELECT target.relname AS table_name,
+           trigger_state.tgname AS trigger_name,
+           trigger_state.tgenabled AS enabled,
+           trigger_state.tgtype::integer AS type,
+           trigger_function.proname AS function_name,
+           pg_catalog.oidvectortypes(trigger_function.proargtypes)::text
+             AS function_arguments
+      FROM pg_catalog.pg_trigger AS trigger_state
+      JOIN pg_catalog.pg_class AS target ON target.oid = trigger_state.tgrelid
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = target.relnamespace
+      JOIN pg_catalog.pg_proc AS trigger_function
+        ON trigger_function.oid = trigger_state.tgfoid
+     WHERE namespace.nspname = 'public'
+       AND trigger_state.tgname = ANY($1::text[])
+       AND NOT trigger_state.tgisinternal
+     ORDER BY target.relname, trigger_state.tgname
+  `, [expectedEntries.map((entry) => entry.name)])).rows;
+  assert.equal(rows.length, expectedEntries.length, "preparation trigger count drifted");
+  const expected = new Map(expectedEntries.map((entry) => [
+    `${entry.table ?? verified.preparation.release.table}:${entry.name}`,
+    entry,
+  ]));
+  for (const row of rows) {
+    const identity = `${row.table_name}:${row.trigger_name}`;
+    const entry = expected.get(identity);
+    assert.ok(entry, `unexpected preparation trigger ${identity}`);
+    assert.equal(row.enabled, entry.enabled, `${identity} enabled state drifted`);
+    assert.equal(Number(row.type), entry.type, `${identity} type drifted`);
+    assert.equal(row.function_name, entry.function, `${identity} function drifted`);
+    assert.equal(row.function_arguments, "", `${identity} function arguments drifted`);
+    expected.delete(identity);
+  }
+  assert.equal(expected.size, 0, "reviewed preparation trigger is absent");
+  return rows.map((row) => Object.freeze({
+    table: row.table_name,
+    name: row.trigger_name,
+    enabled: row.enabled,
+    type: Number(row.type),
+    function: row.function_name,
+  }));
+}
+
 export async function inspectPrivateTableRlsActivationProduction(
   env = process.env,
   { Client = pg.Client, rootDir = process.cwd() } = {},
@@ -550,6 +597,7 @@ export async function inspectPrivateTableRlsActivationProduction(
       primaryRow.table_owner_name,
       activeCatalog,
     );
+    const triggers = await readPreparationTriggers(client, verified);
     await client.query("COMMIT");
     const evidence = Object.freeze({
       releaseId,
@@ -578,6 +626,7 @@ export async function inspectPrivateTableRlsActivationProduction(
           .map((entry) => Object.freeze({ ...entry })),
       ])),
       functions,
+      triggers,
       productionChanged: false,
       containsRowData: false,
     });
@@ -613,6 +662,11 @@ export async function inspectPrivateTableRlsActivationProduction(
           previous.functions,
           evidence.functions,
           "function boundary changed during activation",
+        );
+        assert.deepEqual(
+          previous.triggers,
+          evidence.triggers,
+          "trigger boundary changed during activation",
         );
       }
     }

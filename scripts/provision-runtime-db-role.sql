@@ -6439,6 +6439,7 @@ REVOKE ALL ON TABLE public."AdminAuditLog" FROM PUBLIC, :"runtime_role";
 
 WITH admin_audit_functions(function_signature, runtime_execute) AS (
   VALUES
+    ('public."grainline_admin_audit_redact_deleted_references"(jsonb)', false),
     ('public."grainline_admin_audit_insert_write_fence"()', false),
     ('public."grainline_admin_audit_append"(text, text, text, text, text, jsonb)', true),
     ('public."grainline_admin_audit_staff_count"(text, text)', false),

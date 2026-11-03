@@ -733,6 +733,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_user_report_staff_open_page",
   "grainline_user_report_staff_top_reporters",
   "grainline_user_report_staff_resolve",
+  "grainline_admin_audit_redact_deleted_references",
   "grainline_admin_audit_staff_count",
   "grainline_admin_audit_staff_page",
   "grainline_admin_audit_staff_undo_source",
