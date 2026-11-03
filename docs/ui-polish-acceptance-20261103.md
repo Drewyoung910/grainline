@@ -128,6 +128,27 @@ Production promotion.
 - [ ] Add the separately reviewed database/app authority for a maker to correct
   a reply during the approved time window.
 
+## Signed-in workspaces and messaging
+
+- [x] Workshop and My account have responsive navigation without removing any
+  previous destination; focused edit/onboarding forms keep their full-width
+  layout.
+- [x] Workshop listing actions retain the original ownership, moderation,
+  archive, checkout-expiry, cache, and Guild-threshold behavior on the new
+  Listings page.
+- [x] Workshop attention counts do not claim completeness when the bounded
+  order window may hide older work, and onboarding-incomplete shops are not
+  labeled open.
+- [x] Desktop Messages keeps the conversation rail beside the active thread;
+  phones load only the thread and use a short reduced-motion-safe entrance.
+- [x] Message snippets name structured attachments and custom-order events
+  instead of exposing their stored payload.
+- [x] Signed-in commission entry points open the shared request form in a
+  discard-safe dialog while retaining a real `/commission/new` link for direct
+  visits, signed-out visitors, and new tabs.
+- [x] The nearby commission choice is described as discovery priority rather
+  than falsely promising nationwide requests are hidden from distant makers.
+
 ## Final acceptance before Production
 
 - [ ] Run the one consolidated focused test/type/lint/build pass after this UI
