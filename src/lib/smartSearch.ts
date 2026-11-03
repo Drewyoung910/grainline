@@ -18,21 +18,45 @@ const CATEGORY_WORDS: ReadonlyArray<readonly [value: string, label: string, patt
   ["FURNITURE", "Furniture", /\b(tables?|desks?|cabinets?|credenzas?|benche?s?|shelf|shelves|bookcases?|bookshelf|bookshelves|dressers?|chairs?|stools?|beds?|nightstands?|consoles?|booths?)\b/i],
 ];
 
-const PRICE_PHRASE = /\b(?:under|below|less than|up to)\s*\$?\s*(\d[\d,]{1,6})\b|<\s*\$?\s*(\d[\d,]{1,6})\b/i;
+const PRICE_PHRASE = /(?:\b(?:under|below|less than|up to)\s*|<\s*)(\$?)\s*(\d{1,3}(?:,\d{3})+|\d{2,7})(\.\d{1,2})?(?!\d)/i;
+// "under 30 inches" and "under 24 x 36" describe a size, not a budget.
+const MEASUREMENT_AFTER =
+  /^\s*(?:"|''|\u2032|\u2033|x\b|\u00d7|in\b|inch(?:es)?\b|ft\b|foot\b|feet\b|cm\b|mm\b|met(?:er|re)s?\b|lbs?\b|pounds?\b|kg\b|oz\b|ounces?\b|years?\b|yrs?\b|months?\b|weeks?\b|days?\b|wide\b|tall\b|long\b|deep\b|high\b|sq\b|square\b)/i;
+// "toys for kids under 10" is an age. Only small numbers can be one.
+const AGE_WORDS = /\b(?:kids?|child|children|toddlers?|bab(?:y|ies)|boys?|girls?|teens?|ages?|aged)\b/i;
+const OLDEST_AGE_PHRASE = 18;
 const READY_PHRASE = /\b(?:ready to ship|in stock|ships now)\b/i;
 const MAX_PRICE_DOLLARS = 500_000;
 
 export type SmartSearch = Readonly<{
   chips: readonly string[];
+  // Where the row goes. The visitor sees its chips, category included, before
+  // choosing it.
   href: string;
   // True when the words ask for a price or availability. A plain text search
   // handles those badly, so pressing Enter uses the filters. A wood or a piece
   // alone stays a plain search, because a category filter could hide a match.
   explicitFilter: boolean;
+  // Where Enter goes. Enter shows no chips, so it applies only what was asked
+  // for: "kitchen table under 500" must not hide tables filed under Furniture.
+  enterHref: string;
 }>;
 
 function titleCase(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+// The budget in whole dollars, or null when the words only look like one.
+function budgetIn(term: string): { dollars: number; phrase: string } | null {
+  const match = PRICE_PHRASE.exec(term);
+  if (!match) return null;
+  const hasDollarSign = match[1] === "$";
+  const after = term.slice(match.index + match[0].length);
+  if (!hasDollarSign && MEASUREMENT_AFTER.test(after)) return null;
+  const dollars = Math.ceil(Number(match[2].replace(/,/g, "") + (match[3] ?? "")));
+  if (!Number.isSafeInteger(dollars) || dollars <= 0 || dollars > MAX_PRICE_DOLLARS) return null;
+  if (!hasDollarSign && dollars <= OLDEST_AGE_PHRASE && AGE_WORDS.test(term)) return null;
+  return { dollars, phrase: match[0] };
 }
 
 export function parseSmartSearch(raw: string): SmartSearch | null {
@@ -53,15 +77,12 @@ export function parseSmartSearch(raw: string): SmartSearch | null {
     chips.push(category[1]);
   }
 
-  const price = PRICE_PHRASE.exec(term);
-  if (price) {
-    const dollars = Number((price[1] ?? price[2]).replace(/,/g, ""));
-    if (Number.isSafeInteger(dollars) && dollars > 0 && dollars <= MAX_PRICE_DOLLARS) {
-      params.set("max", String(dollars));
-      chips.push(`Under ${formatCurrencyCents(dollars * 100, DEFAULT_CURRENCY).replace(/\.00$/, "")}`);
-      explicitFilter = true;
-      remaining = remaining.replace(PRICE_PHRASE, " ");
-    }
+  const budget = budgetIn(term);
+  if (budget) {
+    params.set("max", String(budget.dollars));
+    chips.push(`Under ${formatCurrencyCents(budget.dollars * 100, DEFAULT_CURRENCY).replace(/\.00$/, "")}`);
+    explicitFilter = true;
+    remaining = remaining.replace(budget.phrase, " ");
   }
 
   if (READY_PHRASE.test(term)) {
@@ -73,9 +94,17 @@ export function parseSmartSearch(raw: string): SmartSearch | null {
 
   if (chips.length < 2) return null;
 
-  const query = remaining.replace(/\s+/g, " ").trim();
+  // Taking a phrase out can strand the punctuation that followed it.
+  const query = remaining.replace(/(^|\s)[,;:.]+(?=\s|$)/g, " ").replace(/\s+/g, " ").trim();
   if (query) params.set("q", query);
-  return Object.freeze({ chips: Object.freeze(chips), href: `/browse?${params.toString()}`, explicitFilter });
+  const enterParams = new URLSearchParams(params);
+  enterParams.delete("category");
+  return Object.freeze({
+    chips: Object.freeze(chips),
+    href: `/browse?${params.toString()}`,
+    explicitFilter,
+    enterHref: `/browse?${enterParams.toString()}`,
+  });
 }
 
 export type HighlightPart = Readonly<{ text: string; match: boolean }>;
