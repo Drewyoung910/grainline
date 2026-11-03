@@ -18,7 +18,7 @@ const CATEGORY_WORDS: ReadonlyArray<readonly [value: string, label: string, patt
   ["FURNITURE", "Furniture", /\b(tables?|desks?|cabinets?|credenzas?|benche?s?|shelf|shelves|bookcases?|bookshelf|bookshelves|dressers?|chairs?|stools?|beds?|nightstands?|consoles?|booths?)\b/i],
 ];
 
-const PRICE_PHRASE = /(?:\b(?:under|below|less than|up to)\s*|<\s*)(\$?)\s*(\d{1,3}(?:,\d{3})+|\d{2,7})(\.\d{1,2})?(?!\d)/i;
+const PRICE_PHRASE = /(?:\b(?:under|below|less than|up to)\s*|<\s*)(\$?)\s*(\d{1,3}(?:,\d{3})+|\d{1,7})(\.\d{1,2})?(?!\d)/i;
 // "under 30 inches" and "under 24 x 36" describe a size, not a budget.
 const MEASUREMENT_AFTER =
   /^\s*(?:"|''|\u2032|\u2033|x\b|\u00d7|in\b|inch(?:es)?\b|ft\b|foot\b|feet\b|cm\b|mm\b|met(?:er|re)s?\b|lbs?\b|pounds?\b|kg\b|oz\b|ounces?\b|years?\b|yrs?\b|months?\b|weeks?\b|days?\b|wide\b|tall\b|long\b|deep\b|high\b|sq\b|square\b)/i;

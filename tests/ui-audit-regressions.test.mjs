@@ -26,6 +26,7 @@ describe("smart search only reads real budgets", () => {
   it("treats a small number after an age word as an age", () => {
     assert.notEqual(parseSmartSearch("toys for kids under 10")?.explicitFilter, true);
     assert.equal(parseSmartSearch("kids table under 200")?.explicitFilter, true);
+    assert.equal(parseSmartSearch("toys for kids under $5")?.explicitFilter, true);
     assert.equal(parseSmartSearch("toys for kids under $10")?.explicitFilter, true);
   });
 
@@ -140,6 +141,8 @@ describe("guards behind the browser checks", () => {
     const form = source("src/components/CommissionRequestForm.tsx");
     assert.match(dialog, /if \(submittingRef\.current\) return;/);
     assert.match(dialog, /event\.clientX < event\.currentTarget\.clientWidth/);
+    assert.match(form, /onSubmittingChange\?\.\(true\);\s*setSubmitting\(true\)/);
+    assert.match(form, /finally \{\s*onSubmittingChange\?\.\(false\);\s*setSubmitting\(false\)/);
     assert.match(form, /disabled=\{submitting \|\| uploading \|\|/);
     assert.match(form, /role="alert"/);
   });

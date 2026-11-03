@@ -42,6 +42,10 @@ export default function CommissionRequestForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !description.trim() || uploading) return;
+    // Tell the parent synchronously. Waiting for an effect leaves a small
+    // window where the dialog can close while this irreversible request has
+    // already started.
+    onSubmittingChange?.(true);
     setSubmitting(true);
     setError(null);
     try {
@@ -72,6 +76,7 @@ export default function CommissionRequestForm({
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
+      onSubmittingChange?.(false);
       setSubmitting(false);
     }
   }
@@ -82,10 +87,6 @@ export default function CommissionRequestForm({
   React.useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
-  // A request being sent can't be taken back, so it can't be dismissed either.
-  React.useEffect(() => {
-    onSubmittingChange?.(submitting);
-  }, [submitting, onSubmittingChange]);
   React.useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ block: "nearest" });
   }, [error]);
