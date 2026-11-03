@@ -300,7 +300,9 @@ describe("accessibility follow-ups", () => {
     assert.doesNotMatch(thread, /⬇️/);
     assert.match(favorite, /h-11 w-11/);
     assert.match(favorite, /h-9 w-9 rounded-full/);
-    assert.match(saveBlog, /p-3/);
+    assert.match(saveBlog, /h-11 w-11/);
+    assert.match(saveBlog, /h-9 w-9 rounded-full/);
+    assert.match(saveBlog, /ring-1 ring-black\/10/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.doesNotMatch(home, /<span aria-hidden="true">★<\/span>/);

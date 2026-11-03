@@ -396,7 +396,7 @@ async function BlogIndexPageContent({
         <>
           {/* Featured post (only on first page, no search, no tag filter) */}
           {featured && (
-            <div className="relative mb-10">
+            <div className="group relative mb-10">
             <div className="absolute top-3 right-3 z-10">
               <SaveBlogButton slug={featured.slug} initialSaved={savedSet.has(featured.id)} />
             </div>
@@ -467,7 +467,7 @@ async function BlogIndexPageContent({
                 const { imageUrl: avatar, name } = publicBlogAuthorPresentation(post, "Staff");
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
-                  <li key={post.id} className="relative card-listing">
+                  <li key={post.id} className="group relative card-listing">
                     <div className="absolute top-2 right-2 z-10">
                       <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
                     </div>
