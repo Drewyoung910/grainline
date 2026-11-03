@@ -120,7 +120,7 @@ describe("retention and ops-health follow-ups", () => {
       "utf8",
     );
 
-    assert.equal((source.match(/await calculateSellerMetrics\(seller\.id\)/g) ?? []).length, 1);
+    assert.equal((source.match(/await calculateSellerMetrics\(seller\.userId\)/g) ?? []).length, 1);
     assert.match(source, /calculatedAt: metrics\.calculatedAt/);
     assert.match(authority, /metrics\."calculatedAt" = p_calculated_at/);
     assert.match(authority, /metrics\."calculatedAt" >= source_now - INTERVAL '10 minutes'/);

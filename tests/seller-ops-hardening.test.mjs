@@ -309,10 +309,12 @@ describe("seller operational route hardening", () => {
 
   it("keeps listing stock updates owner-scoped in the final mutation", () => {
     const route = source("src/app/api/listings/[id]/stock/route.ts");
+    const authority = source("src/lib/listingStockMutation.ts");
 
     assert.match(route, /const listing = await listingOwnerActionState\(me\.id, id\)/);
     assert.match(route, /listingId: id, sellerId: listing\.sellerId, actorId: me\.id/);
-    assert.match(route, /AND "sellerId" = \$\{listing\.sellerId\}/);
+    assert.match(route, /applyListingStockMutation\(tx, \{[\s\S]*sellerId: listing\.sellerId/);
+    assert.match(authority, /public\.grainline_listing_owner_stock_apply\([\s\S]*input\.listingId[\s\S]*input\.sellerId/);
     assert.match(route, /source: "stock_back_in_stock_fanout"/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
@@ -346,7 +348,7 @@ describe("seller operational route hardening", () => {
     assert.doesNotMatch(shopActions, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
     assert.doesNotMatch(createListing, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
     assert.doesNotMatch(customListing, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
-    assert.match(editListing, /status: approvedPublicStatus/);
+    assert.match(editListing, /status: updatedListing\.approvedStatus/);
   });
 
   it("rate-limits seller listing server actions before owner mutation work", () => {
