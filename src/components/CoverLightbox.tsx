@@ -3,6 +3,7 @@
 
 import { useRef, useState } from "react";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 
 export default function CoverLightbox({
   src,
@@ -17,7 +18,16 @@ export default function CoverLightbox({
   const [failed, setFailed] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  useDialogFocus(open, dialogRef, () => setOpen(false));
+  const photoRef = useRef<HTMLImageElement>(null);
+  const coverRef = useRef<HTMLButtonElement>(null);
+  const { closeViewer } = usePhotoViewerMotion({
+    open,
+    photoRef,
+    dialogRef,
+    getSource: () => coverRef.current,
+    onClosed: () => setOpen(false),
+  });
+  useDialogFocus(open, dialogRef, closeViewer);
   useBodyScrollLock(open);
 
   if (failed) {
@@ -32,6 +42,7 @@ export default function CoverLightbox({
   return (
     <>
       <button
+        ref={coverRef}
         onClick={() => setOpen(true)}
         className="block w-full cursor-zoom-in"
         aria-label="Expand image"
@@ -48,10 +59,10 @@ export default function CoverLightbox({
           aria-label="Image lightbox"
           tabIndex={-1}
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90"
-          onClick={() => setOpen(false)}
+          onClick={closeViewer}
         >
           <button
-            onClick={() => setOpen(false)}
+            onClick={closeViewer}
             className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center border-0 bg-transparent text-2xl font-light text-white shadow-none outline-none ring-0 hover:text-neutral-300 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             aria-label="Close"
           >
@@ -59,7 +70,7 @@ export default function CoverLightbox({
           </button>
           <div onClick={(e) => e.stopPropagation()} className="max-w-5xl max-h-[90vh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt={alt} className="max-w-full max-h-[90vh] object-contain" onError={() => setFailed(true)} />
+            <img ref={photoRef} src={src} alt={alt} className="max-w-full max-h-[90vh] object-contain" onError={() => setFailed(true)} />
           </div>
         </div>
       )}

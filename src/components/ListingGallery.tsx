@@ -6,6 +6,8 @@ import Image from "next/image";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
+import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 
 type Photo = { id: string; url: string; altText?: string | null };
 
@@ -40,7 +42,19 @@ export default function ListingGallery({
   const mainSwiped = useRef(false);
   const mainHorizontalLocked = useRef(false);
 
-  useDialogFocus(lightboxOpen, dialogRef, () => setLightboxOpen(false));
+  const lightboxPhotoRef = useRef<HTMLImageElement>(null);
+  const { closeViewer } = usePhotoViewerMotion({
+    open: lightboxOpen,
+    photoRef: lightboxPhotoRef,
+    dialogRef,
+    getSource: () => mainPhotoRef.current,
+    onClosed: () => {
+      // The page keeps the photo the visitor stopped on.
+      setActiveIndex(lightboxIndex);
+      setLightboxOpen(false);
+    },
+  });
+  useDialogFocus(lightboxOpen, dialogRef, closeViewer);
   useBodyScrollLock(lightboxOpen);
 
   useEffect(() => {
@@ -179,6 +193,7 @@ export default function ListingGallery({
       {/* Main photo */}
       <div
         ref={mainPhotoRef}
+        {...{ [LISTING_PHOTO_TARGET_ATTRIBUTE]: "" }}
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
@@ -328,12 +343,12 @@ export default function ListingGallery({
           aria-label="Image lightbox"
           tabIndex={-1}
           className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black/90"
-          onClick={() => setLightboxOpen(false)}
+          onClick={closeViewer}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <button
-            onClick={() => setLightboxOpen(false)}
+            onClick={closeViewer}
             className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center border-0 bg-transparent text-2xl font-light text-white shadow-none outline-none ring-0 hover:text-neutral-300 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             aria-label="Close"
           >
@@ -368,6 +383,7 @@ export default function ListingGallery({
           <div onClick={(e) => e.stopPropagation()} className="lightbox-photo-in max-w-4xl max-h-[85vh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={lightboxPhotoRef}
               src={photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
