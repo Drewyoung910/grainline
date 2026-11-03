@@ -126,6 +126,28 @@ test("activation pins every table and fixed operation", () => {
   );
 });
 
+test("full-chain activation proof executes the email worker claim authority", () => {
+  const scenario = readFileSync(
+    "tools/database-full-chain/scenarios/email-service-least-privilege.mjs",
+    "utf8",
+  );
+  const activationProof = scenario.slice(
+    scenario.indexOf(
+      "export async function proveEmailServiceLeastPrivilegeActivation",
+    ),
+    scenario.indexOf(
+      "export async function proveEmailServiceLeastPrivilegeRollback",
+    ),
+  );
+
+  assert.match(
+    activationProof,
+    /runtimeQuery\([\s\S]*grainline_email_outbox_claim_batch\(1\)/u,
+  );
+  assert.match(activationProof, /await database\.query\("BEGIN"\)/u);
+  assert.match(activationProof, /await database\.query\("ROLLBACK"\)/u);
+});
+
 test("rollback is database-first and restores only predecessor CRUD", () => {
   assert.match(rollback, /^-- Database-first emergency rollback/u);
   assert.ok(

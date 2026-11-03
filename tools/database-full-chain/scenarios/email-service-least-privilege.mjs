@@ -1172,6 +1172,20 @@ export async function proveEmailServiceLeastPrivilegeActivation({ database }) {
          '2026-10-01', '2026-10-01'
        )`,
   ))[0]?.count, 1, "fixed email-service operations must remain executable");
+  await database.query("BEGIN");
+  try {
+    const claimed = rowsOf(await runtimeQuery(
+      database,
+      `SELECT * FROM public.grainline_email_outbox_claim_batch(1)`,
+    ));
+    assert.equal(
+      Array.isArray(claimed),
+      true,
+      "the email worker claim authority must remain executable",
+    );
+  } finally {
+    await database.query("ROLLBACK");
+  }
   await assert.rejects(
     runtimeQuery(
       database,
