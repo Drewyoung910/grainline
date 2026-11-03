@@ -297,7 +297,7 @@ async function readPublicDetail(client: QueryClient, requestId: string) {
 }
 
 export function publicCommissionRequestDetail(viewerUserId: string | null, requestId: string) {
-  if (!validId(requestId)) throw new RangeError("Commission request id is invalid");
+  if (!validId(requestId)) return Promise.resolve(null);
   return viewerUserId
     ? withDbUserContext(viewerUserId, (client) => readPublicDetail(client, requestId))
     : readPublicDetail(prisma, requestId);
@@ -473,9 +473,11 @@ export function ownerCommissionRequestExport(userId: string) {
         || (row.lat !== null && (typeof row.lat !== "number" || !Number.isFinite(row.lat) || row.lat < -90 || row.lat > 90))
         || (row.lng !== null && (typeof row.lng !== "number" || !Number.isFinite(row.lng) || row.lng < -180 || row.lng > 180))
         || ((row.lat === null) !== (row.lng === null))
-        || !Number.isSafeInteger(row.radiusMeters)
-        || Number(row.radiusMeters) < 0
-        || Number(row.radiusMeters) > 500000
+        || (row.radiusMeters !== null && (
+          !Number.isSafeInteger(row.radiusMeters)
+          || Number(row.radiusMeters) < 0
+          || Number(row.radiusMeters) > 500000
+        ))
       ) {
         throw new TypeError("Commission owner export authority returned an invalid count");
       }
@@ -484,7 +486,7 @@ export function ownerCommissionRequestExport(userId: string) {
         interestedCount: interestedCount as number,
         lat: row.lat as number | null,
         lng: row.lng as number | null,
-        radiusMeters: row.radiusMeters as number,
+        radiusMeters: row.radiusMeters as number | null,
       });
     }));
   });
