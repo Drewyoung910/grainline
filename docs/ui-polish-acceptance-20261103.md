@@ -82,6 +82,9 @@ Production promotion.
   rotates only while the menu is actually open.
 - [x] Availability, shipping speed, and rating all paint the new choice before
   navigation settles.
+- [x] Existing visible results glide to their new positions after a sort,
+  filter, or Grid/List change; first load, resizing, off-screen rows, and
+  reduced-motion visitors remain still.
 - [x] Pointer selection does not leave a dark focus line; keyboard focus stays
   visible.
 - [x] Near location appears before lower-priority commercial filters.
@@ -114,6 +117,9 @@ Production promotion.
   ordinary non-animated behavior.
 - [x] Add to cart draws a confirmation, flies the photo toward the cart, and
   bumps the cart count; row removal collapses continuously.
+- [x] Cart quantity uses a focus-preserving minus/plus stepper: every press is
+  visible immediately, rapid presses collapse into serialized saves, and a
+  rejected save returns to the server-confirmed quantity.
 - [x] Checkout progress uses a restrained moving underline rather than a white
   pill nested inside another pill.
 - [ ] Accept real signed-in cart, Clerk, and Stripe interactions on the canary.
@@ -141,6 +147,8 @@ Production promotion.
 - [x] Workshop and My account have responsive navigation without removing any
   previous destination; focused edit/onboarding forms keep their full-width
   layout.
+- [x] Workshop and My account top-level page headings share one responsive
+  scale, while existing page names, destinations, forms, and actions remain.
 - [x] Workshop listing actions retain the original ownership, moderation,
   archive, checkout-expiry, cache, and Guild-threshold behavior on the new
   Listings page.
@@ -156,6 +164,9 @@ Production promotion.
   visits, signed-out visitors, and new tabs.
 - [x] The nearby commission choice is described as discovery priority rather
   than falsely promising nationwide requests are hidden from distant makers.
+- [x] All interactive maps retain their existing data and controls while using
+  the Grainline land, water, road, and label palette; a missing upstream layer
+  or paint failure leaves the stock map working.
 
 ## Final acceptance before Production
 

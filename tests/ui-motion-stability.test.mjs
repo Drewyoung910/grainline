@@ -77,6 +77,18 @@ describe("motion stability guardrails", () => {
     assert.doesNotMatch(css, /\.results-stagger >|\.card-rise\s*\{|@keyframes card-rise/);
   });
 
+  it("glides only changed, visible browse results and respects reduced motion", () => {
+    const flip = source("src/components/FlipList.tsx");
+    const browse = source("src/app/browse/page.tsx");
+    assert.match(flip, /previousKeyRef\.current !== null && previousKeyRef\.current !== itemKey/);
+    assert.match(flip, /prefers-reduced-motion: reduce/);
+    assert.match(flip, /window\.innerHeight \+ VIEWPORT_MARGIN/);
+    assert.match(flip, /ResizeObserver/);
+    assert.match(browse, /<FlipList/);
+    assert.match(browse, /flipId=\{l\.id\}/);
+    assert.doesNotMatch(browse, /results-stagger/);
+  });
+
   it("reveals unsaved card actions without moving their hit areas", () => {
     const css = source("src/app/globals.css");
     const card = source("src/components/ListingCard.tsx");
@@ -203,6 +215,20 @@ describe("motion stability guardrails", () => {
     assert.match(resolution, /btn btn-warning btn-sm/);
     assert.match(profile, /isFeatured \? "btn-warning" : "btn-secondary"/);
     assert.match(queue, /sellerRefundOutcomes/);
+  });
+
+  it("shows cart quantity presses immediately while serializing server saves", () => {
+    const cart = source("src/app/cart/page.tsx");
+    const steps = source("src/lib/useQuantitySteps.ts");
+    assert.match(steps, /draftsRef\.current\.set\(itemId, quantity\)/);
+    assert.match(steps, /if \(savingRef\.current\.has\(itemId\)\) return/);
+    assert.match(steps, /while \(ok && draftsRef\.current\.get\(itemId\) !== saved\)/);
+    assert.match(cart, /aria-label="One fewer"/);
+    assert.match(cart, /aria-label="One more"/);
+    assert.match(cart, /aria-disabled=\{atLeast \|\| undefined\}/);
+    assert.match(cart, /aria-disabled=\{atMost \|\| undefined\}/);
+    assert.match(cart, /<RollingNumber value=\{shownQuantity\} grouped=\{false\}/);
+    assert.doesNotMatch(cart, /\sdisabled=\{atLeast|\sdisabled=\{atMost/);
   });
 
   it("does not drop a signed-in Buy Now tap while Clerk hydrates", () => {
