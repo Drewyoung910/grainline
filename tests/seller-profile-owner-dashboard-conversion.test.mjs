@@ -5,6 +5,7 @@ import test from "node:test";
 const migrationPath =
   "prisma/migrations/20261019230000_prepare_seller_profile_owner_dashboard_state/migration.sql";
 const dashboard = readFileSync("src/app/dashboard/page.tsx", "utf8");
+const listingActions = readFileSync("src/app/dashboard/listings/actions.ts", "utf8");
 const helper = readFileSync("src/lib/sellerProfileOwnerAccess.ts", "utf8");
 
 test("seller dashboard uses owner authorities without SellerProfile table access", () => {
@@ -16,9 +17,10 @@ test("seller dashboard uses owner authorities without SellerProfile table access
   assert.match(migration, /GRANT EXECUTE[\s\S]*TO grainline_app_runtime/u);
   assert.match(helper, /export function sellerOwnerDashboardState/u);
   assert.match(dashboard, /sellerOwnerDashboardState\(me\.id\)/u);
-  assert.equal((dashboard.match(/listingOwnerActionState\(me\.id, listingId\)/gu) ?? []).length, 3);
-  assert.doesNotMatch(dashboard, /sellerOwnerCore\(me\.id\)/u);
+  assert.equal((listingActions.match(/listingOwnerActionState\(me\.id, listingId\)/gu) ?? []).length, 3);
+  assert.doesNotMatch(listingActions, /sellerOwnerCore\(me\.id\)/u);
   assert.doesNotMatch(dashboard, /prisma\.sellerProfile\./u);
   assert.doesNotMatch(dashboard, /seller:\s*\{\s*(?:select|include|userId|user):/u);
-  assert.doesNotMatch(dashboard, /prisma\.listing\.findUnique/u);
+  assert.doesNotMatch(listingActions, /prisma\.sellerProfile\./u);
+  assert.doesNotMatch(listingActions, /prisma\.listing\./u);
 });

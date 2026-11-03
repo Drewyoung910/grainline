@@ -66,6 +66,10 @@ test("ordinary and reserved listing creation use one actor-bound composite autho
   assert.match(ownerAccess, /syncListingDirectUploadReferences\(\{/u);
   assert.match(ownerAccess, /requireAllTracked: true/u);
   assert.match(ownerAccess, /input\.priceCents,\s*input\.isPrivate,\s*\)/u);
+  assert.match(ownerAccess, /validNullableNonnegativeNumber\(input\.productLengthIn\)/u);
+  assert.match(ownerAccess, /validNullableNonnegativeInteger\(input\.packagedWeightGrams\)/u);
+  assert.match(authority, /p_product_length_in < 0/u);
+  assert.match(authority, /p_packaged_weight_grams < 0/u);
 
   for (const page of [ordinaryPage, customPage]) {
     assert.match(page, /createListingOwner\(/u);

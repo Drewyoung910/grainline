@@ -17,12 +17,13 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   assert.equal(result.coordinateFiles, 0);
   // Fixed SQL authorities remove the historical EmailSuppression,
   // StockNotification, SellerBroadcast, listing analytics, UserReport,
-  // Commission, EmailOutbox, and SellerMetrics query shapes from this frontier.
-  assert.equal(result.reviewedOpaqueShapes, 113);
+  // Commission, EmailOutbox, and SellerMetrics query shapes from this frontier;
+  // the UI search panel retains two reviewed publicListingWhere reads.
+  assert.equal(result.reviewedOpaqueShapes, 82);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 93);
-  assert.equal(result.opaqueNonTargetResiduals, 20);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 73);
+  assert.equal(result.opaqueNonTargetResiduals, 9);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,
     PUBLIC_ELIGIBILITY: 0,

@@ -1,9 +1,13 @@
 // src/components/ListingGallery.tsx
 "use client";
 
-import { useState, useEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import Image from "next/image";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { LISTING_GALLERY_FRAME_HEIGHT, LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
+import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 
 type Photo = { id: string; url: string; altText?: string | null };
 
@@ -17,8 +21,12 @@ export default function ListingGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
+  const thumbnailListRef = useRef<HTMLDivElement>(null);
+  const thumbnailRefs = useRef(new Map<number, HTMLButtonElement>());
+  const [thumbnailIndicator, setThumbnailIndicator] = useState<{ left: number; width: number } | null>(null);
   // Set when the viewer moves to another photo, so only that photo's load gets
   // the short cross-fade (never the first photo shown).
   const mainSwapRef = useRef(false);
@@ -34,7 +42,19 @@ export default function ListingGallery({
   const mainSwiped = useRef(false);
   const mainHorizontalLocked = useRef(false);
 
-  useDialogFocus(lightboxOpen, dialogRef, () => setLightboxOpen(false));
+  const lightboxPhotoRef = useRef<HTMLImageElement>(null);
+  const { closeViewer } = usePhotoViewerMotion({
+    open: lightboxOpen,
+    photoRef: lightboxPhotoRef,
+    dialogRef,
+    getSource: () => mainPhotoRef.current,
+    onClosed: () => {
+      // The page keeps the photo the visitor stopped on.
+      setActiveIndex(lightboxIndex);
+      setLightboxOpen(false);
+    },
+  });
+  useDialogFocus(lightboxOpen, dialogRef, closeViewer);
   useBodyScrollLock(lightboxOpen);
 
   useEffect(() => {
@@ -52,6 +72,30 @@ export default function ListingGallery({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxOpen, photos.length]);
+
+  // The selected thumbnail outline glides to the next photo rather than
+  // disappearing from one button and popping onto another.
+  useLayoutEffect(() => {
+    const list = thumbnailListRef.current;
+    const selected = thumbnailRefs.current.get(activeIndex);
+    if (!list || !selected) return;
+
+    const measure = () => {
+      const next = thumbnailRefs.current.get(activeIndex);
+      if (!next) return;
+      setThumbnailIndicator({ left: next.offsetLeft, width: next.offsetWidth });
+      const nextEnd = next.offsetLeft + next.offsetWidth;
+      if (next.offsetLeft < list.scrollLeft || nextEnd > list.scrollLeft + list.clientWidth) {
+        list.scrollTo({ left: Math.max(0, next.offsetLeft - 8), behavior: "smooth" });
+      }
+    };
+
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [activeIndex, photos.length]);
 
   useEffect(() => {
     if (photos.length <= 1) return;
@@ -77,7 +121,10 @@ export default function ListingGallery({
 
   if (photos.length === 0) return null;
 
-  const activeUrl = photos[activeIndex]?.url ?? "";
+  // Behind the viewer the page follows along, so the photo it shrinks back into
+  // has already loaded instead of swapping in afterwards.
+  const mainIndex = lightboxOpen ? lightboxIndex : activeIndex;
+  const activeUrl = photos[mainIndex]?.url ?? "";
 
   function openLightbox(i: number) {
     lightboxSwapRef.current = false;
@@ -149,10 +196,11 @@ export default function ListingGallery({
       {/* Main photo */}
       <div
         ref={mainPhotoRef}
+        {...{ [LISTING_PHOTO_TARGET_ATTRIBUTE]: "" }}
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className="relative isolate block w-full touch-pan-y overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -166,20 +214,27 @@ export default function ListingGallery({
           }
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={activeUrl}
-          alt={photos[activeIndex]?.altText ?? title}
-          fetchPriority="high"
-          className="w-full h-full object-cover"
+          alt={photos[mainIndex]?.altText ?? title}
+          unoptimized={!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)}
+          fill
+          sizes="(max-width: 1023px) 100vw, 50vw"
+          preload={mainIndex === 0}
+          data-fly-to-cart-source=""
+          className="h-full w-full object-contain"
           onLoad={(e) => {
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
             playPhotoSwap(e.currentTarget);
           }}
+          onError={() => {
+            if (!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)) return;
+            setOptimizerFailures((current) => new Set(current).add(activeUrl));
+          }}
         />
         {photos.length > 1 && (
-          <div className="absolute bottom-3 right-3 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full pointer-events-none">
+          <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
             {activeIndex + 1} / {photos.length}
           </div>
         )}
@@ -199,7 +254,7 @@ export default function ListingGallery({
                   showPreviousPhoto();
                 }
               }}
-              className="absolute left-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="absolute left-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
               style={{ borderRadius: "9999px" }}
             >
               <ChevronLeft size={24} />
@@ -218,43 +273,65 @@ export default function ListingGallery({
                   showNextPhoto();
                 }
               }}
-              className="absolute right-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="absolute right-3 top-1/2 z-10 hidden min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 opacity-0 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:inline-flex lg:group-hover/gallery:opacity-100"
               style={{ borderRadius: "9999px" }}
             >
               <ChevronRight size={24} />
             </button>
           </>
         )}
-        {/* Persistent expand hint — visible on touch + desktop so the
-            tap-to-enlarge affordance is discoverable without literal
-            "click to enlarge" copy. Top-left so it doesn't collide with
-            the favorite heart (top-right). */}
+        {/* Expand and favorite use the same 44px corner cell and 36px visible
+            circle, so the gallery controls are optically symmetrical. */}
         <div
-          className="absolute left-3.5 top-3.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm pointer-events-none"
+          className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
           aria-hidden="true"
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-          </svg>
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </span>
         </div>
       </div>
 
       {/* Thumbnails */}
       {photos.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto mt-2 pb-1">
+        <div ref={thumbnailListRef} className="scrollbar-hidden relative mt-2 flex gap-2 overflow-x-auto pb-1">
+          {thumbnailIndicator && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 top-0 z-10 h-16 rounded-md border-2 border-neutral-900 transition-[translate,width] duration-[360ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
+              style={{ width: thumbnailIndicator.width, translate: `${thumbnailIndicator.left}px 0` }}
+            />
+          )}
           {photos.map((p, i) => (
             <button
               key={p.id}
+              ref={(element) => {
+                if (element) thumbnailRefs.current.set(i, element);
+                else thumbnailRefs.current.delete(i);
+              }}
               onClick={() => showPhoto(i)}
-              className={`shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
-                i === activeIndex
+              aria-current={i === activeIndex ? "true" : undefined}
+              className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-md border transition-colors ${
+                i === activeIndex && !thumbnailIndicator
                   ? "border-neutral-900"
                   : "border-neutral-200 hover:border-neutral-400"
               }`}
               aria-label={`View photo ${i + 1}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt={p.altText ?? `${title} — photo ${i + 1}`} className="w-full h-full object-cover" />
+              <Image
+                src={p.url}
+                alt={p.altText ?? `${title} — photo ${i + 1}`}
+                unoptimized={!isFirstPartyMediaUrl(p.url) || optimizerFailures.has(p.url)}
+                fill
+                sizes="64px"
+                className="object-cover"
+                onError={() => {
+                  if (!isFirstPartyMediaUrl(p.url) || optimizerFailures.has(p.url)) return;
+                  setOptimizerFailures((current) => new Set(current).add(p.url));
+                }}
+              />
             </button>
           ))}
         </div>
@@ -268,14 +345,14 @@ export default function ListingGallery({
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black bg-opacity-90"
-          onClick={() => setLightboxOpen(false)}
+          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black/90"
+          onClick={closeViewer}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <button
-            onClick={() => setLightboxOpen(false)}
-            className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-2xl font-light text-white hover:text-neutral-300"
+            onClick={closeViewer}
+            className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center border-0 bg-transparent text-2xl font-light text-white shadow-none outline-none ring-0 hover:text-neutral-300 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             aria-label="Close"
           >
             <span aria-hidden="true">✕</span>
@@ -306,12 +383,13 @@ export default function ListingGallery({
             </>
           )}
 
-          <div onClick={(e) => e.stopPropagation()} className="lightbox-photo-in max-w-4xl max-h-[85vh] mx-4">
+          <div onClick={(e) => e.stopPropagation()} className="lightbox-photo-in max-w-4xl max-h-[85dvh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={lightboxPhotoRef}
               src={photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
-              className="max-w-full max-h-[85vh] object-contain"
+              className="max-w-full max-h-[85dvh] object-contain"
               onLoad={(e) => {
                 if (!lightboxSwapRef.current) return;
                 lightboxSwapRef.current = false;
@@ -330,17 +408,17 @@ export default function ListingGallery({
   );
 }
 
-// Short cross-fade when the shown photo changes. Runs after the new photo has
-// loaded, so the old one stays on screen until then (no blank flash).
+// Settle the shown photo without changing opacity. Starting a post-load fade
+// at partial opacity made every arrow click and swipe flash pale.
 function playPhotoSwap(img: HTMLImageElement) {
   if (typeof img.animate !== "function") return;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   img.animate(
     [
-      { opacity: 0.35, transform: "scale(1.015)" },
-      { opacity: 1, transform: "scale(1)" },
+      { transform: "scale(1.01)" },
+      { transform: "scale(1)" },
     ],
-    { duration: 420, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
+    { duration: 220, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
   );
 }
 

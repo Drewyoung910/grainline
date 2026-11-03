@@ -91,8 +91,7 @@ describe("listing delete lifecycle", () => {
       "prisma/migrations/20261013040000_add_listing_archived_at/migration.sql",
       "utf8",
     );
-    const dashboard = readFileSync("src/app/dashboard/page.tsx", "utf8");
-    const shop = readFileSync("src/app/seller/[id]/shop/page.tsx", "utf8");
+    const dashboard = readFileSync("src/lib/workshopData.ts", "utf8");
 
     assert.match(schema, /archivedAt\s+DateTime\?/);
     assert.match(migration, /ADD COLUMN "archivedAt" TIMESTAMP\(3\)/);
@@ -102,23 +101,36 @@ describe("listing delete lifecycle", () => {
       "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
       "utf8",
     );
-    assert.match(dashboard, /listingOwnerSummaryRows\(me\.id,[\s\S]*includeArchived: false/);
+    assert.match(dashboard, /listingOwnerSummaryRows\(actorUserId,[\s\S]*includeArchived: false/);
     assert.match(
       listingOwnerMigration,
       /p_include_archived OR listing\."archivedAt" IS NULL/,
     );
-    assert.match(shop, /\{ sellerId, archivedAt: null,/);
+    assert.match(
+      listingOwnerMigration,
+      /grainline_listing_owner_catalog_page[\s\S]*listing\."archivedAt" IS NULL/u,
+    );
   });
 
   it("enforces archivedAt in stale edit locks and every listing-detail visibility path", () => {
     const stockMutation = readFileSync("src/lib/listingStockMutation.ts", "utf8");
+    const listingAuthority = readFileSync(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      "utf8",
+    );
     const visibility = readFileSync("src/lib/listingVisibility.ts", "utf8");
-    const listingPage = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
 
-    assert.match(stockMutation, /SELECT[\s\S]*"archivedAt"[\s\S]*FOR UPDATE/);
+    assert.match(stockMutation, /grainline_listing_owner_stock_lock/);
+    assert.match(
+      listingAuthority,
+      /grainline_listing_owner_stock_lock[\s\S]*"archivedAt"[\s\S]*FOR UPDATE/u,
+    );
     assert.match(visibility, /if \(listing\.archivedAt\) return false/);
     assert.match(visibility, /archivedAt: null/);
-    assert.match(listingPage, /archivedAt: true/);
+    assert.match(
+      listingAuthority,
+      /grainline_listing_detail_source_core[\s\S]*listing\."archivedAt" IS NULL/u,
+    );
   });
 
   it("isolates the additive migration from historical release guards and restores it for PostgreSQL proof", () => {

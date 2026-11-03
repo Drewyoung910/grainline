@@ -108,7 +108,7 @@ export default function CustomOrderRequestForm({
 
       {open && mounted && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#14100D]/45 modal-backdrop-in px-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleClose();
           }}
@@ -119,7 +119,7 @@ export default function CustomOrderRequestForm({
             aria-modal="true"
             aria-labelledby="custom-order-dialog-title"
             tabIndex={-1}
-            className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-[#F7F5F0] shadow-xl overflow-hidden"
+            className="modal-card modal-card-in flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-[#F7F5F0]"
           >
             <div className="flex shrink-0 items-center justify-between px-5 py-3 border-b border-stone-200/60 bg-[#EFEAE0]">
               <h2 id="custom-order-dialog-title" className="text-base font-semibold">Request a Custom Piece</h2>
@@ -134,7 +134,7 @@ export default function CustomOrderRequestForm({
             </div>
 
             {success ? (
-              <div className="p-5 space-y-3 text-center overflow-y-auto">
+              <div className="scrollbar-hidden space-y-3 overflow-y-auto p-5 text-center">
                 <h3 className="text-base font-semibold">Request sent!</h3>
                 <p className="text-sm text-neutral-600">
                   Your custom order request has been sent to {sellerName}. Check your messages for their reply.
@@ -144,7 +144,7 @@ export default function CustomOrderRequestForm({
                     <button
                       type="button"
                       onClick={handleViewConversation}
-                      className="rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors"
+                      className="btn btn-primary"
                     >
                       View conversation
                     </button>
@@ -152,7 +152,7 @@ export default function CustomOrderRequestForm({
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
+                    className="btn btn-secondary"
                   >
                     Close
                   </button>
@@ -160,7 +160,7 @@ export default function CustomOrderRequestForm({
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                <div className="scrollbar-hidden min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
                   {listingTitle && (
                     <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       Requesting something similar to:{" "}
@@ -229,14 +229,14 @@ export default function CustomOrderRequestForm({
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                    className="btn btn-primary flex-1"
                   >
                     {submitting ? "Sending…" : "Send request"}
                   </button>
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>

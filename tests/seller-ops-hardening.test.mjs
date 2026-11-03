@@ -358,7 +358,7 @@ describe("seller operational route hardening", () => {
 
   it("rate-limits seller listing server actions before owner mutation work", () => {
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/dashboard/listings/actions.ts");
 
     assert.match(shopActions, /listingMutationRatelimit/);
     assert.match(shopActions, /safeRateLimit\(listingMutationRatelimit, userId\)/);

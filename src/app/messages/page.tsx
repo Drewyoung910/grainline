@@ -1,13 +1,14 @@
 // src/app/messages/page.tsx
 import Link from "next/link";
+import SegmentedControl from "@/components/SegmentedControl";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
-import { parseFileMessageBody } from "@/lib/messageBodies";
+import { formatSnippet } from "@/lib/messageSnippet";
 import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
-import { Search, X } from "@/components/icons";
+import { MessageCircle, Search, X } from "@/components/icons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { parseMessageCursor } from "@/lib/messageCursor";
@@ -15,34 +16,6 @@ import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
-
-function isImageUrl(s: string) {
-  return /^https?:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
-}
-function isPdfUrl(s: string) {
-  return /^https?:\/\/.+\.pdf$/i.test(s.trim());
-}
-
-function formatSnippet(body?: string | null, kind?: string | null) {
-  const txt = (body ?? "").toString();
-  if (!txt) return "No messages yet";
-
-  const f = parseFileMessageBody(txt.trim());
-  if (f) {
-    const isImg = (f.type?.startsWith("image/") ?? false) || isImageUrl(f.url);
-    if (isImg) return "Photo";
-    if (f.type === "application/pdf" || isPdfUrl(f.url)) return f.name ?? "PDF";
-    return f.name ?? "Attachment";
-  }
-
-  if (kind === "commission_interest_card") return "Interested in your commission";
-  if (kind === "custom_order_request") return "Custom order request";
-  if (kind === "custom_order_link") return "Custom listing ready";
-
-  if (isImageUrl(txt)) return "Photo";
-  if (isPdfUrl(txt)) return "PDF";
-  return txt;
-}
 
 type MessagesPageProps = {
   searchParams: Promise<{ tab?: string; q?: string; before?: string; beforeId?: string }>;
@@ -171,7 +144,8 @@ async function MessagesInbox({
     : null;
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
+    <main className="mx-auto max-w-4xl p-8 lg:grid lg:max-w-[1280px] lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-6">
+      <div className="min-w-0">
       <div className="mb-6 flex items-end justify-between">
         <h1 className="text-2xl font-semibold font-display">Messages</h1>
         <Link href="/browse" className="text-sm underline">
@@ -180,64 +154,46 @@ async function MessagesInbox({
       </div>
 
       {/* Tabs + Search */}
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={withQ("/messages")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "inbox"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Inbox
-          </Link>
-          <Link
-            href={withQ("/messages?tab=unread")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "unread"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Unread
-            {unreadTotal > 0 && (
-              <span className="ml-1.5 rounded-full bg-red-600 px-2 py-[1px] text-xs text-white">
-                {unreadTotal}
-              </span>
-            )}
-          </Link>
-          <Link
-            href={withQ("/messages?tab=sent")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "sent"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Awaiting Reply
-            {sentTotal > 0 && (
-              <span className={`ml-1.5 rounded-full px-2 py-[1px] text-xs ${tab === "sent" ? "bg-white text-neutral-900" : "bg-neutral-800 text-white"}`}>
-                {sentTotal}
-              </span>
-            )}
-          </Link>
-          <Link
-            href={withQ("/messages?tab=archived")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "archived"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Archived
-          </Link>
-        </div>
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center lg:flex-col lg:items-stretch gap-3">
+        {/* Sliding toggle (motion study); scrolls sideways on narrow phones. */}
+        <SegmentedControl
+          label="Conversations"
+          value={tab}
+          className="max-w-full overflow-x-auto [scrollbar-width:none]"
+          options={[
+            { value: "inbox", label: "Inbox", href: withQ("/messages") },
+            {
+              value: "unread",
+              href: withQ("/messages?tab=unread"),
+              label: (
+                <>
+                  Unread
+                  {unreadTotal > 0 && (
+                    <span className="ml-1.5 rounded-full bg-red-600 px-2 py-[1px] text-xs text-white">{unreadTotal}</span>
+                  )}
+                </>
+              ),
+            },
+            {
+              value: "sent",
+              href: withQ("/messages?tab=sent"),
+              label: (
+                <>
+                  Awaiting reply
+                  {sentTotal > 0 && (
+                    <span className="ml-1.5 rounded-full bg-[#2C1F1A] px-2 py-[1px] text-xs text-[#FBF8F3]">{sentTotal}</span>
+                  )}
+                </>
+              ),
+            },
+            { value: "archived", label: "Archived", href: withQ("/messages?tab=archived") },
+          ]}
+        />
 
-        <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
+        <form method="get" className="w-full sm:w-auto sm:ml-auto lg:ml-0 lg:w-full flex items-center gap-2">
           {/* keep current tab when searching */}
           {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex min-h-11 w-full items-center overflow-hidden rounded-full border-2 border-stone-400 bg-white shadow-sm transition-shadow focus-within:border-stone-600 focus-within:shadow-md sm:w-auto">
+          <div className="flex min-h-11 w-full items-center overflow-hidden rounded-full border-2 border-stone-400 bg-white shadow-sm transition-shadow focus-within:border-stone-600 focus-within:shadow-md sm:w-auto lg:w-full">
             <button
               type="submit"
               aria-label="Search messages"
@@ -370,6 +326,16 @@ async function MessagesInbox({
           </Link>
         </div>
       )}
+      </div>
+
+      {/* Desktop: the thread opens here once a conversation is chosen. */}
+      <div className="sticky top-[calc(var(--site-header-offset)+1.5rem)] hidden min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300/70 px-6 text-center lg:flex">
+        <span className="flex size-12 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600">
+          <MessageCircle size={22} />
+        </span>
+        <p className="mt-3 font-medium text-neutral-900">Choose a conversation</p>
+        <p className="mt-1 max-w-xs text-sm text-neutral-500">Your messages with makers and buyers open here.</p>
+      </div>
     </main>
   );
 }

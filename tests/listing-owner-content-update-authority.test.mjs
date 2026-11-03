@@ -47,6 +47,10 @@ test("listing edit content update is owner-, version-, and state-bound", async (
   assert.match(ownerAccess, /DbUserContextTransactionClient/u);
   assert.match(ownerAccess, /FROM public\.grainline_listing_owner_content_update\(/u);
   assert.match(ownerAccess, /row\.updatedAt instanceof Date/u);
+  assert.match(ownerAccess, /validNullableNonnegativeNumber\(input\.packagedLengthCm\)/u);
+  assert.match(ownerAccess, /validNullableNonnegativeInteger\(input\.packagedWeightGrams\)/u);
+  assert.match(migration, /p_product_length_in < 0/u);
+  assert.match(migration, /p_packaged_weight_grams < 0/u);
 
   assert.match(editPage, /withDbUserContext\(actor\.id, async \(tx\) => \{/u);
   assert.match(editPage, /updateListingOwnerContent\(tx,/u);

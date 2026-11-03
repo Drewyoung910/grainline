@@ -58,6 +58,10 @@ test("AdminAuditLog activation seals the table, trigger, and every function", ()
   ]) {
     assert.match(migration, new RegExp(`public\\.${entry.name}\\(`, "u"));
   }
+  assert.match(
+    migration,
+    /reviewed_function =\s*'public\.grainline_admin_audit_redact_deleted_references\(jsonb\)'[\s\S]*THEN 's'::"char"[\s\S]*ELSE 'u'::"char"/u,
+  );
   const inspector = readFileSync(
     "scripts/private-table-rls-activation-production-inspect.mjs",
     "utf8",

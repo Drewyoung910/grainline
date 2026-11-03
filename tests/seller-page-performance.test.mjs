@@ -136,7 +136,7 @@ describe("seller public page query guardrails", () => {
     );
     assert.match(sellerPage, /ownerFavoriteListingIds\(meId, listingIds\)/);
     assert.doesNotMatch(sellerPage, /prisma\.favorite/);
-    assert.match(sellerPage, /initialSaved=\{savedSet\.has\(hero\.id\)\}/);
+    assert.match(sellerPage, /initialSaved=\{savedSet\.has\(listing\.id\)\}/);
     assert.match(sellerPage, /initialSaved=\{savedSet\.has\(l\.id\)\}/);
   });
 

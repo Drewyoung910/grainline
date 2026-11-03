@@ -93,14 +93,14 @@ export default async function AdminUsersPage({
         />
         <button
           type="submit"
-          className="border border-neutral-900 bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800"
+          className="btn btn-primary btn-sm"
         >
           Search
         </button>
         {q && (
           <a
             href="/admin/users"
-            className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
+            className="btn btn-secondary btn-sm"
           >
             Clear
           </a>
@@ -217,7 +217,7 @@ export default async function AdminUsersPage({
           {page > 1 && (
             <a
               href={pageHref(page - 1)}
-              className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               ← Prev
             </a>
@@ -228,7 +228,7 @@ export default async function AdminUsersPage({
           {page < totalPages && (
             <a
               href={pageHref(page + 1)}
-              className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next →
             </a>

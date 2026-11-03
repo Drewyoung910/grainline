@@ -65,6 +65,7 @@ export async function GET() {
         variantUnavailable,
         stockExceeded,
         variantLabels,
+        selectedVariantOptionIds: ci.selectedVariantOptionIds ?? [],
         listing: {
           id: ci.listing.id,
           title: ci.listing.title,

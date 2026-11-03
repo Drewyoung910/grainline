@@ -75,7 +75,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("shows the Guild Master path before Guild Member approval and avoids sparkle icons", () => {
     const verification = source("src/app/dashboard/verification/page.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/components/WorkspaceSidebar.tsx");
 
     assert.match(verification, /GUILD_MASTER_PREVIEW_REQUIREMENTS/);
     assert.match(verification, /Available after Guild Member approval/);
@@ -99,7 +99,7 @@ describe("post-launch UI follow-ups", () => {
     ]) {
       const text = source(path);
       assert.match(text, /border-neutral-200/);
-      assert.match(text, /bg-neutral-900/);
+      assert.match(text, /bg-\[#2C1F1A\]/);
       assert.match(text, /rounded-md/);
       assert.doesNotMatch(text, /bg-black/);
     }
@@ -111,7 +111,8 @@ describe("post-launch UI follow-ups", () => {
     const globals = source("src/app/globals.css");
 
     assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
-    assert.match(searchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_POPULAR_SEARCHES/);
+    assert.match(searchBar, /popularSearchPresentation\(\{/);
+    assert.match(searchBar, /popularLoadedRef\.current \|\| popularLoadingRef\.current/);
     assert.match(searchBar, /aria-label="Clear search"/);
     assert.match(searchBar, /params\.delete\("q"\)/);
     assert.match(searchBar, /openDropdown\(\)/);
@@ -130,7 +131,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/lib/popularBlogTags.ts"), /unstable_cache/);
     assert.match(source("src/app/dashboard/listings/new/page.tsx"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /revalidateListingSearchCaches/);
-    assert.match(source("src/app/dashboard/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/listings/actions.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/api/admin/listings/[id]/review/route.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/api/listings/[id]/stock/route.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/dashboard/blog/new/page.tsx"), /revalidateBlogSearchCaches/);
@@ -139,15 +140,22 @@ describe("post-launch UI follow-ups", () => {
 
   it("uses neutral primary CTAs in the onboarding wizard while keeping amber as an accent", () => {
     const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
-    assert.match(wizard, /bg-neutral-900/);
+    assert.match(wizard, /bg-\[#2C1F1A\]/);
     assert.match(wizard, /h-full bg-amber-500/);
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
 
-  it("displays listing product imagery at 4:5 portrait via CSS without forcing an upload-time crop", () => {
+  it("keeps browse cards at 4:5 while fitting the full listing photo inside the viewport", () => {
     assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
-    assert.match(source("src/components/ListingGallery.tsx"), /aspect-\[4\/5\]/);
-    assert.doesNotMatch(source("src/components/ListingGallery.tsx"), /h-\[350px\]|h-\[400px\]|h-\[500px\]/);
+    const gallery = source("src/components/ListingGallery.tsx");
+    // The frame height is shared with the loading skeleton, so the two can't drift.
+    const frame = source("src/lib/photoMotion.ts");
+    assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(gallery, /className="h-full w-full object-contain"/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
+    assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
     // Match the actual UploadButton element — endpoint immediately followed by
@@ -215,7 +223,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(gallery, /event\.preventDefault\(\)/);
     assert.match(gallery, /aria-label="Previous photo"/);
     assert.match(gallery, /aria-label="Next photo"/);
-    assert.match(gallery, /left-3\.5 top-3\.5 inline-flex h-9 w-9/);
+    assert.match(gallery, /left-0 top-0 inline-flex h-11 w-11/);
+    assert.match(gallery, /hidden min-h-11 min-w-11[\s\S]*lg:inline-flex lg:group-hover\/gallery:opacity-100/);
   });
 
   it("keeps listing detail constrained on narrow mobile viewports", () => {
@@ -271,7 +280,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/app/page.tsx"), /bg-\[#F7F5F0\]/);
     assert.match(source("src/app/browse/page.tsx"), /bg-\[#F7F5F0\]/);
     assert.match(source("src/app/listing/[id]/page.tsx"), /bg-\[#F7F5F0\]/);
-    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b/);
+    // The only header gradient is the small dark scrim over the homepage
+    // photo; no page-wide amber gradients.
+    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b[^"`]*from-amber/);
   });
 
   it("adds order timeline context without a redundant payment-confirmed step", () => {
@@ -298,14 +309,15 @@ describe("post-launch UI follow-ups", () => {
   });
 
   it("dashboard listing card click goes to public path for active and to preview URL for non-public statuses", () => {
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/dashboard/listings/page.tsx");
+    const workshopData = source("src/lib/workshopData.ts");
     // The card link branches on isPublicStatus and appends ?preview=1 for the
     // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
     assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
     assert.match(dashboard, /\?preview=1`/);
     assert.match(
-      dashboard,
-      /listingOwnerSummaryRows\(me\.id,[\s\S]*includeArchived: false,[\s\S]*take: 6/u,
+      workshopData,
+      /listingOwnerSummaryRows\(actorUserId,[\s\S]*includeArchived: false,[\s\S]*take: WORKSHOP_LISTINGS_PAGE_SIZE/u,
     );
   });
 
@@ -373,10 +385,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
     assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // The search consumes all remaining room, and parent gap-3 is the exact
-    // search-to-actions spacing instead of a variable ml-auto spacer.
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] flex-1"/);
-    assert.match(header, /data-header-actions className="flex items-center gap-1 xl:gap-2"/);
+    // Search grows to a 640px cap, the text nav follows it, and the tools
+    // sit at the far right (motion prototype layout, 2026-10-30).
+    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 
   it("keeps metro SEO page widths matched to their content density", () => {
@@ -447,6 +459,9 @@ describe("post-launch UI follow-ups", () => {
     // Listing context card uses the darker cream surface to separate the
     // thread chrome from the body cream page background.
     assert.match(threadPage, /bg-\[#EFEAE0\][\s\S]*?p-3/);
+    // The site header scrolls away on threads (Header.tsx `pinned`), so a page
+    // offset here would leave a strip of messages showing above this header.
+    assert.match(threadPage, /sticky top-0 z-10/);
     // Thread container uses card-section on md+ instead of bare md:border.
     assert.match(thread, /md:card-section md:p-4/);
     // Empty-state visual when there are no messages yet.
@@ -502,7 +517,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(fallbackCall, /className="[^"]*h-full/);
     assert.match(fallbackCall, /className="[^"]*w-full/);
     assert.match(allSellersMap, /className="relative h-full"/);
-    assert.equal((mapSection.match(/min-h-11/g) ?? []).length, 2);
+    // Both map actions use the shared pill buttons (46px tall).
+    assert.equal((mapSection.match(/className="btn btn-(?:primary|secondary)[^"]*"/g) ?? []).length, 2);
+    assert.match(mapSection, /grid grid-cols-2/);
 
     assert.match(allSellersMap, /height = 520/);
     assert.doesNotMatch(fullMapCall, /\bheight=/);
@@ -531,8 +548,8 @@ describe("post-launch UI follow-ups", () => {
     const docs = source("CLAUDE.md");
 
     assert.match(globals, /single sitewide field-focus treatment/);
-    assert.match(globals, /border-color: #a8a29e/);
-    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(168 162 158 \/ 0\.16\)/);
+    assert.match(globals, /border-color: #a8a29e;/);
+    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(44 31 26 \/ 0\.08\)/);
     assert.match(blogComment, /rounded-md border border-neutral-200 bg-white/);
     assert.doesNotMatch(blogComment, /focus:border|focus:ring/);
     assert.match(messageComposer, /border-2 border-stone-300/);
@@ -571,13 +588,14 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /initialCount=\{featuredFollowerCounts\.get\(spotlight\.id\) \?\? 0\}/);
     assert.match(homepage, /meDbId !== also\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
-    assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
+    // The arrow sits in its own span so it can nudge on hover.
+    assert.match(homepage, /hover:underline[\s\S]*Visit shop <span aria-hidden="true"[^>]*>→<\/span>/);
     assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfileId/);
     assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.authorId === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);
     assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfileId\}[\s\S]*initialCount=\{authorFollowerCount\}/);
     assert.match(blogPost, /<NewsletterSignup \/>/);
-    assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
+    assert.match(following, /href="\/account\/feed"[\s\S]*btn btn-sm btn-primary/);
     assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
     assert.match(docs, /In the Workshop spotlight[\s\S]*getCachedPublicSellerStats\(\)[\s\S]*FollowButton/);
     assert.match(docs, /The homepage stops here; it intentionally does not render `NewsletterSignup`/);
@@ -605,10 +623,16 @@ describe("post-launch UI follow-ups", () => {
       assert.match(mapSource, /markerEl\.addEventListener\("keydown"/);
       assert.match(mapSource, /<MakerMapCard/);
       assert.match(mapSource, /cache=\{cardCache\}/);
-      assert.match(mapSource, /const markers: maplibregl\.Marker\[\] = \[\]/);
-      assert.match(mapSource, /markers\.push\(marker\)/);
       assert.match(mapSource, /markers\.forEach\([\s\S]*?\.remove\(\)\)/);
     }
+
+    // The homepage keeps marker instances by maker id so source-data and
+    // resize events cannot cut a pin's entrance short. The full map's existing
+    // array lifecycle remains valid because it does not animate those pins.
+    assert.match(allSellersMap, /const markers = new Map<string, maplibregl\.Marker>\(\)/);
+    assert.match(allSellersMap, /markers\.set\(id, marker\)/);
+    assert.match(sellersMap, /const markers: maplibregl\.Marker\[\] = \[\]/);
+    assert.match(sellersMap, /markers\.push\(marker\)/);
 
     assert.match(makerCard, /export type MakerMapCardCache = Map<string, MakerMapCardData \| "error">/);
     assert.match(makerCard, /cache: MakerMapCardCache/);
@@ -622,6 +646,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /aria-label="Close maker details"/);
     assert.match(makerCard, /bg-\[#F7F5F0\]/);
     assert.match(makerCard, /border-\[#F7F5F0\]/);
+    assert.match(makerCard, /map-card-in/);
+    assert.doesNotMatch(makerCard, /animate-menu-in/);
     // Content avatars have NO hairline (Drew rejected them) — thick border
     // matches the card background instead.
     assert.match(makerCard, /border-\[3px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);
@@ -675,17 +701,19 @@ describe("post-launch UI follow-ups", () => {
     assert.match(messageIconLink, /<IconHoverTip label="Messages" \/>/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /clearCloseTimer\(\);[\s\S]*setClosing\(false\);[\s\S]*setOpen\(true\);/);
-    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
-    assert.match(header, /border-stone-200\/60 bg-\[#EFEAE0\]/);
+    // Icon buttons follow the header color: cream over the homepage photo,
+    // dark on frosted paper.
+    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
+    assert.match(header, /border-b border-\[#2C1F1A\]\/\[0\.08\] py-1 pl-5 pr-2/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
-    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
-    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
+    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
     assert.match(bell, /<div className="relative flex" ref=\{containerRef\}>/);
     for (const text of [header, bell, unreadBadge]) {
       assert.match(text, /absolute -top-1 -right-1 inline-flex h-5 min-w-5/);
     }
     assert.match(header, /inner span is the 40×40 visible hover circle/);
-    assert.match(bell, /"bg-\[#EFEAE0\] border-b border-stone-200\/60"/);
+    assert.match(bell, /"border-b border-\[#2C1F1A\]\/\[0\.08\]"/);
     assert.match(bell, /notificationUnreadClass[\s\S]*"bg-\[#EFEAE0\]\/50"/);
     assert.doesNotMatch(bell, /!n\.read \? "bg-amber-50" : ""/);
   });

@@ -131,14 +131,14 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
   if (!mounted) return null;
 
   const modal = (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 px-4 py-6">
+    <div className="fixed inset-0 z-[300] flex items-start justify-center overflow-y-auto overscroll-contain bg-[#14100D]/55 modal-backdrop-in px-4 py-6">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-2xl rounded-lg bg-[#F7F5F0] p-4 shadow-xl sm:p-5"
+        className="modal-card modal-card-in my-auto w-full max-w-2xl rounded-2xl bg-[#F7F5F0] p-4 sm:p-5"
       >
         <div className="mb-4">
           <h2 id={titleId} className="font-display text-xl font-semibold text-neutral-900">Adjust image</h2>
@@ -147,8 +147,12 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
 
         <div
           ref={frameRef}
-          className="relative mx-auto w-full max-w-xl touch-none overflow-hidden rounded-lg border border-neutral-200 bg-neutral-950"
-          style={{ aspectRatio: aspect }}
+          className="relative mx-auto max-w-xl touch-none overflow-hidden rounded-lg border border-neutral-200 bg-neutral-950"
+          style={{
+            aspectRatio: aspect,
+            maxHeight: "60dvh",
+            width: `min(100%, ${aspect * 60}dvh)`,
+          }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -189,7 +193,7 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
           step="0.05"
           value={zoom}
           onChange={(event) => handleZoomChange(Number(event.target.value))}
-          className="mt-2 w-full accent-neutral-900"
+          className="mt-2 w-full accent-[#2C1F1A]"
         />
 
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
@@ -207,7 +211,7 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
             type="button"
             onClick={confirmCrop}
             disabled={processing || naturalSize.width <= 0}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm text-white hover:bg-[#3A2A24] disabled:opacity-50"
           >
             {processing ? "Preparing..." : "Use this crop"}
           </button>

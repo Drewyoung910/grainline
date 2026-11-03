@@ -27,6 +27,8 @@ test("owner editor projection is actor-bound and includes bounded media and vari
 
 test("listing editor reads owner state only through the bounded authority", () => {
   assert.match(access, /export function listingOwnerEditor/u);
+  assert.match(access, /if \(!validId\(listingId\)\) return Promise\.resolve\(null\)/u);
+  assert.match(access, /row\.materials\.every\(\(material\) => typeof material === "string"\)/u);
   assert.match(editorPage, /listingOwnerEditor\(actor\.id, listingId\)/u);
   assert.match(editorPage, /listingOwnerEditor\(actor\.id, id\)/u);
   assert.doesNotMatch(editorPage, /prisma\.listing\.findFirst/u);

@@ -93,7 +93,7 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     assert.match(profile, /existingUrls: seller\.galleryImageUrls \?\? \[\]/);
 
     const commissionRoute = source("src/app/api/commission/route.ts");
-    const commissionPage = source("src/app/commission/new/page.tsx");
+    const commissionPage = source("src/components/CommissionRequestForm.tsx");
     assert.match(commissionRoute, /filterVerifiedFirstPartyMediaUrlsForUser\(\{/);
     assert.match(commissionRoute, /allowedEndpoints: \["messageImage"\]/);
     assert.match(commissionPage, /endpoint="messageImage"/);

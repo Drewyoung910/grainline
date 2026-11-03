@@ -73,7 +73,7 @@ export default async function AccountSettingsPage() {
         </Link>
       </div>
       <header>
-        <h1 className="text-3xl font-bold font-display">Notification Preferences</h1>
+        <h1 className="font-display page-title">Notification Preferences</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Choose which notifications you receive from Grainline.
         </p>

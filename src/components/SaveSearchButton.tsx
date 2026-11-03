@@ -7,15 +7,24 @@ import { parseMoneyInputToCents } from "@/lib/money";
 
 export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
   const [state, setState] = React.useState<"idle" | "saving" | "saved">("idle");
+  const activeSearchKey = React.useRef(searchKey);
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    activeSearchKey.current = searchKey;
+    setState("idle");
+  }, [searchKey]);
+
   async function save() {
+    if (state !== "idle") return;
     if (!signedIn) {
       window.location.href = signInPathForRedirect(window.location.pathname + window.location.search);
       return;
     }
     setState("saving");
+    const savedSearchKey = searchKey;
     try {
       const q = searchParams.get("q") || undefined;
       const category = searchParams.get("category") || undefined;
@@ -60,24 +69,51 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
         } catch {
           // keep generic message
         }
-        toast(message, "error");
-        setState("idle");
+        if (activeSearchKey.current === savedSearchKey) {
+          toast(message, "error");
+          setState("idle");
+        }
         return;
       }
-      setState("saved");
+      if (activeSearchKey.current === savedSearchKey) setState("saved");
     } catch {
-      setState("idle");
-      toast("Network error. Please try again.", "error");
+      if (activeSearchKey.current === savedSearchKey) {
+        setState("idle");
+        toast("Network error. Please try again.", "error");
+      }
     }
   }
 
   return (
     <button
+      type="button"
       onClick={save}
-      disabled={state !== "idle"}
-      className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-60"
+      onPointerUp={(event) => event.currentTarget.blur()}
+      aria-disabled={state !== "idle"}
+      aria-busy={state === "saving" || undefined}
+      data-state={state}
+      className={`btn btn-sm btn-secondary gap-1.5 transition-[background-color,border-color,box-shadow,scale] ${
+        state === "saving" ? "opacity-60" : ""
+      }`}
     >
-      {state === "saving" ? "Saving…" : state === "saved" ? "Saved!" : "Save search"}
+      {/* The bookmark fills and bumps once the search is saved. */}
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        className={`h-4 w-4 transform-gpu transition-[fill,scale,rotate] duration-300 ${
+          state === "saving"
+            ? "motion-safe:scale-90 motion-safe:-rotate-6 fill-transparent"
+            : state === "saved"
+              ? "badge-bump fill-current"
+              : "fill-transparent"
+        }`}
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      >
+        <path d="M6.5 4h11a1 1 0 0 1 1 1v15l-6.5-4-6.5 4V5a1 1 0 0 1 1-1z" />
+      </svg>
+      {state === "saving" ? "Saving…" : state === "saved" ? "Saved" : "Save search"}
     </button>
   );
 }

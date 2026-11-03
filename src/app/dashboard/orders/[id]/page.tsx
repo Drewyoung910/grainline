@@ -541,7 +541,7 @@ export default async function BuyerOrderDetailPage({
                 confirm={method === "PICKUP"
                   ? "Confirm that you picked up this order?"
                   : "Confirm that you received this order?"}
-                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                className="btn btn-primary btn-sm"
               >
                 {method === "PICKUP" ? "Confirm pickup" : "Confirm delivery"}
               </ConfirmButton>
@@ -687,21 +687,21 @@ export default async function BuyerOrderDetailPage({
       <div className="flex gap-3">
         <Link
           href="/dashboard/orders"
-          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm"
         >
           Back to orders
         </Link>
         {messageHref ? (
           <Link
             href={messageHref}
-            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="btn btn-secondary btn-sm"
           >
             Message maker
           </Link>
         ) : (
           <Link
             href="/support"
-            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="btn btn-secondary btn-sm"
           >
             Contact support
           </Link>

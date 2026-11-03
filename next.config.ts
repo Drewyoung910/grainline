@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import { imageRemotePatternsFromValues } from "./src/lib/imageRemotePatterns";
 
 function cspOriginsFromEnv(values: Array<string | undefined>): string {
   const origins = new Set<string>();
@@ -16,6 +17,16 @@ function cspOriginsFromEnv(values: Array<string | undefined>): string {
 }
 
 const r2PublicOrigins = cspOriginsFromEnv([
+  process.env.CLOUDFLARE_R2_PUBLIC_URL,
+  process.env.R2_PUBLIC_URL,
+  process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL,
+  process.env.NEXT_PUBLIC_R2_PUBLIC_URL,
+  process.env.CLOUDFLARE_R2_PUBLIC_URLS,
+  process.env.ALLOWED_R2_PUBLIC_URLS,
+  "https://cdn.thegrainline.com",
+]);
+
+const r2ImageRemotePatterns = imageRemotePatternsFromValues([
   process.env.CLOUDFLARE_R2_PUBLIC_URL,
   process.env.R2_PUBLIC_URL,
   process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL,
@@ -76,6 +87,7 @@ const nextConfig: NextConfig = {
     // Keep responsive image optimization while preserving fine wood grain in
     // the full-bleed homepage photograph. Other images retain quality 75.
     qualities: [75, 88],
+    remotePatterns: r2ImageRemotePatterns,
   },
   async headers() {
     return [

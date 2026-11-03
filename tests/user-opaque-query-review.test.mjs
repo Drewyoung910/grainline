@@ -45,17 +45,18 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // remaining direct EmailOutbox shapes behind fixed SQL authorities. The
   // Listing public-catalog boundary removes the tag and metro-category direct
   // Listing shapes while retaining their set-based database behavior.
-  assert.equal(report.opaqueShapes.length, 102);
-  assert.equal(reviewedFactories.length, 80);
-  assert.equal(reviewedResidual.length, 22);
+  // UI search retains two reviewed publicListingWhere reads.
+  assert.equal(report.opaqueShapes.length, 82);
+  assert.equal(reviewedFactories.length, 66);
+  assert.equal(reviewedResidual.length, 16);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 64,
-    sha256: "1e0e632f51e0a82138b724c11bfd567d774c4400d0b71947e5ff02fb6c6ab04c",
+    unique: 53,
+    sha256: "d8aa4bdf68d722a95eaa2f60264ba5cc632e2ed50037798646e518ff5be7a8c1",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 17,
-    sha256: "e5404a5ebe7ec0e9db7a9b954c40805bd92fb91f0a2b9cb092b31e93251b33c0",
+    unique: 11,
+    sha256: "59724907641a37f418816b149f5136e86ea5330bf9bc2c83d553310816d25c77",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,

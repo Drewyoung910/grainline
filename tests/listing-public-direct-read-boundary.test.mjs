@@ -34,6 +34,7 @@ test("Listing direct ORM access is limited to reviewed public catalog reads", ()
 
   assert.deepEqual(callsByFile, {
     "src/app/api/account/feed/route.ts": ["prisma.listing.findMany"],
+    "src/app/api/search/suggestions/route.ts": Array(2).fill("prisma.listing.findMany"),
     "src/app/blog/[slug]/page.tsx": ["prisma.listing.findMany"],
     "src/app/page.tsx": Array(6).fill("prisma.listing.findMany"),
     "src/app/seller/[id]/page.tsx": Array(2).fill("prisma.listing.findMany"),

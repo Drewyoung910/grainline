@@ -18,10 +18,24 @@ test("a stale AI approval cannot activate content from a newer resubmission", ()
 test("the AI transition is actor-bound and updates one locked listing", () => {
   assert.match(migration, /current_setting\('app\.user_id', true\)/u);
   assert.match(migration, /listing\."sellerId" = seller_id[\s\S]*FOR UPDATE/u);
-  assert.match(migration, /NOT source_listing\."sellerPubliclyOrderable"/u);
+  assert.match(
+    migration,
+    /p_source_status <> 'PENDING_REVIEW'[\s\S]*p_status IN \('ACTIVE', 'SOLD_OUT'\)[\s\S]*NOT source_listing\."sellerPubliclyOrderable"/u,
+  );
   assert.match(migration, /ELSE p_status::public\."ListingStatus"/u);
   assert.match(helper, /withDbUserContext\(userId,/u);
   assert.doesNotMatch(helper, /listing\.updateMany/u);
+});
+
+test("an approved edit can leave review while vacation mode still hides the listing", () => {
+  assert.match(
+    migration,
+    /p_source_status <> 'PENDING_REVIEW'[\s\S]*NOT source_listing\."sellerPubliclyOrderable"/u,
+  );
+  assert.match(
+    migration,
+    /WHEN p_source_status = 'PENDING_REVIEW'[\s\S]*THEN 'SOLD_OUT'/u,
+  );
 });
 
 test("review results fail closed on malformed status, flags, score, or result cardinality", () => {

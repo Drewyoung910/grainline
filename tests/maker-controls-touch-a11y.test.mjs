@@ -60,8 +60,10 @@ describe("maker dashboard control sizing and state announcements (#1245, #1247, 
     assert.match(tags, /h-6 w-6[^"]*pointer-coarse:after:absolute pointer-coarse:after:-inset-2\.5/);
     assert.doesNotMatch(tags, /className="rounded-full px-1 hover:bg-neutral-200"/);
 
-    assert.equal(blog.match(/min-h-\[30px\][^"]*pointer-coarse:min-h-11"/g)?.length, 4);
-    assert.equal(sales.match(/inline-flex items-center rounded-lg[^"]*pointer-coarse:min-h-11"/g)?.length, 4);
+    // Compact buttons keep their touch size from the shared btn-sm rule.
+    assert.match(source("src/app/globals.css"), /@utility btn-sm \{[\s\S]*?@media \(pointer: coarse\) \{\s*min-height: 44px;/);
+    assert.ok((blog.match(/btn btn-[a-z]+ btn-sm/g)?.length ?? 0) >= 4);
+    assert.ok((sales.match(/btn btn-[a-z]+ btn-sm/g)?.length ?? 0) >= 4);
   });
 
   it("fits analytics totals at phone width and exposes toggle state", () => {

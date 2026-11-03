@@ -1,7 +1,10 @@
 // src/app/commission/page.tsx
+import CommissionPostButton from "@/components/CommissionPostButton";
 import { prisma } from "@/lib/db";
 import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
 import Link from "next/link";
+import SegmentedControl from "@/components/SegmentedControl";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
@@ -176,45 +179,35 @@ async function CommissionPageContent({
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold font-display text-neutral-900">Commission Room</h1>
           <p className="text-neutral-500 mt-1 text-sm">
             Buyers post custom piece requests. Makers express interest to connect.
           </p>
         </div>
-        <Link
-          href="/commission/new"
-          className="rounded-md bg-neutral-900 text-white text-sm px-4 py-2 hover:bg-neutral-700 transition-colors"
-        >
-          Post a Request
-        </Link>
+        <CommissionPostButton className="btn btn-sm btn-primary shrink-0 whitespace-nowrap px-3 sm:px-5">
+          <span className="sm:hidden">Post request</span>
+          <span className="hidden sm:inline">Post a Request</span>
+        </CommissionPostButton>
       </div>
 
       {/* Tab strip — only when there is a second tab ("Near Me" needs a
           seller location); a lone "All Requests" tab looks broken. */}
       {hasLocation && (
-        <div className="flex gap-1 mb-6 border-b border-neutral-100">
-          <Link
-            href={buildHref({ tab: "", page: "" })}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === "all"
-                ? "border-neutral-900 text-neutral-900"
-                : "border-transparent text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            All Requests
-          </Link>
-          <Link
-            href={buildHref({ tab: "near", page: "" })}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === "near"
-                ? "border-neutral-900 text-neutral-900"
-                : "border-transparent text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            <span className="flex items-center gap-1"><MapPin size={13} /> Near Me</span>
-          </Link>
+        <div className="mb-6">
+          <SegmentedControl
+            label="Requests"
+            value={tab === "near" ? "near" : "all"}
+            options={[
+              { value: "all", label: "All requests", href: buildHref({ tab: "", page: "" }) },
+              {
+                value: "near",
+                href: buildHref({ tab: "near", page: "" }),
+                label: <span className="flex items-center gap-1"><MapPin size={13} /> Near me</span>,
+              },
+            ]}
+          />
         </div>
       )}
 
@@ -228,27 +221,29 @@ async function CommissionPageContent({
       </div>
 
       {/* Category filter */}
-      <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto">
-        <Link
-          href={buildHref({ category: "", page: "" })}
-          className={`rounded-full px-3 py-1 text-sm whitespace-nowrap transition-colors ${
-            !categoryFilter ? "bg-neutral-900 text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-          }`}
-        >
-          All
-        </Link>
-        {CATEGORY_VALUES.map((cat) => (
+      <ScrollFadeRow className="mb-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-max gap-2 pr-1">
           <Link
-            key={cat}
-            href={buildHref({ category: cat, page: "" })}
-            className={`rounded-full px-3 py-1 text-sm whitespace-nowrap transition-colors ${
-              categoryFilter === cat ? "bg-neutral-900 text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+            href={buildHref({ category: "", page: "" })}
+            className={`inline-flex h-9 items-center rounded-full px-3.5 text-sm whitespace-nowrap transition-colors ${
+              !categoryFilter ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
-            {CATEGORY_LABELS[cat]}
+            All
           </Link>
-        ))}
-      </div>
+          {CATEGORY_VALUES.map((cat) => (
+            <Link
+              key={cat}
+              href={buildHref({ category: cat, page: "" })}
+              className={`inline-flex h-9 items-center rounded-full px-3.5 text-sm whitespace-nowrap transition-colors ${
+                categoryFilter === cat ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+              }`}
+            >
+              {CATEGORY_LABELS[cat]}
+            </Link>
+          ))}
+        </div>
+      </ScrollFadeRow>
 
       {requests.length === 0 ? (
         <div className="card-section p-12 text-center">
@@ -257,12 +252,9 @@ async function CommissionPageContent({
             Be the first to post a custom piece request. Describe what you&apos;re looking for
             and makers will reach out directly.
           </p>
-          <Link
-            href="/commission/new"
-            className="inline-block rounded-md bg-neutral-900 text-white px-6 py-2 text-sm hover:bg-neutral-700"
-          >
+          <CommissionPostButton className="btn btn-primary">
             Post a Request →
-          </Link>
+          </CommissionPostButton>
         </div>
       ) : (
         <div className="space-y-4">

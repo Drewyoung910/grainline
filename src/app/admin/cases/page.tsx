@@ -100,7 +100,7 @@ export default async function AdminCasesPage({
           href={filterHref()}
           className={`rounded-full border px-3 py-1 text-xs font-medium ${
             !statusFilter
-              ? "bg-neutral-900 text-white border-neutral-900"
+              ? "bg-[#2C1F1A] text-white border-[#2C1F1A]"
               : "bg-white text-neutral-600 hover:bg-neutral-50"
           }`}
         >
@@ -112,7 +112,7 @@ export default async function AdminCasesPage({
             href={filterHref(s)}
             className={`rounded-full border px-3 py-1 text-xs font-medium ${
               statusFilter === s
-                ? "bg-neutral-900 text-white border-neutral-900"
+                ? "bg-[#2C1F1A] text-white border-[#2C1F1A]"
                 : "bg-white text-neutral-600 hover:bg-neutral-50"
             }`}
           >
@@ -200,7 +200,7 @@ export default async function AdminCasesPage({
               {safePage > 1 ? (
                 <Link
                   href={pagerHref(safePage - 1)}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   Previous
                 </Link>
@@ -212,7 +212,7 @@ export default async function AdminCasesPage({
               {safePage < totalPages ? (
                 <Link
                   href={pagerHref(safePage + 1)}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   Next
                 </Link>

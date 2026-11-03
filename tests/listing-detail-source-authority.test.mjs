@@ -51,6 +51,8 @@ test("listing detail uses bounded actor and staff sources", async () => {
 
   assert.match(access, /grainline_listing_actor_detail_source/u);
   assert.match(access, /grainline_listing_staff_detail_source/u);
+  assert.match(access, /if \(!validId\(listingId\)\) \{\s*return null;\s*\}/u);
+  assert.match(access, /row\.materials\.some\(\(material\) => typeof material !== "string"\)/u);
   assert.match(page, /listingActorDetailSource\(viewerUserId, listingId\)/u);
   assert.match(page, /listingStaffDetailSource\([\s\S]*staffClient,[\s\S]*meId as string,[\s\S]*listingId/u);
   assert.doesNotMatch(page, /prisma\.listing\.findUnique/u);

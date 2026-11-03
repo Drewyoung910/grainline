@@ -105,11 +105,11 @@ export default async function AdminBroadcastsPage({
           placeholder="Search message text…"
           className="flex-1 border rounded-lg px-3 py-2 text-sm"
         />
-        <button type="submit" className="bg-neutral-900 text-white px-4 py-2 rounded-lg text-sm">
+        <button type="submit" className="btn btn-primary btn-sm">
           Search
         </button>
         {q && (
-          <Link href="/admin/broadcasts" className="px-4 py-2 rounded-lg border text-sm hover:bg-neutral-50">
+          <Link href="/admin/broadcasts" className="btn btn-secondary btn-sm">
             Clear
           </Link>
         )}
@@ -186,7 +186,7 @@ export default async function AdminBroadcastsPage({
       {totalPages > 1 && (
         <div className="flex justify-center gap-2 mt-8">
           {page > 1 && (
-            <Link href={buildHref({ page: String(page - 1) })} className="rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page - 1) })} className="btn btn-secondary btn-sm">
               ← Previous
             </Link>
           )}
@@ -194,7 +194,7 @@ export default async function AdminBroadcastsPage({
             Page {page} of {totalPages}
           </span>
           {page < totalPages && (
-            <Link href={buildHref({ page: String(page + 1) })} className="rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page + 1) })} className="btn btn-secondary btn-sm">
               Next →
             </Link>
           )}

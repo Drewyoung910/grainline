@@ -96,8 +96,15 @@ export default function BuyNowCheckoutModal({
   const resumeSessionRequestRef = useRef(0);
   const completedRef = useRef(false);
   const isOpenRef = useRef(isOpen);
+  const onCloseRef = useRef(onClose);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
+
+  // The parent passes an inline state setter. Keep the latest callback without
+  // making the checkout-resume effect restart and refetch on every render.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useDialogFocus(isOpen, dialogRef, onClose);
   useBodyScrollLock(isOpen);
@@ -184,6 +191,7 @@ export default function BuyNowCheckoutModal({
 
       if (typeof data.completedSessionId === "string" && data.completedSessionId) {
         completedRef.current = true;
+        onCloseRef.current();
         router.push(`/checkout/success?session_id=${data.completedSessionId}`);
         return;
       }
@@ -295,7 +303,7 @@ export default function BuyNowCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-12 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[#14100D]/45 modal-backdrop-in p-4 pt-12 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -306,7 +314,7 @@ export default function BuyNowCheckoutModal({
         aria-modal="true"
         aria-label={`Buy ${listingTitle}`}
         tabIndex={-1}
-        className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-auto mb-8"
+        className="modal-card modal-card-in relative mx-auto mb-8 w-full max-w-lg rounded-2xl bg-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header: item summary + close */}
@@ -485,7 +493,7 @@ export default function BuyNowCheckoutModal({
               <button
                 onClick={handleProceedToPayment}
                 disabled={!selectedRate || creatingSession}
-                className="w-full rounded-md bg-neutral-900 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary w-full"
               >
                 {creatingSession
                   ? "Preparing payment..."
@@ -511,6 +519,7 @@ export default function BuyNowCheckoutModal({
               onComplete={() => {
                 completedRef.current = true;
                 sessionIdRef.current = null;
+                onClose();
                 router.push(
                   `/checkout/success?session_id=${sessionId}`,
                 );

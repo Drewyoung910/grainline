@@ -23,7 +23,7 @@ export default function NotFound() {
       <div className="flex gap-3">
         <Link
           href="/browse"
-          className="inline-flex items-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
         >
           Browse the Workshop
         </Link>

@@ -66,7 +66,10 @@ export async function POST(req: Request) {
       source: "favorite_ensure_user",
       level: "warning",
     });
-    return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+    return privateJson(
+      { error: "We couldn’t load your account. Please try again." },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
   }
   if (!me) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
@@ -78,16 +81,22 @@ export async function POST(req: Request) {
       source: "favorite_add",
       extra: { listingId, dbUserId: me.id },
     });
-    return privateJson({ error: "DB error" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });
+    return privateJson(
+      { error: "Couldn’t save this listing. Please try again." },
+      { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
+    );
   }
   if (favorite.resultStatus === "NOT_FOUND") {
     return privateJson({ error: "Listing not found." }, { status: HTTP_STATUS.NOT_FOUND });
   }
   if (favorite.resultStatus === "SELF") {
-    return privateJson({ error: "Cannot favorite your own listing." }, { status: HTTP_STATUS.BAD_REQUEST });
+    return privateJson(
+      { error: "Cannot favorite your own listing.", code: "SELF" },
+      { status: HTTP_STATUS.BAD_REQUEST },
+    );
   }
   if (favorite.resultStatus === "BLOCKED") {
-    return privateJson({ error: "Blocked" }, { status: HTTP_STATUS.FORBIDDEN });
+    return privateJson({ error: "This listing isn’t available." }, { status: HTTP_STATUS.FORBIDDEN });
   }
 
   // Notify listing owner (non-fatal; createNotification handles exact duplicate suppression)

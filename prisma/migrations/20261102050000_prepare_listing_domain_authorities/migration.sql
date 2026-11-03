@@ -18,6 +18,7 @@ SELECT pg_catalog.pg_advisory_xact_lock(
 DO $grainline_listing_domain_preflight$
 DECLARE
   invalid_material_rows bigint;
+  invalid_dimension_rows bigint;
 BEGIN
   IF pg_catalog.to_regclass('public."Listing"') IS NULL THEN
     RAISE EXCEPTION 'Listing table is absent';
@@ -78,9 +79,14 @@ BEGIN
     RAISE EXCEPTION 'Listing owner-export authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
-       'public.grainline_listing_owner_summary_page(text,text,boolean,timestamp without time zone,text,integer)'
+       'public.grainline_listing_owner_summary_page(text,text,boolean,integer,timestamp without time zone,text,integer)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner-summary authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_workshop_summary()'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner workshop-summary authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_catalog_page(text,jsonb,integer,integer)'
@@ -279,14 +285,43 @@ BEGIN
         SELECT 1
           FROM pg_catalog.unnest(listing.materials) AS material(value)
          WHERE material.value IS NULL
+            OR pg_catalog.char_length(material.value) < 1
             OR pg_catalog.char_length(material.value) > 100
       );
   IF invalid_material_rows <> 0 THEN
     RAISE EXCEPTION 'Listing materials inventory contains % invalid rows',
       invalid_material_rows;
   END IF;
+
+  SELECT pg_catalog.count(*)
+    INTO invalid_dimension_rows
+    FROM public."Listing" AS listing
+   WHERE listing."productLengthIn" < 0
+      OR listing."productWidthIn" < 0
+      OR listing."productHeightIn" < 0
+      OR listing."packagedLengthCm" < 0
+      OR listing."packagedWidthCm" < 0
+      OR listing."packagedHeightCm" < 0
+      OR listing."packagedWeightGrams" < 0;
+  IF invalid_dimension_rows <> 0 THEN
+    RAISE EXCEPTION 'Listing dimension inventory contains % invalid rows',
+      invalid_dimension_rows;
+  END IF;
 END
 $grainline_listing_domain_preflight$;
+
+ALTER TABLE public."Listing"
+  ADD CONSTRAINT "Listing_product_dimensions_nonnegative_chk" CHECK (
+    ("productLengthIn" IS NULL OR "productLengthIn" >= 0)
+    AND ("productWidthIn" IS NULL OR "productWidthIn" >= 0)
+    AND ("productHeightIn" IS NULL OR "productHeightIn" >= 0)
+  ),
+  ADD CONSTRAINT "Listing_packaged_dimensions_nonnegative_chk" CHECK (
+    ("packagedLengthCm" IS NULL OR "packagedLengthCm" >= 0)
+    AND ("packagedWidthCm" IS NULL OR "packagedWidthCm" >= 0)
+    AND ("packagedHeightCm" IS NULL OR "packagedHeightCm" >= 0)
+    AND ("packagedWeightGrams" IS NULL OR "packagedWeightGrams" >= 0)
+  );
 
 CREATE FUNCTION public.grainline_seller_staff_listing_review_transition(
   p_actor_id text,
@@ -1698,6 +1733,7 @@ CREATE FUNCTION public.grainline_listing_owner_summary_page(
   p_status text,
   p_listing_type text,
   p_include_archived boolean,
+  p_offset integer,
   p_before_updated_at timestamp without time zone,
   p_before_listing_id text,
   p_limit integer
@@ -1748,6 +1784,9 @@ BEGIN
        AND p_listing_type NOT IN ('MADE_TO_ORDER', 'IN_STOCK')
      )
      OR p_include_archived IS NULL
+     OR p_offset IS NULL
+     OR p_offset < 0
+     OR p_offset > 100000
      OR (p_before_updated_at IS NULL) <> (p_before_listing_id IS NULL)
      OR (
        p_before_listing_id IS NOT NULL
@@ -1823,16 +1862,113 @@ BEGIN
        )
      )
    ORDER BY listing."updatedAt" DESC, listing.id DESC
+   OFFSET p_offset
    LIMIT p_limit;
 END
 $grainline_listing_owner_summary_page$;
 
 REVOKE ALL ON FUNCTION public.grainline_listing_owner_summary_page(
-  text,text,boolean,timestamp without time zone,text,integer
+  text,text,boolean,integer,timestamp without time zone,text,integer
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_summary_page(
-  text,text,boolean,timestamp without time zone,text,integer
+  text,text,boolean,integer,timestamp without time zone,text,integer
 ) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_workshop_summary()
+RETURNS TABLE (
+  "listingCount" bigint,
+  "statusCounts" jsonb,
+  "inStockCount" bigint,
+  "underReviewTitle" text,
+  "lowStock" jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_workshop_summary$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing workshop-summary actor is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH owner_listing AS MATERIALIZED (
+    SELECT listing.*
+      FROM public."Listing" AS listing
+     WHERE listing."sellerId" = seller_id
+       AND listing."archivedAt" IS NULL
+  )
+  SELECT
+    (SELECT pg_catalog.count(*) FROM owner_listing)::bigint,
+    COALESCE((
+      SELECT pg_catalog.jsonb_object_agg(grouped.status, grouped.total)
+        FROM (
+          SELECT listing.status::text AS status,
+                 pg_catalog.count(*)::bigint AS total
+            FROM owner_listing AS listing
+           GROUP BY listing.status
+        ) AS grouped
+    ), '{}'::jsonb),
+    (
+      SELECT pg_catalog.count(*)
+        FROM owner_listing AS listing
+       WHERE listing."listingType"::text = 'IN_STOCK'
+    )::bigint,
+    (
+      SELECT listing.title::text
+        FROM owner_listing AS listing
+       WHERE listing.status::text = 'PENDING_REVIEW'
+       ORDER BY listing."updatedAt" DESC, listing.id DESC
+       LIMIT 1
+    ),
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'title', low_stock.title,
+          'stockQuantity', low_stock."stockQuantity"
+        )
+        ORDER BY low_stock."stockQuantity" ASC, low_stock.id ASC
+      )
+        FROM (
+          SELECT listing.id, listing.title, listing."stockQuantity"
+            FROM owner_listing AS listing
+           WHERE listing.status::text = 'ACTIVE'
+             AND listing."listingType"::text = 'IN_STOCK'
+             AND listing."stockQuantity" BETWEEN 1 AND 2
+           ORDER BY listing."stockQuantity" ASC, listing.id ASC
+           LIMIT 3
+        ) AS low_stock
+    ), '[]'::jsonb);
+END
+$grainline_listing_owner_workshop_summary$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_workshop_summary()
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_workshop_summary()
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_counts()
 RETURNS TABLE (
@@ -2832,17 +2968,24 @@ BEGIN
            OR pg_catalog.char_length(material.value) NOT BETWEEN 1 AND 100
      )
      OR p_product_length_in = 'NaN'::double precision
+     OR p_product_length_in < 0
      OR p_product_length_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_product_width_in = 'NaN'::double precision
+     OR p_product_width_in < 0
      OR p_product_width_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_product_height_in = 'NaN'::double precision
+     OR p_product_height_in < 0
      OR p_product_height_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_length_cm = 'NaN'::double precision
+     OR p_packaged_length_cm < 0
      OR p_packaged_length_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_width_cm = 'NaN'::double precision
+     OR p_packaged_width_cm < 0
      OR p_packaged_width_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_height_cm = 'NaN'::double precision
+     OR p_packaged_height_cm < 0
      OR p_packaged_height_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_weight_grams < 0
      OR (p_category IS NOT NULL AND p_category NOT IN (
        'FURNITURE', 'KITCHEN', 'DECOR', 'TOOLS', 'TOYS',
        'JEWELRY', 'ART', 'OUTDOOR', 'STORAGE', 'OTHER'
@@ -3088,17 +3231,24 @@ BEGIN
            OR pg_catalog.char_length(material.value) > 100
      )
      OR p_product_length_in = 'NaN'::double precision
+     OR p_product_length_in < 0
      OR p_product_length_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_product_width_in = 'NaN'::double precision
+     OR p_product_width_in < 0
      OR p_product_width_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_product_height_in = 'NaN'::double precision
+     OR p_product_height_in < 0
      OR p_product_height_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_length_cm = 'NaN'::double precision
+     OR p_packaged_length_cm < 0
      OR p_packaged_length_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_width_cm = 'NaN'::double precision
+     OR p_packaged_width_cm < 0
      OR p_packaged_width_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_height_cm = 'NaN'::double precision
+     OR p_packaged_height_cm < 0
      OR p_packaged_height_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_weight_grams < 0
      OR (
        p_category IS NOT NULL
        AND p_category NOT IN (
@@ -3859,10 +4009,7 @@ BEGIN
       || '%';
   END IF;
 
-  IF (tag_filter IS NOT NULL AND (
-        pg_catalog.char_length(tag_filter) > 24
-        OR tag_filter !~ '^[[:alnum:]-]+$'
-      ))
+  IF (tag_filter IS NOT NULL AND pg_catalog.char_length(tag_filter) > 24)
      OR (category_filter IS NOT NULL AND category_filter NOT IN (
        'FURNITURE', 'KITCHEN', 'DECOR', 'TOOLS', 'TOYS', 'JEWELRY',
        'ART', 'OUTDOOR', 'STORAGE', 'OTHER'
@@ -3899,7 +4046,6 @@ BEGIN
                 partial_tag_matches || selected_tags
               ) AS catalog_tag(value)
         WHERE pg_catalog.char_length(catalog_tag.value) NOT BETWEEN 1 AND 24
-           OR catalog_tag.value !~ '^[[:alnum:]-]+$'
      )
      OR min_price_cents < 0
      OR min_price_cents > 50000000
@@ -5552,7 +5698,8 @@ BEGIN
      OR source_listing."updatedAt" IS DISTINCT FROM p_reviewed_at
      OR source_listing."archivedAt" IS NOT NULL
      OR (
-       p_status IN ('ACTIVE', 'SOLD_OUT')
+       p_source_status <> 'PENDING_REVIEW'
+       AND p_status IN ('ACTIVE', 'SOLD_OUT')
        AND NOT source_listing."sellerPubliclyOrderable"
      )
      OR (

@@ -94,7 +94,7 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
             handleOpen();
           }
         }}
-        className="inline-flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 rounded-full"
+        className="inline-flex origin-center transform-gpu items-center gap-1 rounded-full transition-transform duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 motion-safe:active:scale-[0.97]"
         aria-label={number ? `Founding Maker #${number}` : "Founding Maker"}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -141,7 +141,7 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
           ref={popoverRef}
           role="dialog"
           aria-label="Founding Maker"
-          className="popover-spring-in z-[1000] rounded-xl bg-white shadow-xl ring-1 ring-stone-200 p-4 text-left"
+          className="popover-spring-in z-[1000] rounded-2xl bg-white p-3.5 text-left popover-shadow"
           style={{
             position: "fixed",
             top: coords.top,

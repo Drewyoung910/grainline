@@ -16,7 +16,7 @@ function SubmitButton({ children }: { children: React.ReactNode }) {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 active:bg-neutral-100 disabled:opacity-50"
+      className="btn btn-secondary btn-sm active:bg-neutral-100"
     >
       {pending ? "Saving..." : children}
     </button>

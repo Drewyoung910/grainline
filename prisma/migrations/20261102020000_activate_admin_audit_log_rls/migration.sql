@@ -218,7 +218,12 @@ BEGIN
         AND procedure.proowner = table_owner AND procedure.prosecdef
         AND procedure.prokind = 'f'
         AND procedure.provolatile = expected_volatility
-        AND procedure.proparallel = 'u'
+        AND procedure.proparallel = CASE
+          WHEN reviewed_function =
+            'public.grainline_admin_audit_redact_deleted_references(jsonb)'
+          THEN 's'::"char"
+          ELSE 'u'::"char"
+        END
         AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
         AND pg_catalog.md5(procedure.prosrc) = expected_source_md5
         AND (owner_role.rolsuper OR owner_role.rolbypassrls)

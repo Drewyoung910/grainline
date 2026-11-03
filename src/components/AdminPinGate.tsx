@@ -154,7 +154,7 @@ export default function AdminPinGate({
         <button
           onClick={handleVerify}
           disabled={pin.length < 4 || locked || loading}
-          className="w-full rounded-md bg-neutral-900 text-white py-2.5 text-sm font-medium hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-md bg-[#2C1F1A] text-white py-2.5 text-sm font-medium hover:bg-[#3A2A24] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Verifying..." : "Verify"}
         </button>

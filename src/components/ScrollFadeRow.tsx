@@ -9,7 +9,8 @@ type Props = {
    * breakpoint so the fade doesn't mis-signal a static grid as scrollable.
    * `"sm"` disables fade at >= 640px (default seller-profile pattern).
    * `"lg"` disables at >= 1024px (Featured Work asymmetric grid).
-   * Omit for fade-always (homepage scroll rows). */
+   * Omit for fade-always (homepage scroll rows). The row deliberately has no
+   * arrow controls: touch, wheel, and trackpad scrolling are the interaction. */
   mobileOnly?: boolean;
   hideAtBreakpoint?: "sm" | "lg";
 };
@@ -54,7 +55,7 @@ export default function ScrollFadeRow({
       ro.observe(child);
     }
     return () => ro.disconnect();
-  }, [updateEdgeState]);
+  }, [updateEdgeState, children]);
 
   // Back-compat: mobileOnly === "sm" hide breakpoint.
   const breakpoint = hideAtBreakpoint ?? (mobileOnly ? "sm" : undefined);
@@ -68,7 +69,7 @@ export default function ScrollFadeRow({
     <div
       ref={ref}
       onScroll={updateEdgeState}
-      className={`${fadeClass} ${className}`}
+      className={`${fadeClass} scrollbar-hidden ${className}`}
     >
       {children}
     </div>

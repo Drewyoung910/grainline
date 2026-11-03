@@ -13,6 +13,13 @@ function exists(path) {
 }
 
 describe("local discovery and niche route loading boundaries", () => {
+  it("keeps the root template motion-free so navigation cannot replay an entrance", () => {
+    const template = source("src/app/template.tsx");
+    assert.match(template, /return children;/);
+    assert.doesNotMatch(template, /usePathname|key=\{pathname\}|PageEntrance|page-enter/);
+    assert.doesNotMatch(source("src/app/globals.css"), /@keyframes page-enter|\.page-enter/);
+  });
+
   it("keeps browse index and city fallbacks local instead of nesting generic loaders", () => {
     assert.equal(exists("src/app/browse/loading.tsx"), false);
     assert.equal(exists("src/app/browse/[metroSlug]/loading.tsx"), false);
@@ -120,7 +127,7 @@ describe("local discovery and niche route loading boundaries", () => {
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     assert.match(customListing, /<main className="mx-auto max-w-2xl p-8">/);
     assert.match(customListing, /className="card-section p-4"/);
-    assert.match(customListing, /min-h-\[44px\] rounded-md bg-neutral-900/);
+    assert.match(customListing, /className="btn btn-primary[^"]*"/);
     assert.doesNotMatch(customListing, /rounded-xl/);
     assert.doesNotMatch(customListing, /bg-black/);
   });

@@ -945,7 +945,7 @@ export default async function AdminVerificationPage({
                         </label>
                       </div>
                     )}
-                    <SubmitButton className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60 self-start">
+                    <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed self-start">
                       Approve Guild Member
                     </SubmitButton>
                   </ActionForm>
@@ -957,7 +957,7 @@ export default async function AdminVerificationPage({
                       placeholder="Rejection notes (optional)"
                       className="rounded-lg border px-3 py-2 text-sm w-56"
                     />
-                    <button type="submit" className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                    <button type="submit" className="btn btn-danger btn-sm">
                       Reject
                     </button>
                   </form>
@@ -1070,7 +1070,7 @@ export default async function AdminVerificationPage({
                   {m && mc ? (
                     <ActionForm action={approveGuildMaster}>
                       <input type="hidden" name="verificationId" value={v.id} />
-                      <SubmitButton className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60">
+                      <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed">
                         Approve Guild Master
                       </SubmitButton>
                     </ActionForm>
@@ -1078,7 +1078,7 @@ export default async function AdminVerificationPage({
                     <button
                       type="button"
                       disabled
-                      className="rounded-lg bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-500 disabled:cursor-not-allowed"
+                      className="btn btn-secondary btn-sm disabled:cursor-not-allowed"
                     >
                       Approval unavailable
                     </button>
@@ -1091,7 +1091,7 @@ export default async function AdminVerificationPage({
                       placeholder="Rejection notes (optional)"
                       className="rounded-lg border px-3 py-2 text-sm w-56"
                     />
-                    <button type="submit" className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                    <button type="submit" className="btn btn-danger btn-sm">
                       Reject
                     </button>
                   </form>
@@ -1138,7 +1138,7 @@ export default async function AdminVerificationPage({
                     <input type="hidden" name="sellerProfileId" value={s.id} />
                     <SubmitButton
                       pendingLabel="Revoking..."
-                      className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="btn btn-danger btn-sm disabled:cursor-not-allowed"
                     >
                       Revoke Badge
                     </SubmitButton>
@@ -1185,7 +1185,7 @@ export default async function AdminVerificationPage({
                     <input type="hidden" name="sellerProfileId" value={s.id} />
                     <SubmitButton
                       pendingLabel="Revoking..."
-                      className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="btn btn-danger btn-sm disabled:cursor-not-allowed"
                     >
                       Revoke Guild Master
                     </SubmitButton>
@@ -1224,7 +1224,7 @@ export default async function AdminVerificationPage({
                   <input type="hidden" name="sellerProfileId" value={s.id} />
                   <SubmitButton
                     pendingLabel="Reinstating..."
-                    className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn btn-success btn-sm disabled:cursor-not-allowed"
                   >
                     Reinstate
                   </SubmitButton>

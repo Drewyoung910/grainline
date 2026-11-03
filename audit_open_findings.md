@@ -1,5 +1,26 @@
 # Grainline Open Audit Findings
 
+## 2026-11-01 — Favorite failure feedback
+
+- **[CLAUDE B-01/B-05 VERIFIED; FIX PREPARED IN PR #715; NOT YET MERGED OR DEPLOYED]**
+  An unexpected account lookup failure was returned as 401, sending a signed-in
+  shopper back to sign-in, and the favorite button displayed arbitrary API
+  error strings. The candidate reserves 401 for a genuinely missing session,
+  returns a retryable 503 for an internal account lookup failure, replaces raw
+  database and blocked-pair text with stable shopper-safe copy, and maps client
+  feedback by status instead of trusting response text.
+
+## 2026-11-01 — Oversized listing gallery delivery
+
+- **[CLAUDE #1315 VERIFIED; FIX PREPARED IN PR #715; NOT YET MERGED OR DEPLOYED]**
+  The listing detail gallery rendered original R2 images in the main 4:5 slot
+  and every 64px thumbnail. A measured phone load transferred about 12.9 MB,
+  including multi-megapixel originals for thumbnails. The candidate uses the
+  Next image optimizer for the visible gallery photo and thumbnails, supplies
+  responsive `sizes`, preloads only the initial LCP photo, retains full-quality
+  originals only for the user-opened lightbox, and permits the optimizer to
+  fetch the current R2 origins plus historical UploadThing media.
+
 Last updated: 2026-10-18
 
 ## 2026-10-16 — Blocked-pair paid-checkout completion

@@ -221,7 +221,7 @@ export default function PrivacyPage() {
           <p>
             If you save a search, we store your search filters including search query, category,
             listing type, price range, shipping speed, rating, location radius, sort, and tags.
-            You may delete saved searches at any time from your dashboard.
+            You may delete saved searches at any time from your account.
           </p>
         </section>
 
@@ -556,6 +556,7 @@ export default function PrivacyPage() {
             <li><strong>Cloudflare security cookies (__cf_bm):</strong> Set by Cloudflare to distinguish humans from bots and protect against DDoS attacks. Expires after 30 minutes of inactivity.</li>
             <li><strong>Stripe cookies:</strong> Set by Stripe&apos;s client-side library (Stripe.js) on pages with payment functionality for fraud prevention and payment processing. Governed by Stripe&apos;s Cookie Policy.</li>
             <li><strong>Grainline rate-limiting cookies:</strong> httpOnly cookies that store up to 50 recently viewed or clicked listing IDs to prevent duplicate tracking counts. Expire within 24 hours.</li>
+            <li><strong>Grainline recent-search history:</strong> Up to 5 of your recent searches, kept in your browser&apos;s local storage so the search box can offer them again. The list stays on your device and is cleared when you sign out or clear it from the search box.</li>
             <li><strong>Grainline recently-viewed cookie:</strong> Client-side cookie containing listing IDs (up to 10) for your browsing history display. Expires after 30 days. Contains only listing identifiers — no personal information.</li>
           </ul>
           <p className="mt-3">

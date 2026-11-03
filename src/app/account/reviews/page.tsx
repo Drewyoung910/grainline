@@ -54,7 +54,7 @@ export default async function MyReviewsPage({
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
       <div className="mb-6">
         <Link href="/account" className="text-sm text-neutral-500 hover:underline">← My Account</Link>
-        <h1 className="text-2xl font-display font-semibold text-neutral-900 mt-2">My Reviews</h1>
+        <h1 className="font-display page-title text-neutral-900 mt-2">My Reviews</h1>
         <p className="text-sm text-neutral-500 mt-1">{totalReviews} review{totalReviews !== 1 ? "s" : ""}</p>
       </div>
 
@@ -127,7 +127,7 @@ export default async function MyReviewsPage({
           {page > 1 && (
             <Link
               href={`/account/reviews?page=${page - 1}`}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               ← Previous
             </Link>
@@ -138,7 +138,7 @@ export default async function MyReviewsPage({
           {page < totalPages && (
             <Link
               href={`/account/reviews?page=${page + 1}`}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next →
             </Link>

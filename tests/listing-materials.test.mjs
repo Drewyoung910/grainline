@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 const {
   MAX_LISTING_MATERIALS,
@@ -32,4 +33,14 @@ test("listing material length uses Unicode code points and rejects oversized ent
 test("listing materials never persist live markup", () => {
   const parsed = parseListingMaterials("<b>walnut</b>, maple");
   assert.deepEqual(parsed, { ok: true, value: ["walnut", "maple"] });
+});
+
+test("the preparation inventory refuses empty or oversized legacy materials", () => {
+  const migration = readFileSync(
+    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    "utf8",
+  );
+  assert.match(migration, /invalid_material_rows/u);
+  assert.match(migration, /char_length\(material\.value\) < 1/u);
+  assert.match(migration, /char_length\(material\.value\) > 100/u);
 });

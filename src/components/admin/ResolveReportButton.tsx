@@ -96,7 +96,7 @@ export function ResolveReportButton({ reportId }: { reportId: string }) {
             type="button"
             onClick={handleResolve}
             disabled={loading || !participantRationale.trim()}
-            className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="btn btn-primary btn-sm"
           >
             {loading ? "Resolving…" : "Resolve"}
           </button>

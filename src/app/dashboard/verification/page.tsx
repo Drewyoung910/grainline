@@ -47,7 +47,7 @@ const GUILD_MASTER_PREVIEW_REQUIREMENTS = [
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const checkboxClass =
-  "mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
+  "mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-[#2C1F1A] focus:ring-neutral-300";
 
 async function getGuildMemberEligibility({
   sellerProfileId,
@@ -261,7 +261,7 @@ export default async function VerificationPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-10 px-4 py-8 sm:px-8">
       <div>
-        <h1 className="text-2xl font-semibold font-display">Guild Verification Program</h1>
+        <h1 className="font-display page-title">Guild Verification Program</h1>
         <p className="text-neutral-600 mt-1 text-sm">
           Guild badges appear on your profile and listings to signal trust and performance to buyers.
         </p>
@@ -453,7 +453,7 @@ export default async function VerificationPage() {
 
                 <button
                   type="submit"
-                  className="rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] transition-colors"
+                  className="btn btn-primary"
                 >
                   Apply for Guild Member Badge
                 </button>
@@ -708,7 +708,7 @@ export default async function VerificationPage() {
 
                 <button
                   type="submit"
-                  className="rounded-md bg-indigo-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-600"
+                  className="btn btn-primary"
                 >
                   Apply for Guild Master Badge
                 </button>

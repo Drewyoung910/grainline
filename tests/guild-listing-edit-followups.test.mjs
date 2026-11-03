@@ -102,7 +102,7 @@ describe("guild and listing-edit audit follow-ups", () => {
       sellerProfilePrivateMigrationPath("20261014170000_prepare_seller_profile_private_guild_listing_threshold_authority"),
     );
     const newListing = source("src/app/dashboard/listings/new/page.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/dashboard/listings/actions.ts");
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
     const adminRemoveRoute = source("src/app/api/admin/listings/[id]/route.ts");

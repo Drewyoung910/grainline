@@ -9,6 +9,7 @@ import { maplibreSupported } from "@/lib/mapSupport";
 import { createMapPinElement } from "@/lib/mapPinElement";
 import MakerMapCard, { type MakerMapCardCache } from "@/components/MakerMapCard";
 import { formatCityState } from "@/lib/locationDisplay";
+import { paintGrainlineMapColors } from "@/lib/grainlineMapStyle";
 
 type Point = {
   id: string;
@@ -36,6 +37,33 @@ export default function AllSellersMap({
 }: Props) {
   const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  // Pins drop in the first time each maker appears on screen. Marker instances
+  // are retained across source and viewport updates so the drop is not cut off
+  // by a resize/moveend rebuild. Pins created while the map is still off screen
+  // keep their paused drop until it scrolls into view.
+  const droppedPinIdsRef = useRef(new Set<string>());
+  const pendingDropIdsRef = useRef(new Set<string>());
+
+  // Pin drops wait until the map is on screen (the homepage map starts below
+  // the fold); CSS keeps them paused until this attribute appears.
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      element.setAttribute("data-pins-visible", "");
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        element.setAttribute("data-pins-visible", "");
+        for (const id of pendingDropIdsRef.current) droppedPinIdsRef.current.add(id);
+        pendingDropIdsRef.current.clear();
+        observer.disconnect();
+      }
+    }, { threshold: 0.25 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const cardCache = useMemo<MakerMapCardCache>(() => new Map(), []);
   const [mapUnavailable, setMapUnavailable] = useState(false);
   // Pin selected for the maker-card overlay (rendered OUTSIDE maplibre,
@@ -71,12 +99,17 @@ export default function AllSellersMap({
         style: "https://tiles.openfreemap.org/styles/liberty",
         center,
         zoom: resolvedInitialZoom,
+        // Let the page keep scrolling over an embedded homepage map. Desktop
+        // visitors can zoom with Ctrl/Cmd + wheel; touch visitors use two
+        // fingers, matching MapLibre's cooperative interaction guidance.
+        cooperativeGestures: true,
       });
     } catch {
       setMapUnavailable(true);
       return;
     }
 
+    paintGrainlineMapColors(map);
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
@@ -128,7 +161,12 @@ export default function AllSellersMap({
         try {
           const zoom = await source.getClusterExpansionZoom(clusterId);
           const coords = (features[0].geometry as GeoJSON.Point).coordinates as [number, number];
-          map.easeTo({ center: coords, zoom });
+          // Land just beyond the first expansion boundary. At the exact
+          // boundary MapLibre can remove the cluster a frame before its leaf
+          // features are queryable, leaving a temporarily empty map until the
+          // visitor zooms again.
+          map.once("idle", updateMarkers);
+          map.easeTo({ center: coords, zoom: Math.min(zoom + 0.35, map.getMaxZoom()) });
         } catch {
           // ignore
         }
@@ -141,7 +179,7 @@ export default function AllSellersMap({
     // Clicking the map background (not a pin) dismisses the maker card.
     map.on("click", () => setSelectedPin(null));
 
-    const markers: maplibregl.Marker[] = [];
+    const markers = new Map<string, maplibregl.Marker>();
 
     // map.resize() can fire moveend before the load handler adds the source;
     // isSourceLoaded() on a missing source logs "There is no tile manager".
@@ -149,9 +187,6 @@ export default function AllSellersMap({
       Boolean(map.getSource("sellers")) && map.isSourceLoaded("sellers");
 
     function updateMarkers() {
-      markers.forEach(m => m.remove());
-      markers.length = 0;
-
       if (!sellersSourceReady()) return;
 
       const features = map.querySourceFeatures("sellers", {
@@ -160,12 +195,19 @@ export default function AllSellersMap({
 
       // Deduplicate by feature id since querySourceFeatures can return duplicates across tiles
       const seen = new Set<string>();
+      const pinsVisible = containerRef.current?.hasAttribute("data-pins-visible") ?? false;
+      let dropOrder = 0;
       for (const feature of features) {
         const id = feature.properties?.id as string;
         if (!id || seen.has(id)) continue;
         seen.add(id);
 
         const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
+        const existingMarker = markers.get(id);
+        if (existingMarker) {
+          existingMarker.setLngLat(coords);
+          continue;
+        }
         const props = feature.properties as Record<string, unknown> | null;
         const nameText = typeof props?.name === "string" ? props.name : "";
         const cityText = typeof props?.city === "string" ? props.city : null;
@@ -174,7 +216,18 @@ export default function AllSellersMap({
         // No maplibre popup — pin click opens the MakerMapCard overlay,
         // which lives outside the map canvas and can't be clipped by it.
         const selectPin = () => setSelectedPin({ id, name: nameText, city: cityText, state: stateText });
-        const marker = new maplibregl.Marker({ element: createMapPinElement(), anchor: "bottom" })
+        const pinElement = createMapPinElement();
+        if (!droppedPinIdsRef.current.has(id)) {
+          if (pinsVisible) droppedPinIdsRef.current.add(id);
+          else pendingDropIdsRef.current.add(id);
+          const pinGraphic = pinElement.firstElementChild as SVGElement | null;
+          if (pinGraphic) {
+            pinGraphic.classList.add("map-pin-drop");
+            pinGraphic.style.animationDelay = `${Math.min(dropOrder, 12) * 70}ms`;
+            dropOrder += 1;
+          }
+        }
+        const marker = new maplibregl.Marker({ element: pinElement, anchor: "bottom" })
           .setLngLat(coords)
           .addTo(map);
         const markerEl = marker.getElement();
@@ -193,7 +246,15 @@ export default function AllSellersMap({
           selectPin();
         });
 
-        markers.push(marker);
+        markers.set(id, marker);
+      }
+
+      // A pin that left the rendered source should disappear, but pins that
+      // remain visible keep their DOM node, focus state, and in-flight drop.
+      for (const [id, marker] of markers) {
+        if (seen.has(id)) continue;
+        marker.remove();
+        markers.delete(id);
       }
     }
 
@@ -227,7 +288,8 @@ export default function AllSellersMap({
       ro.disconnect();
       cancelAnimationFrame(raf);
       clearTimeout(settle);
-      markers.forEach(m => m.remove());
+      markers.forEach((marker) => marker.remove());
+      markers.clear();
       map.remove();
     };
   }, [points, initialCenter, initialZoom, mobileInitialZoom]);

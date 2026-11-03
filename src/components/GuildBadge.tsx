@@ -129,10 +129,10 @@ function GuildPopup({
         zIndex: 9999,
         width: 260,
         background: "white",
-        border: "1px solid #e7e5e4",
-        borderRadius: 12,
+        borderRadius: 14,
         padding: 14,
-        boxShadow: "0 10px 30px rgba(28,25,23,0.12)",
+        // Same card as the other popovers (popover-shadow in globals.css).
+        boxShadow: "0 24px 60px -24px rgba(0,0,0,0.45), 0 0 0 1px rgba(44,31,26,0.12)",
         opacity: isPositioned ? 1 : 0,
         transformOrigin: "top left",
       }}

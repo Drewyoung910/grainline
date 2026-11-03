@@ -527,7 +527,7 @@ export default async function NewListingPage({
         </div>
       )}
 
-      <h1 className="font-display text-2xl font-semibold mb-6">Create a listing</h1>
+      <h1 className="font-display page-title mb-6">Create a listing</h1>
 
       <ActionForm action={createListing} className="space-y-4" preventEnterSubmit preserveOnError>
         <div>
@@ -650,7 +650,7 @@ export default async function NewListingPage({
               title={publishBlockedMessage}
               pendingLabel="Publishing…"
               aria-describedby={publishBlockedMessage ? "publish-blocked-reason" : undefined}
-              className="w-full rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary w-full disabled:cursor-not-allowed"
             >
               Publish
             </SubmitButton>
@@ -659,7 +659,7 @@ export default async function NewListingPage({
             name="saveAsDraft"
             value="true"
             pendingLabel="Saving draft…"
-            className="flex-1 rounded-md border border-neutral-200 px-4 py-2.5 bg-white text-neutral-700 text-sm font-medium hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"
+            className="btn btn-secondary flex-1 disabled:cursor-wait"
           >
             Save as Draft
           </SubmitButton>

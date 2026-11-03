@@ -39,7 +39,7 @@ export default function StripeLoginButton({ hasStripeAccount }: { hasStripeAccou
       <button
         onClick={handleClick}
         disabled={loading}
-        className="rounded-md bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors disabled:opacity-50"
+        className="btn btn-primary btn-sm"
       >
         {loading ? "Opening…" : "Go to Stripe Dashboard →"}
       </button>

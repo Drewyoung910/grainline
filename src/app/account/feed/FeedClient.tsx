@@ -94,7 +94,7 @@ export default function FeedClient() {
         </p>
         <Link
           href="/map"
-          className="inline-flex min-h-10 items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+          className="btn btn-primary btn-sm justify-center"
         >
           Browse Makers →
         </Link>
@@ -109,7 +109,7 @@ export default function FeedClient() {
         ← My Account
       </Link>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold font-display">Your Feed</h1>
+        <h1 className="font-display page-title">Your Feed</h1>
         <Link href="/account/following" className="text-sm text-neutral-500 hover:underline">
           Manage following →
         </Link>
@@ -125,7 +125,7 @@ export default function FeedClient() {
             type="button"
             onClick={loadMore}
             disabled={loading}
-            className="inline-flex min-h-10 items-center justify-center border border-red-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+            className="btn btn-danger btn-sm justify-center"
           >
             {loading ? "Retrying..." : "Retry"}
           </button>
@@ -184,12 +184,19 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Link>
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
-        <div className="relative">
-          <Link href={listingHref} className="block">
+        <div>
+          <div className="photo-save-surface relative">
+            <Link href={listingHref} className="block">
             {item.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
+            </Link>
+            {item.id && (
+              <FavoriteButton listingId={item.id} initialSaved={!!item.isSaved} />
+            )}
+          </div>
+          <Link href={listingHref} className="block">
             <div className="p-4">
               <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
               {item.priceCents != null && (
@@ -199,9 +206,6 @@ function FeedCard({ item }: { item: FeedItem }) {
               )}
             </div>
           </Link>
-          {item.id && (
-            <FavoriteButton listingId={item.id} initialSaved={!!item.isSaved} />
-          )}
         </div>
       </article>
     );
@@ -219,12 +223,21 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Link>
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
-        <div className="relative">
-          <Link href={`/blog/${item.slug}`} className="block">
+        <div>
+          <div className="photo-save-surface relative">
+            <Link href={`/blog/${item.slug}`} className="block">
             {item.coverImageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.coverImageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
+            </Link>
+            {item.slug && (
+              <div className="absolute top-0 right-0 z-10">
+                <SaveBlogButton slug={item.slug} initialSaved={!!item.isSaved} />
+              </div>
+            )}
+          </div>
+          <Link href={`/blog/${item.slug}`} className="block">
             <div className="p-4">
               <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
               {item.excerpt && (
@@ -232,11 +245,6 @@ function FeedCard({ item }: { item: FeedItem }) {
               )}
             </div>
           </Link>
-          {item.slug && (
-            <div className="absolute top-2 right-2 z-10">
-              <SaveBlogButton slug={item.slug} initialSaved={!!item.isSaved} />
-            </div>
-          )}
         </div>
       </article>
     );

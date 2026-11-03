@@ -160,7 +160,7 @@ export default async function BrowseMetroCategoryPage({
       </p>
 
       {/* Category tabs */}
-      <div className="flex overflow-x-auto gap-2 pb-2 mb-6">
+      <div className="scrollbar-hidden flex overflow-x-auto gap-2 pb-2 mb-6">
         <Link
           href={`/browse/${metroSlug}`}
           className="flex-none whitespace-nowrap rounded-full bg-[#EFEAE0] px-4 py-1.5 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
@@ -173,7 +173,7 @@ export default async function BrowseMetroCategoryPage({
             href={`/browse/${metroSlug}/${cat.toLowerCase()}`}
             className={`flex-none whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               cat === categoryKey
-                ? "bg-neutral-900 text-white"
+                ? "bg-[#2C1F1A] text-white"
                 : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >

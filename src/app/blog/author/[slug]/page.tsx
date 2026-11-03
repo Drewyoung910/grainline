@@ -141,19 +141,21 @@ export default async function BlogAuthorPage({
   function PostCard({ post }: { post: AuthorPost }) {
     const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 140) : null;
     return (
-      <li className="card-listing relative">
-        <div className="absolute right-2 top-2 z-10">
-          <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
-        </div>
-        <Link href={`/blog/${post.slug}`} className="block">
-          <div className="aspect-[4/3] overflow-hidden bg-neutral-100">
+      <li className="card-listing">
+        <div className="photo-save-surface relative overflow-hidden bg-neutral-100">
+          <Link href={`/blog/${post.slug}`} className="block aspect-[4/3]">
             <MediaImage
               src={post.coverImageUrl}
               alt={post.title}
               className="h-full w-full object-cover"
               fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
             />
+          </Link>
+          <div className="absolute right-0 top-0 z-10">
+            <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
           </div>
+        </div>
+        <Link href={`/blog/${post.slug}`} className="block">
           <div className="space-y-2 p-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[post.type]}`}>

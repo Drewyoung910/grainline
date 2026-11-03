@@ -28,6 +28,13 @@ import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
+import RollingAmount from "@/components/RollingAmount";
+import RollingNumber from "@/components/RollingNumber";
+import { useToast } from "@/components/Toast";
+import { useQuantitySteps } from "@/lib/useQuantitySteps";
+
+const QUANTITY_STEP_CLASS =
+  "inline-flex size-9 touch-manipulation items-center justify-center text-base text-neutral-700 transition-colors hover:bg-[#EFEAE0] aria-disabled:cursor-not-allowed aria-disabled:text-neutral-300 aria-disabled:hover:bg-transparent [@media(pointer:coarse)]:size-11";
 
 function CartLoadingSkeleton() {
   return (
@@ -84,7 +91,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
       <div className="p-10 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600">
+        <div className="float-gently mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-[#2C1F1A]">
           <ShoppingBag size={28} />
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
@@ -118,6 +125,8 @@ type CartItem = {
   variantUnavailable?: boolean;
   stockExceeded?: boolean;
   variantLabels?: string[];
+  // Used to put a removed line back exactly as it was (Undo).
+  selectedVariantOptionIds?: string[];
   listing: {
     id: string;
     title: string;
@@ -184,6 +193,7 @@ function cartItemsFromAnonymous(items: AnonymousCartItem[]): CartItem[] {
     variantUnavailable: false,
     stockExceeded: false,
     variantLabels: item.snapshot.variantLabels ?? [],
+    selectedVariantOptionIds: item.selectedVariantOptionIds,
     listing: {
       id: item.listingId,
       title: item.snapshot.title,
@@ -259,6 +269,18 @@ function CartPage() {
   const router = useRouter();
 
   const [items, setItems] = React.useState<CartItem[]>([]);
+  const { toast, dismiss } = useToast();
+  // The full skeleton is for the first load only. Later reloads (quantity
+  // changes, price refreshes) keep the cart on screen so totals can roll to
+  // their new values instead of the whole page flashing.
+  const [hasLoadedCart, setHasLoadedCart] = React.useState(false);
+  // Rows fade out briefly before a removal is sent.
+  const [removingIds, setRemovingIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  // Lines whose quantity change is still being saved, mapped to the value
+  // picked, so the select shows it instead of snapping back meanwhile.
+  const [pendingQuantities, setPendingQuantities] = React.useState<ReadonlyMap<string, number>>(() => new Map());
+  const loadRequestRef = React.useRef(0);
+  const { drafts: stepDrafts, step: stepQuantity } = useQuantitySteps((itemId, quantity) => setQuantity(itemId, quantity));
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
@@ -281,10 +303,41 @@ function CartPage() {
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
+  // The step entrance plays briefly when the step changes, not whenever the
+  // cart re-renders after a reload.
+  const [animateStep, setAnimateStep] = React.useState(false);
+  const previousStepRef = React.useRef(step);
+  React.useEffect(() => {
+    if (previousStepRef.current === step) return;
+    previousStepRef.current = step;
+    setAnimateStep(false);
+    const frame = window.requestAnimationFrame(() => setAnimateStep(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [step]);
+  React.useEffect(() => {
+    if (!animateStep) return;
+    const main = document.querySelector<HTMLElement>("main[data-cart-steps]");
+    if (main) {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      const top = Math.max(0, main.getBoundingClientRect().top + window.scrollY - 12);
+      window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
+    }
+    const timer = window.setTimeout(() => setAnimateStep(false), 700);
+    return () => window.clearTimeout(timer);
+  }, [animateStep]);
 
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
   }, [clientSecrets]);
+  // Undo for a removed line only makes sense on the Cart step: once checkout
+  // moves on, a re-added line would not match the payment sessions it opens.
+  // Leaving the step takes any Undo toast with it.
+  const [undoToastIds, setUndoToastIds] = React.useState<number[]>([]);
+  React.useEffect(() => {
+    if (step === "review" || undoToastIds.length === 0) return;
+    undoToastIds.forEach(dismiss);
+    setUndoToastIds([]);
+  }, [step, undoToastIds, dismiss]);
 
   const clearCompletedCheckoutSessions = React.useCallback(() => {
     setCompletedSessionIds(new Set());
@@ -389,17 +442,25 @@ function CartPage() {
   }, [step, shippingAddress, clientSecrets, resumingCheckout]);
 
   async function load() {
+    // Two reloads can overlap, as when Undo lands during another line's save.
+    // Only the newest may write, or an older answer could hide a restored line.
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
+    const isStale = () => requestId !== loadRequestRef.current;
     setLoading(true);
     setError(null);
-    setNeedsSignIn(false);
     try {
       const anonymousItems = readAnonymousCartItems();
       const res = await fetch("/api/cart", { cache: "no-store" });
+      if (isStale()) return;
       if (res.status === 401) {
         setNeedsSignIn(true);
         setItems(cartItemsFromAnonymous(anonymousItems));
         return;
       }
+      // Cleared only once the server answers, so a reload never flashes the
+      // signed-in layout over a signed-out cart.
+      setNeedsSignIn(false);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || "Failed to load cart");
@@ -422,16 +483,22 @@ function CartPage() {
           throw new Error(data?.error || "Failed to load cart");
         }
         const refreshedData = await refreshed.json();
+        if (isStale()) return;
         setItems(refreshedData.items || []);
         return;
       }
 
       const data = await res.json();
+      if (isStale()) return;
       setItems(data.items || []);
     } catch (e) {
+      if (isStale()) return;
       setError((e as Error).message || "Failed to load cart");
     } finally {
-      setLoading(false);
+      if (!isStale()) {
+        setLoading(false);
+        setHasLoadedCart(true);
+      }
     }
   }
 
@@ -445,7 +512,7 @@ function CartPage() {
       const result = updateAnonymousCartItem(cartItemId, quantity);
       if (!result.ok) {
         setError("Could not update your saved cart in this browser.");
-        return;
+        return false;
       }
       setItems(cartItemsFromAnonymous(result.items));
       notifyCartUpdated();
@@ -454,9 +521,10 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
-      return;
+      return true;
     }
 
+    setPendingQuantities((current) => new Map(current).set(cartItemId, quantity));
     try {
       const res = await fetch("/api/cart/update", {
         method: "POST",
@@ -473,8 +541,58 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
+    } finally {
+      setPendingQuantities((current) => {
+        const next = new Map(current);
+        next.delete(cartItemId);
+        return next;
+      });
+    }
+  }
+
+  // Undo for a removed line: the saved browser cart gets the exact entry
+  // back in its old place; an account cart re-adds the same piece, options
+  // and quantity (at today's price).
+  async function restoreRemovedItem(
+    removed: CartItem,
+    anonymousEntry: { item: AnonymousCartItem; index: number } | null,
+  ) {
+    setError(null);
+    try {
+      if (anonymousEntry) {
+        const current = readAnonymousCartItems();
+        if (!current.some((entry) => entry.lineKey === anonymousEntry.item.lineKey)) {
+          const next = [...current];
+          next.splice(Math.min(anonymousEntry.index, next.length), 0, anonymousEntry.item);
+          if (!writeAnonymousCartItems(next)) throw new Error("Could not restore that item in this browser.");
+          setItems(cartItemsFromAnonymous(next));
+        }
+      } else {
+        const res = await fetch("/api/cart/add", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            listingId: removed.listing.id,
+            quantity: removed.quantity,
+            selectedVariantOptionIds: removed.selectedVariantOptionIds ?? [],
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Could not put that item back.");
+        await load();
+      }
+      notifyCartUpdated();
+      clearCartSessionStorage();
+      setSelectedRates({});
+      setClientSecrets([]);
+      setCurrentPaymentIndex(0);
+      clearCompletedCheckoutSessions();
+    } catch (e) {
+      toast((e as Error).message || "Could not put that item back.", "error");
     }
   }
 
@@ -504,20 +622,59 @@ function CartPage() {
     }
   }
 
-  if (loading) return <CartLoadingSkeleton />;
+  if (loading && !hasLoadedCart) return <CartLoadingSkeleton />;
+
+  // While a reload, a quantity change or a removal is in flight, quantity
+  // and Remove controls wait, so two updates (and their reloads) cannot race.
+  const cartBusy = loading || removingIds.size > 0 || pendingQuantities.size > 0 || stepDrafts.size > 0;
+
+  const removeItem = (cartItemId: string) => {
+    if (removingIds.has(cartItemId)) return;
+    const removed = items.find((item) => item.id === cartItemId);
+    let anonymousEntry: { item: AnonymousCartItem; index: number } | null = null;
+    if (needsSignIn) {
+      const saved = readAnonymousCartItems();
+      const index = saved.findIndex((entry) => entry.lineKey === cartItemId);
+      if (index >= 0) anonymousEntry = { item: saved[index], index };
+    }
+    const offerUndo = (ok: boolean) => {
+      if (!ok || !removed) return;
+      const id = toast("Removed from your cart", "info", {
+        action: { label: "Undo", onClick: () => void restoreRemovedItem(removed, anonymousEntry) },
+      });
+      setUndoToastIds((ids) => [...ids, id]);
+    };
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      void setQuantity(cartItemId, 0).then(offerUndo);
+      return;
+    }
+    setRemovingIds((current) => new Set(current).add(cartItemId));
+    window.setTimeout(() => {
+      void setQuantity(cartItemId, 0)
+        .then(offerUndo)
+        .finally(() => {
+          setRemovingIds((current) => {
+            const next = new Set(current);
+            next.delete(cartItemId);
+            return next;
+          });
+        });
+    }, 240);
+  };
 
   if (needsSignIn && items.length === 0) {
     return (
       <CartEmptyState>
         <Link
           href="/browse"
-          className="rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800"
+          className="btn btn-primary"
         >
           Browse the workshop
         </Link>
         <Link
           href={signInPathForRedirect("/cart")}
-          className="rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          className="btn btn-secondary"
         >
           Sign in
         </Link>
@@ -530,7 +687,7 @@ function CartPage() {
       <CartEmptyState>
         <Link
           href="/browse"
-          className="rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800"
+          className="btn btn-primary"
         >
           Browse the workshop
         </Link>
@@ -580,7 +737,7 @@ function CartPage() {
             <span className="font-medium">{g.sellerName}</span>
           </div>
           <div className="text-sm">
-            Subtotal: <span className="font-semibold">{formatCurrencyCents(g.subtotalCents, g.currency)}</span>
+            Subtotal: <RollingAmount cents={g.subtotalCents} currency={g.currency} className="font-semibold" />
           </div>
         </header>
 
@@ -590,30 +747,34 @@ function CartPage() {
             const unitPriceCents = i.livePriceCents ?? i.priceCents;
             const lineCents = unitPriceCents * i.quantity;
             const listingIsActive = !i.listing.status || i.listing.status === "ACTIVE";
-            const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
-              <li key={i.id} className="flex items-center gap-3 py-3">
-                {img ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
-                ) : (
-                  <div className="h-16 w-16 rounded bg-neutral-100" />
-                )}
-
-                <div className="min-w-0 flex-1">
-                  {listingIsActive ? (
-                    <Link href={publicListingPath(i.listing.id, i.listing.title)} className="block truncate text-sm font-medium hover:underline">
-                      {i.listing.title}
-                    </Link>
+              <li
+                key={i.id}
+                className={`cart-row${removingIds.has(i.id) ? " cart-row-leaving" : ""}`}
+                aria-busy={removingIds.has(i.id) || undefined}
+              >
+                <div className="cart-row-content flex items-center gap-3 py-3">
+                  {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
                   ) : (
-                    <span className="block truncate text-sm font-medium text-neutral-700">
-                      {i.listing.title}
-                    </span>
+                    <div className="h-16 w-16 rounded bg-neutral-100" />
                   )}
-                  {(i.variantLabels ?? []).length > 0 && (
-                    <p className="text-xs text-neutral-500 mt-0.5">{(i.variantLabels ?? []).join(" · ")}</p>
-                  )}
+
+                  <div className="min-w-0 flex-1">
+                    {listingIsActive ? (
+                      <Link href={publicListingPath(i.listing.id, i.listing.title)} className="block truncate text-sm font-medium hover:underline">
+                        {i.listing.title}
+                      </Link>
+                    ) : (
+                      <span className="block truncate text-sm font-medium text-neutral-700">
+                        {i.listing.title}
+                      </span>
+                    )}
+                    {(i.variantLabels ?? []).length > 0 && (
+                      <p className="text-xs text-neutral-500 mt-0.5">{(i.variantLabels ?? []).join(" · ")}</p>
+                    )}
 
                   {!listingIsActive && (
                     <div className="text-xs text-red-600 mt-0.5">This item is no longer available</div>
@@ -635,7 +796,7 @@ function CartPage() {
                     </div>
                   )}
 
-                  <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
+                    <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
                     <span className="shrink-0">{formatCurrencyCents(unitPriceCents, i.listing.currency)} each</span>
                     {i.priceChanged && !i.variantUnavailable && (
                       <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
@@ -658,40 +819,67 @@ function CartPage() {
                           </span>
                         );
                       }
+                      const shownQuantity = stepDrafts.get(i.id) ?? (pendingQuantities.get(i.id) || i.quantity);
+                      // Busy elsewhere waits; this line's own presses keep
+                      // counting and collapse into one more save.
+                      const controlsWait = cartBusy && !stepDrafts.has(i.id);
+                      const atLeast = controlsWait || shownQuantity <= 1;
+                      // A line can be over stock after someone else buys. One
+                      // press brings it down to what's available, because the
+                      // server would refuse every quantity in between.
+                      const stockLimit = Math.max(1, i.listing.maxQuantity ?? 99);
+                      const atMost = controlsWait || shownQuantity >= stockLimit;
                       return (
-                        <>
-                          <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
-                            Qty
-                          </label>
-                          <select
-                            id={quantitySelectId}
-                            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
-                            value={i.quantity}
-                            onChange={(e) => setQuantity(i.id, Number(e.target.value))}
+                        <div
+                          role="group"
+                          aria-label={`Quantity of ${i.listing.title}`}
+                          className="inline-flex shrink-0 items-center rounded-md border border-neutral-200 bg-white"
+                        >
+                          {/* aria-disabled rather than disabled, so a keyboard
+                              user keeps focus on the button while it saves. */}
+                          <button
+                            type="button"
+                            aria-label="One fewer"
+                            aria-disabled={atLeast || undefined}
+                            className={QUANTITY_STEP_CLASS}
+                            onClick={() => {
+                              if (!atLeast) void stepQuantity(i.id, Math.min(shownQuantity - 1, stockLimit));
+                            }}
                           >
-                            {Array.from({ length: maxQty }).map((_, idx) => {
-                              const n = idx + 1;
-                              return (
-                                <option key={n} value={n}>{n}</option>
-                              );
-                            })}
-                          </select>
-                        </>
+                            <span aria-hidden="true">−</span>
+                          </button>
+                          <span aria-live="polite" className="min-w-7 px-1 text-center text-sm font-medium text-neutral-900">
+                            <RollingNumber value={shownQuantity} grouped={false} />
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="One more"
+                            aria-disabled={atMost || undefined}
+                            className={QUANTITY_STEP_CLASS}
+                            onClick={() => {
+                              if (!atMost) void stepQuantity(i.id, shownQuantity + 1);
+                            }}
+                          >
+                            <span aria-hidden="true">+</span>
+                          </button>
+                        </div>
                       );
                     })()}
 
                     <button
                       type="button"
-                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50"
-                      onClick={() => setQuantity(i.id, 0)}
+                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50 disabled:opacity-50"
+                      disabled={cartBusy}
+                      onClick={() => removeItem(i.id)}
                     >
                       Remove
                     </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="text-sm font-medium shrink-0">
-                  {formatCurrencyCents(lineCents, i.listing.currency)}
+                  <div className="text-sm font-medium shrink-0">
+                    <RollingAmount cents={lineCents} currency={i.listing.currency} />
+                  </div>
                 </div>
               </li>
             );
@@ -832,33 +1020,42 @@ function CartPage() {
     setRollingBackCheckout(false);
   }
 
+  const checkoutSteps = [
+    { key: "review", label: "Cart" },
+    { key: "address", label: "Address" },
+    { key: "shipping", label: "Shipping" },
+    { key: "payment", label: "Payment" },
+  ] as const;
+  const currentStepIndex = Math.max(0, checkoutSteps.findIndex((entry) => entry.key === step));
+
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+    <main data-cart-steps={animateStep ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
-      {/* Step indicator */}
-      <div className="rounded-full bg-[#EFEAE0] px-4 py-2 inline-flex items-center gap-2 text-sm mb-6">
-        {[
-          { key: "review", label: "Cart" },
-          { key: "address", label: "Address" },
-          { key: "shipping", label: "Shipping" },
-          { key: "payment", label: "Payment" },
-        ].map((s, i) => (
-          <span key={s.key} className="flex items-center gap-2">
-            {i > 0 && <span className="text-neutral-500" aria-hidden="true">›</span>}
-            <span className={
-              step === s.key
-                ? "text-neutral-900 font-semibold"
-                : "text-neutral-500"
-            }>
-              {s.label}
-            </span>
-          </span>
+      {/* A restrained underline moves between steps. It keeps the progress
+          animation without nesting a second white pill inside the track. */}
+      <ol className="relative mb-6 grid w-full max-w-md grid-cols-4 rounded-xl bg-[#EFEAE0] px-1 py-2 text-sm" aria-label="Checkout progress">
+        <li
+          role="presentation"
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-1 left-1 h-0.5 w-[calc((100%_-_0.5rem)/4)] rounded-full bg-[#2C1F1A] transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
+          style={{ transform: `translateX(${currentStepIndex * 100}%)` }}
+        />
+        {checkoutSteps.map((entry) => (
+          <li
+            key={entry.key}
+            aria-current={step === entry.key ? "step" : undefined}
+            className={`relative z-[1] px-1 pb-1 text-center transition-colors duration-300 ${
+              step === entry.key ? "font-semibold text-neutral-900" : "text-neutral-600"
+            }`}
+          >
+            {entry.label}
+          </li>
         ))}
-      </div>
+      </ol>
 
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -870,7 +1067,9 @@ function CartPage() {
 
           <div className="flex items-center justify-end gap-4">
             <div className="text-sm text-neutral-600">Subtotal (items only)</div>
-            <div className="text-lg font-semibold">{formatCurrencyCents(grandTotal, cartCurrency)}</div>
+            <div className="text-lg font-semibold">
+              <RollingAmount cents={grandTotal} currency={cartCurrency} />
+            </div>
           </div>
 
           {hasUnavailable && (
@@ -894,6 +1093,7 @@ function CartPage() {
               <button
                 type="button"
                 onClick={refreshChangedPrices}
+                disabled={cartBusy}
                 className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
               >
                 Accept updated prices
@@ -915,18 +1115,22 @@ function CartPage() {
           {needsSignIn ? (
             <Link
               href={signInPathForRedirect("/cart")}
-              className="inline-flex w-full items-center justify-center rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
+              className="btn btn-primary w-full sm:w-auto"
             >
               Sign in to checkout →
             </Link>
           ) : (
             <button
               onClick={() => {
+                // Waits for a running save without dimming, so the button
+                // doesn't blink on every quantity press.
+                if (cartBusy) return;
                 setStep("address");
                 router.replace("/cart?step=address", { scroll: false });
               }}
               disabled={items.length === 0 || hasBlockingCartChange}
-              className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+              aria-busy={cartBusy || undefined}
+              className="btn btn-primary mt-6 w-full sm:w-auto"
             >
               Continue to shipping →
             </button>
@@ -1019,16 +1223,14 @@ function CartPage() {
                 {groups.some((g) => giftBySeller[g.sellerId]?.giftWrapping) && (
                   <div className="flex justify-between text-sm text-neutral-600">
                     <span>Gift wrapping</span>
-                    <span>
-                      {formatCurrencyCents(totalGiftWrappingCents, cartCurrency)}
-                    </span>
+                    <RollingAmount cents={totalGiftWrappingCents} currency={cartCurrency} />
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Shipping</span>
                   <span className="font-medium">
                     {allRatesSelected
-                      ? formatCurrencyCents(totalShippingCents, cartCurrency)
+                      ? <RollingAmount cents={totalShippingCents} currency={cartCurrency} />
                       : "Selecting..."}
                   </span>
                 </div>
@@ -1041,7 +1243,7 @@ function CartPage() {
                   <span className="text-neutral-900">Estimated total</span>
                   <span className="font-semibold">
                     {allRatesSelected
-                      ? formatCurrencyCents(grandTotal + totalShippingCents + totalGiftWrappingCents, cartCurrency)
+                      ? <RollingAmount cents={grandTotal + totalShippingCents + totalGiftWrappingCents} currency={cartCurrency} />
                       : `${formatCurrencyCents(grandTotal + totalGiftWrappingCents, cartCurrency)}+`}
                   </span>
                 </div>
@@ -1050,7 +1252,7 @@ function CartPage() {
               <button
                 onClick={handleProceedToPayment}
                 disabled={!allRatesSelected || creatingSession || hasBlockingCartChange}
-                className="w-full rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary w-full"
               >
                 {creatingSession ? "Preparing checkout..." : "Continue to payment →"}
               </button>

@@ -21,7 +21,7 @@ export default function AccountDeletedPage() {
         <div className="mt-6">
           <Link
             href="/"
-            className="inline-flex rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
+            className="btn btn-primary btn-sm"
           >
             Return home
           </Link>

@@ -6,6 +6,7 @@ import SellerLocationSearch from "@/components/SellerLocationSearch";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
 import { sellerLocationPoint } from "@/lib/sellerShopSettingsInput";
+import { paintGrainlineMapColors } from "@/lib/grainlineMapStyle";
 
 const DEFAULT_MAP_CENTER: [number, number] = [30.2672, -97.7431];
 
@@ -80,6 +81,7 @@ export default function LocationPicker({
       return;
     }
 
+    paintGrainlineMapColors(map);
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 

@@ -1,12 +1,14 @@
 "use client";
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Filter } from "@/components/icons";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { normalizeTags } from "@/lib/tags";
+import SegmentedControl from "@/components/SegmentedControl";
+import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
 
 const SORT_LABELS: Record<string, string> = {
   relevant: "Relevant",
@@ -17,6 +19,7 @@ const SORT_LABELS: Record<string, string> = {
 };
 
 export default function MobileFilterBar({ popularTags }: { popularTags: string[] }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
@@ -29,6 +32,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const [geoLng, setGeoLng] = React.useState(searchParams.get("lng") ?? "");
   const [locating, setLocating] = React.useState(false);
   const [geoError, setGeoError] = React.useState<string | null>(null);
+  const [priceError, setPriceError] = React.useState<string | null>(null);
   const [mounted, setMounted] = React.useState(false);
   const filterSheetRef = React.useRef<HTMLDivElement>(null);
   const sortSheetRef = React.useRef<HTMLDivElement>(null);
@@ -102,6 +106,10 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const currentMax = searchParams.get("max") ?? "";
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   const currentRadius = searchParams.get("radius") ?? "";
+  const hasAppliedPrice = Boolean(
+    (currentMin && cleanBrowsePriceInput(currentMin) !== null)
+    || (currentMax && cleanBrowsePriceInput(currentMax) !== null),
+  );
 
   const sortLabel = SORT_LABELS[currentSort] ?? "Sort";
 
@@ -111,12 +119,39 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     currentShips,
     currentRating,
     geoLat && geoLng ? "loc" : null,
-    currentMin,
-    currentMax,
+    hasAppliedPrice ? "price" : null,
     ...selectedTags,
   ].filter(Boolean).length;
 
   const filterFormId = `${baseId}-mobile-filters`;
+
+  function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const min = cleanBrowsePriceInput(String(data.get("min") ?? ""));
+    const max = cleanBrowsePriceInput(String(data.get("max") ?? ""));
+    if (min === null || max === null) {
+      setPriceError("Enter a price like $1,250 or 49.99.");
+      return;
+    }
+
+    setPriceError(null);
+    const params = new URLSearchParams();
+    for (const [key, value] of data.entries()) {
+      if (typeof value !== "string" || key === "min" || key === "max") continue;
+      const trimmed = value.trim();
+      if (trimmed) params.append(key, trimmed);
+    }
+    if (min) params.set("min", min);
+    if (max) params.set("max", max);
+    params.delete("page");
+
+    setMobileOpen(false);
+    const query = params.toString();
+    router.push(query ? `/browse?${query}` : "/browse", { scroll: false });
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }
 
   const form = (
     <form
@@ -124,6 +159,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       id={filterFormId}
       method="get"
       action="/browse"
+      onSubmit={handleFilterSubmit}
       className="space-y-5 text-sm"
     >
       {/* Preserve q and view */}
@@ -143,7 +179,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           id={`${baseId}-mobile-category`}
           name="category"
           defaultValue={currentCategory}
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm min-h-[44px]"
+          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
         >
           <option value="">All categories</option>
           {CATEGORY_VALUES.map((v) => (
@@ -154,27 +190,20 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         </select>
       </div>
 
-      {/* Listing type */}
+      {/* Availability (sliding toggle, submitted with the form) */}
       <fieldset>
-        <legend className="font-medium mb-1.5">Listing type</legend>
-        <div className="space-y-1.5">
-          {[
+        <legend className="font-medium mb-1.5">Availability</legend>
+        <SegmentedControl
+          label="Availability"
+          name="type"
+          fullWidth
+          value={currentType}
+          options={[
             { value: "", label: "All" },
-            { value: "IN_STOCK", label: "In Stock" },
-            { value: "MADE_TO_ORDER", label: "Made to Order" },
-          ].map(({ value, label }) => (
-            <label key={value} className="flex items-center gap-2 cursor-pointer min-h-[44px]">
-              <input
-                type="radio"
-                name="type"
-                value={value}
-                defaultChecked={currentType === value}
-                className="h-4 w-4 accent-neutral-900"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
+            { value: "IN_STOCK", label: "In stock" },
+            { value: "MADE_TO_ORDER", label: "Made to order" },
+          ]}
+        />
       </fieldset>
 
       {/* Ships within */}
@@ -188,7 +217,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           min="1"
           defaultValue={currentShips}
           placeholder="e.g. 7"
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
+          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
         />
       </div>
 
@@ -199,7 +228,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           id={`${baseId}-mobile-rating`}
           name="rating"
           defaultValue={currentRating}
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
+          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
         >
           <option value="">Any rating</option>
           <option value="4">★★★★ and up</option>
@@ -218,10 +247,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             name="min"
             type="text"
             inputMode="decimal"
-            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMin}
             placeholder="Min"
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
           <span className="text-neutral-500 shrink-0">–</span>
           <label htmlFor={`${baseId}-mobile-max`} className="sr-only">Maximum price</label>
@@ -230,12 +258,12 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             name="max"
             type="text"
             inputMode="decimal"
-            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMax}
             placeholder="Max"
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
         </div>
+        {priceError && <p role="alert" className="mt-2 text-xs text-red-700">{priceError}</p>}
       </fieldset>
 
       {/* Sort */}
@@ -245,7 +273,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           id={`${baseId}-mobile-sort`}
           name="sort"
           defaultValue={currentSort}
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
+          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
         >
           {q && <option value="relevant">Most relevant</option>}
           <option value="newest">Newest</option>
@@ -262,7 +290,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           <button
             type="button"
             onClick={detectLocation}
-            className="rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs hover:bg-neutral-50 min-h-[44px]"
+            className="min-h-[44px] rounded-xl border border-neutral-200 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
           >
             {locating ? "Detecting…" : "Use my location"}
           </button>
@@ -285,7 +313,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             min="1"
             defaultValue={currentRadius}
             placeholder="Radius (miles)"
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 min-h-[44px] text-sm"
+            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
         </div>
       </fieldset>
@@ -300,13 +328,17 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       <button
         type="submit"
         form={filterFormId}
-        className="flex-1 rounded-md bg-neutral-900 text-white px-3 py-2 text-sm font-semibold hover:bg-neutral-800 min-h-[44px]"
+        className="btn btn-sm btn-primary flex-1"
       >
         Apply
       </button>
       <Link
         href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
-        className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50 min-h-[44px] flex items-center"
+        onClick={() => {
+          setPriceError(null);
+          setMobileOpen(false);
+        }}
+        className="btn btn-sm btn-secondary"
       >
         Reset
       </Link>
@@ -325,7 +357,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
               href={tagToggleHref(t)}
               className={`inline-flex min-h-[44px] items-center rounded-full px-3 py-1 text-xs transition-colors ${
                 active
-                  ? "bg-neutral-900 text-white"
+                  ? "bg-[#2C1F1A] text-white"
                   : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
               }`}
             >
@@ -341,7 +373,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             <Link
               key={t}
               href={tagToggleHref(t)}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-neutral-900 text-white"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-[#2C1F1A] text-white"
             >
               {t.replace(/[-_]+/g, " ")} <span className="opacity-70">✕</span>
             </Link>
@@ -356,7 +388,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       {/* Backdrop — z-[60]/z-[61] sit above the site header (z-50) so the
           header is dimmed and can't be tapped while this modal sheet is open */}
       <div
-        className="fixed inset-0 z-[60] bg-black/40 md:hidden"
+        className="fixed inset-0 z-[60] bg-[#14100D]/40 modal-backdrop-in md:hidden"
         onClick={() => setMobileOpen(false)}
         aria-hidden="true"
       />
@@ -371,7 +403,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-modal="true"
         aria-label="Filters"
         tabIndex={-1}
-        className="fixed inset-x-0 bottom-0 z-[61] flex flex-col bg-white rounded-t-2xl max-h-[85dvh] md:hidden animate-slide-up shadow-2xl after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white"
+        className="fixed inset-x-0 bottom-0 z-[61] flex max-h-[85dvh] flex-col rounded-t-3xl bg-white shadow-2xl animate-slide-up after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white md:hidden"
       >
         {/* Header row */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
@@ -385,7 +417,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto overscroll-contain flex-1 px-4 py-4">
+        <div className="scrollbar-hidden overflow-y-auto overscroll-contain flex-1 px-4 py-4">
           {form}
           {tagsSection}
         </div>
@@ -402,7 +434,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     <>
       {/* Backdrop — above the site header, same as the filter sheet */}
       <div
-        className="fixed inset-0 z-[60] bg-black/40 md:hidden"
+        className="fixed inset-0 z-[60] bg-[#14100D]/40 modal-backdrop-in md:hidden"
         onClick={() => setSortOpen(false)}
         aria-hidden="true"
       />
@@ -414,7 +446,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-modal="true"
         aria-label="Sort listings"
         tabIndex={-1}
-        className="fixed inset-x-0 bottom-0 z-[61] flex flex-col bg-white rounded-t-2xl max-h-[50dvh] md:hidden animate-slide-up shadow-2xl after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white"
+        className="fixed inset-x-0 bottom-0 z-[61] flex max-h-[50dvh] flex-col rounded-t-3xl bg-white shadow-2xl animate-slide-up after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white md:hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
@@ -429,7 +461,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
         {/* Sort options — each navigates and closes sheet. Bottom padding
             keeps the last option clear of the iPhone home indicator. */}
-        <div className="overflow-y-auto overscroll-contain pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+        <div className="scrollbar-hidden overflow-y-auto overscroll-contain pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
           {q && (
             <Link
               href={sortHref("relevant")}
@@ -469,15 +501,15 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
       {/* top-[2px] + pt-3 pulls bar 2px below viewport top so button outlines aren't clipped */}
-      <div className="md:hidden sticky top-[2px] z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-3 pb-3 flex items-center gap-3">
+      <div className="md:hidden sticky top-[var(--site-header-offset)] z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-3 pb-3 flex items-center gap-3">
           <button
             onClick={() => setMobileOpen(true)}
-            className="mt-[2px] inline-flex items-center gap-2 rounded-md border border-neutral-200 bg-[#EFEAE0] px-4 py-2.5 text-sm font-medium text-neutral-800 hover:bg-[#E5DFD2] transition-colors min-h-[44px]"
+            className="btn btn-sm btn-secondary mt-0.5"
           >
             <Filter size={16} />
             Filters
             {activeFilterCount > 0 && (
-              <span className="inline-flex items-center rounded-full bg-neutral-900 text-white px-1.5 py-0.5 text-[11px] font-medium leading-none">
+              <span className="inline-flex items-center rounded-full bg-[#2C1F1A] text-white px-1.5 py-0.5 text-[11px] font-medium leading-none">
                 {activeFilterCount}
               </span>
             )}
@@ -485,7 +517,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
           <button
             onClick={() => setSortOpen(true)}
-            className="mt-[2px] inline-flex items-center gap-2 rounded-md border border-neutral-200 bg-[#EFEAE0] px-4 py-2.5 text-sm font-medium text-neutral-800 hover:bg-[#E5DFD2] transition-colors min-h-[44px]"
+            className="btn btn-sm btn-secondary mt-0.5"
           >
             Sort: {sortLabel}
           </button>

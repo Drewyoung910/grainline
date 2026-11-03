@@ -19,3 +19,15 @@ test("listing reviews reuse the authorized seller card instead of querying Selle
     /select:\s*\{\s*seller:\s*\{\s*select:\s*\{\s*userId:/u,
   );
 });
+
+test("the buyer's own review shows the maker reply with the shared reply card", () => {
+  assert.match(reviewsSection, /function SellerReplyCard\(/u);
+  assert.match(
+    reviewsSection,
+    /mine\.sellerReply[\s\S]*<SellerReplyCard[\s\S]*reply=\{mine\.sellerReply\}[\s\S]*repliedAt=\{mine\.sellerReplyAt\}/u,
+  );
+  assert.match(
+    reviewsSection,
+    /r\.sellerReply[\s\S]*<SellerReplyCard[\s\S]*reply=\{r\.sellerReply\}[\s\S]*repliedAt=\{r\.sellerReplyAt\}/u,
+  );
+});

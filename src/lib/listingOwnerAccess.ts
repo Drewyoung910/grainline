@@ -296,6 +296,14 @@ type ListingOwnerCountsRow = {
   oldestListingId: unknown;
 };
 
+type ListingOwnerWorkshopSummaryRow = {
+  listingCount: unknown;
+  statusCounts: unknown;
+  inStockCount: unknown;
+  underReviewTitle: unknown;
+  lowStock: unknown;
+};
+
 type ListingOwnerActionStateRow = {
   listingId: unknown;
   sellerProfileId: unknown;
@@ -355,7 +363,19 @@ export type ListingOwnerSummaryOptions = Readonly<{
   status?: ListingStatus;
   listingType?: ListingType;
   includeArchived?: boolean;
+  skip?: number;
   take?: number;
+}>;
+
+export type ListingOwnerWorkshopSummary = Readonly<{
+  listingCount: number;
+  statusCounts: Readonly<Record<string, number>>;
+  inStock: number;
+  underReviewTitle: string | null;
+  lowStock: ReadonlyArray<Readonly<{
+    title: string;
+    stockQuantity: number;
+  }>>;
 }>;
 
 export type ListingOwnerCountsState = Readonly<{
@@ -423,6 +443,15 @@ function validNullableSafeInteger(value: unknown): value is number | null {
 
 function validNullableFinite(value: unknown): value is number | null {
   return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+function validNullableNonnegativeNumber(value: unknown): value is number | null {
+  return value === null
+    || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+
+function validNullableNonnegativeInteger(value: unknown): value is number | null {
+  return value === null || (validSafeInteger(value) && value >= 0);
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {
@@ -663,7 +692,7 @@ async function readListingOwnerEditor(
     || (row.metaDescription !== null && !isTextWithinCodePointRange(row.metaDescription, 0, 320))
     || !Array.isArray(row.materials)
     || row.materials.length > 20
-    || !row.materials.every((material) => isTextWithinCodePointRange(material, 1, 100))
+    || !row.materials.every((material) => typeof material === "string")
     || !validNullableFinite(row.productLengthIn)
     || !validNullableFinite(row.productWidthIn)
     || !validNullableFinite(row.productHeightIn)
@@ -710,6 +739,7 @@ async function readListingOwnerEditor(
 }
 
 export function listingOwnerEditor(userId: string, listingId: string) {
+  if (!validId(listingId)) return Promise.resolve(null);
   return withDbUserContext(
     userId,
     (client) => readListingOwnerEditor(client, listingId),
@@ -925,13 +955,13 @@ export function createListingOwner(
     || !Array.isArray(input.materials)
     || input.materials.length > 20
     || !input.materials.every((material) => isTextWithinCodePointRange(material, 1, 100))
-    || !validNullableFinite(input.productLengthIn)
-    || !validNullableFinite(input.productWidthIn)
-    || !validNullableFinite(input.productHeightIn)
-    || !validNullableFinite(input.packagedLengthCm)
-    || !validNullableFinite(input.packagedWidthCm)
-    || !validNullableFinite(input.packagedHeightCm)
-    || !validNullableSafeInteger(input.packagedWeightGrams)
+    || !validNullableNonnegativeNumber(input.productLengthIn)
+    || !validNullableNonnegativeNumber(input.productWidthIn)
+    || !validNullableNonnegativeNumber(input.productHeightIn)
+    || !validNullableNonnegativeNumber(input.packagedLengthCm)
+    || !validNullableNonnegativeNumber(input.packagedWidthCm)
+    || !validNullableNonnegativeNumber(input.packagedHeightCm)
+    || !validNullableNonnegativeInteger(input.packagedWeightGrams)
     || !(input.category === null || CATEGORIES.has(input.category))
     || !LISTING_TYPES.has(input.listingType)
     || !validNullableSafeInteger(input.stockQuantity)
@@ -1125,13 +1155,13 @@ export async function updateListingOwnerContent(
     || !input.materials.every((material) =>
       isTextWithinCodePointRange(material, 1, 100)
     )
-    || !validNullableFinite(input.productLengthIn)
-    || !validNullableFinite(input.productWidthIn)
-    || !validNullableFinite(input.productHeightIn)
-    || !validNullableFinite(input.packagedLengthCm)
-    || !validNullableFinite(input.packagedWidthCm)
-    || !validNullableFinite(input.packagedHeightCm)
-    || !validNullableSafeInteger(input.packagedWeightGrams)
+    || !validNullableNonnegativeNumber(input.productLengthIn)
+    || !validNullableNonnegativeNumber(input.productWidthIn)
+    || !validNullableNonnegativeNumber(input.productHeightIn)
+    || !validNullableNonnegativeNumber(input.packagedLengthCm)
+    || !validNullableNonnegativeNumber(input.packagedWidthCm)
+    || !validNullableNonnegativeNumber(input.packagedHeightCm)
+    || !validNullableNonnegativeInteger(input.packagedWeightGrams)
     || !(input.category === null || CATEGORIES.has(input.category))
     || !LISTING_TYPES.has(input.listingType)
     || !validNullableSafeInteger(input.stockQuantity)
@@ -1684,11 +1714,15 @@ export function listingOwnerSummaryRows(
   const status = options.status ?? null;
   const listingType = options.listingType ?? null;
   const includeArchived = options.includeArchived ?? false;
+  const skip = options.skip ?? 0;
   const take = options.take ?? null;
   if (
     (status !== null && !LISTING_STATUSES.has(status))
     || (listingType !== null && !LISTING_TYPES.has(listingType))
     || typeof includeArchived !== "boolean"
+    || !Number.isSafeInteger(skip)
+    || skip < 0
+    || skip > 100_000
     || (take !== null && (!Number.isSafeInteger(take) || take < 1 || take > 1_000))
   ) {
     throw new RangeError("Listing owner-summary options are invalid");
@@ -1699,6 +1733,7 @@ export function listingOwnerSummaryRows(
     const ids = new Set<string>();
     let beforeUpdatedAt: Date | null = null;
     let beforeListingId: string | null = null;
+    let pageOffset = skip;
 
     for (;;) {
       const remaining = take === null ? LISTING_OWNER_SUMMARY_PAGE_LIMIT : take - result.length;
@@ -1710,6 +1745,7 @@ export function listingOwnerSummaryRows(
             ${status}::text,
             ${listingType}::text,
             ${includeArchived}::boolean,
+            ${pageOffset}::integer,
             ${beforeUpdatedAt}::timestamp,
             ${beforeListingId}::text,
             ${pageLimit}::integer
@@ -1757,11 +1793,66 @@ export function listingOwnerSummaryRows(
       }
       beforeUpdatedAt = last.updatedAt;
       beforeListingId = last.id;
+      pageOffset = 0;
     }
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
     maxWait: 10_000,
     timeout: 30_000,
+  });
+}
+
+export function listingOwnerWorkshopSummary(userId: string) {
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<ListingOwnerWorkshopSummaryRow[]>`
+      SELECT * FROM public.grainline_listing_owner_workshop_summary()
+    `;
+    if (rows.length !== 1) {
+      throw new Error("Listing workshop-summary authority returned invalid cardinality");
+    }
+    const row = rows[0];
+    const statusCounts = recordValue(row.statusCounts);
+    const lowStock = Array.isArray(row.lowStock)
+      ? row.lowStock.map((candidate) => {
+        const item = recordValue(candidate);
+        if (
+          !item
+          || !isTextWithinCodePointRange(item.title, 1, 150)
+          || !validSafeInteger(item.stockQuantity)
+          || item.stockQuantity < 1
+        ) return null;
+        return Object.freeze({
+          title: item.title,
+          stockQuantity: item.stockQuantity,
+        });
+      })
+      : null;
+    if (
+      !validCount(row.listingCount)
+      || !validCount(row.inStockCount)
+      || !statusCounts
+      || Object.entries(statusCounts).some(([status, count]) => (
+        !LISTING_STATUSES.has(status)
+        || !validSafeInteger(count)
+        || count < 0
+      ))
+      || !(row.underReviewTitle === null
+        || isTextWithinCodePointRange(row.underReviewTitle, 1, 150))
+      || lowStock === null
+      || lowStock.length > 3
+      || lowStock.some((item) => item === null)
+    ) {
+      throw new Error("Listing workshop-summary authority returned invalid data");
+    }
+    return Object.freeze({
+      listingCount: Number(row.listingCount),
+      statusCounts: Object.freeze(statusCounts as Record<string, number>),
+      inStock: Number(row.inStockCount),
+      underReviewTitle: row.underReviewTitle as string | null,
+      lowStock: Object.freeze(
+        lowStock as Array<NonNullable<(typeof lowStock)[number]>>,
+      ),
+    });
   });
 }
 

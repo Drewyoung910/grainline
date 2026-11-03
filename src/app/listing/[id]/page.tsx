@@ -462,7 +462,7 @@ export default async function ListingPage({
           : "Preview mode — this is how your listing appears to buyers. It is not yet published."}
       </div>
     )}
-    <main className="max-w-[1600px] mx-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 pb-16 pt-6">
+    <main className="max-w-[1600px] mx-auto overflow-x-clip px-4 sm:px-6 lg:px-8 pb-16 pt-6">
       <ListingViewTracker listingId={listingId} />
       <RecentlyViewedTracker listingId={listingId} />
       {/* JSON-LD */}
@@ -571,12 +571,12 @@ export default async function ListingPage({
                   listingId={listingId}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
+                  triggerClassName="btn btn-sm btn-secondary"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
-                  className="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
+                  className="btn btn-sm btn-secondary"
                 >
                   <Wrench size={15} />
                   Request Something Similar
@@ -664,14 +664,14 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
+                  className="btn btn-sm btn-secondary"
                 >
                   Message maker
                 </Link>
               )}
               <Link
                 href={sellerHref}
-                className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
+                className="btn btn-sm btn-secondary"
               >
                 Visit Shop
               </Link>
@@ -836,21 +836,22 @@ export default async function ListingPage({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
-              <div key={ml.id} className="relative group">
-                {/* Sibling of the Link (not nested) — same pattern as browse cards */}
-                <FavoriteButton listingId={ml.id} initialSaved={moreFromSavedIds.has(ml.id)} />
-                <Link href={publicListingPath(ml.id, ml.title)} className="block">
-                  <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
+              <div key={ml.id} className="relative">
+                <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+                  <Link href={publicListingPath(ml.id, ml.title)} className="block aspect-[4/5]">
                     {ml.photos[0]?.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
                         width={320}
                         height={400}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" />
                     ) : (
                       <div className="w-full h-full bg-neutral-200" />
                     )}
-                  </div>
+                  </Link>
+                  <FavoriteButton listingId={ml.id} initialSaved={moreFromSavedIds.has(ml.id)} />
+                </div>
+                <Link href={publicListingPath(ml.id, ml.title)} className="block">
                   <p className="mt-2 text-sm font-medium text-neutral-900 line-clamp-1">{ml.title}</p>
                   <p className="text-sm text-neutral-500">
                     {formatCurrencyCents(ml.priceCents, ml.currency)}

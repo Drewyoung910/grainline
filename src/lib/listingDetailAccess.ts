@@ -270,9 +270,7 @@ function parseListingDetailSource(
     || row.tags.some((tag) => !isTextWithinCodePointRange(tag, 0, 100))
     || !Array.isArray(row.materials)
     || row.materials.length > 20
-    || row.materials.some(
-      (material) => !isTextWithinCodePointRange(material, 1, 100),
-    )
+    || row.materials.some((material) => typeof material !== "string")
     || !validNullableNonnegativeNumber(row.productLengthIn)
     || !validNullableNonnegativeNumber(row.productWidthIn)
     || !validNullableNonnegativeNumber(row.productHeightIn)
@@ -335,7 +333,7 @@ export async function listingActorDetailSource(
   listingId: string,
 ) {
   if (!validId(listingId)) {
-    throw new RangeError("Listing detail id is outside the supported range");
+    return null;
   }
   if (viewerUserId !== null) {
     if (!validId(viewerUserId)) {

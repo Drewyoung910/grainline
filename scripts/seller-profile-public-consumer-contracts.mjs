@@ -157,7 +157,9 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // factory calls while preserving their reviewed public visibility rules.
       // Email-service preparation then moves the remaining direct outbox
       // shapes behind fixed SQL authorities.
-      || reviewedNonTargetFactoryCalls.length !== 93
+      // UI workspace/search work adds two publicListingWhere reads for the
+      // search panel. Both remain inside the reviewed public-listing filter.
+      || reviewedNonTargetFactoryCalls.length !== 73
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
@@ -183,7 +185,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // SellerMetrics preparation moves its Review aggregate and cache upsert
       // behind the fixed metrics authorities, removing two more non-target
       // opaque shapes from this SellerProfile-adjacent source inventory.
-      || reviewedNonTargetResiduals.length !== 20) {
+      || reviewedNonTargetResiduals.length !== 9) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

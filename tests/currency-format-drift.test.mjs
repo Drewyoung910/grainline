@@ -81,6 +81,7 @@ describe("currency formatting drift guardrails", () => {
       "src/app/account/feed/FeedClient.tsx",
       "src/app/checkout/success/page.tsx",
       "src/app/dashboard/page.tsx",
+      "src/app/dashboard/listings/page.tsx",
       "src/app/dashboard/analytics/page.tsx",
       "src/app/dashboard/inventory/InventoryRow.tsx",
       "src/app/dashboard/orders/page.tsx",
@@ -126,7 +127,7 @@ describe("currency formatting drift guardrails", () => {
     const metroBrowse = source("src/app/browse/[metroSlug]/page.tsx");
     const metroCategory = source("src/app/browse/[metroSlug]/[category]/page.tsx");
     const commissionDetail = source("src/app/commission/[param]/page.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/account/saved-searches/page.tsx");
 
     for (const text of [metroBrowse, metroCategory]) {
       assert.match(text, /import \{ formatCurrencyMinorUnitAmount \} from "@\/lib\/money"/);
@@ -139,8 +140,8 @@ describe("currency formatting drift guardrails", () => {
     assert.match(commissionDetail, /formatCurrencyMinorUnitAmount\(request\.budgetMaxCents\)/);
     assert.doesNotMatch(commissionDetail, /budget(Min|Max)Cents \/ 100/);
 
-    assert.match(dashboard, /formatCurrencyMinorUnitAmount\(s\.minPrice\)/);
-    assert.match(dashboard, /formatCurrencyMinorUnitAmount\(s\.maxPrice\)/);
+    assert.match(dashboard, /formatCurrencyMinorUnitAmount\(search\.minPrice\)/);
+    assert.match(dashboard, /formatCurrencyMinorUnitAmount\(search\.maxPrice\)/);
   });
 
   it("keeps label clawback reconciliation notes on shared currency formatting", () => {

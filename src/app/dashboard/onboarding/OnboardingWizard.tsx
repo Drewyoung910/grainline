@@ -218,7 +218,7 @@ export default function OnboardingWizard({
   const inputClass =
     "w-full rounded-md border border-neutral-200 px-3 py-2 text-sm";
   const btnPrimary =
-    "flex-1 rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]";
+    "flex-1 rounded-md bg-[#2C1F1A] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24] disabled:opacity-50 min-h-[44px]";
   const btnSecondary =
     "flex-1 rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50";
 
@@ -241,7 +241,7 @@ export default function OnboardingWizard({
             </div>
             <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
               <div
-                className="h-full bg-amber-500 transition-all duration-500"
+                className="h-full bg-amber-500 transition-[width] duration-500"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -261,7 +261,7 @@ export default function OnboardingWizard({
             <button
               onClick={() => advance(1)}
               disabled={loading}
-              className="rounded-md bg-neutral-900 px-8 py-3 font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
+              className="rounded-md bg-[#2C1F1A] px-8 py-3 font-medium text-white transition-colors hover:bg-[#3A2A24] disabled:opacity-50 min-h-[44px]"
             >
               {loading ? "Loading…" : "Get Started →"}
             </button>
@@ -458,7 +458,7 @@ export default function OnboardingWizard({
                   name="acceptsCustomOrders"
                   type="checkbox"
                   defaultChecked={acceptsCustomOrders}
-                  className="h-5 w-5 rounded border-neutral-300 accent-neutral-900"
+                  className="h-5 w-5 rounded border-neutral-300 accent-[#2C1F1A]"
                 />
                 <label htmlFor="acceptsCustomOrders" className="text-sm font-medium">
                   I accept custom orders
@@ -612,7 +612,7 @@ export default function OnboardingWizard({
                   onClick={() => {
                     void advanceStep(5);
                   }}
-                  className="mb-3 block w-full rounded-md bg-neutral-900 px-6 py-3 text-center font-medium text-white transition-colors hover:bg-neutral-800 min-h-[44px]"
+                  className="mb-3 block w-full rounded-md bg-[#2C1F1A] px-6 py-3 text-center font-medium text-white transition-colors hover:bg-[#3A2A24] min-h-[44px]"
                 >
                   Create a Listing →
                 </Link>
@@ -704,7 +704,7 @@ export default function OnboardingWizard({
                 {latestListing ? (
                   <Link
                     href={`/dashboard/listings/${latestListing.id}/edit`}
-                    className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                    className="btn btn-secondary btn-sm"
                   >
                     Edit
                   </Link>
@@ -748,7 +748,7 @@ export default function OnboardingWizard({
             <button
               onClick={handleComplete}
               disabled={loading || !stripeReady || listingCount < 1}
-              className="w-full rounded-md bg-neutral-900 px-8 py-3 font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
+              className="btn btn-primary w-full"
             >
               {loading ? "Loading…" : "Go to My Dashboard →"}
             </button>

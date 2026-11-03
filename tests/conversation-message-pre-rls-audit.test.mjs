@@ -131,7 +131,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.match(page, /min-w-0 space-y-4 px-0 pt-4 sm:px-5/);
     assert.match(page, /className="w-full min-w-0 max-w-full"/);
     assert.match(thread, /touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain px-4/);
-    assert.match(thread, /inline-block max-w-full break-all/);
+    assert.match(thread, /inline-block max-w-full \[overflow-wrap:anywhere\]/);
     assert.match(composer, /flex w-full min-w-0 items-end gap-2/);
     assert.match(composer, /className="min-w-0 flex-1 resize-none/);
     assert.doesNotMatch(composer, /className="w-full resize-none/);

@@ -59,14 +59,14 @@ describe("mobile menu landmarks and focus return (UI-26)", () => {
     assert.match(header, /<nav\s+ref=\{drawerNavRef\}\s+aria-label="Site"/);
   });
 
-  it("returns focus to the menu button on every close path", () => {
+  it("returns keyboard focus without leaving a pointer focus halo", () => {
     assert.match(header, /ref=\{menuButtonRef\}\s*onClick=\{openDrawer\}/);
-    // Animated closes (X, Escape, click-catcher, link taps) and the instant
-    // close on navigation both record whether focus should come back.
-    assert.equal((header.match(/restoreMenuFocusRef\.current = shouldRestoreMenuFocus\(\)/g) ?? []).length, 2);
-    assert.match(header, /if \(drawerOpen \|\| !restoreMenuFocusRef\.current\) return;[\s\S]*?menuButtonRef\.current\?\.focus\(\)/);
-    // Focus that moved elsewhere on purpose is left alone.
-    assert.match(header, /active === document\.body \|\| Boolean\(drawerRef\.current\?\.contains\(active\)\)/);
+    // Escape restores focus for keyboard users. Pointer-close paths retain
+    // the default false value so mobile Safari does not leave a halo behind.
+    assert.match(header, /if \(e\.key === "Escape"\) \{\s*closeDrawer\(true\)/);
+    assert.match(header, /const closeDrawer = React\.useCallback\(\(restoreFocus = false\)/);
+    assert.match(header, /onPointerUp=\{\(event\) => event\.currentTarget\.blur\(\)\}/);
+    assert.match(header, /if \(drawerOpen \|\| !restoreMenuFocusRef\.current\) return;[\s\S]*?menuButtonRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   });
 });
 
@@ -75,7 +75,7 @@ describe("mobile filter and sort sheets (UI-17 / #1234)", () => {
   const header = source("src/components/Header.tsx");
 
   it("stack the backdrop and sheet above the site header", () => {
-    const headerZ = Number(header.match(/\} z-\[(\d+)\] text-neutral-900/)?.[1]);
+    const headerZ = Number(header.match(/"relative"\} isolate inset-x-0 top-0 z-\[(\d+)\]/)?.[1]);
     assert.equal(headerZ, 50);
     const sheetZ = [...sheets.matchAll(/fixed inset-(?:0|x-0 bottom-0) z-\[(\d+)\]/g)].map((m) => Number(m[1]));
     assert.equal(sheetZ.length, 4, "two backdrops and two sheets");
@@ -122,8 +122,11 @@ describe("global CSS layering (UI-08, UI-11, #1270, #1275)", () => {
     const found = [];
     ast.walkRules((rule) => {
       if (rule.selectors.includes(selector)) {
-        const parent = rule.parent;
-        found.push(parent.type === "atrule" ? `@${parent.name} ${parent.params}`.trim() : "unlayered");
+        let parent = rule.parent;
+        while (parent && !(parent.type === "atrule" && parent.name === "layer")) {
+          parent = parent.parent;
+        }
+        found.push(parent ? `@${parent.name} ${parent.params}`.trim() : "unlayered");
       }
     });
     return found;
@@ -153,7 +156,8 @@ describe("global CSS layering (UI-08, UI-11, #1270, #1275)", () => {
       if (rule.params === "font-display") utility = rule;
     });
     assert.ok(utility, "missing @utility font-display");
-    assert.match(utility.toString(), /font-family: Georgia, 'Times New Roman', serif;/);
+    // Newsreader from next/font (2026-10-30 font switch), Georgia as fallback.
+    assert.match(utility.toString(), /font-family: var\(--font-newsreader\), "Iowan Old Style", Georgia, serif;/);
   });
 
   it("hides the prose backticks around Seller Handbook code words (#1275)", () => {
@@ -204,10 +208,28 @@ describe("branded root error page (UI-09)", () => {
 });
 
 describe("variant selection reminder", () => {
-  it("waits until the buyer has started choosing", () => {
+  it("waits until the buyer has started choosing or tried to buy early", () => {
     const selector = source("src/components/VariantSelector.tsx");
     assert.match(selector, /const anySelected = groups\.some\(\(g\) => selected\[g\.id\]\);/);
-    assert.match(selector, /groups\.length > 0 && anySelected && !allSelected && \(/);
+    assert.match(
+      selector,
+      /groups\.length > 0 && \(anySelected \|\| blockedAttemptCount > 0\) && !allSelected && \(/,
+    );
+    // An early Buy or Add click restarts the shake through the key and
+    // announces the missing choice.
+    assert.match(selector, /key=\{blockedAttemptCount\}/);
+    assert.match(selector, /role=\{blockedAttemptCount > 0 \? "alert" : undefined\}/);
+    // Only clicks on the purchase buttons count, not clicks inside the Buy
+    // now dialog, which renders inside the same wrapper.
+    const panel = source("src/components/ListingPurchasePanel.tsx");
+    assert.match(
+      panel,
+      /onClickCapture=\{\(event\) => \{\s*if \(variantSelectionComplete\) return;\s*if \(!\(event\.target as Element\)\.closest\?\.\("\[data-purchase-action\]"\)\) return;\s*setBlockedVariantAttempts/,
+    );
+    for (const file of ["src/components/BuyNowButton.tsx", "src/components/AddToCartButton.tsx"]) {
+      assert.match(source(file), /data-purchase-action=""/);
+    }
+    assert.match(panel, /data-purchase-action=""/);
   });
 });
 

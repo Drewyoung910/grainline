@@ -125,11 +125,17 @@ export default function ThreadMessages({
     cursorForMessage(initial?.[initial.length - 1]),
   );
   const atBottomRef = React.useRef(true);
+  // Only messages that arrive while the thread is open spring in. Everything
+  // already there, including older history loaded later, just appears.
+  const [openedAt] = React.useState(() =>
+    (initial ?? []).reduce((latest, message) => Math.max(latest, new Date(message.createdAt).getTime()), 0),
+  );
 
   const scrollToBottom = (smooth = true) => {
     const el = boxRef.current;
     if (!el) return;
-    if (smooth) {
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (smooth && !reduceMotion) {
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     } else {
       el.scrollTop = el.scrollHeight;
@@ -227,7 +233,9 @@ export default function ThreadMessages({
       setTimeout(() => {
         if (!active) return;
         const el = boxRef.current;
-        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        if (!el) return;
+        const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
       }, 200);
     };
     document.addEventListener("actionform:ok", onOk);
@@ -379,7 +387,7 @@ export default function ThreadMessages({
       )}
       {msgs.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-neutral-600 mb-4">
+          <div className="float-gently flex h-16 w-16 items-center justify-center rounded-full bg-[#EFEAE0] text-[#2C1F1A] mb-4">
             <MessageCircle size={28} />
           </div>
           <h3 className="text-base font-medium text-neutral-800 mb-1">
@@ -468,7 +476,7 @@ export default function ThreadMessages({
                   {canCreateCustomListing && (
                     <Link
                       href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.senderId}`}
-                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-[#2C1F1A] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#3A2A24]"
+                      className="btn btn-sm btn-primary mt-1"
                     >
                       Create Custom Listing
                     </Link>
@@ -499,7 +507,7 @@ export default function ThreadMessages({
                   {link.listingId && (
                     <Link
                       href={publicListingPath(link.listingId, link.title)}
-                      className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
+                      className="btn btn-sm btn-primary mt-1"
                     >
                       View Custom Piece
                     </Link>
@@ -530,7 +538,7 @@ export default function ThreadMessages({
             ? "bg-white text-neutral-900 border border-stone-200/60"
             : mine
             ? "bg-[#2C1F1A] text-white"
-            : "bg-[#EFEAE0] text-neutral-900";
+            : "bg-white text-neutral-900 shadow-[0_1px_0_rgba(44,31,26,0.08)]";
 
           let bubble: React.ReactNode;
 
@@ -594,7 +602,11 @@ export default function ThreadMessages({
           return (
             <li
               key={m.id}
-              className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
+              className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"} ${
+                new Date(m.createdAt).getTime() > openedAt
+                  ? mine ? "message-new origin-bottom-right" : "message-new origin-bottom-left"
+                  : ""
+              }`}
             >
               {/* Avatar slot for other person's messages */}
               {!mine && (
@@ -624,7 +636,7 @@ export default function ThreadMessages({
                     Regarding {m.contextListing.title}
                   </Link>
                 ) : null}
-                <div className={`inline-block max-w-full break-all rounded-2xl px-3 py-2 text-left ${bubbleClass}`}>
+                <div className={`inline-block max-w-full [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-left ${bubbleClass}`}>
                   {bubble}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">

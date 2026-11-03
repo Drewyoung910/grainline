@@ -118,7 +118,7 @@ export default function BroadcastComposer({
                 name="audience"
                 checked={!sellersOnly}
                 onChange={() => setSellersOnly(false)}
-                className="accent-neutral-900"
+                className="accent-[#2C1F1A]"
               />
               All followers
             </label>
@@ -128,7 +128,7 @@ export default function BroadcastComposer({
                 name="audience"
                 checked={sellersOnly}
                 onChange={() => setSellersOnly(true)}
-                className="accent-neutral-900"
+                className="accent-[#2C1F1A]"
               />
               Sellers only
             </label>
@@ -138,7 +138,7 @@ export default function BroadcastComposer({
             <button
               type="submit"
               disabled={sending || !message.trim()}
-              className="bg-[#2C1F1A] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#3A2A24] disabled:opacity-50 transition-colors"
+              className="btn btn-primary btn-sm"
             >
               {sending ? "Sending…" : "Send Update"}
             </button>

@@ -68,6 +68,8 @@ describe("accessibility follow-ups", () => {
     assert.match(modal, /aria-modal="true"/);
     assert.match(modal, /aria-labelledby=\{titleId\}/);
     assert.match(modal, /tabIndex=\{-1\}/);
+    assert.match(modal, /items-start justify-center overflow-y-auto overscroll-contain/);
+    assert.match(modal, /className="[^"]*my-auto w-full max-w-2xl/);
   });
 
   it("labels interactive map canvases and exposes text alternatives", () => {
@@ -104,6 +106,9 @@ describe("accessibility follow-ups", () => {
     const guild = source("src/components/GuildBadge.tsx");
 
     assert.match(follow, /aria-pressed=\{following\}/);
+    assert.match(follow, /aria-disabled=\{loading \|\| undefined\}/);
+    assert.doesNotMatch(follow, /disabled=\{loading\}/);
+    assert.match(follow, /aria-busy=\{loading \|\| undefined\}/);
     assert.match(follow, /aria-hidden="true"/);
     assert.match(unread, /aria-label=\{`\$\{count\} unread message/);
     assert.match(unread, /aria-hidden="true"/);
@@ -134,16 +139,23 @@ describe("accessibility follow-ups", () => {
     assert.match(shippingRates, /<fieldset className="space-y-2">/);
     assert.match(shippingRates, /<legend className="text-sm font-medium text-neutral-500">Shipping from/);
     assert.match(filters, /<fieldset>/);
-    assert.match(filters, /<legend className="font-medium mb-1.5">Listing type<\/legend>/);
-    assert.match(filters, /<legend className="font-medium mb-1.5">Price \(USD\)<\/legend>/);
-    assert.match(filters, /<legend className="font-medium mb-1.5">Near location<\/legend>/);
+    // The legend names the availability radiogroup, so it is not named twice.
+    assert.match(filters, /<legend className=\{legendClass\} id=\{`\$\{baseId\}-availability`\}>Availability<\/legend>/);
+    assert.match(filters, /labelledBy=\{`\$\{baseId\}-availability`\}/);
+    assert.match(filters, /<legend className=\{legendClass\}>Price \(USD\)<\/legend>/);
+    assert.match(filters, /<legend className=\{legendClass\}>Near location<\/legend>/);
     assert.match(filters, /htmlFor=\{`\$\{baseId\}-min`\}/);
     assert.match(filters, /htmlFor=\{`\$\{baseId\}-max`\}/);
-    assert.match(filters, /htmlFor=\{`\$\{baseId\}-radius`\}/);
+    assert.match(filters, /role="group" aria-label="Distance from you"/);
+    // The availability toggle is a keyboard radiogroup.
+    const segmented = source("src/components/SegmentedControl.tsx");
+    assert.match(segmented, /role=\{linkMode \? "group" : "radiogroup"\}/);
+    assert.match(segmented, /role="radio"\s+aria-checked=\{selected\}/);
+    assert.match(segmented, /aria-label=\{labelledBy \? undefined : label\}\s+aria-labelledby=\{labelledBy\}/);
 
     assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-category`\}/);
     assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-category`\}/);
-    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Listing type<\/legend>/);
+    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Availability<\/legend>/);
     assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-ships`\}/);
     assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-ships`\}/);
     assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-rating`\}/);
@@ -212,6 +224,10 @@ describe("accessibility follow-ups", () => {
     assert.match(vacationMode, /id=\{vacationMessageCounterId\} aria-live="polite"/);
     assert.match(photoManager, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
     assert.match(editPhotoGrid, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
+    for (const modal of [photoManager, editPhotoGrid]) {
+      assert.match(modal, /items-start justify-center overflow-y-auto overscroll-contain/);
+      assert.match(modal, /className="[^"]*my-auto[^"]*bg-white/);
+    }
   });
 
   it("labels read-only star ratings for assistive technology", () => {
@@ -284,7 +300,9 @@ describe("accessibility follow-ups", () => {
     assert.doesNotMatch(thread, /⬇️/);
     assert.match(favorite, /h-11 w-11/);
     assert.match(favorite, /h-9 w-9 rounded-full/);
-    assert.match(saveBlog, /p-3/);
+    assert.match(saveBlog, /h-11 w-11/);
+    assert.match(saveBlog, /h-9 w-9 rounded-full/);
+    assert.match(saveBlog, /ring-1 ring-black\/10/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.doesNotMatch(home, /<span aria-hidden="true">★<\/span>/);
@@ -349,8 +367,7 @@ describe("accessibility follow-ups", () => {
     assert.match(header, /data-drawer-scroll-region/);
     assert.match(header, /scrollRegion\.scrollHeight > scrollRegion\.clientHeight \+ 1/);
     assert.match(header, /drawerNavFade &&/);
-    assert.match(header, /bg-gradient-to-t to-transparent/);
-    assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
+    assert.match(header, /bg-gradient-to-t from-\[#F7F5F0\] via-\[#F7F5F0\]\/75 to-transparent/);
     assert.match(header, /drawerRef\.current\?\.focus\(\)/);
     assert.match(header, /onBlur=\{/);
     assert.match(header, /!drawerRef\.current\.contains\(e\.relatedTarget\)/);
@@ -395,7 +412,9 @@ describe("accessibility follow-ups", () => {
     const searchBar = source("src/components/SearchBar.tsx");
     const makersMap = source("src/components/MakersMapSection.tsx");
 
-    assert.match(home, /<main className="overflow-x-hidden">/);
+    // overflow-x-clip (not hidden) so scroll-driven effects inside the page
+    // attach to the page scroll, not to the main element.
+    assert.match(home, /<main className="overflow-x-clip">/);
     assert.equal((home.match(/<h1\b/g) ?? []).length, 1);
     assert.ok(home.indexOf("<h1") < home.indexOf("<h2"), "homepage h1 should precede section h2s");
     assert.doesNotMatch(home, /<h[4-6]\b/);
@@ -434,9 +453,11 @@ describe("accessibility follow-ups", () => {
     assert.match(searchBar, /className="min-w-0 flex-1/);
     assert.match(searchBar, /max-h-\[min\(28rem,calc\(100dvh-9rem\)\)\]/);
     assert.match(searchBar, /overflow-y-auto overscroll-contain/);
-    assert.match(makersMap, /<section className="min-w-0">/);
+    assert.match(makersMap, /<section ref=\{sectionRef\} className="min-w-0">/);
+    assert.match(makersMap, /new IntersectionObserver\(/);
+    assert.match(makersMap, /\{mapReady \? \(/);
     assert.match(makersMap, /lg:items-center/);
-    assert.match(makersMap, /w-full min-w-0 flex-1/);
+    assert.match(makersMap, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
