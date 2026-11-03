@@ -159,7 +159,7 @@ export default async function MakersMetroPage({
       {sellerCount === 0 ? (
         <div className="card-section p-8 text-center mb-10">
           <p className="text-neutral-500 mb-4">No makers in {cityName} yet.</p>
-          <Link href="/commission/new" className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors">
+          <Link href="/commission/new" className="btn btn-primary">
             Post a Commission Request
           </Link>
         </div>
@@ -205,7 +205,7 @@ export default async function MakersMetroPage({
                     </span>
                     <Link
                       href={publicSellerPath(seller.id, seller.displayName)}
-                      className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 transition-colors"
+                      className="btn btn-sm btn-primary"
                     >
                       View Shop
                     </Link>

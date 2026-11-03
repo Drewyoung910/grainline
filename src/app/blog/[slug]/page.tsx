@@ -480,7 +480,7 @@ export default async function BlogPostPage({
             {post.comments.map((c) => {
               const cAvatarUrl = c.authorSellerAvatarUrl ?? c.authorImageUrl;
               return (
-              <li key={c.id} id={`comment-${c.id}`} className="scroll-mt-24 flex flex-col gap-0">
+              <li key={c.id} id={`comment-${c.id}`} className="flex flex-col gap-0">
                 <div className="flex gap-3">
                   {cAvatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

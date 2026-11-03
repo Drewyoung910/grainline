@@ -738,7 +738,7 @@ async function DashboardPageContent({
       </section>
 
       {/* Saved Searches */}
-      <section id="saved-searches" className="mt-10 scroll-mt-24">
+      <section id="saved-searches" className="mt-10">
         <h2 className="text-xl font-semibold font-display mb-4">Saved Searches</h2>
         {savedSearches.length === 0 ? (
           <div className="card-section p-6 text-neutral-600 text-sm">

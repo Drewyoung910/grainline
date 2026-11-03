@@ -15,7 +15,7 @@ const inputClass =
 const selectClass =
   "rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const checkboxClass =
-  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
+  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-[#2C1F1A] focus:ring-neutral-300";
 
 type Listing = { id: string; title: string };
 
@@ -105,7 +105,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
             endpoint="blogImage"
             allowMultiple={false}
             appearance={{
-              button: "rounded-md bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700",
+              button: "rounded-md bg-[#2C1F1A] px-3 py-2 text-sm text-white hover:bg-[#3A2A24]",
               container: "inline-block",
               allowedContent: "hidden",
             }}
@@ -242,7 +242,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
         </select>
       </div>
 
-      <SubmitButton className="rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-60">
+      <SubmitButton className="rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-60">
         {submitLabel}
       </SubmitButton>
     </ActionForm>

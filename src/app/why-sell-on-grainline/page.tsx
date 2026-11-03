@@ -69,7 +69,8 @@ export default async function WhySellOnGrainlinePage() {
         </div>
 
         <div className="card-section overflow-hidden bg-white">
-          <div className="overflow-x-auto">
+          {/* Focusable so keyboard users can scroll the narrow-screen table. */}
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Fee comparison">
             <table className="w-full text-sm">
               <caption className="sr-only">Comparison of Grainline fees with other marketplace fee structures</caption>
               <thead>

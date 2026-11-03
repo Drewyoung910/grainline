@@ -2,8 +2,10 @@
 "use client";
 
 import { useState, useEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import Image from "next/image";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 
 type Photo = { id: string; url: string; altText?: string | null };
 
@@ -17,6 +19,7 @@ export default function ListingGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
   // Set when the viewer moves to another photo, so only that photo's load gets
@@ -152,7 +155,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className="relative isolate block w-full touch-pan-y overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        className="group/gallery relative isolate block w-full touch-pan-y overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -166,16 +169,23 @@ export default function ListingGallery({
           }
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={activeUrl}
           alt={photos[activeIndex]?.altText ?? title}
-          fetchPriority="high"
+          unoptimized={!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)}
+          fill
+          sizes="(max-width: 1023px) 100vw, 50vw"
+          preload={activeIndex === 0}
+          data-fly-to-cart-source=""
           className="w-full h-full object-cover"
           onLoad={(e) => {
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
             playPhotoSwap(e.currentTarget);
+          }}
+          onError={() => {
+            if (!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)) return;
+            setOptimizerFailures((current) => new Set(current).add(activeUrl));
           }}
         />
         {photos.length > 1 && (
@@ -199,7 +209,7 @@ export default function ListingGallery({
                   showPreviousPhoto();
                 }
               }}
-              className="absolute left-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="absolute left-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/gallery:opacity-100"
               style={{ borderRadius: "9999px" }}
             >
               <ChevronLeft size={24} />
@@ -218,7 +228,7 @@ export default function ListingGallery({
                   showNextPhoto();
                 }
               }}
-              className="absolute right-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="absolute right-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-neutral-900 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-[opacity,background-color,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-white focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/gallery:opacity-100"
               style={{ borderRadius: "9999px" }}
             >
               <ChevronRight size={24} />
@@ -246,15 +256,25 @@ export default function ListingGallery({
             <button
               key={p.id}
               onClick={() => showPhoto(i)}
-              className={`shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
+              className={`relative shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
                 i === activeIndex
                   ? "border-neutral-900"
                   : "border-neutral-200 hover:border-neutral-400"
               }`}
               aria-label={`View photo ${i + 1}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt={p.altText ?? `${title} — photo ${i + 1}`} className="w-full h-full object-cover" />
+              <Image
+                src={p.url}
+                alt={p.altText ?? `${title} — photo ${i + 1}`}
+                unoptimized={!isFirstPartyMediaUrl(p.url) || optimizerFailures.has(p.url)}
+                fill
+                sizes="64px"
+                className="object-cover"
+                onError={() => {
+                  if (!isFirstPartyMediaUrl(p.url) || optimizerFailures.has(p.url)) return;
+                  setOptimizerFailures((current) => new Set(current).add(p.url));
+                }}
+              />
             </button>
           ))}
         </div>
@@ -330,17 +350,17 @@ export default function ListingGallery({
   );
 }
 
-// Short cross-fade when the shown photo changes. Runs after the new photo has
-// loaded, so the old one stays on screen until then (no blank flash).
+// Settle the shown photo without changing opacity. Starting a post-load fade
+// at partial opacity made every arrow click and swipe flash pale.
 function playPhotoSwap(img: HTMLImageElement) {
   if (typeof img.animate !== "function") return;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   img.animate(
     [
-      { opacity: 0.35, transform: "scale(1.015)" },
-      { opacity: 1, transform: "scale(1)" },
+      { transform: "scale(1.01)" },
+      { transform: "scale(1)" },
     ],
-    { duration: 420, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
+    { duration: 220, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" },
   );
 }
 

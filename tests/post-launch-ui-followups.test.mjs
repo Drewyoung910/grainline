@@ -99,7 +99,7 @@ describe("post-launch UI follow-ups", () => {
     ]) {
       const text = source(path);
       assert.match(text, /border-neutral-200/);
-      assert.match(text, /bg-neutral-900/);
+      assert.match(text, /bg-\[#2C1F1A\]/);
       assert.match(text, /rounded-md/);
       assert.doesNotMatch(text, /bg-black/);
     }
@@ -139,7 +139,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("uses neutral primary CTAs in the onboarding wizard while keeping amber as an accent", () => {
     const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
-    assert.match(wizard, /bg-neutral-900/);
+    assert.match(wizard, /bg-\[#2C1F1A\]/);
     assert.match(wizard, /h-full bg-amber-500/);
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
@@ -271,7 +271,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/app/page.tsx"), /bg-\[#F7F5F0\]/);
     assert.match(source("src/app/browse/page.tsx"), /bg-\[#F7F5F0\]/);
     assert.match(source("src/app/listing/[id]/page.tsx"), /bg-\[#F7F5F0\]/);
-    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b/);
+    // The only header gradient is the small dark scrim over the homepage
+    // photo; no page-wide amber gradients.
+    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b[^"`]*from-amber/);
   });
 
   it("adds order timeline context without a redundant payment-confirmed step", () => {
@@ -371,10 +373,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
     assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // The search consumes all remaining room, and parent gap-3 is the exact
-    // search-to-actions spacing instead of a variable ml-auto spacer.
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] flex-1"/);
-    assert.match(header, /data-header-actions className="flex items-center gap-1 xl:gap-2"/);
+    // Search grows to a 640px cap, the text nav follows it, and the tools
+    // sit at the far right (motion prototype layout, 2026-10-30).
+    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 
   it("keeps metro SEO page widths matched to their content density", () => {
@@ -500,7 +502,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(fallbackCall, /className="[^"]*h-full/);
     assert.match(fallbackCall, /className="[^"]*w-full/);
     assert.match(allSellersMap, /className="relative h-full"/);
-    assert.equal((mapSection.match(/min-h-11/g) ?? []).length, 2);
+    // Both map actions use the shared pill buttons (46px tall).
+    assert.equal((mapSection.match(/className="btn btn-(?:primary|secondary)"/g) ?? []).length, 2);
 
     assert.match(allSellersMap, /height = 520/);
     assert.doesNotMatch(fullMapCall, /\bheight=/);
@@ -529,8 +532,8 @@ describe("post-launch UI follow-ups", () => {
     const docs = source("CLAUDE.md");
 
     assert.match(globals, /single sitewide field-focus treatment/);
-    assert.match(globals, /border-color: #a8a29e/);
-    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(168 162 158 \/ 0\.16\)/);
+    assert.match(globals, /border-color: #2C1F1A;/);
+    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(44 31 26 \/ 0\.12\)/);
     assert.match(blogComment, /rounded-md border border-neutral-200 bg-white/);
     assert.doesNotMatch(blogComment, /focus:border|focus:ring/);
     assert.match(messageComposer, /border-2 border-stone-300/);
@@ -569,13 +572,14 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /initialCount=\{featuredFollowerCounts\.get\(spotlight\.id\) \?\? 0\}/);
     assert.match(homepage, /meDbId !== also\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(also\.id\)\}/);
-    assert.match(homepage, /hover:underline[\s\S]*Visit shop →/);
+    // The arrow sits in its own span so it can nudge on hover.
+    assert.match(homepage, /hover:underline[\s\S]*Visit shop <span aria-hidden="true"[^>]*>→<\/span>/);
     assert.match(blogPost, /const isMakerPost = post\.authorType === "MAKER" && !!post\.sellerProfileId/);
     assert.match(blogPost, /const viewerIsAuthor = !!meId && post\.authorId === meId/);
     assert.match(blogPost, /!viewerIsAuthor && \(/);
     assert.match(blogPost, /<FollowButton[\s\S]*sellerProfileId=\{post\.sellerProfileId\}[\s\S]*initialCount=\{authorFollowerCount\}/);
     assert.match(blogPost, /<NewsletterSignup \/>/);
-    assert.match(following, /href="\/account\/feed"[\s\S]*bg-\[#2C1F1A\]/);
+    assert.match(following, /href="\/account\/feed"[\s\S]*btn btn-sm btn-primary/);
     assert.doesNotMatch(following, /href="\/account\/feed"[\s\S]{0,160}text-amber-700/);
     assert.match(docs, /In the Workshop spotlight[\s\S]*getCachedPublicSellerStats\(\)[\s\S]*FollowButton/);
     assert.match(docs, /The homepage stops here; it intentionally does not render `NewsletterSignup`/);
@@ -671,17 +675,19 @@ describe("post-launch UI follow-ups", () => {
     assert.match(messageIconLink, /<IconHoverTip label="Messages" \/>/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /\{!open && <IconHoverTip label="Account" \/>\}/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /clearCloseTimer\(\);[\s\S]*setClosing\(false\);[\s\S]*setOpen\(true\);/);
-    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
-    assert.match(header, /border-stone-200\/60 bg-\[#EFEAE0\]/);
+    // Icon buttons follow the header color: cream over the homepage photo,
+    // dark on frosted paper.
+    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 hover:bg-current\/10/);
+    assert.match(header, /border-b border-\[#2C1F1A\]\/\[0\.08\] py-1 pl-5 pr-2/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
-    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
-    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
+    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
     assert.match(bell, /<div className="relative flex" ref=\{containerRef\}>/);
     for (const text of [header, bell, unreadBadge]) {
       assert.match(text, /absolute -top-1 -right-1 inline-flex h-5 min-w-5/);
     }
     assert.match(header, /inner span is the 40×40 visible hover circle/);
-    assert.match(bell, /"bg-\[#EFEAE0\] border-b border-stone-200\/60"/);
+    assert.match(bell, /"border-b border-\[#2C1F1A\]\/\[0\.08\]"/);
     assert.match(bell, /notificationUnreadClass[\s\S]*"bg-\[#EFEAE0\]\/50"/);
     assert.doesNotMatch(bell, /!n\.read \? "bg-amber-50" : ""/);
   });

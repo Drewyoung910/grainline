@@ -17,6 +17,23 @@ describe("search UI regression guardrails", () => {
     assert.match(searchBar, /\[pathname, searchParams\]/);
   });
 
+  it("keeps the site header in the first HTML flush", () => {
+    const header = source("src/components/Header.tsx");
+    const searchBar = source("src/components/SearchBar.tsx");
+    const layout = source("src/app/layout.tsx");
+    const listener = source("src/components/SearchParamsListener.tsx");
+
+    // useSearchParams suspends during prerender, which would hide the header
+    // until after paint and shift the page. Only the null-rendering listener
+    // may call it, inside its own boundary.
+    assert.doesNotMatch(header, /useSearchParams/);
+    assert.doesNotMatch(searchBar, /useSearchParams/);
+    assert.match(header, /<SearchParamsListener onChange=\{setSearchQuery\} \/>/);
+    assert.match(searchBar, /<SearchParamsListener onChange=\{setSearchQuery\} \/>/);
+    assert.match(listener, /<React\.Suspense fallback=\{null\}>\s*<SearchParamsReporter/);
+    assert.doesNotMatch(layout, /<Suspense[^>]*>\s*<Header \/>/);
+  });
+
   it("uses discoverable, accessible search and clear controls in the inbox", () => {
     const inbox = source("src/app/messages/page.tsx");
 

@@ -68,7 +68,8 @@ describe("public visibility follow-ups", () => {
 
     assert.match(reviewsSection, /const blockedReviewerFilter: Prisma\.ReviewWhereInput =/);
     assert.match(reviewsSection, /const visibleReviewWhere: Prisma\.ReviewWhereInput = \{[\s\S]*listingId,[\s\S]*reviewerAccountActive: true,[\s\S]*\.\.\.blockedReviewerFilter,[\s\S]*\};/);
-    assert.match(reviewsSection, /prisma\.review\.aggregate\(\{\s*where: visibleReviewWhere,/);
+    // One grouped query yields the count, average and star breakdown.
+    assert.match(reviewsSection, /prisma\.review\.groupBy\(\{\s*by: \["ratingX2"\],\s*where: visibleReviewWhere,/);
     assert.match(reviewsSection, /prisma\.review\.findMany\(\{\s*where: \{\s*\.\.\.visibleReviewWhere,/);
   });
 

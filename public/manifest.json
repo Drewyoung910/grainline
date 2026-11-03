@@ -4,7 +4,7 @@
   "description": "Handmade woodworking marketplace — discover unique pieces from makers in your community",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FAFAF8",
+  "background_color": "#F7F5F0",
   "theme_color": "#1C1917",
   "orientation": "portrait-primary",
   "icons": [

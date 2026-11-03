@@ -3,14 +3,30 @@ import "./globals.css";
 import Header from "@/components/Header";
 import { Providers } from "@/components/Providers";
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import Link from "next/link";
 import { getFooterMetros } from "@/lib/footerMetros";
+import { Geist, Newsreader } from "next/font/google";
 
-const vercelCommit = process.env.VERCEL_GIT_COMMIT_SHA;
-const releaseCommit = vercelCommit && /^[0-9a-f]{40}$/.test(vercelCommit)
-  ? vercelCommit
-  : undefined;
+// Typefaces from the motion prototype, self-hosted by next/font (no request
+// to Google at runtime). Geist for text; Newsreader for headings, with its
+// optical-size axis so small headings stay sturdy and large ones stay fine.
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+});
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  display: "swap",
+  style: ["normal", "italic"],
+  axes: ["opsz"],
+});
+
+const releaseCommit = [
+  process.env.VERCEL_GIT_COMMIT_SHA,
+  process.env.GRAINLINE_RELEASE_COMMIT,
+].find((commit) => commit && /^[0-9a-f]{40}$/.test(commit));
 
 export const viewport: Viewport = {
   themeColor: "#1C1917",
@@ -36,8 +52,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
     title: "Grainline",
+    statusBarStyle: "black-translucent",
   },
   icons: {
     icon: "/favicon.png",
@@ -72,15 +88,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const footerMetros = await getFooterMetros().catch(() => []);
 
   return (
-    <html lang="en" className="bg-[#F7F5F0]">
+    <html lang="en" className={`${geist.variable} ${newsreader.variable} bg-[#F7F5F0]`}>
       <body className="min-h-[100dvh] flex flex-col bg-[#F7F5F0] text-neutral-900">
-        <a href="#main-content" className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-[9999] focus-visible:bg-neutral-900 focus-visible:text-white focus-visible:px-4 focus-visible:py-2 focus-visible:rounded-md focus-visible:text-sm">
+        <a href="#main-content" className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-[9999] focus-visible:bg-[#2C1F1A] focus-visible:text-white focus-visible:px-4 focus-visible:py-2 focus-visible:rounded-md focus-visible:text-sm">
           Skip to content
         </a>
         <Providers>
-          <Suspense fallback={null}>
-            <Header />
-          </Suspense>
+          {/* No Suspense here: the header reads the query string through
+              SearchParamsListener, so it renders in the first HTML flush
+              instead of appearing after paint and shifting the page. */}
+          <Header />
           <div id="main-content" className="flex-1 bg-[#F7F5F0]">
           {children}
           </div>
@@ -99,7 +116,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* Shop */}
                 <nav aria-label="Shop">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Shop</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Shop</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/browse" className="text-neutral-600 hover:text-neutral-900 hover:underline">Browse all</Link></li>
                     <li><Link href="/why-grainline" className="text-neutral-600 hover:text-neutral-900 hover:underline">Why Grainline</Link></li>
@@ -111,7 +128,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* Sell */}
                 <nav aria-label="Sell">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Sell</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Sell</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/why-sell-on-grainline" className="text-neutral-600 hover:text-neutral-900 hover:underline">Why sell on Grainline</Link></li>
                     <li><Link href="/become-a-maker" className="text-neutral-600 hover:text-neutral-900 hover:underline">Become a maker</Link></li>
@@ -123,7 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* Help */}
                 <nav aria-label="Help">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Help</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Help</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/support" className="text-neutral-600 hover:text-neutral-900 hover:underline">Contact support</Link></li>
                     <li><Link href="/help/shipping-and-returns" className="text-neutral-600 hover:text-neutral-900 hover:underline">Shipping &amp; returns</Link></li>
@@ -134,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
                 {/* About / Legal */}
                 <nav aria-label="Grainline">
-                  <h3 className="font-semibold text-neutral-900 text-sm mb-3">Grainline</h3>
+                  <h2 className="font-semibold text-neutral-900 text-sm mb-3">Grainline</h2>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/about" className="text-neutral-600 hover:text-neutral-900 hover:underline">About</Link></li>
                     <li><Link href="/terms" className="text-neutral-600 hover:text-neutral-900 hover:underline">Terms of Service</Link></li>

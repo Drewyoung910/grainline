@@ -21,7 +21,7 @@ describe("public card media styling", () => {
     assert.match(emptyState, /featuredRatings/);
     assert.match(emptyState, /<h1 className="font-display text-2xl font-semibold">/);
     assert.match(emptyState, /<GridCard key=\{listing\.id\} l=\{listing\} \/>/);
-    assert.match(emptyState, /href="\/browse" className="inline-flex items-center rounded-md/);
+    assert.match(emptyState, /href="\/browse" className="btn btn-secondary"/);
     assert.doesNotMatch(emptyState, /className="border border-neutral-200 overflow-hidden"/);
     assert.doesNotMatch(emptyState, /className="h-36 w-full object-cover"/);
   });

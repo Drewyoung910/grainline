@@ -288,7 +288,7 @@ async function AccountPageContent() {
                 </div>
                 <Link
                   href={savedSearchHref(search)}
-                  className="inline-flex min-h-[34px] w-fit items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+                  className="btn btn-sm btn-secondary w-fit"
                 >
                   Browse
                 </Link>
@@ -313,7 +313,7 @@ async function AccountPageContent() {
           </div>
           <Link
             href="/account/following"
-            className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
+            className="btn btn-sm btn-secondary"
           >
             Manage →
           </Link>
@@ -388,19 +388,19 @@ async function AccountPageContent() {
             <div className="flex gap-3 flex-wrap">
               <Link
                 href="/dashboard"
-                className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+                className="btn btn-sm btn-primary"
               >
                 Go to Workshop →
               </Link>
               <Link
                 href="/dashboard/blog"
-                className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
+                className="btn btn-sm btn-secondary"
               >
                 My Blog Posts
               </Link>
               <Link
                 href="/dashboard/blog/new"
-                className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
+                className="btn btn-sm btn-secondary"
               >
                 Write a Post
               </Link>
@@ -420,7 +420,7 @@ async function AccountPageContent() {
             </div>
             <Link
               href="/dashboard"
-              className="inline-flex shrink-0 items-center justify-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors"
+              className="btn btn-sm btn-primary shrink-0"
             >
               Become a Maker →
             </Link>

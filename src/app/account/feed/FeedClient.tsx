@@ -94,7 +94,7 @@ export default function FeedClient() {
         </p>
         <Link
           href="/map"
-          className="inline-flex min-h-10 items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+          className="inline-flex min-h-10 items-center justify-center rounded-md bg-[#2C1F1A] px-4 text-sm font-medium text-white hover:bg-[#3A2A24]"
         >
           Browse Makers →
         </Link>

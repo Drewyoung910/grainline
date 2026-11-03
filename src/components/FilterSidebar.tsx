@@ -1,21 +1,165 @@
 "use client";
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { normalizeTags } from "@/lib/tags";
+import SegmentedControl from "@/components/SegmentedControl";
+import { ChevronDown } from "@/components/icons";
+
+// Every change applies at once and glides the page back to the top of the
+// results (the motion study's floating filter column).
+function scrollResultsToTop() {
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+}
+
+const SHIPS_WITHIN_OPTIONS = ["3", "7", "14", "30"];
+const RATING_OPTIONS = ["4", "3", "2"];
+const RADIUS_OPTIONS = ["10", "25", "50", "100"];
+
+const legendClass = "mb-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-neutral-600";
+
+// Accepts what shoppers type ("$1,250", "49.99") and returns the plain
+// number, "" for an empty field, or null when it is not a price.
+function cleanPrice(raw: string): string | null {
+  const value = raw.replace(/[\s$,]/g, "");
+  if (value === "") return "";
+  return /^(\d+(\.\d{1,2})?|\.\d{1,2})$/.test(value) ? value : null;
+}
+
+function chipClass(active: boolean) {
+  return `inline-flex h-9 items-center rounded-full border px-3.5 text-sm transition-[background-color,border-color,color,box-shadow,scale] duration-200 motion-safe:active:scale-95 ${
+    active
+      ? "border-transparent bg-[#2C1F1A] text-[#FBF8F3] shadow-[0_5px_14px_-10px_rgba(44,31,26,0.9)]"
+      : "border-transparent bg-white text-neutral-800 ring-1 ring-black/10 hover:bg-[#F0E9DE] hover:ring-black/5"
+  }`;
+}
 
 export default function FilterSidebar({ popularTags }: { popularTags: string[] }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
+  const pendingParamsRef = React.useRef(searchKey);
+  React.useEffect(() => {
+    pendingParamsRef.current = searchKey;
+  }, [searchKey]);
   const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
   const selectedTags = normalizeTags(searchParams.getAll("tag"), 10);
-  const view = searchParams.get("view") ?? "grid";
 
-  const [geoLat, setGeoLat] = React.useState(searchParams.get("lat") ?? "");
-  const [geoLng, setGeoLng] = React.useState(searchParams.get("lng") ?? "");
+  const currentCategory = searchParams.get("category") ?? "";
+  const currentType = searchParams.get("type") ?? "";
+  const currentShips = searchParams.get("ships") ?? "";
+  const currentRating = searchParams.get("rating") ?? "";
+  const currentMin = searchParams.get("min") ?? "";
+  const currentMax = searchParams.get("max") ?? "";
+  const currentRadius = searchParams.get("radius") ?? "";
+  const urlLat = searchParams.get("lat") ?? "";
+  const urlLng = searchParams.get("lng") ?? "";
+
+  // Paint filter choices immediately while the server navigation catches up.
+  // Availability already does this inside SegmentedControl; the compact
+  // category control and chip groups should feel equally responsive.
+  const [pendingCategory, setPendingCategory] = React.useState(currentCategory);
+  const [pendingShips, setPendingShips] = React.useState(currentShips);
+  const [pendingRating, setPendingRating] = React.useState(currentRating);
+  React.useEffect(() => {
+    setPendingCategory(currentCategory);
+    setPendingShips(currentShips);
+    setPendingRating(currentRating);
+  }, [currentCategory, currentRating, currentShips, searchKey]);
+
+  const [geo, setGeo] = React.useState<{ lat: string; lng: string } | null>(null);
   const [locating, setLocating] = React.useState(false);
   const [geoError, setGeoError] = React.useState<string | null>(null);
+  const lat = geo?.lat ?? urlLat;
+  const lng = geo?.lng ?? urlLng;
+
+  // Once a detected point has reached the URL, let the URL become the source
+  // of truth again. Otherwise removing the location filter leaves the stale
+  // detected point painted as active even though the results are unfiltered.
+  React.useEffect(() => {
+    if (geo?.lat === urlLat && geo?.lng === urlLng) setGeo(null);
+  }, [geo, urlLat, urlLng]);
+
+  // The price fields are controlled so a typed price survives the page
+  // refreshing around it, and so every other filter link carries it along:
+  // clicking a category right after typing a price keeps both.
+  const minRef = React.useRef<HTMLInputElement>(null);
+  const maxRef = React.useRef<HTMLInputElement>(null);
+  const [minInput, setMinInput] = React.useState(currentMin);
+  const [maxInput, setMaxInput] = React.useState(currentMax);
+  const [priceError, setPriceError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (document.activeElement !== minRef.current) setMinInput(currentMin);
+    if (document.activeElement !== maxRef.current) setMaxInput(currentMax);
+  }, [currentMin, currentMax]);
+  const pendingMin = cleanPrice(minInput);
+  const pendingMax = cleanPrice(maxInput);
+
+  function hrefWith(changes: Record<string, string | null>, baseQuery = searchKey) {
+    const params = new URLSearchParams(baseQuery);
+    const price: Record<string, string | null> = {};
+    if (pendingMin !== null) price.min = pendingMin;
+    if (pendingMax !== null) price.max = pendingMax;
+    for (const [key, value] of Object.entries({ ...price, ...changes })) {
+      if (value === null || value === "") params.delete(key);
+      else params.set(key, value);
+    }
+    params.delete("page");
+    const query = params.toString();
+    return query ? `/browse?${query}` : "/browse";
+  }
+
+  function go(href: string) {
+    router.push(href, { scroll: false });
+    scrollResultsToTop();
+  }
+
+  function navigateWith(changes: Record<string, string | null>) {
+    const href = hrefWith(changes, pendingParamsRef.current);
+    pendingParamsRef.current = href.split("?")[1] ?? "";
+    go(href);
+  }
+
+  function handleFilterLinkClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    const encoded = event.currentTarget.dataset.filterChanges;
+    if (!encoded) return;
+    const changes = JSON.parse(encoded) as Record<string, string | null>;
+    const href = hrefWith(changes, pendingParamsRef.current);
+    pendingParamsRef.current = href.split("?")[1] ?? "";
+    go(href);
+  }
+
+  function handleTagLinkClick(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    const tag = event.currentTarget.dataset.filterTag;
+    if (!tag) return;
+    const href = tagToggleHref(tag, pendingParamsRef.current);
+    pendingParamsRef.current = href.split("?")[1] ?? "";
+    go(href);
+  }
+
+  function tagToggleHref(tag: string, baseQuery = searchKey) {
+    const params = new URLSearchParams(hrefWith({}, baseQuery).split("?")[1] ?? "");
+    const current = params.getAll("tag");
+    params.delete("tag");
+    params.delete("page");
+    if (current.includes(tag)) {
+      current.filter((t) => t !== tag).forEach((t) => params.append("tag", t));
+    } else {
+      [...current, tag].forEach((t) => params.append("tag", t));
+    }
+    return `/browse?${params.toString()}`;
+  }
 
   function detectLocation() {
     setGeoError(null);
@@ -26,8 +170,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setGeoLat(pos.coords.latitude.toFixed(5));
-        setGeoLng(pos.coords.longitude.toFixed(5));
+        focusDistanceRef.current = true;
+        setGeo({ lat: pos.coords.latitude.toFixed(5), lng: pos.coords.longitude.toFixed(5) });
         setLocating(false);
       },
       (error) => {
@@ -35,276 +179,265 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         setGeoError(
           error.code === error.PERMISSION_DENIED
             ? "Location permission was denied."
-            : "Could not detect your location. Try again or enter a radius without location filtering."
+            : "Could not detect your location. Try again in a moment."
         );
       },
       { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
     );
   }
 
-  function tagToggleHref(tag: string) {
-    const p = new URLSearchParams(searchParams.toString());
-    const current = p.getAll("tag");
-    p.delete("tag");
-    p.delete("page");
-    if (current.includes(tag)) {
-      current.filter((t) => t !== tag).forEach((t) => p.append("tag", t));
-    } else {
-      [...current, tag].forEach((t) => p.append("tag", t));
-    }
-    return `/browse?${p.toString()}`;
-  }
-
-  // Re-sync geo state when URL changes (e.g. after Apply)
+  // Once "Use my location" succeeds its button is gone, so focus moves to
+  // the distance choices that replace it.
+  const focusDistanceRef = React.useRef(false);
+  const distanceGroupRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
-    setGeoLat(searchParams.get("lat") ?? "");
-    setGeoLng(searchParams.get("lng") ?? "");
-  }, [searchParams]);
+    if (!geo || !focusDistanceRef.current) return;
+    focusDistanceRef.current = false;
+    distanceGroupRef.current?.querySelector<HTMLElement>("a")?.focus();
+  }, [geo]);
 
-  const currentCategory = searchParams.get("category") ?? "";
-  const currentType = searchParams.get("type") ?? "";
-  const currentShips = searchParams.get("ships") ?? "";
-  const currentRating = searchParams.get("rating") ?? "";
-  const currentMin = searchParams.get("min") ?? "";
-  const currentMax = searchParams.get("max") ?? "";
-  const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
-  const currentRadius = searchParams.get("radius") ?? "";
+  // Price applies on Enter, or when focus leaves both price fields with a new
+  // value. Moving from Min to Max does not navigate.
+  const priceFormRef = React.useRef<HTMLFormElement>(null);
+  const applyPrice = () => {
+    if (pendingMin === null || pendingMax === null) {
+      setPriceError("Enter a price like 50 or 49.99.");
+      return;
+    }
+    setPriceError(null);
+    if (pendingMin !== minInput) setMinInput(pendingMin);
+    if (pendingMax !== maxInput) setMaxInput(pendingMax);
+    if (pendingMin === currentMin && pendingMax === currentMax) return;
+    navigateWith({ min: pendingMin, max: pendingMax });
+  };
+  const onPriceBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    if (priceFormRef.current?.contains(event.relatedTarget as Node | null)) return;
+    applyPrice();
+  };
 
-  const form = (
-    <form
-      key={searchParams.toString()}
-      method="get"
-      action="/browse"
-      className="space-y-5 text-sm"
-    >
-      {/* Preserve q and view */}
-      {q && <input type="hidden" name="q" value={q} />}
-      {view !== "grid" && <input type="hidden" name="view" value={view} />}
-      {geoLat && <input type="hidden" name="lat" value={geoLat} />}
-      {geoLng && <input type="hidden" name="lng" value={geoLng} />}
-      {/* Selected tags preserved as hidden inputs */}
-      {selectedTags.map((t) => (
-        <input key={t} type="hidden" name="tag" value={t} />
-      ))}
-
-      {/* Category */}
-      <div>
-        <label htmlFor={`${baseId}-category`} className="block font-medium mb-1.5">Category</label>
-        <select
-          id={`${baseId}-category`}
-          name="category"
-          defaultValue={currentCategory}
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
-        >
-          <option value="">All categories</option>
-          {CATEGORY_VALUES.map((v) => (
-            <option key={v} value={v}>
-              {CATEGORY_LABELS[v]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Listing type */}
-      <fieldset>
-        <legend className="font-medium mb-1.5">Listing type</legend>
-        <div className="space-y-1.5">
-          {[
-            { value: "", label: "All" },
-            { value: "IN_STOCK", label: "In Stock" },
-            { value: "MADE_TO_ORDER", label: "Made to Order" },
-          ].map(({ value, label }) => (
-            <label key={value} className="flex items-center gap-2 cursor-pointer min-h-[44px]">
-              <input
-                type="radio"
-                name="type"
-                value={value}
-                defaultChecked={currentType === value}
-                className="accent-neutral-900"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      {/* Ships within */}
-      <div>
-        <label htmlFor={`${baseId}-ships`} className="block font-medium mb-1.5">Ships within (days)</label>
-        <input
-          id={`${baseId}-ships`}
-          name="ships"
-          type="number"
-          inputMode="numeric"
-          min="1"
-          max="365"
-          defaultValue={currentShips}
-          placeholder="e.g. 7"
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
-        />
-      </div>
-
-      {/* Min seller rating */}
-      <div>
-        <label htmlFor={`${baseId}-rating`} className="block font-medium mb-1.5">Min seller rating</label>
-        <select
-          id={`${baseId}-rating`}
-          name="rating"
-          defaultValue={currentRating}
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
-        >
-          <option value="">Any rating</option>
-          <option value="4">★★★★ and up</option>
-          <option value="3">★★★ and up</option>
-          <option value="2">★★ and up</option>
-        </select>
-      </div>
-
-      {/* Price range */}
-      <fieldset>
-        <legend className="font-medium mb-1.5">Price (USD)</legend>
-        <div className="flex items-center gap-2">
-          <label htmlFor={`${baseId}-min`} className="sr-only">Minimum price</label>
-          <input
-            id={`${baseId}-min`}
-            name="min"
-            type="text"
-            inputMode="decimal"
-            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
-            defaultValue={currentMin}
-            placeholder="Min"
-            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
-          />
-          <span className="text-neutral-500 shrink-0">–</span>
-          <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
-          <input
-            id={`${baseId}-max`}
-            name="max"
-            type="text"
-            inputMode="decimal"
-            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
-            defaultValue={currentMax}
-            placeholder="Max"
-            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
-          />
-        </div>
-      </fieldset>
-
-      {/* Sort */}
-      <div>
-        <label htmlFor={`${baseId}-sort`} className="block font-medium mb-1.5">Sort by</label>
-        <select
-          id={`${baseId}-sort`}
-          name="sort"
-          defaultValue={currentSort}
-          className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
-        >
-          {q && <option value="relevant">Most relevant</option>}
-          <option value="newest">Newest</option>
-          <option value="price_asc">Price: Low → High</option>
-          <option value="price_desc">Price: High → Low</option>
-          <option value="popular">Most popular</option>
-        </select>
-      </div>
-
-      {/* Location */}
-      <fieldset>
-        <legend className="font-medium mb-1.5">Near location</legend>
-        <div className="space-y-1.5">
-          <button
-            type="button"
-            onClick={detectLocation}
-            className="rounded-md border border-neutral-200 px-2.5 py-1 text-xs hover:bg-neutral-50 min-h-[44px]"
-          >
-            {locating ? "Detecting…" : "Use my location"}
-          </button>
-          {(geoLat || geoLng) && (
-            <div className="text-xs text-neutral-500 truncate">
-              {geoLat}, {geoLng}
-            </div>
-          )}
-          {geoError && (
-            <div role="alert" className="text-xs text-red-600">
-              {geoError}
-            </div>
-          )}
-          <label htmlFor={`${baseId}-radius`} className="sr-only">Radius in miles</label>
-          <input
-            id={`${baseId}-radius`}
-            name="radius"
-            type="number"
-            inputMode="numeric"
-            min="1"
-            max="500"
-            defaultValue={currentRadius}
-            placeholder="Radius (miles)"
-            className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2"
-          />
-        </div>
-      </fieldset>
-
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          className="flex-1 bg-neutral-900 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-neutral-800 min-h-[44px]"
-        >
-          Apply
-        </button>
-        <Link
-          href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
-          className="text-sm text-neutral-500 hover:text-neutral-700 min-h-[44px] flex items-center px-3"
-        >
-          Reset
-        </Link>
-      </div>
-    </form>
-  );
-
-  const tagsSection = popularTags.length > 0 && (
-    <div className="mt-5 pt-4 border-t border-neutral-100">
-      <div className="font-medium mb-2 text-sm">Popular tags</div>
-      <div className="flex flex-wrap gap-1.5">
-        {popularTags.map((t) => {
-          const active = selectedTags.includes(t);
-          return (
-            <Link
-              key={t}
-              href={tagToggleHref(t)}
-              className={`rounded-full border border-neutral-200 bg-[#F7F5F0] px-2.5 py-0.5 text-xs hover:bg-white transition-colors ${
-                active ? "bg-neutral-900 text-white hover:bg-neutral-900 border-neutral-900" : ""
-              }`}
-            >
-              #{t}
-            </Link>
-          );
-        })}
-      </div>
-
-      {selectedTags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {selectedTags.map((t) => (
-            <Link
-              key={t}
-              href={tagToggleHref(t)}
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs bg-neutral-900 text-white"
-            >
-              #{t} <span className="opacity-70">✕</span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  const hasLocation = Boolean(lat && lng);
 
   return (
-    <>
-      {/* ── Desktop sidebar (md+) ── */}
-      <aside className="hidden md:block w-52 lg:w-56 shrink-0">
-        <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm p-4 sticky top-4">
-          {form}
-          {tagsSection}
+    <aside aria-label="Filters" className="hidden md:block w-56 lg:w-60 shrink-0">
+      <div className="-ml-1 space-y-5 pb-8 pl-1 pr-2 pt-1 text-sm">
+        {/* Category */}
+        <div>
+          <label id={`${baseId}-category`} htmlFor={`${baseId}-category-select`} className={`block ${legendClass}`}>Category</label>
+          <div className="relative">
+            <select
+              id={`${baseId}-category-select`}
+              value={pendingCategory}
+              onChange={(event) => {
+                setPendingCategory(event.target.value);
+                navigateWith({ category: event.target.value });
+              }}
+              className="h-10 w-full appearance-none rounded-xl border-0 bg-white px-3 pr-9 text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] ring-1 ring-black/10 transition-[background-color,box-shadow] hover:bg-[#F3EEE5] focus:ring-2 focus:ring-[#2C1F1A]"
+            >
+              <option value="">All categories</option>
+              {CATEGORY_VALUES.map((value) => (
+                <option key={value} value={value}>{CATEGORY_LABELS[value]}</option>
+              ))}
+            </select>
+            <ChevronDown aria-hidden="true" size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+          </div>
         </div>
-      </aside>
-    </>
+
+        {/* Availability */}
+        <fieldset>
+          <legend className={legendClass} id={`${baseId}-availability`}>Availability</legend>
+          <SegmentedControl
+            label="Availability"
+            labelledBy={`${baseId}-availability`}
+            fullWidth
+            value={currentType}
+            resetKey={searchKey}
+            onChange={(value) => navigateWith({ type: value })}
+            options={[
+              { value: "", label: "All" },
+              { value: "IN_STOCK", label: "In stock" },
+              { value: "MADE_TO_ORDER", label: "Made to order" },
+            ]}
+          />
+        </fieldset>
+
+        {/* Location is a defining discovery feature, so it stays near the
+            top instead of below every commercial refinement. */}
+        <fieldset>
+          <legend className={legendClass}>Near location</legend>
+          <div className="space-y-2.5">
+            {!hasLocation ? (
+              <button type="button" onClick={detectLocation} disabled={locating} className="btn btn-sm btn-secondary">
+                {locating ? "Finding you…" : "Use my location"}
+              </button>
+            ) : (
+              <div ref={distanceGroupRef} className="flex flex-wrap gap-2" role="group" aria-label="Distance from you">
+                {RADIUS_OPTIONS.map((miles) => (
+                  <Link
+                    key={miles}
+                    href={hrefWith({ lat, lng, radius: miles })}
+                    scroll={false}
+                    data-filter-changes={JSON.stringify({ lat, lng, radius: miles })}
+                    onClick={handleFilterLinkClick}
+                    aria-current={currentRadius === miles ? "true" : undefined}
+                    className={chipClass(currentRadius === miles)}
+                  >
+                    {miles} mi
+                  </Link>
+                ))}
+                {currentRadius && !RADIUS_OPTIONS.includes(currentRadius) && (
+                  <span aria-current="true" className={chipClass(true)}>{currentRadius} mi</span>
+                )}
+              </div>
+            )}
+            {hasLocation && !currentRadius && (
+              <p className="text-xs text-neutral-600">Pick a distance from you.</p>
+            )}
+            {hasLocation && currentRadius && (
+              <Link href={hrefWith({ lat: null, lng: null, radius: null })} scroll={false} data-filter-changes={JSON.stringify({ lat: null, lng: null, radius: null })} onClick={handleFilterLinkClick} className="inline-block text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800">
+                Any distance
+              </Link>
+            )}
+            {geoError && (
+              <div role="alert" className="text-xs text-red-600">
+                {geoError}
+              </div>
+            )}
+          </div>
+        </fieldset>
+
+        {/* Price */}
+        <fieldset>
+          <legend className={legendClass}>Price (USD)</legend>
+          <form
+            ref={priceFormRef}
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyPrice();
+            }}
+            className="flex items-center gap-2"
+          >
+            <label htmlFor={`${baseId}-min`} className="sr-only">Minimum price</label>
+            <input
+              ref={minRef}
+              id={`${baseId}-min`}
+              name="min"
+              type="text"
+              inputMode="decimal"
+              value={minInput}
+              onChange={(event) => setMinInput(event.target.value)}
+              placeholder="$ Min"
+              onBlur={onPriceBlur}
+              aria-invalid={pendingMin === null || undefined}
+              aria-describedby={priceError ? `${baseId}-price-error` : undefined}
+              className="h-11 w-full min-w-0 rounded-[10px] border border-[#2C1F1A]/25 bg-white px-3 text-sm"
+            />
+            <span className="shrink-0 text-neutral-400" aria-hidden="true">–</span>
+            <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
+            <input
+              ref={maxRef}
+              id={`${baseId}-max`}
+              name="max"
+              type="text"
+              inputMode="decimal"
+              value={maxInput}
+              onChange={(event) => setMaxInput(event.target.value)}
+              placeholder="$ Max"
+              onBlur={onPriceBlur}
+              aria-invalid={pendingMax === null || undefined}
+              aria-describedby={priceError ? `${baseId}-price-error` : undefined}
+              className="h-11 w-full min-w-0 rounded-[10px] border border-[#2C1F1A]/25 bg-white px-3 text-sm"
+            />
+            {/* Lets Enter submit from either field; not a Tab stop. */}
+            <button type="submit" tabIndex={-1} className="sr-only">Apply price</button>
+          </form>
+          {priceError && (
+            <p id={`${baseId}-price-error`} role="alert" className="mt-1.5 text-xs text-red-700">
+              {priceError}
+            </p>
+          )}
+        </fieldset>
+
+        {/* Ships within */}
+        <fieldset>
+          <legend className={legendClass}>Ships within</legend>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setPendingShips(""); navigateWith({ ships: null }); }} aria-pressed={!pendingShips} className={chipClass(!pendingShips)}>
+              Any time
+            </button>
+            {SHIPS_WITHIN_OPTIONS.map((days) => (
+              <button
+                key={days}
+                type="button"
+                onClick={() => { setPendingShips(days); navigateWith({ ships: days }); }}
+                aria-pressed={pendingShips === days}
+                className={chipClass(pendingShips === days)}
+              >
+                {days} days
+              </button>
+            ))}
+            {pendingShips && !SHIPS_WITHIN_OPTIONS.includes(pendingShips) && (
+              <span aria-current="true" className={chipClass(true)}>{pendingShips} days</span>
+            )}
+          </div>
+        </fieldset>
+
+        {/* Shop rating */}
+        <fieldset>
+          <legend className={legendClass}>Shop rating</legend>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setPendingRating(""); navigateWith({ rating: null }); }} aria-pressed={!pendingRating} className={chipClass(!pendingRating)}>
+              Any
+            </button>
+            {RATING_OPTIONS.map((stars) => (
+              <button
+                key={stars}
+                type="button"
+                onClick={() => { setPendingRating(stars); navigateWith({ rating: stars }); }}
+                aria-label={`${stars} stars and up`}
+                aria-pressed={pendingRating === stars}
+                className={chipClass(pendingRating === stars)}
+              >
+                {stars}★ and up
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* Popular tags */}
+        {popularTags.length > 0 && (
+          <fieldset>
+            <legend className={legendClass}>Popular tags</legend>
+            <div className="flex flex-wrap gap-2">
+              {Array.from(new Set([...selectedTags, ...popularTags])).map((tag) => {
+                const active = selectedTags.includes(tag);
+                return (
+                  <Link
+                    key={tag}
+                    href={tagToggleHref(tag)}
+                    scroll={false}
+                    data-filter-tag={tag}
+                    onClick={handleTagLinkClick}
+                    aria-current={active ? "true" : undefined}
+                    className={chipClass(active)}
+                  >
+                    #{tag}
+                  </Link>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+
+        <Link
+          href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
+          scroll={false}
+          onClick={scrollResultsToTop}
+          className="inline-flex min-h-11 items-center text-sm text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
+        >
+          Reset filters
+        </Link>
+      </div>
+    </aside>
   );
 }

@@ -278,7 +278,7 @@ async function BrowseMetroContent({
         <div className="flex overflow-x-auto gap-2 pb-2 mb-6">
           <Link
             href={`/browse/${metroSlug}`}
-            className="flex-none whitespace-nowrap rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white"
+            className="flex-none whitespace-nowrap rounded-full bg-[#2C1F1A] px-4 py-1.5 text-sm font-medium text-white"
           >
             All
           </Link>

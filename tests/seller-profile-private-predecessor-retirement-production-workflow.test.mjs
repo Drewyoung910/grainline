@@ -60,6 +60,7 @@ function liveSurface({ commit = releaseCommit } = {}) {
 
 test("live deployment proof binds public aliases to both deployment and reviewed source commit", async () => {
   assert.match(layout, /VERCEL_GIT_COMMIT_SHA/u);
+  assert.match(layout, /GRAINLINE_RELEASE_COMMIT/u);
   assert.match(layout, /grainline-release-commit/u);
   await verifyOrderEmailFreeDeploymentSurface({
     deploymentId,

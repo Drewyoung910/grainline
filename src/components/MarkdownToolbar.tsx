@@ -91,7 +91,7 @@ export default function MarkdownToolbar({
   const btnClass = (active: boolean) =>
     `px-2 py-1 text-sm rounded-md transition-colors ${
       active
-        ? "bg-neutral-900 text-white"
+        ? "bg-[#2C1F1A] text-white"
         : "text-neutral-700 hover:bg-neutral-200"
     }`;
 
@@ -233,7 +233,7 @@ export default function MarkdownToolbar({
             />
             <button
               type="submit"
-              className="h-8 rounded-md bg-neutral-900 px-2 text-xs text-white hover:bg-neutral-800 disabled:opacity-50"
+              className="h-8 rounded-md bg-[#2C1F1A] px-2 text-xs text-white hover:bg-[#3A2A24] disabled:opacity-50"
               disabled={!linkUrl.trim()}
             >
               Apply

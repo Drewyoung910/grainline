@@ -141,7 +141,7 @@ export default async function BlogAuthorPage({
   function PostCard({ post }: { post: AuthorPost }) {
     const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 140) : null;
     return (
-      <li className="card-listing relative">
+      <li className="group card-listing relative">
         <div className="absolute right-2 top-2 z-10">
           <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
         </div>

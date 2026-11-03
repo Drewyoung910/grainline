@@ -19,19 +19,17 @@ describe("seller profile and commission UI markup guardrails", () => {
     assert.doesNotMatch(sellerPage, /<div\b[^>]*>\s*<ClickTracker\b/);
 
     const trackerOpenings = [...sellerPage.matchAll(/<ClickTracker\b/g)];
-    assert.ok(trackerOpenings.length >= 6);
-    for (const { index } of trackerOpenings) {
-      const before = sellerPage
-        .slice(0, index)
-        .trimEnd()
-        .replace(/\{[\w.]+\.map\(\([^)]*\) => \($/, "")
-        .trimEnd();
-      assert.match(
-        before,
-        /(<ul\b[^<>]*>|<\/ClickTracker>)$/,
-        `ClickTracker at offset ${index} must sit directly in a <ul>`,
-      );
-    }
+    // Featured and ordinary listings are map-rendered, so each source opening
+    // represents a whole collection rather than one hard-coded card.
+    assert.equal(trackerOpenings.length, 2);
+    assert.match(
+      sellerPage,
+      /<ul\b[^>]*>\s*\{fallbackFeatured\.slice\(0, 3\)\.map\(\(listing\) => \(\s*<ClickTracker\b/,
+    );
+    assert.match(
+      sellerPage,
+      /<ul\b[^>]*>\s*\{listings\.map\(\(l\) => \(\s*<ClickTracker\b/,
+    );
   });
 
   it("renders the maker bio once and hides controls with nothing to act on", () => {
@@ -48,7 +46,8 @@ describe("seller profile and commission UI markup guardrails", () => {
     assert.doesNotMatch(similarMakers, /state\.toUpperCase\(\)/);
     assert.match(similarMakers, /US_STATES\.find\(/);
 
-    assert.match(commissionBoard, /\{hasLocation && \(\s*<div className="flex gap-1 mb-6 border-b border-neutral-100">/);
+    // The All / Near me toggle still only shows when "Near me" is possible.
+    assert.match(commissionBoard, /\{hasLocation && \(\s*<div className="mb-6">\s*<SegmentedControl\s+label="Requests"/);
     assert.doesNotMatch(commissionBoard, /border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50/);
     assert.equal(
       commissionBoard.match(/"bg-\[#EFEAE0\] text-neutral-800 hover:bg-\[#E3DCCB\]"/g)?.length,

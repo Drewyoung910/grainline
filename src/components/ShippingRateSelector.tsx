@@ -210,7 +210,7 @@ export default function ShippingRateSelector({
                 name={`shipping-${sellerId}`}
                 checked={isSelected}
                 onChange={() => onSelect(rate)}
-                className="accent-neutral-900"
+                className="radio-spring"
               />
               <span className="text-sm text-neutral-700">
                 {rate.displayName}

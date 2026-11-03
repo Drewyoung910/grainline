@@ -24,7 +24,7 @@ export default async function UnsubscribePage() {
       </p>
       <Link
         href="/sign-in?redirect_url=/account/settings"
-        className="inline-block rounded-md bg-neutral-900 text-white px-6 py-2.5 text-sm font-medium hover:bg-neutral-800"
+        className="inline-block rounded-md bg-[#2C1F1A] text-white px-6 py-2.5 text-sm font-medium hover:bg-[#3A2A24]"
       >
         Sign in to manage preferences
       </Link>

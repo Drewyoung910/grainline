@@ -203,7 +203,7 @@ export default function VariantEditor({
                       type="checkbox"
                       checked={opt.inStock}
                       onChange={(e) => updateOption(gi, oi, "inStock", e.target.checked)}
-                      className="accent-neutral-900"
+                      className="accent-[#2C1F1A]"
                     />
                     In stock
                   </label>
