@@ -96,6 +96,11 @@ export function shrinkPhotoTo(
 // ---------- Card photo into the listing gallery ----------
 
 export const LISTING_PHOTO_TARGET_ATTRIBUTE = "data-listing-photo-target";
+// The listing gallery's frame. The page and its loading skeleton share it, so
+// the page doesn't move when it arrives and a traveling photo lands in the
+// right place.
+export const LISTING_GALLERY_FRAME_HEIGHT =
+  "h-[clamp(18rem,calc(100svh-var(--site-header-offset)-12rem),26rem)] lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),32rem)]";
 const TRAVEL_MS = 420;
 const TARGET_WAIT_MS = 4000;
 const LANDED_HOLD_MS = 900;
