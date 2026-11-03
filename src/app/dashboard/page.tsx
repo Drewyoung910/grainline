@@ -20,7 +20,8 @@ import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { readWorkshopListingAttention, readWorkshopOrderQueue } from "@/lib/workshopData";
-import { workshopAttentionRows, type WorkshopAttentionRow } from "@/lib/workshopQueue";
+import { orderRefundedAway, workshopAttentionRows, type WorkshopAttentionRow } from "@/lib/workshopQueue";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -34,6 +35,17 @@ const ATTENTION_ICONS: Record<WorkshopAttentionRow["icon"], typeof Truck> = {
   alert: AlertTriangle,
   tag: Tag,
 };
+
+// These fill in the overview but aren't needed to use it, so one failing read
+// must not take the banners and sidebar down with it.
+async function readOptional<T>(part: string, read: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read();
+  } catch (error) {
+    logServerError(error, { source: "workshop_overview", extra: { part } });
+    return null;
+  }
+}
 
 export default function DashboardPage(props: DashboardPageProps) {
   return (
@@ -58,9 +70,9 @@ async function DashboardPageContent({
 
   const [dashboardSeller, listingAttention, orderQueue, unreadMessages] = await Promise.all([
     sellerOwnerDashboardState(me.id),
-    readWorkshopListingAttention(seller.id),
-    readWorkshopOrderQueue(me.id),
-    countActorUnreadMessages(me.id),
+    readOptional("listing_attention", () => readWorkshopListingAttention(seller.id)),
+    readOptional("order_queue", () => readWorkshopOrderQueue(me.id)),
+    readOptional("unread_messages", () => countActorUnreadMessages(me.id)),
   ]);
   if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
     throw new Error("Seller dashboard authority returned an unexpected owner");
@@ -70,21 +82,26 @@ async function DashboardPageContent({
   const chargesEnabled = dashboardSeller.chargesEnabled;
 
   const attentionRows = workshopAttentionRows({
-    ordersToShip: orderQueue.awaiting.length,
-    ordersToShipCapped: orderQueue.capped,
-    orderNames: orderQueue.awaiting.map((order) => sellerFacingOrderBuyerLabel(order, "Buyer")),
-    unreadMessages,
-    underReview: listingAttention.underReview,
-    underReviewTitle: listingAttention.underReviewTitle,
-    rejected: listingAttention.rejected,
-    lowStock: listingAttention.lowStock,
+    ordersToShip: orderQueue?.awaiting.length ?? 0,
+    ordersToShipCapped: orderQueue?.capped ?? false,
+    orderNames: (orderQueue?.awaiting ?? []).map((order) => sellerFacingOrderBuyerLabel(order, "Buyer")),
+    unreadMessages: unreadMessages ?? 0,
+    underReview: listingAttention?.underReview ?? 0,
+    underReviewTitle: listingAttention?.underReviewTitle ?? null,
+    rejected: listingAttention?.rejected ?? 0,
+    lowStock: listingAttention?.lowStock ?? [],
+    listingCount: listingAttention?.listingCount ?? null,
   });
+  // Never claim there's nothing to do when part of the answer failed to load.
+  const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null;
 
   const shopStatus = vacationMode
     ? { label: "On vacation", className: "bg-amber-100 text-amber-900" }
-    : !onboardingComplete || !chargesEnabled
+    : !chargesEnabled
       ? { label: "Not visible yet", className: "bg-amber-100 text-amber-900" }
-      : { label: "Shop open", className: "bg-green-100 text-green-800" };
+      : !onboardingComplete
+        ? { label: "Finish setup", className: "bg-amber-100 text-amber-900" }
+        : { label: "Shop open", className: "bg-green-100 text-green-800" };
 
   return (
     <main className="mx-auto max-w-5xl space-y-7">
@@ -176,10 +193,17 @@ async function DashboardPageContent({
 
       <section aria-labelledby="workshop-attention-title" className="card-section p-5 sm:p-[22px]">
         <h2 id="workshop-attention-title" className="mb-3.5 font-display text-[26px] leading-tight">
-          {attentionRows.length > 0 ? "Needs your attention" : "All caught up"}
+          {attentionRows.length > 0 ? "Needs your attention" : attentionIncomplete ? "Your shop" : "All caught up"}
         </h2>
+        {attentionIncomplete && (
+          <p className={`text-sm text-neutral-600${attentionRows.length > 0 ? " mb-3" : ""}`}>
+            Some updates couldn&apos;t load just now. Refresh to try again.
+          </p>
+        )}
         {attentionRows.length === 0 ? (
-          <p className="text-sm text-neutral-600">No orders to ship, messages waiting or listings to fix right now.</p>
+          attentionIncomplete ? null : (
+            <p className="text-sm text-neutral-600">No orders to ship, messages waiting or listings to fix right now.</p>
+          )
         ) : (
           <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
             {attentionRows.map((row) => {
@@ -206,7 +230,9 @@ async function DashboardPageContent({
         )}
       </section>
 
-      <WorkshopStats />
+      {/* Shops still in setup have nothing to report, and the numbers would
+          only show placeholders and vanish. */}
+      {onboardingComplete && <WorkshopStats />}
 
       <section aria-labelledby="workshop-recent-title" className="card-section p-5 sm:p-[22px]">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -216,7 +242,9 @@ async function DashboardPageContent({
             <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
-        {orderQueue.recent.length === 0 ? (
+        {!orderQueue ? (
+          <p className="py-2 text-sm text-neutral-600">Your recent orders couldn&apos;t load just now.</p>
+        ) : orderQueue.recent.length === 0 ? (
           <p className="py-2 text-sm text-neutral-600">No orders yet. Your first sale is right around the corner.</p>
         ) : (
           <ul className="divide-y divide-neutral-100">
@@ -245,7 +273,9 @@ async function DashboardPageContent({
                       </span>
                     </span>
                     <span className="hidden shrink-0 rounded-full bg-[#EFEAE0] px-2.5 py-0.5 text-[12.5px] font-medium text-neutral-700 sm:inline">
-                      {fulfillmentStatusLabel(order.fulfillmentStatus ?? "PENDING")}
+                      {orderRefundedAway(order, orderQueue.refundOutcomes.get(order.id) ?? null)
+                        ? "Fully refunded"
+                        : fulfillmentStatusLabel(order.fulfillmentStatus ?? "PENDING")}
                     </span>
                     <span className="shrink-0 text-right font-medium tabular-nums text-neutral-900">
                       {formatCurrencyCents(

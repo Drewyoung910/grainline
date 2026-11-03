@@ -22,6 +22,8 @@ export function formatSnippet(body?: string | null, kind?: string | null) {
   if (kind === "commission_interest_card") return "Interested in your commission";
   if (kind === "custom_order_request") return "Custom order request";
   if (kind === "custom_order_link") return "Custom listing ready";
+  // A file the parser refuses, such as one on a retired host, is stored JSON.
+  if (kind === "file") return "Attachment";
 
   if (isImageUrl(txt)) return "Photo";
   if (isPdfUrl(txt)) return "PDF";

@@ -85,7 +85,10 @@ export function workshopNavGroups(input: { counts?: WorkspaceCounts; guildLabel?
     },
     {
       label: "Your account",
-      items: [{ href: "/account", label: "My account", icon: "user", exact: true }],
+      items: [
+        { href: "/dashboard/notifications", label: "Notifications", icon: "bell", count: counts.notifications ?? undefined },
+        { href: "/account", label: "My account", icon: "user", exact: true },
+      ],
     },
   ];
 }

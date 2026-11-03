@@ -265,7 +265,7 @@ export default async function WorkshopListingsPage({ searchParams }: ListingsPag
                   </div>
                   {/* A sold piece has no stock to manage, as on the inventory page. */}
                   {l.listingType === "IN_STOCK" && l.status !== "SOLD" && (
-                    <InventoryQuantityControl listing={l} actorScope={userId} />
+                    <InventoryQuantityControl listing={{ id: l.id, stockQuantity: l.stockQuantity }} actorScope={userId} />
                   )}
                   </div>
                 </div>
