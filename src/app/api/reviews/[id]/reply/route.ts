@@ -17,6 +17,7 @@ import {
   sellerOwnerCore,
   sellerOwnerReviewReply,
 } from "@/lib/sellerProfileOwnerAccess";
+import { listingActorReviewContexts } from "@/lib/listingReviewHistoryAccess";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -71,19 +72,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   // Find review + ensure current user owns the shop/listing
   const review = await prisma.review.findUnique({
     where: { id },
-    select: {
-      sellerReply: true,
-      listing: {
-        select: {
-          sellerId: true,
-        },
-      },
-    },
+    select: { id: true, sellerReply: true },
   });
   if (!review) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
+  const [listingContext] = await listingActorReviewContexts(me.id, [review.id]);
+  if (!listingContext) {
+    return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
+  }
+
   const seller = await sellerOwnerCore(me.id);
-  if (!seller || seller.sellerProfileId !== review.listing.sellerId) {
+  if (!seller || seller.sellerProfileId !== listingContext.sellerProfileId) {
     return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
 

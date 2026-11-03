@@ -42,18 +42,20 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // relation. Listing analytics removes two reviewed publicListingWhere calls,
   // UserReport removes three report-route factories, Commission removes the
   // remaining open-commission calls, and email-service preparation moves the
-  // remaining direct EmailOutbox shapes behind fixed SQL authorities.
-  assert.equal(report.opaqueShapes.length, 115);
-  assert.equal(reviewedFactories.length, 85);
-  assert.equal(reviewedResidual.length, 30);
+  // remaining direct EmailOutbox shapes behind fixed SQL authorities. The
+  // Listing public-catalog boundary removes the tag and metro-category direct
+  // Listing shapes while retaining their set-based database behavior.
+  assert.equal(report.opaqueShapes.length, 102);
+  assert.equal(reviewedFactories.length, 80);
+  assert.equal(reviewedResidual.length, 22);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 67,
-    sha256: "fa2213f6a1554ba7be7a83884b13e3abbc4c894337182bcf7bfaea7fb50bdc83",
+    unique: 64,
+    sha256: "1e0e632f51e0a82138b724c11bfd567d774c4400d0b71947e5ff02fb6c6ab04c",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 25,
-    sha256: "5e9f1f2b7003cf1a028bbd195c4507bfbe05d9ee9d903a1e743a41f76a9acae3",
+    unique: 17,
+    sha256: "e5404a5ebe7ec0e9db7a9b954c40805bd92fb91f0a2b9cb092b31e93251b33c0",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,

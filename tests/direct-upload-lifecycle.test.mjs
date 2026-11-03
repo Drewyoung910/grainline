@@ -147,8 +147,8 @@ describe("direct upload lifecycle", () => {
 
   it("synchronizes every persisted public-media family through its fixed wrapper", () => {
     const checked = [
-      ["src/app/dashboard/listings/new/page.tsx", /syncListingDirectUploadReferences/],
-      ["src/app/dashboard/listings/custom/page.tsx", /syncListingDirectUploadReferences/],
+      ["src/app/dashboard/listings/new/page.tsx", /createListingOwner/],
+      ["src/app/dashboard/listings/custom/page.tsx", /createListingOwner/],
       ["src/app/dashboard/listings/[id]/edit/page.tsx", /syncListingDirectUploadReferences/],
       ["src/app/api/reviews/route.ts", /syncReviewDirectUploadReferences/],
       ["src/app/api/reviews/[id]/route.ts", /syncReviewDirectUploadReferences/],

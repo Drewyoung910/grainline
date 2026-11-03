@@ -22,6 +22,12 @@ type QualityScoreBatchRow = Readonly<{
 }>;
 
 type QualityScoreZeroRow = Readonly<{ zeroedCount: unknown }>;
+type QualityScoreApplyRow = Readonly<{ updatedCount: unknown }>;
+
+export type ListingQualityScoreUpdate = Readonly<{
+  id: string;
+  score: number;
+}>;
 
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/u;
 const GUILD_LEVELS = new Set(["NONE", "GUILD_MEMBER", "GUILD_MASTER"]);
@@ -96,6 +102,39 @@ export async function sellerServiceZeroIneligibleQualityScores(
   const value = rows.length === 1 ? rows[0]?.zeroedCount : null;
   if (typeof value !== "bigint" || value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error("Seller quality-score zeroing authority returned an invalid result");
+  }
+  return Number(value);
+}
+
+export async function sellerServiceApplyQualityScores(
+  scores: readonly ListingQualityScoreUpdate[],
+  client: QualityScoreClient = prisma,
+) {
+  if (
+    scores.length < 1
+    || scores.length > 200
+    || new Set(scores.map((score) => score.id)).size !== scores.length
+    || scores.some((score) => (
+      !ID_PATTERN.test(score.id)
+      || !Number.isFinite(score.score)
+      || score.score < 0
+      || score.score > 1.2
+    ))
+  ) {
+    throw new RangeError("Listing quality-score updates are outside the supported range");
+  }
+  const rows = await client.$queryRaw<QualityScoreApplyRow[]>`
+    SELECT public.grainline_listing_service_quality_score_apply(
+      ${JSON.stringify(scores)}::jsonb
+    ) AS "updatedCount"
+  `;
+  const value = rows.length === 1 ? rows[0]?.updatedCount : null;
+  if (
+    typeof value !== "bigint"
+    || value < 0n
+    || value > BigInt(scores.length)
+  ) {
+    throw new Error("Listing quality-score apply authority returned an invalid result");
   }
   return Number(value);
 }

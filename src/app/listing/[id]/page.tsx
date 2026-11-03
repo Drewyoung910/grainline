@@ -26,7 +26,7 @@ import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Wrench } from "@/components/icons";
-import { canViewListingDetail, isPublicListingDetail, publicListingWhere } from "@/lib/listingVisibility";
+import { canViewListingDetail, isPublicListingDetail } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicTagPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -44,49 +44,20 @@ import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 import { formatCityState } from "@/lib/locationDisplay";
+import {
+  listingActorDetailSource,
+  listingStaffDetailSource,
+} from "@/lib/listingDetailAccess";
+import { listingPublicCatalogPage } from "@/lib/listingPublicCatalogAccess";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   return new URL(path, base).toString();
 }
 
-const getListingForDetailPage = cache(async (listingId: string) =>
-  prisma.listing.findUnique({
-    where: { id: listingId },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      metaDescription: true,
-      priceCents: true,
-      currency: true,
-      status: true,
-      isPrivate: true,
-      archivedAt: true,
-      reservedForUserId: true,
-      listingType: true,
-      stockQuantity: true,
-      shipsWithinDays: true,
-      processingTimeMinDays: true,
-      processingTimeMaxDays: true,
-      category: true,
-      tags: true,
-      materials: true,
-      productLengthIn: true,
-      productWidthIn: true,
-      productHeightIn: true,
-      sellerId: true,
-      photos: { orderBy: { sortOrder: "asc" } },
-      metroId: true,
-      cityMetroId: true,
-      metro: { select: { slug: true, name: true, state: true } },
-      cityMetro: { select: { slug: true, name: true, state: true } },
-      variantGroups: {
-        orderBy: { sortOrder: "asc" },
-        include: { options: { orderBy: { sortOrder: "asc" } } },
-      },
-    },
-  })
+const getListingForDetailPage = cache(
+  async (viewerUserId: string | null, listingId: string) =>
+    listingActorDetailSource(viewerUserId, listingId),
 );
 
 const getListingSellerForDetailPage = cache(
@@ -103,8 +74,13 @@ export async function generateMetadata(
   if (sp.preview === "1" || sp.preview === "admin") {
     return { robots: { index: false, follow: false } };
   }
-  const listingCore = await getListingForDetailPage(listingId);
-  if (!listingCore) notFound();
+  const listingCore = await getListingForDetailPage(null, listingId);
+  if (!listingCore) {
+    return {
+      title: { absolute: "Private listing — Grainline" },
+      robots: { index: false, follow: false },
+    };
+  }
   const seller = await getListingSellerForDetailPage(null, listingId);
   if (!seller) {
     return {
@@ -188,7 +164,6 @@ export default async function ListingPage({
 }) {
   const { id } = await params;
   const listingId = extractRouteId(id);
-  const listingPromise = getListingForDetailPage(listingId);
 
   const sp = await searchParams;
   const sortKey = (sp.rsort as "top" | "new" | "rating" | "photos") ?? "top";
@@ -201,11 +176,8 @@ export default async function ListingPage({
     me = await userClerkGate(prisma, userId);
     meId = me?.id ?? null;
   }
-  const blockedUserIds = await getBlockedUserIdsFor(meId);
-
-  const listingCore = await listingPromise;
-  if (!listingCore) return notFound();
   if (me?.banned || me?.deletedAt) return notFound();
+  const blockedUserIds = await getBlockedUserIdsFor(meId);
 
   const staffPreviewRequested = sp.preview === "admin";
   let staffPreview = false;
@@ -224,9 +196,18 @@ export default async function ListingPage({
       sessionId,
     );
   }
-  const seller = staffPreview
+  const staffClient = staffPreview ? getOrderStaffReadClient() : null;
+  const listingCore = staffClient
+    ? await listingStaffDetailSource(
+        staffClient,
+        meId as string,
+        listingId,
+      )
+    : await getListingForDetailPage(meId, listingId);
+  if (!listingCore) return notFound();
+  const seller = staffClient
     ? await sellerStaffListingDetailProfile(
-        getOrderStaffReadClient(),
+        staffClient,
         meId as string,
         listingId,
       )
@@ -292,21 +273,16 @@ export default async function ListingPage({
       _count: { _all: true },
     }),
     getSellerRatingMap([listing.sellerId]),
-    prisma.listing.findMany({
-      where: publicListingWhere({
+    listingPublicCatalogPage(
+      meId,
+      {
         sellerId: listing.sellerId,
-        id: { not: listing.id },
-      }),
-      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-      take: 4,
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        excludeListingId: listing.id,
+        sort: "quality",
       },
-    }),
+      0,
+      4,
+    ).then(({ listings: rows }) => rows),
     prisma.review.findMany({
       where: visibleListingReviewWhere,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],

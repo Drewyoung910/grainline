@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import {
-  legacyStockRestoreClaimFromRows,
+  legacyStockRestoreApplyFromRows,
   stripeWebhookHealthSummaryFromRows,
   stripeWebhookPruneCountFromRows,
 } from "../src/lib/stripeWebhookMaintenanceState.ts";
@@ -128,11 +128,30 @@ test("application wrappers parse fail closed", () => {
     }]),
     /inconsistent counts/,
   );
-  assert.equal(legacyStockRestoreClaimFromRows([{ claimed: true }]), true);
-  assert.throws(() => legacyStockRestoreClaimFromRows([{ claimed: "true" }]), /invalid result/);
+  assert.deepEqual(
+    legacyStockRestoreApplyFromRows([{
+      claimed: true,
+      stock_visibility_changed: 1,
+    }]),
+    { claimed: true, stockVisibilityChanged: 1 },
+  );
+  assert.throws(
+    () => legacyStockRestoreApplyFromRows([{
+      claimed: "true",
+      stock_visibility_changed: 0,
+    }]),
+    /invalid result/,
+  );
+  assert.throws(
+    () => legacyStockRestoreApplyFromRows([{
+      claimed: false,
+      stock_visibility_changed: 1,
+    }]),
+    /inconsistent result/,
+  );
   assert.match(app, /grainline_stripe_webhook_prune_batch/);
   assert.match(app, /grainline_stripe_webhook_health_summary/);
-  assert.match(app, /grainline_legacy_stock_restore_claim/);
+  assert.match(app, /grainline_legacy_stock_restore_apply/);
 });
 
 test("ordinary application source has zero direct StripeWebhookEvent table accesses", () => {

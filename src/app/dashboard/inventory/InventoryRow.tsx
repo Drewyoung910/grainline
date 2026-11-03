@@ -14,7 +14,7 @@ type Listing = {
   stockQuantity: number | null;
   viewCount: number;
   clickCount: number;
-  photos: Array<{ url: string }>;
+  photos: ReadonlyArray<Readonly<{ url: string }>>;
   _count: { favorites: number; stockNotifications: number };
 };
 

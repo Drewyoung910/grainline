@@ -6,10 +6,9 @@ import { userClerkGate } from "@/lib/userIdentityAccess";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { deleteListingWithCleanup, listingDeletePublicError } from "@/lib/listingDelete";
-import { ListingStatus, ListingType } from "@prisma/client";
+import { ListingStatus } from "@prisma/client";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import {
-  STAFF_REMOVAL_REJECTION_REASON,
   deleteListingBlockReason,
   hideListingBlockReason,
   markAvailableBlockReason,
@@ -29,18 +28,27 @@ import {
   sellerOwnerCore,
   sellerOwnerListingPublishReview,
 } from "@/lib/sellerProfileOwnerAccess";
+import {
+  listingOwnerActionState,
+  listingOwnerAiReviewContext,
+  listingOwnerTransition,
+} from "@/lib/listingOwnerAccess";
+import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+const customOrderReadyWarning = "Listing is live, but the buyer was not notified. Contact support; delivery is safe to retry.";
+
+type PublishListingResult =
+  | { status: "ACTIVE" | "PENDING_REVIEW"; warning?: string }
+  | { error: string };
 
 async function findOwnedListing(
   listingId: string,
   ownerId: string,
   seller: { sellerProfileId: string; displayName: string },
 ) {
-  const listing = await prisma.listing.findFirst({
-    where: { id: listingId, sellerId: seller.sellerProfileId },
-  });
-  if (!listing) return null;
+  const listing = await listingOwnerActionState(ownerId, listingId);
+  if (!listing || listing.sellerId !== seller.sellerProfileId) return null;
   return {
     ...listing,
     seller: { userId: ownerId, displayName: seller.displayName },
@@ -143,16 +151,11 @@ export async function hideListingAction(listingId: string) {
   const listing = owned.listing;
   const blockReason = hideListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
-  const result = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
-      archivedAt: null,
-    },
-    data: { status: ListingStatus.HIDDEN },
+  const result = await listingOwnerTransition(listing.seller.userId, {
+    listingId,
+    operation: "HIDE",
   });
-  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
+  if (!result) return { ok: false, error: "Listing state changed; refresh and try again." };
   await syncThreshold(listing.sellerId);
   queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_hide");
   revalidateListingSurfaces(listingId, listing.sellerId);
@@ -178,15 +181,11 @@ export async function markSoldAction(listingId: string) {
   if (listing.status !== "ACTIVE" && listing.status !== "SOLD_OUT") {
     return { ok: false, error: "Only active or sold-out listings can be marked sold." };
   }
-  const result = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
-    },
-    data: { status: ListingStatus.SOLD },
+  const result = await listingOwnerTransition(listing.seller.userId, {
+    listingId,
+    operation: "MARK_SOLD",
   });
-  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
+  if (!result) return { ok: false, error: "Listing state changed; refresh and try again." };
   await syncThreshold(listing.sellerId);
   queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_mark_sold");
   revalidateListingSurfaces(listingId, listing.sellerId);
@@ -231,23 +230,12 @@ export async function withdrawListingReviewAction(listingId: string) {
   const blockReason = withdrawReviewBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  const result = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: ListingStatus.PENDING_REVIEW,
-      updatedAt: listing.updatedAt,
-    },
-    data: {
-      status: ListingStatus.DRAFT,
-      aiReviewFlags: [],
-      aiReviewScore: null,
-      reviewedByAdmin: false,
-      reviewedAt: null,
-      rejectionReason: null,
-    },
+  const result = await listingOwnerTransition(listing.seller.userId, {
+    listingId,
+    operation: "WITHDRAW_REVIEW",
+    expectedUpdatedAt: listing.updatedAt,
   });
-  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
+  if (!result) return { ok: false, error: "Listing state changed; refresh and try again." };
 
   revalidateListingSurfaces(listingId, listing.sellerId);
   return { ok: true };
@@ -266,7 +254,7 @@ export async function markAvailableAction(listingId: string) {
   return result;
 }
 
-export async function publishListingAction(listingId: string): Promise<{ status: "ACTIVE" | "PENDING_REVIEW" } | { error: string }> {
+export async function publishListingAction(listingId: string): Promise<PublishListingResult> {
   const owned = await getOwnedListing(listingId);
   if (!owned.ok) return { error: owned.error };
   const listing = owned.listing;
@@ -287,12 +275,18 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     const { reviewListingWithAI } = await import("@/lib/ai-review");
     const { logAdminAction } = await import("@/lib/audit");
 
-    const photos = await prisma.photo.findMany({
-      where: { listingId: listing.id },
-      select: { url: true },
-      orderBy: { sortOrder: "asc" },
-      take: 10,
-    });
+    const aiContext = await listingOwnerAiReviewContext(
+      listing.seller.userId,
+      listing.id,
+    );
+    if (
+      !aiContext
+      || aiContext.sellerProfileId !== listing.sellerId
+      || aiContext.listingUpdatedAt.getTime() !== listing.updatedAt.getTime()
+    ) {
+      return { error: "Listing state changed; refresh and try again." };
+    }
+    const reviewedImageUrls = [...aiContext.photoUrls];
 
     const aiResult = await reviewListingWithAI({
       listingId: listing.id,
@@ -302,10 +296,11 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       priceCents: listing.priceCents,
       currency: listing.currency,
       category: listing.category ?? null,
-      tags: listing.tags,
+      tags: [...listing.tags],
       sellerName: sellerReview.displayName,
       listingCount,
-      imageUrls: photos.map((p) => p.url),
+      imageUrls: reviewedImageUrls,
+      recentListingTitles: aiContext.recentTitles.map((title) => ({ title })),
     }).catch((error) => {
       logServerError(error, {
         source: "listing_publish_ai_review",
@@ -321,32 +316,24 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       };
     });
 
-    // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text.
-    // Runs regardless of approval status — alt text content is independent of moderation decision.
-    await backfillEmptyAltTexts(listing.id, aiResult.altTexts);
-
     const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
     if (shouldHold) {
-      const updateResult = await prisma.listing.updateMany({
-        where: {
-          id: listingId,
-          sellerId: listing.sellerId,
-          status: listing.status,
-          updatedAt: listing.updatedAt,
-          ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+      const updateResult = await applyVersionBoundListingAiReviewTransition(
+        listing.seller.userId,
+        {
+          listingId,
+          reviewedAt: listing.updatedAt,
+          sourceStatus: listing.status,
+          status: ListingStatus.PENDING_REVIEW,
+          flags: aiResult.flags,
+          score: aiResult.confidence,
         },
-        data: {
-          status: "PENDING_REVIEW",
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
-          rejectionReason: null,
-        },
-      });
-      if (updateResult.count === 0) {
+      );
+      if (!updateResult) {
         return { error: "Listing state changed; refresh and try again." };
       }
+      await backfillEmptyAltTexts(listing.seller.userId, listing.id, aiResult.altTexts, reviewedImageUrls);
       await logAdminAction({
         adminId: listing.seller.userId,
         action: "AI_HOLD_LISTING",
@@ -360,39 +347,37 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       return { status: "PENDING_REVIEW" };
     } else {
       const shouldNotifyFollowers = shouldNotifyFollowersOnActivation(listing);
-      const updateResult = await prisma.listing.updateMany({
-        where: {
-          id: listingId,
-          sellerId: listing.sellerId,
-          status: listing.status,
-          updatedAt: listing.updatedAt,
-          ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+      const updateResult = await applyVersionBoundListingAiReviewTransition(
+        listing.seller.userId,
+        {
+          listingId,
+          reviewedAt: listing.updatedAt,
+          sourceStatus: listing.status,
+          status: ListingStatus.ACTIVE,
+          flags: aiResult.flags,
+          score: aiResult.confidence,
         },
-        data: {
-          status: "ACTIVE",
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
-          rejectionReason: null,
-        },
-      });
-      if (updateResult.count === 0) {
+      );
+      if (!updateResult) {
         return { error: "Listing state changed; refresh and try again." };
       }
-      await prisma.$executeRaw`
-        UPDATE "Listing"
-        SET status = 'SOLD_OUT'
-        WHERE id = ${listingId}
-          AND "sellerId" = ${listing.sellerId}
-          AND "listingType" = 'IN_STOCK'
-          AND COALESCE("stockQuantity", 0) <= 0
-          AND status = 'ACTIVE'
-      `;
+      await backfillEmptyAltTexts(listing.seller.userId, listing.id, aiResult.altTexts, reviewedImageUrls);
+      let warning: string | undefined;
       if (listing.isPrivate && listing.reservedForUserId && listing.customOrderConversationId) {
-        await sendCustomOrderReadyLink({
-          listingId,
-          sellerUserId: listing.seller.userId,
-        });
+        try {
+          const readyLink = await sendCustomOrderReadyLink({
+            listingId,
+            sellerUserId: listing.seller.userId,
+          });
+          if (!readyLink.messageDelivered) warning = customOrderReadyWarning;
+        } catch (error) {
+          warning = customOrderReadyWarning;
+          logServerError(error, {
+            source: "listing_publish_custom_order_ready_delivery",
+            level: "warning",
+            extra: { listingId, sellerProfileId: listing.sellerId },
+          });
+        }
       }
       await syncThreshold(listing.sellerId);
       // First active listing for this seller might earn the Founding Maker badge.
@@ -401,7 +386,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         queueFollowerFanoutForActiveListing(listing);
       }
       revalidateListingSurfaces(listingId, listing.sellerId);
-      return { status: "ACTIVE" };
+      return { status: "ACTIVE", ...(warning ? { warning } : {}) };
     }
   } catch (error) {
     logServerError(error, {
@@ -410,29 +395,25 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       extra: { listingId, sellerProfileId: listing.sellerId },
     });
     // Fail closed: AI review error → send to admin review (not ACTIVE)
-    const updateResult = await prisma.listing.updateMany({
-      where: {
-        id: listingId,
-        sellerId: listing.sellerId,
-        status: listing.status,
-        updatedAt: listing.updatedAt,
-        OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+    const updateResult = await applyVersionBoundListingAiReviewTransition(
+      listing.seller.userId,
+      {
+        listingId,
+        reviewedAt: listing.updatedAt,
+        sourceStatus: listing.status,
+        status: ListingStatus.PENDING_REVIEW,
+        flags: ["AI review error"],
+        score: 0,
       },
-      data: {
-        status: "PENDING_REVIEW",
-        aiReviewFlags: ["AI review error"],
-        aiReviewScore: 0,
-        rejectionReason: null,
-      },
-    }).catch((updateError) => {
+    ).catch((updateError) => {
       logServerError(updateError, {
         source: "listing_publish_ai_error_mark_failed",
         level: "error",
         extra: { listingId, sellerProfileId: listing.sellerId },
       });
-      return { count: 0 };
+      return false;
     });
-    if (updateResult.count === 0) {
+    if (!updateResult) {
       return { error: "Listing state changed; refresh and try again." };
     }
     revalidateListingSurfaces(listingId, listing.sellerId);

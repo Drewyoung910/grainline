@@ -118,7 +118,7 @@ function fakeClientClass({
           database_name: "grainline",
           current_user_name: "neondb_owner",
           session_user_name: "neondb_owner",
-          table_name: release.table,
+          table_name: selectedRelease.table,
           table_owner_name: "neondb_owner",
           owner_bypasses_rls: true,
           rls_enabled: false,
@@ -144,7 +144,7 @@ function fakeClientClass({
               (entry) => entry.predecessorSourceSha256 === undefined,
             ).length - (partial ? 1 : 0)
             : 0,
-          constraints: schemaApplied ? (release.addedConstraints ?? []).length : 0,
+          constraints: schemaApplied ? (selectedRelease.addedConstraints ?? []).length : 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
@@ -153,6 +153,27 @@ function fakeClientClass({
             .sort((left, right) => left.name.localeCompare(right.name)),
         };
       }
+      if (sql.includes("constraint_state.conname AS name")) {
+        return { rows: [...(selectedRelease.addedConstraints ?? [])]
+          .sort((left, right) => (
+            left.table.localeCompare(right.table) || left.name.localeCompare(right.name)
+          )) };
+      }
+      if (sql.includes("AS count") && sql.includes("FROM pg_catalog.pg_trigger")) {
+        return { rows: [{ count: schemaApplied ? 1 : 0 }] };
+      }
+      if (sql.includes("trigger_state.tgname AS name")) {
+        return { rows: (selectedRelease.addedTriggers ?? []).map((entry) => ({
+          name: entry.name,
+          function: entry.function,
+          enabled: entry.enabled,
+          type: entry.type,
+          function_owner: "neondb_owner",
+          owner_bypasses_rls: true,
+          security_definer: true,
+          configuration: ["search_path=pg_catalog"],
+        })) };
+      }
       if (sql.includes("procedure.prosrc AS source")) {
         return { rows: selectedRelease.functions
           .map((entry) => ({
@@ -160,7 +181,7 @@ function fakeClientClass({
             identity_arguments: entry.arguments,
             owner_name: "neondb_owner",
             owner_bypasses_rls: true,
-            security_definer: true,
+            security_definer: entry.securityDefiner ?? true,
             volatility: entry.volatility ?? "v",
             configuration: ["search_path=pg_catalog"],
             source: selectedVerified.functionSources.get(entry.name),
@@ -339,9 +360,19 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
     "src/app/api/admin/listings/[id]/route.ts",
     "utf8",
   );
+  const listingPreparation = readFileSync(
+    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    "utf8",
+  );
+  assert.match(
+    adminRemoval,
+    /sellerProfileStaffListingRemovalTransition\([\s\S]*getOrderStaffReadClient\(\)/u,
+  );
   assert.ok(
-    adminRemoval.indexOf("await tx.listing.update")
-      < adminRemoval.indexOf("await deleteFavoritesForAdminListing"),
+    listingPreparation.indexOf("UPDATE public.\"Listing\"")
+      < listingPreparation.indexOf(
+        "grainline_favorite_admin_listing_cleanup(p_listing_id)",
+      ),
     "admin removal must hide and lock the Listing before Favorite cleanup",
   );
   assert.ok(
@@ -507,6 +538,98 @@ test("Commission preparation is byte-sealed across both domain tables", () => {
   assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
   assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
+test("Listing preparation is byte-sealed across its four-table domain", () => {
+  const listing = privateTablePreparation("listing_domain_v1");
+  const listingVerified = verifyPrivateTablePreparationSource("listing_domain_v1");
+  assert.equal(listing.table, "Listing");
+  assert.deepEqual(listing.additionalTables, [
+    "Photo",
+    "ListingVariantGroup",
+    "ListingVariantOption",
+  ]);
+  assert.equal(listing.functions.length, 43);
+  assert.equal(listingVerified.functionSources.size, 43);
+  assert.deepEqual(listing.addedConstraints, [{
+    table: "Listing",
+    name: "Listing_materials_count_chk",
+  }]);
+  assert.deepEqual(listing.addedTriggers, [{
+    name: "grainline_listing_materials_guard",
+    function: "grainline_listing_materials_guard",
+    table: "Listing",
+    enabled: "O",
+    type: 23,
+  }]);
+  const messageList = listing.functions.find(
+    (entry) => entry.name === "grainline_message_list",
+  );
+  assert.equal(messageList.securityDefiner, false);
+  const predecessorSql = readFileSync(
+    "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+    "utf8",
+  );
+  assert.equal(
+    createHash("sha256")
+      .update(functionSourceFromMigration(predecessorSql, messageList.name), "utf8")
+      .digest("hex"),
+    messageList.predecessorSourceSha256,
+  );
+  assert.match(
+    listingVerified.functionSources.get(
+      "grainline_seller_staff_listing_review_transition",
+    ),
+    /reviewed_updated_at/u,
+  );
+  assert.equal(
+    REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(listing.migration),
+    listing.migrationSha256,
+  );
+  assert.equal(
+    REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(
+      "20261102060000_activate_listing_domain_rls",
+    ),
+    "052707ad9d3c87f021a134eeac2dae24ad4025f7bfa0ccb1566f7a9283bcabdb",
+  );
+});
+
+test("Listing preparation inspector accepts the exact applied-unrecorded catalog", async () => {
+  const selectedReleaseId = "listing_domain_v1";
+  const selectedRelease = privateTablePreparation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTablePreparationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "listing-preparation-"));
+  try {
+    const evidence = await inspectPrivateTablePreparationProduction(
+      environment(directory, "preflight", undefined, selectedReleaseId),
+      {
+        Client: fakeClientClass({
+          ledgerApplied: false,
+          schemaApplied: true,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.equal(evidence.state, "applied_unrecorded");
+    assert.deepEqual(evidence.tables, [
+      "Listing",
+      "Photo",
+      "ListingVariantGroup",
+      "ListingVariantOption",
+    ]);
+    assert.equal(evidence.catalog.functions.length, 43);
+    assert.equal(
+      evidence.catalog.functions.find(
+        (entry) => entry.name === "grainline_message_list",
+      ).securityDefiner,
+      false,
+    );
+    assert.equal(evidence.catalog.constraints.length, 1);
+    assert.equal(evidence.catalog.triggers.length, 1);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", () => {
@@ -712,6 +835,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "email_service_v1",
     "admin_audit_log_v1",
     "seller_metrics_v1",
+    "listing_domain_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -747,6 +871,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "owner_social_verification_v1",
       "commission_domain_v1",
       "block_report_seller_faq_v1",
+      "listing_domain_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");

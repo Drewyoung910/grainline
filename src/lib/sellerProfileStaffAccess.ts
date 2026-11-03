@@ -20,7 +20,8 @@ type SellerProfileStaffListingReviewBlockReason =
   | "SELLER_ACCOUNT_UNAVAILABLE"
   | "SELLER_PAYOUTS_UNAVAILABLE"
   | "SELLER_VACATION"
-  | "REASON_REQUIRED";
+  | "REASON_REQUIRED"
+  | "LISTING_VERSION_CHANGED";
 
 type SellerProfileStaffListingReviewTransitionRow = Readonly<{
   applied: boolean;
@@ -67,6 +68,86 @@ export type SellerProfileStaffListingReviewTransition = Readonly<{
       vacationMode: boolean;
     }>;
   }>;
+}>;
+
+type SellerProfileStaffListingRemovalBlockReason = "LISTING_VERSION_CHANGED";
+
+type SellerProfileStaffListingRemovalTransitionRow = Readonly<{
+  applied: boolean;
+  auditId: string | null;
+  blockReason: SellerProfileStaffListingRemovalBlockReason | null;
+  listingId: string;
+  title: string;
+  sellerProfileId: string;
+  previousStatus: string;
+  previousIsPrivate: boolean;
+  previousRejectionReason: string | null;
+  removedFavorites: number;
+  removedStockNotifications: bigint;
+  removedCartItems: number;
+}>;
+
+export type SellerProfileStaffListingRemovalTransition = Readonly<{
+  applied: boolean;
+  auditId: string | null;
+  blockReason: SellerProfileStaffListingRemovalBlockReason | null;
+  listing: Readonly<{
+    id: string;
+    title: string;
+    sellerId: string;
+    previousStatus: string;
+    previousIsPrivate: boolean;
+    previousRejectionReason: string | null;
+  }>;
+  removedFavorites: number;
+  removedStockNotifications: number;
+  removedCartItems: number;
+}>;
+
+type SellerProfileStaffListingUndoTransitionRow = Readonly<{
+  action: "REMOVE_LISTING" | "HOLD_LISTING";
+  listingId: string;
+  restoredStatus: string;
+  auditId: string;
+}>;
+
+export type SellerProfileStaffListingUndoTransition = Readonly<{
+  action: "REMOVE_LISTING" | "HOLD_LISTING";
+  listingId: string;
+  restoredStatus: string;
+  auditId: string;
+}>;
+
+type SellerProfileStaffListingReviewQueueRow = Readonly<{
+  totalPending: bigint;
+  listingId: string;
+  sellerProfileId: string;
+  title: string;
+  priceCents: number;
+  currency: string;
+  createdAt: Date;
+  updatedAt: Date;
+  aiReviewFlags: string[];
+  aiReviewScore: number | null;
+  photoUrl: string | null;
+  sellerListingCount: bigint;
+}>;
+
+export type SellerProfileStaffListingReviewQueue = Readonly<{
+  totalPending: number;
+  listings: ReadonlyArray<Readonly<{
+    id: string;
+    sellerId: string;
+    title: string;
+    priceCents: number;
+    currency: string;
+    createdAt: Date;
+    updatedAt: Date;
+    aiReviewFlags: ReadonlyArray<string>;
+    aiReviewScore: number | null;
+    photoUrl: string | null;
+    sellerListingCount: number;
+  }>>;
 }>;
 
 type VerificationStatus =
@@ -134,6 +215,17 @@ const LISTING_REVIEW_BLOCK_REASONS = new Set<SellerProfileStaffListingReviewBloc
   "SELLER_PAYOUTS_UNAVAILABLE",
   "SELLER_VACATION",
   "REASON_REQUIRED",
+  "LISTING_VERSION_CHANGED",
+]);
+
+const LISTING_STATUSES = new Set([
+  "DRAFT",
+  "ACTIVE",
+  "SOLD",
+  "SOLD_OUT",
+  "HIDDEN",
+  "PENDING_REVIEW",
+  "REJECTED",
 ]);
 
 function validId(value: unknown): value is string {
@@ -182,6 +274,77 @@ export async function sellerProfileStaffReportTargets(
   return rows;
 }
 
+export async function sellerProfileStaffListingReviewQueue(
+  client: SellerProfileStaffClient,
+  input: { actorId: string; limit: number },
+): Promise<SellerProfileStaffListingReviewQueue> {
+  if (
+    !validId(input.actorId)
+    || !Number.isInteger(input.limit)
+    || input.limit < 1
+    || input.limit > 100
+  ) {
+    throw new RangeError("Seller listing review queue input is invalid");
+  }
+  const rows = await client.$queryRaw<SellerProfileStaffListingReviewQueueRow[]>`
+    SELECT * FROM public.grainline_seller_staff_listing_review_queue(
+      ${input.actorId}::text,
+      ${input.limit}::integer
+    )
+  `;
+  if (rows.length === 0) {
+    return Object.freeze({ totalPending: 0, listings: Object.freeze([]) });
+  }
+  const totalPending = Number(rows[0]?.totalPending);
+  const listingIds = new Set<string>();
+  if (
+    rows.length > input.limit
+    || !Number.isSafeInteger(totalPending)
+    || totalPending < rows.length
+    || rows.some((row) => {
+      const sellerListingCount = Number(row.sellerListingCount);
+      const valid = row.totalPending === rows[0]?.totalPending
+        && validId(row.listingId)
+        && !listingIds.has(row.listingId)
+        && validId(row.sellerProfileId)
+        && isTextWithinCodePointRange(row.title, 1, 150)
+        && Number.isSafeInteger(row.priceCents)
+        && row.priceCents > 0
+        && typeof row.currency === "string"
+        && row.currency.length === 3
+        && validDate(row.createdAt)
+        && validDate(row.updatedAt)
+        && Array.isArray(row.aiReviewFlags)
+        && row.aiReviewFlags.every((flag) => isTextWithinCodePointRange(flag, 0, 5000))
+        && (row.aiReviewScore === null || validFiniteNumber(row.aiReviewScore))
+        && (row.photoUrl === null || isTextWithinCodePointRange(row.photoUrl, 1, 2048))
+        && typeof row.sellerListingCount === "bigint"
+        && Number.isSafeInteger(sellerListingCount)
+        && sellerListingCount >= 1;
+      listingIds.add(row.listingId);
+      return !valid;
+    })
+  ) {
+    throw new Error("Seller listing review queue authority returned an invalid result");
+  }
+  return Object.freeze({
+    totalPending,
+    listings: Object.freeze(rows.map((row) => Object.freeze({
+      id: row.listingId,
+      sellerId: row.sellerProfileId,
+      title: row.title,
+      priceCents: row.priceCents,
+      currency: row.currency,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      aiReviewFlags: Object.freeze([...row.aiReviewFlags]),
+      aiReviewScore: row.aiReviewScore,
+      photoUrl: row.photoUrl,
+      sellerListingCount: Number(row.sellerListingCount),
+    }))),
+  });
+}
+
 export async function sellerProfileStaffBroadcastTargets(
   client: SellerProfileStaffClient,
   input: { actorId: string; broadcastIds: string[] },
@@ -221,6 +384,7 @@ export async function sellerProfileStaffListingReviewTransition(
     listingId: string;
     operation: SellerProfileStaffListingReviewOperation;
     reason: string;
+    reviewedAt: Date;
   },
 ): Promise<SellerProfileStaffListingReviewTransition | null> {
   if (
@@ -229,6 +393,7 @@ export async function sellerProfileStaffListingReviewTransition(
     || (input.operation !== "APPROVE" && input.operation !== "REJECT")
     || typeof input.reason !== "string"
     || input.reason.length > 500
+    || !validDate(input.reviewedAt)
   ) {
     throw new RangeError("Seller listing review transition input is invalid");
   }
@@ -237,7 +402,8 @@ export async function sellerProfileStaffListingReviewTransition(
       ${input.actorId}::text,
       ${input.listingId}::text,
       ${input.operation}::text,
-      ${input.reason}::text
+      ${input.reason}::text,
+      ${input.reviewedAt}::timestamp
     )
   `;
   if (rows.length === 0) return null;
@@ -306,6 +472,122 @@ export async function sellerProfileStaffListingReviewTransition(
         vacationMode: row.vacationMode,
       }),
     }),
+  });
+}
+
+export async function sellerProfileStaffListingRemovalTransition(
+  client: SellerProfileStaffClient,
+  input: {
+    actorId: string;
+    listingId: string;
+    reviewedAt: Date;
+  },
+): Promise<SellerProfileStaffListingRemovalTransition | null> {
+  if (
+    !validId(input.actorId)
+    || !validId(input.listingId)
+    || !validDate(input.reviewedAt)
+  ) {
+    throw new RangeError("Seller listing removal transition input is invalid");
+  }
+  const rows = await client.$queryRaw<SellerProfileStaffListingRemovalTransitionRow[]>`
+    SELECT * FROM public.grainline_seller_staff_listing_remove_transition(
+      ${input.actorId}::text,
+      ${input.listingId}::text,
+      ${input.reviewedAt}::timestamp
+    )
+  `;
+  if (rows.length === 0) return null;
+  if (rows.length !== 1) {
+    throw new Error("Seller listing removal transition returned multiple rows");
+  }
+  const row = rows[0];
+  const removedStockNotifications = Number(row.removedStockNotifications);
+  if (
+    typeof row.applied !== "boolean"
+    || (row.auditId !== null && !validId(row.auditId))
+    || (
+      row.blockReason !== null
+      && row.blockReason !== "LISTING_VERSION_CHANGED"
+    )
+    || !validId(row.listingId)
+    || row.listingId !== input.listingId
+    || !isTextWithinCodePointRange(row.title, 1, 150)
+    || !validId(row.sellerProfileId)
+    || !LISTING_STATUSES.has(row.previousStatus)
+    || typeof row.previousIsPrivate !== "boolean"
+    || (
+      row.previousRejectionReason !== null
+      && !isTextWithinCodePointRange(row.previousRejectionReason, 0, 1000)
+    )
+    || !validNonnegativeInteger(row.removedFavorites)
+    || typeof row.removedStockNotifications !== "bigint"
+    || !Number.isSafeInteger(removedStockNotifications)
+    || removedStockNotifications < 0
+    || !validNonnegativeInteger(row.removedCartItems)
+    || (row.applied && (row.auditId === null || row.blockReason !== null))
+    || (!row.applied && (row.auditId !== null || row.blockReason === null))
+    || (!row.applied && (
+      row.removedFavorites !== 0
+      || row.removedStockNotifications !== 0n
+      || row.removedCartItems !== 0
+    ))
+  ) {
+    throw new Error("Seller listing removal transition returned an invalid result");
+  }
+  return Object.freeze({
+    applied: row.applied,
+    auditId: row.auditId,
+    blockReason: row.blockReason,
+    listing: Object.freeze({
+      id: row.listingId,
+      title: row.title,
+      sellerId: row.sellerProfileId,
+      previousStatus: row.previousStatus,
+      previousIsPrivate: row.previousIsPrivate,
+      previousRejectionReason: row.previousRejectionReason,
+    }),
+    removedFavorites: row.removedFavorites,
+    removedStockNotifications,
+    removedCartItems: row.removedCartItems,
+  });
+}
+
+export async function sellerProfileStaffListingUndoTransition(
+  client: SellerProfileStaffClient,
+  input: { actorId: string; logId: string; reason: string },
+): Promise<SellerProfileStaffListingUndoTransition> {
+  if (
+    !validId(input.actorId)
+    || !validId(input.logId)
+    || !isTextWithinCodePointRange(input.reason, 1, 500)
+  ) {
+    throw new RangeError("Seller listing undo transition input is invalid");
+  }
+  const rows = await client.$queryRaw<SellerProfileStaffListingUndoTransitionRow[]>`
+    SELECT * FROM public.grainline_seller_staff_listing_undo_transition(
+      ${input.actorId}::text,
+      ${input.logId}::text,
+      ${input.reason}::text
+    )
+  `;
+  if (rows.length !== 1) {
+    throw new Error("Seller listing undo transition returned an invalid row count");
+  }
+  const row = rows[0];
+  if (
+    (row.action !== "REMOVE_LISTING" && row.action !== "HOLD_LISTING")
+    || !validId(row.listingId)
+    || !LISTING_STATUSES.has(row.restoredStatus)
+    || !validId(row.auditId)
+  ) {
+    throw new Error("Seller listing undo transition returned an invalid result");
+  }
+  return Object.freeze({
+    action: row.action,
+    listingId: row.listingId,
+    restoredStatus: row.restoredStatus,
+    auditId: row.auditId,
   });
 }
 

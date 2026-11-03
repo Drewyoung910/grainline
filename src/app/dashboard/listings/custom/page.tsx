@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
-import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
@@ -34,6 +33,15 @@ import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { userConversationParticipants } from "@/lib/userRelationshipAccess";
 import { sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
+import {
+  createListingOwner,
+  listingOwnerAiReviewContext,
+  listingOwnerTransition,
+} from "@/lib/listingOwnerAccess";
+import {
+  applyVersionBoundListingAiReviewTransition,
+  applyVersionBoundListingAiReviewTransitionState,
+} from "@/lib/listingAiReviewTransition";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -196,47 +204,68 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   const processingWindowError = listingProcessingWindowError(processingTimeMinDays, processingTimeMaxDays);
   if (processingWindowError) return { ok: false, error: processingWindowError };
 
-  const created = await prisma.$transaction(async (tx) => {
-    const listing = await tx.listing.create({
-      data: {
-        sellerId: seller.id,
-        title,
-        description,
-        priceCents,
-        status: ListingStatus.PENDING_REVIEW,
-        isPrivate: true,
-        reservedForUserId,
-        customOrderConversationId: conversationId,
-        listingType,
-        stockQuantity,
-        shipsWithinDays,
-        processingTimeMinDays,
-        processingTimeMaxDays,
-        packagedLengthCm,
-        packagedWidthCm,
-        packagedHeightCm,
-        packagedWeightGrams,
-        photos: { create: photoPairs.map((photo, i) => ({
-          url: photo.url,
-          originalUrl: photo.originalUrl,
-          sortOrder: i,
-          altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
-        })) },
-      },
+  let created: Awaited<ReturnType<typeof createListingOwner>>;
+  try {
+    created = await createListingOwner(seller.userId, {
+      status: ListingStatus.PENDING_REVIEW,
+      isPrivate: true,
+      reservedForUserId,
+      customOrderConversationId: conversationId,
+      title,
+      description,
+      priceCents,
+      tags: [],
+      metaDescription: null,
+      materials: [],
+      productLengthIn: null,
+      productWidthIn: null,
+      productHeightIn: null,
+      packagedLengthCm,
+      packagedWidthCm,
+      packagedHeightCm,
+      packagedWeightGrams,
+      category: null,
+      listingType,
+      stockQuantity,
+      shipsWithinDays,
+      processingTimeMinDays,
+      processingTimeMaxDays,
+      photos: photoPairs.map((photo, index) => ({
+        url: photo.url,
+        originalUrl: photo.originalUrl,
+        altText: imageAltTexts[index]
+          ? truncateText(sanitizeText(imageAltTexts[index].trim()), 200) || null
+          : null,
+      })),
+      variantGroups: [],
     });
-    await syncListingDirectUploadReferences({
-      client: tx,
-      userId: seller.userId,
-      listingId: listing.id,
-      requireAllTracked: true,
-    });
-    return listing;
-  });
+  } catch (error) {
+    const sqlState = getPrismaRawSqlState(error);
+    if (sqlState === "22023" || sqlState === "42501") {
+      return {
+        ok: false,
+        error: "This buyer is no longer available for custom orders. Check the conversation and block settings before trying again.",
+      };
+    }
+    throw error;
+  }
+  if (!created) {
+    return { ok: false, error: "The conversation or shop changed. Return to Messages and try again." };
+  }
 
   const sellerInfo = await sellerOwnerListingReview(seller.userId);
   if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
     throw new Error("Seller listing-review authority returned a different seller");
   }
+  const aiContext = await listingOwnerAiReviewContext(seller.userId, created.id);
+  if (
+    !aiContext
+    || aiContext.sellerProfileId !== seller.id
+    || aiContext.listingUpdatedAt.getTime() !== created.updatedAt.getTime()
+  ) {
+    return { ok: false, error: "The listing changed before review. Refresh and try again." };
+  }
+  const reviewedImageUrls = [...aiContext.photoUrls];
   const { reviewListingWithAI } = await import("@/lib/ai-review");
   const aiResult = await reviewListingWithAI({
     listingId: created.id,
@@ -246,10 +275,11 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     priceCents: created.priceCents,
     currency: created.currency,
     category: created.category ?? null,
-    tags: created.tags,
+    tags: [...created.tags],
     sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
     listingCount: sellerInfo?.totalListingCount ?? 0,
-    imageUrls,
+    imageUrls: reviewedImageUrls,
+    recentListingTitles: aiContext.recentTitles.map((title) => ({ title })),
   }).catch((): AIReviewResult => ({
     approved: false,
     flags: ["AI review error"],
@@ -259,40 +289,33 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   }));
   const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
-  await backfillEmptyAltTexts(created.id, aiResult.altTexts);
-
   if (shouldHold) {
-    const held = await prisma.listing.updateMany({
-      where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: aiResult.flags,
-        aiReviewScore: aiResult.confidence,
-      },
+    const held = await applyVersionBoundListingAiReviewTransition(seller.userId, {
+      listingId: created.id,
+      reviewedAt: created.updatedAt,
+      sourceStatus: ListingStatus.PENDING_REVIEW,
+      status: ListingStatus.PENDING_REVIEW,
+      flags: aiResult.flags,
+      score: aiResult.confidence,
     });
-    if (held.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+    if (!held) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+    await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, reviewedImageUrls);
     revalidatePath(`/messages/${conversationId}`);
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
 
-  const activated = await prisma.listing.updateMany({
-    where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
-    data: {
-      status: ListingStatus.ACTIVE,
-      aiReviewFlags: aiResult.flags,
-      aiReviewScore: aiResult.confidence,
-    },
+  const activation = await applyVersionBoundListingAiReviewTransitionState(seller.userId, {
+    listingId: created.id,
+    reviewedAt: created.updatedAt,
+    sourceStatus: ListingStatus.PENDING_REVIEW,
+    status: ListingStatus.ACTIVE,
+    flags: aiResult.flags,
+    score: aiResult.confidence,
   });
-  if (activated.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
-  await prisma.$executeRaw`
-    UPDATE "Listing"
-    SET status = 'SOLD_OUT'
-    WHERE id = ${created.id}
-      AND "sellerId" = ${seller.id}
-      AND "listingType" = 'IN_STOCK'
-      AND COALESCE("stockQuantity", 0) <= 0
-      AND status = 'ACTIVE'
-  `;
+  if (!activation.applied) {
+    return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+  }
+  await backfillEmptyAltTexts(seller.userId, created.id, aiResult.altTexts, reviewedImageUrls);
 
   const readyLink = await sendCustomOrderReadyLink({
     listingId: created.id,
@@ -300,14 +323,17 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   });
 
   if (!readyLink.messageDelivered) {
-    await prisma.listing.updateMany({
-      where: {
-        id: created.id,
-        sellerId: seller.id,
-        status: ListingStatus.ACTIVE,
-      },
-      data: { status: ListingStatus.DRAFT },
+    const returnedToDraft = await listingOwnerTransition(seller.userId, {
+      listingId: created.id,
+      operation: "RETURN_TO_DRAFT",
+      expectedUpdatedAt: activation.updatedAt,
     });
+    if (!returnedToDraft) {
+      return {
+        ok: false,
+        error: "Listing state changed after review. Refresh and verify the buyer notification.",
+      };
+    }
     revalidatePath(`/messages/${conversationId}`);
     revalidatePath("/dashboard");
     redirect(

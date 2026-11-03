@@ -50,6 +50,8 @@ export default function ShopListingActions({ listingId, status }: Props) {
                 const result = await publishListingAction(listingId);
                 if ("error" in result) {
                   showToast(result.error);
+                } else if (result.warning) {
+                  showToast(result.warning);
                 } else if (result.status === "ACTIVE") {
                   showToast("Published!");
                 } else {
@@ -91,6 +93,8 @@ export default function ShopListingActions({ listingId, status }: Props) {
               const result = await unhideListingAction(listingId);
               if (result && "error" in result) {
                 showToast(result.error);
+              } else if (result?.warning) {
+                showToast(result.warning);
               } else if (result?.status === "PENDING_REVIEW") {
                 showToast("Sent for review — you'll be notified once approved.");
               } else {
@@ -152,6 +156,8 @@ export default function ShopListingActions({ listingId, status }: Props) {
                 const result = await publishListingAction(listingId);
                 if ("error" in result) {
                   showToast(result.error);
+                } else if (result.warning) {
+                  showToast(result.warning);
                 } else if (result.status === "ACTIVE") {
                   showToast("Published!");
                 } else {

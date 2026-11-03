@@ -24,6 +24,11 @@ import { sellerPublicProfile } from "@/lib/sellerProfilePublicAccess";
 import { normalizeTag } from "@/lib/tags";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
+import { listingPublicCatalogCount, listingPublicCatalogPage } from "@/lib/listingPublicCatalogAccess";
+import {
+  listingOwnerCatalogPage,
+  type ListingOwnerCatalogSort,
+} from "@/lib/listingOwnerCatalogAccess";
 
 const PAGE_SIZE = 20;
 
@@ -79,8 +84,9 @@ export default async function SellerShopPage({
   const sellerId = extractRouteId(id);
   const sp = await searchParams;
 
-  const sort = sp.sort && ["newest", "price_asc", "price_desc", "popular"].includes(sp.sort)
-    ? sp.sort
+  const sort: ListingOwnerCatalogSort = sp.sort
+    && ["newest", "price_asc", "price_desc", "popular"].includes(sp.sort)
+    ? sp.sort as ListingOwnerCatalogSort
     : "newest";
   const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const categoryRaw = sp.category ?? "";
@@ -102,6 +108,7 @@ export default async function SellerShopPage({
   if (!seller) return notFound();
   const sellerShopHref = publicSellerShopPath(seller.id, seller.displayName);
   const isOwner = seller.viewerIsOwner;
+  if (isOwner && !meId) return notFound();
 
   const validStatuses = STATUS_TABS.map((t) => t.value).filter(Boolean);
   const statusFilter = isOwner && validStatuses.includes(statusRaw as typeof validStatuses[number])
@@ -119,26 +126,18 @@ export default async function SellerShopPage({
     permanentRedirect(`${sellerShopHref}${canonicalQuery ? `?${canonicalQuery}` : ""}`);
   }
 
-  // Distinct categories — for owner show all statuses (optionally filtered by status), for buyers show ACTIVE only
-  const categoryGroupWhere = isOwner
-    ? {
-        sellerId,
-        archivedAt: null,
-        category: { not: null },
-        ...(tag ? { tags: { has: tag } } : {}),
-        ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
-      }
-    : publicListingWhere({ sellerId, category: { not: null }, ...(tag ? { tags: { has: tag } } : {}) });
-
-  // Build where clause — owner sees all listings (filtered by status); buyers see ACTIVE + chargesEnabled only
+  // Owner-only states stay on the actor-bound owner catalog. Public cards keep
+  // their explicit safe-column read and use the bounded public catalog for
+  // totals and facets.
   const categoryFilter = category ? { category } : {};
   const tagFilter = tag ? { tags: { has: tag } } : {};
-  const ownerStatusFilter = statusFilter
-    ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" }
-    : {};
-  const where = isOwner
-    ? { sellerId, archivedAt: null, ...ownerStatusFilter, ...categoryFilter, ...tagFilter }
-    : publicListingWhere({ sellerId, ...categoryFilter, ...tagFilter });
+  const publicWhere = publicListingWhere({ sellerId, ...categoryFilter, ...tagFilter });
+  const ownerCatalogFilter = {
+    ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
+    ...(category ? { category } : {}),
+    ...(tag ? { tag } : {}),
+    sort,
+  } as const;
 
   // Build orderBy
   const orderBy: Prisma.ListingOrderByWithRelationInput[] =
@@ -147,51 +146,75 @@ export default async function SellerShopPage({
     : sort === "popular" ? [{ favoriteCount: "desc" }, { createdAt: "desc" }, { id: "desc" }]
     : [{ createdAt: "desc" }, { id: "desc" }];
 
-  const [
-    followState,
-    categoryGroups,
-    total,
-  ] = await Promise.all([
-    sellerPublicFollowState(sellerId, meId ?? undefined),
-    prisma.listing.groupBy({
-      by: ["category"],
-      where: categoryGroupWhere,
-      _count: { _all: true },
-    }),
-    prisma.listing.count({ where }),
-  ]);
+  const publicCatalogBaseFilter = {
+    sellerId,
+    ...(tag ? { tag } : {}),
+  };
+  const followStatePromise = sellerPublicFollowState(sellerId, meId ?? undefined);
+  let availableCategoryRows: readonly Category[];
+  let total: number;
+  if (isOwner) {
+    const ownerOverview = await listingOwnerCatalogPage(
+      meId!,
+      sellerId,
+      { ...ownerCatalogFilter, includeCategoryCounts: true },
+      0,
+      0,
+    );
+    availableCategoryRows = ownerOverview.categoryCounts.map(({ category: value }) => value);
+    total = ownerOverview.total;
+  } else {
+    [availableCategoryRows, total] = await Promise.all([
+      listingPublicCatalogPage(
+        meId,
+        { ...publicCatalogBaseFilter, includeCategoryCounts: true },
+        0,
+        0,
+      ).then(({ categoryCounts }) => categoryCounts.map(({ category: value }) => value)),
+      listingPublicCatalogCount(meId, {
+        ...publicCatalogBaseFilter,
+        ...(category ? { category } : {}),
+      }),
+    ]);
+  }
+  const followState = await followStatePromise;
   const followerCount = followState?.followerCount ?? 0;
   const isFollowing = followState?.following ?? false;
 
-  const availableCategories = categoryGroups
-    .filter((g) => g.category != null)
-    .map((g) => g.category as Category)
-    .sort();
+  const availableCategories = [...availableCategoryRows].sort();
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const clampedPage = Math.min(Math.max(page, 1), totalPages);
 
-  const listings = await prisma.listing.findMany({
-    where,
-    orderBy,
-    skip: (clampedPage - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    select: {
-      id: true,
-      title: true,
-      priceCents: true,
-      currency: true,
-      status: true,
-      isPrivate: true,
-      listingType: true,
-      stockQuantity: true,
-      photos: {
-        orderBy: { sortOrder: "asc" },
-        take: 1,
-        select: { url: true, altText: true },
-      },
-    },
-  });
+  const listings = isOwner
+    ? (await listingOwnerCatalogPage(
+        meId!,
+        sellerId,
+        ownerCatalogFilter,
+        (clampedPage - 1) * PAGE_SIZE,
+        PAGE_SIZE,
+      )).listings
+    : await prisma.listing.findMany({
+        where: publicWhere,
+        orderBy,
+        skip: (clampedPage - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        select: {
+          id: true,
+          title: true,
+          priceCents: true,
+          currency: true,
+          status: true,
+          isPrivate: true,
+          listingType: true,
+          stockQuantity: true,
+          photos: {
+            orderBy: { sortOrder: "asc" },
+            take: 1,
+            select: { url: true, altText: true },
+          },
+        },
+      });
 
   // Favorites for current viewer
   const savedSet = meId && listings.length > 0

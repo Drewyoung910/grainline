@@ -377,6 +377,60 @@ jobs:
           tests/db-grant-inventory.test.mjs
           tests/private-table-preparation-production.test.mjs
           tests/user-public-review-commission-state-source.test.mjs
+      - name: Verify Listing domain preparation and activation source packages
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/listing-account-deletion-authority.test.mjs
+          tests/listing-detail-source-authority.test.mjs
+          tests/listing-domain-rls-activation.test.mjs
+          tests/listing-message-context-authority.test.mjs
+          tests/listing-owner-content-update-authority.test.mjs
+          tests/listing-owner-create-authority.test.mjs
+          tests/listing-public-catalog-page-authority.test.mjs
+          tests/listing-stock-runtime.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/privilege-release-production.test.mjs
+          tests/seller-profile-staff-listing-review-transition.test.mjs
+      - name: Verify AdminAuditLog and SellerMetrics source packages
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/admin-audit-log-consumer-contracts.test.mjs
+          tests/admin-audit-log-preparation-postgres.test.mjs
+          tests/admin-audit-log-preparation-rollback.test.mjs
+          tests/admin-audit-log-rls-activation.test.mjs
+          tests/private-table-preparation-production.test.mjs
+          tests/private-table-rls-activation-catalog.test.mjs
+          tests/private-table-rls-activation-production.test.mjs
+          tests/seller-metrics-preparation.test.mjs
+          tests/seller-metrics-rls-activation.test.mjs
+      - name: Isolate AdminAuditLog and SellerMetrics source packages until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/admin-audit-log-seller-metrics"
+          mkdir -p "$holding/migrations"
+          for migration in \
+            20261102010000_prepare_admin_audit_log_authorities \
+            20261102020000_activate_admin_audit_log_rls \
+            20261102030000_prepare_seller_metrics_authorities \
+            20261102040000_activate_seller_metrics_rls
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done
+      - name: Isolate Listing domain source packages until historical release guards pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain-preparation"
+          mkdir -p "$holding/migrations"
+          for migration in \
+            20261102050000_prepare_listing_domain_authorities \
+            20261102060000_activate_listing_domain_rls
+          do
+            mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          done
       - name: Isolate Commission preparation until historical release guards pass
         shell: bash
         run: |
@@ -1888,6 +1942,21 @@ jobs:
           mv
           prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
           "$RUNNER_TEMP/order-receipt-notification-authority-release"
+      - name: Isolate all later migrations before historical checkout receipt replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          boundary="20260901110000_prepare_order_checkout_receipt_authority"
+          holding="$RUNNER_TEMP/order-checkout-receipt-later-migrations"
+          mkdir "$holding"
+          while IFS= read -r migration; do
+            if [[ "$migration" > "$boundary" ]]; then
+              mv "prisma/migrations/$migration" "$holding/$migration"
+            fi
+          done < <(
+            find prisma/migrations -mindepth 1 -maxdepth 1 -type d -exec basename {} \; \
+              | LC_ALL=C sort
+          )
       - name: Verify compatible Order checkout receipt authority release
         run: npm run audit:order-checkout-receipt-authority-release
       - name: Isolate Order checkout receipt authority until snapshot correction passes
@@ -7180,6 +7249,32 @@ jobs:
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
           rmdir "$holding/migrations" "$holding"
           echo "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+      - name: Restore Listing domain source packages after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/listing-domain-preparation"
+          for migration in \
+            20261102050000_prepare_listing_domain_authorities \
+            20261102060000_activate_listing_domain_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding/migrations" "$holding"
+      - name: Restore AdminAuditLog and SellerMetrics source packages after historical release guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          holding="$RUNNER_TEMP/admin-audit-log-seller-metrics"
+          for migration in \
+            20261102010000_prepare_admin_audit_log_authorities \
+            20261102020000_activate_admin_audit_log_rls \
+            20261102030000_prepare_seller_metrics_authorities \
+            20261102040000_activate_seller_metrics_rls
+          do
+            mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          done
+          rmdir "$holding/migrations" "$holding"
       - name: Restore SellerBroadcast source packages after historical release guards
         shell: bash
         run: |

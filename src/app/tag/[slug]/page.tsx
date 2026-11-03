@@ -1,14 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
-import { Prisma } from "@prisma/client";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import {
+  listingPublicCatalogCount,
+  listingPublicCatalogPage,
+  type ListingPublicCatalogItem,
+} from "@/lib/listingPublicCatalogAccess";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { normalizeTag } from "@/lib/tags";
 import { getPopularListingTags } from "@/lib/popularTags";
@@ -27,19 +29,7 @@ type TagSearch = {
   page?: string;
 };
 
-const TAG_LISTING_SELECT = {
-  id: true,
-  title: true,
-  priceCents: true,
-  currency: true,
-  status: true,
-  listingType: true,
-  stockQuantity: true,
-  sellerId: true,
-  photos: { take: 2, orderBy: { sortOrder: "asc" as const }, select: { url: true, altText: true } },
-} satisfies Prisma.ListingSelect;
-
-type TagListing = Prisma.ListingGetPayload<{ select: typeof TAG_LISTING_SELECT }> & {
+type TagListing = ListingPublicCatalogItem & {
   seller: SellerPublicListingCard;
 };
 
@@ -74,9 +64,7 @@ export async function generateMetadata({
   const tag = tagFromRouteSlug(slug);
   if (!tag) return {};
 
-  const total = await prisma.listing.count({
-    where: publicListingWhere({ tags: { has: tag } }),
-  });
+  const total = await listingPublicCatalogCount(null, { tag });
   if (total === 0) return { robots: { index: false, follow: true } };
 
   const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
@@ -115,14 +103,8 @@ export default async function TagLandingPage({
     const me = await userIdByClerkId(prisma, userId);
     meDbId = me?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-  const where = publicListingWhere({
-    tags: { has: tag },
-    ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-  });
-
   const [total, popularTags] = await Promise.all([
-    prisma.listing.count({ where }),
+    listingPublicCatalogCount(meDbId, { tag }),
     getPopularListingTags(12),
   ]);
 
@@ -130,13 +112,12 @@ export default async function TagLandingPage({
   const totalPages = Math.max(1, Math.ceil(total / TAG_PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
-  const listingRows = await prisma.listing.findMany({
-    where,
-    orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * TAG_PAGE_SIZE,
-    take: TAG_PAGE_SIZE,
-    select: TAG_LISTING_SELECT,
-  });
+  const { listings: listingRows } = await listingPublicCatalogPage(
+    meDbId,
+    { tag, sort: "quality" },
+    (page - 1) * TAG_PAGE_SIZE,
+    TAG_PAGE_SIZE,
+  );
   const listingCards = await sellerPublicListingCards(meDbId, listingRows.map((listing) => listing.id));
   const listingCardById = new Map(listingCards.map((seller) => [seller.listingId, seller]));
   const listings = listingRows.flatMap((listing): TagListing[] => {

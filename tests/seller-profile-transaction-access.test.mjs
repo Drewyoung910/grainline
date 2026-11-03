@@ -34,8 +34,8 @@ test("cart, checkout, and shipping callers use the bounded transaction projectio
   assert.match(access, /isolationLevel: "RepeatableRead"/u);
   assert.match(access, /grainline_seller_actor_listing_transaction_state/u);
   assert.match(access, /grainline_seller_actor_cart_transaction_states/u);
-  assert.match(cartAccess, /withSellerActorCartTransaction/u);
-  assert.match(cartAccess, /attachCartSellerStates/u);
+  assert.match(cartAccess, /readListingActorCartTransactionSources/u);
+  assert.match(cartAccess, /attachOwnerCartListingSources/u);
   assert.match(cartAdd, /sellerListingTransactionSource\(me\.id, listingId\)/u);
   assert.match(cartUpdate, /sellerListingTransactionSource\(me\.id, item\.listingId\)/u);
   assert.match(shippingQuote, /sellerListingTransactionSource\(me\.id, body\.listingId \?\? ""\)/u);

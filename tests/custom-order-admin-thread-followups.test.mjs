@@ -39,11 +39,18 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(customPage, /startActorConversation\(me\.id, reservedForUserId, null\)/);
     assert.match(customPage, /availableConversation\.conversationId !== conversationId/);
     assert.match(customPage, /if \(!readyLink\.messageDelivered\)/);
-    assert.match(customPage, /status: ListingStatus\.DRAFT/);
+    assert.match(
+      customPage,
+      /if \(!readyLink\.messageDelivered\)[\s\S]*listingOwnerTransition\(seller\.userId,[\s\S]*operation: "RETURN_TO_DRAFT"[\s\S]*expectedUpdatedAt: activation\.updatedAt/,
+    );
     assert.match(customPage, /readyLink=unavailable/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.equal(
       (adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId: listing\.id,\s*sellerUserId: listing\.seller\.userId,\s*\}\)/g) ?? []).length,
+      1,
+    );
+    assert.equal(
+      (adminReview.match(/await deliverCustomOrderReadyLink\(listing\)/g) ?? []).length,
       2,
     );
     assert.match(adminReview, /if \(!transition\.applied\) \{[\s\S]*listing\.status === 'ACTIVE' &&[\s\S]*listing\.customOrderConversationId &&[\s\S]*listing\.reservedForUserId/);
@@ -59,12 +66,22 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.doesNotMatch(heldPath, /sendCustomOrderReadyLink/);
     assert.match(
       activatedPath,
-      /if \(listing\.isPrivate && listing\.reservedForUserId && listing\.customOrderConversationId\) \{\s*await sendCustomOrderReadyLink\(\{\s*listingId,\s*sellerUserId: listing\.seller\.userId,\s*\}\);\s*\}/,
+      /const readyLink = await sendCustomOrderReadyLink\(\{\s*listingId,\s*sellerUserId: listing\.seller\.userId,\s*\}\)/,
     );
+    assert.match(activatedPath, /if \(!readyLink\.messageDelivered\)/);
+    assert.match(sellerActions, /return \{ status: "ACTIVE", \.\.\.\(warning \? \{ warning \} : \{\}\) \}/);
     assert.ok(
-      activatedPath.indexOf("status: \"ACTIVE\"") < activatedPath.indexOf("await sendCustomOrderReadyLink"),
+      activatedPath.indexOf("status: \"ACTIVE\"") < activatedPath.indexOf("const readyLink = await sendCustomOrderReadyLink"),
       "the ready link must be sent only after the guarded ACTIVE transition succeeds",
     );
+
+    const reviewButtons = source("src/components/ReviewListingButtons.tsx");
+    const listingActions = source("src/app/seller/[id]/shop/ShopListingActions.tsx");
+    const resubmitButton = source("src/components/ResubmitButton.tsx");
+    assert.match(adminReview, /return result\.messageDelivered \? null : customOrderReadyWarning/);
+    assert.match(reviewButtons, /data\?\.warning/);
+    assert.match(listingActions, /result\.warning/);
+    assert.match(resubmitButton, /result\.warning/);
   });
 
   it("lets staff view reported message threads without becoming a participant", () => {

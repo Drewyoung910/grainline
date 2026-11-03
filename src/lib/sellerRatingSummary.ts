@@ -9,27 +9,25 @@ async function refreshSellerRatingSummaryInTransaction(
   sellerProfileId: string,
   db: Prisma.TransactionClient,
 ): Promise<SellerRating> {
-  await db.$executeRaw`SELECT pg_advisory_xact_lock(913343, hashtext(${sellerProfileId}))`;
-
-  const rows = await db.$queryRaw<Array<{ averageRating: number | null; reviewCount: bigint }>>`
-    SELECT
-      AVG(r."ratingX2")::float / 2.0 AS "averageRating",
-      COUNT(r.id)::bigint AS "reviewCount"
-    FROM "Review" r
-    JOIN "Listing" l ON l.id = r."listingId"
-    WHERE l."sellerId" = ${sellerProfileId}
+  const rows = await db.$queryRaw<Array<{ averageRating: number; reviewCount: number }>>`
+    SELECT *
+      FROM public.grainline_listing_seller_rating_summary_refresh(
+        ${sellerProfileId}::text
+      )
   `;
+  if (
+    rows.length !== 1
+    || typeof rows[0]?.averageRating !== "number"
+    || !Number.isFinite(rows[0].averageRating)
+    || rows[0].averageRating < 0
+    || rows[0].averageRating > 5
+    || !Number.isSafeInteger(rows[0].reviewCount)
+    || rows[0].reviewCount < 0
+  ) {
+    throw new Error("Seller rating summary refresh returned an invalid result");
+  }
 
-  const reviewCount = Number(rows[0]?.reviewCount ?? 0);
-  const averageRating = reviewCount > 0 ? Number(rows[0]?.averageRating ?? 0) : 0;
-
-  await db.sellerRatingSummary.upsert({
-    where: { sellerProfileId },
-    create: { sellerProfileId, averageRating, reviewCount },
-    update: { averageRating, reviewCount },
-  });
-
-  return { avg: averageRating, count: reviewCount };
+  return { avg: rows[0].averageRating, count: rows[0].reviewCount };
 }
 
 export async function refreshSellerRatingSummary(

@@ -30,8 +30,13 @@ import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money"
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { WorkshopSkeleton } from "@/components/RouteSkeletons";
-import { sellerOwnerCore, sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
+import { sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
+import {
+  listingOwnerActionState,
+  listingOwnerSummaryRows,
+  listingOwnerTransition,
+} from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -61,14 +66,7 @@ async function setStatus(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   if (listing.archivedAt) {
     return { ok: false, error: "Archived listings cannot be changed here." };
@@ -90,16 +88,11 @@ async function setStatus(
     return { ok: false, error: "That status change is not available here." };
   }
 
-  const updated = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: listing.status,
-      archivedAt: null,
-    },
-    data: { status: nextStatus },
+  const updated = await listingOwnerTransition(me.id, {
+    listingId,
+    operation: nextStatus === ListingStatus.HIDDEN ? "HIDE" : "MARK_SOLD",
   });
-  if (updated.count === 0) {
+  if (!updated) {
     return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
   }
 
@@ -140,14 +133,7 @@ async function deleteListing(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = deleteListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
@@ -207,35 +193,17 @@ async function withdrawListingReview(
   const me = await userClerkGate(prisma, userId);
   if (!me) return { ok: false, error: "Account not found." };
   if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
+  const listing = await listingOwnerActionState(me.id, listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
   const blockReason = withdrawReviewBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  const updated = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: ListingStatus.PENDING_REVIEW,
-      updatedAt: listing.updatedAt,
-    },
-    data: {
-      status: ListingStatus.DRAFT,
-      aiReviewFlags: [],
-      aiReviewScore: null,
-      reviewedByAdmin: false,
-      reviewedAt: null,
-      rejectionReason: null,
-    },
+  const updated = await listingOwnerTransition(me.id, {
+    listingId,
+    operation: "WITHDRAW_REVIEW",
+    expectedUpdatedAt: listing.updatedAt,
   });
-  if (updated.count === 0) {
+  if (!updated) {
     return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
   }
 
@@ -286,25 +254,8 @@ async function DashboardPageContent({
   const forceSetupBanner = params.setup === "required";
 
   const [listingRows, savedSearches, verification, notifUnreadCount, dashboardSeller] = await Promise.all([
-    prisma.listing.findMany({
-      where: { sellerId: seller.id, archivedAt: null },
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        status: true,
-        isPrivate: true,
-        viewCount: true,
-        clickCount: true,
-        favoriteCount: true,
-        aiReviewFlags: true,
-        reviewedByAdmin: true,
-        createdAt: true,
-        updatedAt: true,
-        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-      },
-      orderBy: { updatedAt: "desc" },
+    listingOwnerSummaryRows(me.id, {
+      includeArchived: false,
       take: 6,
     }),
     listOwnerSavedSearches(me.id, prisma, { take: 20 }),

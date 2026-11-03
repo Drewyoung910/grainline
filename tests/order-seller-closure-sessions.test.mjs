@@ -167,7 +167,8 @@ test("real adapters preserve the destination witness and throwing completion bou
   assert.match(single, /destination: sellerStripeAccountId/);
   assert.match(cart, /const checkoutMetadata[^=]*= \{[\s\S]*sellerStripeAccountId: destination,/);
   assert.match(cart, /transfer_data: \{\s*destination,/);
-  const adapter = read("src/lib/checkoutSessionExpiry.ts").split("async function checkoutSessionBelongsToSeller")[0];
+  const adapter = read("src/lib/checkoutSessionExpiry.ts")
+    .split("export async function expireOpenCheckoutSessionsForBlockedPair")[0];
   assert.match(adapter, /expireClosedSellerAccountSessions<Stripe.Checkout.Session>/);
   assert.match(adapter, /restore: async \(session\) => restoreSellerExpiredCheckoutStockOnce/);
   assert.doesNotMatch(adapter, /\.catch\(/);

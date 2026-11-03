@@ -38,11 +38,11 @@ describe("Order legacy stock-restore fence", () => {
 
   it("removes direct Order access while retaining the transactional claim", () => {
     assert.match(restore, /await lockCheckoutSessionMutation\(tx, input\.sessionId\)/);
-    assert.match(restore, /claimLegacyStockRestore\(sessionId, tx\)/);
+    assert.match(restore, /applyLegacyStockRestore\(input\.sessionId, items, tx\)/);
     assert.doesNotMatch(restore, /\btx\.order\b|\bprisma\.order\b/);
+    assert.doesNotMatch(restore, /UPDATE "Listing"|tx\.listing\.updateMany/);
     const lock = restore.indexOf("await lockCheckoutSessionMutation(tx, input.sessionId)");
-    const claim = restore.indexOf("await claimCheckoutStockRestore(tx, input.sessionId)");
-    const stock = restore.indexOf("return restoreReservedStockItems(tx, items)");
-    assert.ok(lock >= 0 && lock < claim && claim < stock);
+    const apply = restore.indexOf("await applyLegacyStockRestore(input.sessionId, items, tx)");
+    assert.ok(lock >= 0 && lock < apply);
   });
 });
