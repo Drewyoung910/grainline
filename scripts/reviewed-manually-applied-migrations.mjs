@@ -134,6 +134,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "330f5be15987d606a8714228d07c27bf75581738e391bb755a769291ad66b8d4",
   ],
   [
+    "20261101070000_activate_commission_domain_rls",
+    "c21445e3c09ebc85041daef861629d871c11f9676cc0116c9d621ffcda3d1f9f",
+  ],
+  [
     "20261101090000_activate_email_service_least_privilege",
     "380bb991461b9ff11d9b721615baafbc3d0d0d0dcc51f913381ab6d85cd3b564",
   ],
