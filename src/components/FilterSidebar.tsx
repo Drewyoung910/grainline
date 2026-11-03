@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { normalizeTags } from "@/lib/tags";
 import SegmentedControl from "@/components/SegmentedControl";
+import { ChevronDown } from "@/components/icons";
 
 // Every change applies at once and glides the page back to the top of the
 // results (the motion study's floating filter column).
@@ -28,10 +29,10 @@ function cleanPrice(raw: string): string | null {
 }
 
 function chipClass(active: boolean) {
-  return `inline-flex h-9 items-center rounded-full border px-3.5 text-sm transition-[background-color,border-color,color,scale] duration-200 motion-safe:active:scale-95 ${
+  return `inline-flex h-9 items-center rounded-full border px-3.5 text-sm transition-[background-color,border-color,color,box-shadow,scale] duration-200 motion-safe:active:scale-95 ${
     active
-      ? "border-[#2C1F1A] bg-[#2C1F1A] text-[#FBF8F3]"
-      : "border-[#2C1F1A]/25 bg-white text-neutral-800 hover:border-[#2C1F1A]"
+      ? "border-transparent bg-[#2C1F1A] text-[#FBF8F3] shadow-[0_5px_14px_-10px_rgba(44,31,26,0.9)]"
+      : "border-transparent bg-white text-neutral-800 ring-1 ring-black/10 hover:bg-[#F0E9DE] hover:ring-black/5"
   }`;
 }
 
@@ -56,6 +57,18 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   const currentRadius = searchParams.get("radius") ?? "";
   const urlLat = searchParams.get("lat") ?? "";
   const urlLng = searchParams.get("lng") ?? "";
+
+  // Paint filter choices immediately while the server navigation catches up.
+  // Availability already does this inside SegmentedControl; the compact
+  // category control and chip groups should feel equally responsive.
+  const [pendingCategory, setPendingCategory] = React.useState(currentCategory);
+  const [pendingShips, setPendingShips] = React.useState(currentShips);
+  const [pendingRating, setPendingRating] = React.useState(currentRating);
+  React.useEffect(() => {
+    setPendingCategory(currentCategory);
+    setPendingShips(currentShips);
+    setPendingRating(currentRating);
+  }, [currentCategory, currentRating, currentShips, searchKey]);
 
   const [geo, setGeo] = React.useState<{ lat: string; lng: string } | null>(null);
   const [locating, setLocating] = React.useState(false);
@@ -206,37 +219,28 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
   return (
     <aside aria-label="Filters" className="hidden md:block w-56 lg:w-60 shrink-0">
-      {/* The small inset keeps focus rings clear of the scroll edge. */}
-      <div className="-ml-1 max-h-[calc(100dvh-var(--site-header-offset)-2rem)] space-y-7 overflow-y-auto overscroll-contain pb-6 pl-1 pr-2 pt-1 text-sm [scrollbar-width:thin]">
+      <div className="-ml-1 space-y-5 pb-8 pl-1 pr-2 pt-1 text-sm">
         {/* Category */}
-        <nav aria-labelledby={`${baseId}-category`}>
-          <p id={`${baseId}-category`} className={legendClass}>Category</p>
-          <ul className="space-y-0.5">
-            {[{ value: "", label: "All categories" }, ...CATEGORY_VALUES.map((value) => ({ value, label: CATEGORY_LABELS[value] }))].map(
-              ({ value, label }) => {
-                const active = currentCategory === value;
-                return (
-                  <li key={value || "all"}>
-                    <Link
-                      href={hrefWith({ category: value })}
-                      scroll={false}
-                      data-filter-changes={JSON.stringify({ category: value })}
-                      onClick={handleFilterLinkClick}
-                      aria-current={active ? "true" : undefined}
-                      className={`flex h-[38px] items-center rounded-[10px] px-3 text-[15px] transition-[background-color,box-shadow] duration-150 ${
-                        active
-                          ? "bg-white font-medium shadow-[0_1px_0_rgba(44,31,26,0.12),0_6px_16px_-12px_rgba(0,0,0,0.4)]"
-                          : "text-neutral-700 hover:bg-[#EFEAE0]"
-                      }`}
-                    >
-                      {label}
-                    </Link>
-                  </li>
-                );
-              },
-            )}
-          </ul>
-        </nav>
+        <div>
+          <label id={`${baseId}-category`} htmlFor={`${baseId}-category-select`} className={`block ${legendClass}`}>Category</label>
+          <div className="relative">
+            <select
+              id={`${baseId}-category-select`}
+              value={pendingCategory}
+              onChange={(event) => {
+                setPendingCategory(event.target.value);
+                navigateWith({ category: event.target.value });
+              }}
+              className="h-10 w-full appearance-none rounded-xl border-0 bg-white px-3 pr-9 text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] ring-1 ring-black/10 transition-[background-color,box-shadow] hover:bg-[#F3EEE5] focus:ring-2 focus:ring-[#2C1F1A]"
+            >
+              <option value="">All categories</option>
+              {CATEGORY_VALUES.map((value) => (
+                <option key={value} value={value}>{CATEGORY_LABELS[value]}</option>
+              ))}
+            </select>
+            <ChevronDown aria-hidden="true" size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+          </div>
+        </div>
 
         {/* Availability */}
         <fieldset>
@@ -254,6 +258,51 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               { value: "MADE_TO_ORDER", label: "Made to order" },
             ]}
           />
+        </fieldset>
+
+        {/* Location is a defining discovery feature, so it stays near the
+            top instead of below every commercial refinement. */}
+        <fieldset>
+          <legend className={legendClass}>Near location</legend>
+          <div className="space-y-2.5">
+            {!hasLocation ? (
+              <button type="button" onClick={detectLocation} disabled={locating} className="btn btn-sm btn-secondary">
+                {locating ? "Finding you…" : "Use my location"}
+              </button>
+            ) : (
+              <div ref={distanceGroupRef} className="flex flex-wrap gap-2" role="group" aria-label="Distance from you">
+                {RADIUS_OPTIONS.map((miles) => (
+                  <Link
+                    key={miles}
+                    href={hrefWith({ lat, lng, radius: miles })}
+                    scroll={false}
+                    data-filter-changes={JSON.stringify({ lat, lng, radius: miles })}
+                    onClick={handleFilterLinkClick}
+                    aria-current={currentRadius === miles ? "true" : undefined}
+                    className={chipClass(currentRadius === miles)}
+                  >
+                    {miles} mi
+                  </Link>
+                ))}
+                {currentRadius && !RADIUS_OPTIONS.includes(currentRadius) && (
+                  <span aria-current="true" className={chipClass(true)}>{currentRadius} mi</span>
+                )}
+              </div>
+            )}
+            {hasLocation && !currentRadius && (
+              <p className="text-xs text-neutral-600">Pick a distance from you.</p>
+            )}
+            {hasLocation && currentRadius && (
+              <Link href={hrefWith({ lat: null, lng: null, radius: null })} scroll={false} data-filter-changes={JSON.stringify({ lat: null, lng: null, radius: null })} onClick={handleFilterLinkClick} className="inline-block text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800">
+                Any distance
+              </Link>
+            )}
+            {geoError && (
+              <div role="alert" className="text-xs text-red-600">
+                {geoError}
+              </div>
+            )}
+          </div>
         </fieldset>
 
         {/* Price */}
@@ -313,24 +362,22 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Ships within</legend>
           <div className="flex flex-wrap gap-2">
-            <Link href={hrefWith({ ships: null })} scroll={false} data-filter-changes={JSON.stringify({ ships: null })} onClick={handleFilterLinkClick} aria-current={!currentShips ? "true" : undefined} className={chipClass(!currentShips)}>
+            <button type="button" onClick={() => { setPendingShips(""); navigateWith({ ships: null }); }} aria-pressed={!pendingShips} className={chipClass(!pendingShips)}>
               Any time
-            </Link>
+            </button>
             {SHIPS_WITHIN_OPTIONS.map((days) => (
-              <Link
+              <button
                 key={days}
-                href={hrefWith({ ships: days })}
-                scroll={false}
-                data-filter-changes={JSON.stringify({ ships: days })}
-                onClick={handleFilterLinkClick}
-                aria-current={currentShips === days ? "true" : undefined}
-                className={chipClass(currentShips === days)}
+                type="button"
+                onClick={() => { setPendingShips(days); navigateWith({ ships: days }); }}
+                aria-pressed={pendingShips === days}
+                className={chipClass(pendingShips === days)}
               >
                 {days} days
-              </Link>
+              </button>
             ))}
-            {currentShips && !SHIPS_WITHIN_OPTIONS.includes(currentShips) && (
-              <span aria-current="true" className={chipClass(true)}>{currentShips} days</span>
+            {pendingShips && !SHIPS_WITHIN_OPTIONS.includes(pendingShips) && (
+              <span aria-current="true" className={chipClass(true)}>{pendingShips} days</span>
             )}
           </div>
         </fieldset>
@@ -339,67 +386,21 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Shop rating</legend>
           <div className="flex flex-wrap gap-2">
-            <Link href={hrefWith({ rating: null })} scroll={false} data-filter-changes={JSON.stringify({ rating: null })} onClick={handleFilterLinkClick} aria-current={!currentRating ? "true" : undefined} className={chipClass(!currentRating)}>
+            <button type="button" onClick={() => { setPendingRating(""); navigateWith({ rating: null }); }} aria-pressed={!pendingRating} className={chipClass(!pendingRating)}>
               Any
-            </Link>
+            </button>
             {RATING_OPTIONS.map((stars) => (
-              <Link
+              <button
                 key={stars}
-                href={hrefWith({ rating: stars })}
-                scroll={false}
-                data-filter-changes={JSON.stringify({ rating: stars })}
-                onClick={handleFilterLinkClick}
+                type="button"
+                onClick={() => { setPendingRating(stars); navigateWith({ rating: stars }); }}
                 aria-label={`${stars} stars and up`}
-                aria-current={currentRating === stars ? "true" : undefined}
-                className={chipClass(currentRating === stars)}
+                aria-pressed={pendingRating === stars}
+                className={chipClass(pendingRating === stars)}
               >
                 {stars}★ and up
-              </Link>
-            ))}
-          </div>
-        </fieldset>
-
-        {/* Near location */}
-        <fieldset>
-          <legend className={legendClass}>Near location</legend>
-          <div className="space-y-2.5">
-            {!hasLocation ? (
-              <button type="button" onClick={detectLocation} disabled={locating} className="btn btn-sm btn-secondary">
-                {locating ? "Finding you…" : "Use my location"}
               </button>
-            ) : (
-              <div ref={distanceGroupRef} className="flex flex-wrap gap-2" role="group" aria-label="Distance from you">
-                {RADIUS_OPTIONS.map((miles) => (
-                  <Link
-                    key={miles}
-                    href={hrefWith({ lat, lng, radius: miles })}
-                    scroll={false}
-                    data-filter-changes={JSON.stringify({ lat, lng, radius: miles })}
-                    onClick={handleFilterLinkClick}
-                    aria-current={currentRadius === miles ? "true" : undefined}
-                    className={chipClass(currentRadius === miles)}
-                  >
-                    {miles} mi
-                  </Link>
-                ))}
-                {currentRadius && !RADIUS_OPTIONS.includes(currentRadius) && (
-                  <span aria-current="true" className={chipClass(true)}>{currentRadius} mi</span>
-                )}
-              </div>
-            )}
-            {hasLocation && !currentRadius && (
-              <p className="text-xs text-neutral-600">Pick a distance from you.</p>
-            )}
-            {hasLocation && currentRadius && (
-              <Link href={hrefWith({ lat: null, lng: null, radius: null })} scroll={false} data-filter-changes={JSON.stringify({ lat: null, lng: null, radius: null })} onClick={handleFilterLinkClick} className="inline-block text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800">
-                Any distance
-              </Link>
-            )}
-            {geoError && (
-              <div role="alert" className="text-xs text-red-600">
-                {geoError}
-              </div>
-            )}
+            ))}
           </div>
         </fieldset>
 

@@ -397,6 +397,13 @@ export default async function HomePage() {
   sundayForPill.setUTCDate(mondayForPill.getUTCDate() + 6);
   const weekStart = mondayForPill.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const weekEnd = sundayForPill.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // Tiny pre-launch totals reduce trust instead of building it. Keep the
+  // feature ready, but reveal it only after the marketplace has meaningful
+  // activity across supply and fulfilled demand.
+  const showMarketplaceStats =
+    homepageStats.makers >= 25 &&
+    homepageStats.pieces >= 100 &&
+    homepageStats.fulfilledOrders >= 25;
 
   return (
     <main className="overflow-x-clip">
@@ -433,8 +440,7 @@ export default async function HomePage() {
         data-home-hero
         className="relative isolate h-[clamp(520px,68svh,600px)] overflow-hidden bg-[#18201f] sm:h-[clamp(600px,78svh,760px)]"
       >
-        {/* The photo drifts slower than the page as it scrolls away. */}
-        <div aria-hidden="true" className="hero-parallax absolute inset-0">
+        <div aria-hidden="true" className="absolute inset-0">
           <Image
             src="/hero-maple-cabinets.jpg"
             alt=""
@@ -462,7 +468,7 @@ export default async function HomePage() {
               <span className="block whitespace-nowrap">Buy local.</span>
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-            <p className="hero-rise relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg" style={heroRiseDelay(450)}>
+            <p className="hero-rise relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg" style={heroRiseDelay(230)}>
               More than what&apos;s made for everyone.
             </p>
             {/* Each button rises on its own: fading a parent would switch off the
@@ -471,7 +477,7 @@ export default async function HomePage() {
               <Link
                 href="/browse"
                 data-home-primary-cta
-                style={heroRiseDelay(550)}
+                style={heroRiseDelay(300)}
                 className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
               >
                 Browse
@@ -479,7 +485,7 @@ export default async function HomePage() {
               <Link
                 href="/map"
                 data-home-secondary-cta
-                style={heroRiseDelay(620)}
+                style={heroRiseDelay(360)}
                 className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
               >
                 Find Shops Near You
@@ -489,17 +495,18 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Zero-height anchor + 50% translation keeps the bar exactly half
-          inside and half outside the hero at every responsive height. */}
-      <section
-        data-home-stats
-        aria-label="Grainline marketplace statistics"
-        className="relative z-30 h-0 px-4 sm:px-6 lg:px-8"
-      >
-        <dl
-          data-home-stats-surface
-          className="hero-stats-rise mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+      {showMarketplaceStats && (
+        /* Zero-height anchor + 50% translation keeps the bar exactly half
+           inside and half outside the hero at every responsive height. */
+        <section
+          data-home-stats
+          aria-label="Grainline marketplace statistics"
+          className="relative z-30 h-0 px-4 sm:px-6 lg:px-8"
         >
+          <dl
+            data-home-stats-surface
+            className="hero-stats-rise mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+          >
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
             <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">pieces listed</dt>
             <dd className="order-1 text-lg font-semibold leading-none text-[#2C1F1A] sm:text-2xl">
@@ -524,11 +531,12 @@ export default async function HomePage() {
               {homepageStats.fulfilledOrders.toLocaleString("en-US")}
             </dd>
           </div>
-        </dl>
-      </section>
+          </dl>
+        </section>
+      )}
 
       {/* ── Find Shops Near You ───────────────────────────────────────────── */}
-      <ScrollSection className="pb-6 pt-16 sm:pb-8 sm:pt-20">
+      <ScrollSection className={showMarketplaceStats ? "pb-6 pt-16 sm:pb-8 sm:pt-20" : "pb-6 pt-10 sm:pb-8 sm:pt-12"}>
         <div data-home-map className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}

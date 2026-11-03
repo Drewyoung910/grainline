@@ -124,11 +124,12 @@ export default function SectionTabs({
     <nav
       ref={navRef}
       aria-label={label}
-      className="sticky top-[var(--site-header-offset)] z-30 -mx-2 border-b border-stone-200/70 bg-[#F7F5F0]/90 backdrop-blur-xl sm:-mx-4"
+      className="sticky top-[var(--site-header-offset)] z-30 -mx-2 border-b border-stone-200/70 bg-[#F7F5F0]/90 backdrop-blur-xl sm:-mx-4 [clip-path:inset(0_-100vmax)]"
+      style={{ boxShadow: "0 0 0 100vmax rgba(247, 245, 240, 0.9)" }}
     >
       <div
         ref={listRef}
-        className="relative flex gap-1 overflow-x-auto px-2 [scrollbar-width:none] sm:gap-2 sm:px-4 [&::-webkit-scrollbar]:hidden"
+        className="relative mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-4 [scrollbar-width:none] sm:gap-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden"
       >
         {sections.map((section) => (
           <a

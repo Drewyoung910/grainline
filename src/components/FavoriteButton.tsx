@@ -84,7 +84,8 @@ export default function FavoriteButton({
       aria-label={saved ? "Remove from favorites" : "Save to favorites"}
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
-      className="group/fav absolute right-0 top-0 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none"
+      data-saved={saved ? "true" : "false"}
+      className="listing-save-control group/fav absolute right-0 top-0 z-10 inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,transform] duration-200 ease-out focus-visible:outline-none"
       style={{ lineHeight: 0 }}
     >
       {/* Solid white circle keeps the heart readable on any photo. It stays
@@ -93,7 +94,7 @@ export default function FavoriteButton({
           edges. */}
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_4px_14px_-6px_rgba(0,0,0,0.45)] transition-[background-color,scale] duration-150 ease-out group-hover/fav:bg-white motion-safe:group-active/fav:scale-[0.92] group-focus-visible/fav:ring-2 group-focus-visible/fav:ring-neutral-900 group-focus-visible/fav:ring-offset-2 group-focus-visible/fav:ring-offset-white"
+        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_5px_16px_-7px_rgba(0,0,0,0.55)] ring-1 ring-black/10 transition-[background-color,scale] duration-150 ease-out group-hover/fav:bg-white motion-safe:group-active/fav:scale-[0.92] group-focus-visible/fav:ring-2 group-focus-visible/fav:ring-neutral-900 group-focus-visible/fav:ring-offset-2 group-focus-visible/fav:ring-offset-white"
       />
       {popCount > 0 && (
         <span key={`burst-${popCount}`} aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -112,7 +113,7 @@ export default function FavoriteButton({
         height={size - 2}
         viewBox="0 0 24 24"
         aria-hidden="true"
-        className={`relative mt-px overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
+        className={`relative block transform-gpu overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path

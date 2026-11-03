@@ -240,7 +240,9 @@
   border-color: rgba(44, 31, 26, 0.24);
   @media (hover: hover) {
     &:hover {
-      border-color: #2C1F1A;
+      background-color: #F3EEE5;
+      border-color: rgba(44, 31, 26, 0.14);
+      box-shadow: 0 10px 24px -18px rgba(44, 31, 26, 0.65);
     }
   }
 }
@@ -668,16 +670,16 @@ input, textarea, select {
 @media (prefers-reduced-motion: no-preference) {
   /* Homepage hero load sequence */
   .hero-photo-settle {
-    animation: hero-photo-settle 1.6s var(--motion-ease-out) backwards;
+    animation: hero-photo-settle 0.8s var(--motion-ease-out) backwards;
   }
   .hero-rise,
   .hero-lines > span {
-    animation: hero-rise 0.8s var(--motion-ease-out) backwards;
+    animation: hero-rise 0.55s var(--motion-ease-out) backwards;
     animation-delay: var(--hero-rise-delay, 0ms);
   }
-  .hero-lines > span:nth-child(1) { --hero-rise-delay: 100ms; }
-  .hero-lines > span:nth-child(2) { --hero-rise-delay: 200ms; }
-  .hero-lines > span:nth-child(3) { --hero-rise-delay: 300ms; }
+  .hero-lines > span:nth-child(1) { --hero-rise-delay: 50ms; }
+  .hero-lines > span:nth-child(2) { --hero-rise-delay: 110ms; }
+  .hero-lines > span:nth-child(3) { --hero-rise-delay: 170ms; }
   .hero-stats-rise {
     animation: hero-stats-rise 0.9s var(--motion-ease-out) 0.55s backwards;
   }
@@ -711,6 +713,22 @@ input, textarea, select {
   /* Cart count bump when an item is added */
   .badge-bump {
     animation: badge-bump 0.5s var(--motion-ease-spring);
+  }
+}
+
+/* On pointer devices, unsaved card actions stay out of the photography until
+   the card is intentionally hovered or the control receives keyboard focus.
+   Saved actions and every touch-device action remain visible. */
+@media (hover: hover) and (pointer: fine) {
+  .group .listing-save-control[data-saved="false"] {
+    opacity: 0;
+    transform: translateY(3px) scale(0.94);
+  }
+  .group:hover .listing-save-control[data-saved="false"],
+  .group:focus-within .listing-save-control[data-saved="false"],
+  .listing-save-control[data-saved="false"]:focus-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -830,16 +848,11 @@ input, textarea, select {
   }
 }
 
-/* Third motion batch (2026-10-30): page changes and scroll-linked drift.
-   Parallax uses scroll-driven animations where the browser supports them and
-   is simply absent elsewhere; nothing depends on it. */
+/* Third motion batch (2026-10-30): restrained view-linked photo drift.
+   The homepage parallax was intentionally removed: Safari elastic overscroll
+   could move the photo independently of its shade and expose a bright strip. */
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: scroll()) {
-    .hero-parallax {
-      animation: hero-parallax linear both;
-      animation-timeline: scroll(root block);
-      animation-range: 0 100vh;
-    }
     .photo-drift {
       animation: photo-drift linear both;
       animation-timeline: view();
@@ -972,10 +985,6 @@ input, textarea, select {
 @keyframes check-draw {
   from { stroke-dashoffset: 1; }
   to   { stroke-dashoffset: 0; }
-}
-@keyframes hero-parallax {
-  from { transform: translateY(0); }
-  to   { transform: translateY(30vh); }
 }
 @keyframes photo-drift {
   from { transform: translateY(-4.5%); }

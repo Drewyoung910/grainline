@@ -388,8 +388,8 @@ async function SellerPublicContent({
 
       {/* ── Hero: banner + identity ─────────────────────────────────────── */}
       <section className="mt-4">
-        <div className="relative aspect-[3/1]">
-          <div className="absolute inset-0 rounded-2xl overflow-hidden">
+        <div className="relative -mx-4 aspect-[3/1] sm:mx-0">
+          <div className="absolute inset-0 overflow-hidden sm:rounded-2xl">
             {/* Shown exactly as the maker cropped it (no drift or zoom). */}
             <MediaImage
               src={seller.bannerImageUrl}
@@ -416,17 +416,22 @@ async function SellerPublicContent({
         <div className="px-2 sm:px-4 pt-16 pb-2 space-y-4">
           {/* Top row: name + badges (left), Back to Browse (right). */}
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+            <div className="min-w-0 flex-1">
               <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
-              <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
-              {seller.isFoundingMaker && (
-                <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={26} />
-              )}
             </div>
             <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1">
               ← Back to Browse
             </Link>
           </div>
+
+          {(Boolean(seller.guildLevel && seller.guildLevel !== "NONE") || seller.isFoundingMaker) && (
+            <div className="flex flex-wrap items-center gap-3" aria-label="Maker credentials">
+              <GuildBadge level={seller.guildLevel} showLabel={true} size={28} />
+              {seller.isFoundingMaker && (
+                <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={24} />
+              )}
+            </div>
+          )}
 
           {seller.tagline && (
             <p className="text-base sm:text-lg text-neutral-700 italic max-w-3xl">{seller.tagline}</p>
@@ -591,7 +596,7 @@ async function SellerPublicContent({
           {/* Shop first, as on Etsy: featured work, every listing, then what
               buyers received (customer photos). */}
           <div id="shop" data-scroll-anchor="" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
-            {/* Featured Work: asymmetric grid */}
+            {/* Featured Work: a compact, consistent grid */}
             {(() => {
               // Use seller-curated featured listings if set; otherwise fall back to
               // most recent 3 active listings so the section always renders for
@@ -623,57 +628,18 @@ async function SellerPublicContent({
                 seller: sellerChip,
                 rating: null,
               });
-              if (fallbackFeatured.length >= 3) {
-                const [hero, second, third] = fallbackFeatured;
-                return (
-                  <section>
-                    <div className="flex items-baseline justify-between mb-4">
-                      <h2 className="text-xl sm:text-2xl font-display font-semibold">Featured Work</h2>
-                    </div>
-                    {/* Mobile: horizontal scroll with fade. Desktop: asymmetric 3-col grid. */}
-                    <ScrollFadeRow hideAtBreakpoint="lg" className="overflow-x-auto -mx-4 px-4 lg:-mx-0 lg:px-0 lg:overflow-visible">
-                      {/* ClickTracker renders the <li>; never wrap it in another <li>
-                          (li-in-li breaks hydration with React error #418). */}
-                      <ul className="flex gap-4 snap-x snap-mandatory pb-4 lg:grid lg:grid-cols-3 lg:grid-rows-2 lg:gap-5 lg:pb-0">
-                        <ClickTracker listingId={hero.id} className="w-[220px] flex-none snap-start lg:w-auto lg:col-span-2 lg:row-span-2">
-                          <ListingCard listing={wrap(hero)} initialSaved={savedSet.has(hero.id)} variant="grid" />
-                        </ClickTracker>
-                        <ClickTracker listingId={second.id} className="w-[220px] flex-none snap-start lg:w-auto">
-                          <ListingCard listing={wrap(second)} initialSaved={savedSet.has(second.id)} variant="grid" />
-                        </ClickTracker>
-                        <ClickTracker listingId={third.id} className="w-[220px] flex-none snap-start lg:w-auto">
-                          <ListingCard listing={wrap(third)} initialSaved={savedSet.has(third.id)} variant="grid" />
-                        </ClickTracker>
-                      </ul>
-                    </ScrollFadeRow>
-                  </section>
-                );
-              }
-              if (fallbackFeatured.length === 2) {
-                return (
-                  <section>
-                    <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
-                    <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
-                      <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:gap-5 sm:pb-0">
-                        {fallbackFeatured.map((l) => (
-                          <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto">
-                            <ListingCard listing={wrap(l)} initialSaved={savedSet.has(l.id)} variant="grid" />
-                          </ClickTracker>
-                        ))}
-                      </ul>
-                    </ScrollFadeRow>
-                  </section>
-                );
-              }
-              // 1 listing — small card aligned left, no scroll, no big stretched photo
               return (
                 <section>
                   <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
-                  <ul className="w-[240px] sm:w-[280px]">
-                    <ClickTracker listingId={fallbackFeatured[0].id}>
-                      <ListingCard listing={wrap(fallbackFeatured[0])} initialSaved={savedSet.has(fallbackFeatured[0].id)} variant="grid" />
-                    </ClickTracker>
-                  </ul>
+                  <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
+                    <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:max-w-5xl sm:grid-cols-2 sm:gap-5 sm:pb-0 lg:grid-cols-3">
+                      {fallbackFeatured.slice(0, 3).map((listing) => (
+                        <ClickTracker key={listing.id} listingId={listing.id} className="w-[220px] flex-none snap-start sm:w-auto">
+                          <ListingCard listing={wrap(listing)} initialSaved={savedSet.has(listing.id)} variant="grid" />
+                        </ClickTracker>
+                      ))}
+                    </ul>
+                  </ScrollFadeRow>
                 </section>
               );
             })()}
@@ -716,7 +682,7 @@ async function SellerPublicContent({
                 <div className="card-section p-6 text-neutral-600 bg-white">No listings yet.</div>
               ) : (
                 <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
-                  <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:pb-0 md:grid-cols-3 sm:gap-6">
+                  <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:pb-0 md:grid-cols-3 lg:grid-cols-4 sm:gap-5">
                     {listings.map((l) => (
                       <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto">
                         <ListingCard

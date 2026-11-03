@@ -87,7 +87,8 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
     <button
       onClick={save}
       disabled={state !== "idle"}
-      className={`inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50 ${
+      data-state={state}
+      className={`btn btn-sm btn-secondary gap-1.5 transition-[background-color,border-color,box-shadow,scale] ${
         state === "saving" ? "opacity-60" : ""
       }`}
     >
@@ -95,7 +96,13 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
-        className={`h-4 w-4 transition-[fill] duration-200 ${state === "saved" ? "badge-bump fill-current" : "fill-transparent"}`}
+        className={`h-4 w-4 transform-gpu transition-[fill,scale,rotate] duration-300 ${
+          state === "saving"
+            ? "motion-safe:scale-90 motion-safe:-rotate-6 fill-transparent"
+            : state === "saved"
+              ? "badge-bump fill-current"
+              : "fill-transparent"
+        }`}
         stroke="currentColor"
         strokeWidth={1.8}
         strokeLinejoin="round"

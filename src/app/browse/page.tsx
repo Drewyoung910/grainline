@@ -549,7 +549,7 @@ async function BrowseContent({
   }
 
   // ── Pager component ────────────────────────────────────────────────────────
-  const Pager = () => (
+  const Pager = () => totalPages <= 1 ? null : (
     <nav className="flex items-center gap-2 text-sm">
       {clampedPage > 1 ? (
         <Link href={makePageHref(clampedPage - 1)} className="btn btn-sm btn-secondary">← Prev</Link>

@@ -67,6 +67,25 @@ describe("motion stability guardrails", () => {
     assert.doesNotMatch(css, /\.results-stagger >|\.card-rise\s*\{|@keyframes card-rise/);
   });
 
+  it("reveals unsaved card actions without moving their hit areas", () => {
+    const css = source("src/app/globals.css");
+    const favorite = source("src/components/FavoriteButton.tsx");
+    const blogSave = source("src/components/SaveBlogButton.tsx");
+    assert.match(css, /\.group \.listing-save-control\[data-saved="false"\]/);
+    assert.match(css, /\.group:hover \.listing-save-control\[data-saved="false"\]/);
+    assert.match(favorite, /data-saved=\{saved \? "true" : "false"\}/);
+    assert.match(blogSave, /data-saved=\{saved \? "true" : "false"\}/);
+    assert.match(favorite, /transform-gpu items-center justify-center/);
+    assert.match(blogSave, /transform-gpu items-center justify-center/);
+  });
+
+  it("paints seller tabs edge to edge without introducing viewport-width overflow", () => {
+    const tabs = source("src/components/SectionTabs.tsx");
+    assert.match(tabs, /clip-path:inset\(0_-100vmax\)/);
+    assert.match(tabs, /boxShadow: "0 0 0 100vmax/);
+    assert.doesNotMatch(tabs, /w-screen|-ml-\[50vw\]|-mr-\[50vw\]/);
+  });
+
   it("keeps hover hit areas still and preserves toast exit geometry", () => {
     const home = source("src/app/page.tsx");
     const seller = source("src/app/seller/[id]/page.tsx");

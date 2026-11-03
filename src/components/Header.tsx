@@ -26,11 +26,15 @@ export default function Header() {
   // The query string arrives through SearchParamsListener so the header can
   // render in the first HTML flush (see that component).
   const [searchQuery, setSearchQuery] = React.useState("");
-  // The header is clear over the homepage photo until the visitor scrolls,
-  // then settles into the same frosted paper every other page uses.
+  // The header is clear while the homepage photo is physically behind it,
+  // then settles into the same frosted paper every other page uses. Measuring
+  // the hero instead of using a tiny scrollY threshold matters on mobile:
+  // Safari changes the visual viewport as its toolbars expand/collapse and can
+  // restore a non-zero scroll offset while the hero still fills the screen.
   const [scrolled, setScrolled] = React.useState(false);
   const [headerAnimates, setHeaderAnimates] = React.useState(false);
   const scrolledRef = React.useRef(false);
+  const headerRef = React.useRef<HTMLElement>(null);
   React.useLayoutEffect(() => {
     if (!isHome) {
       scrolledRef.current = false;
@@ -39,16 +43,26 @@ export default function Header() {
       return;
     }
     let frame = 0;
+    const isPastHero = (wasPastHero: boolean) => {
+      const hero = document.querySelector<HTMLElement>("[data-home-hero]");
+      const header = headerRef.current;
+      if (!hero || !header) return false;
+
+      const gap = hero.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom;
+      // A small two-way buffer prevents the header flickering between clear
+      // and frosted at the exact hero edge during elastic/toolbar scrolling.
+      return wasPastHero ? gap <= 16 : gap <= -8;
+    };
     // Synchronize before paint on client navigation or hydration. Decorative
-    // transitions begin only after a real threshold crossing, so arriving on
-    // the homepage never morphs the entire header.
-    const initial = window.scrollY > 24;
+    // transitions begin only after the hero actually crosses the header, so
+    // arriving on the homepage never morphs the entire header.
+    const initial = isPastHero(false);
     scrolledRef.current = initial;
     setScrolled(initial);
     setHeaderAnimates(false);
     const update = () => {
       frame = 0;
-      const next = scrolledRef.current ? window.scrollY > 16 : window.scrollY > 32;
+      const next = isPastHero(scrolledRef.current);
       if (next === scrolledRef.current) return;
       scrolledRef.current = next;
       setHeaderAnimates(true);
@@ -57,9 +71,16 @@ export default function Header() {
     const onScroll = () => {
       if (frame === 0) frame = window.requestAnimationFrame(update);
     };
+    const onViewportChange = () => {
+      if (frame === 0) frame = window.requestAnimationFrame(update);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onViewportChange, { passive: true });
+    window.visualViewport?.addEventListener("resize", onViewportChange, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onViewportChange);
+      window.visualViewport?.removeEventListener("resize", onViewportChange);
       if (frame !== 0) window.cancelAnimationFrame(frame);
     };
   }, [isHome]);
@@ -435,6 +456,7 @@ export default function Header() {
 
   return (
     <header
+      ref={headerRef}
       data-header-state={clear ? "clear" : "frosted"}
       className={`${isHome ? "fixed" : pinned ? "sticky" : "relative"} inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] ${
         isHome && headerAnimates ? "transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
@@ -463,9 +485,9 @@ export default function Header() {
       <span
         aria-hidden="true"
         data-header-frost
-        className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] backdrop-blur-xl backdrop-saturate-150 ${
+        className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] ${
           isHome && headerAnimates ? "transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
-        } ${clear ? "opacity-0" : "opacity-100"}`}
+        } ${clear ? "opacity-0" : "opacity-100 backdrop-blur-xl backdrop-saturate-150"}`}
       />
       <nav
         aria-label="Main navigation"

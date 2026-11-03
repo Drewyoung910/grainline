@@ -46,13 +46,17 @@ describe("homepage hero and header contracts", () => {
     const globals = source("src/app/globals.css");
 
     assert.match(header, /const isHome = pathname === "\/"/);
-    // Clear only at the top of the homepage; frosted on scroll and on every
-    // other page (Drew, 2026-10-30: "frosted on other pages same as home").
+    // Clear while the hero is physically behind the header; frosted after the
+    // hero and on every other page. This must use geometry instead of a small
+    // scroll offset because mobile Safari changes/restores its viewport.
     assert.match(header, /const clear = isHome && !scrolled;/);
-    assert.match(header, /const initial = window\.scrollY > 24/);
-    assert.match(header, /scrolledRef\.current \? window\.scrollY > 16 : window\.scrollY > 32/);
+    assert.match(header, /document\.querySelector<HTMLElement>\("\[data-home-hero\]"\)/);
+    assert.match(header, /hero\.getBoundingClientRect\(\)\.bottom - header\.getBoundingClientRect\(\)\.bottom/);
+    assert.match(header, /wasPastHero \? gap <= 16 : gap <= -8/);
+    assert.doesNotMatch(header, /window\.scrollY > (16|24|32)/);
     assert.match(header, /isHome && headerAnimates/);
     assert.match(header, /window\.addEventListener\("scroll", onScroll, \{ passive: true \}\)/);
+    assert.match(header, /window\.visualViewport\?\.addEventListener\("resize", onViewportChange/);
     // Message threads keep their own pinned chat header, so the site header
     // scrolls away there.
     assert.match(header, /const pinned = !pathname\.startsWith\("\/messages\/"\);/);
@@ -61,8 +65,11 @@ describe("homepage hero and header contracts", () => {
     // The frost is its own layer so the menu's fixed click-catcher is not
     // trapped inside a backdrop-filtered header box.
     const frost = openingTagWith(header, "data-header-frost");
-    assert.match(frost, /absolute inset-0 -z-10 bg-\[#F7F5F0\]\/85[^"]*backdrop-blur-xl/);
-    assert.match(frost, /clear \? "opacity-0" : "opacity-100"/);
+    assert.match(frost, /absolute inset-0 -z-10 bg-\[#F7F5F0\]\/85/);
+    assert.match(
+      frost,
+      /clear \? "opacity-0" : "opacity-100 backdrop-blur-xl backdrop-saturate-150"/,
+    );
     const headerTag = openingTagWith(header, "data-header-state");
     assert.doesNotMatch(headerTag, /backdrop-blur/);
     // One masked logo tinted cream over the photo and espresso on paper.
@@ -119,7 +126,10 @@ describe("homepage hero and header contracts", () => {
       /event\.button !== 0[\s\S]*event\.metaKey[\s\S]*event\.ctrlKey[\s\S]*event\.shiftKey[\s\S]*event\.altKey/,
     );
     assert.match(source("src/components/MobileFilterBar.tsx"), /top-\[var\(--site-header-offset\)\]/);
-    assert.match(source("src/components/FilterSidebar.tsx"), /100dvh-var\(--site-header-offset\)-2rem/);
+    const filters = source("src/components/FilterSidebar.tsx");
+    assert.doesNotMatch(filters, /100dvh-var\(--site-header-offset\)-2rem|scrollbar-width:thin/);
+    assert.match(filters, /id=\{`\$\{baseId\}-category-select`\}/);
+    assert.ok(filters.indexOf("Near location") < filters.indexOf("Price (USD)"));
   });
 
   it("does not opt mobile Safari and installed web apps into an inset white top band", () => {
@@ -142,6 +152,25 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(hero, /mt-|pt-|top-/);
     assert.match(header, /isHome \? "fixed"/);
     assert.match(header, /pt-\[env\(safe-area-inset-top\)\]/);
+    assert.match(header, /ref=\{headerRef\}/);
+  });
+
+  it("keeps the homepage photo and shade in one overscroll-safe plane", () => {
+    const home = source("src/app/page.tsx");
+    const globals = source("src/app/globals.css");
+
+    assert.doesNotMatch(home, /hero-parallax/);
+    assert.doesNotMatch(globals, /@keyframes hero-parallax|\.hero-parallax/);
+    assert.match(globals, /\.hero-photo-settle \{\s*animation: hero-photo-settle 0\.8s/);
+  });
+
+  it("hides tiny pre-launch marketplace totals without deleting the feature", () => {
+    const home = source("src/app/page.tsx");
+    assert.match(home, /homepageStats\.makers >= 25/);
+    assert.match(home, /homepageStats\.pieces >= 100/);
+    assert.match(home, /homepageStats\.fulfilledOrders >= 25/);
+    assert.match(home, /\{showMarketplaceStats && \(/);
+    assert.match(home, /data-home-stats/);
   });
 
   it("uses the deeper cream and touch-safe frosted CTA states", () => {
