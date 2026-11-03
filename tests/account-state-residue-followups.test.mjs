@@ -168,13 +168,14 @@ describe("account-state residue hardening", () => {
     );
     const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id)");
     const broadcastDeleteIndex = deletion.indexOf("await cleanupAccountSellerBroadcasts(tx");
-    const listingAnonymizeIndex = deletion.indexOf("await tx.listing.updateMany");
+    const listingAnonymizeIndex = deletion.indexOf("await redactListingsForAccountDeletion");
     const blogArchiveIndex = deletion.indexOf("await archiveBlogPostsForDeletedAccount");
 
     assert.ok(helperStart >= 0, "account deletion should have a seller fanout cleanup helper");
     assert.ok(callIndex >= 0, "account deletion should call seller fanout cleanup");
     assert.ok(callIndex < broadcastDeleteIndex, "fanout cleanup should run before broadcast rows are deleted");
     assert.doesNotMatch(deletion, /tx\.sellerBroadcast\./);
+    assert.ok(listingAnonymizeIndex >= 0, "account deletion should use the fixed listing-redaction authority");
     assert.ok(callIndex < listingAnonymizeIndex, "fanout cleanup should collect listing ids before listing anonymization");
     assert.ok(callIndex < blogArchiveIndex, "fanout cleanup should collect blog slugs before blog archive slugs are written");
     assert.match(deletion, /await deleteAccountNotificationServiceRows\(tx, user\.id\)/);
