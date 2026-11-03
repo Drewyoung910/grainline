@@ -285,7 +285,10 @@ BEGIN
        )
   )
   SELECT eligible.id::text,
-         eligible.title::text,
+         COALESCE(
+           NULLIF(pg_catalog.btrim(eligible.title::text), ''),
+           'Untitled commission request'::text
+         ),
          eligible.description::text,
          eligible.category::text,
          eligible."budgetMinCents",
@@ -378,7 +381,10 @@ BEGIN
 
   RETURN QUERY
   SELECT request.id::text,
-         request.title::text,
+         COALESCE(
+           NULLIF(pg_catalog.btrim(request.title::text), ''),
+           'Untitled commission request'::text
+         ),
          request.description::text,
          request.category::text,
          request."budgetMinCents",
@@ -889,6 +895,8 @@ RETURNS TABLE (
   lat double precision,
   lng double precision,
   "radiusMeters" integer,
+  "metroId" text,
+  "cityMetroId" text,
   "createdAt" timestamp(3) without time zone,
   "updatedAt" timestamp(3) without time zone
 )
@@ -917,7 +925,8 @@ BEGIN
             FROM public."CommissionInterest" AS interest
            WHERE interest."commissionRequestId" = request.id),
          request."expiresAt", request."isNational", request.lat, request.lng,
-         request."radiusMeters", request."createdAt",
+         request."radiusMeters", request."metroId"::text,
+         request."cityMetroId"::text, request."createdAt",
          request."updatedAt"
     FROM public."CommissionRequest" AS request
    WHERE request."buyerId" = actor_id
