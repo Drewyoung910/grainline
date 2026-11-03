@@ -400,15 +400,37 @@ export async function proveCommissionDomainPreparedAuthorities({
     [requestIds.open],
   )), [{ value: false }], "another user cannot rewrite the request geography");
 
+  await database.query(
+    `UPDATE public."CommissionRequest"
+        SET title = ''
+      WHERE id = $1`,
+    [requestIds.open],
+  );
+
   const anonymousPage = await runtimeQuery(
     database,
     null,
-    `SELECT id
+    `SELECT id, title
        FROM public.grainline_commission_request_public_page(
          NULL, NULL, NULL, NULL, NULL, NULL, 0, 1000
        )`,
   );
   assert.equal(idSet(anonymousPage).has(requestIds.open), true);
+  assert.equal(
+    rowsOf(anonymousPage).find((row) => row.id === requestIds.open)?.title,
+    "Untitled commission request",
+    "one malformed legacy title must not take down the public board",
+  );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    `SELECT id, title
+       FROM public.grainline_commission_request_public_detail($1)`,
+    [requestIds.open],
+  )), [{
+    id: requestIds.open,
+    title: "Untitled commission request",
+  }], "one malformed legacy title must not take down its public detail page");
   assert.equal(idSet(await runtimeQuery(
     database,
     null,
@@ -524,7 +546,7 @@ export async function proveCommissionDomainPreparedAuthorities({
   assert.equal(rowsOf(await runtimeQuery(
     database,
     buyerId,
-    "SELECT id FROM public.grainline_commission_request_public_detail($1)",
+    "SELECT id, title FROM public.grainline_commission_request_public_detail($1)",
     [requestIds.terminal],
   )).length, 1, "the request owner must retain terminal detail access");
   assert.deepEqual(rowsOf(await runtimeQuery(
@@ -541,11 +563,20 @@ export async function proveCommissionDomainPreparedAuthorities({
     buyerId,
     "SELECT id FROM public.grainline_commission_request_owner_page(1000)",
   )).some((row) => row.id === requestIds.terminal), true);
-  assert.equal(rowsOf(await runtimeQuery(
+  const ownerExportRows = rowsOf(await runtimeQuery(
     database,
     buyerId,
-    "SELECT id FROM public.grainline_commission_request_owner_export()",
-  )).some((row) => row.id === requestIds.terminal), true);
+    `SELECT id, "metroId", "cityMetroId"
+       FROM public.grainline_commission_request_owner_export()`,
+  ));
+  assert.equal(
+    ownerExportRows.some((row) => row.id === requestIds.terminal),
+    true,
+  );
+  for (const row of ownerExportRows) {
+    assert.equal(Object.hasOwn(row, "metroId"), true);
+    assert.equal(Object.hasOwn(row, "cityMetroId"), true);
+  }
   assert.equal(rowsOf(await runtimeQuery(
     database,
     seller.userId,
