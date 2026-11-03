@@ -132,7 +132,7 @@ describe("guards behind the browser checks", () => {
     const cart = source("src/app/cart/page.tsx");
     assert.match(cart, /Math\.min\(shownQuantity - 1, stockLimit\)/);
     assert.match(cart, /shownQuantity >= stockLimit/);
-    assert.match(cart, /hasBlockingCartChange \|\| cartBusy/);
+    assert.match(cart, /if \(cartBusy\) return;\s*setStep\("address"\)/);
   });
 
   it("can't discard a commission request that's already being sent", () => {

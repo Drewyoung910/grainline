@@ -1119,10 +1119,14 @@ function CartPage() {
           ) : (
             <button
               onClick={() => {
+                // Waits for a running save without dimming, so the button
+                // doesn't blink on every quantity press.
+                if (cartBusy) return;
                 setStep("address");
                 router.replace("/cart?step=address", { scroll: false });
               }}
-              disabled={items.length === 0 || hasBlockingCartChange || cartBusy}
+              disabled={items.length === 0 || hasBlockingCartChange}
+              aria-busy={cartBusy || undefined}
               className="btn btn-primary mt-6 w-full sm:w-auto"
             >
               Continue to shipping →
