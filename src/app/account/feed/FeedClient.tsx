@@ -109,7 +109,7 @@ export default function FeedClient() {
         ← My Account
       </Link>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold font-display">Your Feed</h1>
+        <h1 className="font-display page-title">Your Feed</h1>
         <Link href="/account/following" className="text-sm text-neutral-500 hover:underline">
           Manage following →
         </Link>

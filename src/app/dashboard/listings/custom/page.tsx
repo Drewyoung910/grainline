@@ -382,7 +382,7 @@ export default async function CustomListingPage({
 
   return (
     <main className="mx-auto max-w-2xl p-8">
-      <h1 className="font-display text-2xl font-semibold mb-2">Create a Custom Listing</h1>
+      <h1 className="font-display page-title mb-2">Create a Custom Listing</h1>
       <p className="text-sm text-neutral-500 mb-6">
         This listing will be private and reserved for{" "}
         <span className="font-medium">{sellerFacingUserLabel(buyer, "the buyer")}</span>. Once

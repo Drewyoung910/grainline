@@ -29,7 +29,12 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
 import RollingAmount from "@/components/RollingAmount";
+import RollingNumber from "@/components/RollingNumber";
 import { useToast } from "@/components/Toast";
+import { useQuantitySteps } from "@/lib/useQuantitySteps";
+
+const QUANTITY_STEP_CLASS =
+  "inline-flex size-9 items-center justify-center text-base text-neutral-700 transition-colors hover:bg-[#EFEAE0] aria-disabled:cursor-not-allowed aria-disabled:text-neutral-300 aria-disabled:hover:bg-transparent [@media(pointer:coarse)]:size-11";
 
 function CartLoadingSkeleton() {
   return (
@@ -274,6 +279,7 @@ function CartPage() {
   // Lines whose quantity change is still being saved, mapped to the value
   // picked, so the select shows it instead of snapping back meanwhile.
   const [pendingQuantities, setPendingQuantities] = React.useState<ReadonlyMap<string, number>>(() => new Map());
+  const { drafts: stepDrafts, step: stepQuantity } = useQuantitySteps((itemId, quantity) => setQuantity(itemId, quantity));
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
@@ -605,7 +611,7 @@ function CartPage() {
 
   // While a reload, a quantity change or a removal is in flight, quantity
   // and Remove controls wait, so two updates (and their reloads) cannot race.
-  const cartBusy = loading || removingIds.size > 0 || pendingQuantities.size > 0;
+  const cartBusy = loading || removingIds.size > 0 || pendingQuantities.size > 0 || stepDrafts.size > 0;
 
   const removeItem = (cartItemId: string) => {
     if (removingIds.has(cartItemId)) return;
@@ -726,7 +732,6 @@ function CartPage() {
             const unitPriceCents = i.livePriceCents ?? i.priceCents;
             const lineCents = unitPriceCents * i.quantity;
             const listingIsActive = !i.listing.status || i.listing.status === "ACTIVE";
-            const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
               <li
@@ -799,31 +804,46 @@ function CartPage() {
                           </span>
                         );
                       }
+                      const shownQuantity = stepDrafts.get(i.id) ?? (pendingQuantities.get(i.id) || i.quantity);
+                      // Busy elsewhere waits; this line's own presses keep
+                      // counting and collapse into one more save.
+                      const controlsWait = cartBusy && !stepDrafts.has(i.id);
+                      const atLeast = controlsWait || shownQuantity <= 1;
+                      const atMost = controlsWait || shownQuantity >= maxQty;
                       return (
-                        <>
-                          <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
-                            Qty
-                          </label>
-                          <select
-                            id={quantitySelectId}
-                            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm aria-disabled:cursor-wait aria-disabled:opacity-60"
-                            value={pendingQuantities.get(i.id) || i.quantity}
-                            // aria-disabled rather than disabled, so a keyboard
-                            // user keeps focus on the select while it saves.
-                            aria-disabled={cartBusy || undefined}
-                            onChange={(e) => {
-                              if (cartBusy) return;
-                              void setQuantity(i.id, Number(e.target.value));
+                        <div
+                          role="group"
+                          aria-label={`Quantity of ${i.listing.title}`}
+                          className="inline-flex shrink-0 items-center rounded-md border border-neutral-200 bg-white"
+                        >
+                          {/* aria-disabled rather than disabled, so a keyboard
+                              user keeps focus on the button while it saves. */}
+                          <button
+                            type="button"
+                            aria-label="One fewer"
+                            aria-disabled={atLeast || undefined}
+                            className={QUANTITY_STEP_CLASS}
+                            onClick={() => {
+                              if (!atLeast) void stepQuantity(i.id, shownQuantity - 1);
                             }}
                           >
-                            {Array.from({ length: maxQty }).map((_, idx) => {
-                              const n = idx + 1;
-                              return (
-                                <option key={n} value={n}>{n}</option>
-                              );
-                            })}
-                          </select>
-                        </>
+                            <span aria-hidden="true">−</span>
+                          </button>
+                          <span aria-live="polite" className="min-w-7 px-1 text-center text-sm font-medium text-neutral-900">
+                            <RollingNumber value={shownQuantity} grouped={false} />
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="One more"
+                            aria-disabled={atMost || undefined}
+                            className={QUANTITY_STEP_CLASS}
+                            onClick={() => {
+                              if (!atMost) void stepQuantity(i.id, shownQuantity + 1);
+                            }}
+                          >
+                            <span aria-hidden="true">+</span>
+                          </button>
+                        </div>
                       );
                     })()}
 

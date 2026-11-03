@@ -650,7 +650,7 @@ export default function AnalyticsPage() {
           <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-700">
             ← Workshop
           </Link>
-          <h1 className="font-display text-3xl font-bold">Analytics</h1>
+          <h1 className="font-display page-title">Analytics</h1>
         </div>
 
         {/* Range selector */}

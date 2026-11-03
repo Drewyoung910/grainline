@@ -140,7 +140,7 @@ async function AccountPageContent() {
     <main className="mx-auto max-w-5xl space-y-7">
       <header>
         <div className="min-w-0">
-          <h1 className="font-display text-[clamp(2rem,3.4vw,2.875rem)] leading-[1.04]">My Account</h1>
+          <h1 className="font-display page-title">My Account</h1>
           <p className="mt-2 break-all text-neutral-500">{me.email}</p>
         </div>
       </header>

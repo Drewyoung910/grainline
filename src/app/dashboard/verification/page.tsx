@@ -261,7 +261,7 @@ export default async function VerificationPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-10 px-4 py-8 sm:px-8">
       <div>
-        <h1 className="text-2xl font-semibold font-display">Guild Verification Program</h1>
+        <h1 className="font-display page-title">Guild Verification Program</h1>
         <p className="text-neutral-600 mt-1 text-sm">
           Guild badges appear on your profile and listings to signal trust and performance to buyers.
         </p>

@@ -58,7 +58,7 @@ async function OrdersContent() {
     <main className="mx-auto max-w-4xl p-8 space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold font-display">My orders</h1>
+          <h1 className="font-display page-title">My orders</h1>
           <p className="text-sm text-neutral-600">
             View purchases you’ve made on Grainline.
           </p>

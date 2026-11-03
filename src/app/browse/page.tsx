@@ -17,6 +17,7 @@ import FilterChipLink from "@/components/FilterChipLink";
 import RollingNumber from "@/components/RollingNumber";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
+import FlipList from "@/components/FlipList";
 import RecentlyViewed from "@/components/RecentlyViewed";
 import GuildBadge from "@/components/GuildBadge";
 import ListingCard from "@/components/ListingCard";
@@ -573,7 +574,7 @@ async function BrowseContent({
   function GridCard({ l }: { l: ListingWithIncludes }) {
     const shop = sellerRatings.get(l.sellerId);
     return (
-      <ClickTracker listingId={l.id}>
+      <ClickTracker listingId={l.id} flipId={l.id}>
         <ListingCard
           listing={{
             id: l.id,
@@ -825,21 +826,20 @@ async function BrowseContent({
           )}
 
           {/* Listings */}
-          {view === "grid" ? (
-            <ul className="results-stagger grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
-              {listings.map((l) => (
-                <GridCard key={l.id} l={l} />
-              ))}
-            </ul>
-          ) : (
-            <ul className="results-stagger space-y-4">
-              {listings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="card-listing">
-                  <ListCard l={l} />
-                </ClickTracker>
-              ))}
-            </ul>
-          )}
+          <FlipList
+            className={view === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8"
+              : "space-y-4"}
+            itemKey={`${view}:${listings.map((l) => l.id).join(",")}`}
+          >
+            {view === "grid"
+              ? listings.map((l) => <GridCard key={l.id} l={l} />)
+              : listings.map((l) => (
+                  <ClickTracker key={l.id} listingId={l.id} flipId={l.id} className="card-listing">
+                    <ListCard l={l} />
+                  </ClickTracker>
+                ))}
+          </FlipList>
 
           {/* Bottom pager */}
           {totalPages > 1 && (

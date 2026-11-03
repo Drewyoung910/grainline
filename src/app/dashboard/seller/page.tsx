@@ -280,7 +280,7 @@ export default async function SellerSettingsPage({
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-8">
-      <h1 className="text-2xl font-semibold font-display">Shop Settings</h1>
+      <h1 className="font-display page-title">Shop Settings</h1>
 
       {/* Payouts & Banking */}
       <section className="card-section p-6 space-y-3">

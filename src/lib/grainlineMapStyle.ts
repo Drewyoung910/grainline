@@ -1,3 +1,5 @@
+import type { Map as MapLibreMap } from "maplibre-gl";
+
 // Grainline's colors on the stock OpenFreeMap "liberty" map. Painted over the
 // loaded style, so a layer that is missing or renamed upstream is skipped and
 // the map still works in its original colors.
@@ -22,7 +24,7 @@ export function grainlineLayerPaint(layer: MapLayerShape): MapPaintChange[] {
   const { id, type } = layer;
   if (type === "background") return [{ property: "background-color", value: LAND }];
   if (type === "symbol") {
-    if (/shield|icon|poi/.test(id)) return [];
+    if (/shield|icon/.test(id) || id.startsWith("poi")) return [];
     return [
       { property: "text-color", value: LABEL },
       { property: "text-halo-color", value: LABEL_HALO },
@@ -73,4 +75,9 @@ export function applyGrainlineMapColors(map: PaintableMap): void {
       }
     }
   }
+}
+
+// Paints the colors as soon as the style is ready, before anything is drawn.
+export function paintGrainlineMapColors(map: MapLibreMap): void {
+  map.on("style.load", () => applyGrainlineMapColors(map as unknown as PaintableMap));
 }

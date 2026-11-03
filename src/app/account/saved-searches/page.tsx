@@ -73,7 +73,7 @@ export default async function AccountSavedSearchesPage() {
       </Link>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-neutral-900">Saved Searches</h1>
+          <h1 className="font-display page-title text-neutral-900">Saved Searches</h1>
           <p className="mt-1 text-sm text-neutral-500">
             Revisit filters you saved from Browse.
           </p>

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { isPlainClick, photoDeltaTransform } from "../src/lib/photoMotion.ts";
+import { applyGrainlineMapColors, grainlineLayerPaint } from "../src/lib/grainlineMapStyle.ts";
 
 const { parseSmartSearch, highlightParts, isSearchShortcut } = await import("../src/lib/smartSearch.ts");
 const { loadRecentSearches, rememberRecentSearch, clearRecentSearches, MAX_RECENT_SEARCHES } = await import(
@@ -415,5 +417,73 @@ describe("conversation snippets", async () => {
     assert.equal(formatSnippet("https://cdn.example/a.jpg", null), "Photo");
     assert.equal(formatSnippet("https://cdn.example/a.pdf", null), "PDF");
     assert.equal(formatSnippet("Hello there", null), "Hello there");
+  });
+});
+
+describe("photo motion", () => {
+  const box = (left, top, width, height) => ({ left, top, width, height });
+
+  it("moves a photo onto its target, centered and contained", () => {
+    assert.equal(photoDeltaTransform(box(0, 0, 100, 100), box(0, 0, 100, 100)), "translate(0px, 0px) scale(1)");
+    assert.equal(photoDeltaTransform(box(0, 0, 100, 100), box(50, 0, 50, 50)), "translate(25px, -25px) scale(0.5)");
+    // A wide photo landing in a tall frame stays inside the frame.
+    assert.equal(photoDeltaTransform(box(0, 0, 200, 100), box(0, 0, 100, 400)), "translate(-50px, 150px) scale(0.5)");
+    // A tall photo landing in a wide frame does too.
+    assert.equal(photoDeltaTransform(box(0, 0, 100, 200), box(0, 0, 400, 100)), "translate(150px, -50px) scale(0.5)");
+  });
+
+  it("does nothing when either side has no size yet", () => {
+    assert.equal(photoDeltaTransform(box(0, 0, 0, 10), box(0, 0, 10, 10)), null);
+    assert.equal(photoDeltaTransform(box(0, 0, 10, 10), box(0, 0, 10, 0)), null);
+  });
+
+  it("only treats a plain left click as leaving the page in this tab", () => {
+    const click = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
+    assert.equal(isPlainClick(click), true);
+    assert.equal(isPlainClick({ ...click, button: 1 }), false);
+    for (const key of ["metaKey", "ctrlKey", "shiftKey", "altKey"]) {
+      assert.equal(isPlainClick({ ...click, [key]: true }), false, key);
+    }
+  });
+});
+
+describe("Grainline map colors", () => {
+  const paint = (id, type) => grainlineLayerPaint({ id, type }).map((change) => change.property);
+
+  it("paints land, water, roads and labels", () => {
+    assert.deepEqual(paint("background", "background"), ["background-color"]);
+    assert.deepEqual(paint("water", "fill"), ["fill-color"]);
+    assert.deepEqual(paint("waterway_river", "line"), ["line-color"]);
+    assert.deepEqual(paint("road_motorway", "line"), ["line-color"]);
+    assert.deepEqual(paint("road_motorway_casing", "line"), ["line-color"]);
+    assert.deepEqual(paint("building-3d", "fill-extrusion"), ["fill-extrusion-color"]);
+    assert.deepEqual(paint("label_city", "symbol"), ["text-color", "text-halo-color"]);
+    assert.deepEqual(paint("water_name_point_label", "symbol"), ["text-color", "text-halo-color"]);
+  });
+
+  it("leaves photos, rail, shields and place icons as drawn", () => {
+    assert.deepEqual(paint("natural_earth", "raster"), []);
+    assert.deepEqual(paint("road_major_rail", "line"), []);
+    assert.deepEqual(paint("highway-shield-us-interstate", "symbol"), []);
+    assert.deepEqual(paint("poi_r1", "symbol"), []);
+  });
+
+  it("never lets a color failure break the map", () => {
+    const painted = [];
+    applyGrainlineMapColors({
+      getStyle: () => ({ layers: [{ id: "background", type: "background" }, { id: "water", type: "fill" }] }),
+      setPaintProperty: (id) => {
+        if (id === "background") throw new Error("gone");
+        painted.push(id);
+      },
+    });
+    assert.deepEqual(painted, ["water"]);
+    assert.doesNotThrow(() => applyGrainlineMapColors({
+      getStyle: () => {
+        throw new Error("style not ready");
+      },
+      setPaintProperty: () => undefined,
+    }));
+    assert.doesNotThrow(() => applyGrainlineMapColors({ getStyle: () => undefined, setPaintProperty: () => undefined }));
   });
 });

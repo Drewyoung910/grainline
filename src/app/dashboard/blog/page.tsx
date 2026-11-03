@@ -148,7 +148,7 @@ async function DashboardBlogContent({
       )}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-display text-2xl font-semibold">My Blog Posts</h1>
+          <h1 className="font-display page-title">My Blog Posts</h1>
           <p className="text-neutral-500 text-sm mt-0.5">
             {me.role === "EMPLOYEE" || me.role === "ADMIN" ? "Staff posts" : "Your maker posts"}
           </p>

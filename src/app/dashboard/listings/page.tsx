@@ -97,7 +97,7 @@ export default async function WorkshopListingsPage({ searchParams }: ListingsPag
     <main className="mx-auto max-w-5xl space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-[clamp(2rem,3.4vw,2.875rem)] leading-[1.04]">Listings</h1>
+          <h1 className="font-display page-title">Listings</h1>
           <p className="mt-2 text-neutral-500">Your pieces, their stock and their status.</p>
         </div>
         <div className="flex flex-wrap gap-2">
