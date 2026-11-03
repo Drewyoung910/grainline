@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -481,7 +482,7 @@ test("account deletion drains legacy redactions without restoring newer redacted
   }
 });
 
-test("audit insert fence refuses every structural reference to an already deleted user", async () => {
+test("audit insert fence redacts late deleted-user references without blocking retained work", async () => {
   const database = await readyDatabase();
   try {
     await database.query(
@@ -499,16 +500,48 @@ test("audit insert fence refuses every structural reference to an already delete
         { nested: { userId: "proof-fenced-deleted" } },
       ],
     ]) {
-      await assert.rejects(
-        database.query(
-          `INSERT INTO public."AdminAuditLog" (
-             id, "adminId", action, "targetType", "targetId", metadata
-           ) VALUES ($1, $2, 'TERMS_ACCEPTED', $3, $4, $5::jsonb)`,
-          [id, adminId, targetType, targetId, JSON.stringify(metadata)],
-        ),
-        /references a deleted account/u,
+      await database.query(
+        `INSERT INTO public."AdminAuditLog" (
+           id, "adminId", action, "targetType", "targetId", metadata
+         ) VALUES ($1, $2, 'TERMS_ACCEPTED', $3, $4, $5::jsonb)`,
+        [id, adminId, targetType, targetId, JSON.stringify(metadata)],
       );
     }
+    const redacted = await database.query(
+      `SELECT id, "adminId", "targetId", metadata
+         FROM public."AdminAuditLog"
+        WHERE id LIKE 'proof-fence-%'
+        ORDER BY id`,
+    );
+    assert.deepEqual(redacted.rows, [
+      {
+        id: "proof-fence-admin",
+        adminId: "proof-fenced-deleted",
+        targetId: "safe",
+        metadata: {
+          adminAccountDeleted: true,
+          redactedForAccountDeletion: true,
+        },
+      },
+      {
+        id: "proof-fence-metadata",
+        adminId: "proof-admin",
+        targetId: "safe",
+        metadata: {
+          nested: {
+            userId: "[deleted account]",
+            redactedForAccountDeletion: true,
+          },
+          redactedForAccountDeletion: true,
+        },
+      },
+      {
+        id: "proof-fence-target",
+        adminId: "proof-admin",
+        targetId: "[deleted account]",
+        metadata: {},
+      },
+    ]);
     await database.query(
       `INSERT INTO public."AdminAuditLog" (
          id, "adminId", action, "targetType", "targetId", metadata
@@ -619,15 +652,20 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
 
     const payload = {
       logId: "proof-current-target",
-      planVersion: 2,
+      planVersion: 3,
       expectedMetadataSha256: candidate.metadataSha256,
       expectedReasonSha256: candidate.reasonSha256,
-      metadata: {
-        userId: "[deleted account]",
-        safe: "keep",
-        redactedForAccountDeletion: true,
-      },
-      reason: "deleted [deleted account]",
+      metadataPatches: [
+        { path: ["userId"], value: "[deleted account]" },
+        { path: ["redactedForAccountDeletion"], value: true },
+      ],
+      reasonPatches: [{
+        expectedSha256: createHash("sha256")
+          .update("proof-current-deleted")
+          .digest("hex"),
+        length: Array.from("proof-current-deleted").length,
+        replacement: "[deleted account]",
+      }],
     };
     assert.doesNotMatch(JSON.stringify(payload), /proof-current-deleted/u);
     await assert.rejects(
@@ -728,7 +766,7 @@ test("account deletion redaction compare-and-set completes the claimed job atomi
   }
 });
 
-test("account deletion redaction refuses a stale source fingerprint without changing either row", async () => {
+test("account deletion redaction rebases monotonic metadata patches onto a newer redaction", async () => {
   const database = await readyDatabase();
   try {
     const claimToken = "33333333-3333-4333-8333-333333333333";
@@ -737,16 +775,18 @@ test("account deletion redaction refuses a stale source fingerprint without chan
     );
     await database.query(
       `INSERT INTO public."AdminAuditLog" (
-         id, "adminId", action, "targetType", "targetId", metadata
+         id, "adminId", action, "targetType", "targetId", metadata, reason
        ) VALUES
        (
          'proof-stale-delete-audit', 'proof-stale-deleted',
          'USER_ACCOUNT_DELETE', 'USER', 'proof-stale-deleted',
-         '{"actorKind":"user"}'::jsonb
+         '{"actorKind":"user"}'::jsonb, NULL
        ),
        (
          'proof-stale-target', 'proof-admin', 'BAN_USER', 'USER',
-         'proof-stale-deleted', '{"safe":"newer"}'::jsonb
+         'proof-stale-deleted',
+         '{"first":"[deleted account]","second":"proof-stale-deleted","redactedForAccountDeletion":true}'::jsonb,
+         '[deleted account] + proof-stale-deleted'
        )`,
     );
     await database.query(
@@ -766,10 +806,20 @@ test("account deletion redaction refuses a stale source fingerprint without chan
       [
         JSON.stringify({
           logId: "proof-stale-target",
-          planVersion: 2,
+          planVersion: 3,
           expectedMetadataSha256: "0".repeat(64),
           expectedReasonSha256: "0".repeat(64),
-          metadata: { safe: "older", redactedForAccountDeletion: true },
+          metadataPatches: [
+            { path: ["second"], value: "[deleted account]" },
+            { path: ["redactedForAccountDeletion"], value: true },
+          ],
+          reasonPatches: [{
+            expectedSha256: createHash("sha256")
+              .update("proof-stale-deleted")
+              .digest("hex"),
+            length: Array.from("proof-stale-deleted").length,
+            replacement: "[deleted account]",
+          }],
         }),
         claimToken,
       ],
@@ -782,17 +832,22 @@ test("account deletion redaction refuses a stale source fingerprint without chan
        ) AS applied`,
       ["proof-stale-effect", claimToken, "proof-stale-target"],
     );
-    assert.equal(applied.rows[0].applied, false);
+    assert.equal(applied.rows[0].applied, true);
     const state = await database.query(
-      `SELECT audit.metadata, effect.status, effect.payload
+      `SELECT audit.metadata, audit.reason, effect.status, effect.payload
          FROM public."AdminAuditLog" AS audit
          JOIN public."AccountDeletionSideEffect" AS effect
            ON effect.id = 'proof-stale-effect'
         WHERE audit.id = 'proof-stale-target'`,
     );
-    assert.deepEqual(state.rows[0].metadata, { safe: "newer" });
-    assert.equal(state.rows[0].status, "PROCESSING");
-    assert.equal(state.rows[0].payload.expectedMetadataSha256, "0".repeat(64));
+    assert.deepEqual(state.rows[0].metadata, {
+      first: "[deleted account]",
+      second: "[deleted account]",
+      redactedForAccountDeletion: true,
+    });
+    assert.equal(state.rows[0].reason, "[deleted account] + [deleted account]");
+    assert.equal(state.rows[0].status, "DONE");
+    assert.deepEqual(state.rows[0].payload, {});
   } finally {
     await database.close();
   }

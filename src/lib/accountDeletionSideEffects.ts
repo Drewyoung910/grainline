@@ -61,8 +61,12 @@ export type AccountDeletionAuditRedactionUpdate = {
   logId: string;
   expectedMetadataSha256: string;
   expectedReasonSha256: string;
-  metadata?: Prisma.JsonValue;
-  reason?: string;
+  metadataPatches?: Array<{ path: string[]; value: Prisma.JsonValue }>;
+  reasonPatches?: Array<{
+    expectedSha256: string;
+    length: number;
+    replacement: string;
+  }>;
 };
 
 function hashDedupPart(value: string) {
@@ -338,11 +342,15 @@ export async function enqueueAccountDeletionAuditRedactionSideEffects(
     const batch = updates.slice(offset, offset + ACCOUNT_DELETION_AUDIT_PLAN_BATCH_SIZE);
     const plans = batch.map((update) => ({
         logId: update.logId,
-        planVersion: 2,
+        planVersion: 3,
         expectedMetadataSha256: update.expectedMetadataSha256,
         expectedReasonSha256: update.expectedReasonSha256,
-        ...(update.metadata !== undefined ? { metadata: update.metadata } : {}),
-        ...(update.reason !== undefined ? { reason: update.reason } : {}),
+        ...(update.metadataPatches !== undefined
+          ? { metadataPatches: update.metadataPatches }
+          : {}),
+        ...(update.reasonPatches !== undefined
+          ? { reasonPatches: update.reasonPatches }
+          : {}),
     }));
     const rows = await db.$queryRaw<Array<{ enqueuedCount: unknown }>>(Prisma.sql`
       SELECT public.grainline_admin_audit_account_deletion_redaction_plans_enqueue(
@@ -470,12 +478,12 @@ async function performAccountDeletionSideEffect(effect: {
       return;
     }
     if (
-      payload.planVersion !== 2
+      payload.planVersion !== 3
       || typeof payload.expectedMetadataSha256 !== "string"
       || !/^[0-9a-f]{64}$/u.test(payload.expectedMetadataSha256)
       || typeof payload.expectedReasonSha256 !== "string"
       || !/^[0-9a-f]{64}$/u.test(payload.expectedReasonSha256)
-      || (payload.metadata === undefined && typeof payload.reason !== "string")
+      || (!Array.isArray(payload.metadataPatches) && !Array.isArray(payload.reasonPatches))
       || new TextEncoder().encode(JSON.stringify(payload)).byteLength
         > ACCOUNT_DELETION_AUDIT_PAYLOAD_BYTE_LIMIT
     ) {

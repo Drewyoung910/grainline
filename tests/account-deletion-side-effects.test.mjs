@@ -113,7 +113,8 @@ describe("account deletion side-effect retries", () => {
       /activation refuses[\s\S]*no unfinished URL-form media row remains/,
     );
     assert.match(sideEffects, /applyAdminAuditLogAccountDeletionRedaction/);
-    assert.match(sideEffects, /planVersion: 2/);
+    assert.match(sideEffects, /planVersion: 3/);
+    assert.match(sideEffects, /metadataPatches: update\.metadataPatches/);
     assert.match(sideEffects, /expectedMetadataSha256: update\.expectedMetadataSha256/);
     assert.match(sideEffects, /expectedReasonSha256: update\.expectedReasonSha256/);
     assert.match(sideEffects, /Audit redaction source changed during account deletion/);
