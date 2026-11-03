@@ -122,8 +122,10 @@ describe("global CSS layering (UI-08, UI-11, #1270, #1275)", () => {
     const found = [];
     ast.walkRules((rule) => {
       if (rule.selectors.includes(selector)) {
-        const parent = rule.parent;
-        found.push(parent.type === "atrule" ? `@${parent.name} ${parent.params}`.trim() : "unlayered");
+        // A hover rule can sit in an @media block inside the layer.
+        let parent = rule.parent;
+        while (parent?.type === "atrule" && parent.name === "media") parent = parent.parent;
+        found.push(parent?.type === "atrule" ? `@${parent.name} ${parent.params}`.trim() : "unlayered");
       }
     });
     return found;
