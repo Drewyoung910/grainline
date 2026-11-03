@@ -210,8 +210,9 @@ export default function Header() {
     return () => window.clearTimeout(focusTimer);
   }, [drawerOpen]);
 
-  // Every close path (X, Escape, click-catcher, link taps, navigation)
-  // returns focus to the hamburger once the menu has unmounted.
+  // Escape returns keyboard focus to the hamburger once the menu has
+  // unmounted. Pointer-close paths deliberately do not, avoiding the
+  // persistent mobile Safari focus halo reported on the menu button.
   React.useEffect(() => {
     if (drawerOpen || !restoreMenuFocusRef.current) return;
     restoreMenuFocusRef.current = false;
