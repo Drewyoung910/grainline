@@ -453,7 +453,9 @@ describe("accessibility follow-ups", () => {
     assert.match(searchBar, /className="min-w-0 flex-1/);
     assert.match(searchBar, /max-h-\[min\(28rem,calc\(100dvh-9rem\)\)\]/);
     assert.match(searchBar, /overflow-y-auto overscroll-contain/);
-    assert.match(makersMap, /<section className="min-w-0">/);
+    assert.match(makersMap, /<section ref=\{sectionRef\} className="min-w-0">/);
+    assert.match(makersMap, /new IntersectionObserver\(/);
+    assert.match(makersMap, /\{mapReady \? \(/);
     assert.match(makersMap, /lg:items-center/);
     assert.match(makersMap, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);

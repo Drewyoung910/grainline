@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Navigation } from "@/components/icons";
 
-// Lazy-load the map component — maplibre-gl is ~1MB JS.
-// Deferred until MakersMapSection hydrates client-side.
+// Lazy-load the map component — maplibre-gl is ~1MB JS. Rendering it only
+// when this below-the-fold section approaches the viewport keeps that bundle
+// from competing with the homepage hero and header during first paint.
 const AllSellersMap = dynamic(() => import("./AllSellersMap"), {
   ssr: false,
   loading: () => (
@@ -38,6 +39,8 @@ export default function MakersMapSection({
   compact?: boolean;
 }) {
   const [geoErr, setGeoErr] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const sectionRef = useRef<HTMLElement | null>(null);
   // The location icon spins while the browser looks up the position.
   const [locating, setLocating] = useState(false);
   const router = useRouter();
@@ -54,6 +57,26 @@ export default function MakersMapSection({
   };
   useEffect(() => () => {
     if (locatingResetRef.current !== null) window.clearTimeout(locatingResetRef.current);
+  }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    if (!("IntersectionObserver" in window)) {
+      setMapReady(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        setMapReady(true);
+      },
+      { rootMargin: "240px 0px" },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
   }, []);
 
   const onUseMyLocation = () => {
@@ -85,7 +108,7 @@ export default function MakersMapSection({
   };
 
   return (
-    <section className="min-w-0">
+    <section ref={sectionRef} className="min-w-0">
       <div className={`flex min-w-0 flex-col lg:flex-row lg:items-center ${compact ? "gap-5 lg:gap-8" : "gap-6 lg:gap-10"}`}>
         <div className="min-w-0 lg:w-[34%] lg:pb-8">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
@@ -115,7 +138,11 @@ export default function MakersMapSection({
         </div>
 
         <div className={`${compact ? "h-[300px] sm:h-[320px] lg:h-[340px]" : "h-[420px]"} w-full min-w-0 lg:flex-1 overflow-hidden rounded-lg shadow-sm ring-1 ring-stone-200/70`}>
-          <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height="100%" />
+          {mapReady ? (
+            <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height="100%" />
+          ) : (
+            <div className="h-full w-full rounded-lg bg-[#EFEAE0] animate-pulse motion-reduce:animate-none" aria-hidden="true" />
+          )}
         </div>
       </div>
     </section>

@@ -51,6 +51,8 @@ Production promotion.
   not a glitchy spring/reflow.
 - [x] Map pin DOM nodes survive source and viewport updates, so a resize or
   cluster expansion cannot cut a pin entrance short and make it pop into place.
+- [x] The homepage defers its roughly 1 MB interactive-map bundle until the map
+  approaches the viewport, so it does not compete with hero rendering.
 - [x] Horizontal homepage rows retain touch/trackpad scrolling without visible
   arrow controls or a platform scrollbar. Gallery arrows belong on listing
   photos, not card carousels.
