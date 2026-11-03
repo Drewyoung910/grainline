@@ -201,3 +201,14 @@ describe("piece row facts", () => {
     assert.equal("detail" in items[1], false);
   });
 });
+
+describe("homepage category counts", async () => {
+  const { categoryCountLabel } = await import("../src/lib/categoryCountLabel.ts");
+  it("reads naturally at every size", () => {
+    assert.equal(categoryCountLabel(0), "Coming soon");
+    assert.equal(categoryCountLabel(-1), "Coming soon");
+    assert.equal(categoryCountLabel(1), "1 piece");
+    assert.equal(categoryCountLabel(2), "2 pieces");
+    assert.equal(categoryCountLabel(1204), "1,204 pieces");
+  });
+});

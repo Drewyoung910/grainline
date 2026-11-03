@@ -37,6 +37,9 @@ import {
   sellerPublicFollowStateBatch,
 } from "@/lib/sellerFollowAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
+import { categoryCountLabel, getCachedHomeCategoryCounts } from "@/lib/homeCategoryCounts";
+import HomePromiseBand from "@/components/HomePromiseBand";
+import HomeCommissionBand from "@/components/HomeCommissionBand";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 import {
   sellerPublicFeaturedMakers,
@@ -380,6 +383,9 @@ export default async function HomePage() {
       ? await getCachedPublicSellerStats(featuredMakers[0].maker.id).catch(() => null)
       : null;
 
+  // The tiles still work without counts, so a failed count only hides them.
+  const categoryCounts = await getCachedHomeCategoryCounts().catch(() => null);
+
   // Maker of the Week pill dates — aligned to Monday–Sunday calendar week
   const nowForPill = new Date();
   const dowForPill = nowForPill.getUTCDay();
@@ -485,6 +491,8 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {!showMarketplaceStats && <HomePromiseBand />}
+
       {showMarketplaceStats && (
         /* Zero-height anchor + 50% translation keeps the bar exactly half
            inside and half outside the hero at every responsive height. */
@@ -526,7 +534,7 @@ export default async function HomePage() {
       )}
 
       {/* ── Find Shops Near You ───────────────────────────────────────────── */}
-      <ScrollSection className={showMarketplaceStats ? "pb-6 pt-16 sm:pb-8 sm:pt-20" : "pb-6 pt-10 sm:pb-8 sm:pt-12"}>
+      <ScrollSection className="pb-6 pt-16 sm:pb-8 sm:pt-20 md:pt-24">
         <div data-home-map className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}
@@ -546,7 +554,10 @@ export default async function HomePage() {
         {topSaved.length > 0 && (
           <ScrollSection>
             <div data-home-top-picks className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+                <p className="text-sm text-neutral-500">Ranked by ratings, saves and sales</p>
+              </div>
               <Link href="/browse?sort=popular" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
             </div>
 
@@ -607,6 +618,11 @@ export default async function HomePage() {
                 >
                   <c.Icon size={28} className="text-[#2C1F1A] will-change-transform transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-[1.08]" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
+                  {categoryCounts && (
+                    <span className="-mt-1 whitespace-nowrap text-[11px] leading-tight text-neutral-500">
+                      {categoryCountLabel(categoryCounts[c.key] ?? 0)}
+                    </span>
+                  )}
                 </Link>
               ))}
               <Link
@@ -623,7 +639,10 @@ export default async function HomePage() {
         {/* ── New Arrivals ───────────────────────────────────────── */}
         <ScrollSection>
           <div data-home-new-arrivals className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
+              <p className="text-sm text-neutral-500">The newest pieces on Grainline</p>
+            </div>
             <Link href="/browse?sort=newest" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
           </div>
 
@@ -1038,6 +1057,7 @@ export default async function HomePage() {
       </div>
       </div>
 
+      <HomeCommissionBand />
     </main>
   );
 }

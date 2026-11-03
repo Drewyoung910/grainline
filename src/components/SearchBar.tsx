@@ -821,7 +821,9 @@ export default function SearchBar({
                 className={[
                   staggerItems ? "search-option-in" : "",
                   isPillOption(option)
-                    ? `inline-block max-w-[calc(100%-1.5rem)] pb-1.5 align-top ${index > 0 && isPillOption(options[index - 1]) && options[index - 1].section === option.section ? "ml-1.5" : "ml-3"}`
+                    // A wider left margin with a negative right one keeps wrapped
+                    // pills lined up with the section heading.
+                    ? "-mr-1.5 ml-3 inline-block max-w-[calc(100%-1.5rem)] pb-1.5 align-top"
                     : "",
                 ].filter(Boolean).join(" ") || undefined}
                 style={{ "--search-option-index": Math.min(index, 8) } as React.CSSProperties}
