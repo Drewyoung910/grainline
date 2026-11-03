@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
-import { LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
+import { LISTING_GALLERY_FRAME_HEIGHT, LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
 import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 
 type Photo = { id: string; url: string; altText?: string | null };
@@ -197,7 +197,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className="group/gallery relative isolate block h-[clamp(18rem,calc(100svh-var(--site-header-offset)-12rem),26rem)] w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),32rem)]"
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {

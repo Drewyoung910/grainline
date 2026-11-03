@@ -1,5 +1,5 @@
 // src/app/listing/[id]/loading.tsx
-import { LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
+import { LISTING_GALLERY_FRAME_HEIGHT, LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
 
 // Keeps the listing page's layout so nothing moves when the page arrives, and
 // so a photo traveling from a listing card has its landing spot right away.
@@ -11,7 +11,7 @@ export default function ListingLoading() {
         <div className="min-w-0">
           <div
             {...{ [LISTING_PHOTO_TARGET_ATTRIBUTE]: "" }}
-            className="h-[clamp(20rem,calc(100svh-var(--site-header-offset)-7.5rem),36rem)] w-full rounded-lg bg-[#EFEAE0] animate-pulse"
+            className={`${LISTING_GALLERY_FRAME_HEIGHT} w-full rounded-lg bg-[#EFEAE0] animate-pulse`}
           />
         </div>
         <div className="space-y-4 rounded-lg border border-stone-200/60 p-6 shadow-sm">
