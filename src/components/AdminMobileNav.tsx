@@ -34,7 +34,7 @@ export default function AdminMobileNav(counts: Counts) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Admin sections" className="md:hidden flex overflow-x-auto border-b bg-white px-1 py-1 gap-0.5 shrink-0">
+    <nav aria-label="Admin sections" className="scrollbar-hidden md:hidden flex overflow-x-auto border-b bg-white px-1 py-1 gap-0.5 shrink-0">
       {NAV_ITEMS.map(({ href, label, Icon, badgeKey }) => {
         const active = isAdminNavItemActive(pathname, href);
         const badge = badgeKey ? counts[badgeKey] : 0;

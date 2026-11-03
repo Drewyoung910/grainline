@@ -85,7 +85,7 @@ export default function FavoriteButton({
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
       data-saved={saved ? "true" : "false"}
-      className="listing-save-control group/fav absolute right-0 top-0 z-10 inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,transform] duration-200 ease-out focus-visible:outline-none"
+      className="listing-save-control group/fav absolute right-0 top-0 z-10 inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,translate,scale] duration-200 ease-out focus-visible:outline-none"
       style={{ lineHeight: 0 }}
     >
       {/* Solid white circle keeps the heart readable on any photo. It stays

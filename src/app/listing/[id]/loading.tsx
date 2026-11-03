@@ -1,21 +1,26 @@
 // src/app/listing/[id]/loading.tsx
+import { LISTING_GALLERY_FRAME_HEIGHT, LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
+
+// Keeps the listing page's layout so nothing moves when the page arrives, and
+// so a photo traveling from a listing card has its landing spot right away.
 export default function ListingLoading() {
   return (
-    <main className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
-      <div className="h-4 w-28 bg-[#EFEAE0] rounded animate-pulse" />
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-2xl bg-[#EFEAE0] aspect-[4/5] animate-pulse" />
-        <div className="space-y-4">
-          <div className="h-6 w-2/3 bg-[#EFEAE0] rounded animate-pulse" />
-          <div className="h-5 w-24 bg-[#EFEAE0] rounded animate-pulse" />
-          <div className="h-20 w-full bg-[#EFEAE0] rounded animate-pulse" />
-          <div className="h-4 w-40 bg-[#EFEAE0] rounded animate-pulse" />
+    <main className="max-w-[1600px] mx-auto overflow-x-clip px-4 sm:px-6 lg:px-8 pb-16 pt-6">
+      <div className="mb-4 h-5 w-56 max-w-full rounded bg-[#EFEAE0] animate-pulse" />
+      <div className="grid min-w-0 gap-8 mb-10 lg:grid-cols-2">
+        <div className="min-w-0">
+          <div
+            {...{ [LISTING_PHOTO_TARGET_ATTRIBUTE]: "" }}
+            className={`${LISTING_GALLERY_FRAME_HEIGHT} w-full rounded-lg bg-[#EFEAE0] animate-pulse`}
+          />
         </div>
-      </div>
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="rounded-2xl bg-[#EFEAE0] aspect-[4/5] animate-pulse" />
-        ))}
+        <div className="space-y-4 rounded-lg border border-stone-200/60 p-6 shadow-sm">
+          <div className="h-8 w-2/3 rounded bg-[#EFEAE0] animate-pulse" />
+          <div className="h-9 w-32 rounded bg-[#EFEAE0] animate-pulse" />
+          <div className="h-12 w-full rounded-md bg-[#EFEAE0] animate-pulse" />
+          <div className="h-12 w-full rounded-md bg-[#EFEAE0] animate-pulse" />
+          <div className="h-24 w-full rounded bg-[#EFEAE0] animate-pulse" />
+        </div>
       </div>
     </main>
   );

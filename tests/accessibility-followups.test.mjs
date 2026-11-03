@@ -69,7 +69,7 @@ describe("accessibility follow-ups", () => {
     assert.match(modal, /aria-labelledby=\{titleId\}/);
     assert.match(modal, /tabIndex=\{-1\}/);
     assert.match(modal, /items-start justify-center overflow-y-auto overscroll-contain/);
-    assert.match(modal, /className="my-auto w-full max-w-2xl/);
+    assert.match(modal, /className="[^"]*my-auto w-full max-w-2xl/);
   });
 
   it("labels interactive map canvases and exposes text alternatives", () => {
@@ -226,7 +226,7 @@ describe("accessibility follow-ups", () => {
     assert.match(editPhotoGrid, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
     for (const modal of [photoManager, editPhotoGrid]) {
       assert.match(modal, /items-start justify-center overflow-y-auto overscroll-contain/);
-      assert.match(modal, /className="my-auto bg-white/);
+      assert.match(modal, /className="[^"]*my-auto[^"]*bg-white/);
     }
   });
 
@@ -453,7 +453,9 @@ describe("accessibility follow-ups", () => {
     assert.match(searchBar, /className="min-w-0 flex-1/);
     assert.match(searchBar, /max-h-\[min\(28rem,calc\(100dvh-9rem\)\)\]/);
     assert.match(searchBar, /overflow-y-auto overscroll-contain/);
-    assert.match(makersMap, /<section className="min-w-0">/);
+    assert.match(makersMap, /<section ref=\{sectionRef\} className="min-w-0">/);
+    assert.match(makersMap, /new IntersectionObserver\(/);
+    assert.match(makersMap, /\{mapReady \? \(/);
     assert.match(makersMap, /lg:items-center/);
     assert.match(makersMap, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);

@@ -72,7 +72,7 @@ export default async function MyCommissionsPage() {
       </Link>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-neutral-900">My Commission Requests</h1>
+          <h1 className="font-display page-title text-neutral-900">My Commission Requests</h1>
           <p className="mt-1 text-sm text-neutral-500">Track custom project requests and interested makers.</p>
         </div>
         <Link
@@ -120,7 +120,7 @@ export default async function MyCommissionsPage() {
                 </span>
                 <Link
                   href={`/commission/${r.id}`}
-                  className="ml-auto inline-flex min-h-[32px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm ml-auto"
                 >
                   View details
                 </Link>

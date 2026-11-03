@@ -15,13 +15,14 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   assert.equal(Object.keys(SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS).length, 0);
   assert.equal(result.directWrites, 0);
   assert.equal(result.coordinateFiles, 0);
-  // UserReport target validation moves the remaining report-route query-shape
-  // factories behind its single actor-bound SQL authority.
-  assert.equal(result.reviewedOpaqueShapes, 143);
+  // UserReport target validation removes three report-route factories while
+  // the UI workspace/search integration adds two reviewed public-listing
+  // factories and one owner-scoped Workshop helper.
+  assert.equal(result.reviewedOpaqueShapes, 146);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 117);
-  assert.equal(result.opaqueNonTargetResiduals, 26);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 119);
+  assert.equal(result.opaqueNonTargetResiduals, 27);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,
     PUBLIC_ELIGIBILITY: 0,

@@ -241,7 +241,7 @@ export default function OnboardingWizard({
             </div>
             <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
               <div
-                className="h-full bg-amber-500 transition-all duration-500"
+                className="h-full bg-amber-500 transition-[width] duration-500"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
@@ -704,7 +704,7 @@ export default function OnboardingWizard({
                 {latestListing ? (
                   <Link
                     href={`/dashboard/listings/${latestListing.id}/edit`}
-                    className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                    className="btn btn-secondary btn-sm"
                   >
                     Edit
                   </Link>
@@ -748,7 +748,7 @@ export default function OnboardingWizard({
             <button
               onClick={handleComplete}
               disabled={loading || !stripeReady || listingCount < 1}
-              className="w-full rounded-md bg-[#2C1F1A] px-8 py-3 font-medium text-white transition-colors hover:bg-[#3A2A24] disabled:opacity-50 min-h-[44px]"
+              className="btn btn-primary w-full"
             >
               {loading ? "Loading…" : "Go to My Dashboard →"}
             </button>

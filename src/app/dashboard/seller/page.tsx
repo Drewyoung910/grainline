@@ -280,7 +280,7 @@ export default async function SellerSettingsPage({
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-8">
-      <h1 className="text-2xl font-semibold font-display">Shop Settings</h1>
+      <h1 className="font-display page-title">Shop Settings</h1>
 
       {/* Payouts & Banking */}
       <section className="card-section p-6 space-y-3">
@@ -557,7 +557,7 @@ export default async function SellerSettingsPage({
           </div>
         </div>
 
-        <button type="submit" className="rounded-md px-4 py-2.5 bg-[#2C1F1A] text-white text-sm font-medium hover:bg-[#3A2A24]">
+        <button type="submit" className="btn btn-primary">
           Save settings
         </button>
       </ActionForm>
@@ -624,7 +624,7 @@ export default async function SellerSettingsPage({
       </section>
 
       {/* Shop Updates / Broadcasts */}
-      <section className="card-section p-6 space-y-4">
+      <section id="shop-updates" className="card-section p-6 space-y-4">
         <div>
           <h2 className="text-lg font-semibold">Shop Updates</h2>
           <p className="text-sm text-neutral-500 mt-1">

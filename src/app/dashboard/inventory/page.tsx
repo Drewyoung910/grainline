@@ -16,7 +16,7 @@ export default async function InventoryPage() {
   const { me, seller } = await ensureSeller();
 
   const listingRows = await prisma.listing.findMany({
-    where: { sellerId: seller.id, listingType: "IN_STOCK" },
+    where: { sellerId: seller.id, archivedAt: null, listingType: "IN_STOCK" },
     include: {
       photos: { orderBy: { sortOrder: "asc" }, take: 1 },
     },
@@ -42,7 +42,7 @@ export default async function InventoryPage() {
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-8">
       <header>
-        <h1 className="font-display text-2xl font-semibold">Inventory</h1>
+        <h1 className="font-display page-title">Inventory</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Manage stock quantities for your In Stock listings.
         </p>

@@ -2,267 +2,50 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { after } from "next/server";
-import { prisma } from "@/lib/db";
-import { userClerkGate } from "@/lib/userIdentityAccess";
-import { ensureSeller } from "@/lib/ensureSeller";
-import { ListingStatus } from "@prisma/client";
-import InlineActionButton from "@/components/InlineActionButton";
-import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Shield, Bell, BarChart, Eye, Heart, MousePointer } from "@/components/icons";
-import { deleteListingWithCleanup, listingDeletePublicError } from "@/lib/listingDelete";
-import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
-import { deleteListingBlockReason, hideListingBlockReason, withdrawReviewBlockReason } from "@/lib/listingActionState";
-import DismissibleBanner from "@/components/DismissibleBanner";
-import ResubmitButton from "@/components/ResubmitButton";
-import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
-import { countUnreadOwnerNotifications } from "@/lib/notificationOwnerAccess";
-import {
-  sellerOwnerGuildApplicationState,
-  sellerOwnerPrivateState,
-} from "@/lib/sellerOwnerPrivateAccess";
-import { deleteOwnerSavedSearch, listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
-import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
-import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
-import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
-import { logServerError } from "@/lib/serverErrorLogger";
-import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import DismissibleBanner from "@/components/DismissibleBanner";
+import LocalDate from "@/components/LocalDate";
+import MediaImage from "@/components/MediaImage";
+import WorkshopStats from "@/components/WorkshopStats";
+import { AlertTriangle, ChevronRight, MessageCircle, Tag, Truck } from "@/components/icons";
 import { WorkshopSkeleton } from "@/components/RouteSkeletons";
-import { sellerOwnerCore, sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
-import { sellerStockNotificationCounts } from "@/lib/stockNotificationAccess";
+import { countActorUnreadMessages } from "@/lib/conversationMessageAuthority";
+import { ensureSeller } from "@/lib/ensureSeller";
+import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { orderTotalCents } from "@/lib/orderTotals";
+import { publicSellerShopPath } from "@/lib/publicPaths";
+import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
+import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
+import { readWorkshopListingAttention, readWorkshopOrderQueue } from "@/lib/workshopData";
+import { orderRefundedAway, workshopAttentionRows, type WorkshopAttentionRow } from "@/lib/workshopQueue";
+import { logServerError } from "@/lib/serverErrorLogger";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
-
-type DashboardActionState = { ok: boolean; error?: string };
-const DASHBOARD_ACTION_CLASS =
-  "inline-flex min-h-[30px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50";
-const DASHBOARD_WARNING_ACTION_CLASS =
-  "inline-flex min-h-[30px] items-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50";
-const DASHBOARD_DANGER_ACTION_CLASS =
-  "inline-flex min-h-[30px] items-center rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50";
-
-// Server action: set status (Active / Hidden / Sold)
-async function setStatus(
-  listingId: string,
-  nextStatus: ListingStatus,
-  _prevState?: unknown,
-  _formData?: FormData,
-): Promise<DashboardActionState> {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) return { ok: false, error: "Sign in to update listings." };
-
-  const { success } = await safeRateLimit(listingMutationRatelimit, userId);
-  if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
-
-  // ensure ownership
-  const me = await userClerkGate(prisma, userId);
-  if (!me) return { ok: false, error: "Account not found." };
-  if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
-  if (!listing) return { ok: false, error: "Listing not found." };
-  if (listing.archivedAt) {
-    return { ok: false, error: "Archived listings cannot be changed here." };
-  }
-
-  // Seller-initiated reactivation must go through publishListingAction so AI/admin
-  // moderation cannot be bypassed by forged server-action posts.
-  if (nextStatus === ListingStatus.ACTIVE) {
-    return { ok: false, error: "Use Resubmit to make listings active." };
-  }
-  if (nextStatus === ListingStatus.HIDDEN) {
-    const blockReason = hideListingBlockReason(listing);
-    if (blockReason) return { ok: false, error: blockReason };
-  } else if (nextStatus === ListingStatus.SOLD) {
-    if (listing.status !== ListingStatus.ACTIVE && listing.status !== ListingStatus.SOLD_OUT) {
-      return { ok: false, error: "Only active or sold-out listings can be marked sold." };
-    }
-  } else {
-    return { ok: false, error: "That status change is not available here." };
-  }
-
-  const updated = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: listing.status,
-      archivedAt: null,
-    },
-    data: { status: nextStatus },
-  });
-  if (updated.count === 0) {
-    return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
-  }
-
-  after(() =>
-    expireOpenCheckoutSessionsForListing({
-      listingId,
-      sellerId: listing.sellerId,
-      source: nextStatus === ListingStatus.HIDDEN ? "listing_hide" : "listing_mark_sold",
-    }),
-  );
-
-  await syncGuildMemberListingThreshold(listing.sellerId);
-
-  revalidatePath("/dashboard");
-  revalidatePath("/browse");
-  revalidatePath(`/listing/${listingId}`);
-  revalidatePath(`/seller/${listing.sellerId}`);
-  revalidatePath(`/seller/${listing.sellerId}/shop`);
-  revalidateListingSearchCaches();
-  revalidateFeaturedMakerCaches();
-
-  return { ok: true };
-}
-
-// Server action: delete listing
-async function deleteListing(
-  listingId: string,
-  _prevState?: unknown,
-  _formData?: FormData,
-): Promise<DashboardActionState> {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) return { ok: false, error: "Sign in to delete listings." };
-
-  const { success } = await safeRateLimit(listingMutationRatelimit, userId);
-  if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
-
-  const me = await userClerkGate(prisma, userId);
-  if (!me) return { ok: false, error: "Account not found." };
-  if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
-  if (!listing) return { ok: false, error: "Listing not found." };
-  const blockReason = deleteListingBlockReason(listing);
-  if (blockReason) return { ok: false, error: blockReason };
-
-  let outcome: "deleted" | "archived";
-  try {
-    outcome = await deleteListingWithCleanup(listingId, me.id);
-  } catch (err) {
-    logServerError(err, {
-      source: "seller_listing_delete",
-      extra: { listingId, sellerId: listing.sellerId },
-    });
-    return {
-      ok: false,
-      error: listingDeletePublicError(err) ?? "Could not delete this listing. Please try again.",
-    };
-  }
-
-  after(() =>
-    expireOpenCheckoutSessionsForListing({
-      listingId,
-      sellerId: listing.sellerId,
-      source: outcome === "archived" ? "listing_delete_archive" : "listing_delete_hard",
-    }),
-  );
-
-  await syncGuildMemberListingThreshold(listing.sellerId).catch((error) => {
-    logServerError(error, {
-      source: "seller_listing_delete_guild_threshold",
-      extra: { listingId, sellerId: listing.sellerId },
-    });
-  });
-
-  revalidatePath("/dashboard");
-  revalidatePath("/browse");
-  revalidatePath(`/listing/${listingId}`);
-  revalidatePath(`/seller/${listing.sellerId}`);
-  revalidatePath(`/seller/${listing.sellerId}/shop`);
-  revalidateListingSearchCaches();
-  revalidateFeaturedMakerCaches();
-
-  return { ok: true };
-}
-
-async function withdrawListingReview(
-  listingId: string,
-  _prevState?: unknown,
-  _formData?: FormData,
-): Promise<DashboardActionState> {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) return { ok: false, error: "Sign in to withdraw listings." };
-
-  const { success } = await safeRateLimit(listingMutationRatelimit, userId);
-  if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
-
-  const me = await userClerkGate(prisma, userId);
-  if (!me) return { ok: false, error: "Account not found." };
-  if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
-  const sellerCore = await sellerOwnerCore(me.id);
-  if (!sellerCore) return { ok: false, error: "Listing not found." };
-
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id_sellerId: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    },
-  });
-  if (!listing) return { ok: false, error: "Listing not found." };
-  const blockReason = withdrawReviewBlockReason(listing);
-  if (blockReason) return { ok: false, error: blockReason };
-
-  const updated = await prisma.listing.updateMany({
-    where: {
-      id: listingId,
-      sellerId: listing.sellerId,
-      status: ListingStatus.PENDING_REVIEW,
-      updatedAt: listing.updatedAt,
-    },
-    data: {
-      status: ListingStatus.DRAFT,
-      aiReviewFlags: [],
-      aiReviewScore: null,
-      reviewedByAdmin: false,
-      reviewedAt: null,
-      rejectionReason: null,
-    },
-  });
-  if (updated.count === 0) {
-    return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
-  }
-
-  revalidatePath("/dashboard");
-  revalidatePath(`/listing/${listingId}`);
-  revalidatePath(`/seller/${listing.sellerId}`);
-  revalidatePath(`/seller/${listing.sellerId}/shop`);
-
-  return { ok: true };
-}
-
-async function deleteSavedSearch(searchId: string) {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) return;
-  const { success } = await safeRateLimit(savedSearchRatelimit, `dashboard-delete:${userId}`);
-  if (!success) return;
-  const me = await userClerkGate(prisma, userId);
-  if (!me) return;
-  if (me.banned || me.deletedAt) return;
-  await deleteOwnerSavedSearch(me.id, searchId, prisma);
-  revalidatePath("/dashboard");
-}
 
 type DashboardPageProps = {
   searchParams?: Promise<{ setup?: string }>;
 };
+
+const ATTENTION_ICONS: Record<WorkshopAttentionRow["icon"], typeof Truck> = {
+  truck: Truck,
+  message: MessageCircle,
+  alert: AlertTriangle,
+  tag: Tag,
+};
+
+// These fill in the overview but aren't needed to use it, so one failing read
+// must not take the banners and sidebar down with it.
+async function readOptional<T>(part: string, read: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read();
+  } catch (error) {
+    logServerError(error, { source: "workshop_overview", extra: { part } });
+    return null;
+  }
+}
 
 export default function DashboardPage(props: DashboardPageProps) {
   return (
@@ -285,58 +68,46 @@ async function DashboardPageContent({
   const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
   const forceSetupBanner = params.setup === "required";
 
-  const [listingRows, savedSearches, verification, notifUnreadCount, dashboardSeller] = await Promise.all([
-    prisma.listing.findMany({
-      where: { sellerId: seller.id, archivedAt: null },
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        status: true,
-        isPrivate: true,
-        viewCount: true,
-        clickCount: true,
-        favoriteCount: true,
-        aiReviewFlags: true,
-        reviewedByAdmin: true,
-        createdAt: true,
-        updatedAt: true,
-        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 6,
-    }),
-    listOwnerSavedSearches(me.id, prisma, { take: 20 }),
-    sellerOwnerGuildApplicationState(seller.id, me.id),
-    countUnreadOwnerNotifications(me.id),
+  const [dashboardSeller, listingAttention, orderQueue, unreadMessages] = await Promise.all([
     sellerOwnerDashboardState(me.id),
+    readOptional("listing_attention", () => readWorkshopListingAttention(seller.id)),
+    readOptional("order_queue", () => readWorkshopOrderQueue(me.id)),
+    readOptional("unread_messages", () => countActorUnreadMessages(me.id)),
   ]);
-  const stockNotificationCounts = await sellerStockNotificationCounts(
-    me.id,
-    listingRows.map((listing) => listing.id),
-  );
-  const listings = listingRows.map((listing) => ({
-    ...listing,
-    _count: {
-      favorites: listing.favoriteCount,
-      stockNotifications: stockNotificationCounts.get(listing.id) ?? 0,
-    },
-  }));
   if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
     throw new Error("Seller dashboard authority returned an unexpected owner");
   }
-  const verificationStatus = verification?.makerVerification?.status ?? null;
-  const guildLevel = dashboardSeller.guildLevel;
   const vacationMode = dashboardSeller.vacationMode;
   const vacationReturnDate = dashboardSeller.vacationReturnDate;
   const chargesEnabled = dashboardSeller.chargesEnabled;
 
+  const attentionRows = workshopAttentionRows({
+    ordersToShip: orderQueue?.awaiting.length ?? 0,
+    ordersToShipCapped: orderQueue?.capped ?? false,
+    orderNames: (orderQueue?.awaiting ?? []).map((order) => sellerFacingOrderBuyerLabel(order, "Buyer")),
+    unreadMessages: unreadMessages ?? 0,
+    underReview: listingAttention?.underReview ?? 0,
+    underReviewTitle: listingAttention?.underReviewTitle ?? null,
+    rejected: listingAttention?.rejected ?? 0,
+    lowStock: listingAttention?.lowStock ?? [],
+    listingCount: listingAttention?.listingCount ?? null,
+  });
+  // Never claim there's nothing to do when part of the answer failed to load.
+  const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null;
+
+  const shopStatus = vacationMode
+    ? { label: "On vacation", className: "bg-amber-100 text-amber-900" }
+    : !chargesEnabled
+      ? { label: "Not visible yet", className: "bg-amber-100 text-amber-900" }
+      : !onboardingComplete
+        ? { label: "Finish setup", className: "bg-amber-100 text-amber-900" }
+        : { label: "Shop open", className: "bg-green-100 text-green-800" };
+
   return (
-    <main className="max-w-7xl mx-auto p-8">
+    <main className="mx-auto max-w-5xl space-y-7">
       {!onboardingComplete && (
         <DismissibleBanner
-          className="mb-8 rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 pr-10 text-sm text-amber-950"
+          className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 pr-10 text-sm text-amber-950"
           rejectedIds={forceSetupBanner ? [] : [`dashboard-onboarding:${seller.id}:${chargesEnabled ? "setup" : "stripe"}`]}
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -366,168 +137,28 @@ async function DashboardPageContent({
         </DismissibleBanner>
       )}
 
-      <header className="mb-10">
-        <h1 className="text-4xl font-bold font-display">
-          Workshop — {me.name ?? me.email.split("@")[0]}
-        </h1>
-        <p className="text-neutral-600 mt-2">Signed in as {me.email}</p>
 
-        {/* ── Your Shop ── */}
-        <div className="mt-8">
-          <p className="text-sm font-medium text-stone-500 uppercase tracking-wide mb-3">Your Shop</p>
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-            <Link
-              href="/dashboard/listings/new"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Store size={20} className="sm:hidden shrink-0" />
-              <Store size={16} className="hidden sm:block shrink-0" />
-              Create listing
-            </Link>
-
-            <Link
-              href="/dashboard/profile"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <User size={20} className="sm:hidden shrink-0" />
-              <User size={16} className="hidden sm:block shrink-0" />
-              Shop Profile
-            </Link>
-
-            <Link
-              href="/dashboard/seller"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Package size={20} className="sm:hidden shrink-0" />
-              <Package size={16} className="hidden sm:block shrink-0" />
-              Shipping &amp; Settings
-            </Link>
-
-            <Link
-              href="/dashboard/sales"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Tag size={20} className="sm:hidden shrink-0" />
-              <Tag size={16} className="hidden sm:block shrink-0" />
-              My sales
-            </Link>
-
-            <Link
-              href="/dashboard/inventory"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Grid size={20} className="sm:hidden shrink-0" />
-              <Grid size={16} className="hidden sm:block shrink-0" />
-              Inventory
-            </Link>
-
-            <Link
-              href="/dashboard/analytics"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <BarChart size={20} className="sm:hidden shrink-0" />
-              <BarChart size={16} className="hidden sm:block shrink-0" />
-              Analytics
-            </Link>
-
-            <Link
-              href="/dashboard/blog"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Edit size={20} className="sm:hidden shrink-0" />
-              <Edit size={16} className="hidden sm:block shrink-0" />
-              My Blog
-            </Link>
-
-            {guildLevel === "GUILD_MASTER" ? (
-              <Link
-                href="/dashboard/verification"
-                className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 !border-indigo-300 !bg-indigo-50 px-4 py-3 sm:py-2 text-sm font-medium text-indigo-800 hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
-              >
-                <Shield size={20} className="sm:hidden shrink-0" />
-                <Shield size={16} className="hidden sm:block shrink-0" />
-                Guild Master
-              </Link>
-            ) : guildLevel === "GUILD_MEMBER" ? (
-              <Link
-                href="/dashboard/verification"
-                className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 !border-amber-300 !bg-amber-50 px-4 py-3 sm:py-2 text-sm font-medium text-amber-800 hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
-              >
-                <Shield size={20} className="sm:hidden shrink-0" />
-                <Shield size={16} className="hidden sm:block shrink-0" />
-                Guild Member
-              </Link>
-            ) : (
-              <Link
-                href="/dashboard/verification"
-                className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-              >
-                <Shield size={20} className="sm:hidden shrink-0" />
-                <Shield size={16} className="hidden sm:block shrink-0" />
-                {verificationStatus === "PENDING" ? "Guild Badge Pending" : "Apply for Guild Badge"}
-              </Link>
-            )}
-          </div>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display page-title">Workshop</h1>
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-neutral-500">
+            <span className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-medium ${shopStatus.className}`}>{shopStatus.label}</span>
+            <span className="min-w-0 truncate">{seller.displayName}</span>
+          </p>
         </div>
-
-        {/* ── Divider ── */}
-        <div className="border-t border-stone-200/60 my-6" />
-
-        {/* ── Your Account ── */}
-        <div>
-          <p className="text-sm font-medium text-stone-500 uppercase tracking-wide mb-3">Your Account</p>
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-            <Link
-              href="/dashboard/orders"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Package size={20} className="sm:hidden shrink-0" />
-              <Package size={16} className="hidden sm:block shrink-0" />
-              My orders
-            </Link>
-
-            <Link
-              href="/messages"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <MessageCircle size={20} className="sm:hidden shrink-0" />
-              <MessageCircle size={16} className="hidden sm:block shrink-0" />
-              Messages
-            </Link>
-
-            <Link
-              href="/dashboard/notifications"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Bell size={20} className="sm:hidden shrink-0" />
-              <Bell size={16} className="hidden sm:block shrink-0" />
-              Notifications
-              {notifUnreadCount > 0 && (
-                <span className="inline-flex items-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white">
-                  {notifUnreadCount}
-                </span>
-              )}
-            </Link>
-
-            <Link
-              href="/account/saved"
-              className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Heart size={20} className="sm:hidden shrink-0" />
-              <Heart size={16} className="hidden sm:block shrink-0" />
-              Saved items
-            </Link>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href={publicSellerShopPath(seller.id, seller.displayName)} className="btn btn-secondary btn-sm">
+            View shop
+          </Link>
+          <Link href="/dashboard/listings/new" className="btn btn-primary btn-sm">
+            New listing
+          </Link>
         </div>
-
-        <p className="mt-4 text-sm text-stone-500">
-          <Link href="/browse" className="hover:text-stone-600 hover:underline">← Back to browsing</Link>
-        </p>
       </header>
 
       {/* Stripe Connect banner */}
       {!chargesEnabled && onboardingComplete && (
-        <div className="bg-amber-50 border border-amber-200 p-4 mb-6 flex items-center justify-between">
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 flex items-center justify-between">
           <div>
             <p className="font-medium text-amber-900 text-sm">Your listings are not visible to buyers yet</p>
             <p className="text-amber-700 text-xs mt-0.5">Connect Stripe to receive payments and make your listings public</p>
@@ -540,7 +171,7 @@ async function DashboardPageContent({
 
       {/* Vacation mode active banner */}
       {vacationMode && (
-        <div className="mb-8 border border-amber-300 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
           <div>
             <p className="font-medium text-amber-900 text-sm">Vacation mode is active</p>
             <p className="text-amber-800 text-sm mt-0.5">
@@ -560,176 +191,38 @@ async function DashboardPageContent({
         </div>
       )}
 
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold font-display">My Listings</h2>
-          <Link
-            href={publicSellerShopPath(seller.id, seller.displayName)}
-            className="text-sm text-neutral-600 underline hover:text-neutral-900"
-          >
-            View My Shop →
-          </Link>
-        </div>
-
-        {listings.some((l) => l.status === "PENDING_REVIEW") && (
-          <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 rounded-md">
-            <span className="font-medium">Some listings are under review.</span>{" "}Our team will approve them shortly. You&apos;ll be notified when they go live.
-          </div>
+      <section aria-labelledby="workshop-attention-title" className="card-section p-5 sm:p-[22px]">
+        <h2 id="workshop-attention-title" className="mb-3.5 font-display text-[26px] leading-tight">
+          {attentionRows.length > 0 ? "Needs your attention" : attentionIncomplete ? "Your shop" : "All caught up"}
+        </h2>
+        {attentionIncomplete && (
+          <p className={`text-sm text-neutral-600${attentionRows.length > 0 ? " mb-3" : ""}`}>
+            Some updates couldn&apos;t load just now. Refresh to try again.
+          </p>
         )}
-
-        {listings.some((l) => l.status === "REJECTED") && (
-          <DismissibleBanner
-            className="mb-4 border border-red-200 bg-red-50 px-4 py-3 pr-8 text-sm text-red-900 rounded-md"
-            rejectedIds={listings.filter((l) => l.status === "REJECTED").map((l) => l.id)}
-          >
-            <span className="font-medium">Some listings were rejected.</span> Edit and resubmit them for review.
-          </DismissibleBanner>
-        )}
-
-        {listings.length === 0 ? (
-          <div className="card-section p-8 text-neutral-600">
-            Your workshop is empty — list your first piece and start selling.
-          </div>
+        {attentionRows.length === 0 ? (
+          attentionIncomplete ? null : (
+            <p className="text-sm text-neutral-600">No orders to ship, messages waiting or listings to fix right now.</p>
+          )
         ) : (
-          <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 sm:gap-6">
-            {listings.map((l) => {
-              const thumb = l.photos[0]?.url;
-              // Card link target depends on public visibility:
-              // ACTIVE/SOLD/SOLD_OUT → public listing page
-              // DRAFT/HIDDEN/REJECTED/PENDING_REVIEW → preview page (?preview=1) so the
-              // owner can see their listing without hitting the public 404.
-              const isPublicStatus = l.status === "ACTIVE" || l.status === "SOLD" || l.status === "SOLD_OUT";
-              const cardHref = isPublicStatus
-                ? publicListingPath(l.id, l.title)
-                : `${publicListingPath(l.id, l.title)}?preview=1`;
-
+          <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
+            {attentionRows.map((row) => {
+              const Icon = ATTENTION_ICONS[row.icon];
               return (
-                // Mobile (horizontal scroll): fixed 220px width via w-[220px].
-                // Previously had only min-w-[220px] which let long titles push
-                // the card to fill the available width — visible as "super
-                // wide" cards on mobile. sm+ releases to grid via sm:w-auto.
-                <li key={l.id} className="card-listing w-[220px] flex-none snap-start sm:w-auto">
-                  {cardHref ? (
-                    <Link href={cardHref} className="block">
-                      {thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb} alt={l.title} className="aspect-[4/5] w-full object-cover" />
-                      ) : (
-                        <div className="aspect-[4/5] w-full bg-neutral-100" />
-                      )}
-                    </Link>
-                  ) : (
-                    <>
-                      {thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb} alt={l.title} className="aspect-[4/5] w-full object-cover" />
-                      ) : (
-                        <div className="aspect-[4/5] w-full bg-neutral-100" />
-                      )}
-                    </>
-                  )}
-
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-baseline justify-between gap-2 min-w-0">
-                      <h3 className="font-medium truncate min-w-0 flex-1">
-                        {cardHref ? (
-                          <Link href={cardHref} className="hover:underline">{l.title}</Link>
-                        ) : l.title}
-                      </h3>
-                      <span className="text-sm text-neutral-500 shrink-0">
-                        {formatCurrencyCents(l.priceCents, l.currency)}
-                      </span>
-                    </div>
-
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
-                      {l.status === "PENDING_REVIEW" ? (
-                        <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium normal-case">
-                          Under Review
-                        </span>
-                      ) : l.status === "REJECTED" ? (
-                        <span className="inline-block px-2 py-0.5 bg-red-100 text-red-800 rounded-full font-medium normal-case">
-                          Rejected
-                        </span>
-                      ) : l.status}
-                    </div>
-
-                    <div className="text-xs text-neutral-500 flex items-center gap-1 flex-wrap">
-                      <Eye size={11} className="inline align-middle" /> {l.viewCount} · <MousePointer size={11} className="inline align-middle" /> {l.clickCount} · <Heart size={11} className="inline align-middle" /> {l._count.favorites} · <Bell size={11} className="inline align-middle" /> {l._count.stockNotifications}
-                    </div>
-
-                    <div className="pt-3 flex flex-wrap gap-2">
-                      {l.status !== "PENDING_REVIEW" && (
-                        <Link
-                          href={`/dashboard/listings/${l.id}/edit`}
-                          className={DASHBOARD_ACTION_CLASS}
-                        >
-                          Edit
-                        </Link>
-                      )}
-                      {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
-                        <Link
-                          href={`${publicListingPath(l.id, l.title)}?preview=1`}
-                          className={DASHBOARD_ACTION_CLASS}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Preview →
-                        </Link>
-                      )}
-
-                      {l.status === "REJECTED" && (
-                        <ResubmitButton listingId={l.id} />
-                      )}
-
-                      {l.status === "PENDING_REVIEW" && (
-                        <InlineActionButton
-                          action={withdrawListingReview.bind(null, l.id)}
-                          confirm="Withdraw this listing from review and move it back to drafts?"
-                          className={DASHBOARD_WARNING_ACTION_CLASS}
-                        >
-                          Withdraw
-                        </InlineActionButton>
-                      )}
-
-                      {/* REJECTED: only Edit + Resubmit + Delete — no Hide/Unhide/Mark sold */}
-                      {l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
-                        <>
-                          {/* Mark sold only for ACTIVE and SOLD_OUT — not DRAFT or HIDDEN */}
-                          {(l.status === "ACTIVE" || l.status === "SOLD_OUT") && (
-                            <InlineActionButton
-                              action={setStatus.bind(null, l.id, ListingStatus.SOLD)}
-                              className={DASHBOARD_ACTION_CLASS}
-                            >
-                              Mark sold
-                            </InlineActionButton>
-                          )}
-
-                          {l.status === "HIDDEN" ? (
-                            <ResubmitButton listingId={l.id} label="Unhide" />
-                          ) : l.status === "ACTIVE" || l.status === "SOLD_OUT" ? (
-                            <InlineActionButton
-                              action={setStatus.bind(null, l.id, ListingStatus.HIDDEN)}
-                              className={DASHBOARD_ACTION_CLASS}
-                            >
-                              Hide
-                            </InlineActionButton>
-                          ) : l.status === "DRAFT" ? (
-                            <ResubmitButton listingId={l.id} label="Publish" />
-                          ) : null}
-                        </>
-                      )}
-
-                      {l.status !== "PENDING_REVIEW" && (
-                        <InlineActionButton
-                          action={deleteListing.bind(null, l.id)}
-                          confirm="Delete this listing? This action is permanent. Saved listings and back-in-stock subscriptions will be removed. Listings required for order, review, or conversation history will be retained only as an archived record."
-                          className={DASHBOARD_DANGER_ACTION_CLASS}
-                        >
-                          Delete
-                        </InlineActionButton>
-                      )}
-                    </div>
-                  </div>
+                <li key={row.key}>
+                  <Link
+                    href={row.href}
+                    className="group flex items-center gap-3.5 rounded-2xl bg-[#F7F5F0] px-3.5 py-3 transition-colors duration-150 hover:bg-[#EFEAE0]"
+                  >
+                    <span className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-white text-[#2C1F1A] ring-1 ring-stone-200/70">
+                      <Icon size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium text-neutral-900">{row.title}</span>
+                      <span className="block truncate text-sm text-neutral-500">{row.detail}</span>
+                    </span>
+                    <ChevronRight size={18} className="shrink-0 text-neutral-400 transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+                  </Link>
                 </li>
               );
             })}
@@ -737,69 +230,60 @@ async function DashboardPageContent({
         )}
       </section>
 
-      {/* Saved Searches */}
-      <section id="saved-searches" className="mt-10">
-        <h2 className="text-xl font-semibold font-display mb-4">Saved Searches</h2>
-        {savedSearches.length === 0 ? (
-          <div className="card-section p-6 text-neutral-600 text-sm">
-            No saved searches yet.{" "}<Link href="/browse" className="underline">Browse listings</Link>{" "}and click &quot;Save search&quot; to save a search.
-          </div>
+      {/* Shops still in setup have nothing to report, and the numbers would
+          only show placeholders and vanish. */}
+      {onboardingComplete && <WorkshopStats />}
+
+      <section aria-labelledby="workshop-recent-title" className="card-section p-5 sm:p-[22px]">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="workshop-recent-title" className="font-display text-[26px] leading-tight">Recent orders</h2>
+          <Link href="/dashboard/sales" className="group inline-flex items-center gap-1 text-sm font-medium text-neutral-800 underline-offset-4 hover:underline">
+            All orders
+            <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+          </Link>
+        </div>
+        {!orderQueue ? (
+          <p className="py-2 text-sm text-neutral-600">Your recent orders couldn&apos;t load just now.</p>
+        ) : orderQueue.recent.length === 0 ? (
+          <p className="py-2 text-sm text-neutral-600">No orders yet. Your first sale is right around the corner.</p>
         ) : (
-          <ul className="space-y-2">
-            {savedSearches.map((s) => {
-              const parts: string[] = [];
-              if (s.query) parts.push(`"${s.query}"`);
-              if (s.category) parts.push(s.category.charAt(0) + s.category.slice(1).toLowerCase());
-              if (s.listingType) parts.push(s.listingType === "IN_STOCK" ? "In stock" : "Made to order");
-              if (s.shipsWithinDays != null) parts.push(`ships within ${s.shipsWithinDays}d`);
-              if (s.minRating != null) parts.push(`${s.minRating}★+`);
-              if (s.minPrice != null) parts.push(`${formatCurrencyCents(s.minPrice)}+`);
-              if (s.maxPrice != null) parts.push(`up to ${formatCurrencyCents(s.maxPrice)}`);
-              if (s.lat != null && s.lng != null && s.radiusMiles != null) parts.push(`within ${s.radiusMiles} mi`);
-              if (s.tags.length > 0) parts.push(s.tags.map((t) => `#${t}`).join(" "));
-
-              const href = (() => {
-                const p = new URLSearchParams();
-                if (s.query) p.set("q", s.query);
-                if (s.category) p.set("category", s.category);
-                if (s.listingType) p.set("type", s.listingType);
-                if (s.shipsWithinDays != null) p.set("ships", String(s.shipsWithinDays));
-                if (s.minRating != null) p.set("rating", String(s.minRating));
-                if (s.lat != null && s.lng != null && s.radiusMiles != null) {
-                  p.set("lat", String(s.lat));
-                  p.set("lng", String(s.lng));
-                  p.set("radius", String(s.radiusMiles));
-                }
-                if (s.sort) p.set("sort", s.sort);
-                if (s.minPrice != null) p.set("min", formatCurrencyMinorUnitAmount(s.minPrice));
-                if (s.maxPrice != null) p.set("max", formatCurrencyMinorUnitAmount(s.maxPrice));
-                for (const t of s.tags) p.append("tag", t);
-                return `/browse?${p.toString()}`;
-              })();
-
+          <ul className="divide-y divide-neutral-100">
+            {orderQueue.recent.map((order) => {
+              const item = order.items[0];
+              const extraItems = order.itemCount - 1;
               return (
-                <li key={s.id} className="card-section flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <Link href={href} className="text-sm font-medium hover:underline">
-                      {parts.length > 0 ? parts.join(" · ") : "All listings"}
-                    </Link>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      Saved {new Date(s.createdAt).toLocaleDateString("en-US")}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:ml-4">
-                    <Link
-                      href={href}
-                      className={DASHBOARD_ACTION_CLASS}
-                    >
-                      Browse
-                    </Link>
-                    <form action={deleteSavedSearch.bind(null, s.id)}>
-                      <button className={DASHBOARD_DANGER_ACTION_CLASS}>
-                        Delete
-                      </button>
-                    </form>
-                  </div>
+                <li key={order.id}>
+                  <Link href={`/dashboard/sales/${order.id}`} className="group flex items-center gap-3.5 py-3">
+                    <MediaImage
+                      src={item?.imageUrl}
+                      alt=""
+                      width={56}
+                      height={56}
+                      loading="lazy"
+                      className="size-14 shrink-0 rounded-xl bg-[#EFEAE0] object-cover"
+                      fallbackClassName="size-14 shrink-0 rounded-xl bg-[#EFEAE0]"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-neutral-900 group-hover:underline">
+                        {item?.title ?? `Order #${order.id.slice(-8)}`}
+                        {extraItems > 0 ? ` and ${extraItems} more` : ""}
+                      </span>
+                      <span className="block truncate text-sm text-neutral-500">
+                        {sellerFacingOrderBuyerLabel(order, "Buyer")} · <LocalDate date={order.createdAt} dateOnly />
+                      </span>
+                    </span>
+                    <span className="hidden shrink-0 rounded-full bg-[#EFEAE0] px-2.5 py-0.5 text-[12.5px] font-medium text-neutral-700 sm:inline">
+                      {orderRefundedAway(order, orderQueue.refundOutcomes.get(order.id) ?? null)
+                        ? "Fully refunded"
+                        : fulfillmentStatusLabel(order.fulfillmentStatus ?? "PENDING")}
+                    </span>
+                    <span className="shrink-0 text-right font-medium tabular-nums text-neutral-900">
+                      {formatCurrencyCents(
+                        orderTotalCents(order, { itemsSubtotalCents: order.itemsSubtotalCents }),
+                        order.currency ?? DEFAULT_CURRENCY,
+                      )}
+                    </span>
+                  </Link>
                 </li>
               );
             })}

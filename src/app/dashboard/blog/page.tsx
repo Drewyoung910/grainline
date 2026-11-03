@@ -148,14 +148,14 @@ async function DashboardBlogContent({
       )}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-display text-2xl font-semibold">My Blog Posts</h1>
+          <h1 className="font-display page-title">My Blog Posts</h1>
           <p className="text-neutral-500 text-sm mt-0.5">
             {me.role === "EMPLOYEE" || me.role === "ADMIN" ? "Staff posts" : "Your maker posts"}
           </p>
         </div>
         <Link
           href="/dashboard/blog/new"
-          className="inline-flex min-h-[40px] items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
+          className="btn btn-primary btn-sm"
         >
           + New Post
         </Link>
@@ -196,7 +196,7 @@ async function DashboardBlogContent({
                 {p.status === "PUBLISHED" && (
                   <Link
                     href={`/blog/${p.slug}`}
-                    className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 pointer-coarse:min-h-11"
+                    className="btn btn-secondary btn-sm justify-center pointer-coarse:min-h-11"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -205,7 +205,7 @@ async function DashboardBlogContent({
                 )}
                 <Link
                   href={`/dashboard/blog/${p.id}/edit`}
-                  className="inline-flex min-h-[30px] items-center justify-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 pointer-coarse:min-h-11"
+                  className="btn btn-secondary btn-sm justify-center pointer-coarse:min-h-11"
                 >
                   Edit
                 </Link>
@@ -240,7 +240,7 @@ async function DashboardBlogContent({
           {page > 1 && (
             <Link
               href={`/dashboard/blog?page=${page - 1}`}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Previous
             </Link>
@@ -251,7 +251,7 @@ async function DashboardBlogContent({
           {page < totalPages && (
             <Link
               href={`/dashboard/blog?page=${page + 1}`}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next
             </Link>

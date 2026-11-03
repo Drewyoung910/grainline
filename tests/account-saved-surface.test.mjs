@@ -15,7 +15,8 @@ describe("account saved items surface", () => {
   it("uses the shared scroll fade with compact floating listing details", () => {
     assert.match(accountPage, /import ScrollFadeRow from "@\/components\/ScrollFadeRow"/);
     assert.match(accountPage, /<ScrollFadeRow className="-mx-1 overflow-x-auto px-1">/);
-    assert.match(accountPage, /className="group w-40 shrink-0 snap-start"/);
+    assert.match(accountPage, /<ClickTracker[^>]*className="w-40 shrink-0 snap-start">/);
+    assert.match(accountPage, /className="group\/photo aspect-\[4\/3\]/);
     assert.match(accountPage, /aspect-\[4\/3\].*overflow-hidden rounded-lg bg-\[#EFEAE0\]/);
     assert.match(accountPage, /<div className="mt-2 space-y-0\.5 px-0\.5">/);
     assert.doesNotMatch(accountPage, /className="card-listing shrink-0 w-40/);

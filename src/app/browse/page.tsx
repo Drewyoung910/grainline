@@ -17,6 +17,7 @@ import FilterChipLink from "@/components/FilterChipLink";
 import RollingNumber from "@/components/RollingNumber";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
+import FlipList from "@/components/FlipList";
 import RecentlyViewed from "@/components/RecentlyViewed";
 import GuildBadge from "@/components/GuildBadge";
 import ListingCard from "@/components/ListingCard";
@@ -497,7 +498,7 @@ async function BrowseContent({
       <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
         <MobileFilterBar popularTags={visiblePopularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
-          <div className="sticky top-[calc(var(--site-header-offset)+1rem)] self-start">
+          <div className="self-start">
             <FilterSidebar popularTags={visiblePopularTags} />
           </div>
           <div className="flex-1 min-w-0 space-y-8">
@@ -554,7 +555,7 @@ async function BrowseContent({
       {clampedPage > 1 ? (
         <Link href={makePageHref(clampedPage - 1)} className="btn btn-sm btn-secondary">← Prev</Link>
       ) : (
-        <span aria-disabled="true" className="btn btn-sm btn-secondary">← Prev</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary pointer-events-none opacity-45">← Prev</span>
       )}
       {totalPages > 1 && (
         <span className="px-2 text-neutral-500">
@@ -564,7 +565,7 @@ async function BrowseContent({
       {clampedPage < totalPages ? (
         <Link href={makePageHref(clampedPage + 1)} className="btn btn-sm btn-secondary">Next →</Link>
       ) : (
-        <span aria-disabled="true" className="btn btn-sm btn-secondary">Next →</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary pointer-events-none opacity-45">Next →</span>
       )}
     </nav>
   );
@@ -573,7 +574,7 @@ async function BrowseContent({
   function GridCard({ l }: { l: ListingWithIncludes }) {
     const shop = sellerRatings.get(l.sellerId);
     return (
-      <ClickTracker listingId={l.id}>
+      <ClickTracker listingId={l.id} flipId={l.id}>
         <ListingCard
           listing={{
             id: l.id,
@@ -615,11 +616,13 @@ async function BrowseContent({
 
     return (
       <div className="relative flex">
-        <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
-        <Link href={publicListingPath(l.id, l.title)} className="shrink-0 w-36 sm:w-44 aspect-[4/5] overflow-hidden bg-neutral-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt={l.photos[0]?.altText ?? l.title} src={img} loading="lazy" width={176} height={220} className="h-full w-full object-cover" />
-        </Link>
+        <div className="photo-save-surface relative shrink-0 w-36 sm:w-44 aspect-[4/5] overflow-hidden bg-neutral-100">
+          <Link href={publicListingPath(l.id, l.title)} className="block h-full w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img alt={l.photos[0]?.altText ?? l.title} src={img} loading="lazy" width={176} height={220} className="h-full w-full object-cover" />
+          </Link>
+          <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
+        </div>
         <div className="flex-1 min-w-0 p-4 pr-12">
           <div className="flex items-start justify-between gap-3">
             <Link href={publicListingPath(l.id, l.title)} className="font-medium hover:underline leading-snug">
@@ -747,7 +750,7 @@ async function BrowseContent({
   // ── Page render ────────────────────────────────────────────────────────────
   const activeFilterCount = [
     categoryFilter, typeFilter, shipsFilter, ratingFilter, hasLocationFilter ? "loc" : null,
-    min, max, ...selectedTags,
+    priceChipLabel ? "price" : null, ...selectedTags,
   ].filter(Boolean).length;
 
   return (
@@ -756,7 +759,7 @@ async function BrowseContent({
       <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
-        <div className="sticky top-[calc(var(--site-header-offset)+1rem)] self-start">
+        <div className="self-start">
           <FilterSidebar popularTags={visiblePopularTags} />
         </div>
 
@@ -783,23 +786,28 @@ async function BrowseContent({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <SortMenu />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <SortMenu />
+                {(Boolean(q) || activeFilterCount > 0) && (
+                  <SaveSearchButton signedIn={!!userId} />
+                )}
+              </div>
               {/* View toggle: the white thumb slides between Grid and List
                   (the control is kept across the navigation and moves as
                   soon as it is clicked). */}
-              <SegmentedControl
-                label="View"
-                size="sm"
-                value={view === "list" ? "list" : "grid"}
-                options={[
-                  { value: "grid", label: "Grid", href: viewToggleHref("grid") },
-                  { value: "list", label: "List", href: viewToggleHref("list") },
-                ]}
-              />
-
-              <SaveSearchButton signedIn={!!userId} />
-              <Pager />
+              <div className="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                  label="View"
+                  size="sm"
+                  value={view === "list" ? "list" : "grid"}
+                  options={[
+                    { value: "grid", label: "Grid", href: viewToggleHref("grid") },
+                    { value: "list", label: "List", href: viewToggleHref("list") },
+                  ]}
+                />
+                <Pager />
+              </div>
             </div>
           </div>
 
@@ -820,21 +828,20 @@ async function BrowseContent({
           )}
 
           {/* Listings */}
-          {view === "grid" ? (
-            <ul className="results-stagger grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
-              {listings.map((l) => (
-                <GridCard key={l.id} l={l} />
-              ))}
-            </ul>
-          ) : (
-            <ul className="results-stagger space-y-4">
-              {listings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="card-listing">
-                  <ListCard l={l} />
-                </ClickTracker>
-              ))}
-            </ul>
-          )}
+          <FlipList
+            className={view === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8"
+              : "space-y-4"}
+            itemKey={`${view}:${listings.map((l) => l.id).join(",")}`}
+          >
+            {view === "grid"
+              ? listings.map((l) => <GridCard key={l.id} l={l} />)
+              : listings.map((l) => (
+                  <ClickTracker key={l.id} listingId={l.id} flipId={l.id} className="card-listing">
+                    <ListCard l={l} />
+                  </ClickTracker>
+                ))}
+          </FlipList>
 
           {/* Bottom pager */}
           {totalPages > 1 && (

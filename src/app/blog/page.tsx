@@ -396,24 +396,21 @@ async function BlogIndexPageContent({
         <>
           {/* Featured post (only on first page, no search, no tag filter) */}
           {featured && (
-            <div className="group relative mb-10">
-            <div className="absolute top-3 right-3 z-10">
-              <SaveBlogButton slug={featured.slug} initialSaved={savedSet.has(featured.id)} />
-            </div>
-            <Link
-              href={`/blog/${featured.slug}`}
-              className="group block card-listing hover:shadow-md transition-shadow"
-            >
-              <div className="md:flex">
-                <div className="md:w-1/2 aspect-[16/9] overflow-hidden bg-neutral-100">
+            <div className="card-listing mb-10 overflow-hidden transition-shadow hover:shadow-md md:flex">
+              <div className="photo-save-surface group/photo relative aspect-[16/9] overflow-hidden bg-neutral-100 md:w-1/2">
+                <Link href={`/blog/${featured.slug}`} className="block h-full w-full">
                   <MediaImage
                     src={featured.coverImageUrl}
                     alt={featured.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
                     fallbackClassName="w-full h-full bg-gradient-to-br from-amber-100 to-stone-200"
                   />
+                </Link>
+                <div className="absolute right-0 top-0 z-10">
+                  <SaveBlogButton slug={featured.slug} initialSaved={savedSet.has(featured.id)} />
                 </div>
-                <div className="md:w-1/2 p-6 sm:p-8 flex flex-col justify-center space-y-3">
+              </div>
+              <Link href={`/blog/${featured.slug}`} className="group flex flex-col justify-center space-y-3 p-6 sm:p-8 md:w-1/2">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-semibold">
                       Featured
@@ -454,9 +451,7 @@ async function BlogIndexPageContent({
                       </span>
                     )}
                   </div>
-                </div>
-              </div>
-            </Link>
+              </Link>
             </div>
           )}
 
@@ -467,19 +462,21 @@ async function BlogIndexPageContent({
                 const { imageUrl: avatar, name } = publicBlogAuthorPresentation(post, "Staff");
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
-                  <li key={post.id} className="group relative card-listing">
-                    <div className="absolute top-2 right-2 z-10">
-                      <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
-                    </div>
-                    <Link href={`/blog/${post.slug}`} className="block">
-                      <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
+                  <li key={post.id} className="card-listing">
+                    <div className="photo-save-surface relative overflow-hidden bg-neutral-100">
+                      <Link href={`/blog/${post.slug}`} className="block aspect-[4/3]">
                         <MediaImage
                           src={post.coverImageUrl}
                           alt={post.title}
                           className="w-full h-full object-cover"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
+                      </Link>
+                      <div className="absolute right-0 top-0 z-10">
+                        <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
                       </div>
+                    </div>
+                    <Link href={`/blog/${post.slug}`} className="block">
                       <div className="p-4 space-y-2">
                         <div className="flex items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[post.type]}`}>

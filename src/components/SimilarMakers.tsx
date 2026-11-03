@@ -60,15 +60,15 @@ export default async function SimilarMakers({
           const avatar = maker.avatarImageUrl ?? maker.ownerImageUrl ?? null;
           const cover = maker.bannerImageUrl ?? maker.coverImageUrl;
           return (
-            <li key={maker.id} className="card-listing group">
+            <li key={maker.id} className="card-listing">
               <Link href={publicSellerPath(maker.id, maker.displayName)} className="block">
-                <div className="h-20 bg-[#E3DCCB]/60 overflow-hidden">
+                <div className="group/photo h-20 bg-[#E3DCCB]/60 overflow-hidden">
                   {cover && (
                     <MediaImage
                       src={cover}
                       alt=""
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
                       fallbackClassName="h-full w-full bg-[#E3DCCB]/60"
                     />
                   )}

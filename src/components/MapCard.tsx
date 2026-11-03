@@ -6,6 +6,7 @@ import * as maplibregl from "@/lib/maplibreClient";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
 import { createMapPinElement, MAP_PIN_HEIGHT } from "@/lib/mapPinElement";
+import { paintGrainlineMapColors } from "@/lib/grainlineMapStyle";
 
 type Props = {
   /** Coordinates already reduced to their public precision by the server. */
@@ -56,6 +57,8 @@ export default function MapCard({
       setMapUnavailable(true);
       return;
     }
+
+    paintGrainlineMapColors(map);
 
     map.scrollZoom.disable(); // prevent scroll hijacking on page
     map.addControl(new maplibregl.NavigationControl(), "top-right");

@@ -28,7 +28,7 @@ export default function CaseEscalateButton({ caseId }: { caseId: string }) {
       <button
         onClick={escalate}
         disabled={loading}
-        className="rounded border border-purple-300 px-3 py-1.5 text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+        className="btn btn-secondary btn-sm"
       >
         {loading ? "Escalating…" : "Escalate to Staff"}
       </button>

@@ -350,12 +350,12 @@ export default async function ProfilePage({
       )}
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold font-display">Shop Profile</h1>
+        <h1 className="font-display page-title">Shop Profile</h1>
         <Link
           href={publicSellerPath(seller.id, seller.displayName)}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-md border border-neutral-200 px-3 py-2 text-sm text-neutral-600 hover:bg-white"
+          className="btn btn-secondary btn-sm"
         >
           View public profile
         </Link>
@@ -681,7 +681,7 @@ export default async function ProfilePage({
                 <form action={deleteFaq.bind(null, faq.id)}>
                   <button
                     type="submit"
-                    className="shrink-0 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                    className="btn btn-danger btn-sm shrink-0"
                   >
                     Delete
                   </button>
@@ -772,11 +772,7 @@ export default async function ProfilePage({
                     <form action={toggleFeaturedListing.bind(null, listing.id)} className="mt-2">
                       <button
                         type="submit"
-                        className={`text-xs rounded px-2 py-1 border ${
-                          isFeatured
-                            ? "text-amber-700 border-amber-300 hover:bg-amber-50"
-                            : "text-neutral-600 border-neutral-200 hover:bg-neutral-50"
-                        }`}
+                        className={`btn btn-sm ${isFeatured ? "btn-warning" : "btn-secondary"}`}
                         disabled={!isFeatured && featured.size >= SELLER_FEATURED_LISTING_LIMIT}
                       >
                         {isFeatured ? "Unfeature" : "Feature"}

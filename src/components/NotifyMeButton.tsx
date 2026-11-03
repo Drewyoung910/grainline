@@ -20,6 +20,7 @@ export default function NotifyMeButton({
   const { toast } = useToast();
 
   async function toggle() {
+    if (loading) return;
     if (!signedIn) {
       window.location.href = `/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listingId, listingTitle))}`;
       return;
@@ -58,7 +59,7 @@ export default function NotifyMeButton({
         </span>
         <button
           onClick={toggle}
-          disabled={loading}
+          aria-busy={loading || undefined}
           className="text-xs text-neutral-500 underline hover:text-neutral-600"
         >
           Unsubscribe
@@ -70,10 +71,10 @@ export default function NotifyMeButton({
   return (
     <button
       onClick={toggle}
-      disabled={loading}
+      aria-busy={loading || undefined}
       className="btn btn-secondary"
     >
-      {loading ? "…" : "Notify me when back in stock"}
+      Notify me when back in stock
     </button>
   );
 }
