@@ -65,8 +65,11 @@ describe("homepage hero and header contracts", () => {
     // The frost is its own layer so the menu's fixed click-catcher is not
     // trapped inside a backdrop-filtered header box.
     const frost = openingTagWith(header, "data-header-frost");
-    assert.match(frost, /absolute inset-0 -z-10 bg-\[#F7F5F0\]\/85[^"]*backdrop-blur-xl/);
-    assert.match(frost, /clear \? "opacity-0" : "opacity-100"/);
+    assert.match(frost, /absolute inset-0 -z-10 bg-\[#F7F5F0\]\/85/);
+    assert.match(
+      frost,
+      /clear \? "opacity-0" : "opacity-100 backdrop-blur-xl backdrop-saturate-150"/,
+    );
     const headerTag = openingTagWith(header, "data-header-state");
     assert.doesNotMatch(headerTag, /backdrop-blur/);
     // One masked logo tinted cream over the photo and espresso on paper.

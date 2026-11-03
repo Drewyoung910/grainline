@@ -485,9 +485,9 @@ export default function Header() {
       <span
         aria-hidden="true"
         data-header-frost
-        className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] backdrop-blur-xl backdrop-saturate-150 ${
+        className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] ${
           isHome && headerAnimates ? "transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
-        } ${clear ? "opacity-0" : "opacity-100"}`}
+        } ${clear ? "opacity-0" : "opacity-100 backdrop-blur-xl backdrop-saturate-150"}`}
       />
       <nav
         aria-label="Main navigation"
