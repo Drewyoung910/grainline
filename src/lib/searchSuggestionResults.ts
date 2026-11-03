@@ -6,13 +6,24 @@ import { publicListingPath, publicSellerPath, publicTagPath } from "./publicPath
 // running a text search for every label.
 export type SearchSuggestionItemType = "listing" | "search" | "maker" | "tag";
 
+// Extra facts for a piece row. Optional: if they could not be loaded the row
+// still works as a plain link.
+export type SearchSuggestionDetail = {
+  priceCents: number;
+  currency: string;
+  photoUrl: string | null;
+  makerName: string | null;
+  location: string | null;
+};
+
 export type SearchSuggestionItem = {
   type: SearchSuggestionItemType;
   label: string;
   href: string;
+  detail?: SearchSuggestionDetail;
 };
 
-type SuggestionListingTitle = { id: string; title: string };
+type SuggestionListingTitle = { id: string; title: string; detail?: SearchSuggestionDetail };
 type SuggestionMaker = { id: string; displayName: string };
 
 export const SEARCH_SUGGESTION_ITEM_LIMIT = 8;
@@ -42,7 +53,36 @@ export function humanizeSearchTag(raw: string): string {
 function listingTitleItem(row: SuggestionListingTitle): SearchSuggestionItem | null {
   const label = row.title.trim();
   if (!label) return null;
-  return { type: "listing", label, href: publicListingPath(row.id, label) };
+  return {
+    type: "listing",
+    label,
+    href: publicListingPath(row.id, label),
+    ...(row.detail ? { detail: row.detail } : {}),
+  };
+}
+
+// Reads a piece row's facts from an untrusted response body.
+export function parseSearchSuggestionDetail(value: unknown): SearchSuggestionDetail | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const detail = value as Record<string, unknown>;
+  if (
+    typeof detail.priceCents !== "number"
+    || !Number.isSafeInteger(detail.priceCents)
+    || detail.priceCents < 0
+    || typeof detail.currency !== "string"
+    || detail.currency.length === 0
+  ) {
+    return undefined;
+  }
+  const text = (field: unknown) => (typeof field === "string" && field.length > 0 ? field : null);
+  const photoUrl = text(detail.photoUrl);
+  return {
+    priceCents: detail.priceCents,
+    currency: detail.currency,
+    photoUrl: photoUrl?.startsWith("https://") ? photoUrl : null,
+    makerName: text(detail.makerName),
+    location: text(detail.location),
+  };
 }
 
 export function buildSearchSuggestionItems(input: {

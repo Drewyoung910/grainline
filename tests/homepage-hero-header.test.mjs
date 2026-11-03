@@ -336,9 +336,9 @@ describe("homepage hero and header contracts", () => {
     // the entrance stagger plays only when the panel opens.
     assert.doesNotMatch(search, /\} else \{\s*closeDropdown\(\);\s*\}\s*return;/);
     assert.match(search, /const SUGGESTION_STAGGER_MS = 520;/);
-    assert.match(search, /className=\{staggerItems \? "search-option-in" : undefined\}/);
+    assert.match(search, /staggerItems \? "search-option-in" : ""/);
     assert.match(search, /const SUGGESTION_DEBOUNCE_MS = 150;/);
-    assert.match(search, /\{ kind: "query", key: "query", section: "Search", label: query \}/);
+    assert.match(search, /kind: "query",\s*key: "query",\s*section: suggestionPhase === "empty" \? "No matches" : "Search",\s*label: query,/);
     // Pieces and shops before categories.
     assert.ok(search.indexOf("...ITEM_SECTION_ORDER.flatMap") < search.indexOf("...categories.map"));
   });
