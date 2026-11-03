@@ -71,7 +71,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         setGeoError(
           error.code === error.PERMISSION_DENIED
             ? "Location permission was denied."
-            : "Could not detect your location. Try again or enter a radius without location filtering."
+            : "Could not detect your location. Try again."
         );
       },
       { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
