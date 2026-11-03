@@ -368,6 +368,14 @@ test("inspector proves the two-table SellerAnalytics activation atomically", asy
   const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
   const directory = mkdtempSync(join(tmpdir(), "private-table-seller-analytics-"));
   try {
+    assert.equal(
+      REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(selectedRelease.migration),
+      selectedRelease.migrationSha256,
+    );
+    assert.equal(
+      isReviewedSuccessfulMigration(migrationRow(selectedRelease, 0)),
+      true,
+    );
     const preEnv = environment(directory, "preflight", undefined, selectedReleaseId);
     const ready = await inspectPrivateTableRlsActivationProduction(
       preEnv,
