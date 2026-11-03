@@ -183,7 +183,7 @@ describe("motion stability guardrails", () => {
   it("keeps commission categories compact instead of wrapping into a wall of controls", () => {
     const commission = source("src/app/commission/page.tsx");
     const categoryRow = commission.slice(
-      commission.indexOf("{/* Category filter */}"),
+      commission.indexOf("{/* Filters */}"),
       commission.indexOf("{requests.length === 0"),
     );
 
@@ -191,6 +191,22 @@ describe("motion stability guardrails", () => {
     assert.match(categoryRow, /overflow-x-auto/);
     assert.match(categoryRow, /flex min-w-max gap-2/);
     assert.doesNotMatch(categoryRow, /flex-wrap/);
+  });
+
+  it("composes listing story and facts side by side without dropping policy content", () => {
+    const listing = source("src/app/listing/[id]/page.tsx");
+    const composition = listing.slice(
+      listing.indexOf("{/* ── Story and details"),
+      listing.indexOf("{/* ── Pickup area map"),
+    );
+
+    assert.match(composition, /lg:grid-cols-\[minmax\(0,1\.25fr\)_minmax\(18rem,0\.75fr\)\]/);
+    assert.match(composition, /About this piece/);
+    assert.match(composition, />\s*Details\s*</);
+    assert.match(composition, /Shop policies/);
+    assert.match(composition, /listing\.seller\.returnPolicy/);
+    assert.match(composition, /listing\.seller\.shippingPolicy/);
+    assert.match(composition, /listing\.seller\.customOrderPolicy/);
   });
 
   it("keeps shared pill geometry without flattening action meaning", () => {
