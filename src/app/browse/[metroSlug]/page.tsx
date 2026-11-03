@@ -26,6 +26,7 @@ import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { Suspense } from "react";
 import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -89,7 +90,7 @@ export async function generateMetadata({
     title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/browse/${metroSlug}` },
-    openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}` },
+    openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}`, images: defaultOpenGraphImages() },
   };
 }
 

@@ -19,6 +19,7 @@ import {
   sellerPublicListingCards,
   type SellerPublicListingCard,
 } from "@/lib/sellerProfilePublicAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
 const TAG_PAGE_SIZE = 24;
@@ -89,7 +90,7 @@ export async function generateMetadata({
   return {
     title: { absolute: title },
     description,
-    openGraph: { title, description, url: canonical },
+    openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() },
     alternates: { canonical },
   };
 }
