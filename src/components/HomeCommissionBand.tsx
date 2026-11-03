@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CommissionPostButton from "@/components/CommissionPostButton";
 
 export default function HomeCommissionBand() {
   return (
@@ -20,12 +21,11 @@ export default function HomeCommissionBand() {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3 lg:justify-end">
-          <Link
-            href="/commission/new"
+          <CommissionPostButton
             className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-full bg-[#F5EFE6] px-4 text-center text-sm font-semibold text-[#2C1F1A] transition-[background-color,scale] hover:bg-white motion-safe:active:scale-[0.97] sm:min-h-[46px] sm:px-6"
           >
             Post a request
-          </Link>
+          </CommissionPostButton>
           <Link
             href="/commission"
             className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-full border border-[#F5EFE6]/40 px-4 text-center text-sm font-semibold text-[#F5EFE6] transition-[background-color,border-color,scale] hover:border-[#F5EFE6]/60 hover:bg-white/10 motion-safe:active:scale-[0.97] sm:min-h-[46px] sm:px-6"

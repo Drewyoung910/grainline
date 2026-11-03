@@ -269,7 +269,7 @@ describe("upload UX follow-ups", () => {
       "src/components/BlogPostForm.tsx",
       "src/components/ImageUploadField.tsx",
       "src/components/VideoUploader.tsx",
-      "src/app/commission/new/page.tsx",
+      "src/components/CommissionRequestForm.tsx",
     ];
 
     for (const path of checked) {

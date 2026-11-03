@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { parseSmartSearch, highlightParts, isSearchShortcut } = await import("../src/lib/smartSearch.ts");
@@ -418,5 +419,19 @@ describe("conversation snippets", async () => {
     assert.equal(formatSnippet("https://cdn.example/a.jpg", null), "Photo");
     assert.equal(formatSnippet("https://cdn.example/a.pdf", null), "PDF");
     assert.equal(formatSnippet("Hello there", null), "Hello there");
+  });
+});
+
+describe("commission request dialog", () => {
+  it("keeps the direct form fallback and describes nearby discovery honestly", () => {
+    const button = readFileSync("src/components/CommissionPostButton.tsx", "utf8");
+    const form = readFileSync("src/components/CommissionRequestForm.tsx", "utf8");
+    const page = readFileSync("src/app/commission/new/page.tsx", "utf8");
+    assert.match(button, /<Link href="\/commission\/new"/);
+    assert.match(button, /createPortal/);
+    assert.match(page, /<CommissionRequestForm/);
+    assert.match(form, /Prioritize nearby makers/);
+    assert.match(form, /Other makers may still see them/);
+    assert.doesNotMatch(form, /Local makers only|within ~50 miles/);
   });
 });
