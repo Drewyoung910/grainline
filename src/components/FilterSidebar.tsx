@@ -272,7 +272,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                   setCategoryOpen(true);
                 }
               }}
-              className="flex h-10 w-full items-center justify-between rounded-xl border-0 bg-white px-3 text-left text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] ring-1 ring-black/10 transition-[background-color,box-shadow] hover:bg-[#F3EEE5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2C1F1A]/20"
+              className="flex h-10 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 text-left text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] transition-[background-color,border-color,box-shadow] hover:border-neutral-200 hover:bg-[#F3EEE5]"
             >
               <span className="truncate">{pendingCategory ? CATEGORY_LABELS[pendingCategory] : "All categories"}</span>
               <ChevronDown aria-hidden="true" size={16} className={`shrink-0 text-neutral-500 transition-transform duration-300 ${categoryOpen && !categoryClosing ? "rotate-180" : ""}`} />
