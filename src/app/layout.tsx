@@ -23,10 +23,10 @@ const newsreader = Newsreader({
   axes: ["opsz"],
 });
 
-const vercelCommit = process.env.VERCEL_GIT_COMMIT_SHA;
-const releaseCommit = vercelCommit && /^[0-9a-f]{40}$/.test(vercelCommit)
-  ? vercelCommit
-  : undefined;
+const releaseCommit = [
+  process.env.VERCEL_GIT_COMMIT_SHA,
+  process.env.GRAINLINE_RELEASE_COMMIT,
+].find((commit) => commit && /^[0-9a-f]{40}$/.test(commit));
 
 export const viewport: Viewport = {
   themeColor: "#1C1917",
@@ -53,6 +53,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Grainline",
+    statusBarStyle: "black-translucent",
   },
   icons: {
     icon: "/favicon.png",
