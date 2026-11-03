@@ -87,6 +87,13 @@ export const messageStreamRatelimit = new Ratelimit({
   prefix: "rl:message_stream",
 });
 
+export const messageInboxRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(240, "60 m"),
+  analytics: true,
+  prefix: "rl:message_inbox",
+});
+
 export const messageListRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(240, "60 m"),
