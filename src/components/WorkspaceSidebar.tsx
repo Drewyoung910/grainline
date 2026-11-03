@@ -9,6 +9,7 @@ import {
 } from "@/components/icons";
 import MediaImage from "@/components/MediaImage";
 import { avatarInitial } from "@/lib/avatarInitials";
+import { LOCAL_ACCOUNT_STATE_CLEARED_EVENT } from "@/lib/localAccountState";
 import {
   accountNavGroups,
   currentWorkspaceHref,
@@ -91,14 +92,29 @@ function PhoneLink({ item, current }: { item: WorkspaceNavItem; current: boolean
   );
 }
 
+// Set only in an effect, which never runs on the server, so one visitor's name
+// can't reach another's page. It goes when the account does.
+let lastIdentity: WorkspaceSidebarIdentity | null = null;
+if (typeof window !== "undefined") {
+  window.addEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, () => {
+    lastIdentity = null;
+  });
+}
+
 export default function WorkspaceSidebar({
   kind,
-  identity = null,
+  identity: identityProp = null,
 }: {
   kind: WorkspaceKind;
   identity?: WorkspaceSidebarIdentity | null;
 }) {
   const pathname = usePathname();
+  // Workshop and My account are separate layouts, so moving between them mounts
+  // this again and loads identity again. Show the last one until it arrives.
+  React.useEffect(() => {
+    if (identityProp) lastIdentity = identityProp;
+  }, [identityProp]);
+  const identity = identityProp ?? lastIdentity;
   const groups = kind === "workshop"
     ? workshopNavGroups({ counts: identity?.counts, guildLabel: identity?.guildLabel })
     : accountNavGroups({ counts: identity?.counts, hasSeller: identity ? identity.hasSeller : null });
@@ -111,7 +127,7 @@ export default function WorkspaceSidebar({
   // On phones the row scrolls sideways; keep the current page in view without
   // moving the page itself.
   const phoneRowRef = React.useRef<HTMLDivElement>(null);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const row = phoneRowRef.current;
     const active = row?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!row || !active) return;

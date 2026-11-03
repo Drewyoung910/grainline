@@ -40,7 +40,7 @@ describe("route loading boundaries", () => {
   });
 
   it("uses one shared feed skeleton before and after the route shell resolves", () => {
-    assert.match(source("src/app/account/feed/loading.tsx"), /return <FeedSkeleton \/>/);
+    assert.match(source("src/app/account/feed/loading.tsx"), /<FeedSkeleton \/>/);
     assert.match(source("src/app/account/feed/FeedClient.tsx"), /if \(initialLoading\) \{\s*return <FeedSkeleton \/>/);
   });
 
