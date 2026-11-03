@@ -171,7 +171,7 @@ export default async function NotificationsPage({
           {page > 1 && (
             <Link
               href={`/dashboard/notifications?page=${page - 1}`}
-              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Previous
             </Link>
@@ -182,7 +182,7 @@ export default async function NotificationsPage({
           {page < totalPages && (
             <Link
               href={`/dashboard/notifications?page=${page + 1}`}
-              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next
             </Link>

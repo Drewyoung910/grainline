@@ -96,7 +96,7 @@ describe("listing delete lifecycle", () => {
     assert.match(migration, /status = 'HIDDEN'[\s\S]*"isPrivate" = true/);
     assert.match(migration, /audit\.action = 'HOLD_LISTING'[\s\S]*NOT audit\.undone/);
     assert.match(dashboard, /where: \{ sellerId: sellerProfileId, archivedAt: null \}/);
-    assert.match(dashboard, /const where: Prisma\.ListingWhereInput = \{ sellerId: sellerProfileId, archivedAt: null \}/);
+    assert.match(dashboard, /where: \{\s*sellerId: sellerProfileId,\s*archivedAt: null,\s*listingType: filter/);
     assert.match(shop, /\{ sellerId, archivedAt: null,/);
   });
 

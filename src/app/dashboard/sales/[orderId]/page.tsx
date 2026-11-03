@@ -690,7 +690,7 @@ export default async function SellerOrderDetailPage({
               {method === "PICKUP" && status === "PENDING" && (
                 <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
                   <input type="hidden" name="action" value="ready_for_pickup" />
-                  <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
+                  <button className="btn btn-secondary btn-sm">
                     Mark ready for pickup
                   </button>
                 </form>
@@ -745,7 +745,7 @@ export default async function SellerOrderDetailPage({
                           required
                           className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                         />
-                        <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
+                        <button className="btn btn-secondary btn-sm">
                           Mark shipped
                         </button>
                       </div>
@@ -779,14 +779,14 @@ export default async function SellerOrderDetailPage({
       <div className="flex gap-3">
         <Link
           href="/dashboard/sales"
-          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm"
         >
           Back to sales
         </Link>
         {order.buyerId ? (
           <Link
             href={`/messages/new?to=${order.buyerId}`}
-            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="btn btn-secondary btn-sm"
           >
             Message buyer
           </Link>

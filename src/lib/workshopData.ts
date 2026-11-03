@@ -3,7 +3,6 @@
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { readSellerOrderSummaryPage } from "@/lib/orderParticipantReadAuthority";
 import { ordersAwaitingFulfillment, workshopListingFilterStatus, type WorkshopListingFilter } from "@/lib/workshopQueue";
 
@@ -15,14 +14,14 @@ const LOW_STOCK_MAX = 2;
 // Shared by the sidebar and the overview within one request.
 export const readWorkshopOrderQueue = cache(async (actorUserId: string) => {
   const page = await readSellerOrderSummaryPage({ actorUserId, limit: ORDER_QUEUE_LIMIT });
-  const refundOutcomes = await sellerRefundOutcomes(actorUserId, page.rows.map((order) => order.id));
-  const awaiting = ordersAwaitingFulfillment(page.rows, refundOutcomes);
+  // Uses the refund recorded on the order, like My account, rather than reading
+  // provider outcomes. A refund still in flight shows here until it's recorded.
+  const awaiting = ordersAwaitingFulfillment(page.rows);
   return {
     awaiting,
     // The window is the newest 50 orders, so a full window may hide older work.
     capped: page.rows.length === ORDER_QUEUE_LIMIT,
     recent: page.rows.slice(0, RECENT_ORDER_ROWS),
-    refundOutcomes,
   };
 });
 
@@ -58,13 +57,6 @@ export async function readWorkshopListingAttention(sellerProfileId: string) {
   };
 }
 
-function listingFilterWhere(sellerProfileId: string, filter: WorkshopListingFilter): Prisma.ListingWhereInput {
-  const where: Prisma.ListingWhereInput = { sellerId: sellerProfileId, archivedAt: null };
-  if (filter === "stock") return { ...where, listingType: "IN_STOCK" };
-  const status = workshopListingFilterStatus(filter);
-  return status ? { ...where, status: status as Prisma.ListingWhereInput["status"] } : where;
-}
-
 export async function readWorkshopListingFilterCounts(sellerProfileId: string) {
   const [statusRows, inStock] = await Promise.all([
     prisma.listing.groupBy({
@@ -85,8 +77,14 @@ export async function readWorkshopListingsPage(
   filter: WorkshopListingFilter,
   page: number,
 ) {
+  const status = workshopListingFilterStatus(filter);
   return prisma.listing.findMany({
-    where: listingFilterWhere(sellerProfileId, filter),
+    where: {
+      sellerId: sellerProfileId,
+      archivedAt: null,
+      listingType: filter === "stock" ? "IN_STOCK" : undefined,
+      status: status ? (status as Prisma.ListingWhereInput["status"]) : undefined,
+    },
     select: {
       id: true,
       title: true,

@@ -28,7 +28,7 @@ export default function CaseMarkResolvedButton({ caseId }: { caseId: string }) {
       <button
         onClick={markResolved}
         disabled={loading}
-        className="rounded border border-green-300 px-3 py-1.5 text-sm text-green-700 hover:bg-green-50 disabled:opacity-50"
+        className="btn btn-success btn-sm"
       >
         {loading ? "Marking…" : "Mark Resolved"}
       </button>

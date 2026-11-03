@@ -30,12 +30,9 @@ import { deleteListing, setStatus, withdrawListingReview } from "./actions";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-const DASHBOARD_ACTION_CLASS =
-  "inline-flex min-h-[32px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-800 transition-colors hover:bg-[#F3EEE5] disabled:cursor-not-allowed disabled:opacity-50";
-const DASHBOARD_WARNING_ACTION_CLASS =
-  "inline-flex min-h-[32px] items-center rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50";
-const DASHBOARD_DANGER_ACTION_CLASS =
-  "inline-flex min-h-[32px] items-center rounded-md border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50";
+const DASHBOARD_ACTION_CLASS = "btn btn-secondary btn-sm";
+const DASHBOARD_WARNING_ACTION_CLASS = "btn btn-secondary btn-sm";
+const DASHBOARD_DANGER_ACTION_CLASS = "btn btn-danger btn-sm";
 
 const STATUS_PILLS: Partial<Record<ListingStatus, { label: string; className: string }>> = {
   ACTIVE: { label: "Active", className: "bg-green-100 text-green-800" },

@@ -65,7 +65,7 @@ async function OrdersContent() {
         </div>
         <Link
           href="/browse"
-          className="inline-flex min-h-[40px] w-full shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-center text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50 sm:w-auto"
+          className="btn btn-secondary btn-sm w-full shrink-0 justify-center text-center"
         >
           Continue shopping
         </Link>

@@ -453,7 +453,7 @@ export default async function VerificationPage() {
 
                 <button
                   type="submit"
-                  className="rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] transition-colors"
+                  className="btn btn-primary"
                 >
                   Apply for Guild Member Badge
                 </button>
@@ -708,7 +708,7 @@ export default async function VerificationPage() {
 
                 <button
                   type="submit"
-                  className="rounded-md bg-indigo-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-600"
+                  className="btn btn-primary"
                 >
                   Apply for Guild Master Badge
                 </button>

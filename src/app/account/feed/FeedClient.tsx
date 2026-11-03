@@ -94,7 +94,7 @@ export default function FeedClient() {
         </p>
         <Link
           href="/map"
-          className="inline-flex min-h-10 items-center justify-center rounded-md bg-[#2C1F1A] px-4 text-sm font-medium text-white hover:bg-[#3A2A24]"
+          className="btn btn-primary btn-sm justify-center"
         >
           Browse Makers →
         </Link>
@@ -125,7 +125,7 @@ export default function FeedClient() {
             type="button"
             onClick={loadMore}
             disabled={loading}
-            className="inline-flex min-h-10 items-center justify-center border border-red-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+            className="btn btn-danger btn-sm justify-center"
           >
             {loading ? "Retrying..." : "Retry"}
           </button>

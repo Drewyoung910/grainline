@@ -50,7 +50,7 @@ export default async function BlockedUsersPage() {
                 <form action={unblockUser.bind(null, b.blockedId)}>
                   <button
                     type="submit"
-                    className="text-sm border border-neutral-200 rounded-md px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                    className="btn btn-secondary btn-sm"
                   >
                     Unblock
                   </button>

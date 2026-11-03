@@ -124,7 +124,7 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
           {request.status === "OPEN" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "IN_PROGRESS")}
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
               pendingLabel="Saving..."
             >
               In progress
@@ -133,7 +133,7 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
           {request.status === "IN_PROGRESS" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "OPEN")}
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
               pendingLabel="Saving..."
             >
               Reopen
@@ -142,7 +142,7 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
           {request.status !== "CLOSED" && request.kind === "DATA_REQUEST" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "CLOSED")}
-              className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 hover:bg-green-100"
+              className="btn btn-success btn-sm"
               pendingLabel="Closing..."
               fields={
                 <label className="w-full text-xs font-medium text-neutral-700">
@@ -165,7 +165,7 @@ function RequestCard({ request }: { request: SupportRequestRow }) {
           {request.status !== "CLOSED" && request.kind !== "DATA_REQUEST" && (
             <InlineActionButton
               action={setSupportRequestStatus.bind(null, request.id, "CLOSED")}
-              className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 hover:bg-green-100"
+              className="btn btn-success btn-sm"
               pendingLabel="Saving..."
             >
               Close
@@ -244,7 +244,7 @@ export default async function AdminSupportPage({
           {page > 1 ? (
             <Link
               href={page === 2 ? "/admin/support" : `/admin/support?page=${page - 1}`}
-              className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               ← Previous
             </Link>
@@ -255,7 +255,7 @@ export default async function AdminSupportPage({
           {page < totalPages ? (
             <Link
               href={`/admin/support?page=${page + 1}`}
-              className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next →
             </Link>

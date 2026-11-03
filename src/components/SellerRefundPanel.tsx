@@ -135,7 +135,7 @@ export default function SellerRefundPanel({
             <button
               onClick={submitFullRefund}
               disabled={loading}
-              className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              className="btn btn-danger-solid btn-sm justify-center"
             >
               {loading ? "Processing…" : "Confirm Full Refund"}
             </button>

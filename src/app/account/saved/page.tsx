@@ -244,7 +244,7 @@ function Pagination({
   return (
     <div className="flex justify-center gap-2 mt-8">
       {page > 1 && (
-        <Link href={`${baseHref}&page=${page - 1}`} className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page - 1}`} className="btn btn-secondary btn-sm">
           ← Previous
         </Link>
       )}
@@ -252,7 +252,7 @@ function Pagination({
         Page {page} of {totalPages}
       </span>
       {page < totalPages && (
-        <Link href={`${baseHref}&page=${page + 1}`} className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page + 1}`} className="btn btn-secondary btn-sm">
           Next →
         </Link>
       )}

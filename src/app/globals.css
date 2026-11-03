@@ -223,6 +223,10 @@
   min-height: 38px;
   padding: 0.4375rem 0.9375rem;
   font-size: 14px;
+  /* Compact on desktop, but still a comfortable tap target on touch. */
+  @media (pointer: coarse) {
+    min-height: 44px;
+  }
 }
 @utility btn-primary {
   background-color: #2C1F1A;
@@ -231,6 +235,35 @@
     &:hover {
       background-color: #45332B;
       box-shadow: 0 8px 20px -10px rgba(44, 31, 26, 0.7);
+    }
+  }
+}
+@utility btn-danger {
+  background-color: #FFFFFF;
+  color: #B91C1C;
+  border-color: rgba(185, 28, 28, 0.32);
+  @media (hover: hover) {
+    &:hover {
+      background-color: #FEF2F2;
+    }
+  }
+}
+@utility btn-danger-solid {
+  background-color: #B91C1C;
+  color: #FFFFFF;
+  @media (hover: hover) {
+    &:hover {
+      background-color: #991B1B;
+    }
+  }
+}
+@utility btn-success {
+  background-color: #FFFFFF;
+  color: #166534;
+  border-color: rgba(22, 101, 52, 0.32);
+  @media (hover: hover) {
+    &:hover {
+      background-color: #F0FDF4;
     }
   }
 }

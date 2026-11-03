@@ -120,7 +120,7 @@ export default async function MyCommissionsPage() {
                 </span>
                 <Link
                   href={`/commission/${r.id}`}
-                  className="ml-auto inline-flex min-h-[32px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm ml-auto"
                 >
                   View details
                 </Link>

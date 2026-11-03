@@ -117,7 +117,7 @@ export default async function AccountOrdersPage({
           <p className="text-neutral-600">No orders yet.</p>
           <Link
             href="/browse"
-            className="inline-flex min-h-[40px] items-center rounded-md border border-[#2C1F1A] bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24]"
+            className="btn btn-primary btn-sm"
           >
             Browse pieces →
           </Link>
@@ -222,7 +222,7 @@ export default async function AccountOrdersPage({
                     )}
                     <Link
                       href={`/dashboard/orders/${order.id}`}
-                      className="inline-flex min-h-[34px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+                      className="btn btn-secondary btn-sm"
                     >
                       View details
                     </Link>
@@ -240,7 +240,7 @@ export default async function AccountOrdersPage({
           {previousHref && (
             <Link
               href={previousHref}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               ← Previous
             </Link>
@@ -251,7 +251,7 @@ export default async function AccountOrdersPage({
           {nextHref && (
             <Link
               href={nextHref}
-              className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next →
             </Link>
