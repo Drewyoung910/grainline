@@ -395,7 +395,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   commission_domain_v1: Object.freeze({
     migration: "20261101060000_prepare_commission_domain_authorities",
     migrationSha256:
-      "5603b77cf28303e5f2b77b2f00b8128c587a3c4b05b705dde0c8a0b3d318aeec",
+      "330f5be15987d606a8714228d07c27bf75581738e391bb755a769291ad66b8d4",
     table: "CommissionRequest",
     additionalTables: Object.freeze(["CommissionInterest"]),
     expectedPredecessorPosture: Object.freeze({
