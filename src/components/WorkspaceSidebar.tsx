@@ -56,7 +56,7 @@ function SideLink({ item, current }: { item: WorkspaceNavItem; current: boolean 
     <Link
       href={item.href}
       aria-current={current ? "page" : undefined}
-      className={`flex min-h-10 items-center gap-2.5 rounded-[10px] px-3 py-1.5 text-[15px] transition-colors duration-150 ${
+      className={`flex min-h-10 items-center gap-2.5 rounded-xl px-3 py-1.5 text-[15px] transition-colors duration-150 ${
         current
           ? "bg-white font-medium text-neutral-900 shadow-[0_1px_0_rgba(44,31,26,0.08),0_6px_16px_-12px_rgba(0,0,0,0.4)]"
           : "text-neutral-600 hover:bg-[#EFEAE0] hover:text-neutral-900"

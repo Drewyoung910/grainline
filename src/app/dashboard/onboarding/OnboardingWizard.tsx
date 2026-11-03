@@ -241,7 +241,7 @@ export default function OnboardingWizard({
             </div>
             <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
               <div
-                className="h-full bg-amber-500 transition-all duration-500"
+                className="h-full bg-amber-500 transition-[width] duration-500"
                 style={{ width: `${progressPct}%` }}
               />
             </div>

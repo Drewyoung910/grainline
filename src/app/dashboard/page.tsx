@@ -212,7 +212,7 @@ async function DashboardPageContent({
                 <li key={row.key}>
                   <Link
                     href={row.href}
-                    className="group flex items-center gap-3.5 rounded-[14px] bg-[#F7F5F0] px-3.5 py-3 transition-colors duration-150 hover:bg-[#EFEAE0]"
+                    className="group flex items-center gap-3.5 rounded-2xl bg-[#F7F5F0] px-3.5 py-3 transition-colors duration-150 hover:bg-[#EFEAE0]"
                   >
                     <span className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-white text-[#2C1F1A] ring-1 ring-stone-200/70">
                       <Icon size={18} />

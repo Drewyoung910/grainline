@@ -121,7 +121,7 @@ export default function VacationModeForm({
             checked={enabled || pendingEnable}
             onChange={handleToggleChange}
           />
-          <div className="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-[#2C1F1A] transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all peer-checked:after:translate-x-full" />
+          <div className="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-[#2C1F1A] transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-transform peer-checked:after:translate-x-full" />
         </label>
       </div>
 

@@ -131,8 +131,8 @@ export function WorkshopSkeleton() {
       </header>
       <div className="card-section space-y-2 p-5 sm:p-[22px]">
         <Pulse className="mb-3 h-7 w-56 max-w-full" />
-        <Pulse className="h-[62px] w-full rounded-[14px]" />
-        <Pulse className="h-[62px] w-full rounded-[14px]" />
+        <Pulse className="h-[62px] w-full rounded-2xl" />
+        <Pulse className="h-[62px] w-full rounded-2xl" />
       </div>
       <div>
         <Pulse className="mb-3 h-8 w-48 max-w-full" />

@@ -106,6 +106,9 @@ Production promotion.
 - [x] Radius follows a semantic system on the reviewed surfaces: pills for
   choices/actions, rounded-xl for fields and compact controls, and rounded-2xl
   for floating cards/popovers. One-off radii are not used as decoration.
+- [x] Workshop rows, workspace navigation, modal cards, and matching skeletons
+  use that same radius system; toggles and progress bars animate only the
+  property that actually changes.
 
 ## Listing cards, listing page, and cart
 

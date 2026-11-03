@@ -85,7 +85,7 @@ export default function CommissionPostButton({
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="my-auto w-full max-w-xl rounded-[20px] bg-[#F7F5F0] p-5 modal-card modal-card-in sm:p-6"
+            className="my-auto w-full max-w-xl rounded-2xl bg-[#F7F5F0] p-5 modal-card modal-card-in sm:p-6"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
