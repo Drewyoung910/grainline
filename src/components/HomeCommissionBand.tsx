@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CommissionPostButton from "@/components/CommissionPostButton";
 
 export default function HomeCommissionBand() {
   return (
@@ -17,12 +18,9 @@ export default function HomeCommissionBand() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3 lg:justify-end">
-          <Link
-            href="/commission/new"
-            className="inline-flex min-h-[46px] items-center justify-center rounded-full bg-[#F5EFE6] px-6 text-sm font-semibold text-[#2C1F1A] transition-colors hover:bg-white"
-          >
+          <CommissionPostButton className="inline-flex min-h-[46px] items-center justify-center rounded-full bg-[#F5EFE6] px-6 text-sm font-semibold text-[#2C1F1A] transition-colors hover:bg-white">
             Post a commission
-          </Link>
+          </CommissionPostButton>
           <Link
             href="/commission"
             className="inline-flex min-h-[46px] items-center justify-center rounded-full border border-[#F5EFE6]/40 px-6 text-sm font-semibold text-[#F5EFE6] transition-colors hover:bg-white/10"
