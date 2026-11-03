@@ -90,7 +90,7 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
             <button
               type="submit"
               disabled={loading !== null || !reason.trim()}
-              className="text-xs px-3 py-1.5 bg-red-700 text-white hover:bg-red-800 disabled:opacity-50"
+              className="btn btn-danger-solid btn-sm"
             >
               {loading === "reject" ? "..." : "Confirm reject"}
             </button>

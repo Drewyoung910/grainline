@@ -1,7 +1,7 @@
 // Turns plain words such as "walnut desk under 900" into Browse filters. The
 // search panel offers the result as its own row and shows each filter as a
 // chip, so the visitor can see what will be applied before choosing it.
-import { formatCurrencyCents } from "./money.ts";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "./money.ts";
 
 const WOODS = ["walnut", "oak", "maple", "cherry", "hickory", "cedar", "pine", "ash", "mahogany", "teak"];
 
@@ -58,7 +58,7 @@ export function parseSmartSearch(raw: string): SmartSearch | null {
     const dollars = Number((price[1] ?? price[2]).replace(/,/g, ""));
     if (Number.isSafeInteger(dollars) && dollars > 0 && dollars <= MAX_PRICE_DOLLARS) {
       params.set("max", String(dollars));
-      chips.push(`Under ${formatCurrencyCents(dollars * 100, "usd").replace(/\.00$/, "")}`);
+      chips.push(`Under ${formatCurrencyCents(dollars * 100, DEFAULT_CURRENCY).replace(/\.00$/, "")}`);
       explicitFilter = true;
       remaining = remaining.replace(PRICE_PHRASE, " ");
     }

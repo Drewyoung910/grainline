@@ -182,7 +182,7 @@ export default function CaseResolutionPanel({
           <button
             type="submit"
             disabled={loading}
-            className="rounded-md bg-amber-700 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            className="btn btn-primary btn-sm"
           >
             {loading ? "Processing…" : "Issue partial refund"}
           </button>

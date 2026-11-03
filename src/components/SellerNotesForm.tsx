@@ -114,7 +114,7 @@ export default function SellerNotesForm({
           type="button"
           onClick={handleSave}
           disabled={isPending || !draft.trim()}
-          className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#3A2A24] disabled:opacity-50"
+          className="btn btn-primary btn-sm justify-center"
         >
           {isPending ? "Saving..." : "Add note"}
         </button>
@@ -123,7 +123,7 @@ export default function SellerNotesForm({
             type="button"
             onClick={handleClear}
             disabled={isPending}
-            className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+            className="btn btn-secondary btn-sm justify-center"
           >
             Clear notes
           </button>

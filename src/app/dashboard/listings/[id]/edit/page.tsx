@@ -906,7 +906,7 @@ export default async function EditListingPage(props: {
             name="publish"
             value="false"
             pendingLabel="Saving..."
-            className="flex-1 rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"
+            className="btn btn-secondary flex-1 disabled:cursor-wait"
           >
             Save changes
           </SubmitButton>
@@ -918,7 +918,7 @@ export default async function EditListingPage(props: {
                 disabled={!chargesEnabled}
                 pendingLabel="Publishing..."
                 title={publishDisabledTitle}
-                className="w-full rounded-md bg-[#2C1F1A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn btn-primary w-full disabled:cursor-not-allowed"
               >
                 {listing.status === "REJECTED" ? "Publish (Resubmit)" : "Publish"}
               </SubmitButton>

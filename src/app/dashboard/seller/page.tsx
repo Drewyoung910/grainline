@@ -557,7 +557,7 @@ export default async function SellerSettingsPage({
           </div>
         </div>
 
-        <button type="submit" className="rounded-md px-4 py-2.5 bg-[#2C1F1A] text-white text-sm font-medium hover:bg-[#3A2A24]">
+        <button type="submit" className="btn btn-primary">
           Save settings
         </button>
       </ActionForm>

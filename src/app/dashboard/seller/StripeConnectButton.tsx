@@ -34,7 +34,7 @@ export default function StripeConnectButton() {
       <button
         onClick={handleClick}
         disabled={loading}
-        className="rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm hover:bg-[#3A2A24] transition-colors disabled:opacity-50"
+        className="btn btn-primary btn-sm"
       >
         {loading ? "Setting up…" : "Connect Stripe →"}
       </button>

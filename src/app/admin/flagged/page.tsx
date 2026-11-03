@@ -133,7 +133,7 @@ export default async function FlaggedOrdersPage({
               {safePage > 1 ? (
                 <Link
                   href={`?page=${safePage - 1}`}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   Previous
                 </Link>
@@ -145,7 +145,7 @@ export default async function FlaggedOrdersPage({
               {safePage < totalPages ? (
                 <Link
                   href={`?page=${safePage + 1}`}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
+                  className="btn btn-secondary btn-sm"
                 >
                   Next
                 </Link>
