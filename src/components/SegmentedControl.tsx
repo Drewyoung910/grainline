@@ -127,12 +127,12 @@ export default function SegmentedControl({
       aria-label={labelledBy ? undefined : label}
       aria-labelledby={labelledBy}
       onKeyDown={linkMode ? undefined : onKeyDown}
-      className={`relative ${fullWidth ? "grid w-full grid-flow-col auto-cols-auto rounded-[20px]" : "inline-grid grid-flow-col auto-cols-auto rounded-full"} bg-[#EFEAE0] p-1 ${className}`}
+      className={`relative ${fullWidth ? "grid w-full grid-flow-col auto-cols-auto" : "inline-grid grid-flow-col auto-cols-auto"} rounded-full bg-[#EFEAE0] p-1 ${className}`}
     >
       {thumb && (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute bottom-1 left-0 top-1 ${fullWidth ? "rounded-[16px]" : "rounded-full"} bg-white shadow-[0_2px_8px_-3px_rgba(0,0,0,0.25)] ${
+          className={`pointer-events-none absolute bottom-1 left-0 top-1 rounded-full bg-white shadow-[0_2px_8px_-3px_rgba(0,0,0,0.25)] ${
             thumb.animate
               ? "transition-[translate,width] duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
               : ""
@@ -146,7 +146,7 @@ export default function SegmentedControl({
         // carries the white fill itself so nothing flashes.
         const fallbackFill = selected && !thumb ? " bg-white shadow-[0_2px_8px_-3px_rgba(0,0,0,0.25)]" : "";
         const optionClass = `relative z-[1] inline-flex ${height} items-center justify-center ${
-          fullWidth ? "rounded-[16px] px-2.5 text-center leading-[1.15]" : "whitespace-nowrap rounded-full px-3"
+          fullWidth ? "rounded-full px-2.5 text-center leading-[1.15]" : "whitespace-nowrap rounded-full px-3"
         } ${text} font-medium transition-colors duration-300 focus-visible:outline-offset-[-2px] ${
           selected ? "text-neutral-900" : "text-neutral-600 hover:text-neutral-900"
         }${fallbackFill}`;
@@ -163,6 +163,7 @@ export default function SegmentedControl({
               scroll={linkScroll}
               aria-label={option.ariaLabel}
               aria-current={selected ? "page" : undefined}
+              onPointerUp={(event) => event.currentTarget.blur()}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                 if (!selected) setPendingValue(option.value);
@@ -183,6 +184,7 @@ export default function SegmentedControl({
             aria-checked={selected}
             aria-label={option.ariaLabel}
             tabIndex={selected || (!hasSelection && option === options[0]) ? 0 : -1}
+            onPointerUp={(event) => event.currentTarget.blur()}
             onClick={() => choose(option.value)}
             className={optionClass}
           >

@@ -860,21 +860,22 @@ export default async function ListingPage({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
-              <div key={ml.id} className="relative group">
-                {/* Sibling of the Link (not nested) — same pattern as browse cards */}
-                <FavoriteButton listingId={ml.id} initialSaved={moreFromSavedIds.has(ml.id)} />
-                <Link href={publicListingPath(ml.id, ml.title)} className="block">
-                  <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
+              <div key={ml.id} className="relative">
+                <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+                  <Link href={publicListingPath(ml.id, ml.title)} className="block aspect-[4/5]">
                     {ml.photos[0]?.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
                         width={320}
                         height={400}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" />
                     ) : (
                       <div className="w-full h-full bg-neutral-200" />
                     )}
-                  </div>
+                  </Link>
+                  <FavoriteButton listingId={ml.id} initialSaved={moreFromSavedIds.has(ml.id)} />
+                </div>
+                <Link href={publicListingPath(ml.id, ml.title)} className="block">
                   <p className="mt-2 text-sm font-medium text-neutral-900 line-clamp-1">{ml.title}</p>
                   <p className="text-sm text-neutral-500">
                     {formatCurrencyCents(ml.priceCents, ml.currency)}

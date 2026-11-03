@@ -6,13 +6,22 @@ import { publicListingPath, publicSellerPath, publicTagPath } from "./publicPath
 // running a text search for every label.
 export type SearchSuggestionItemType = "listing" | "search" | "maker" | "tag";
 
+export type SearchSuggestionDetail = {
+  priceCents: number;
+  currency: string;
+  photoUrl: string | null;
+  makerName: string | null;
+  location: string | null;
+};
+
 export type SearchSuggestionItem = {
   type: SearchSuggestionItemType;
   label: string;
   href: string;
+  detail?: SearchSuggestionDetail;
 };
 
-type SuggestionListingTitle = { id: string; title: string };
+type SuggestionListingTitle = { id: string; title: string; detail?: SearchSuggestionDetail };
 type SuggestionMaker = { id: string; displayName: string };
 
 export const SEARCH_SUGGESTION_ITEM_LIMIT = 8;
@@ -42,7 +51,41 @@ export function humanizeSearchTag(raw: string): string {
 function listingTitleItem(row: SuggestionListingTitle): SearchSuggestionItem | null {
   const label = row.title.trim();
   if (!label) return null;
-  return { type: "listing", label, href: publicListingPath(row.id, label) };
+  return {
+    type: "listing",
+    label,
+    href: publicListingPath(row.id, label),
+    ...(row.detail ? { detail: row.detail } : {}),
+  };
+}
+
+// Reads a piece row's facts from an untrusted response body. A malformed
+// enhancement is discarded while the underlying suggestion remains usable.
+export function parseSearchSuggestionDetail(value: unknown): SearchSuggestionDetail | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const detail = value as Record<string, unknown>;
+  if (
+    typeof detail.priceCents !== "number"
+    || !Number.isSafeInteger(detail.priceCents)
+    || detail.priceCents < 0
+    || typeof detail.currency !== "string"
+    || !/^[A-Za-z]{3}$/.test(detail.currency)
+  ) {
+    return undefined;
+  }
+  const text = (field: unknown, maxLength: number) => {
+    if (typeof field !== "string") return null;
+    const normalized = field.trim();
+    return normalized.length > 0 && normalized.length <= maxLength ? normalized : null;
+  };
+  const photoUrl = text(detail.photoUrl, 1_000);
+  return {
+    priceCents: detail.priceCents,
+    currency: detail.currency.toLowerCase(),
+    photoUrl: photoUrl?.startsWith("https://") ? photoUrl : null,
+    makerName: text(detail.makerName, 200),
+    location: text(detail.location, 250),
+  };
 }
 
 export function buildSearchSuggestionItems(input: {

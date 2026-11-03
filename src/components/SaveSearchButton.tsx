@@ -18,6 +18,7 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
   }, [searchKey]);
 
   async function save() {
+    if (state !== "idle") return;
     if (!signedIn) {
       window.location.href = signInPathForRedirect(window.location.pathname + window.location.search);
       return;
@@ -85,8 +86,11 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
 
   return (
     <button
+      type="button"
       onClick={save}
-      disabled={state !== "idle"}
+      onPointerUp={(event) => event.currentTarget.blur()}
+      aria-disabled={state !== "idle"}
+      aria-busy={state === "saving" || undefined}
       data-state={state}
       className={`btn btn-sm btn-secondary gap-1.5 transition-[background-color,border-color,box-shadow,scale] ${
         state === "saving" ? "opacity-60" : ""

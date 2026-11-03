@@ -154,6 +154,9 @@
     pointer-events: none;
   }
   &[aria-disabled="true"] {
+    cursor: default;
+  }
+  &[aria-busy="true"] {
     cursor: wait;
   }
   @media (prefers-reduced-motion: no-preference) {
@@ -223,6 +226,10 @@
   min-height: 38px;
   padding: 0.4375rem 0.9375rem;
   font-size: 14px;
+  /* Compact on desktop, but still a comfortable tap target on touch. */
+  @media (pointer: coarse) {
+    min-height: 44px;
+  }
 }
 @utility btn-primary {
   background-color: #2C1F1A;
@@ -234,14 +241,77 @@
     }
   }
 }
+/* Top-level headings in the Workshop and My Account areas. */
+@utility page-title {
+  font-size: clamp(2rem, 3.4vw, 2.875rem);
+  line-height: 1.04;
+}
+
+@utility btn-danger {
+  background-color: #FFFFFF;
+  color: #B91C1C;
+  border-color: rgba(185, 28, 28, 0.32);
+  @media (hover: hover) {
+    &:hover {
+      background-color: #FEF2F2;
+    }
+  }
+}
+@utility btn-danger-solid {
+  background-color: #B91C1C;
+  color: #FFFFFF;
+  @media (hover: hover) {
+    &:hover {
+      background-color: #991B1B;
+    }
+  }
+}
+@utility btn-success {
+  background-color: #FFFFFF;
+  color: #166534;
+  border-color: rgba(22, 101, 52, 0.32);
+  @media (hover: hover) {
+    &:hover {
+      background-color: #F0FDF4;
+    }
+  }
+}
+@utility btn-success-solid {
+  background-color: #15803D;
+  color: #FFFFFF;
+  @media (hover: hover) {
+    &:hover {
+      background-color: #166534;
+    }
+  }
+}
+@utility btn-warning {
+  background-color: #FFFFFF;
+  color: #92400E;
+  border-color: rgba(180, 83, 9, 0.32);
+  @media (hover: hover) {
+    &:hover {
+      background-color: #FFFBEB;
+    }
+  }
+}
+@utility btn-warning-solid {
+  background-color: #B45309;
+  color: #FFFFFF;
+  @media (hover: hover) {
+    &:hover {
+      background-color: #92400E;
+    }
+  }
+}
 @utility btn-secondary {
   background-color: #FFFFFF;
   color: #1D1714;
-  border-color: rgba(44, 31, 26, 0.24);
+  border-color: rgba(120, 113, 108, 0.38);
   @media (hover: hover) {
     &:hover {
       background-color: #F3EEE5;
-      border-color: rgba(44, 31, 26, 0.14);
+      border-color: rgba(120, 113, 108, 0.24);
       box-shadow: 0 10px 24px -18px rgba(44, 31, 26, 0.65);
     }
   }
@@ -276,6 +346,18 @@ html {
   /* Keep the scrollbar lane reserved while a dialog locks scrolling, so the
      page does not nudge sideways on systems with persistent scrollbars. */
   scrollbar-gutter: stable;
+}
+
+/* Horizontal card, chip, thumbnail, and tab rows should scroll by touch,
+   wheel, or trackpad without exposing a heavy platform scrollbar. Keep
+   table/data surfaces out of this utility: their
+   scrollbar is functional navigation rather than visual carousel chrome. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }
 @layer base {
   /* Offset actual in-page destinations instead of the root scroll container.
@@ -347,22 +429,22 @@ input, textarea, select {
     outline-offset: 2px;
   }
   /* Text-entry fields ALWAYS match :focus-visible when focused, so this is
-     the single sitewide field-focus treatment: espresso border + soft warm
-     halo. No amber glow, no dark outline. Do not re-add per-field focus
+     the single sitewide field-focus treatment: a quiet stone border + soft
+     warm halo. No dark keyline. Do not re-add per-field focus
      rings in components — delete them and let this rule own it. */
   :where(input, textarea, select):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgb(44 31 26 / 0.12);
+    box-shadow: 0 0 0 3px rgb(44 31 26 / 0.08);
   }
 }
-/* The espresso field-focus border lives in the utilities layer: a base-layer
+/* The quiet stone field-focus border lives in the utilities layer: a base-layer
    rule always loses to plain border utilities such as border-neutral-200,
    which most fields carry. Zero specificity outside :focus-visible, and later
    in the layer than Tailwind's own utilities, so it beats those plain border
    colours yet still loses to an explicit focus-visible:border-* on a field. */
 @layer utilities {
   :where(input, textarea, select):where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"])):focus-visible {
-    border-color: #2C1F1A; /* espresso, as in the motion study */
+    border-color: #a8a29e; /* stone-400: visible without a dark outline */
   }
 }
 
@@ -423,6 +505,18 @@ input, textarea, select {
 .animate-search-pop-out {
   animation: search-pop-out 0.14s ease-in forwards;
   transform-origin: top center;
+}
+
+/* Map cards are already positioned over a moving surface. Fade only: a
+   spring scale/translate made the card appear to judder against the map. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes map-card-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .map-card-in {
+    animation: map-card-fade-in 0.16s ease-out backwards;
+  }
 }
 
 /* Mobile filter bottom sheet slide-up animation */
@@ -647,6 +741,32 @@ input, textarea, select {
   --motion-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Animate only the homepage copy on a fresh visit. The photo and header stay
+   still, avoiding the large composited layer that lagged and separated from
+   its shade during Safari elastic scrolling. */
+@media (prefers-reduced-motion: no-preference) {
+  .home-hero-intro [data-hero-intro-heading] {
+    animation: home-hero-copy-in 480ms var(--motion-ease-out) both;
+  }
+  .home-hero-intro [data-hero-intro-copy] {
+    animation: home-hero-copy-in 520ms 70ms var(--motion-ease-out) both;
+  }
+  .home-hero-intro [data-hero-intro-actions] {
+    animation: home-hero-copy-in 560ms 125ms var(--motion-ease-out) both;
+  }
+}
+
+@keyframes home-hero-copy-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 /* Listing card photos that had not started rendering at hydration stay
    hidden until they load, then fade in (see ListingCard). */
 .listing-photo[data-photo-state="pending"] {
@@ -668,22 +788,6 @@ input, textarea, select {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* Homepage hero load sequence */
-  .hero-photo-settle {
-    animation: hero-photo-settle 0.8s var(--motion-ease-out) backwards;
-  }
-  .hero-rise,
-  .hero-lines > span {
-    animation: hero-rise 0.55s var(--motion-ease-out) backwards;
-    animation-delay: var(--hero-rise-delay, 0ms);
-  }
-  .hero-lines > span:nth-child(1) { --hero-rise-delay: 50ms; }
-  .hero-lines > span:nth-child(2) { --hero-rise-delay: 110ms; }
-  .hero-lines > span:nth-child(3) { --hero-rise-delay: 170ms; }
-  .hero-stats-rise {
-    animation: hero-stats-rise 0.9s var(--motion-ease-out) 0.55s backwards;
-  }
-
   /* Listing card photo: fades and sharpens in once it has loaded */
   .listing-photo[data-photo-state="revealed"] {
     animation: photo-soft-in 0.5s var(--motion-ease-out) backwards;
@@ -720,30 +824,23 @@ input, textarea, select {
    the card is intentionally hovered or the control receives keyboard focus.
    Saved actions and every touch-device action remain visible. */
 @media (hover: hover) and (pointer: fine) {
-  .group .listing-save-control[data-saved="false"] {
+  .listing-card-photo .listing-save-control[data-saved="false"],
+  .photo-save-surface .listing-save-control[data-saved="false"] {
     opacity: 0;
-    transform: translateY(3px) scale(0.94);
+    translate: 0 3px;
+    scale: 0.94;
   }
-  .group:hover .listing-save-control[data-saved="false"],
-  .group:focus-within .listing-save-control[data-saved="false"],
+  .listing-card-photo:hover .listing-save-control[data-saved="false"],
+  .listing-card-photo:focus-within .listing-save-control[data-saved="false"],
+  .photo-save-surface:hover .listing-save-control[data-saved="false"],
+  .photo-save-surface:focus-within .listing-save-control[data-saved="false"],
   .listing-save-control[data-saved="false"]:focus-visible {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    translate: 0 0;
+    scale: 1;
   }
 }
 
-@keyframes hero-photo-settle {
-  from { transform: scale(1.06); }
-  to   { transform: scale(1); }
-}
-@keyframes hero-rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes hero-stats-rise {
-  from { opacity: 0; transform: translateY(18px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 @keyframes photo-soft-in {
   from { opacity: 0; transform: scale(1.04); }
   to   { opacity: 1; transform: scale(1); }
@@ -964,6 +1061,15 @@ input, textarea, select {
       animation-range: entry 10% cover 35%;
     }
   }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* A message that arrives while the thread is open. */
+  .message-new {
+    animation: message-in 0.3s var(--motion-ease-out) backwards;
+  }
+}
+@keyframes message-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
 }
 @keyframes rating-bar-fill {
   from { transform: scaleX(0); }

@@ -187,7 +187,7 @@ export default function GalleryUploader({
           aria-modal="true"
           aria-label="Edit gallery alt text"
         >
-          <div className="w-full max-w-md rounded-[20px] bg-white p-5 modal-card modal-card-in">
+          <div className="modal-card modal-card-in w-full max-w-md rounded-2xl bg-white p-5">
             <h3 className="font-display text-lg font-semibold text-neutral-900">Image alt text</h3>
             <p className="mt-1 text-sm text-neutral-600">
               Shortly describe the image for screen readers and image search.

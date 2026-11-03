@@ -306,7 +306,7 @@ export default function BuyNowCheckoutModal({
         aria-modal="true"
         aria-label={`Buy ${listingTitle}`}
         tabIndex={-1}
-        className="relative bg-white rounded-[20px] modal-card modal-card-in w-full max-w-lg mx-auto mb-8"
+        className="modal-card modal-card-in relative mx-auto mb-8 w-full max-w-lg rounded-2xl bg-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header: item summary + close */}

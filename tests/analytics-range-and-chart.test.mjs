@@ -84,7 +84,7 @@ describe("seller analytics chart layout", () => {
   it("keeps analytics page and section titles on the shared display hierarchy", () => {
     const page = source("src/app/dashboard/analytics/page.tsx");
 
-    assert.match(page, /<h1 className="font-display text-3xl font-bold">Analytics<\/h1>/);
+    assert.match(page, /<h1 className="font-display page-title">Analytics<\/h1>/);
     for (const title of [
       "Performance Over Time",
       "Overview",

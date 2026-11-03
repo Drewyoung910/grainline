@@ -26,15 +26,13 @@ export default function Header() {
   // The query string arrives through SearchParamsListener so the header can
   // render in the first HTML flush (see that component).
   const [searchQuery, setSearchQuery] = React.useState("");
-  // The header is clear while the homepage photo is physically behind it,
-  // then settles into the same frosted paper every other page uses. Measuring
-  // the hero instead of using a tiny scrollY threshold matters on mobile:
-  // Safari changes the visual viewport as its toolbars expand/collapse and can
-  // restore a non-zero scroll offset while the hero still fills the screen.
+  // The homepage opens clear over the photo, then settles into frosted paper
+  // as soon as the visitor starts scrolling. A tiny two-way buffer avoids
+  // elastic-scroll flicker without delaying the transition until the hero is
+  // gone.
   const [scrolled, setScrolled] = React.useState(false);
   const [headerAnimates, setHeaderAnimates] = React.useState(false);
   const scrolledRef = React.useRef(false);
-  const headerRef = React.useRef<HTMLElement>(null);
   React.useLayoutEffect(() => {
     if (!isHome) {
       scrolledRef.current = false;
@@ -43,26 +41,18 @@ export default function Header() {
       return;
     }
     let frame = 0;
-    const isPastHero = (wasPastHero: boolean) => {
-      const hero = document.querySelector<HTMLElement>("[data-home-hero]");
-      const header = headerRef.current;
-      if (!hero || !header) return false;
-
-      const gap = hero.getBoundingClientRect().bottom - header.getBoundingClientRect().bottom;
-      // A small two-way buffer prevents the header flickering between clear
-      // and frosted at the exact hero edge during elastic/toolbar scrolling.
-      return wasPastHero ? gap <= 16 : gap <= -8;
+    const isAwayFromTop = (wasAwayFromTop: boolean) => {
+      const offset = Math.max(0, window.scrollY);
+      return wasAwayFromTop ? offset > 0 : offset > 1;
     };
-    // Synchronize before paint on client navigation or hydration. Decorative
-    // transitions begin only after the hero actually crosses the header, so
-    // arriving on the homepage never morphs the entire header.
-    const initial = isPastHero(false);
+    // Synchronize before paint on client navigation or restored scroll.
+    const initial = isAwayFromTop(false);
     scrolledRef.current = initial;
     setScrolled(initial);
     setHeaderAnimates(false);
     const update = () => {
       frame = 0;
-      const next = isPastHero(scrolledRef.current);
+      const next = isAwayFromTop(scrolledRef.current);
       if (next === scrolledRef.current) return;
       scrolledRef.current = next;
       setHeaderAnimates(true);
@@ -71,16 +61,9 @@ export default function Header() {
     const onScroll = () => {
       if (frame === 0) frame = window.requestAnimationFrame(update);
     };
-    const onViewportChange = () => {
-      if (frame === 0) frame = window.requestAnimationFrame(update);
-    };
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onViewportChange, { passive: true });
-    window.visualViewport?.addEventListener("resize", onViewportChange, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onViewportChange);
-      window.visualViewport?.removeEventListener("resize", onViewportChange);
       if (frame !== 0) window.cancelAnimationFrame(frame);
     };
   }, [isHome]);
@@ -125,16 +108,10 @@ export default function Header() {
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const drawerRef = React.useRef<HTMLDivElement>(null);
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
-  // Set when the menu closes while focus was inside it (or already dropped
-  // to <body>), so focus returns to the hamburger instead of being lost.
-  // Left unset when focus moved somewhere else on purpose (Tab out, Clerk's
-  // account modal).
+  // Only keyboard Escape asks for focus back. Pointer-close paths deliberately
+  // leave this false so mobile Safari does not paint a persistent focus halo
+  // around the hamburger after the menu has gone away.
   const restoreMenuFocusRef = React.useRef(false);
-  const shouldRestoreMenuFocus = React.useCallback(() => {
-    if (typeof document === "undefined") return false;
-    const active = document.activeElement;
-    return !active || active === document.body || Boolean(drawerRef.current?.contains(active));
-  }, []);
   const drawerNavRef = React.useRef<HTMLElement>(null);
   const [drawerNavFade, setDrawerNavFade] = React.useState(false);
   // Bottom fade = "there's more below" affordance. Shown while the menu's
@@ -179,19 +156,19 @@ export default function Header() {
       mobileSearchCloseTimerRef.current = null;
     }
   }, []);
-  const closeDrawer = React.useCallback(() => {
+  const closeDrawer = React.useCallback((restoreFocus = false) => {
     if (!drawerOpen) return;
+    restoreMenuFocusRef.current = restoreFocus;
     setDrawerClosing((alreadyClosing) => {
       if (alreadyClosing) return alreadyClosing;
       drawerCloseTimerRef.current = window.setTimeout(() => {
-        restoreMenuFocusRef.current = shouldRestoreMenuFocus();
         setDrawerOpen(false);
         setDrawerClosing(false);
         drawerCloseTimerRef.current = null;
       }, 160);
       return true;
     });
-  }, [drawerOpen, shouldRestoreMenuFocus]);
+  }, [drawerOpen]);
   const openDrawer = React.useCallback(() => {
     clearDrawerCloseTimer();
     setDrawerClosing(false);
@@ -233,12 +210,13 @@ export default function Header() {
     return () => window.clearTimeout(focusTimer);
   }, [drawerOpen]);
 
-  // Every close path (X, Escape, click-catcher, link taps, navigation)
-  // returns focus to the hamburger once the menu has unmounted.
+  // Escape returns keyboard focus to the hamburger once the menu has
+  // unmounted. Pointer-close paths deliberately do not, avoiding the
+  // persistent mobile Safari focus halo reported on the menu button.
   React.useEffect(() => {
     if (drawerOpen || !restoreMenuFocusRef.current) return;
     restoreMenuFocusRef.current = false;
-    menuButtonRef.current?.focus();
+    menuButtonRef.current?.focus({ preventScroll: true });
   }, [drawerOpen]);
 
   React.useEffect(() => {
@@ -285,20 +263,20 @@ export default function Header() {
 
   // Close drawer and search on navigation (instant — new page context)
   React.useEffect(() => {
-    if (drawerRef.current) restoreMenuFocusRef.current = shouldRestoreMenuFocus();
+    restoreMenuFocusRef.current = false;
     clearDrawerCloseTimer();
     clearMobileSearchCloseTimer();
     setDrawerOpen(false);
     setDrawerClosing(false);
     setSearchOpen(false);
     setSearchClosing(false);
-  }, [pathname, searchQuery, clearDrawerCloseTimer, clearMobileSearchCloseTimer, shouldRestoreMenuFocus]);
+  }, [pathname, searchQuery, clearDrawerCloseTimer, clearMobileSearchCloseTimer]);
 
   // Escape closes both drawer and search
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        closeDrawer();
+        closeDrawer(true);
         closeMobileSearch();
       }
     };
@@ -445,7 +423,9 @@ export default function Header() {
   }, [isSignedIn, loadAnonymousCartCount, loadCartCount]);
 
   const iconButtonClass =
-    "group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out hover:bg-current/10 motion-safe:active:scale-[0.92]";
+    "group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out [@media(hover:hover)]:hover:bg-current/10 focus:outline-none focus-visible:bg-current/10 motion-safe:active:scale-[0.92] [&>svg]:block [&>svg]:shrink-0";
+  const mobileIconButtonClass =
+    "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 [@media(hover:hover)]:hover:bg-current/10 focus:outline-none focus-visible:bg-current/10 motion-safe:active:scale-[0.92] [&>svg]:block [&>svg]:shrink-0";
   const navLinkClass = (href: string) => {
     const current = pathname === href || pathname.startsWith(`${href}/`);
     return `relative py-1 text-[15px] font-medium text-current after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[1.5px] after:origin-left after:bg-current after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:after:scale-x-100 ${
@@ -456,10 +436,9 @@ export default function Header() {
 
   return (
     <header
-      ref={headerRef}
       data-header-state={clear ? "clear" : "frosted"}
-      className={`${isHome ? "fixed" : pinned ? "sticky" : "relative"} inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] ${
-        isHome && headerAnimates ? "transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+      className={`${isHome ? "fixed" : pinned ? "sticky" : "relative"} isolate inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] ${
+        isHome && headerAnimates ? "transition-colors duration-200 ease-out" : ""
       } ${
         clear
           ? "text-[#F5EFE6] [&_a:focus-visible]:outline-[#F5EFE6] [&_button:focus-visible]:outline-[#F5EFE6]"
@@ -473,7 +452,7 @@ export default function Header() {
         <span
           aria-hidden="true"
           className={`pointer-events-none absolute inset-x-0 top-0 -z-10 h-[150%] bg-gradient-to-b from-[#1c1410]/55 via-[#1c1410]/25 to-transparent ${
-            headerAnimates ? "transition-opacity duration-500" : ""
+            headerAnimates ? "transition-opacity duration-200" : ""
           } ${
             clear ? "opacity-100" : "opacity-0"
           }`}
@@ -481,19 +460,17 @@ export default function Header() {
       )}
       {/* Frosted paper lives on its own layer: a backdrop-filter on the
           header itself would trap the menu's fixed click-catcher inside the
-          header's box. It fades in as the homepage scrolls past the photo. */}
+          header's box. It fades in as soon as the homepage starts scrolling. */}
       <span
         aria-hidden="true"
         data-header-frost
         className={`pointer-events-none absolute inset-0 -z-10 bg-[#F7F5F0]/85 shadow-[0_1px_0_rgba(44,31,26,0.12)] ${
-          isHome && headerAnimates ? "transition-opacity duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
+          isHome && headerAnimates ? "transition-opacity duration-200 ease-out" : ""
         } ${clear ? "opacity-0" : "opacity-100 backdrop-blur-xl backdrop-saturate-150"}`}
       />
       <nav
         aria-label="Main navigation"
-        className={`mx-auto flex max-w-[1600px] items-center gap-2 px-3 sm:px-6 lg:gap-6 lg:px-8 xl:gap-8 ${
-          isHome && headerAnimates ? "transition-[padding] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
-        } ${clear ? "py-4 lg:py-5" : "py-2.5 lg:py-3"}`}
+        className="mx-auto flex max-w-[1600px] items-center gap-2 px-3 py-2.5 sm:px-6 lg:gap-6 lg:px-8 lg:py-3 xl:gap-8"
       >
         {/* Logo: one mask so its color can follow the header from cream over
             the photo to espresso on frosted paper. */}
@@ -505,7 +482,7 @@ export default function Header() {
           <span
             aria-hidden="true"
             data-site-logo-mark
-            className={`logo-mark block h-5 w-[92px] ${isHome && headerAnimates ? "transition-[background-color] duration-500" : ""} min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px] ${
+            className={`logo-mark block h-5 w-[92px] ${isHome && headerAnimates ? "transition-[background-color] duration-200" : ""} min-[360px]:h-6 min-[360px]:w-[111px] sm:h-7 sm:w-[129px] lg:h-8 lg:w-[148px] ${
               clear ? "bg-[#E5DFD2]" : "bg-[#2C1F1A]"
             }`}
           />
@@ -530,16 +507,22 @@ export default function Header() {
           </div>
 
           <div data-header-actions className="ml-auto flex shrink-0 items-center gap-1">
-            <Show when="signed-in">
-              <NotificationBell initialUnreadCount={0} />
-            </Show>
+            {/* Reserve both signed-in action cells before Clerk resolves so
+                the search and cart never jump when the icons appear. */}
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center">
+              <Show when="signed-in">
+                <NotificationBell initialUnreadCount={0} />
+              </Show>
+            </span>
 
-            <Show when="signed-in">
-              <MessageIconLink />
-            </Show>
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center">
+              <Show when="signed-in">
+                <MessageIconLink />
+              </Show>
+            </span>
 
             {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
-            <Link href="/cart" className={iconButtonClass} aria-label="Cart" data-cart-target="">
+            <Link href="/cart" className={iconButtonClass} aria-label="Cart" data-cart-target="" onPointerUp={(event) => event.currentTarget.blur()}>
               <ShoppingBag size={22} />
               <IconHoverTip label="Cart" />
               {cartCount != null && cartCount > 0 && (
@@ -589,7 +572,8 @@ export default function Header() {
             aria-label={searchOpen ? "Close search" : "Search"}
             aria-expanded={searchOpen}
             aria-controls={mobileSearchId}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]"
+            onPointerUp={(event) => event.currentTarget.blur()}
+            className={`${mobileIconButtonClass} ${searchOpen && !searchClosing ? "bg-current/10" : ""}`}
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
@@ -609,12 +593,13 @@ export default function Header() {
               vertical position in the header row. */}
           <Link
             href="/cart"
-            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
+            className="group/cart inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full focus:outline-none"
             aria-label="Cart"
             data-cart-target=""
+            onPointerUp={(event) => event.currentTarget.blur()}
           >
-            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]">
-              <ShoppingBag size={20} />
+            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 [@media(hover:hover)]:group-hover/cart:bg-current/10 group-focus-visible/cart:bg-current/10 motion-safe:group-active/cart:scale-[0.92] [&>svg]:block [&>svg]:shrink-0">
+              <ShoppingBag size={20} className="translate-y-px" />
               {cartCount != null && cartCount > 0 && (
                 <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-medium leading-none ${clear ? "bg-[#FBF8F3] text-[#2C1F1A]" : "bg-[#2C1F1A] text-[#FBF8F3]"}${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                   {cartCount}
@@ -631,7 +616,8 @@ export default function Header() {
             aria-expanded={drawerOpen}
             aria-haspopup="dialog"
             aria-controls={drawerOpen ? drawerId : undefined}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]"
+            onPointerUp={(event) => event.currentTarget.blur()}
+            className={`${mobileIconButtonClass} ${drawerOpen && !drawerClosing ? "bg-current/10" : ""}`}
           >
             <Menu size={24} />
           </button>
@@ -669,7 +655,7 @@ export default function Header() {
               and no flash. touch-none still swallows scroll gestures here. */}
           <div
             className="fixed inset-0 z-[1000] touch-none"
-            onClick={closeDrawer}
+            onClick={() => closeDrawer()}
             aria-hidden="true"
           />
 
@@ -692,7 +678,7 @@ export default function Header() {
                 closeDrawer();
               }
             }}
-            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-var(--site-header-h)-1.5rem-env(safe-area-inset-top))] flex-col overflow-hidden overscroll-contain rounded-[18px] bg-white text-neutral-900 popover-shadow outline-none motion-reduce:animate-none ${
+            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] z-[1001] flex w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-var(--site-header-h)-1.5rem-env(safe-area-inset-top))] flex-col overflow-hidden overscroll-contain rounded-2xl bg-white text-neutral-900 popover-shadow outline-none motion-reduce:animate-none ${
               drawerClosing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >
@@ -706,7 +692,7 @@ export default function Header() {
                 Menu
               </span>
               <button
-                onClick={closeDrawer}
+                onClick={() => closeDrawer()}
                 aria-label="Close menu"
                 className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-600 hover:bg-black/10"
               >
@@ -721,7 +707,7 @@ export default function Header() {
                 aria-label="Site"
                 data-drawer-scroll-region
                 onScroll={updateDrawerNavFade}
-                className="flex-1 overflow-y-auto overscroll-contain px-2 py-3"
+                className="scrollbar-hidden flex-1 overflow-y-auto overscroll-contain px-2 py-3"
               >
                 <div className={`px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider ${drawerSectionText}`}>
                   Explore
@@ -729,7 +715,7 @@ export default function Header() {
                 <Link
                   href="/browse"
                   className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                  onClick={closeDrawer}
+                  onClick={() => closeDrawer()}
                 >
                   <Search size={18} className={drawerIconText} />
                   Browse
@@ -737,7 +723,7 @@ export default function Header() {
                 <Link
                   href="/blog"
                   className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                  onClick={closeDrawer}
+                  onClick={() => closeDrawer()}
                 >
                   <Edit size={18} className={drawerIconText} />
                   Blog
@@ -745,7 +731,7 @@ export default function Header() {
                 <Link
                   href="/commission"
                   className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                  onClick={closeDrawer}
+                  onClick={() => closeDrawer()}
                 >
                   <Wrench size={18} className={drawerIconText} />
                   Commission Room
@@ -759,7 +745,7 @@ export default function Header() {
                   <Link
                     href="/account"
                     className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                    onClick={closeDrawer}
+                    onClick={() => closeDrawer()}
                   >
                     <User size={18} className={drawerIconText} />
                     My Account
@@ -769,7 +755,7 @@ export default function Header() {
                   <Link
                     href="/messages"
                     className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                    onClick={closeDrawer}
+                    onClick={() => closeDrawer()}
                   >
                     <MessageCircle size={18} className={drawerIconText} />
                     Messages
@@ -779,7 +765,7 @@ export default function Header() {
                   <Link
                     href="/account/feed"
                     className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                    onClick={closeDrawer}
+                    onClick={() => closeDrawer()}
                   >
                     <Rss size={18} className={drawerIconText} />
                     Your Feed
@@ -790,7 +776,7 @@ export default function Header() {
                     <Link
                       href="/dashboard"
                       className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                      onClick={closeDrawer}
+                      onClick={() => closeDrawer()}
                     >
                       <Store size={18} className={drawerIconText} />
                       Workshop
@@ -799,7 +785,7 @@ export default function Header() {
                     <Link
                       href="/dashboard"
                       className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-900 ${drawerItemHover}`}
-                      onClick={closeDrawer}
+                      onClick={() => closeDrawer()}
                     >
                       <Store size={18} className={drawerIconText} />
                       Start Selling
@@ -811,7 +797,7 @@ export default function Header() {
                     <Link
                       href="/admin"
                       className={`flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2.5 text-[15px] text-neutral-800 ${drawerItemHover}`}
-                      onClick={closeDrawer}
+                      onClick={() => closeDrawer()}
                     >
                       <Shield size={18} className={drawerIconText} />
                       Admin
@@ -824,7 +810,7 @@ export default function Header() {
                     <Link
                       href="/sign-in"
                       className="flex min-h-[44px] items-center justify-center rounded-full bg-[#2C1F1A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#3A2A24] transition-colors"
-                      onClick={closeDrawer}
+                      onClick={() => closeDrawer()}
                     >
                       Sign in
                     </Link>

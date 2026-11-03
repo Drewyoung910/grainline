@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 
+const SPACE_ACTIVATED_SELECTOR =
+  'button, a[href], summary, [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="menuitem"], [role="option"]';
+
 const FOCUSABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",
@@ -62,6 +65,8 @@ function installScrollGuards() {
     ) {
       return;
     }
+    // Space presses a focused button or link; cancelling it here would stop that.
+    if (event.key === " " && target instanceof Element && target.closest(SPACE_ACTIVATED_SELECTOR)) return;
     const deltaY = event.key === "ArrowUp" || event.key === "PageUp" || (event.key === " " && event.shiftKey) || event.key === "Home"
       ? -Infinity
       : event.key === "ArrowDown" || event.key === "PageDown" || event.key === " " || event.key === "End"

@@ -46,21 +46,20 @@ describe("homepage hero and header contracts", () => {
     const globals = source("src/app/globals.css");
 
     assert.match(header, /const isHome = pathname === "\/"/);
-    // Clear while the hero is physically behind the header; frosted after the
-    // hero and on every other page. This must use geometry instead of a small
-    // scroll offset because mobile Safari changes/restores its viewport.
+    // Clear only at the top; frost as soon as scrolling begins. A small
+    // hysteresis keeps elastic mobile scrolling from flickering the state.
     assert.match(header, /const clear = isHome && !scrolled;/);
-    assert.match(header, /document\.querySelector<HTMLElement>\("\[data-home-hero\]"\)/);
-    assert.match(header, /hero\.getBoundingClientRect\(\)\.bottom - header\.getBoundingClientRect\(\)\.bottom/);
-    assert.match(header, /wasPastHero \? gap <= 16 : gap <= -8/);
-    assert.doesNotMatch(header, /window\.scrollY > (16|24|32)/);
+    assert.match(header, /const offset = Math\.max\(0, window\.scrollY\)/);
+    assert.match(header, /wasAwayFromTop \? offset > 0 : offset > 1/);
+    assert.doesNotMatch(header, /querySelector<HTMLElement>\("\[data-home-hero\]"\)/);
     assert.match(header, /isHome && headerAnimates/);
     assert.match(header, /window\.addEventListener\("scroll", onScroll, \{ passive: true \}\)/);
-    assert.match(header, /window\.visualViewport\?\.addEventListener\("resize", onViewportChange/);
+    assert.doesNotMatch(header, /transition-\[padding\]/);
+    assert.match(header, /className="mx-auto flex max-w-\[1600px\][^"]*py-2\.5[^"]*lg:py-3/);
     // Message threads keep their own pinned chat header, so the site header
     // scrolls away there.
     assert.match(header, /const pinned = !pathname\.startsWith\("\/messages\/"\);/);
-    assert.match(header, /\$\{isHome \? "fixed" : pinned \? "sticky" : "relative"\} inset-x-0 top-0 z-\[50\]/);
+    assert.match(header, /\$\{isHome \? "fixed" : pinned \? "sticky" : "relative"\} isolate inset-x-0 top-0 z-\[50\]/);
     assert.match(header, /data-header-state=\{clear \? "clear" : "frosted"\}/);
     // The frost is its own layer so the menu's fixed click-catcher is not
     // trapped inside a backdrop-filtered header box.
@@ -93,7 +92,7 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(header, /overlay=\{/);
     assert.doesNotMatch(header, /data-home-(overlay|header-surface|logo-mark|menu-surface)/);
     // Header icon buttons follow the header color.
-    assert.match(header, /text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
+    assert.match(header, /text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
     assert.match(header, /lg:hidden/);
     assert.match(header, /min-h-\[44px\]/);
     assert.match(header, /min-w-\[44px\]/);
@@ -128,7 +127,11 @@ describe("homepage hero and header contracts", () => {
     assert.match(source("src/components/MobileFilterBar.tsx"), /top-\[var\(--site-header-offset\)\]/);
     const filters = source("src/components/FilterSidebar.tsx");
     assert.doesNotMatch(filters, /100dvh-var\(--site-header-offset\)-2rem|scrollbar-width:thin/);
-    assert.match(filters, /id=\{`\$\{baseId\}-category-select`\}/);
+    assert.match(filters, /aria-controls=\{categoryOpen \? `\$\{baseId\}-category-options` : undefined\}/);
+    assert.match(filters, /aria-haspopup="true"/);
+    assert.match(filters, /<nav[\s\S]*id=\{`\$\{baseId\}-category-options`\}/);
+    assert.doesNotMatch(filters, /<select/);
+    assert.match(filters, /categoryOpen && !categoryClosing \? "rotate-180" : ""/);
     assert.ok(filters.indexOf("Near location") < filters.indexOf("Price (USD)"));
   });
 
@@ -152,7 +155,7 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(hero, /mt-|pt-|top-/);
     assert.match(header, /isHome \? "fixed"/);
     assert.match(header, /pt-\[env\(safe-area-inset-top\)\]/);
-    assert.match(header, /ref=\{headerRef\}/);
+    assert.doesNotMatch(header, /ref=\{headerRef\}/);
   });
 
   it("keeps the homepage photo and shade in one overscroll-safe plane", () => {
@@ -161,7 +164,29 @@ describe("homepage hero and header contracts", () => {
 
     assert.doesNotMatch(home, /hero-parallax/);
     assert.doesNotMatch(globals, /@keyframes hero-parallax|\.hero-parallax/);
-    assert.match(globals, /\.hero-photo-settle \{\s*animation: hero-photo-settle 0\.8s/);
+    assert.doesNotMatch(home, /hero-photo-settle/);
+    assert.doesNotMatch(globals, /@keyframes hero-photo-settle|\.hero-photo-settle/);
+    assert.doesNotMatch(home, /hero-rise|hero-lines|hero-stats-rise|HomeMotionGate/);
+    assert.doesNotMatch(globals, /@keyframes hero-rise|@keyframes hero-stats-rise|home-hero-motion/);
+  });
+
+  it("animates fresh-visit hero copy once without moving the photo or header", () => {
+    const home = source("src/app/page.tsx");
+    const intro = source("src/components/HomeHeroIntro.tsx");
+    const globals = source("src/app/globals.css");
+
+    assert.match(home, /<HomeHeroIntro>/);
+    assert.match(home, /data-hero-intro-heading/);
+    assert.match(home, /data-hero-intro-copy/);
+    assert.match(home, /data-hero-intro-actions/);
+    assert.match(intro, /let introPlayed = false/);
+    assert.match(intro, /const \[animate, setAnimate\] = React\.useState\(false\)/);
+    assert.match(intro, /React\.useLayoutEffect\(\(\) => \{/);
+    assert.match(intro, /if \(introPlayed\) return/);
+    assert.match(intro, /introPlayed = true;\s*setAnimate\(true\)/);
+    assert.match(globals, /@keyframes home-hero-copy-in/);
+    assert.match(globals, /\.home-hero-intro \[data-hero-intro-heading\]/);
+    assert.doesNotMatch(home, /home-hero-intro[^\n]*(?:Image|data-home-hero)/);
   });
 
   it("hides tiny pre-launch marketplace totals without deleting the feature", () => {
@@ -280,9 +305,9 @@ describe("homepage hero and header contracts", () => {
       assert.match(text, /overlay = false/);
       // Popovers are white cards with the shared long soft shadow.
       assert.match(text, /: "bg-white";/);
-      assert.match(text, /rounded-\[18px\] text-neutral-900 popover-shadow/);
+      assert.match(text, /rounded-2xl text-neutral-900 popover-shadow/);
     }
-    assert.match(header, /rounded-\[18px\] bg-white text-neutral-900 popover-shadow/);
+    assert.match(header, /rounded-2xl bg-white text-neutral-900 popover-shadow/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.doesNotMatch(header, /fixed inset-0[^\n]*backdrop-blur/);
     assert.match(bell, /className="text-\[13px\] font-medium leading-tight"/);
@@ -299,7 +324,7 @@ describe("homepage hero and header contracts", () => {
     assert.match(search, /autoFocus = false,[\s\S]*tone = "solid",[\s\S]*autoFocus\?: boolean;[\s\S]*tone\?: SearchBarTone;/);
     assert.match(search, /export type SearchBarTone = "glass" \| "solid";/);
     assert.match(search, /autoFocus=\{autoFocus\}/);
-    assert.match(search, /if \(autoFocus && value\.length === 0\) openDropdown\(\)/);
+    assert.match(search, /if \(autoFocus && value\.length === 0\) \{[\s\S]*void loadPopularTags\(\);[\s\S]*openDropdown\(\);/);
     assert.match(search, /section: "Recommended searches"/);
     assert.match(search, /role="combobox"/);
     assert.match(search, /role="listbox"/);
@@ -314,7 +339,7 @@ describe("homepage hero and header contracts", () => {
     // Suggestions panel is always solid white.
     assert.match(search, /rounded-2xl bg-white p-1\.5 text-neutral-900/);
     assert.doesNotMatch(search, /overlay/);
-    assert.match(search, /w-full rounded-lg px-3 py-2 text-left/);
+    assert.match(search, /min-h-11 w-full rounded-xl px-3\.5 py-2\.5 text-left/);
     assert.match(search, /type="submit"[\s\S]*min-w-11[\s\S]*<Search size=\{18\}/);
     assert.match(search, /aria-label="Clear search"[\s\S]*min-w-11/);
     assert.match(search, /group flex min-w-11[\s\S]*flex size-9 items-center justify-center rounded-full/);
@@ -335,7 +360,7 @@ describe("homepage hero and header contracts", () => {
     assert.match(search, /const SUGGESTION_STAGGER_MS = 520;/);
     assert.match(search, /className=\{staggerItems \? "search-option-in" : undefined\}/);
     assert.match(search, /const SUGGESTION_DEBOUNCE_MS = 150;/);
-    assert.match(search, /\{ kind: "query", key: "query", section: "Search", label: query \}/);
+    assert.match(search, /kind: "query",\s*key: "query",\s*section: suggestionPhase === "empty" \? "No matches" : "Search",\s*label: query,/);
     // Pieces and shops before categories.
     assert.ok(search.indexOf("...ITEM_SECTION_ORDER.flatMap") < search.indexOf("...categories.map"));
   });

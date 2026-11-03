@@ -21,6 +21,8 @@ import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { ownerRawFollowCount } from "@/lib/sellerFollowAccess";
+import { ChevronRight } from "@/components/icons";
+import { activeOrder, orderProgressFraction, orderProgressSteps } from "@/lib/orderProgress";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -54,6 +56,20 @@ async function AccountPageContent() {
     sellerOwnerAccountSummary(me.id),
   ]);
   const recentOrders = recentOrderPage.rows;
+
+  // The newest order still on its way gets the progress line at the top.
+  const onItsWay = activeOrder(recentOrders, (order) =>
+    suppressActiveFulfillmentForPaymentState(
+      orderPaymentPresentationState({
+        paid: order.paidAt != null,
+        orderTotalCents: orderTotalCents(order),
+        refundAmountCents: order.sellerRefundAmountCents,
+        refundRecorded: order.sellerRefundAmountCents != null,
+      }),
+      order.fulfillmentStatus,
+    ),
+  );
+  const onItsWaySteps = onItsWay ? orderProgressSteps(onItsWay) : [];
 
   // Completed order count for sellers
   let completedOrderCount = 0;
@@ -121,29 +137,77 @@ async function AccountPageContent() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto p-6 md:p-8 space-y-10">
-      {/* ── Header ── */}
-      <header className="flex items-center gap-4">
-        {me.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={me.imageUrl}
-            alt={me.name ?? ""}
-            className="h-14 w-14 shrink-0 rounded-full object-cover border"
-          />
-        )}
+    <main className="mx-auto max-w-5xl space-y-7">
+      <header>
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold font-display">My Account</h1>
-          <p className="text-neutral-500 text-sm mt-0.5 break-all">{me.email}</p>
+          <h1 className="font-display page-title">My Account</h1>
+          <p className="mt-2 break-all text-neutral-500">{me.email}</p>
         </div>
       </header>
 
+      {onItsWay && (
+        <section aria-labelledby="account-active-order-title" className="card-section p-5 sm:p-[22px]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-semibold uppercase tracking-[0.08em] text-neutral-500">On its way</p>
+              <h2 id="account-active-order-title" className="mt-1.5 font-display text-[26px] leading-tight">
+                {onItsWay.items[0]?.title ?? "Your order"}
+              </h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                {onItsWay.items[0]?.sellerName ? `${onItsWay.items[0].sellerName} · ` : ""}Order #{onItsWay.id.slice(-8)}
+                {onItsWay.labelCarrier && onItsWay.labelTrackingNumber
+                  ? ` · ${onItsWay.labelCarrier} ${onItsWay.labelTrackingNumber}`
+                  : ""}
+              </p>
+            </div>
+            <Link href={`/dashboard/orders/${onItsWay.id}`} className="btn btn-primary btn-sm">
+              View order
+            </Link>
+          </div>
+          <ol
+            aria-label="Order progress"
+            className="relative mt-5 grid grid-cols-4"
+          >
+            <span aria-hidden="true" className="absolute left-[12.5%] right-[12.5%] top-2.5 h-0.5 bg-[#EFEAE0]" />
+            <span
+              aria-hidden="true"
+              className="absolute left-[12.5%] top-2.5 h-0.5 bg-[#2C1F1A]"
+              style={{ width: `${orderProgressFraction(onItsWaySteps) * 75}%` }}
+            />
+            {onItsWaySteps.map((step) => (
+              <li
+                key={step.label}
+                aria-current={step.state === "current" ? "step" : undefined}
+                className={`relative grid justify-items-center gap-2 text-center text-[13px] ${step.state === "upcoming" ? "text-neutral-500" : "font-medium text-neutral-900"}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex size-[22px] items-center justify-center rounded-full ${
+                    step.state === "done"
+                      ? "bg-[#2C1F1A]"
+                      : step.state === "current"
+                        ? "bg-white shadow-[inset_0_0_0_2px_#2C1F1A]"
+                        : "bg-white shadow-[inset_0_0_0_2px_#D6CFC2]"
+                  }`}
+                >
+                  {step.state === "done" && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#FBF8F3" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-3"><path d="M5 12.5 10 17 19 7" /></svg>
+                  )}
+                </span>
+                {step.label}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
       {/* ── Section 1: Recent Orders ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold font-display">My Orders</h2>
-          <Link href="/account/orders" className="text-sm text-neutral-600 underline hover:text-neutral-900">
-            View all orders →
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-[26px] leading-tight">Recent orders</h2>
+          <Link href="/account/orders" className="group inline-flex items-center gap-1 text-sm font-medium text-neutral-800 underline-offset-4 hover:underline">
+            All orders
+            <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
 
@@ -215,10 +279,11 @@ async function AccountPageContent() {
 
       {/* ── Section 2: Saved Items ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold font-display">Saved Items</h2>
-          <Link href="/account/saved" className="text-sm text-neutral-600 underline hover:text-neutral-900">
-            View all saved →
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-[26px] leading-tight">Saved items</h2>
+          <Link href="/account/saved" className="group inline-flex items-center gap-1 text-sm font-medium text-neutral-800 underline-offset-4 hover:underline">
+            All saved
+            <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
 
@@ -232,18 +297,18 @@ async function AccountPageContent() {
               {savedItems.map(({ listing }) => {
                 const thumb = listing.photos[0]?.url;
                 return (
-                  <ClickTracker key={listing.id} listingId={listing.id} className="group w-40 shrink-0 snap-start">
+                  <ClickTracker key={listing.id} listingId={listing.id} className="w-40 shrink-0 snap-start">
                     <Link
                       href={publicListingPath(listing.id, listing.title)}
                       className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/25 focus-visible:ring-offset-2"
                     >
-                      <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#EFEAE0]">
+                      <div className="group/photo aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#EFEAE0]">
                         {thumb ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={thumb}
                             alt={listing.title}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
                           />
                         ) : null}
                       </div>
@@ -264,10 +329,11 @@ async function AccountPageContent() {
 
       {/* ── Section 3: Saved Searches ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold font-display">Saved Searches</h2>
-          <Link href="/account/saved-searches" className="text-sm text-neutral-600 underline hover:text-neutral-900">
-            Manage saved searches →
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-[26px] leading-tight">Saved searches</h2>
+          <Link href="/account/saved-searches" className="group inline-flex items-center gap-1 text-sm font-medium text-neutral-800 underline-offset-4 hover:underline">
+            Manage
+            <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
         {savedSearches.length === 0 ? (
@@ -298,82 +364,28 @@ async function AccountPageContent() {
         )}
       </section>
 
-      {/* ── Section 3: Following ── */}
+      {/* ── Following ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold font-display">Following</h2>
-          <Link href="/account/feed" className="text-sm text-neutral-600 underline hover:text-neutral-900">
-            View feed →
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-[26px] leading-tight">Following</h2>
+          <Link href="/account/feed" className="group inline-flex items-center gap-1 text-sm font-medium text-neutral-800 underline-offset-4 hover:underline">
+            Your feed
+            <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
-        <div className="card-section p-5 flex items-center justify-between">
-          <div>
-            <p className="text-2xl font-bold">{followCount}</p>
-            <p className="text-xs text-neutral-500">maker{followCount !== 1 ? "s" : ""} followed</p>
-          </div>
-          <Link
-            href="/account/following"
-            className="btn btn-sm btn-secondary"
-          >
-            Manage →
-          </Link>
-        </div>
-      </section>
-
-      {/* ── Section 4: My Reviews ── */}
-      <section>
-        <h2 className="text-xl font-semibold font-display mb-4">My Reviews</h2>
-        <div className="card-section p-4 space-y-2">
-          <p className="text-sm text-neutral-700 mb-1">Reviews you&apos;ve written for items you&apos;ve purchased</p>
-          <Link href="/account/reviews" className="text-sm underline hover:text-neutral-900 block">
-            View my reviews →
-          </Link>
-        </div>
-      </section>
-
-      {/* ── Section 5 (orig 4): Commission Requests ── */}
-      <section>
-        <h2 className="text-xl font-semibold font-display mb-4">Commission Requests</h2>
-        <div className="card-section p-4">
-          <p className="text-sm text-neutral-500 mb-3">Custom pieces you&apos;ve requested from makers</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/account/commissions" className="text-sm underline hover:text-neutral-900">
-              View my commission requests →
-            </Link>
-            <span className="text-sm text-neutral-500">or</span>
-            <Link href="/commission" className="text-sm underline hover:text-neutral-900">
-              Browse the Commission Room →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Section 5: Account Settings ── */}
-      <section>
-        <h2 className="text-xl font-semibold font-display mb-4">Account Settings</h2>
-        <div className="card-section p-5 space-y-3">
-          {/* The account email is shown once, in the page header. */}
-          <div className="text-sm">
-            <p className="font-medium">{me.name ?? "—"}</p>
-          </div>
-          <p className="text-xs text-neutral-500">
-            Update your name, email, and password through your account settings.
+        <div className="card-section flex items-center justify-between p-5">
+          <p className="text-sm text-neutral-600">
+            <span className="mr-1.5 text-2xl font-medium tabular-nums text-neutral-900">{followCount}</span>
+            maker{followCount !== 1 ? "s" : ""} followed
           </p>
-          <div className="flex flex-col items-start gap-2">
-            <Link href="/account/settings" className="text-sm underline text-neutral-600 hover:text-neutral-900">
-              Account settings →
-            </Link>
-            <Link href="/account/blocked" className="text-sm underline text-neutral-600 hover:text-neutral-900">
-              Blocked users →
-            </Link>
-          </div>
+          <Link href="/account/following" className="btn btn-sm btn-secondary">Manage</Link>
         </div>
       </section>
 
       {/* ── Section 6: Workshop (sellers only) ── */}
       {sellerProfile && (
         <section>
-          <h2 className="text-xl font-semibold font-display mb-4">Your Workshop</h2>
+          <h2 className="mb-3 font-display text-[26px] leading-tight">Your workshop</h2>
           <div className="card-section p-5 space-y-4">
             <div className="flex gap-6 text-sm">
               <div>
@@ -410,7 +422,7 @@ async function AccountPageContent() {
       )}
       {!sellerProfile && (
         <section>
-          <h2 className="text-xl font-semibold font-display mb-4">Sell on Grainline</h2>
+          <h2 className="mb-3 font-display text-[26px] leading-tight">Sell on Grainline</h2>
           <div className="card-section p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium">Open your maker workshop</p>

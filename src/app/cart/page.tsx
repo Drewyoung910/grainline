@@ -29,7 +29,12 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
 import RollingAmount from "@/components/RollingAmount";
+import RollingNumber from "@/components/RollingNumber";
 import { useToast } from "@/components/Toast";
+import { useQuantitySteps } from "@/lib/useQuantitySteps";
+
+const QUANTITY_STEP_CLASS =
+  "inline-flex size-9 touch-manipulation items-center justify-center text-base text-neutral-700 transition-colors hover:bg-[#EFEAE0] aria-disabled:cursor-not-allowed aria-disabled:text-neutral-300 aria-disabled:hover:bg-transparent [@media(pointer:coarse)]:size-11";
 
 function CartLoadingSkeleton() {
   return (
@@ -274,6 +279,8 @@ function CartPage() {
   // Lines whose quantity change is still being saved, mapped to the value
   // picked, so the select shows it instead of snapping back meanwhile.
   const [pendingQuantities, setPendingQuantities] = React.useState<ReadonlyMap<string, number>>(() => new Map());
+  const loadRequestRef = React.useRef(0);
+  const { drafts: stepDrafts, step: stepQuantity } = useQuantitySteps((itemId, quantity) => setQuantity(itemId, quantity));
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
@@ -432,11 +439,17 @@ function CartPage() {
   }, [step, shippingAddress, clientSecrets, resumingCheckout]);
 
   async function load() {
+    // Two reloads can overlap, as when Undo lands during another line's save.
+    // Only the newest may write, or an older answer could hide a restored line.
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
+    const isStale = () => requestId !== loadRequestRef.current;
     setLoading(true);
     setError(null);
     try {
       const anonymousItems = readAnonymousCartItems();
       const res = await fetch("/api/cart", { cache: "no-store" });
+      if (isStale()) return;
       if (res.status === 401) {
         setNeedsSignIn(true);
         setItems(cartItemsFromAnonymous(anonymousItems));
@@ -467,17 +480,22 @@ function CartPage() {
           throw new Error(data?.error || "Failed to load cart");
         }
         const refreshedData = await refreshed.json();
+        if (isStale()) return;
         setItems(refreshedData.items || []);
         return;
       }
 
       const data = await res.json();
+      if (isStale()) return;
       setItems(data.items || []);
     } catch (e) {
+      if (isStale()) return;
       setError((e as Error).message || "Failed to load cart");
     } finally {
-      setLoading(false);
-      setHasLoadedCart(true);
+      if (!isStale()) {
+        setLoading(false);
+        setHasLoadedCart(true);
+      }
     }
   }
 
@@ -605,7 +623,7 @@ function CartPage() {
 
   // While a reload, a quantity change or a removal is in flight, quantity
   // and Remove controls wait, so two updates (and their reloads) cannot race.
-  const cartBusy = loading || removingIds.size > 0 || pendingQuantities.size > 0;
+  const cartBusy = loading || removingIds.size > 0 || pendingQuantities.size > 0 || stepDrafts.size > 0;
 
   const removeItem = (cartItemId: string) => {
     if (removingIds.has(cartItemId)) return;
@@ -726,7 +744,6 @@ function CartPage() {
             const unitPriceCents = i.livePriceCents ?? i.priceCents;
             const lineCents = unitPriceCents * i.quantity;
             const listingIsActive = !i.listing.status || i.listing.status === "ACTIVE";
-            const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
               <li
@@ -799,31 +816,50 @@ function CartPage() {
                           </span>
                         );
                       }
+                      const shownQuantity = stepDrafts.get(i.id) ?? (pendingQuantities.get(i.id) || i.quantity);
+                      // Busy elsewhere waits; this line's own presses keep
+                      // counting and collapse into one more save.
+                      const controlsWait = cartBusy && !stepDrafts.has(i.id);
+                      const atLeast = controlsWait || shownQuantity <= 1;
+                      // A line can be over stock after someone else buys. One
+                      // press brings it down to what's available, because the
+                      // server would refuse every quantity in between.
+                      const stockLimit = Math.max(1, i.listing.maxQuantity ?? 99);
+                      const atMost = controlsWait || shownQuantity >= stockLimit;
                       return (
-                        <>
-                          <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
-                            Qty
-                          </label>
-                          <select
-                            id={quantitySelectId}
-                            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm aria-disabled:cursor-wait aria-disabled:opacity-60"
-                            value={pendingQuantities.get(i.id) || i.quantity}
-                            // aria-disabled rather than disabled, so a keyboard
-                            // user keeps focus on the select while it saves.
-                            aria-disabled={cartBusy || undefined}
-                            onChange={(e) => {
-                              if (cartBusy) return;
-                              void setQuantity(i.id, Number(e.target.value));
+                        <div
+                          role="group"
+                          aria-label={`Quantity of ${i.listing.title}`}
+                          className="inline-flex shrink-0 items-center rounded-md border border-neutral-200 bg-white"
+                        >
+                          {/* aria-disabled rather than disabled, so a keyboard
+                              user keeps focus on the button while it saves. */}
+                          <button
+                            type="button"
+                            aria-label="One fewer"
+                            aria-disabled={atLeast || undefined}
+                            className={QUANTITY_STEP_CLASS}
+                            onClick={() => {
+                              if (!atLeast) void stepQuantity(i.id, Math.min(shownQuantity - 1, stockLimit));
                             }}
                           >
-                            {Array.from({ length: maxQty }).map((_, idx) => {
-                              const n = idx + 1;
-                              return (
-                                <option key={n} value={n}>{n}</option>
-                              );
-                            })}
-                          </select>
-                        </>
+                            <span aria-hidden="true">−</span>
+                          </button>
+                          <span aria-live="polite" className="min-w-7 px-1 text-center text-sm font-medium text-neutral-900">
+                            <RollingNumber value={shownQuantity} grouped={false} />
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="One more"
+                            aria-disabled={atMost || undefined}
+                            className={QUANTITY_STEP_CLASS}
+                            onClick={() => {
+                              if (!atMost) void stepQuantity(i.id, shownQuantity + 1);
+                            }}
+                          >
+                            <span aria-hidden="true">+</span>
+                          </button>
+                        </div>
                       );
                     })()}
 
@@ -981,37 +1017,42 @@ function CartPage() {
     setRollingBackCheckout(false);
   }
 
+  const checkoutSteps = [
+    { key: "review", label: "Cart" },
+    { key: "address", label: "Address" },
+    { key: "shipping", label: "Shipping" },
+    { key: "payment", label: "Payment" },
+  ] as const;
+  const currentStepIndex = Math.max(0, checkoutSteps.findIndex((entry) => entry.key === step));
+
   return (
     <main data-cart-steps={animateStep ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
-      {/* Step indicator: the current step sits on a small white pill that
-          springs in; each step's content rises in as it appears. */}
-      <div className="mb-6 inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-1 rounded-full bg-[#EFEAE0] px-2 py-1.5 text-sm sm:gap-x-2 sm:px-4 sm:py-2">
-        {[
-          { key: "review", label: "Cart" },
-          { key: "address", label: "Address" },
-          { key: "shipping", label: "Shipping" },
-          { key: "payment", label: "Payment" },
-        ].map((s, i) => (
-          <span key={s.key} className="flex items-center gap-2">
-            {i > 0 && <span className="text-neutral-500" aria-hidden="true">›</span>}
-            <span
-              aria-current={step === s.key ? "step" : undefined}
-              className={`rounded-full px-1.5 py-0.5 transition-colors duration-300 sm:px-2.5 ${
-                step === s.key
-                  ? `${animateStep ? "step-pill-in " : ""}bg-white font-semibold text-neutral-900 shadow-sm`
-                  : "text-neutral-500"
-              }`}
-            >
-              {s.label}
-            </span>
-          </span>
+      {/* A restrained underline moves between steps. It keeps the progress
+          animation without nesting a second white pill inside the track. */}
+      <ol className="relative mb-6 grid w-full max-w-md grid-cols-4 rounded-xl bg-[#EFEAE0] px-1 py-2 text-sm" aria-label="Checkout progress">
+        <li
+          role="presentation"
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-1 left-1 h-0.5 w-[calc((100%_-_0.5rem)/4)] rounded-full bg-[#2C1F1A] transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
+          style={{ transform: `translateX(${currentStepIndex * 100}%)` }}
+        />
+        {checkoutSteps.map((entry) => (
+          <li
+            key={entry.key}
+            aria-current={step === entry.key ? "step" : undefined}
+            className={`relative z-[1] px-1 pb-1 text-center transition-colors duration-300 ${
+              step === entry.key ? "font-semibold text-neutral-900" : "text-neutral-500"
+            }`}
+          >
+            {entry.label}
+          </li>
         ))}
-      </div>
+      </ol>
 
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -1049,6 +1090,7 @@ function CartPage() {
               <button
                 type="button"
                 onClick={refreshChangedPrices}
+                disabled={cartBusy}
                 className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
               >
                 Accept updated prices
@@ -1077,10 +1119,14 @@ function CartPage() {
           ) : (
             <button
               onClick={() => {
+                // Waits for a running save without dimming, so the button
+                // doesn't blink on every quantity press.
+                if (cartBusy) return;
                 setStep("address");
                 router.replace("/cart?step=address", { scroll: false });
               }}
               disabled={items.length === 0 || hasBlockingCartChange}
+              aria-busy={cartBusy || undefined}
               className="btn btn-primary mt-6 w-full sm:w-auto"
             >
               Continue to shipping →

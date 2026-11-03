@@ -75,7 +75,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("shows the Guild Master path before Guild Member approval and avoids sparkle icons", () => {
     const verification = source("src/app/dashboard/verification/page.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/components/WorkspaceSidebar.tsx");
 
     assert.match(verification, /GUILD_MASTER_PREVIEW_REQUIREMENTS/);
     assert.match(verification, /Available after Guild Member approval/);
@@ -111,7 +111,8 @@ describe("post-launch UI follow-ups", () => {
     const globals = source("src/app/globals.css");
 
     assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
-    assert.match(searchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_POPULAR_SEARCHES/);
+    assert.match(searchBar, /popularSearchPresentation\(\{/);
+    assert.match(searchBar, /popularLoadedRef\.current \|\| popularLoadingRef\.current/);
     assert.match(searchBar, /aria-label="Clear search"/);
     assert.match(searchBar, /params\.delete\("q"\)/);
     assert.match(searchBar, /openDropdown\(\)/);
@@ -130,7 +131,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/lib/popularBlogTags.ts"), /unstable_cache/);
     assert.match(source("src/app/dashboard/listings/new/page.tsx"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /revalidateListingSearchCaches/);
-    assert.match(source("src/app/dashboard/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/listings/actions.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/api/admin/listings/[id]/review/route.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/api/listings/[id]/stock/route.ts"), /revalidateListingSearchCaches/);
     assert.match(source("src/app/dashboard/blog/new/page.tsx"), /revalidateBlogSearchCaches/);
@@ -144,10 +145,17 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
 
-  it("displays listing product imagery at 4:5 portrait via CSS without forcing an upload-time crop", () => {
+  it("keeps browse cards at 4:5 while fitting the full listing photo inside the viewport", () => {
     assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
-    assert.match(source("src/components/ListingGallery.tsx"), /aspect-\[4\/5\]/);
-    assert.doesNotMatch(source("src/components/ListingGallery.tsx"), /h-\[350px\]|h-\[400px\]|h-\[500px\]/);
+    const gallery = source("src/components/ListingGallery.tsx");
+    // The frame height is shared with the loading skeleton, so the two can't drift.
+    const frame = source("src/lib/photoMotion.ts");
+    assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(gallery, /className="h-full w-full object-contain"/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
+    assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
     // Match the actual UploadButton element — endpoint immediately followed by
@@ -215,7 +223,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(gallery, /event\.preventDefault\(\)/);
     assert.match(gallery, /aria-label="Previous photo"/);
     assert.match(gallery, /aria-label="Next photo"/);
-    assert.match(gallery, /left-3\.5 top-3\.5 inline-flex h-9 w-9/);
+    assert.match(gallery, /left-0 top-0 inline-flex h-11 w-11/);
+    assert.match(gallery, /hidden min-h-11 min-w-11[\s\S]*lg:inline-flex lg:group-hover\/gallery:opacity-100/);
   });
 
   it("keeps listing detail constrained on narrow mobile viewports", () => {
@@ -300,12 +309,12 @@ describe("post-launch UI follow-ups", () => {
   });
 
   it("dashboard listing card click goes to public path for active and to preview URL for non-public statuses", () => {
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/dashboard/listings/page.tsx");
     // The card link branches on isPublicStatus and appends ?preview=1 for the
     // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
     assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
     assert.match(dashboard, /\?preview=1`/);
-    assert.match(dashboard, /where: \{ sellerId: seller\.id, archivedAt: null \}/);
+    assert.match(source("src/lib/workshopData.ts"), /where: \{ sellerId: sellerProfileId, archivedAt: null \}/);
   });
 
   it("AI alt-text backfill helper exists and is wired into every reviewListingWithAI path", () => {
@@ -447,6 +456,9 @@ describe("post-launch UI follow-ups", () => {
     // Listing context card uses the darker cream surface to separate the
     // thread chrome from the body cream page background.
     assert.match(threadPage, /bg-\[#EFEAE0\][\s\S]*?p-3/);
+    // The site header scrolls away on threads (Header.tsx `pinned`), so a page
+    // offset here would leave a strip of messages showing above this header.
+    assert.match(threadPage, /sticky top-0 z-10/);
     // Thread container uses card-section on md+ instead of bare md:border.
     assert.match(thread, /md:card-section md:p-4/);
     // Empty-state visual when there are no messages yet.
@@ -503,7 +515,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(fallbackCall, /className="[^"]*w-full/);
     assert.match(allSellersMap, /className="relative h-full"/);
     // Both map actions use the shared pill buttons (46px tall).
-    assert.equal((mapSection.match(/className="btn btn-(?:primary|secondary)"/g) ?? []).length, 2);
+    assert.equal((mapSection.match(/className="btn btn-(?:primary|secondary)[^"]*"/g) ?? []).length, 2);
+    assert.match(mapSection, /grid grid-cols-2/);
 
     assert.match(allSellersMap, /height = 520/);
     assert.doesNotMatch(fullMapCall, /\bheight=/);
@@ -532,8 +545,8 @@ describe("post-launch UI follow-ups", () => {
     const docs = source("CLAUDE.md");
 
     assert.match(globals, /single sitewide field-focus treatment/);
-    assert.match(globals, /border-color: #2C1F1A;/);
-    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(44 31 26 \/ 0\.12\)/);
+    assert.match(globals, /border-color: #a8a29e;/);
+    assert.match(globals, /box-shadow: 0 0 0 3px rgb\(44 31 26 \/ 0\.08\)/);
     assert.match(blogComment, /rounded-md border border-neutral-200 bg-white/);
     assert.doesNotMatch(blogComment, /focus:border|focus:ring/);
     assert.match(messageComposer, /border-2 border-stone-300/);
@@ -624,6 +637,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /aria-label="Close maker details"/);
     assert.match(makerCard, /bg-\[#F7F5F0\]/);
     assert.match(makerCard, /border-\[#F7F5F0\]/);
+    assert.match(makerCard, /map-card-in/);
+    assert.doesNotMatch(makerCard, /animate-menu-in/);
     // Content avatars have NO hairline (Drew rejected them) — thick border
     // matches the card background instead.
     assert.match(makerCard, /border-\[3px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);
@@ -677,11 +692,11 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/UserAvatarMenu.tsx"), /clearCloseTimer\(\);[\s\S]*setClosing\(false\);[\s\S]*setOpen\(true\);/);
     // Icon buttons follow the header color: cream over the homepage photo,
     // dark on frosted paper.
-    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 hover:bg-current\/10/);
+    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
     assert.match(header, /border-b border-\[#2C1F1A\]\/\[0\.08\] py-1 pl-5 pr-2/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
-    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
-    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
+    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
+    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
     assert.match(bell, /<div className="relative flex" ref=\{containerRef\}>/);
     for (const text of [header, bell, unreadBadge]) {
       assert.match(text, /absolute -top-1 -right-1 inline-flex h-5 min-w-5/);

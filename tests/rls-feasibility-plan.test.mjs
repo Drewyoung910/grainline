@@ -529,7 +529,7 @@ describe("RLS feasibility plan guardrails", () => {
     const readAllRoute = source("src/app/api/notifications/read-all/route.ts");
     const readOneRoute = source("src/app/api/notifications/[id]/read/route.ts");
     const dashboardNotifications = source("src/app/dashboard/notifications/page.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/lib/workspaceIdentity.ts");
     const accountExport = source("src/app/api/account/export/route.ts");
 
     assert.match(ownerAccess, /export async function ownerNotificationBellData/);
@@ -577,7 +577,6 @@ describe("RLS feasibility plan guardrails", () => {
   it("requires approved SavedSearch context and owner-RPC access paths", () => {
     const ownerAccess = source("src/lib/savedSearchOwnerAccess.ts");
     const savedRoute = source("src/app/api/search/saved/route.ts");
-    const dashboard = source("src/app/dashboard/page.tsx");
     const accountOverview = source("src/app/account/page.tsx");
     const accountSavedSearches = source("src/app/account/saved-searches/page.tsx");
     const accountExport = source("src/app/api/account/export/route.ts");
@@ -591,11 +590,6 @@ describe("RLS feasibility plan guardrails", () => {
       accountSavedSearches.indexOf("async function deleteSavedSearch"),
       accountSavedSearches.indexOf("type SavedSearchRow"),
     );
-    const dashboardDeleteAction = dashboard.slice(
-      dashboard.indexOf("async function deleteSavedSearch"),
-      dashboard.indexOf("type DashboardPageProps"),
-    );
-
     assert.deepEqual(
       exportedRuntimeBindings("src/lib/savedSearchOwnerAccess.ts", ownerAccess),
       [
@@ -661,8 +655,6 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(savedRoute, /createOwnerSavedSearch\(me\.id, criteria, tx\)/);
     assert.match(savedRoute, /listOwnerSavedSearches\(me\.id, prisma\)/);
     assert.match(savedRoute, /deleteOwnerSavedSearch\(me\.id, id, prisma\)/);
-    assert.match(dashboard, /listOwnerSavedSearches\(me\.id, prisma, \{ take: 20 \}\)/);
-    assert.match(dashboard, /deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
     assert.match(accountOverview, /listOwnerSavedSearches\(me\.id, prisma, \{ take: 3 \}\)/);
     assert.match(accountSavedSearches, /listOwnerSavedSearches\(me\.id, prisma\)/);
     assert.match(accountSavedSearches, /deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
@@ -683,8 +675,6 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(accountOverview, /const me = await ensureUserForPage\("\/account"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma, \{ take: 3 \}\)/);
     assert.match(accountDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*userClerkGate\(prisma, userId\)[\s\S]*if \(!me \|\| me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
     assert.match(accountSavedSearches, /const me = await ensureUserForPage\("\/account\/saved-searches"\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma\)/);
-    assert.match(dashboardDeleteAction, /const \{ userId \} = await auth\(\);[\s\S]*if \(!userId\) return;[\s\S]*userClerkGate\(prisma, userId\)[\s\S]*if \(!me\) return;[\s\S]*if \(me\.banned \|\| me\.deletedAt\) return;[\s\S]*deleteOwnerSavedSearch\(me\.id, searchId, prisma\)/);
-    assert.match(dashboard, /const \{ me, seller \} = await ensureSeller\(\);[\s\S]*listOwnerSavedSearches\(me\.id, prisma, \{ take: 20 \}\)/);
     assert.match(savedRoute, /async function getDbUser\(\)[\s\S]*const \{ userId \} = await auth\(\);[\s\S]*return ensureUser\(\)/);
     assert.match(savedRoute, /const me = userResult\.me;[\s\S]*listOwnerSavedSearches\(me\.id, prisma\)/);
     assert.match(savedRoute, /const me = userResult\.me;[\s\S]*deleteOwnerSavedSearch\(me\.id, id, prisma\)/);
@@ -736,10 +726,6 @@ describe("RLS feasibility plan guardrails", () => {
       "src/app/api/search/saved/route.ts": [
         { firstArgument: "me.id", helper: "listOwnerSavedSearches" },
         { firstArgument: "me.id", helper: "deleteOwnerSavedSearch" },
-      ],
-      "src/app/dashboard/page.tsx": [
-        { firstArgument: "me.id", helper: "deleteOwnerSavedSearch" },
-        { firstArgument: "me.id", helper: "listOwnerSavedSearches" },
       ],
     });
 

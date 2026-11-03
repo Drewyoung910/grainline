@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 import MediaImage from "@/components/MediaImage";
 
 export default function SellerGallery({
@@ -28,7 +29,16 @@ export default function SellerGallery({
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
-  useDialogFocus(lightboxOpen, dialogRef, () => setLightboxOpen(false));
+  const photoRef = useRef<HTMLImageElement>(null);
+  const thumbnailsRef = useRef(new Map<number, HTMLElement>());
+  const { closeViewer } = usePhotoViewerMotion({
+    open: lightboxOpen,
+    photoRef,
+    dialogRef,
+    getSource: () => thumbnailsRef.current.get(lightboxIndex) ?? null,
+    onClosed: () => setLightboxOpen(false),
+  });
+  useDialogFocus(lightboxOpen, dialogRef, closeViewer);
   useBodyScrollLock(lightboxOpen);
 
   useEffect(() => {
@@ -61,6 +71,10 @@ export default function SellerGallery({
         {allImages.map((url, i) => (
           <button
             key={`${url.url}:${i}`}
+            ref={(element) => {
+              if (element) thumbnailsRef.current.set(i, element);
+              else thumbnailsRef.current.delete(i);
+            }}
             onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
             className="group relative aspect-[3/2] w-full overflow-hidden rounded-md border border-neutral-200 bg-white transition-colors hover:border-neutral-400"
             aria-label={`View gallery image ${i + 1}`}
@@ -83,14 +97,14 @@ export default function SellerGallery({
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="fixed inset-0 z-[9999] bg-black bg-opacity-90 flex items-center justify-center"
-          onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90"
+          onClick={closeViewer}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <button
-            onClick={() => setLightboxOpen(false)}
-            className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-2xl font-light text-white hover:text-neutral-300"
+            onClick={closeViewer}
+            className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center border-0 bg-transparent text-2xl font-light text-white shadow-none outline-none ring-0 hover:text-neutral-300 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             aria-label="Close"
           >
             ✕
@@ -111,6 +125,7 @@ export default function SellerGallery({
           )}
           <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85vh] mx-4">
             <MediaImage
+              ref={photoRef}
               src={allImages[lightboxIndex]?.url ?? ""}
               alt={allImages[lightboxIndex]?.alt || `Gallery image ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"

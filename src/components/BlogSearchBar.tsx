@@ -314,7 +314,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <ul
           id={blogSearchListboxId}
           role="listbox"
-          className={`absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg motion-reduce:animate-none ${
+          className={`scrollbar-hidden absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg motion-reduce:animate-none ${
             closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
           }`}
         >

@@ -68,7 +68,7 @@ export default function RecentlyViewed() {
       <h2 className="text-xl font-semibold">Recently Viewed</h2>
 
       {loading ? (
-        <div className="flex gap-4 overflow-x-auto pb-0">
+        <div className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="animate-pulse shrink-0 w-48">
               <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-[#EFEAE0]" />
@@ -80,24 +80,26 @@ export default function RecentlyViewed() {
           ))}
         </div>
       ) : (
-        <ul className="flex gap-4 overflow-x-auto pb-0">
+        <ul className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
           {listings.map((l) => (
-            <li key={l.id} className="relative shrink-0 w-48 group">
-              <FavoriteButton listingId={l.id} initialSaved={l.saved} />
-              <Link href={publicListingPath(l.id, l.title)} className="block">
-                <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
+            <li key={l.id} className="relative shrink-0 w-48">
+              <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+                <Link href={publicListingPath(l.id, l.title)} className="block aspect-[4/5]">
                   {l.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={l.photoUrl}
                       alt={l.title}
                       loading="lazy"
-                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
                     />
                   ) : (
                     <div className="h-full w-full bg-[#EFEAE0]" />
                   )}
-                </div>
+                </Link>
+                <FavoriteButton listingId={l.id} initialSaved={l.saved} />
+              </div>
+              <Link href={publicListingPath(l.id, l.title)} className="block">
                 <div className="mt-2 px-0.5 space-y-0.5">
                   <div className="font-medium text-sm line-clamp-1 text-neutral-900">{l.title}</div>
                   <div className="text-sm text-neutral-500">

@@ -59,14 +59,14 @@ describe("mobile menu landmarks and focus return (UI-26)", () => {
     assert.match(header, /<nav\s+ref=\{drawerNavRef\}\s+aria-label="Site"/);
   });
 
-  it("returns focus to the menu button on every close path", () => {
+  it("returns keyboard focus without leaving a pointer focus halo", () => {
     assert.match(header, /ref=\{menuButtonRef\}\s*onClick=\{openDrawer\}/);
-    // Animated closes (X, Escape, click-catcher, link taps) and the instant
-    // close on navigation both record whether focus should come back.
-    assert.equal((header.match(/restoreMenuFocusRef\.current = shouldRestoreMenuFocus\(\)/g) ?? []).length, 2);
-    assert.match(header, /if \(drawerOpen \|\| !restoreMenuFocusRef\.current\) return;[\s\S]*?menuButtonRef\.current\?\.focus\(\)/);
-    // Focus that moved elsewhere on purpose is left alone.
-    assert.match(header, /active === document\.body \|\| Boolean\(drawerRef\.current\?\.contains\(active\)\)/);
+    // Escape restores focus for keyboard users. Pointer-close paths retain
+    // the default false value so mobile Safari does not leave a halo behind.
+    assert.match(header, /if \(e\.key === "Escape"\) \{\s*closeDrawer\(true\)/);
+    assert.match(header, /const closeDrawer = React\.useCallback\(\(restoreFocus = false\)/);
+    assert.match(header, /onPointerUp=\{\(event\) => event\.currentTarget\.blur\(\)\}/);
+    assert.match(header, /if \(drawerOpen \|\| !restoreMenuFocusRef\.current\) return;[\s\S]*?menuButtonRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   });
 });
 
@@ -75,7 +75,7 @@ describe("mobile filter and sort sheets (UI-17 / #1234)", () => {
   const header = source("src/components/Header.tsx");
 
   it("stack the backdrop and sheet above the site header", () => {
-    const headerZ = Number(header.match(/"relative"\} inset-x-0 top-0 z-\[(\d+)\]/)?.[1]);
+    const headerZ = Number(header.match(/"relative"\} isolate inset-x-0 top-0 z-\[(\d+)\]/)?.[1]);
     assert.equal(headerZ, 50);
     const sheetZ = [...sheets.matchAll(/fixed inset-(?:0|x-0 bottom-0) z-\[(\d+)\]/g)].map((m) => Number(m[1]));
     assert.equal(sheetZ.length, 4, "two backdrops and two sheets");

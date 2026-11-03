@@ -16,6 +16,7 @@ export const EXPECTED_AUTHORITY_CONSUMERS = Object.freeze([
   "src/app/dashboard/orders/page.tsx",
   "src/app/dashboard/sales/[orderId]/page.tsx",
   "src/app/dashboard/sales/page.tsx",
+  "src/lib/workshopData.ts",
 ]);
 export const EXPECTED_REFERENCE_FILES = Object.freeze([
   ...EXPECTED_AUTHORITY_CONSUMERS,

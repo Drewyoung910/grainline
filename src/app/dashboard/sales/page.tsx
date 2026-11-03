@@ -93,7 +93,7 @@ async function SalesContent({
     return (
       <main className="mx-auto max-w-4xl p-8 space-y-6">
         <header>
-          <h1 className="font-display text-2xl font-semibold">My sales</h1>
+          <h1 className="font-display page-title">Orders</h1>
           <p className="text-sm text-neutral-600">Orders containing your listings.</p>
         </header>
         <section className="card-section p-8">
@@ -106,14 +106,14 @@ async function SalesContent({
           <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href="/dashboard/onboarding"
-              className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3A2A24]"
+              className="btn btn-primary btn-sm"
             >
               Continue setup →
             </Link>
             {!seller.chargesEnabled && (
               <Link
                 href="/dashboard/seller"
-                className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
+                className="btn btn-secondary btn-sm"
               >
                 Connect Stripe Payouts →
               </Link>
@@ -167,7 +167,7 @@ async function SalesContent({
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-6">
       <header>
-        <h1 className="font-display text-2xl font-semibold">My sales</h1>
+        <h1 className="font-display page-title">Orders</h1>
         <p className="text-sm text-neutral-600">Orders containing your listings.</p>
       </header>
 
@@ -320,7 +320,7 @@ async function SalesContent({
               {previousHref ? (
                 <Link
                   href={previousHref}
-                  className="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 pointer-coarse:min-h-11"
+                  className="btn btn-secondary btn-sm pointer-coarse:min-h-11"
                 >
                   Previous
                 </Link>
@@ -332,7 +332,7 @@ async function SalesContent({
               {nextHref ? (
                 <Link
                   href={nextHref}
-                  className="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 pointer-coarse:min-h-11"
+                  className="btn btn-secondary btn-sm pointer-coarse:min-h-11"
                 >
                   Next
                 </Link>

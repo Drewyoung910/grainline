@@ -54,6 +54,45 @@ function reviewerInitials(reviewer: ReviewAuthorDisplay) {
   return avatarInitials(reviewerName(reviewer), "B");
 }
 
+function SellerReplyCard({
+  reply,
+  repliedAt,
+  sellerName,
+  sellerAvatarUrl,
+  tone,
+}: {
+  reply: string;
+  repliedAt: Date | string | null;
+  sellerName: string;
+  sellerAvatarUrl: string | null;
+  tone: "cream" | "white";
+}) {
+  return (
+    <div className={`rounded-lg p-3 text-sm ${tone === "white" ? "bg-white/80 ring-1 ring-stone-200/60" : "bg-[#EFEAE0]"}`}>
+      <div className="mb-1.5 flex items-center gap-2">
+        <div className={`flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-stone-200 ${tone === "white" ? "bg-[#EFEAE0]" : "bg-white"}`}>
+          {sellerAvatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={sellerAvatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-[9px] font-semibold text-neutral-700">
+              {avatarInitials(sellerName, "M")}
+            </span>
+          )}
+        </div>
+        <span className="text-xs font-semibold text-neutral-900">{sellerName}</span>
+        <span className="text-[11px] text-neutral-500">replied</span>
+        {repliedAt && (
+          <span className="ml-auto text-[11px] text-neutral-500">
+            {new Date(repliedAt).toLocaleDateString("en-US")}
+          </span>
+        )}
+      </div>
+      <p className="whitespace-pre-wrap break-words text-neutral-800">{reply}</p>
+    </div>
+  );
+}
+
 function reviewOrderByForSort(sort: "top" | "new" | "rating" | "photos"): Prisma.ReviewOrderByWithRelationInput[] {
   switch (sort) {
     case "new":
@@ -196,7 +235,7 @@ export default async function ReviewsSection({
         )}
       </div>
 
-      {agg._count._all > 1 && (
+      {agg._count._all > 0 && (
         <dl aria-label="Rating breakdown" className="grid max-w-sm gap-1.5">
           {starCounts.map(({ star, count }) => {
             const pct = Math.round((count / agg._count._all) * 100);
@@ -278,6 +317,17 @@ export default async function ReviewsSection({
                 {mine.photos.length > 0 && (
                   <div className="mt-2">
                     <ImageLightbox images={mine.photos.map((p) => p.url)} />
+                  </div>
+                )}
+                {mine.sellerReply && (
+                  <div className="mt-3">
+                    <SellerReplyCard
+                      reply={mine.sellerReply}
+                      repliedAt={mine.sellerReplyAt}
+                      sellerName={sellerName}
+                      sellerAvatarUrl={sellerAvatarUrl}
+                      tone="white"
+                    />
                   </div>
                 )}
               </div>
@@ -394,24 +444,13 @@ export default async function ReviewsSection({
                       </div>
 
                       {r.sellerReply && (
-                        <div className="rounded-lg bg-[#EFEAE0] p-3 text-sm">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <div className="h-6 w-6 rounded-full bg-white overflow-hidden ring-1 ring-stone-200 shrink-0">
-                              {sellerAvatarUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={sellerAvatarUrl} alt="" className="h-full w-full object-cover" />
-                              ) : null}
-                            </div>
-                            <span className="font-semibold text-xs text-neutral-900">{sellerName}</span>
-                            <span className="text-[11px] text-neutral-500">replied</span>
-                            {r.sellerReplyAt && (
-                              <span className="ml-auto text-[11px] text-neutral-500">
-                                {new Date(r.sellerReplyAt).toLocaleDateString("en-US")}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-neutral-800 whitespace-pre-wrap break-words">{r.sellerReply}</p>
-                        </div>
+                        <SellerReplyCard
+                          reply={r.sellerReply}
+                          repliedAt={r.sellerReplyAt}
+                          sellerName={sellerName}
+                          sellerAvatarUrl={sellerAvatarUrl}
+                          tone="cream"
+                        />
                       )}
                     </div>
                   </div>
