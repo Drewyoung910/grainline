@@ -122,8 +122,11 @@ describe("global CSS layering (UI-08, UI-11, #1270, #1275)", () => {
     const found = [];
     ast.walkRules((rule) => {
       if (rule.selectors.includes(selector)) {
-        const parent = rule.parent;
-        found.push(parent.type === "atrule" ? `@${parent.name} ${parent.params}`.trim() : "unlayered");
+        let parent = rule.parent;
+        while (parent && !(parent.type === "atrule" && parent.name === "layer")) {
+          parent = parent.parent;
+        }
+        found.push(parent ? `@${parent.name} ${parent.params}`.trim() : "unlayered");
       }
     });
     return found;
