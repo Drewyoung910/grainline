@@ -4,7 +4,7 @@ export function Pulse({ className }: { className: string }) {
 
 export function AccountOverviewSkeleton() {
   return (
-    <main className="mx-auto max-w-7xl space-y-10 p-6 md:p-8" aria-busy="true" aria-label="Loading account">
+    <main className="mx-auto max-w-5xl space-y-7" aria-busy="true" aria-label="Loading account">
       <header className="flex items-center gap-4">
         <Pulse className="h-14 w-14 rounded-full" />
         <div className="space-y-2">
@@ -124,42 +124,24 @@ function AccountInfoSection({ lines = 1 }: { lines?: number }) {
 
 export function WorkshopSkeleton() {
   return (
-    <main className="mx-auto max-w-7xl p-8" aria-busy="true" aria-label="Loading workshop">
-      <header className="mb-10">
-        <Pulse className="h-10 w-96 max-w-full" />
-        <Pulse className="mt-3 h-4 w-64 max-w-full" />
-        <div className="mt-8">
-          <Pulse className="mb-3 h-4 w-24" />
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-            {Array.from({ length: 10 }).map((_, index) => (
-              <Pulse key={index} className="h-14 sm:h-10 sm:w-32" />
-            ))}
-          </div>
-        </div>
-        <div className="my-6 border-t border-stone-200/60" />
-        <Pulse className="mb-3 h-4 w-28" />
-        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Pulse key={index} className="h-14 sm:h-10 sm:w-32" />
-          ))}
-        </div>
-        <Pulse className="mt-4 h-4 w-28" />
+    <main className="mx-auto max-w-5xl space-y-7" aria-busy="true" aria-label="Loading workshop">
+      <header>
+        <Pulse className="h-11 w-52 max-w-full" />
+        <Pulse className="mt-3 h-5 w-56 max-w-full" />
       </header>
-      <section>
-        <SectionHeader />
-        <div className="mt-4 flex gap-4 overflow-hidden sm:grid sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="card-section w-[220px] shrink-0 overflow-hidden sm:w-auto">
-              <Pulse className="aspect-[4/5] w-full rounded-none" />
-              <div className="space-y-2 p-4">
-                <Pulse className="h-4 w-3/4" />
-                <Pulse className="h-3 w-1/2" />
-                <Pulse className="h-8 w-full" />
-              </div>
-            </div>
+      <div className="card-section space-y-2 p-5 sm:p-[22px]">
+        <Pulse className="mb-3 h-7 w-56 max-w-full" />
+        <Pulse className="h-[62px] w-full rounded-[14px]" />
+        <Pulse className="h-[62px] w-full rounded-[14px]" />
+      </div>
+      <div>
+        <Pulse className="mb-3 h-8 w-48 max-w-full" />
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Pulse key={index} className="h-[86px] rounded-lg" />
           ))}
         </div>
-      </section>
+      </div>
     </main>
   );
 }

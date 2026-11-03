@@ -88,14 +88,15 @@ describe("listing delete lifecycle", () => {
       "prisma/migrations/20261013040000_add_listing_archived_at/migration.sql",
       "utf8",
     );
-    const dashboard = readFileSync("src/app/dashboard/page.tsx", "utf8");
+    const dashboard = readFileSync("src/lib/workshopData.ts", "utf8");
     const shop = readFileSync("src/app/seller/[id]/shop/page.tsx", "utf8");
 
     assert.match(schema, /archivedAt\s+DateTime\?/);
     assert.match(migration, /ADD COLUMN "archivedAt" TIMESTAMP\(3\)/);
     assert.match(migration, /status = 'HIDDEN'[\s\S]*"isPrivate" = true/);
     assert.match(migration, /audit\.action = 'HOLD_LISTING'[\s\S]*NOT audit\.undone/);
-    assert.match(dashboard, /where: \{ sellerId: seller\.id, archivedAt: null \}/);
+    assert.match(dashboard, /where: \{ sellerId: sellerProfileId, archivedAt: null \}/);
+    assert.match(dashboard, /const where: Prisma\.ListingWhereInput = \{ sellerId: sellerProfileId, archivedAt: null \}/);
     assert.match(shop, /\{ sellerId, archivedAt: null,/);
   });
 

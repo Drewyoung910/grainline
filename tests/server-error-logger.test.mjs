@@ -54,7 +54,7 @@ describe("server error logger", () => {
       "src/app/admin/actions.ts",
       "src/app/admin/support/actions.ts",
       "src/app/dashboard/onboarding/actions.ts",
-      "src/app/dashboard/page.tsx",
+      "src/app/dashboard/listings/actions.ts",
       "src/app/dashboard/seller/page.tsx",
     ];
 
@@ -67,7 +67,7 @@ describe("server error logger", () => {
     assert.doesNotMatch(source("src/app/admin/actions.ts"), /console\.error\("appendNote failed:/);
     assert.doesNotMatch(source("src/app/admin/support/actions.ts"), /console\.error\("setSupportRequestStatus failed:/);
     assert.doesNotMatch(source("src/app/dashboard/onboarding/actions.ts"), /console\.error\("\[onboarding action\] error:/);
-    assert.doesNotMatch(source("src/app/dashboard/page.tsx"), /console\.error\("Archive listing failed:/);
+    assert.doesNotMatch(source("src/app/dashboard/listings/actions.ts"), /console\.error\("Archive listing failed:/);
     assert.doesNotMatch(source("src/app/dashboard/seller/page.tsx"), /console\.error\("\[stripe-connect\] Failed to refresh seller account status:/);
 
     assert.match(source("src/lib/serverErrorLogger.ts"), /sanitizeEmailOutboxError\(error\.stack\)/);

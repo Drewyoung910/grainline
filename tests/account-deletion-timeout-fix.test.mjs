@@ -288,7 +288,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
   });
 
   it("documents the deletion contract and fixes the account settings link label", () => {
-    assert.match(source("src/app/account/page.tsx"), /Account settings →/);
+    assert.match(source("src/lib/workspaceNav.ts"), /href: "\/account\/settings", label: "Account settings"/);
     assert.doesNotMatch(source("src/app/account/page.tsx"), /Notification preferences →/);
 
     const claude = source("CLAUDE.md");
