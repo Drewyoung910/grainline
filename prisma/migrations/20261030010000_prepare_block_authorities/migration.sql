@@ -311,6 +311,7 @@ BEGIN
          relationship."createdAt"
     FROM public."Block" AS relationship
    WHERE relationship."blockerId" = request_user_id
+      OR relationship."blockedId" = request_user_id
    ORDER BY relationship."createdAt" DESC, relationship.id DESC;
 END;
 $grainline_user_block_export$;

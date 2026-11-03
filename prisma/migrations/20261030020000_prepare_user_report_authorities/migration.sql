@@ -363,7 +363,7 @@ BEGIN
   END IF;
   RETURN QUERY
   SELECT report.id, report.reason::text, report."targetType"::text,
-         NULL::text AS "targetId", report.resolved, report."resolvedAt",
+         report."targetId"::text, report.resolved, report."resolvedAt",
          report."resolutionNote"::text, report."createdAt"
     FROM public."UserReport" AS report
    WHERE report."reportedId" = actor_id
