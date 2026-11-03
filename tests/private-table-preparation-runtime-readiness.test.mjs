@@ -39,6 +39,7 @@ const sourceByIdentity = new Map(
     "email_service_v1",
     "seller_analytics_daily_v1",
     "admin_audit_log_v1",
+    "seller_metrics_v1",
   ]
     .flatMap((selection) => privateTablePreparationReleaseIds(selection))
     .flatMap((releaseId) => {
@@ -164,6 +165,7 @@ test("production readiness checks runtime and staff functions read-only", async 
         "email_service_v1",
         "seller_analytics_daily_v1",
         "admin_audit_log_v1",
+        "seller_metrics_v1",
       ],
       runtimeFunctionCount: runtimeCount,
       staffFunctionCount: staffCount,

@@ -67,12 +67,19 @@ import {
   privateTableRlsActivation,
 } from "./private-table-rls-activation-catalog.mjs";
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparation,
 } from "./private-table-preparation-catalog.mjs";
 
 const { Client } = pg;
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const SELLER_METRICS_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  SELLER_METRICS_PREPARATION.functions
+    .filter((entry) => privateTableFunctionExecuteRoles(entry).length === 0)
+    .map((entry) => entry.name),
+);
 
 export const REQUIRED_TABLE_PRIVILEGES = ["SELECT", "INSERT", "UPDATE", "DELETE"];
 export const SERVICE_REFERENCE_TABLE_PRIVILEGES = Object.freeze({
@@ -741,6 +748,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_admin_audit_ban_repair_candidates",
   "grainline_admin_audit_ban_repair_state",
   "grainline_admin_audit_ban_repair_append",
+  ...SELLER_METRICS_PRIVATE_FUNCTION_NAMES,
   "grainline_order_item_seller_key_bind",
   "grainline_order_item_seller_key_complete",
   "grainline_order_seller_key_assert",

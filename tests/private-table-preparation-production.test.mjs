@@ -717,6 +717,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "seller_broadcast_v1",
     "email_service_v1",
     "admin_audit_log_v1",
+    "seller_metrics_v1",
     "commission_domain_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
@@ -749,6 +750,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "email_service_v1",
       "seller_analytics_daily_v1",
       "admin_audit_log_v1",
+      "seller_metrics_v1",
       "owner_social_verification_v1",
       "commission_domain_v1",
       "block_report_seller_faq_v1",
