@@ -949,7 +949,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   admin_audit_log_v1: Object.freeze({
     migration: "20261102010000_prepare_admin_audit_log_authorities",
-    migrationSha256: "1895bb203781aabaf3c3efebc9419925415f6db639b5c9780d4865504b48ccc8",
+    migrationSha256: "91b1ca2a5477e86311d704622399db04e4cb2515b284a5add56d0b8cf8291803",
     table: "AdminAuditLog",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -993,6 +993,12 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       "tests/transaction-retry.test.mjs",
     ]),
     functions: Object.freeze([
+      Object.freeze({
+        name: "grainline_admin_audit_redact_deleted_references",
+        arguments: "jsonb",
+        executeRoles: Object.freeze([]),
+        volatility: "s",
+      }),
       Object.freeze({
         name: "grainline_admin_audit_insert_write_fence",
         arguments: "",

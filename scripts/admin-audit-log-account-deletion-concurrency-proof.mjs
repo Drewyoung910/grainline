@@ -210,15 +210,13 @@ async function writerFirstProof(config, controller, observer) {
     assert.ok(candidate, "deletion scan missed the writer that committed before its fence");
     const plan = {
       logId: auditId,
-      planVersion: 2,
+      planVersion: 3,
       expectedMetadataSha256: candidate.metadataSha256,
       expectedReasonSha256: candidate.reasonSha256,
-      metadata: {
-        actorKind: "user",
-        marker: "[deleted account]",
-        requestedId: `${prefix}unused`,
-        redactedForAccountDeletion: true,
-      },
+      metadataPatches: [
+        { path: ["marker"], value: "[deleted account]" },
+        { path: ["redactedForAccountDeletion"], value: true },
+      ],
     };
     assert.equal(JSON.stringify(plan).includes(rawMarker), false);
     const enqueued = await deletion.query(
@@ -288,14 +286,17 @@ async function deletionFirstProof(config, controller, observer) {
     await waitBlocked(observer, writerPid, deletionPid, "deletion-first fence");
     await deletion.query("COMMIT");
     const lateOutcome = await pendingInsert;
-    assert.equal(lateOutcome.error?.code, "42501");
-    await lateWriter.query("ROLLBACK");
-    const count = await controller.query(
-      `SELECT pg_catalog.count(*)::integer AS count
+    assert.equal(lateOutcome.error, undefined);
+    await lateWriter.query("COMMIT");
+    const inserted = await controller.query(
+      `SELECT "targetId", metadata
          FROM public."AdminAuditLog" WHERE id = $1`,
       [`${prefix}late-writer-audit`],
     );
-    assert.equal(count.rows[0].count, 0);
+    assert.deepEqual(inserted.rows, [{
+      targetId: "[deleted account]",
+      metadata: { marker: "late-sensitive-marker" },
+    }]);
     return true;
   } finally {
     await Promise.allSettled([deletion.query("ROLLBACK"), lateWriter.query("ROLLBACK")]);
@@ -356,10 +357,13 @@ async function redactionAfterUndoProof(config, controller, observer) {
       sourceId,
       JSON.stringify({
         logId: sourceId,
-        planVersion: 2,
+        planVersion: 3,
         expectedMetadataSha256: source.metadata_sha,
         expectedReasonSha256: source.reason_sha,
-        metadata: redactedMetadata,
+        metadataPatches: [
+          { path: ["subjectUserId"], value: "[deleted account]" },
+          { path: ["redactedForAccountDeletion"], value: true },
+        ],
       }),
       claimToken,
     ],

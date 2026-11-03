@@ -534,11 +534,11 @@ test("AdminAuditLog preparation seals new and retained authorities", () => {
     "admin_audit_log_v1",
   );
   assert.equal(candidate.table, "AdminAuditLog");
-  assert.equal(candidate.functions.length, 15);
+  assert.equal(candidate.functions.length, 16);
   assert.equal(candidate.retainedFunctions.length, 23);
   assert.equal(candidate.addedIndexes.length, 2);
   assert.equal(candidate.addedTriggers.length, 1);
-  assert.equal(verifiedCandidate.functionSources.size, 15);
+  assert.equal(verifiedCandidate.functionSources.size, 16);
   assert.equal(verifiedCandidate.digest, candidate.migrationSha256);
   assert.deepEqual(
     candidate.functions
@@ -548,6 +548,12 @@ test("AdminAuditLog preparation seals new and retained authorities", () => {
       "grainline_admin_audit_account_deletion_redaction_apply",
       "grainline_admin_audit_account_deletion_legacy_redaction_apply",
     ],
+  );
+  assert.deepEqual(
+    candidate.functions.find(
+      (entry) => entry.name === "grainline_admin_audit_redact_deleted_references",
+    ).executeRoles,
+    [],
   );
   assert.deepEqual(
     candidate.functions.find(

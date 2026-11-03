@@ -42,6 +42,7 @@ import {
 } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import {
+  buildAccountDeletionAuditJsonPatches,
   markAccountDeletionAuditMetadata,
   redactAccountDeletionAuditMetadata,
   redactAccountDeletionText,
@@ -269,8 +270,17 @@ async function collectAdminAuditLogRedactionUpdates({
       logId: id,
       expectedMetadataSha256: candidate.metadataSha256,
       expectedReasonSha256: candidate.reasonSha256,
-      ...(redacted.changed || marked.changed ? { metadata: marked.metadata } : {}),
-      ...(reason.changed && reason.text !== null ? { reason: reason.text } : {}),
+      ...(redacted.changed || marked.changed
+        ? {
+            metadataPatches: buildAccountDeletionAuditJsonPatches(
+              candidate.metadata as Parameters<typeof buildAccountDeletionAuditJsonPatches>[0],
+              marked.metadata,
+            ),
+          }
+        : {}),
+      ...(reason.changed && reason.text !== null
+        ? { reasonPatches: reason.patches }
+        : {}),
     });
   }
   return updates;

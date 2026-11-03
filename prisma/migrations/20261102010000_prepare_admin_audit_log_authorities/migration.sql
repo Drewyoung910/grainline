@@ -33,7 +33,8 @@ BEGIN
        pg_catalog.to_regprocedure('public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_candidates(integer)'),
        pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_state(text,text)'),
-       pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)')
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)'),
+       pg_catalog.to_regprocedure('public.grainline_admin_audit_redact_deleted_references(jsonb)')
      )
   ) THEN
     RAISE EXCEPTION 'AdminAuditLog preparation function already exists';
@@ -79,12 +80,97 @@ CREATE INDEX "AdminAuditLog_createdAt_id_idx"
 CREATE INDEX "AdminAuditLog_action_createdAt_id_idx"
   ON public."AdminAuditLog" (action, "createdAt" DESC, id DESC);
 
+-- Replace exact deleted-account ids in newly-written JSON evidence without
+-- changing keys, array order, booleans, numbers, or unrelated text. Stable
+-- adminId references remain intact because the column is a required FK and is
+-- retained audit provenance; all free-form locations are redacted before the
+-- row becomes visible.
+CREATE FUNCTION public.grainline_admin_audit_redact_deleted_references(
+  p_value jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+PARALLEL SAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_admin_audit_redact_deleted_references$
+DECLARE
+  value_type text;
+  result jsonb;
+  item record;
+  changed boolean := false;
+BEGIN
+  IF p_value IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  value_type := pg_catalog.jsonb_typeof(p_value);
+  IF value_type = 'string' THEN
+    IF EXISTS (
+      SELECT 1
+        FROM public."User" AS deleted_user
+       WHERE deleted_user.id = p_value #>> '{}'
+         AND deleted_user."deletedAt" IS NOT NULL
+    ) THEN
+      RETURN pg_catalog.to_jsonb('[deleted account]'::text);
+    END IF;
+    RETURN p_value;
+  END IF;
+
+  IF value_type = 'array' THEN
+    result := '[]'::jsonb;
+    FOR item IN
+      SELECT element.value, element.ordinality
+        FROM pg_catalog.jsonb_array_elements(p_value)
+          WITH ORDINALITY AS element(value, ordinality)
+       ORDER BY element.ordinality
+    LOOP
+      result := result || pg_catalog.jsonb_build_array(
+        public.grainline_admin_audit_redact_deleted_references(item.value)
+      );
+    END LOOP;
+    RETURN result;
+  END IF;
+
+  IF value_type = 'object' THEN
+    result := '{}'::jsonb;
+    FOR item IN
+      SELECT entry.key, entry.value
+        FROM pg_catalog.jsonb_each(p_value) AS entry(key, value)
+       ORDER BY entry.key
+    LOOP
+      DECLARE
+        redacted_value jsonb :=
+          public.grainline_admin_audit_redact_deleted_references(item.value);
+      BEGIN
+        changed := changed OR redacted_value IS DISTINCT FROM item.value;
+        result := result || pg_catalog.jsonb_build_object(item.key, redacted_value);
+      END;
+    END LOOP;
+    IF changed THEN
+      result := result || pg_catalog.jsonb_build_object(
+        'redactedForAccountDeletion', true
+      );
+    END IF;
+    RETURN result;
+  END IF;
+
+  RETURN p_value;
+END;
+$grainline_admin_audit_redact_deleted_references$;
+
+REVOKE ALL ON FUNCTION
+  public.grainline_admin_audit_redact_deleted_references(jsonb)
+FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime,
+  grainline_account_deletion_runtime;
+
 -- Every AdminAuditLog producer, including retained domain functions and the
 -- predecessor direct-table path, crosses one transaction-scoped write fence.
 -- Account deletion acquires the same fence before it locks account/domain
 -- rows. A producer that was already in flight commits before the deletion scan;
--- a later producer waits and is refused if it structurally references a user
--- that the deletion has finished anonymizing.
+-- a later producer waits and has deleted-user references redacted before the
+-- row is retained, without blocking recovery or moderation work.
 CREATE FUNCTION public.grainline_admin_audit_insert_write_fence()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -101,22 +187,26 @@ BEGIN
   IF EXISTS (
     SELECT 1
       FROM public."User" AS deleted_user
-     WHERE deleted_user."deletedAt" IS NOT NULL
-       AND (
-         deleted_user.id = NEW."adminId"
-         OR deleted_user.id = NEW."targetId"
-         OR EXISTS (
-           SELECT 1
-             FROM pg_catalog.jsonb_path_query(
-               COALESCE(NEW.metadata, '{}'::jsonb),
-               '$.** ? (@.type() == "string")'::pg_catalog.jsonpath
-             ) AS metadata_value(value)
-            WHERE metadata_value.value #>> '{}' = deleted_user.id
-         )
-       )
+     WHERE deleted_user.id = NEW."targetId"
+       AND deleted_user."deletedAt" IS NOT NULL
   ) THEN
-    RAISE EXCEPTION 'Admin audit insert references a deleted account'
-      USING ERRCODE = '42501';
+    NEW."targetId" := '[deleted account]';
+  END IF;
+
+  NEW.metadata := public.grainline_admin_audit_redact_deleted_references(
+    COALESCE(NEW.metadata, '{}'::jsonb)
+  );
+
+  IF EXISTS (
+    SELECT 1
+      FROM public."User" AS deleted_admin
+     WHERE deleted_admin.id = NEW."adminId"
+       AND deleted_admin."deletedAt" IS NOT NULL
+  ) THEN
+    NEW.metadata := NEW.metadata || pg_catalog.jsonb_build_object(
+      'adminAccountDeleted', true,
+      'redactedForAccountDeletion', true
+    );
   END IF;
 
   RETURN NEW;
@@ -1049,32 +1139,76 @@ BEGIN
       CROSS JOIN LATERAL pg_catalog.jsonb_object_keys(supplied.plan) AS field(key)
      WHERE field.key NOT IN (
        'logId', 'planVersion', 'expectedMetadataSha256',
-       'expectedReasonSha256', 'metadata', 'reason'
+       'expectedReasonSha256', 'metadataPatches', 'reasonPatches'
      )
   ) OR EXISTS (
     SELECT 1
       FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
      WHERE supplied.plan->>'logId' !~ '^[A-Za-z0-9._:-]{1,191}$'
         OR pg_catalog.jsonb_typeof(supplied.plan->'planVersion') <> 'number'
-        OR supplied.plan->>'planVersion' <> '2'
+        OR supplied.plan->>'planVersion' <> '3'
         OR supplied.plan->>'expectedMetadataSha256' !~ '^[0-9a-f]{64}$'
         OR supplied.plan->>'expectedReasonSha256' !~ '^[0-9a-f]{64}$'
         OR (
-          NOT (supplied.plan ? 'metadata')
-          AND NOT (supplied.plan ? 'reason')
+          NOT (supplied.plan ? 'metadataPatches')
+          AND NOT (supplied.plan ? 'reasonPatches')
         )
         OR (
-          supplied.plan ? 'metadata'
-          AND pg_catalog.jsonb_typeof(supplied.plan->'metadata') <> 'object'
-        )
-        OR (
-          supplied.plan ? 'reason'
+          supplied.plan ? 'metadataPatches'
           AND (
-            pg_catalog.jsonb_typeof(supplied.plan->'reason') <> 'string'
-            OR pg_catalog.char_length(supplied.plan->>'reason') > 1000
+            pg_catalog.jsonb_typeof(supplied.plan->'metadataPatches') <> 'array'
+            OR pg_catalog.jsonb_array_length(supplied.plan->'metadataPatches')
+                 NOT BETWEEN 1 AND 1024
+          )
+        )
+        OR (
+          supplied.plan ? 'reasonPatches'
+          AND (
+            pg_catalog.jsonb_typeof(supplied.plan->'reasonPatches') <> 'array'
+            OR pg_catalog.jsonb_array_length(supplied.plan->'reasonPatches')
+                 NOT BETWEEN 1 AND 128
           )
         )
         OR pg_catalog.octet_length(supplied.plan::text) > 1000000
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+      CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(
+        COALESCE(supplied.plan->'metadataPatches', '[]'::jsonb)
+      ) AS patch(value)
+     WHERE pg_catalog.jsonb_typeof(patch.value) <> 'object'
+        OR NOT (patch.value ? 'path')
+        OR NOT (patch.value ? 'value')
+        OR pg_catalog.jsonb_typeof(patch.value->'path') <> 'array'
+        OR pg_catalog.jsonb_array_length(patch.value->'path') > 32
+        OR EXISTS (
+          SELECT 1
+            FROM pg_catalog.jsonb_array_elements(patch.value->'path') AS part(value)
+           WHERE pg_catalog.jsonb_typeof(part.value) <> 'string'
+              OR pg_catalog.char_length(part.value #>> '{}') NOT BETWEEN 1 AND 255
+        )
+        OR EXISTS (
+          SELECT 1
+            FROM pg_catalog.jsonb_object_keys(patch.value) AS patch_field(key)
+           WHERE patch_field.key NOT IN ('path', 'value')
+        )
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.jsonb_array_elements(p_plans) AS supplied(plan)
+      CROSS JOIN LATERAL pg_catalog.jsonb_array_elements(
+        COALESCE(supplied.plan->'reasonPatches', '[]'::jsonb)
+      ) AS patch(value)
+     WHERE pg_catalog.jsonb_typeof(patch.value) <> 'object'
+        OR patch.value->>'expectedSha256' !~ '^[0-9a-f]{64}$'
+        OR pg_catalog.jsonb_typeof(patch.value->'length') <> 'number'
+        OR (patch.value->>'length')::integer NOT BETWEEN 1 AND 1000
+        OR pg_catalog.jsonb_typeof(patch.value->'replacement') <> 'string'
+        OR pg_catalog.char_length(patch.value->>'replacement') NOT BETWEEN 1 AND 1000
+        OR EXISTS (
+          SELECT 1
+            FROM pg_catalog.jsonb_object_keys(patch.value) AS patch_field(key)
+           WHERE patch_field.key NOT IN ('expectedSha256', 'length', 'replacement')
+        )
   ) THEN
     RAISE EXCEPTION 'Admin audit account-deletion redaction plan shape is invalid'
       USING ERRCODE = '22023';
@@ -1185,12 +1319,17 @@ DECLARE
   source_effect public."AccountDeletionSideEffect"%ROWTYPE;
   current_metadata jsonb;
   current_reason text;
-  current_metadata_sha256 text;
-  current_reason_sha256 text;
   next_metadata jsonb;
   next_reason text;
   update_metadata boolean;
   update_reason boolean;
+  patch record;
+  patch_path text[];
+  reason_patch record;
+  search_position integer;
+  patch_length integer;
+  patch_replacement text;
+  candidate_segment text;
   source_now timestamp(3) without time zone :=
     (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::timestamp(3);
 BEGIN
@@ -1217,26 +1356,34 @@ BEGIN
      AND effect."claimToken" = p_claim_token
      AND effect.payload->>'logId' = p_log_id
      AND pg_catalog.jsonb_typeof(effect.payload->'planVersion') = 'number'
-     AND effect.payload->>'planVersion' = '2'
+     AND effect.payload->>'planVersion' = '3'
      AND effect.payload->>'expectedMetadataSha256' ~ '^[0-9a-f]{64}$'
      AND effect.payload->>'expectedReasonSha256' ~ '^[0-9a-f]{64}$'
      AND NOT (effect.payload ? 'sensitiveValues')
      AND (
-       pg_catalog.jsonb_typeof(effect.payload->'metadata') = 'object'
-       OR pg_catalog.jsonb_typeof(effect.payload->'reason') = 'string'
+       pg_catalog.jsonb_typeof(effect.payload->'metadataPatches') = 'array'
+       OR pg_catalog.jsonb_typeof(effect.payload->'reasonPatches') = 'array'
      )
      AND (
-       NOT (effect.payload ? 'metadata')
+       NOT (effect.payload ? 'metadataPatches')
        OR (
-         pg_catalog.jsonb_typeof(effect.payload->'metadata') = 'object'
-         AND pg_catalog.octet_length((effect.payload->'metadata')::text) <= 1000000
+         pg_catalog.jsonb_typeof(effect.payload->'metadataPatches') = 'array'
+         AND pg_catalog.jsonb_array_length(effect.payload->'metadataPatches')
+               BETWEEN 1 AND 1024
+         AND pg_catalog.octet_length(
+           (effect.payload->'metadataPatches')::text
+         ) <= 1000000
        )
      )
      AND (
-       NOT (effect.payload ? 'reason')
+       NOT (effect.payload ? 'reasonPatches')
        OR (
-         pg_catalog.jsonb_typeof(effect.payload->'reason') = 'string'
-         AND pg_catalog.char_length(effect.payload->>'reason') <= 1000
+         pg_catalog.jsonb_typeof(effect.payload->'reasonPatches') = 'array'
+         AND pg_catalog.jsonb_array_length(effect.payload->'reasonPatches')
+               BETWEEN 1 AND 128
+         AND pg_catalog.octet_length(
+           (effect.payload->'reasonPatches')::text
+         ) <= 1000000
        )
      )
      AND pg_catalog.octet_length(effect.payload::text) <= 1000000
@@ -1268,30 +1415,75 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
-  current_metadata_sha256 := pg_catalog.encode(
-    pg_catalog.sha256(
-      pg_catalog.convert_to(current_metadata::text, 'UTF8')
-    ),
-    'hex'
-  );
-  current_reason_sha256 := pg_catalog.encode(
-    pg_catalog.sha256(
-      pg_catalog.convert_to(
-        pg_catalog.jsonb_build_object('reason', current_reason)::text,
-        'UTF8'
-      )
-    ),
-    'hex'
-  );
-  IF current_metadata_sha256 <> source_effect.payload->>'expectedMetadataSha256'
-     OR current_reason_sha256 <> source_effect.payload->>'expectedReasonSha256' THEN
-    RETURN false;
-  END IF;
+  update_metadata := source_effect.payload ? 'metadataPatches';
+  update_reason := source_effect.payload ? 'reasonPatches';
 
-  update_metadata := source_effect.payload ? 'metadata';
-  update_reason := source_effect.payload ? 'reason';
-  next_metadata := source_effect.payload->'metadata';
-  next_reason := source_effect.payload->>'reason';
+  -- Metadata plans are monotonic path edits. Apply them to the current row so
+  -- a completed redaction for another account is never restored by an older
+  -- whole-row snapshot. Reason patches carry only a hash and character count
+  -- for the sensitive fragment, so they can rebase without retaining PII.
+
+  next_metadata := current_metadata;
+  IF update_metadata THEN
+    FOR patch IN
+      SELECT supplied.value
+        FROM pg_catalog.jsonb_array_elements(
+          source_effect.payload->'metadataPatches'
+        ) WITH ORDINALITY AS supplied(value, ordinality)
+       ORDER BY supplied.ordinality
+    LOOP
+      SELECT COALESCE(pg_catalog.array_agg(path_part.value #>> '{}' ORDER BY path_part.ordinality), ARRAY[]::text[])
+        INTO patch_path
+        FROM pg_catalog.jsonb_array_elements(patch.value->'path')
+          WITH ORDINALITY AS path_part(value, ordinality);
+      IF pg_catalog.cardinality(patch_path) = 0 THEN
+        next_metadata := patch.value->'value';
+      ELSE
+        next_metadata := pg_catalog.jsonb_set(
+          next_metadata,
+          patch_path,
+          patch.value->'value',
+          true
+        );
+      END IF;
+    END LOOP;
+  END IF;
+  next_reason := current_reason;
+  IF update_reason AND next_reason IS NOT NULL THEN
+    FOR reason_patch IN
+      SELECT supplied.value
+        FROM pg_catalog.jsonb_array_elements(
+          source_effect.payload->'reasonPatches'
+        ) WITH ORDINALITY AS supplied(value, ordinality)
+       ORDER BY supplied.ordinality
+    LOOP
+      patch_length := (reason_patch.value->>'length')::integer;
+      patch_replacement := reason_patch.value->>'replacement';
+      search_position := 1;
+      WHILE search_position <= pg_catalog.char_length(next_reason) - patch_length + 1 LOOP
+        candidate_segment := pg_catalog.substring(
+          next_reason,
+          search_position,
+          patch_length
+        );
+        IF pg_catalog.encode(
+          pg_catalog.sha256(pg_catalog.convert_to(candidate_segment, 'UTF8')),
+          'hex'
+        ) = reason_patch.value->>'expectedSha256' THEN
+          next_reason := pg_catalog.overlay(
+            next_reason,
+            patch_replacement,
+            search_position,
+            patch_length
+          );
+          search_position := search_position + pg_catalog.char_length(patch_replacement);
+        ELSE
+          search_position := search_position + 1;
+        END IF;
+      END LOOP;
+    END LOOP;
+    next_reason := pg_catalog.substring(next_reason, 1, 1000);
+  END IF;
 
   UPDATE public."AdminAuditLog" AS audit
      SET metadata = CASE
@@ -1695,7 +1887,8 @@ REVOKE ALL ON FUNCTION
   public.grainline_admin_audit_staff_ban_rows(text,text,boolean,integer),
   public.grainline_admin_audit_ban_repair_candidates(integer),
   public.grainline_admin_audit_ban_repair_state(text,text),
-  public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb)
+  public.grainline_admin_audit_ban_repair_append(text,text,text,jsonb),
+  public.grainline_admin_audit_redact_deleted_references(jsonb)
 FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime,
   grainline_account_deletion_runtime;
 
