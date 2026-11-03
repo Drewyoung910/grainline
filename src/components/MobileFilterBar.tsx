@@ -214,7 +214,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           aria-controls={`${baseId}-mobile-category-options`}
           onPointerUp={(event) => event.currentTarget.blur()}
           onClick={() => setCategoryOpen((open) => !open)}
-          className="flex min-h-11 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3.5 text-left text-[15px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] transition-[background-color,box-shadow] hover:bg-[#F3EEE5]"
+          className="flex min-h-11 w-full items-center justify-between rounded-md border border-neutral-200 bg-white px-3.5 text-left text-[15px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] transition-[background-color,box-shadow] hover:bg-[#F3EEE5]"
         >
           <span className="truncate">{draftCategory ? CATEGORY_LABELS[draftCategory] : "All categories"}</span>
           <ChevronDown
@@ -228,7 +228,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             id={`${baseId}-mobile-category-options`}
             role="radiogroup"
             aria-labelledby={`${baseId}-mobile-category-label`}
-            className="mt-2 space-y-0.5 rounded-2xl bg-[#EFEAE0]/70 p-1.5 animate-menu-in motion-reduce:animate-none"
+            className="mt-2 space-y-0.5 rounded-lg bg-[#EFEAE0]/70 p-1.5 animate-menu-in motion-reduce:animate-none"
           >
             {["", ...CATEGORY_VALUES].map((value) => {
               const selected = draftCategory === value;
@@ -243,7 +243,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
                     setDraftCategory(value);
                     setCategoryOpen(false);
                   }}
-                  className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3.5 text-left text-[15px] transition-[background-color,box-shadow,color] ${
+                  className={`flex min-h-11 w-full items-center justify-between rounded-md px-3.5 text-left text-[15px] transition-[background-color,box-shadow,color] ${
                     selected
                       ? "bg-white font-semibold text-neutral-900 shadow-[0_5px_16px_-12px_rgba(44,31,26,0.75)]"
                       : "text-neutral-700 hover:bg-white/70"
@@ -326,7 +326,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             inputMode="decimal"
             defaultValue={currentMin}
             placeholder="Min"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
+            className="min-h-[44px] w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
           <span className="text-neutral-500 shrink-0">–</span>
           <label htmlFor={`${baseId}-mobile-max`} className="sr-only">Maximum price</label>
@@ -337,7 +337,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             inputMode="decimal"
             defaultValue={currentMax}
             placeholder="Max"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
+            className="min-h-[44px] w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
         </div>
         {priceError && <p role="alert" className="mt-2 text-xs text-red-700">{priceError}</p>}
@@ -554,7 +554,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
               key={value}
               href={sortHref(value)}
               onClick={() => setSortOpen(false)}
-              className={`flex min-h-11 items-center justify-between rounded-xl px-3.5 py-2.5 text-[15px] transition-[background-color,box-shadow,color] hover:bg-[#F3EEE5] ${
+              className={`flex min-h-11 items-center justify-between rounded-md px-3.5 py-2.5 text-[15px] transition-[background-color,box-shadow,color] hover:bg-[#F3EEE5] ${
                 currentSort === value ? "bg-[#EFEAE0] font-semibold text-neutral-900" : "text-neutral-700"
               }`}
             >

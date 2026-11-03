@@ -118,7 +118,7 @@ export default function ConversationRail() {
       {conversations === null && !failed && (
         <div aria-hidden="true" className="grid gap-1">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2.5">
+            <div key={index} className="flex items-center gap-2.5 rounded-md px-2.5 py-2.5">
               <div className="size-9 shrink-0 animate-pulse rounded-full bg-white/70 motion-reduce:animate-none" />
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="h-3.5 w-2/3 animate-pulse rounded bg-white/70 motion-reduce:animate-none" />
@@ -143,7 +143,7 @@ export default function ConversationRail() {
                 <Link
                   href={`/messages/${conversation.id}`}
                   aria-current={current ? "page" : undefined}
-                  className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 transition-colors duration-150 ${
+                  className={`flex items-center gap-2.5 rounded-md px-2.5 py-2.5 transition-colors duration-150 ${
                     current ? "bg-white shadow-[0_1px_0_rgba(44,31,26,0.08)]" : "hover:bg-[#E3DCCB]"
                   }`}
                 >

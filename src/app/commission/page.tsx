@@ -349,7 +349,7 @@ async function CommissionPageContent({
           ["2", "Makers reach out", "Interested makers introduce themselves through Grainline Messages."],
           ["3", "Buy securely", "Choose a maker, agree on the details, and pay through a private Grainline listing."],
         ].map(([number, title, description]) => (
-          <li key={number} className="flex gap-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-[0_12px_30px_-28px_rgba(44,31,26,0.6)]">
+          <li key={number} className="flex gap-3 rounded-lg border border-stone-200/80 bg-white p-4 shadow-[0_12px_30px_-28px_rgba(44,31,26,0.6)]">
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#2C1F1A] text-xs font-semibold text-[#FBF8F3]">{number}</span>
             <span className="min-w-0 text-sm leading-5 text-neutral-600">
               <strong className="mb-0.5 block font-medium text-neutral-900">{title}</strong>
@@ -423,7 +423,7 @@ async function CommissionPageContent({
             return (
               <article
                 key={r.id}
-                className="group flex min-w-0 flex-col overflow-hidden rounded-[1.25rem] border border-stone-200/80 bg-white shadow-[0_14px_34px_-30px_rgba(44,31,26,0.65)] transition-[border-color,box-shadow] hover:border-stone-300 hover:shadow-[0_20px_42px_-30px_rgba(44,31,26,0.72)]"
+                className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-stone-200/80 bg-white shadow-[0_14px_34px_-30px_rgba(44,31,26,0.65)] transition-[border-color,box-shadow] hover:border-stone-300 hover:shadow-[0_20px_42px_-30px_rgba(44,31,26,0.72)]"
               >
                 {r.referenceImageUrls[0] && (
                   <Link href={`/commission/${r.id}`} className="block aspect-video overflow-hidden bg-[#EFEAE0]">
@@ -508,21 +508,21 @@ async function CommissionPageContent({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
+        <nav aria-label="Commission request pages" className="mt-8 flex flex-wrap items-center justify-center gap-2">
           {page > 1 && (
-            <Link href={buildHref({ page: String(page - 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page - 1) })} className="btn btn-sm btn-secondary">
               ← Previous
             </Link>
           )}
-          <span className="border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+          <span className="inline-flex min-h-9 items-center rounded-md bg-[#EFEAE0] px-4 py-2 text-sm text-neutral-600">
             Page {page} of {totalPages}
           </span>
           {page < totalPages && (
-            <Link href={buildHref({ page: String(page + 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page + 1) })} className="btn btn-sm btn-secondary">
               Next →
             </Link>
           )}
-        </div>
+        </nav>
       )}
     </main>
   );
