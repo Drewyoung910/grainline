@@ -128,7 +128,9 @@ describe("homepage hero and header contracts", () => {
     const filters = source("src/components/FilterSidebar.tsx");
     assert.doesNotMatch(filters, /100dvh-var\(--site-header-offset\)-2rem|scrollbar-width:thin/);
     assert.match(filters, /aria-controls=\{categoryOpen \? `\$\{baseId\}-category-options` : undefined\}/);
-    assert.match(filters, /role="listbox"/);
+    assert.match(filters, /aria-haspopup="true"/);
+    assert.match(filters, /<nav[\s\S]*id=\{`\$\{baseId\}-category-options`\}/);
+    assert.doesNotMatch(filters, /<select/);
     assert.match(filters, /categoryOpen && !categoryClosing \? "rotate-180" : ""/);
     assert.ok(filters.indexOf("Near location") < filters.indexOf("Price (USD)"));
   });
@@ -300,9 +302,9 @@ describe("homepage hero and header contracts", () => {
       assert.match(text, /overlay = false/);
       // Popovers are white cards with the shared long soft shadow.
       assert.match(text, /: "bg-white";/);
-      assert.match(text, /rounded-\[18px\] text-neutral-900 popover-shadow/);
+      assert.match(text, /rounded-2xl text-neutral-900 popover-shadow/);
     }
-    assert.match(header, /rounded-\[18px\] bg-white text-neutral-900 popover-shadow/);
+    assert.match(header, /rounded-2xl bg-white text-neutral-900 popover-shadow/);
     assert.match(header, /from-\[#F7F5F0\] via-\[#F7F5F0\]\/75/);
     assert.doesNotMatch(header, /fixed inset-0[^\n]*backdrop-blur/);
     assert.match(bell, /className="text-\[13px\] font-medium leading-tight"/);
@@ -355,7 +357,7 @@ describe("homepage hero and header contracts", () => {
     assert.match(search, /const SUGGESTION_STAGGER_MS = 520;/);
     assert.match(search, /className=\{staggerItems \? "search-option-in" : undefined\}/);
     assert.match(search, /const SUGGESTION_DEBOUNCE_MS = 150;/);
-    assert.match(search, /\{ kind: "query", key: "query", section: "Search", label: query \}/);
+    assert.match(search, /kind: "query",\s*key: "query",\s*section: suggestionPhase === "empty" \? "No matches" : "Search",\s*label: query,/);
     // Pieces and shops before categories.
     assert.ok(search.indexOf("...ITEM_SECTION_ORDER.flatMap") < search.indexOf("...categories.map"));
   });

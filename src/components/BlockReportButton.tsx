@@ -175,7 +175,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
               maxHeight: `calc(100vh - ${(menuPos?.top ?? 0) + MENU_MARGIN}px)`,
               transform: menuPos ? undefined : "translate(-200vw,-200vw)",
             }}
-            className="z-[9999] overflow-y-auto rounded-2xl bg-white p-1.5 popover-shadow"
+            className="scrollbar-hidden z-[9999] overflow-y-auto rounded-2xl bg-white p-1.5 popover-shadow"
           >
             {view === "menu" ? (
               <>

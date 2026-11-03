@@ -211,7 +211,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
       {listings.length > 0 && (
         <div className="space-y-2">
           <label className="block text-sm font-medium">Feature listings in this post</label>
-          <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-neutral-200 bg-white p-3">
+          <div className="scrollbar-hidden max-h-48 space-y-1.5 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-3">
             {listings.map((l) => (
               <label key={l.id} className="flex items-center gap-2 text-sm cursor-pointer">
                 <input

@@ -19,6 +19,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import HomeHeroIntro from "@/components/HomeHeroIntro";
+import HomeCommissionBand from "@/components/HomeCommissionBand";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -691,14 +692,14 @@ export default async function HomePage() {
             <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden transition-shadow duration-200 hover:shadow-lg">
+                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
-                      <div className="aspect-[4/5] bg-neutral-100 overflow-hidden">
+                      <div className="group/photo aspect-[4/5] overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
                         <MediaImage
                           src={item.photoUrl}
                           alt={item.photoAltText ?? item.title}
                           loading="lazy"
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </div>
@@ -712,14 +713,14 @@ export default async function HomePage() {
                     </Link>
                   </ClickTracker>
                 ) : (
-                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden transition-shadow duration-200 hover:shadow-lg">
+                  <li key={item.slug} className="w-44 flex-none snap-start">
                     <Link href={`/blog/${item.slug}`} className="block">
-                      <div className="aspect-square bg-neutral-100 overflow-hidden">
+                      <div className="group/photo aspect-square overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
                         <MediaImage
                           src={item.coverImageUrl}
                           alt={item.title}
                           loading="lazy"
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </div>
@@ -1042,6 +1043,8 @@ export default async function HomePage() {
         )}
       </div>
       </div>
+
+      <HomeCommissionBand />
 
     </main>
   );

@@ -134,7 +134,7 @@ export default function CustomOrderRequestForm({
             </div>
 
             {success ? (
-              <div className="p-5 space-y-3 text-center overflow-y-auto">
+              <div className="scrollbar-hidden space-y-3 overflow-y-auto p-5 text-center">
                 <h3 className="text-base font-semibold">Request sent!</h3>
                 <p className="text-sm text-neutral-600">
                   Your custom order request has been sent to {sellerName}. Check your messages for their reply.
@@ -160,7 +160,7 @@ export default function CustomOrderRequestForm({
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                <div className="scrollbar-hidden min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
                   {listingTitle && (
                     <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
                       Requesting something similar to:{" "}

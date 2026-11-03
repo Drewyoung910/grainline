@@ -3,10 +3,19 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import SearchParamsListener from "@/components/SearchParamsListener";
-import { Grid, Package, Search, Sparkles, Store, Tag, X } from "@/components/icons";
+import { Clock, Edit, Grid, Package, Search, Sparkles, Store, Tag, X } from "@/components/icons";
+import MediaImage from "@/components/MediaImage";
 import { safeInternalPath } from "@/lib/internalReturnUrl";
+import { LOCAL_ACCOUNT_STATE_CLEARED_EVENT } from "@/lib/localAccountState";
+import { formatCurrencyCents } from "@/lib/money";
+import {
+  clearRecentSearches,
+  loadRecentSearches,
+  rememberRecentSearch,
+} from "@/lib/recentSearches";
 import {
   humanizeSearchTag,
+  parseSearchSuggestionDetail,
   type SearchSuggestionItem,
   type SearchSuggestionItemType,
 } from "@/lib/searchSuggestionResults";
@@ -14,20 +23,42 @@ import {
   popularSearchPresentation,
   searchSuggestionPhase,
 } from "@/lib/searchSuggestionPresentation";
+import {
+  highlightParts,
+  isSearchShortcut,
+  parseSmartSearch,
+  type SmartSearch,
+} from "@/lib/smartSearch";
 
-type BlogResult = { slug: string; title: string };
+type BlogResult = {
+  slug: string;
+  title: string;
+  coverImageUrl?: string | null;
+  readingTimeMinutes?: number | null;
+};
 type CategoryResult = { value: string; label: string };
 type SuggestionsResponse = {
   items?: unknown;
   blogs?: BlogResult[];
   categories?: CategoryResult[];
 };
-type SuggestionSection = "Pieces" | "Suggestions" | "Makers" | "Tags";
+type SuggestionSection = "Pieces" | "Suggestions" | "Makers" | "Tags" | "Recently added";
 type SearchOption =
+  | { kind: "recent"; key: string; section: "Recent"; label: string }
+  | { kind: "clearRecent"; key: string; section: "Recent"; label: string }
+  | { kind: "smart"; key: string; section: "Search"; label: string; smart: SmartSearch }
   | { kind: "tag"; key: string; section: "Recommended searches"; label: string }
   | { kind: "category"; key: string; section: "Categories"; value: string; label: string }
   | { kind: "item"; key: string; section: SuggestionSection; item: SearchSuggestionItem; label: string }
-  | { kind: "blog"; key: string; section: "Stories"; slug: string; label: string }
+  | {
+      kind: "blog";
+      key: string;
+      section: "Stories";
+      slug: string;
+      label: string;
+      coverImageUrl?: string | null;
+      readingTimeMinutes?: number | null;
+    }
   | { kind: "query"; key: string; section: "No matches" | "Search"; label: string };
 const MAX_SEARCH_QUERY_LENGTH = 200;
 const FALLBACK_POPULAR_SEARCHES = ["furniture", "kitchen", "decor", "gifts", "woodworking"];
@@ -71,6 +102,50 @@ function isSuggestionItem(value: unknown): value is SearchSuggestionItem {
   );
 }
 
+function suggestionItems(value: unknown): SearchSuggestionItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isSuggestionItem).map((item) => {
+    const detail = parseSearchSuggestionDetail(item.detail);
+    return { type: item.type, label: item.label, href: item.href, ...(detail ? { detail } : {}) };
+  });
+}
+
+// Bold the words the visitor typed. These are plain text nodes, never
+// injected markup.
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  return (
+    <>
+      {highlightParts(text, query).map((part, index) =>
+        part.match ? (
+          <mark key={index} className="bg-transparent font-semibold text-inherit">{part.text}</mark>
+        ) : (
+          <React.Fragment key={index}>{part.text}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
+function SuggestionThumb({ src, fallback }: { src?: string | null; fallback: React.ReactNode }) {
+  return (
+    <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#EFEAE0] text-neutral-500">
+      {fallback}
+      {src && (
+        <MediaImage
+          src={src}
+          alt=""
+          width={40}
+          height={40}
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 size-10 object-cover"
+          fallbackClassName="hidden"
+        />
+      )}
+    </span>
+  );
+}
+
 // "glass" sits on the homepage photo while the header is clear; "solid" is
 // every other state. Either way the box turns solid white while focused, and
 // the suggestions panel is always solid so it reads over any background.
@@ -81,36 +156,156 @@ export type SearchBarTone = "glass" | "solid";
 const SUGGESTION_STAGGER_MS = 520;
 const SUGGESTION_DEBOUNCE_MS = 150;
 
+type SearchRecommendations = Readonly<{
+  tags: string[];
+  pieces: SearchSuggestionItem[];
+}>;
+
 // The desktop header search is mounted even at phone widths, so let it warm
 // the same recommendation request the mobile search will consume later. A
-// module-level promise keeps the first mobile tap from starting a second,
-// slower request and painting a different list when it eventually wins.
-let popularSearchCache: string[] | null = null;
-let popularSearchRequest: Promise<string[]> | null = null;
+// module-level promise prevents duplicate requests and, importantly, does not
+// paint fallback rows before replacing them with a different live set.
+let searchRecommendationCache: SearchRecommendations | null = null;
+let searchRecommendationRequest: Promise<SearchRecommendations> | null = null;
+let searchRecommendationGeneration = 0;
 
-function loadSharedPopularSearches(): Promise<string[]> {
-  if (popularSearchCache !== null) return Promise.resolve(popularSearchCache);
-  if (popularSearchRequest) return popularSearchRequest;
+function resetSharedSearchRecommendations() {
+  searchRecommendationGeneration += 1;
+  searchRecommendationCache = null;
+  searchRecommendationRequest = null;
+}
 
-  popularSearchRequest = fetch("/api/search/popular-tags")
-    .then(async (response) => {
+function loadSharedSearchRecommendations(): Promise<SearchRecommendations> {
+  if (searchRecommendationCache !== null) return Promise.resolve(searchRecommendationCache);
+  if (searchRecommendationRequest) return searchRecommendationRequest;
+
+  const generation = searchRecommendationGeneration;
+  const request = Promise.allSettled([
+    fetch("/api/search/popular-tags").then(async (response) => {
       if (!response.ok) throw new Error(`Popular searches failed (${response.status})`);
       const data = await response.json() as { tags?: unknown };
-      const tags = Array.isArray(data.tags)
+      return Array.isArray(data.tags)
         ? data.tags.filter((tag: unknown): tag is string => typeof tag === "string" && tag.length > 0)
         : [];
-      popularSearchCache = tags;
-      return tags;
-    })
-    .catch(() => {
-      popularSearchCache = [];
-      return [];
+    }),
+    fetch("/api/search/suggestions?recent=1", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) throw new Error(`Recent pieces failed (${response.status})`);
+      const data = await response.json() as { recent?: unknown };
+      return suggestionItems(data.recent);
+    }),
+  ])
+    .then(([tags, pieces]) => {
+      const recommendations = {
+        tags: tags.status === "fulfilled" ? tags.value : [],
+        pieces: pieces.status === "fulfilled" ? pieces.value : [],
+      } satisfies SearchRecommendations;
+      if (generation !== searchRecommendationGeneration) {
+        return { tags: [], pieces: [] };
+      }
+      searchRecommendationCache = recommendations;
+      return recommendations;
     })
     .finally(() => {
-      popularSearchRequest = null;
+      if (searchRecommendationRequest === request) searchRecommendationRequest = null;
     });
 
-  return popularSearchRequest;
+  searchRecommendationRequest = request;
+  return request;
+}
+
+function SearchOptionContent({ option, query }: { option: SearchOption; query: string }) {
+  switch (option.kind) {
+    case "smart":
+      return (
+        <>
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-neutral-500">
+            <Sparkles size={14} className="text-[#2C1F1A]" />
+            Smart search
+          </span>
+          <span className="flex flex-wrap gap-1.5">
+            {option.smart.chips.map((chip) => (
+              <span key={chip} className="rounded-full bg-[#2C1F1A] px-3 py-1 text-[13px] text-[#FBF8F3]">
+                {chip}
+              </span>
+            ))}
+          </span>
+        </>
+      );
+    case "recent":
+      return (
+        <>
+          <Clock size={14} className="shrink-0 text-neutral-500" />
+          <span className="min-w-0 truncate">{option.label}</span>
+        </>
+      );
+    case "clearRecent":
+      return (
+        <>
+          <X size={14} className="shrink-0 text-neutral-400" />
+          <span className="min-w-0 truncate text-sm text-neutral-500">{option.label}</span>
+        </>
+      );
+    case "tag":
+      return (
+        <>
+          <Search size={14} className="shrink-0 text-neutral-500" />
+          <span className="min-w-0 truncate">{humanizeSearchTag(option.label)}</span>
+        </>
+      );
+    case "query":
+      return (
+        <>
+          <Search size={14} className="shrink-0 text-neutral-500" />
+          <span className="min-w-0 truncate">{`Search for “${option.label}”`}</span>
+        </>
+      );
+    case "category":
+      return (
+        <>
+          <Grid size={14} className="shrink-0 text-neutral-500" />
+          <span className="min-w-0 truncate"><HighlightedText text={option.label} query={query} /></span>
+        </>
+      );
+    case "blog":
+      return (
+        <>
+          <SuggestionThumb src={option.coverImageUrl} fallback={<Edit size={14} />} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate"><HighlightedText text={option.label} query={query} /></span>
+            {option.readingTimeMinutes ? (
+              <span className="block truncate text-[13px] text-neutral-500">{option.readingTimeMinutes} min read</span>
+            ) : null}
+          </span>
+        </>
+      );
+    case "item": {
+      const { item } = option;
+      if (item.type === "listing" && item.detail) {
+        const meta = [item.detail.makerName, item.detail.location].filter(Boolean).join(" · ");
+        return (
+          <>
+            <SuggestionThumb src={item.detail.photoUrl} fallback={<Package size={14} />} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate"><HighlightedText text={option.label} query={query} /></span>
+              {meta && <span className="block truncate text-[13px] text-neutral-500">{meta}</span>}
+            </span>
+            <span className="shrink-0 text-sm tabular-nums text-neutral-700">
+              {formatCurrencyCents(item.detail.priceCents, item.detail.currency)}
+            </span>
+          </>
+        );
+      }
+      return (
+        <>
+          {item.type === "listing" && <Package size={14} className="shrink-0 text-neutral-500" />}
+          {item.type === "maker" && <Store size={14} className="shrink-0 text-neutral-500" />}
+          {item.type === "tag" && <Tag size={14} className="shrink-0 text-neutral-500" />}
+          {item.type === "search" && <Search size={14} className="shrink-0 text-neutral-500" />}
+          <span className="min-w-0 truncate"><HighlightedText text={option.label} query={query} /></span>
+        </>
+      );
+    }
+  }
 }
 
 export default function SearchBar({
@@ -148,8 +343,11 @@ export default function SearchBar({
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const [popularTags, setPopularTags] = React.useState<string[]>([]);
   const [popularLoaded, setPopularLoaded] = React.useState(false);
+  const [recentSearches, setRecentSearches] = React.useState<string[]>([]);
+  const [recentPieces, setRecentPieces] = React.useState<SearchSuggestionItem[]>([]);
   const popularLoadedRef = React.useRef(false);
   const popularLoadingRef = React.useRef(false);
+  const popularLoadIdRef = React.useRef(0);
   const [closing, setClosing] = React.useState(false);
   // True only for the first moment after the panel opens, so the entrance
   // stagger plays once instead of on every keystroke.
@@ -174,6 +372,9 @@ export default function SearchBar({
     }
     const wasVisible = dropdownStateRef.current.open && !dropdownStateRef.current.closing;
     if (!wasVisible) {
+      // Read on every open: another search box on the page may have added a
+      // query, and storage is unavailable during the server render.
+      setRecentSearches(loadRecentSearches());
       if (staggerTimerRef.current !== null) window.clearTimeout(staggerTimerRef.current);
       setStaggerItems(true);
       staggerTimerRef.current = window.setTimeout(() => {
@@ -206,11 +407,16 @@ export default function SearchBar({
 
   const loadPopularTags = React.useCallback(async () => {
     if (popularLoadedRef.current || popularLoadingRef.current) return;
+    const loadId = popularLoadIdRef.current + 1;
+    popularLoadIdRef.current = loadId;
     popularLoadingRef.current = true;
     try {
-      const tags = await loadSharedPopularSearches();
-      setPopularTags(tags);
+      const recommendations = await loadSharedSearchRecommendations();
+      if (loadId !== popularLoadIdRef.current) return;
+      setPopularTags(recommendations.tags);
+      setRecentPieces(recommendations.pieces);
     } finally {
+      if (loadId !== popularLoadIdRef.current) return;
       popularLoadedRef.current = true;
       popularLoadingRef.current = false;
       setPopularLoaded(true);
@@ -244,6 +450,39 @@ export default function SearchBar({
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [closeDropdown]);
+
+  // "/" moves focus to the visible search box. Typing in a field and browser
+  // shortcuts keep their native behavior, and an open modal owns the key.
+  React.useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!isSearchShortcut(event)) return;
+      const input = inputRef.current;
+      if (!input || input.getClientRects().length === 0) return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault();
+      input.focus({ preventScroll: true });
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Signing out or switching accounts must not leave this person's searches
+  // or block-filtered recommendations on screen.
+  React.useEffect(() => {
+    function onCleared() {
+      resetSharedSearchRecommendations();
+      popularLoadIdRef.current += 1;
+      popularLoadingRef.current = false;
+      setRecentSearches([]);
+      setRecentPieces([]);
+      setPopularTags([]);
+      popularLoadedRef.current = false;
+      setPopularLoaded(false);
+      void loadPopularTags();
+    }
+    window.addEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, onCleared);
+    return () => window.removeEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, onCleared);
+  }, [loadPopularTags]);
 
   React.useEffect(() => {
     return () => {
@@ -300,7 +539,7 @@ export default function SearchBar({
         if (!res.ok) throw new Error(`Search suggestions failed (${res.status})`);
         const data: SuggestionsResponse = await res.json();
         if (controller.signal.aborted || requestId !== suggestionsRequestRef.current) return;
-        const itemResults = Array.isArray(data.items) ? data.items.filter(isSuggestionItem) : [];
+        const itemResults = suggestionItems(data.items);
         const blogResults = data.blogs ?? [];
         const cats = data.categories ?? [];
         setItems(itemResults);
@@ -338,6 +577,7 @@ export default function SearchBar({
     [popularLoaded, popularTags],
   );
   const query = normalizeSearchQuery(value);
+  const smartSearch = React.useMemo(() => parseSmartSearch(query), [query]);
   const suggestionPhase = searchSuggestionPhase({ query, resolvedQuery, hasItems, noMatches });
   const waitingForResults = suggestionPhase === "waiting";
   const hasCurrentItems = suggestionPhase === "results";
@@ -351,26 +591,66 @@ export default function SearchBar({
         section: "Recommended searches",
         label: tag,
       }));
-    if (query.length === 0) return recommended(visiblePopularTags);
-    if (waitingForResults) {
-      return [{ kind: "query", key: "query", section: "Search", label: query }];
+    if (query.length === 0) {
+      const recents: SearchOption[] = recentSearches.length > 0
+        ? [
+            ...recentSearches.map((term) => ({
+              kind: "recent" as const,
+              key: `recent:${term}`,
+              section: "Recent" as const,
+              label: term,
+            })),
+            {
+              kind: "clearRecent" as const,
+              key: "clear-recent",
+              section: "Recent" as const,
+              label: "Clear recent searches",
+            },
+          ]
+        : [];
+      return [
+        ...recents,
+        ...recommended(visiblePopularTags),
+        ...recentPieces.map((item) => ({
+          kind: "item" as const,
+          key: `recently-added:${item.href}`,
+          section: "Recently added" as const,
+          item,
+          label: item.label,
+        })),
+      ];
     }
+    // Keep the typed search first in every state so a response cannot move
+    // the row under the pointer. Smart filters are an explicit second choice.
+    const searchRows: SearchOption[] = [
+      {
+        kind: "query",
+        key: "query",
+        section: suggestionPhase === "empty" ? "No matches" : "Search",
+        label: query,
+      },
+      ...(smartSearch
+        ? [{
+            kind: "smart" as const,
+            key: "smart",
+            section: "Search" as const,
+            label: smartSearch.chips.join(", "),
+            smart: smartSearch,
+          }]
+        : []),
+    ];
+    if (waitingForResults || suggestionPhase === "empty") return searchRows;
     if (!hasCurrentItems) {
-      if (suggestionPhase === "empty") {
-        return [{ kind: "query", key: "query", section: "No matches", label: query }];
-      }
       // First letter, or results still on their way: narrow the recommended
       // searches locally and offer the typed search, so the panel stays put.
       const matching = visiblePopularTags.filter((tag) =>
         humanizeSearchTag(tag).toLowerCase().includes(prefix),
       );
-      return [
-        { kind: "query", key: "query", section: "Search", label: query },
-        ...recommended(matching.slice(0, 5)),
-      ];
+      return [...searchRows, ...recommended(matching.slice(0, 5))];
     }
     // Pieces and shops first, then categories, then stories.
     return [
+      ...searchRows,
       ...ITEM_SECTION_ORDER.flatMap((type) =>
         items
           .filter((item) => item.type === type)
@@ -395,9 +675,11 @@ export default function SearchBar({
         section: "Stories" as const,
         slug: blog.slug,
         label: blog.title,
+        coverImageUrl: blog.coverImageUrl,
+        readingTimeMinutes: blog.readingTimeMinutes,
       })),
     ];
-  }, [blogs, categories, hasCurrentItems, items, open, query, suggestionPhase, visiblePopularTags, waitingForResults]);
+  }, [blogs, categories, hasCurrentItems, items, open, query, recentPieces, recentSearches, smartSearch, suggestionPhase, visiblePopularTags, waitingForResults]);
 
   React.useEffect(() => {
     setActiveIndex((index) => {
@@ -429,19 +711,25 @@ export default function SearchBar({
     } else if (e.key === "Enter") {
       e.preventDefault();
       const activeOption = activeIndex >= 0 ? options[activeIndex] : null;
-      closeDropdown();
       if (activeOption) {
         chooseOption(activeOption);
       } else {
-        router.push(browseSearchUrl(value));
+        submitSearch(value);
       }
     }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    submitSearch(value);
+  }
+
+  function submitSearch(term: string) {
+    const normalized = normalizeSearchQuery(term);
+    if (normalized) rememberRecentSearch(normalized);
+    const smart = parseSmartSearch(normalized);
     closeDropdown();
-    router.push(browseSearchUrl(value));
+    router.push(smart?.explicitFilter ? smart.href : browseSearchUrl(term));
   }
 
   function handleClear() {
@@ -467,10 +755,18 @@ export default function SearchBar({
     }
   }
 
-  function pick(s: string) {
+  function pickPlain(s: string) {
     setValue(s);
+    const normalized = normalizeSearchQuery(s);
+    if (normalized) rememberRecentSearch(normalized);
     closeDropdown();
     router.push(browseSearchUrl(s));
+  }
+
+  function chooseSmart(smart: SmartSearch) {
+    if (query) rememberRecentSearch(query);
+    closeDropdown();
+    router.push(smart.href);
   }
 
   function pickBlog(slug: string) {
@@ -480,13 +776,25 @@ export default function SearchBar({
 
   function chooseOption(option: SearchOption) {
     switch (option.kind) {
+      case "clearRecent":
+        clearRecentSearches();
+        setRecentSearches([]);
+        setActiveIndex(-1);
+        return;
+      case "smart":
+        chooseSmart(option.smart);
+        return;
+      case "recent":
+        setValue(option.label);
+        submitSearch(option.label);
+        return;
       case "tag":
       case "query":
-        pick(option.label);
+        pickPlain(option.label);
         return;
       case "item":
         if (option.item.type === "search") {
-          pick(option.item.label);
+          pickPlain(option.item.label);
           return;
         }
         // Pieces, makers and tags open their own page.
@@ -551,6 +859,7 @@ export default function SearchBar({
             autoComplete="off"
             enterKeyHint="search"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
+            aria-keyshortcuts="/"
             role="combobox"
             aria-label="Search Grainline"
             aria-autocomplete="list"
@@ -620,33 +929,9 @@ export default function SearchBar({
                   }}
                   className={`min-h-11 w-full rounded-xl px-3.5 py-2.5 text-left text-[15px] transition-colors duration-150 hover:bg-[#F0EBE2]/70 ${
                     activeIndex === index ? "bg-[#F0EBE2]/70" : ""
-                  } ${option.kind === "item" && option.item.type === "search" ? "" : "flex items-center gap-2.5"}`}
+                  } ${option.kind === "smart" ? "my-1 grid gap-2 bg-[#F7F5F0] hover:bg-[#F0EBE2]" : "flex items-center gap-3"}`}
                 >
-                  {(option.kind === "tag" || option.kind === "query") && (
-                    <Search size={14} className="shrink-0 text-neutral-500" />
-                  )}
-                  {option.kind === "item" && option.item.type === "listing" && (
-                    <Package size={14} className="shrink-0 text-neutral-500" />
-                  )}
-                  {option.kind === "item" && option.item.type === "maker" && (
-                    <Store size={14} className="shrink-0 text-neutral-500" />
-                  )}
-                  {option.kind === "item" && option.item.type === "tag" && (
-                    <Tag size={14} className="shrink-0 text-neutral-500" />
-                  )}
-                  {option.kind === "category" && (
-                    <Grid size={14} className="shrink-0 text-neutral-500" />
-                  )}
-                  {option.kind === "blog" && (
-                    <Sparkles size={14} className="shrink-0 text-neutral-500" />
-                  )}
-                  <span className={option.kind === "blog" ? "truncate text-neutral-700" : ""}>
-                    {option.kind === "tag"
-                      ? humanizeSearchTag(option.label)
-                      : option.kind === "query"
-                        ? `Search for “${option.label}”`
-                        : option.label}
-                  </span>
+                  <SearchOptionContent option={option} query={query} />
                 </button>
               </li>
             </React.Fragment>

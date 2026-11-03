@@ -9,6 +9,10 @@ Production promotion.
 
 - [x] Preserve the homepage category design. It is the visual reference, not a
   surface to flatten into generic controls.
+- [x] Keep small prelaunch catalog counts out of the category tiles and keep
+  marketplace statistics hidden until their existing trust thresholds.
+- [x] The homepage commission callout uses truthful copy and keeps both phone
+  actions compact, equal-width, and on one row.
 - [x] Preserve Claude's useful motion, cart, gallery, filter, seller-profile,
   review, and card features while correcting their regressions.
 - [x] Preserve every route and user-facing feature from the original UI stack;
@@ -51,11 +55,19 @@ Production promotion.
 - [x] Hovering card text does not swap the photo or reveal the save control.
 - [x] Listing-card photo hover uses a stationary soft-shadow response; it does
   not lift the card, draw a brown keyline, or move the hit area.
+- [x] Compact followed-maker listing and story cards use that same photo-only
+  response; hovering their title or metadata does not raise the whole card.
 
 ## Search and browse
 
 - [x] The first search focus warms and displays one stable recommendation set;
   fallback categories no longer flash before live results replace them.
+- [x] Search can show device-local recent searches, a few newly added pieces,
+  and richer piece/story rows without exposing history across account changes.
+- [x] Plain-language price and availability searches get an explicit smart
+  filter choice; ordinary text searches keep their literal destination.
+- [x] The `/` shortcut focuses the visible search box without stealing keys
+  from fields, editors, browser shortcuts, or open dialogs.
 - [x] Search result rows use a full-size quiet hover surface rather than small
   boxed labels.
 - [x] Search, category, chip, and popover scroll regions hide platform
