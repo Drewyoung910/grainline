@@ -386,7 +386,15 @@ export default function SearchBar({
     setOpen(true);
   }, []);
 
+  const cancelSuggestions = React.useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    suggestionsAbortRef.current?.abort();
+    suggestionsRequestRef.current += 1;
+  }, []);
+
   const closeDropdown = React.useCallback(() => {
+    // An answer still on its way must not reopen the panel over the page.
+    cancelSuggestions();
     const state = dropdownStateRef.current;
     if (!state.open || state.closing) return;
     setClosing(true);
@@ -396,7 +404,7 @@ export default function SearchBar({
       setActiveIndex(-1);
       closeTimerRef.current = null;
     }, 140);
-  }, []);
+  }, [cancelSuggestions]);
 
   // Only the marketplace browse route owns the global search query. Other
   // pages also use `q` for local filters (for example the messages inbox),
@@ -501,11 +509,9 @@ export default function SearchBar({
     // Enter while new results load.
     setActiveIndex(-1);
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    suggestionsAbortRef.current?.abort();
+    cancelSuggestions();
 
     if (q.length < 2) {
-      suggestionsRequestRef.current += 1;
       setResolvedQuery(null);
       setItems([]);
       setBlogs([]);
@@ -520,8 +526,12 @@ export default function SearchBar({
       return;
     }
 
-    // Keep one stable "Search for" row while the matching remote results are
-    // loading. Do not briefly substitute popular categories or stale results.
+    requestSuggestions(q);
+  }
+
+  // Keep one stable "Search for" row while the matching remote results are
+  // loading. Do not briefly substitute popular categories or stale results.
+  function requestSuggestions(q: string) {
     setResolvedQuery(null);
     setNoMatches(false);
 
@@ -688,19 +698,35 @@ export default function SearchBar({
     });
   }, [open, options.length]);
 
+  // Text can be in the box with no answer for it: arriving on a results page,
+  // choosing a recent search, or reopening after the last request was cancelled.
+  function refreshSuggestionsForOpen() {
+    if (query.length >= 2 && resolvedQuery !== query) {
+      cancelSuggestions();
+      requestSuggestions(query);
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Escape") {
+      closeDropdown();
+    } else if (e.key === "Tab") {
+      // Focus is leaving, and Escape would no longer reach this field.
       closeDropdown();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!open) {
         if (value.length === 0) void loadPopularTags();
+        refreshSuggestionsForOpen();
         openDropdown();
       }
       setActiveIndex((index) => (options.length === 0 ? -1 : (index + 1) % options.length));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      if (!open) openDropdown();
+      if (!open) {
+        refreshSuggestionsForOpen();
+        openDropdown();
+      }
       setActiveIndex((index) => (options.length === 0 ? -1 : (index <= 0 ? options.length - 1 : index - 1)));
     } else if (e.key === "Home" && open && options.length > 0) {
       e.preventDefault();
@@ -729,13 +755,11 @@ export default function SearchBar({
     if (normalized) rememberRecentSearch(normalized);
     const smart = parseSmartSearch(normalized);
     closeDropdown();
-    router.push(smart?.explicitFilter ? smart.href : browseSearchUrl(term));
+    router.push(smart?.explicitFilter ? smart.enterHref : browseSearchUrl(term));
   }
 
   function handleClear() {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    suggestionsAbortRef.current?.abort();
-    suggestionsRequestRef.current += 1;
+    cancelSuggestions();
     setValue("");
     setItems([]);
     setBlogs([]);
@@ -852,6 +876,7 @@ export default function SearchBar({
             onKeyDown={handleKeyDown}
             onFocus={() => {
               void loadPopularTags();
+              refreshSuggestionsForOpen();
               openDropdown();
             }}
             placeholder="Search pieces, shops, and more…"
@@ -894,6 +919,7 @@ export default function SearchBar({
           id={searchListboxId}
           role="listbox"
           aria-busy={waitingForResults || undefined}
+          onMouseLeave={() => setActiveIndex(-1)}
           // Scrollable, so browsers would make it a Tab stop; arrow keys on
           // the input drive it instead.
           tabIndex={-1}
