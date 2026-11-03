@@ -8,10 +8,15 @@ import * as React from "react";
 let introPlayed = false;
 
 export default function HomeHeroIntro({ children }: { children: React.ReactNode }) {
-  const [animate] = React.useState(() => !introPlayed);
+  // Keep server markup deterministic. A module-scoped flag on the server can
+  // outlive one request and would otherwise make the entrance disappear for
+  // later visitors handled by the same warm process.
+  const [animate, setAnimate] = React.useState(false);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
+    if (introPlayed) return;
     introPlayed = true;
+    setAnimate(true);
   }, []);
 
   return (

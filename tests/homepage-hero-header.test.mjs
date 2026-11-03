@@ -180,7 +180,10 @@ describe("homepage hero and header contracts", () => {
     assert.match(home, /data-hero-intro-copy/);
     assert.match(home, /data-hero-intro-actions/);
     assert.match(intro, /let introPlayed = false/);
-    assert.match(intro, /const \[animate\] = React\.useState\(\(\) => !introPlayed\)/);
+    assert.match(intro, /const \[animate, setAnimate\] = React\.useState\(false\)/);
+    assert.match(intro, /React\.useLayoutEffect\(\(\) => \{/);
+    assert.match(intro, /if \(introPlayed\) return/);
+    assert.match(intro, /introPlayed = true;\s*setAnimate\(true\)/);
     assert.match(globals, /@keyframes home-hero-copy-in/);
     assert.match(globals, /\.home-hero-intro \[data-hero-intro-heading\]/);
     assert.doesNotMatch(home, /home-hero-intro[^\n]*(?:Image|data-home-hero)/);
