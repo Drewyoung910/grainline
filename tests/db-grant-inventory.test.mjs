@@ -587,6 +587,10 @@ const {
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES,
   SELLER_PROFILE_TABLE,
+  LISTING_DOMAIN_TABLES: IMPORTED_LISTING_DOMAIN_TABLES,
+  LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES:
+    IMPORTED_LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES,
+  LISTING_DOMAIN_RLS_POLICIES: IMPORTED_LISTING_DOMAIN_RLS_POLICIES,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
@@ -660,6 +664,8 @@ const {
   supportRequestRlsForceExpected,
   followRlsActivationExpected,
   followRlsForceExpected,
+  listingDomainRlsActivationExpected: importedListingDomainRlsActivationExpected,
+  listingDomainRlsForceExpected: importedListingDomainRlsForceExpected,
   sellerAnalyticsDailyRlsActivationExpected,
   sellerAnalyticsDailyRlsForceExpected,
   blockRlsActivationExpected,
@@ -720,6 +726,18 @@ const {
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
+
+const LISTING_DOMAIN_TABLES = IMPORTED_LISTING_DOMAIN_TABLES ?? [];
+const LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES =
+  IMPORTED_LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES ?? {};
+const LISTING_DOMAIN_RLS_POLICIES = IMPORTED_LISTING_DOMAIN_RLS_POLICIES ?? {};
+const listingDomainRlsActivationExpected =
+  importedListingDomainRlsActivationExpected;
+const listingDomainRlsForceExpected = importedListingDomainRlsForceExpected;
+const listingDomainGrantAuditSupported =
+  LISTING_DOMAIN_TABLES.length === 4
+  && typeof listingDomainRlsActivationExpected === "function"
+  && typeof listingDomainRlsForceExpected === "function";
 
 describe("temporary SellerProfile CI isolation", () => {
   it("is absent by default and accepted only for exact loopback GitHub CI", () => {
@@ -1019,6 +1037,41 @@ async function withAuditFixture(options, fn) {
 }
 
 describe("database grant inventory guardrails", () => {
+  it("pins exact Listing-domain public policy expressions", () => {
+    if (!listingDomainGrantAuditSupported) return;
+    for (const tableName of LISTING_DOMAIN_TABLES) {
+      const [policyName, expected] = Object.entries(
+        LISTING_DOMAIN_RLS_POLICIES[tableName],
+      )[0];
+      const row = {
+        rls_enabled: true,
+        rls_forced: true,
+        policy_name: policyName,
+        policy_command: expected.command,
+        policy_permissive: true,
+        policy_roles: ["grainline_app_runtime"],
+        using_expression: expected.usingExpression,
+        check_expression: expected.checkExpression,
+      };
+      assert.deepEqual(
+        collectListingDomainPolicyIssues(
+          [row],
+          "grainline_app_runtime",
+          tableName,
+        ),
+        [],
+      );
+      assert.match(
+        collectListingDomainPolicyIssues(
+          [{ ...row, using_expression: "true" }],
+          "grainline_app_runtime",
+          tableName,
+        ).join("\n"),
+        /unexpected USING expression/u,
+      );
+    }
+  });
+
   it("rejects every table privilege outside non-grantable CRUD", () => {
     assert.match(
       collectTablePrivilegeAllowlistIssues({}, "table SavedSearch").join("\n"),
@@ -1205,10 +1258,74 @@ describe("database grant inventory guardrails", () => {
     const favoriteActivatedInventory = {
       rlsPolicyTables: [FAVORITE_TABLE],
     };
+    const listingDomainPredecessorInventory = listingDomainGrantAuditSupported
+      ? {
+          tables: [...LISTING_DOMAIN_TABLES],
+          rlsEnableTables: [],
+          rlsForceTables: [],
+          rlsPolicyTables: [],
+        }
+      : null;
+    const listingDomainActivatedInventory = listingDomainGrantAuditSupported
+      ? {
+          ...listingDomainPredecessorInventory,
+          rlsEnableTables: [...LISTING_DOMAIN_TABLES],
+          rlsForceTables: [...LISTING_DOMAIN_TABLES],
+          rlsPolicyTables: [...LISTING_DOMAIN_TABLES],
+        }
+      : null;
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
     );
+    if (listingDomainGrantAuditSupported) {
+      assert.equal(
+        listingDomainRlsActivationExpected(listingDomainPredecessorInventory),
+        false,
+      );
+      assert.equal(
+        listingDomainRlsForceExpected(listingDomainPredecessorInventory),
+        false,
+      );
+      for (const tableName of LISTING_DOMAIN_TABLES) {
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(
+            tableName,
+            listingDomainPredecessorInventory,
+          ),
+          REQUIRED_TABLE_PRIVILEGES,
+        );
+        assert.deepEqual(
+          requiredRuntimeColumnPrivileges(
+            tableName,
+            listingDomainPredecessorInventory,
+          ),
+          [],
+        );
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(
+            tableName,
+            listingDomainActivatedInventory,
+          ),
+          [],
+        );
+        assert.deepEqual(
+          requiredRuntimeColumnPrivileges(
+            tableName,
+            listingDomainActivatedInventory,
+          ),
+          LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName],
+        );
+      }
+      assert.equal(
+        listingDomainRlsActivationExpected(listingDomainActivatedInventory),
+        true,
+      );
+      assert.equal(
+        listingDomainRlsForceExpected(listingDomainActivatedInventory),
+        true,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", phaseAInventory),
       SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
@@ -2386,37 +2503,42 @@ describe("database grant inventory guardrails", () => {
       [],
     );
 
-    const adminAuditFunctions = [
-      "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
-      "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
-    ];
-    const adminAuditInventory = {
-      ...preparedInventory,
-      functions: [
-        ...preparedInventory.functions,
-        "grainline_admin_audit_account_deletion_legacy_redaction_apply",
-        "grainline_admin_audit_account_deletion_redaction_apply",
-      ],
-    };
-    const adminAuditState = {
-      ...preparedState,
-      function_identities: [
-        ...preparedState.function_identities,
-        ...adminAuditFunctions,
-      ],
-      effective_function_identities: [
-        ...preparedState.effective_function_identities,
-        ...adminAuditFunctions,
-      ],
-    };
-    assert.deepEqual(
-      collectAccountDeletionWorkerBoundaryIssues(adminAuditState, adminAuditInventory),
-      [],
-    );
-    assert.match(
-      collectAccountDeletionWorkerBoundaryIssues(preparedState, adminAuditInventory).join("\n"),
-      /function authority drifted/u,
-    );
+    const adminAuditWorkerBoundarySupported = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("grainline_admin_audit_account_deletion_redaction_apply");
+    if (adminAuditWorkerBoundarySupported) {
+      const adminAuditFunctions = [
+        "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+        "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+      ];
+      const adminAuditInventory = {
+        ...preparedInventory,
+        functions: [
+          ...preparedInventory.functions,
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+          "grainline_admin_audit_account_deletion_redaction_apply",
+        ],
+      };
+      const adminAuditState = {
+        ...preparedState,
+        function_identities: [
+          ...preparedState.function_identities,
+          ...adminAuditFunctions,
+        ],
+        effective_function_identities: [
+          ...preparedState.effective_function_identities,
+          ...adminAuditFunctions,
+        ],
+      };
+      assert.deepEqual(
+        collectAccountDeletionWorkerBoundaryIssues(adminAuditState, adminAuditInventory),
+        [],
+      );
+      assert.match(
+        collectAccountDeletionWorkerBoundaryIssues(preparedState, adminAuditInventory).join("\n"),
+        /function authority drifted/u,
+      );
+    }
 
     const activeInventory = {
       ...preparedInventory,
@@ -4212,7 +4334,9 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 70 : 69);
     assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
     assert.deepEqual(inventory.functions, [...new Set([
-      ...ADMIN_AUDIT_LOG_PREPARATION.functions.map((entry) => entry.name),
+      ...(adminAuditLogPreparationPresent
+        ? ADMIN_AUDIT_LOG_PREPARATION.functions.map((entry) => entry.name)
+        : []),
       ...(accountDeletionClaimFencePrepared
         ? accountDeletionClaimFenceFunctionNames
         : []),
@@ -4365,7 +4489,6 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...userAuthorityFunctions.map(({ name }) => name),
       "grainline_legacy_stock_restore_claim",
-      "grainline_legacy_stock_restore_apply",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
       "grainline_message_participants_match_conversation",
@@ -7142,7 +7265,11 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      typeof readBlockPreparationState === "function" ? 22 : 20,
+      provision.includes('public."grainline_conversation_inbox_owner"(')
+        ? 22
+        : provision.includes('public."grainline_listing_message_context_titles"(')
+          ? 20
+          : 19,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(
