@@ -8,9 +8,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 import {
+  PRIVATE_TABLE_RLS_ACTIVATIONS,
   PRIVATE_TABLE_RLS_ACTIVATION_CONFIRMATION,
   privateTablePreparationMigrationOverride,
   privateTableRlsActivation,
@@ -22,6 +24,32 @@ import {
 const releaseId = "maker_verification_v1";
 const release = privateTableRlsActivation(releaseId);
 const verified = verifyPrivateTableRlsActivationSource(releaseId);
+
+test("every compatible app pin resolves and is an ancestor of this release head", () => {
+  for (const [id, entry] of Object.entries(PRIVATE_TABLE_RLS_ACTIVATIONS)) {
+    const resolved = spawnSync(
+      "git",
+      ["cat-file", "-e", `${entry.minimumCompatibleAppCommit}^{commit}`],
+      { encoding: "utf8" },
+    );
+    assert.equal(
+      resolved.status,
+      0,
+      `${id} minimum compatible app commit does not resolve: ${resolved.stderr}`,
+    );
+
+    const ancestor = spawnSync(
+      "git",
+      ["merge-base", "--is-ancestor", entry.minimumCompatibleAppCommit, "HEAD"],
+      { encoding: "utf8" },
+    );
+    assert.equal(
+      ancestor.status,
+      0,
+      `${id} minimum compatible app commit is not an ancestor of HEAD: ${ancestor.stderr}`,
+    );
+  }
+});
 
 test("catalog byte-seals the combined policyless activation and rollback", () => {
   assert.equal(
