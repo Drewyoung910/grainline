@@ -16,6 +16,7 @@ on:
           - maker_verification_v1
           - seller_broadcast_v1
           - email_service_v1
+          - seller_metrics_v1
           - owner_social_verification_v1
           - block_report_seller_faq_v1
       release_commit:

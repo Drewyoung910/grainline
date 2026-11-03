@@ -152,8 +152,11 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
         return { rows: [{
           columns: schemaApplied ? release.addedColumns.length : 0,
           functions: schemaApplied
-            ? release.functions.length - (partial ? 1 : 0)
+            ? release.functions.filter(
+              (entry) => entry.predecessorSourceSha256 === undefined,
+            ).length - (partial ? 1 : 0)
             : 0,
+          constraints: schemaApplied ? (release.addedConstraints ?? []).length : 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
@@ -167,10 +170,16 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
             owner_name: "neondb_owner",
             owner_bypasses_rls: true,
             security_definer: true,
+            volatility: entry.volatility ?? "v",
             configuration: ["search_path=pg_catalog"],
             source: verified.functionSources.get(entry.name),
-            runtime_execute: true,
-            staff_execute: false,
+            runtime_execute: (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+              .includes("runtime"),
+            staff_execute: (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+              .includes("staff"),
+            account_deletion_execute:
+              (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+                .includes("account_deletion"),
             public_execute: false,
           }))
           .sort((left, right) => (
@@ -507,6 +516,7 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "seller_faq_v1",
     "seller_broadcast_v1",
     "email_service_v1",
+    "seller_metrics_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -536,6 +546,7 @@ test("Production workflow is exact-main bound and fails on another red push work
       "maker_verification_v1",
       "seller_broadcast_v1",
       "email_service_v1",
+      "seller_metrics_v1",
       "owner_social_verification_v1",
       "block_report_seller_faq_v1",
     ],

@@ -125,6 +125,10 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261101110000_activate_seller_broadcast_rls",
     "72a24346ffc61d4822384b77160cd4c5780c9d2d392b7b826af7f351bc5831cb",
   ],
+  [
+    "20261102030000_prepare_seller_metrics_authorities",
+    "caad02ef9a93ae9d51e09c50ca7036b0f9ef5a047279dc082f6c72072652cae0",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {
