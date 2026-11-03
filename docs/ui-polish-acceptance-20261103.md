@@ -57,6 +57,8 @@ Production promotion.
 - [x] Hovering card text does not swap the photo or reveal the save control.
 - [x] Listing-card photo hover uses a stationary soft-shadow response; it does
   not lift the card, draw a brown keyline, or move the hit area.
+- [x] Listing click analytics count actual listing navigation, not favorite,
+  maker-name, Guild-badge, or other controls inside the card.
 - [x] Compact followed-maker listing and story cards use that same photo-only
   response; hovering their title or metadata does not raise the whole card.
 
