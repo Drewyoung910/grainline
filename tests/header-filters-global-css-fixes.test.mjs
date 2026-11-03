@@ -72,6 +72,8 @@ describe("mobile menu landmarks and focus return (UI-26)", () => {
 
 describe("mobile filter and sort sheets (UI-17 / #1234)", () => {
   const sheets = source("src/components/MobileFilterBar.tsx");
+  const desktopSort = source("src/components/SortMenu.tsx");
+  const sortOptions = source("src/lib/browseSortOptions.ts");
   const header = source("src/components/Header.tsx");
 
   it("stack the backdrop and sheet above the site header", () => {
@@ -115,6 +117,14 @@ describe("mobile filter and sort sheets (UI-17 / #1234)", () => {
     assert.match(sheets, /aria-label="Close filters"/);
     assert.match(sheets, /aria-label="Close sort"/);
     assert.match(sheets, /-mx-4 -mt-4[\s\S]*?px-4 py-3/);
+  });
+
+  it("uses one sort model for desktop and mobile presentations", () => {
+    assert.match(sheets, /from "@\/lib\/browseSortOptions"/);
+    assert.match(desktopSort, /from "@\/lib\/browseSortOptions"/);
+    for (const value of ["relevant", "newest", "price_asc", "price_desc", "popular"]) {
+      assert.match(sortOptions, new RegExp(`value: "${value}"`));
+    }
   });
 });
 

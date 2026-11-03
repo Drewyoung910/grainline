@@ -9,14 +9,7 @@ import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { normalizeTags } from "@/lib/tags";
 import SegmentedControl from "@/components/SegmentedControl";
 import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
-
-const SORT_LABELS: Record<string, string> = {
-  relevant: "Relevant",
-  newest: "Newest",
-  price_asc: "Price ↑",
-  price_desc: "Price ↓",
-  popular: "Popular",
-};
+import { browseSortLabel, visibleBrowseSortOptions } from "@/lib/browseSortOptions";
 
 const SHIPS_WITHIN_OPTIONS = ["3", "7", "14", "30"];
 const RATING_OPTIONS = ["4", "3", "2"];
@@ -137,7 +130,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     || (currentMax && cleanBrowsePriceInput(currentMax) !== null),
   );
 
-  const sortLabel = SORT_LABELS[currentSort] ?? "Sort";
+  const sortLabel = browseSortLabel(q, currentSort, true);
+  const sortOptions = visibleBrowseSortOptions(q, currentSort);
 
   const activeFilterCount = [
     currentCategory,
@@ -555,24 +549,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         {/* Sort options — each navigates and closes sheet. Bottom padding
             keeps the last option clear of the iPhone home indicator. */}
         <div className="scrollbar-hidden overflow-y-auto overscroll-contain p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
-          {q && (
-            <Link
-              href={sortHref("relevant")}
-              onClick={() => setSortOpen(false)}
-              className={`flex min-h-11 items-center justify-between rounded-xl px-3.5 py-2.5 text-[15px] transition-[background-color,box-shadow,color] hover:bg-[#F3EEE5] ${
-                currentSort === "relevant" ? "bg-[#EFEAE0] font-semibold text-neutral-900" : "text-neutral-700"
-              }`}
-            >
-              Most relevant
-              <Check size={17} className={`text-[#2C1F1A] transition-[opacity,scale] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${currentSort === "relevant" ? "scale-100 opacity-100" : "scale-50 opacity-0"}`} />
-            </Link>
-          )}
-          {[
-            { value: "newest", label: "Newest" },
-            { value: "price_asc", label: "Price: Low → High" },
-            { value: "price_desc", label: "Price: High → Low" },
-            { value: "popular", label: "Most popular" },
-          ].map(({ value, label }) => (
+          {sortOptions.map(({ value, label }) => (
             <Link
               key={value}
               href={sortHref(value)}

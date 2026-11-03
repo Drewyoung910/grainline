@@ -4,14 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Check, ChevronDown } from "@/components/icons";
-
-const SORT_OPTIONS = [
-  { value: "relevant", label: "Most relevant", needsQuery: true },
-  { value: "newest", label: "Newest", needsQuery: false },
-  { value: "price_asc", label: "Price: low to high", needsQuery: false },
-  { value: "price_desc", label: "Price: high to low", needsQuery: false },
-  { value: "popular", label: "Most popular", needsQuery: false },
-];
+import { browseSortLabel, visibleBrowseSortOptions } from "@/lib/browseSortOptions";
 
 // Desktop browse sort: a pill that springs open a small card of orders, the
 // chosen one ticked. Phones keep the sort sheet in MobileFilterBar.
@@ -21,8 +14,8 @@ export default function SortMenu() {
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   // "Most relevant" is offered with a search, and stays labelled (and
   // ticked) when the URL already asks for it without one.
-  const options = SORT_OPTIONS.filter((option) => !option.needsQuery || q || currentSort === option.value);
-  const currentLabel = options.find((option) => option.value === currentSort)?.label ?? "Newest";
+  const options = visibleBrowseSortOptions(q, currentSort);
+  const currentLabel = browseSortLabel(q, currentSort);
 
   const [open, setOpen] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
