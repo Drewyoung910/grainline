@@ -7,6 +7,7 @@ type Rect = Pick<DOMRect, "left" | "top" | "width" | "height">;
 const EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
 export const PHOTO_GROW_MS = 340;
 const PHOTO_SHRINK_MS = 240;
+const LATE_PHOTO_MS = 200;
 
 function motionAllowed(): boolean {
   return typeof window !== "undefined"
@@ -14,11 +15,11 @@ function motionAllowed(): boolean {
     && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-// The transform that makes `from` sit exactly over `to`, or null when either
-// has no size (hidden, or not laid out yet).
+// The transform that centers `from` inside `to`, as large as it can be without
+// spilling out, or null when either has no size (hidden, or not laid out yet).
 export function photoDeltaTransform(from: Rect, to: Rect): string | null {
   if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) return null;
-  const scale = to.width / from.width;
+  const scale = Math.min(to.width / from.width, to.height / from.height);
   const dx = to.left + to.width / 2 - (from.left + from.width / 2);
   const dy = to.top + to.height / 2 - (from.top + from.height / 2);
   if (!Number.isFinite(scale) || !Number.isFinite(dx) || !Number.isFinite(dy)) return null;
@@ -31,24 +32,57 @@ export function growPhotoFrom(source: Element | null, photo: HTMLImageElement | 
   const run = () => {
     const transform = photoDeltaTransform(photo.getBoundingClientRect(), source.getBoundingClientRect());
     if (!transform) return;
+    // This replaces the simple entrance the viewer otherwise plays.
+    photo.parentElement?.getAnimations?.().forEach((animation) => animation.cancel());
     photo.animate([{ transform }, { transform: "none" }], { duration: PHOTO_GROW_MS, easing: EASE });
   };
-  // A photo that isn't ready has no size to measure. It simply appears.
-  if (photo.complete && photo.naturalWidth > 0) run();
+  if (photo.complete && photo.naturalWidth > 0) {
+    run();
+    return;
+  }
+  // A photo still loading has no size to measure. If it arrives right away it
+  // can still grow; later than that it just appears.
+  const openedAt = performance.now();
+  photo.addEventListener("load", () => {
+    if (performance.now() - openedAt <= LATE_PHOTO_MS) run();
+  }, { once: true });
 }
 
 // Shrinks it back, then calls done. Done always runs, even with no animation.
-export function shrinkPhotoTo(target: Element | null, photo: HTMLImageElement | null, done: () => void): void {
+export function shrinkPhotoTo(
+  target: Element | null,
+  photo: HTMLImageElement | null,
+  backdrop: Element | null,
+  done: () => void,
+): void {
   if (!target || !photo || !motionAllowed()) {
     done();
     return;
   }
-  const transform = photoDeltaTransform(photo.getBoundingClientRect(), target.getBoundingClientRect());
-  if (!transform) {
+  // Closing partway through the grow continues from wherever the photo is now.
+  const startTransform = getComputedStyle(photo).transform;
+  photo.getAnimations().forEach((animation) => animation.cancel());
+  photo.parentElement?.getAnimations?.().forEach((animation) => animation.cancel());
+
+  const to = target.getBoundingClientRect();
+  const transform = photoDeltaTransform(photo.getBoundingClientRect(), to);
+  // A thumbnail scrolled out of view is nowhere useful to fly to.
+  const targetVisible = to.bottom > 0 && to.top < window.innerHeight && to.right > 0 && to.left < window.innerWidth;
+  if (!transform || !targetVisible) {
     done();
     return;
   }
-  const animation = photo.animate([{ transform: "none" }, { transform }], {
+  if (backdrop) {
+    backdrop.animate(
+      [{ backgroundColor: getComputedStyle(backdrop).backgroundColor }, { backgroundColor: "rgba(0, 0, 0, 0)" }],
+      { duration: PHOTO_SHRINK_MS, easing: "ease-out", fill: "forwards" },
+    );
+    for (const child of Array.from(backdrop.children)) {
+      if (child.contains(photo)) continue;
+      child.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: "ease-out", fill: "forwards" });
+    }
+  }
+  const animation = photo.animate([{ transform: startTransform }, { transform }], {
     duration: PHOTO_SHRINK_MS,
     easing: EASE,
     fill: "forwards",
@@ -93,9 +127,10 @@ export function isPlainClick(event: {
 // then flies to the gallery as soon as its space exists, which the loading
 // skeleton provides. If that never happens it fades out and nothing is left
 // behind. The header stays above it.
-export function startPhotoTravel(photo: HTMLImageElement | null, listingId: string): void {
-  if (!photo || !motionAllowed() || !photo.complete || photo.naturalWidth === 0) return;
-  const from = photo.getBoundingClientRect();
+export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element | null, listingId: string): void {
+  if (!photo || !frame || !motionAllowed() || !photo.complete || photo.naturalWidth === 0) return;
+  // The frame, not the photo: a hovered card photo is zoomed past its frame.
+  const from = frame.getBoundingClientRect();
   if (from.width <= 0 || from.height <= 0) return;
   if (from.bottom < 0 || from.top > window.innerHeight) return;
 

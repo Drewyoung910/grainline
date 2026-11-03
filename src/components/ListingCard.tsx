@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
@@ -8,6 +8,7 @@ import MediaImage from "@/components/MediaImage";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { formatCityState } from "@/lib/locationDisplay";
+import { isPlainClick, startPhotoTravel } from "@/lib/photoMotion";
 
 export type ListingCardData = {
   id: string;
@@ -73,6 +74,12 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
     setPhotoState(reveal ? "revealed" : "idle");
   };
 
+  const travelToListing = (event: MouseEvent) => {
+    if (!isPlainClick(event)) return;
+    const frame = photoRef.current;
+    startPhotoTravel(frame?.querySelector<HTMLImageElement>("img[data-card-photo]") ?? null, frame, l.id);
+  };
+
   const photo = (
     <>
       <MediaImage
@@ -120,7 +127,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           <span aria-hidden="true" className="card-shimmer pointer-events-none absolute inset-0" />
         )}
         {listingHref ? (
-          <Link href={listingHref} className="block">
+          <Link href={listingHref} className="block" onClick={travelToListing}>
             {photo}
           </Link>
         ) : (
@@ -133,7 +140,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       {/* Metadata area */}
       <div className="@container min-w-0 space-y-1 pt-3">
         {listingHref ? (
-          <Link href={listingHref} className="block space-y-0.5">
+          <Link href={listingHref} className="block space-y-0.5" onClick={travelToListing}>
             <ListingCardTitlePrice
               title={l.title}
               priceCents={l.priceCents}
