@@ -96,8 +96,15 @@ export default function BuyNowCheckoutModal({
   const resumeSessionRequestRef = useRef(0);
   const completedRef = useRef(false);
   const isOpenRef = useRef(isOpen);
+  const onCloseRef = useRef(onClose);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
+
+  // The parent passes an inline state setter. Keep the latest callback without
+  // making the checkout-resume effect restart and refetch on every render.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useDialogFocus(isOpen, dialogRef, onClose);
   useBodyScrollLock(isOpen);
@@ -184,7 +191,7 @@ export default function BuyNowCheckoutModal({
 
       if (typeof data.completedSessionId === "string" && data.completedSessionId) {
         completedRef.current = true;
-        onClose();
+        onCloseRef.current();
         router.push(`/checkout/success?session_id=${data.completedSessionId}`);
         return;
       }
