@@ -406,3 +406,17 @@ describe("buyer order progress", async () => {
     assert.equal(activeOrder([], () => false), null);
   });
 });
+
+describe("conversation snippets", async () => {
+  const { formatSnippet } = await import("../src/lib/messageSnippet.ts");
+  it("names structured messages instead of showing their JSON", () => {
+    assert.equal(formatSnippet("", null), "No messages yet");
+    assert.equal(formatSnippet(null, null), "No messages yet");
+    assert.equal(formatSnippet('{"x":1}', "custom_order_request"), "Custom order request");
+    assert.equal(formatSnippet('{"x":1}', "custom_order_link"), "Custom listing ready");
+    assert.equal(formatSnippet('{"x":1}', "commission_interest_card"), "Interested in your commission");
+    assert.equal(formatSnippet("https://cdn.example/a.jpg", null), "Photo");
+    assert.equal(formatSnippet("https://cdn.example/a.pdf", null), "PDF");
+    assert.equal(formatSnippet("Hello there", null), "Hello there");
+  });
+});
