@@ -43,6 +43,13 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.match(loader, /h-16 w-16 shrink-0 rounded-lg/);
   });
 
+  it("gives the listing review region one stable anchor", () => {
+    const listing = source("src/app/listing/[id]/page.tsx");
+    const reviews = source("src/components/ReviewsSection.tsx");
+    assert.doesNotMatch(listing, /<section id="reviews">/);
+    assert.match(reviews, /<section id="reviews"/);
+  });
+
   it("makes the cart fallback match its progress, items, gift, total, and action layout", () => {
     const cart = source("src/app/cart/page.tsx");
     assert.match(cart, /aria-label="Loading cart"/);

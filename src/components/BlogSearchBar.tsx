@@ -314,7 +314,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <ul
           id={blogSearchListboxId}
           role="listbox"
-          className={`scrollbar-hidden absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-2xl bg-white/95 p-1.5 text-neutral-900 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-[#2C1F1A]/[0.12] backdrop-blur-lg motion-reduce:animate-none ${
+          className={`scrollbar-hidden absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-lg bg-white/95 p-1.5 text-neutral-900 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-[#2C1F1A]/[0.12] backdrop-blur-lg motion-reduce:animate-none ${
             closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
           }`}
         >
@@ -338,7 +338,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                     e.preventDefault();
                     chooseOption(option);
                   }}
-                  className={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F5F0] ${
+                  className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F5F0] ${
                     activeIndex === index ? "bg-[#EFEAE0]" : ""
                   } ${option.kind === "topic" ? "flex items-center gap-2" : "flex items-center gap-3 py-2.5"}`}
                 >

@@ -908,19 +908,17 @@ export default async function ListingPage({
       />
 
       {/* ── Reviews ───────────────────────────────────────────────────────── */}
-      <section id="reviews">
-        <ReviewsSection
-          listingId={listingId}
-          listingTitle={listing.title}
-          meId={meId}
-          sellerName={sellerName}
-          sellerAvatarUrl={sellerAvatar}
-          viewerIsSeller={viewerIsSeller}
-          initialSort={sortKey}
-          edit={editingMine}
-          blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
-        />
-      </section>
+      <ReviewsSection
+        listingId={listingId}
+        listingTitle={listing.title}
+        meId={meId}
+        sellerName={sellerName}
+        sellerAvatarUrl={sellerAvatar}
+        viewerIsSeller={viewerIsSeller}
+        initialSort={sortKey}
+        edit={editingMine}
+        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+      />
     </main>
     </div>
   );

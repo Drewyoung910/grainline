@@ -272,7 +272,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                   setCategoryOpen(true);
                 }
               }}
-              className="flex h-10 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 text-left text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] transition-[background-color,border-color,box-shadow] hover:border-neutral-200 hover:bg-[#F3EEE5]"
+              className="flex h-10 w-full items-center justify-between rounded-md border border-neutral-200 bg-white px-3 text-left text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] transition-[background-color,border-color,box-shadow] hover:border-neutral-200 hover:bg-[#F3EEE5]"
             >
               <span className="truncate">{pendingCategory ? CATEGORY_LABELS[pendingCategory] : "All categories"}</span>
               <ChevronDown aria-hidden="true" size={16} className={`shrink-0 text-neutral-500 transition-transform duration-300 ${categoryOpen && !categoryClosing ? "rotate-180" : ""}`} />
@@ -281,7 +281,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               <nav
                 id={`${baseId}-category-options`}
                 aria-labelledby={`${baseId}-category`}
-                className={`scrollbar-hidden absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-[min(26rem,calc(100dvh-var(--site-header-offset)-4rem))] origin-top overflow-y-auto rounded-2xl bg-white p-1.5 popover-shadow motion-reduce:animate-none ${
+                className={`scrollbar-hidden absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-[min(26rem,calc(100dvh-var(--site-header-offset)-4rem))] origin-top overflow-y-auto rounded-lg bg-white p-1.5 popover-shadow motion-reduce:animate-none ${
                   categoryClosing ? "pointer-events-none animate-menu-out" : "animate-menu-in"
                 }`}
               >
@@ -301,7 +301,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                         setCategoryClosing(false);
                         setCategoryOpen(false);
                       }}
-                      className={`flex min-h-10 items-center rounded-xl px-3 text-[14.5px] transition-colors hover:bg-[#F3EEE5] ${
+                      className={`flex min-h-10 items-center rounded-md px-3 text-[14.5px] transition-colors hover:bg-[#F3EEE5] ${
                         selected ? "bg-[#EFEAE0] font-semibold text-neutral-900" : "text-neutral-700"
                       }`}
                     >
@@ -403,7 +403,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               onBlur={onPriceBlur}
               aria-invalid={pendingMin === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-xl border border-stone-300 bg-white px-3 text-sm"
+              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
             />
             <span className="shrink-0 text-neutral-400" aria-hidden="true">–</span>
             <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
@@ -419,7 +419,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               onBlur={onPriceBlur}
               aria-invalid={pendingMax === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-xl border border-stone-300 bg-white px-3 text-sm"
+              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
             />
             {/* Lets Enter submit from either field; not a Tab stop. */}
             <button type="submit" tabIndex={-1} className="sr-only">Apply price</button>
