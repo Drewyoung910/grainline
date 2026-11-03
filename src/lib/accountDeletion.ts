@@ -80,8 +80,13 @@ import {
   anonymizeSellerForAccountDeletion,
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
+import { clearSellerProfileViewDailyForAccountDeletion } from "@/lib/sellerAnalyticsDailyAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import {
+  accountDeletionSellerBroadcastIds,
+  cleanupAccountSellerBroadcasts,
+} from "@/lib/sellerBroadcastAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import {
@@ -92,6 +97,9 @@ import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess"
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
 import { deleteAllOwnerFavorites } from "@/lib/favoriteAccess";
 import { cleanupFollowsForAccountDeletion } from "@/lib/sellerFollowAccess";
+import { deleteAllOwnerBlocks } from "@/lib/blockAccess";
+import { redactUserReportsForAccountDeletion } from "@/lib/userReportAccess";
+import { cleanupSellerFaqsForAccountDeletion } from "@/lib/sellerFaqAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
@@ -370,19 +378,21 @@ async function redactEmailOutboxRowsForDeletedMaker(
 }
 
 async function cleanupDeletedSellerFanoutRows(
-  tx: Prisma.TransactionClient,
+  tx: DbUserContextTransactionClient,
   sellerProfileId: string,
   now: Date,
+  claim: {
+    sideEffectId: string;
+    expectedUserId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  },
 ) {
-  const broadcasts = await tx.sellerBroadcast.findMany({
-    where: { sellerProfileId },
-    select: { id: true },
-  });
+  const broadcastIds = await accountDeletionSellerBroadcastIds(tx, claim);
   const listings = await tx.listing.findMany({
     where: { sellerId: sellerProfileId },
     select: { id: true },
   });
-  const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
   const listingIds = listings.map((listing) => listing.id);
   await redactEmailOutboxRowsForDeletedMaker(
     tx,
@@ -1169,7 +1179,7 @@ export async function anonymizeUserAccount(
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
     await deleteAllOwnerReviewVotes(tx);
-    await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await deleteAllOwnerBlocks(tx);
     await redactActorMessagesForAccountDeletion({
       sideEffectId: localAnonymizeSideEffectId,
       userId: user.id,
@@ -1206,28 +1216,11 @@ export async function anonymizeUserAccount(
     await tx.reviewPhoto.deleteMany({
       where: { review: { reviewerId: user.id } },
     });
-    await tx.userReport.updateMany({
-      where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
-      data: { details: null },
-    });
-    await tx.userReport.updateMany({
-      where: {
-        OR: [{ reporterId: user.id }, { reportedId: user.id }],
-        resolved: true,
-        resolutionNote: { not: null },
-      },
-      data: {
-        resolutionNote: "Resolution note removed after an involved account was deleted.",
-      },
-    });
-    await tx.userReport.updateMany({
-      where: { reportedId: user.id, resolved: false },
-      data: {
-        resolved: true,
-        resolvedAt: now,
-        resolvedById: null,
-        resolutionNote: "Auto-resolved after the reported account was deleted.",
-      },
+    await redactUserReportsForAccountDeletion(tx, {
+      expectedUserId: user.id,
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
     await redactSupportRequestsForAccountDeletion(
       tx,
@@ -1321,8 +1314,10 @@ export async function anonymizeUserAccount(
         });
       }
       await removeSellerCommissionInterests(tx, user.sellerProfile.id);
-      await tx.sellerProfileViewDaily.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await clearSellerProfileViewDailyForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await tx.sellerMetrics.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
@@ -1330,7 +1325,12 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
+      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      });
       await tx.review.updateMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
         data: { sellerReply: null, sellerReplyAt: null },
@@ -1365,11 +1365,17 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await tx.sellerBroadcast.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupAccountSellerBroadcasts(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
-      await tx.sellerFaq.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupSellerFaqsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await anonymizeSellerForAccountDeletion(tx, {
         sellerProfileId: user.sellerProfile.id,
