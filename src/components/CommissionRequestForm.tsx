@@ -202,7 +202,7 @@ export default function CommissionRequestForm({
             <UploadButton
               endpoint="messageImage"
               appearance={{
-                button: "rounded-md bg-[#2C1F1A] text-white text-xs px-3 py-2 hover:bg-[#3A2A24]",
+                button: "btn btn-primary btn-sm",
                 container: "inline-block",
                 allowedContent: "hidden",
               }}

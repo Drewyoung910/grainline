@@ -238,6 +238,12 @@
     }
   }
 }
+/* Top-level headings in the Workshop and My Account areas. */
+@utility page-title {
+  font-size: clamp(2rem, 3.4vw, 2.875rem);
+  line-height: 1.04;
+}
+
 @utility btn-danger {
   background-color: #FFFFFF;
   color: #B91C1C;

@@ -14,7 +14,7 @@ describe("seller profile and commission UI markup guardrails", () => {
     // ClickTracker supplies the list item itself, so callers must place it
     // directly in a <ul>/<ol>. li-in-li broke hydration (React error #418)
     // and a <div> parent showed a stray list bullet.
-    assert.match(clickTracker, /<li className=\{className\} onClick=\{handleClick\}>/);
+    assert.match(clickTracker, /<li className=\{className\} data-flip-id=\{flipId\} onClick=\{handleClick\}>/);
     assert.doesNotMatch(sellerPage, /<li\b[^>]*>\s*<ClickTracker\b/);
     assert.doesNotMatch(sellerPage, /<div\b[^>]*>\s*<ClickTracker\b/);
 

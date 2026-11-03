@@ -205,7 +205,7 @@ export default async function NewBlogPostPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-8">
       <div>
-        <h1 className="text-2xl font-semibold font-display">New Blog Post</h1>
+        <h1 className="font-display page-title">New Blog Post</h1>
         <p className="mt-1 text-sm text-neutral-500">
           Share build notes, project stories, and educational posts with buyers.
         </p>

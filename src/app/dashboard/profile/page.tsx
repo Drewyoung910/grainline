@@ -370,7 +370,7 @@ export default async function ProfilePage({
       )}
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold font-display">Shop Profile</h1>
+        <h1 className="font-display page-title">Shop Profile</h1>
         <Link
           href={publicSellerPath(seller.id, seller.displayName)}
           target="_blank"

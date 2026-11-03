@@ -7,6 +7,7 @@ import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
 import { createMapPinElement } from "@/lib/mapPinElement";
 import MakerMapCard, { type MakerMapCardCache } from "@/components/MakerMapCard";
+import { paintGrainlineMapColors } from "@/lib/grainlineMapStyle";
 
 type SellerPin = {
   id: string;
@@ -54,6 +55,8 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
       setMapUnavailable(true);
       return;
     }
+
+    paintGrainlineMapColors(map);
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 

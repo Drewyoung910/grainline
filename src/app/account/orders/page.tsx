@@ -109,7 +109,7 @@ export default async function AccountOrdersPage({
         <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700">
           ← My Account
         </Link>
-        <h1 className="text-3xl font-bold font-display">My Orders</h1>
+        <h1 className="font-display page-title">My Orders</h1>
       </div>
 
       {orders.length === 0 ? (

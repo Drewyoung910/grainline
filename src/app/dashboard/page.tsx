@@ -123,7 +123,7 @@ async function DashboardPageContent({
 
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="font-display text-[clamp(2rem,3.4vw,2.875rem)] leading-[1.04]">Workshop</h1>
+          <h1 className="font-display page-title">Workshop</h1>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-neutral-500">
             <span className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-medium ${shopStatus.className}`}>{shopStatus.label}</span>
             <span className="min-w-0 truncate">{seller.displayName}</span>

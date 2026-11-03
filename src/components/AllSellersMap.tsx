@@ -9,6 +9,7 @@ import { maplibreSupported } from "@/lib/mapSupport";
 import { createMapPinElement } from "@/lib/mapPinElement";
 import MakerMapCard, { type MakerMapCardCache } from "@/components/MakerMapCard";
 import { formatCityState } from "@/lib/locationDisplay";
+import { paintGrainlineMapColors } from "@/lib/grainlineMapStyle";
 
 type Point = {
   id: string;
@@ -108,6 +109,7 @@ export default function AllSellersMap({
       return;
     }
 
+    paintGrainlineMapColors(map);
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
