@@ -15,6 +15,11 @@ test("main browse uses the shared bounded public catalog authority", async () =>
   assert.match(browse, /listingPublicCatalogPage/u);
   assert.doesNotMatch(browse, /prisma\.listing\.(?:count|findMany)/u);
   assert.doesNotMatch(browse, /function fetchListings/u);
+  assert.match(
+    access,
+    /const SORTS = new Set<ListingPublicCatalogSort>\(\[[\s\S]*"relevant"[\s\S]*\]\);/u,
+    "the TypeScript boundary must accept the relevance sort that browse sends and PostgreSQL implements",
+  );
 
   for (const filter of [
     "query",
