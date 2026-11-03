@@ -105,6 +105,7 @@ const LISTING_TYPES = new Set<string>(Object.values(ListingType));
 const SORTS = new Set<ListingPublicCatalogSort>([
   "newest",
   "quality",
+  "relevant",
   "popular",
   "price_asc",
   "price_desc",
