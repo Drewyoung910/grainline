@@ -65,7 +65,7 @@ async function OrdersContent() {
         </div>
         <Link
           href="/browse"
-          className="btn btn-secondary btn-sm w-full shrink-0 justify-center text-center"
+          className="btn btn-secondary btn-sm w-full shrink-0 justify-center text-center sm:w-auto"
         >
           Continue shopping
         </Link>

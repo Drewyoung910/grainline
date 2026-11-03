@@ -27,6 +27,7 @@ export default function CommissionPostButton({
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const dirtyRef = React.useRef(false);
+  const submittingRef = React.useRef(false);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const titleId = React.useId();
 
@@ -34,7 +35,13 @@ export default function CommissionPostButton({
     dirtyRef.current = dirty;
   }, []);
 
+  const handleSubmittingChange = React.useCallback((submitting: boolean) => {
+    submittingRef.current = submitting;
+  }, []);
+
   const requestClose = React.useCallback(() => {
+    // Once it's on its way, closing wouldn't stop the request from posting.
+    if (submittingRef.current) return;
     if (dirtyRef.current && !window.confirm(DISCARD_PROMPT)) return;
     dirtyRef.current = false;
     setOpen(false);
@@ -53,6 +60,7 @@ export default function CommissionPostButton({
 
   function handlePosted() {
     dirtyRef.current = false;
+    submittingRef.current = false;
     setOpen(false);
     emitToast("Your request is posted. Makers who can build it will reach out.", "success");
     if (pathname === "/commission") router.refresh();
@@ -68,7 +76,8 @@ export default function CommissionPostButton({
         <div
           className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto overscroll-contain bg-[#14100D]/45 modal-backdrop-in p-4"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) requestClose();
+            // clientWidth stops short of the scrollbar, which also lands here.
+            if (event.target === event.currentTarget && event.clientX < event.currentTarget.clientWidth) requestClose();
           }}
         >
           <div
@@ -92,7 +101,12 @@ export default function CommissionPostButton({
                 <X size={18} />
               </button>
             </div>
-            <CommissionRequestForm onPosted={handlePosted} onCancel={requestClose} onDirtyChange={handleDirtyChange} />
+            <CommissionRequestForm
+              onPosted={handlePosted}
+              onCancel={requestClose}
+              onDirtyChange={handleDirtyChange}
+              onSubmittingChange={handleSubmittingChange}
+            />
           </div>
         </div>,
         document.body,

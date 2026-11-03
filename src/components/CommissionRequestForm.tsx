@@ -12,11 +12,13 @@ export default function CommissionRequestForm({
   onPosted,
   onCancel,
   onDirtyChange,
+  onSubmittingChange,
 }: {
   onPosted: () => void;
   onCancel: () => void;
   // Lets a dialog ask before throwing away what was typed.
   onDirtyChange?: (dirty: boolean) => void;
+  onSubmittingChange?: (submitting: boolean) => void;
 }) {
   const router = useRouter();
   const [title, setTitle] = React.useState("");
@@ -28,6 +30,8 @@ export default function CommissionRequestForm({
   const [referenceImageUrls, setReferenceImageUrls] = React.useState<string[]>([]);
   const [scope, setScope] = React.useState<"national" | "local">("national");
   const [submitting, setSubmitting] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const errorRef = React.useRef<HTMLDivElement>(null);
   const [error, setError] = React.useState<string | null>(null);
   const fieldPrefix = React.useId();
   const titleId = `${fieldPrefix}-title`;
@@ -37,7 +41,7 @@ export default function CommissionRequestForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
+    if (!title.trim() || !description.trim() || uploading) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -73,18 +77,21 @@ export default function CommissionRequestForm({
   }
 
   const dirty = Boolean(
-    title || description || category || budgetMin || budgetMax || timeline || referenceImageUrls.length > 0,
+    title || description || category || budgetMin || budgetMax || timeline || referenceImageUrls.length > 0 || uploading,
   );
   React.useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+  // A request being sent can't be taken back, so it can't be dismissed either.
+  React.useEffect(() => {
+    onSubmittingChange?.(submitting);
+  }, [submitting, onSubmittingChange]);
+  React.useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [error]);
 
   return (
     <>
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm p-3 mb-5">{error}</div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Title */}
         <div>
@@ -207,11 +214,16 @@ export default function CommissionRequestForm({
                 allowedContent: "hidden",
               }}
               content={{ button: ({ ready }) => (ready ? "Upload photos" : "Preparing…") }}
+              onUploadBegin={() => setUploading(true)}
               onClientUploadComplete={(files) => {
+                setUploading(false);
                 const newUrls = uploadedFileUrls(files);
                 setReferenceImageUrls((prev) => [...prev, ...newUrls].slice(0, 3));
               }}
-              onUploadError={(e) => emitToast(e.message || "Upload failed", "error")}
+              onUploadError={(e) => {
+                setUploading(false);
+                emitToast(e.message || "Upload failed", "error");
+              }}
             />
           )}
           {referenceImageUrls.length > 0 && (
@@ -268,17 +280,25 @@ export default function CommissionRequestForm({
           </p>
         </div>
 
+        {/* Beside the button that caused it, so it can't be off-screen. */}
+        {error && (
+          <div ref={errorRef} role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="pt-2 flex gap-3">
           <button
             type="submit"
-            disabled={submitting || !title.trim() || !description.trim()}
+            disabled={submitting || uploading || !title.trim() || !description.trim()}
             className="btn btn-primary"
           >
-            {submitting ? "Posting…" : "Post Request"}
+            {submitting ? "Posting…" : uploading ? "Waiting for photos…" : "Post Request"}
           </button>
           <button
             type="button"
             onClick={onCancel}
+            disabled={submitting}
             className="btn btn-secondary"
           >
             Cancel

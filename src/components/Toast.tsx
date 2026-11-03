@@ -174,7 +174,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           larger screens spring them up at the bottom centre. Errors stay
           until dismissed and carry a red marker. Each pill is its own
           status/alert region, so the container is not a live region too. */}
-      <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--site-header-h)+0.5rem+env(safe-area-inset-top))] z-[9999] flex flex-col-reverse items-center gap-2 px-4 sm:top-auto sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:flex-col">
+      <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--site-header-h)+0.5rem+env(safe-area-inset-top))] z-[10000] flex flex-col-reverse items-center gap-2 px-4 sm:top-auto sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:flex-col">
         {toasts.map((t) =>
           t.leaving ? (
             <div
