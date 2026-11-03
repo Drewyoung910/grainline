@@ -71,7 +71,7 @@ export default async function SavedPage({
         <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
           <ArrowLeft size={14} /> Back to My Account
         </Link>
-        <h1 className="font-display text-2xl font-bold mb-6">Saved</h1>
+        <h1 className="font-display page-title mb-6">Saved</h1>
         <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 
         {favorites.length === 0 ? (
@@ -134,7 +134,7 @@ export default async function SavedPage({
       <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
         <ArrowLeft size={14} /> Back to My Account
       </Link>
-      <h1 className="font-display text-2xl font-bold mb-6">Saved</h1>
+      <h1 className="font-display page-title mb-6">Saved</h1>
       <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 
       {savedPosts.length === 0 ? (
@@ -244,7 +244,7 @@ function Pagination({
   return (
     <div className="flex justify-center gap-2 mt-8">
       {page > 1 && (
-        <Link href={`${baseHref}&page=${page - 1}`} className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page - 1}`} className="btn btn-secondary btn-sm">
           ← Previous
         </Link>
       )}
@@ -252,7 +252,7 @@ function Pagination({
         Page {page} of {totalPages}
       </span>
       {page < totalPages && (
-        <Link href={`${baseHref}&page=${page + 1}`} className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page + 1}`} className="btn btn-secondary btn-sm">
           Next →
         </Link>
       )}

@@ -58,14 +58,14 @@ async function OrdersContent() {
     <main className="mx-auto max-w-4xl p-8 space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold font-display">My orders</h1>
+          <h1 className="font-display page-title">My orders</h1>
           <p className="text-sm text-neutral-600">
             View purchases you’ve made on Grainline.
           </p>
         </div>
         <Link
           href="/browse"
-          className="inline-flex min-h-[40px] w-full shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-center text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50 sm:w-auto"
+          className="btn btn-secondary btn-sm w-full shrink-0 justify-center text-center sm:w-auto"
         >
           Continue shopping
         </Link>

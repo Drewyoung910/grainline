@@ -650,11 +650,11 @@ export default function AnalyticsPage() {
           <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-700">
             ← Workshop
           </Link>
-          <h1 className="font-display text-3xl font-bold">Analytics</h1>
+          <h1 className="font-display page-title">Analytics</h1>
         </div>
 
         {/* Range selector */}
-        <div className="mt-4 flex overflow-x-auto gap-2 pb-1">
+        <div className="scrollbar-hidden mt-4 flex overflow-x-auto gap-2 pb-1">
           {RANGE_OPTIONS.map((r) => (
             <button
               key={r.key}
@@ -688,14 +688,14 @@ export default function AnalyticsPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href="/dashboard/onboarding"
-              className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3A2A24]"
+              className="btn btn-primary btn-sm"
             >
               Continue setup →
             </Link>
             {!setupRequired.chargesEnabled && (
               <Link
                 href="/dashboard/seller"
-                className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
+                className="btn btn-secondary btn-sm"
               >
                 Connect Stripe Payouts →
               </Link>
@@ -970,7 +970,7 @@ export default function AnalyticsPage() {
                   <p className="text-sm text-amber-900 font-medium">You qualify for Guild Master!</p>
                   <Link
                     href="/dashboard/verification"
-                    className="text-xs border border-amber-400 px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors"
+                    className="btn btn-secondary btn-sm"
                   >
                     Apply →
                   </Link>

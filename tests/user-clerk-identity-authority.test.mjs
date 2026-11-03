@@ -109,7 +109,7 @@ describe("User Clerk identity authority", () => {
       "src/app/dashboard/blog/new/page.tsx",
       "src/app/dashboard/blog/page.tsx",
       "src/app/dashboard/notifications/page.tsx",
-      "src/app/dashboard/page.tsx",
+      "src/app/dashboard/listings/actions.ts",
       "src/app/listing/[id]/page.tsx",
       "src/app/messages/[id]/page.tsx",
       "src/app/messages/new/page.tsx",
@@ -125,7 +125,7 @@ describe("User Clerk identity authority", () => {
       );
       return count + (text.match(/userClerkGate\(prisma,\s*(?:userId|uid|clerkId)\)/g) ?? []).length;
     }, 0);
-    assert.equal(gateCalls, 43);
+    assert.equal(gateCalls, 42);
 
     const supportActions = source("src/app/admin/support/actions.ts");
     assert.match(

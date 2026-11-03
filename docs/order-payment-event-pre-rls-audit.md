@@ -264,8 +264,10 @@ access is removed.
 
 The 2026-09-05 blocked-checkout review conversion removes the webhook from the
 current source-level payment-semantic matcher because refund/dispute state is
-now derived inside the source-bound database operation. The pinned current
-matcher floor is therefore 25 files; the webhook behavior remains covered by
+now derived inside the source-bound database operation. The Workshop data
+facade added on 2026-11-02 reuses the reviewed seller refund-outcome authority
+to derive the maker's fulfillment queue, bringing the pinned current matcher
+floor to 26 files; the webhook behavior remains covered by
 the fixed-operation SQL, wrapper and real PostgreSQL authority proofs rather
 than disappearing from the audit.
 
@@ -299,6 +301,7 @@ than disappearing from the audit.
 - `src/lib/publicSellerStats.ts`
 - `src/lib/quality-score.ts`
 - `src/lib/site-metrics-snapshot.ts`
+- `src/lib/workshopData.ts`
 
 ### Contended Order transitions
 

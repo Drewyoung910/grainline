@@ -714,7 +714,7 @@ export default async function EditListingPage(props: {
   if (editBlockReason) {
     return (
       <main className="max-w-4xl mx-auto p-8">
-        <h1 className="font-display text-2xl font-semibold mb-6">Edit listing</h1>
+        <h1 className="font-display page-title mb-6">Edit listing</h1>
         <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
           <p className="text-sm font-medium text-amber-900">This listing cannot be edited right now.</p>
           <p className="text-sm text-amber-800 mt-1">{editBlockReason}</p>
@@ -740,7 +740,7 @@ export default async function EditListingPage(props: {
 
   return (
     <main className="max-w-4xl mx-auto p-8">
-      <h1 className="font-display text-2xl font-semibold mb-6">Edit listing</h1>
+      <h1 className="font-display page-title mb-6">Edit listing</h1>
 
       {savedFlag === "1" && (
         <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3">
@@ -906,7 +906,7 @@ export default async function EditListingPage(props: {
             name="publish"
             value="false"
             pendingLabel="Saving..."
-            className="flex-1 rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"
+            className="btn btn-secondary flex-1 disabled:cursor-wait"
           >
             Save changes
           </SubmitButton>
@@ -918,7 +918,7 @@ export default async function EditListingPage(props: {
                 disabled={!chargesEnabled}
                 pendingLabel="Publishing..."
                 title={publishDisabledTitle}
-                className="w-full rounded-md bg-[#2C1F1A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn btn-primary w-full disabled:cursor-not-allowed"
               >
                 {listing.status === "REJECTED" ? "Publish (Resubmit)" : "Publish"}
               </SubmitButton>

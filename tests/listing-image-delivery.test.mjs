@@ -28,7 +28,7 @@ describe("listing image delivery", () => {
       /setOptimizerFailures\(\(current\) => new Set\(current\)\.add\(p\.url\)\)/u,
     );
     assert.match(gallery, /sizes="\(max-width: 1023px\) 100vw, 50vw"/u);
-    assert.match(gallery, /preload=\{activeIndex === 0\}/u);
+    assert.match(gallery, /preload=\{mainIndex === 0\}/u);
     assert.match(gallery, /sizes="64px"/u);
     assert.doesNotMatch(
       gallery,

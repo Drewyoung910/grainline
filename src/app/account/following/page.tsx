@@ -52,7 +52,7 @@ export default async function FollowingPage({
         ← My Account
       </Link>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold font-display">Makers You Follow</h1>
+        <h1 className="font-display page-title">Makers You Follow</h1>
         <Link
           href="/account/feed"
           className="btn btn-sm btn-primary"

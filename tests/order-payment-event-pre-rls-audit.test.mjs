@@ -55,11 +55,12 @@ const expectedSemanticFiles = [
   "src/lib/refundLedgerSql.ts",
   "src/lib/refundRouteState.ts",
   "src/lib/site-metrics-snapshot.ts",
+  "src/lib/workshopData.ts",
 ].sort();
 
 describe("OrderPaymentEvent pre-RLS domain audit", () => {
   it("pins every current semantic source reference", () => {
-    assert.equal(expectedSemanticFiles.length, 25);
+    assert.equal(expectedSemanticFiles.length, 26);
     assert.deepEqual(paymentSemanticFiles(), expectedSemanticFiles);
     for (const file of expectedSemanticFiles) {
       assert.match(audit, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

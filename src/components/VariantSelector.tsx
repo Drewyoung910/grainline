@@ -231,7 +231,7 @@ export default function VariantSelector({
         <p
           key={blockedAttemptCount}
           role={blockedAttemptCount > 0 ? "alert" : undefined}
-          className={`text-xs text-amber-700${blockedAttemptCount > 0 ? " hint-shake" : ""}`}
+          className={`text-xs text-amber-800${blockedAttemptCount > 0 ? " hint-shake" : ""}`}
         >
           Please select all options to continue
         </p>

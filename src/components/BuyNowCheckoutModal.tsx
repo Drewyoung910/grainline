@@ -96,8 +96,15 @@ export default function BuyNowCheckoutModal({
   const resumeSessionRequestRef = useRef(0);
   const completedRef = useRef(false);
   const isOpenRef = useRef(isOpen);
+  const onCloseRef = useRef(onClose);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
+
+  // The parent passes an inline state setter. Keep the latest callback without
+  // making the checkout-resume effect restart and refetch on every render.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useDialogFocus(isOpen, dialogRef, onClose);
   useBodyScrollLock(isOpen);
@@ -184,6 +191,7 @@ export default function BuyNowCheckoutModal({
 
       if (typeof data.completedSessionId === "string" && data.completedSessionId) {
         completedRef.current = true;
+        onCloseRef.current();
         router.push(`/checkout/success?session_id=${data.completedSessionId}`);
         return;
       }
@@ -306,7 +314,7 @@ export default function BuyNowCheckoutModal({
         aria-modal="true"
         aria-label={`Buy ${listingTitle}`}
         tabIndex={-1}
-        className="relative bg-white rounded-[20px] modal-card modal-card-in w-full max-w-lg mx-auto mb-8"
+        className="modal-card modal-card-in relative mx-auto mb-8 w-full max-w-lg rounded-2xl bg-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header: item summary + close */}
@@ -511,6 +519,7 @@ export default function BuyNowCheckoutModal({
               onComplete={() => {
                 completedRef.current = true;
                 sessionIdRef.current = null;
+                onClose();
                 router.push(
                   `/checkout/success?session_id=${sessionId}`,
                 );

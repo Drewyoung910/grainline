@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+const { popularSearchPresentation, searchSuggestionPhase } = await import("../src/lib/searchSuggestionPresentation.ts");
+
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
@@ -49,5 +51,21 @@ describe("search UI regression guardrails", () => {
     assert.match(blogSearch, /const \[closing, setClosing\] = React\.useState\(false\)/);
     assert.match(blogSearch, /closing \? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"/);
     assert.match(blogSearch, /aria-expanded=\{open && !closing && options\.length > 0\}/);
+  });
+
+  it("never presents stale suggestion results for a newer visible query", () => {
+    assert.equal(searchSuggestionPhase({ query: "ch", resolvedQuery: null, hasItems: true, noMatches: false }), "waiting");
+    assert.equal(searchSuggestionPhase({ query: "chair", resolvedQuery: "ch", hasItems: true, noMatches: false }), "waiting");
+    assert.equal(searchSuggestionPhase({ query: "chair", resolvedQuery: "chair", hasItems: true, noMatches: false }), "results");
+    assert.equal(searchSuggestionPhase({ query: "chair", resolvedQuery: "chair", hasItems: false, noMatches: true }), "empty");
+    assert.equal(searchSuggestionPhase({ query: "c", resolvedQuery: null, hasItems: false, noMatches: false }), "fallback");
+  });
+
+  it("never flashes fallback recommendations ahead of the first live response", () => {
+    const fallback = ["furniture", "decor"];
+
+    assert.deepEqual(popularSearchPresentation({ loaded: false, tags: [], fallback }), []);
+    assert.deepEqual(popularSearchPresentation({ loaded: true, tags: ["chairs"], fallback }), ["chairs"]);
+    assert.deepEqual(popularSearchPresentation({ loaded: true, tags: [], fallback }), fallback);
   });
 });

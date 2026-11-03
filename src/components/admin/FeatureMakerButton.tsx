@@ -49,7 +49,7 @@ export function FeatureMakerButton({ sellerProfileId, isFeatured, featureAction,
           <button
             type="submit"
             disabled={loading}
-            className="rounded border border-neutral-300 px-3 py-1 text-xs text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+            className="btn btn-secondary btn-sm"
           >
             {loading ? "…" : "Unfeature"}
           </button>
@@ -63,7 +63,7 @@ export function FeatureMakerButton({ sellerProfileId, isFeatured, featureAction,
       <button
         type="submit"
         disabled={loading}
-        className="rounded border border-amber-300 px-3 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+        className="btn btn-warning btn-sm"
       >
         {loading ? "…" : "Feature →"}
       </button>

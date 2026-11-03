@@ -124,12 +124,12 @@ export default function SectionTabs({
     <nav
       ref={navRef}
       aria-label={label}
-      className="sticky top-[var(--site-header-offset)] z-30 -mx-2 border-b border-stone-200/70 bg-[#F7F5F0]/90 backdrop-blur-xl sm:-mx-4 [clip-path:inset(0_-100vmax)]"
-      style={{ boxShadow: "0 0 0 100vmax rgba(247, 245, 240, 0.9)" }}
+      className="sticky top-[var(--site-header-offset)] z-30 bg-[#F7F5F0]/90 backdrop-blur-xl [clip-path:inset(0_-100vmax)]"
+      style={{ boxShadow: "0 0 0 100vmax rgb(247 245 240 / 0.9)" }}
     >
       <div
         ref={listRef}
-        className="relative mx-auto flex max-w-[1600px] gap-1 overflow-x-auto px-4 [scrollbar-width:none] sm:gap-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden"
+        className="relative mx-auto flex max-w-[1600px] gap-1 overflow-x-auto border-b border-stone-200/70 px-4 [scrollbar-width:none] sm:gap-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden"
       >
         {sections.map((section) => (
           <a
@@ -142,7 +142,7 @@ export default function SectionTabs({
             aria-current={activeId === section.id ? "location" : undefined}
             onClick={(event) => goTo(event, section.id)}
             className={`shrink-0 whitespace-nowrap px-3 py-3 text-[15px] font-medium transition-colors duration-200 focus-visible:outline-offset-[-3px] ${
-              activeId === section.id ? "text-neutral-900" : "text-neutral-500 hover:text-neutral-900"
+              activeId === section.id ? "text-neutral-900" : "text-neutral-600 hover:text-neutral-900"
             }`}
           >
             {section.label}

@@ -73,14 +73,14 @@ export default async function AccountSavedSearchesPage() {
       </Link>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-neutral-900">Saved Searches</h1>
+          <h1 className="font-display page-title text-neutral-900">Saved Searches</h1>
           <p className="mt-1 text-sm text-neutral-500">
             Revisit filters you saved from Browse.
           </p>
         </div>
         <Link
           href="/browse"
-          className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#2C1F1A] bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24]"
+          className="btn btn-primary btn-sm w-fit"
         >
           Browse listings
         </Link>
@@ -110,12 +110,12 @@ export default async function AccountSavedSearchesPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
                       href={href}
-                      className="inline-flex min-h-[36px] items-center rounded-md border border-neutral-200 bg-white px-3 py-1 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+                      className="btn btn-secondary btn-sm"
                     >
                       Browse
                     </Link>
                     <form action={deleteSavedSearch.bind(null, search.id)}>
-                      <button className="inline-flex min-h-[36px] items-center rounded-md border border-red-200 bg-white px-3 py-1 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
+                      <button className="btn btn-danger btn-sm">
                         Delete
                       </button>
                     </form>

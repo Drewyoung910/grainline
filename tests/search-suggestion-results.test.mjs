@@ -136,7 +136,7 @@ describe("typed header search suggestions (UI-19)", () => {
 
   it("renders typed items in the dropdown instead of the flat list", () => {
     const searchBar = source("src/components/SearchBar.tsx");
-    assert.match(searchBar, /data\.items\.filter\(isSuggestionItem\)/);
+    assert.match(searchBar, /value\.filter\(isSuggestionItem\)/);
     assert.doesNotMatch(searchBar, /data\.suggestions/);
     assert.match(searchBar, /router\.push\(safeInternalPath\(option\.item\.href, browseSearchUrl\(option\.item\.label\)\)\)/);
     assert.match(searchBar, /section: "No matches"/);

@@ -175,7 +175,7 @@ export default function UserAvatarMenu({
           role="dialog"
           aria-label="Account"
           data-home-account-surface={overlay ? "true" : undefined}
-          className={`absolute right-0 z-[200] w-60 overflow-hidden rounded-[18px] text-neutral-900 popover-shadow motion-reduce:animate-none ${accountSurfaceClass} ${closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"} ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
+          className={`absolute right-0 z-[200] w-60 overflow-hidden rounded-2xl text-neutral-900 popover-shadow motion-reduce:animate-none ${accountSurfaceClass} ${closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"} ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {/* Header — avatar + name */}
           <div className={`flex items-center gap-3 px-4 py-3 ${accountHeaderClass}`}>
@@ -197,7 +197,7 @@ export default function UserAvatarMenu({
             {!hasSeller && (
               <Link
                 href="/dashboard"
-                className={`flex items-center rounded-[10px] px-3 py-2.5 text-sm font-medium text-neutral-900 ${accountItemHoverClass}`}
+                className={`flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-neutral-900 ${accountItemHoverClass}`}
                 onClick={closeMenu}
               >
                 Start Selling
@@ -205,7 +205,7 @@ export default function UserAvatarMenu({
             )}
             <Link
               href="/account"
-              className={`flex items-center rounded-[10px] px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
+              className={`flex items-center rounded-xl px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
               onClick={closeMenu}
             >
               My Account
@@ -213,7 +213,7 @@ export default function UserAvatarMenu({
             {hasSeller && (
               <Link
                 href="/dashboard"
-                className={`flex items-center rounded-[10px] px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
+                className={`flex items-center rounded-xl px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
                 onClick={closeMenu}
               >
                 Workshop
@@ -221,7 +221,7 @@ export default function UserAvatarMenu({
             )}
             <Link
               href="/account/feed"
-              className={`flex items-center rounded-[10px] px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
+              className={`flex items-center rounded-xl px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
               onClick={closeMenu}
             >
               Your Feed
@@ -229,7 +229,7 @@ export default function UserAvatarMenu({
             {isAdmin && (
               <Link
                 href="/admin"
-                className={`flex items-center rounded-[10px] px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
+                className={`flex items-center rounded-xl px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
                 onClick={closeMenu}
               >
                 Admin
@@ -240,7 +240,7 @@ export default function UserAvatarMenu({
             <button
               type="button"
               onClick={handleOpenUserProfile}
-              className={`flex w-full items-center rounded-[10px] px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
+              className={`flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
             >
               Manage Account
             </button>
@@ -250,7 +250,7 @@ export default function UserAvatarMenu({
               onClick={() => {
                 void handleSignOut();
               }}
-              className={`flex w-full items-center rounded-[10px] px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
+              className={`flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
             >
               Sign Out
             </button>

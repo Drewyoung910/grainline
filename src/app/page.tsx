@@ -1,7 +1,6 @@
 // src/app/page.tsx
 import Link from "next/link";
 import Image from "next/image";
-import type { CSSProperties } from "react";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Prisma } from "@prisma/client";
@@ -19,6 +18,8 @@ import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
+import HomeHeroIntro from "@/components/HomeHeroIntro";
+import HomeCommissionBand from "@/components/HomeCommissionBand";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -175,11 +176,6 @@ const CATEGORIES = [
   { key: "OUTDOOR",   label: "Outdoor",       Icon: TreePine  },
   { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
-
-// Staggers the hero load sequence (see .hero-rise in globals.css).
-function heroRiseDelay(ms: number): CSSProperties {
-  return { "--hero-rise-delay": `${ms}ms` } as CSSProperties;
-}
 
 export default async function HomePage() {
   const { userId } = await auth();
@@ -449,7 +445,7 @@ export default async function HomePage() {
             preload
             quality={88}
             sizes="(max-width: 639px) 150vw, 100vw"
-            className="hero-photo-settle object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+            className="object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
           />
         </div>
         <div
@@ -462,36 +458,34 @@ export default async function HomePage() {
         />
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
-          <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
-            <h1 className="hero-lines font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
-              <span className="block whitespace-nowrap">Buy handmade.</span>
-              <span className="block whitespace-nowrap">Buy local.</span>
-              <span className="block whitespace-nowrap">Buy quality.</span>
-            </h1>
-            <p className="hero-rise relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg" style={heroRiseDelay(230)}>
-              More than what&apos;s made for everyone.
-            </p>
-            {/* Each button rises on its own: fading a parent would switch off the
-                buttons' frosted blur until the fade ends. */}
-            <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
-              <Link
-                href="/browse"
-                data-home-primary-cta
-                style={heroRiseDelay(300)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
-              >
-                Browse
-              </Link>
-              <Link
-                href="/map"
-                data-home-secondary-cta
-                style={heroRiseDelay(360)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
-              >
-                Find Shops Near You
-              </Link>
+          <HomeHeroIntro>
+            <div className="w-full text-left text-[#E5DFD2]">
+              <h1 data-hero-intro-heading className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
+                <span className="block whitespace-nowrap">Buy handmade.</span>
+                <span className="block whitespace-nowrap">Buy local.</span>
+                <span className="block whitespace-nowrap">Buy quality.</span>
+              </h1>
+              <p data-hero-intro-copy className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
+                More than what&apos;s made for everyone.
+              </p>
+              <div data-hero-intro-actions className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
+                <Link
+                  href="/browse"
+                  data-home-primary-cta
+                  className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
+                >
+                  Browse
+                </Link>
+                <Link
+                  href="/map"
+                  data-home-secondary-cta
+                  className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
+                >
+                  Find Shops Near You
+                </Link>
+              </div>
             </div>
-          </div>
+          </HomeHeroIntro>
         </div>
       </section>
 
@@ -505,7 +499,7 @@ export default async function HomePage() {
         >
           <dl
             data-home-stats-surface
-            className="hero-stats-rise mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+            className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
           >
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
             <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">pieces listed</dt>
@@ -560,7 +554,7 @@ export default async function HomePage() {
               <Link href="/browse?sort=popular" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
             </div>
 
-            <ScrollFadeRow arrows className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
@@ -642,7 +636,7 @@ export default async function HomePage() {
               Nothing listed yet — check back soon.
             </div>
           ) : (
-            <ScrollFadeRow arrows className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   return (
@@ -694,18 +688,18 @@ export default async function HomePage() {
                 See full feed <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
             </div>
-            <ScrollFadeRow arrows className="overflow-x-auto -mx-1 px-1">
+            <ScrollFadeRow className="overflow-x-auto -mx-1 px-1">
             <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden transition-shadow duration-200 hover:shadow-lg">
+                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
-                      <div className="aspect-[4/5] bg-neutral-100 overflow-hidden">
+                      <div className="group/photo aspect-[4/5] overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
                         <MediaImage
                           src={item.photoUrl}
                           alt={item.photoAltText ?? item.title}
                           loading="lazy"
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </div>
@@ -719,14 +713,14 @@ export default async function HomePage() {
                     </Link>
                   </ClickTracker>
                 ) : (
-                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden transition-shadow duration-200 hover:shadow-lg">
+                  <li key={item.slug} className="w-44 flex-none snap-start">
                     <Link href={`/blog/${item.slug}`} className="block">
-                      <div className="aspect-square bg-neutral-100 overflow-hidden">
+                      <div className="group/photo aspect-square overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]">
                         <MediaImage
                           src={item.coverImageUrl}
                           alt={item.title}
                           loading="lazy"
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </div>
@@ -996,12 +990,9 @@ export default async function HomePage() {
                 const { name: authorName, imageUrl: authorAvatar } =
                   publicBlogAuthorPresentation(p, "Former author");
                 return (
-                  <li key={p.slug} className="relative card-listing">
-                    <div className="absolute top-2 right-2 z-10">
-                      <SaveBlogButton slug={p.slug} initialSaved={savedBlogSlugs.has(p.slug)} />
-                    </div>
-                    <Link href={`/blog/${p.slug}`} className="block">
-                      <div className="aspect-[4/3] bg-stone-100 overflow-hidden">
+                  <li key={p.slug} className="card-listing">
+                    <div className="photo-save-surface relative overflow-hidden bg-stone-100">
+                      <Link href={`/blog/${p.slug}`} className="block aspect-[4/3]">
                         <MediaImage
                           src={p.coverImageUrl}
                           alt={p.title}
@@ -1009,7 +1000,12 @@ export default async function HomePage() {
                           className="w-full h-full object-cover"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
+                      </Link>
+                      <div className="absolute right-0 top-0 z-10">
+                        <SaveBlogButton slug={p.slug} initialSaved={savedBlogSlugs.has(p.slug)} />
                       </div>
+                    </div>
+                    <Link href={`/blog/${p.slug}`} className="block">
                       <div className="p-4 space-y-2 bg-[#EFEAE0]">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
@@ -1047,6 +1043,8 @@ export default async function HomePage() {
         )}
       </div>
       </div>
+
+      <HomeCommissionBand />
 
     </main>
   );

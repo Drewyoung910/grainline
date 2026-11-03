@@ -16,7 +16,7 @@ export default async function BlockedUsersPage() {
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
       <div className="mb-6">
         <Link href="/account" className="text-sm text-neutral-500 hover:underline">← My Account</Link>
-        <h1 className="text-2xl font-display font-semibold text-neutral-900 mt-2">Blocked Users</h1>
+        <h1 className="font-display page-title text-neutral-900 mt-2">Blocked Users</h1>
         <p className="text-sm text-neutral-500 mt-1">{blocks.length} blocked user{blocks.length !== 1 ? "s" : ""}</p>
       </div>
 
@@ -50,7 +50,7 @@ export default async function BlockedUsersPage() {
                 <form action={unblockUser.bind(null, b.blockedId)}>
                   <button
                     type="submit"
-                    className="text-sm border border-neutral-200 rounded-md px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                    className="btn btn-secondary btn-sm"
                   >
                     Unblock
                   </button>

@@ -426,7 +426,7 @@ export default function NotificationBell({
     <div className="relative flex" ref={containerRef}>
       <button
         onClick={handleOpen}
-        className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out hover:bg-current/10 motion-safe:active:scale-[0.92]"
+        className={`group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out [@media(hover:hover)]:hover:bg-current/10 focus:outline-none focus-visible:bg-current/10 motion-safe:active:scale-[0.92] ${open && !closing ? "bg-current/10" : ""}`}
         aria-label="Notifications"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -461,7 +461,7 @@ export default function NotificationBell({
             role="dialog"
             aria-label="Notifications"
             data-home-notification-surface={overlay ? "true" : undefined}
-            className={`fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-[18px] text-neutral-900 popover-shadow motion-reduce:animate-none ${notificationSurfaceClass} ${
+            className={`scrollbar-hidden fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70dvh] rounded-2xl text-neutral-900 popover-shadow motion-reduce:animate-none ${notificationSurfaceClass} ${
               closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >
