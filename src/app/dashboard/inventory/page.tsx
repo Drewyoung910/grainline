@@ -16,7 +16,7 @@ export default async function InventoryPage() {
   const { me, seller } = await ensureSeller();
 
   const listingRows = await prisma.listing.findMany({
-    where: { sellerId: seller.id, listingType: "IN_STOCK" },
+    where: { sellerId: seller.id, archivedAt: null, listingType: "IN_STOCK" },
     include: {
       photos: { orderBy: { sortOrder: "asc" }, take: 1 },
     },

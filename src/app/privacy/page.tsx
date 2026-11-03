@@ -221,7 +221,7 @@ export default function PrivacyPage() {
           <p>
             If you save a search, we store your search filters including search query, category,
             listing type, price range, shipping speed, rating, location radius, sort, and tags.
-            You may delete saved searches at any time from your dashboard.
+            You may delete saved searches at any time from your account.
           </p>
         </section>
 

@@ -37,6 +37,20 @@ export function ordersAwaitingFulfillment<T extends QueueOrder>(
   });
 }
 
+// Whether a refund has taken this order out of active work, using the same rule
+// as the sales list, so the two pages can't disagree about it.
+export function orderRefundedAway(order: QueueOrder, refundOutcome: RefundOutcome | null): boolean {
+  const status = order.fulfillmentStatus ?? "PENDING";
+  const paymentState = orderPaymentPresentationState({
+    paid: order.paidAt != null,
+    orderTotalCents: orderTotalCents(order, { itemsSubtotalCents: order.itemsSubtotalCents }),
+    refundAmountCents: order.sellerRefundAmountCents ?? refundOutcome?.amountCents ?? null,
+    refundRecorded: order.sellerRefundAmountCents != null,
+    providerRefundStatus: refundOutcome?.status ?? null,
+  });
+  return suppressActiveFulfillmentForPaymentState(paymentState, status);
+}
+
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }
@@ -50,6 +64,8 @@ export type WorkshopAttentionInput = Readonly<{
   underReviewTitle: string | null;
   rejected: number;
   lowStock: ReadonlyArray<Readonly<{ title: string; stockQuantity: number }>>;
+  // Null when unknown, so a failed read isn't taken for an empty shop.
+  listingCount?: number | null;
 }>;
 
 export type WorkshopAttentionRow = Readonly<{
@@ -70,6 +86,16 @@ export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAt
       icon: "truck",
       title: `${count} to ship`,
       detail: input.orderNames.slice(0, 3).join(" · ") || "Paid and waiting on you",
+      href: "/dashboard/sales",
+    });
+  } else if (input.ordersToShipCapped) {
+    // Only the newest orders were read. An older one could still be waiting, so
+    // this must not read as nothing to do.
+    rows.push({
+      key: "older-orders",
+      icon: "truck",
+      title: "Check your older orders",
+      detail: "Your newest orders are all handled. This page doesn't look further back",
       href: "/dashboard/sales",
     });
   }
@@ -109,6 +135,15 @@ export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAt
       title: "Running low",
       detail: input.lowStock.map((item) => `${item.title}: ${item.stockQuantity} left`).join(" · "),
       href: "/dashboard/listings?status=stock",
+    });
+  }
+  if (input.listingCount === 0) {
+    rows.push({
+      key: "first-listing",
+      icon: "tag",
+      title: "List your first piece",
+      detail: "Your workshop is empty. Add a listing to start selling",
+      href: "/dashboard/listings/new",
     });
   }
   return rows;

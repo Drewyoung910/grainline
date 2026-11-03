@@ -27,7 +27,8 @@ export const readWorkshopOrderQueue = cache(async (actorUserId: string) => {
 });
 
 export async function readWorkshopListingAttention(sellerProfileId: string) {
-  const [underReview, underReviewFirst, rejected, lowStock] = await Promise.all([
+  const [listingCount, underReview, underReviewFirst, rejected, lowStock] = await Promise.all([
+    prisma.listing.count({ where: { sellerId: sellerProfileId, archivedAt: null } }),
     prisma.listing.count({
       where: { sellerId: sellerProfileId, archivedAt: null, status: "PENDING_REVIEW" },
     }),
@@ -51,6 +52,7 @@ export async function readWorkshopListingAttention(sellerProfileId: string) {
     }),
   ]);
   return {
+    listingCount,
     underReview,
     underReviewTitle: underReviewFirst?.title ?? null,
     rejected,
