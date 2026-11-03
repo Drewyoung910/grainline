@@ -1,5 +1,6 @@
 // src/app/messages/page.tsx
 import Link from "next/link";
+import SegmentedControl from "@/components/SegmentedControl";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -181,58 +182,40 @@ async function MessagesInbox({
 
       {/* Tabs + Search */}
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={withQ("/messages")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "inbox"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Inbox
-          </Link>
-          <Link
-            href={withQ("/messages?tab=unread")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "unread"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Unread
-            {unreadTotal > 0 && (
-              <span className="ml-1.5 rounded-full bg-red-600 px-2 py-[1px] text-xs text-white">
-                {unreadTotal}
-              </span>
-            )}
-          </Link>
-          <Link
-            href={withQ("/messages?tab=sent")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "sent"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Awaiting Reply
-            {sentTotal > 0 && (
-              <span className={`ml-1.5 rounded-full px-2 py-[1px] text-xs ${tab === "sent" ? "bg-white text-neutral-900" : "bg-neutral-800 text-white"}`}>
-                {sentTotal}
-              </span>
-            )}
-          </Link>
-          <Link
-            href={withQ("/messages?tab=archived")}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === "archived"
-                ? "bg-neutral-900 text-white"
-                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            Archived
-          </Link>
-        </div>
+        {/* Sliding toggle (motion study); scrolls sideways on narrow phones. */}
+        <SegmentedControl
+          label="Conversations"
+          value={tab}
+          className="max-w-full overflow-x-auto [scrollbar-width:none]"
+          options={[
+            { value: "inbox", label: "Inbox", href: withQ("/messages") },
+            {
+              value: "unread",
+              href: withQ("/messages?tab=unread"),
+              label: (
+                <>
+                  Unread
+                  {unreadTotal > 0 && (
+                    <span className="ml-1.5 rounded-full bg-red-600 px-2 py-[1px] text-xs text-white">{unreadTotal}</span>
+                  )}
+                </>
+              ),
+            },
+            {
+              value: "sent",
+              href: withQ("/messages?tab=sent"),
+              label: (
+                <>
+                  Awaiting reply
+                  {sentTotal > 0 && (
+                    <span className="ml-1.5 rounded-full bg-[#2C1F1A] px-2 py-[1px] text-xs text-[#FBF8F3]">{sentTotal}</span>
+                  )}
+                </>
+              ),
+            },
+            { value: "archived", label: "Archived", href: withQ("/messages?tab=archived") },
+          ]}
+        />
 
         <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
           {/* keep current tab when searching */}

@@ -330,7 +330,7 @@ function LineChartSection({
               onClick={() => onMetricChange(m.key)}
               className={`text-xs px-3 py-1.5 border font-medium transition-colors pointer-coarse:min-h-11 ${
                 metric === m.key
-                  ? "bg-neutral-900 text-white border-neutral-900"
+                  ? "bg-[#2C1F1A] text-white border-[#2C1F1A]"
                   : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
               }`}
             >
@@ -663,7 +663,7 @@ export default function AnalyticsPage() {
               onClick={() => setRange(r.key)}
               className={`shrink-0 text-sm px-3 py-1.5 border font-medium transition-colors pointer-coarse:min-h-11 ${
                 range === r.key
-                  ? "bg-neutral-900 text-white border-neutral-900"
+                  ? "bg-[#2C1F1A] text-white border-[#2C1F1A]"
                   : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
               }`}
             >
@@ -688,7 +688,7 @@ export default function AnalyticsPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             <Link
               href="/dashboard/onboarding"
-              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
+              className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3A2A24]"
             >
               Continue setup →
             </Link>

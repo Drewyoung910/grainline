@@ -42,9 +42,9 @@ const inputClass =
 const textareaClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
 const checkboxClass =
-  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
+  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-[#2C1F1A] focus:ring-neutral-300";
 const primaryButtonClass =
-  "rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50";
+  "rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50";
 const SELLER_FAQ_LIMIT = 20;
 const SELLER_FEATURED_LISTING_LIMIT = 6;
 

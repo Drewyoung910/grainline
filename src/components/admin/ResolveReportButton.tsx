@@ -77,7 +77,7 @@ export function ResolveReportButton({ reportId }: { reportId: string }) {
             type="button"
             onClick={handleResolve}
             disabled={loading || !reason.trim()}
-            className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+            className="rounded-md bg-[#2C1F1A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50"
           >
             {loading ? "Resolving…" : "Resolve"}
           </button>

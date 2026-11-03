@@ -77,7 +77,7 @@ export default async function MyCommissionsPage() {
         </div>
         <Link
           href="/commission/new"
-          className="inline-flex min-h-10 w-fit items-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+          className="btn btn-sm btn-primary w-fit"
         >
           Post a Request
         </Link>
@@ -88,7 +88,7 @@ export default async function MyCommissionsPage() {
           <p className="text-neutral-500 mb-4">You haven&apos;t posted any commission requests yet.</p>
           <Link
             href="/commission/new"
-            className="inline-flex min-h-10 items-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+            className="btn btn-sm btn-primary"
           >
             Post your first request
           </Link>

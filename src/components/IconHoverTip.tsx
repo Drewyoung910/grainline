@@ -6,7 +6,7 @@ export default function IconHoverTip({ label }: { label: string }) {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute left-1/2 top-full z-[300] mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-hover:delay-300 motion-reduce:transition-none md:block"
+      className="pointer-events-none absolute left-1/2 top-full z-[300] mt-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-[#2C1F1A] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-hover:delay-300 motion-reduce:transition-none md:block"
     >
       {label}
     </span>

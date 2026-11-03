@@ -141,7 +141,7 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
           ref={popoverRef}
           role="dialog"
           aria-label="Founding Maker"
-          className="popover-spring-in z-[1000] rounded-xl bg-white shadow-xl ring-1 ring-stone-200 p-4 text-left"
+          className="popover-spring-in z-[1000] rounded-[14px] bg-white popover-shadow p-[14px] text-left"
           style={{
             position: "fixed",
             top: coords.top,

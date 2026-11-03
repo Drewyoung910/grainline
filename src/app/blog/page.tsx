@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import Link from "next/link";
+import SegmentedControl from "@/components/SegmentedControl";
 import type { Metadata } from "next";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { BlogPostType, Prisma } from "@prisma/client";
@@ -303,7 +304,7 @@ async function BlogIndexPageContent({
               href={buildHref({ type: tab.value, page: "" })}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 active
-                  ? "bg-neutral-900 text-white"
+                  ? "bg-[#2C1F1A] text-white"
                   : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
               }`}
             >
@@ -316,19 +317,16 @@ async function BlogIndexPageContent({
         {q && (
           <div className="ml-auto flex items-center gap-2">
             <span className="text-sm text-neutral-500">Sort:</span>
-            {(["relevant", "newest", "alpha"] as const).map((s) => (
-              <Link
-                key={s}
-                href={buildHref({ sort: s, page: "" })}
-                className={`text-sm px-3 py-1 rounded-full transition-colors ${
-                  sort === s
-                    ? "bg-neutral-900 text-white"
-                    : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-                }`}
-              >
-                {s === "relevant" ? "Most Relevant" : s === "newest" ? "Newest" : "A–Z"}
-              </Link>
-            ))}
+            <SegmentedControl
+              label="Sort stories"
+              size="sm"
+              value={sort}
+              options={(["relevant", "newest", "alpha"] as const).map((s) => ({
+                value: s,
+                label: s === "relevant" ? "Most relevant" : s === "newest" ? "Newest" : "A–Z",
+                href: buildHref({ sort: s, page: "" }),
+              }))}
+            />
           </div>
         )}
       </div>

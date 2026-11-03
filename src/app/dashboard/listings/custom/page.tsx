@@ -533,7 +533,7 @@ export default async function CustomListingPage({
 
         <button
           type="submit"
-          className="min-h-[44px] rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+          className="min-h-[44px] rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#3A2A24]"
         >
           Create Custom Listing &amp; Notify Buyer
         </button>

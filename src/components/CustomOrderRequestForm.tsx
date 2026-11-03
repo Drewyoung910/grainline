@@ -108,7 +108,7 @@ export default function CustomOrderRequestForm({
 
       {open && mounted && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#14100D]/45 modal-backdrop-in px-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleClose();
           }}
@@ -119,7 +119,7 @@ export default function CustomOrderRequestForm({
             aria-modal="true"
             aria-labelledby="custom-order-dialog-title"
             tabIndex={-1}
-            className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-[#F7F5F0] shadow-xl overflow-hidden"
+            className="flex max-h-[90vh] w-full max-w-md flex-col rounded-[20px] bg-[#F7F5F0] modal-card modal-card-in overflow-hidden"
           >
             <div className="flex shrink-0 items-center justify-between px-5 py-3 border-b border-stone-200/60 bg-[#EFEAE0]">
               <h2 id="custom-order-dialog-title" className="text-base font-semibold">Request a Custom Piece</h2>
@@ -144,7 +144,7 @@ export default function CustomOrderRequestForm({
                     <button
                       type="button"
                       onClick={handleViewConversation}
-                      className="rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors"
+                      className="btn btn-primary"
                     >
                       View conversation
                     </button>
@@ -152,7 +152,7 @@ export default function CustomOrderRequestForm({
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
+                    className="btn btn-secondary"
                   >
                     Close
                   </button>
@@ -229,14 +229,14 @@ export default function CustomOrderRequestForm({
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                    className="btn btn-primary flex-1"
                   >
                     {submitting ? "Sending…" : "Send request"}
                   </button>
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>

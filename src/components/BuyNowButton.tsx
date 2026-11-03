@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
-import { useToast } from "@/components/Toast";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 
@@ -23,8 +22,9 @@ type Props = {
   offersGiftWrapping?: boolean;
   giftWrappingPriceCents?: number | null;
   selectedVariantOptionIds?: string[];
-  variantRequired?: boolean;
+  variantSelectionComplete?: boolean;
   autoOpen?: boolean;
+  signedIn: boolean;
   className?: string;
   children?: React.ReactNode;
 };
@@ -41,36 +41,37 @@ export default function BuyNowButton({
   offersGiftWrapping = false,
   giftWrappingPriceCents = null,
   selectedVariantOptionIds = [],
-  variantRequired = false,
+  variantSelectionComplete = true,
   autoOpen = false,
+  signedIn,
   className = "",
   children,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const openedFromRedirect = useRef(false);
-  const { isSignedIn, isLoaded } = useUser();
-  const { toast } = useToast();
+  const { isSignedIn } = useUser();
+  // The server renders this control only for an authenticated account. Clerk
+  // may still be hydrating, but that should not turn the first tap into a no-op.
+  const signedInNow = signedIn || isSignedIn === true;
 
   useEffect(() => {
-    if (!autoOpen || openedFromRedirect.current || !isLoaded || !isSignedIn) return;
-    if (variantRequired && selectedVariantOptionIds.length === 0) return;
+    if (!autoOpen || openedFromRedirect.current || !signedInNow) return;
+    if (!variantSelectionComplete) return;
     openedFromRedirect.current = true;
     setHasOpened(true);
     setIsOpen(true);
-  }, [autoOpen, isLoaded, isSignedIn, selectedVariantOptionIds.length, variantRequired]);
+  }, [autoOpen, signedInNow, variantSelectionComplete]);
 
   return (
     <>
       <button
         type="button"
-        disabled={!isLoaded}
+        data-purchase-action=""
         onClick={() => {
-          if (variantRequired && selectedVariantOptionIds.length === 0) {
-            toast("Please select all variant options first.", "error");
-            return;
-          }
-          if (!isSignedIn) {
+          // The listing panel flags the missing option next to the options.
+          if (!variantSelectionComplete) return;
+          if (!signedInNow) {
             window.location.href = signUpPathForRedirect(window.location.pathname + window.location.search);
             return;
           }
@@ -100,7 +101,7 @@ export default function BuyNowButton({
           selectedVariantOptionIds={selectedVariantOptionIds}
           isOpen={isOpen}
           onClose={() => setIsOpen(false)}
-          isSignedIn={isSignedIn ?? false}
+          isSignedIn={signedInNow}
         />
       )}
     </>

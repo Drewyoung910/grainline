@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import Link from "next/link";
+import SegmentedControl from "@/components/SegmentedControl";
 import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
@@ -216,24 +217,16 @@ function Tabs({
   postTotal: number;
 }) {
   return (
-    <div className="flex gap-1 mb-6 border-b border-neutral-100">
-      {(["listings", "posts"] as const).map((t) => {
-        const label = t === "listings" ? `Listings (${listingTotal})` : `Blog Posts (${postTotal})`;
-        const active = tab === t;
-        return (
-          <Link
-            key={t}
-            href={tabHref(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              active
-                ? "border-neutral-900 text-neutral-900"
-                : "border-transparent text-neutral-500 hover:text-neutral-700"
-            }`}
-          >
-            {label}
-          </Link>
-        );
-      })}
+    <div className="mb-6">
+      <SegmentedControl
+        label="Saved"
+        value={tab}
+        options={(["listings", "posts"] as const).map((t) => ({
+          value: t,
+          label: t === "listings" ? `Listings (${listingTotal})` : `Blog posts (${postTotal})`,
+          href: tabHref(t),
+        }))}
+      />
     </div>
   );
 }

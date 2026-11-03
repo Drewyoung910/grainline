@@ -138,7 +138,7 @@ export default async function AdminBroadcastsPage({
           placeholder="Search message text…"
           className="flex-1 border rounded-lg px-3 py-2 text-sm"
         />
-        <button type="submit" className="bg-neutral-900 text-white px-4 py-2 rounded-lg text-sm">
+        <button type="submit" className="bg-[#2C1F1A] text-white px-4 py-2 rounded-lg text-sm">
           Search
         </button>
         {q && (

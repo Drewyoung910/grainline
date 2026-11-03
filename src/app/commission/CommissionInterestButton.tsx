@@ -56,7 +56,7 @@ export default function CommissionInterestButton({ requestId, initialInterested 
       <button
         onClick={handleClick}
         disabled={loading}
-        className="inline-flex min-h-[42px] items-center justify-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 disabled:opacity-50 whitespace-nowrap"
+        className="btn btn-primary"
       >
         {loading ? "Sending…" : "Express Interest"}
       </button>

@@ -204,7 +204,7 @@ export default function CaseReplyBox({
       <button
         type="submit"
         disabled={loading || isUploading || hasUploadError || !body.trim()}
-        className="rounded bg-neutral-900 px-4 py-1.5 text-sm text-white disabled:opacity-50"
+        className="rounded bg-[#2C1F1A] px-4 py-1.5 text-sm text-white disabled:opacity-50"
       >
         {loading ? "Sending…" : isUploading ? "Uploading…" : "Send reply"}
       </button>
