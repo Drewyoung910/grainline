@@ -30,6 +30,8 @@ export function photoDeltaTransform(from: Rect, to: Rect): string | null {
 export function growPhotoFrom(source: Element | null, photo: HTMLImageElement | null): void {
   if (!source || !photo || !motionAllowed()) return;
   const run = () => {
+    // The viewer may have closed while a late image was loading.
+    if (!photo.isConnected || !source.isConnected) return;
     const transform = photoDeltaTransform(photo.getBoundingClientRect(), source.getBoundingClientRect());
     if (!transform) return;
     // This replaces the simple entrance the viewer otherwise plays.
@@ -101,13 +103,18 @@ const FADE_MS = 160;
 
 let activeFlyer: HTMLImageElement | null = null;
 
+function discardFlyer(flyer: HTMLImageElement): void {
+  flyer.remove();
+  if (activeFlyer === flyer) activeFlyer = null;
+}
+
 function removeFlyer(flyer: HTMLImageElement): void {
   if (typeof flyer.animate === "function") {
     const fade = flyer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, fill: "forwards" });
-    fade.onfinish = () => flyer.remove();
-    fade.oncancel = () => flyer.remove();
+    fade.onfinish = () => discardFlyer(flyer);
+    fade.oncancel = () => discardFlyer(flyer);
   } else {
-    flyer.remove();
+    discardFlyer(flyer);
   }
   if (activeFlyer === flyer) activeFlyer = null;
 }
@@ -182,7 +189,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
       };
       hold();
     };
-    animation.oncancel = () => flyer.remove();
+    animation.oncancel = () => discardFlyer(flyer);
   };
 
   const waitForTarget = () => {

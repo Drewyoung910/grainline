@@ -106,6 +106,10 @@ Production promotion.
 - [x] Expand and favorite controls use matching corner cells and circle sizes.
 - [x] The selected thumbnail outline slides to the next image.
 - [x] Lightbox close controls have no faint painted rounded box.
+- [x] Plain card clicks carry the photo into the listing gallery, and full-screen
+  viewers grow from and return to their source photo. Modified clicks,
+  reduced-motion visitors, missing images, and abandoned navigation retain the
+  ordinary non-animated behavior.
 - [x] Add to cart draws a confirmation, flies the photo toward the cart, and
   bumps the cart count; row removal collapses continuously.
 - [x] Checkout progress uses a restrained moving underline rather than a white
