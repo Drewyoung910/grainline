@@ -10,22 +10,15 @@ import {
   viewRatelimit,
 } from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
-import { publicListingWhere } from "@/lib/listingVisibility";
 import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
 import { privateResponse } from "@/lib/privateResponse";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
-import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { recordListingAnalytics } from "@/lib/sellerAnalyticsDailyAccess";
 
 const VIEWED_LISTING_IDS_COOKIE = "viewed_listing_ids";
 
 function telemetryJson(body: Record<string, unknown>) {
   return privateResponse(NextResponse.json(body));
-}
-
-function todayUtcBucket() {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  return today;
 }
 
 export async function POST(
@@ -75,34 +68,7 @@ export async function POST(
   const viewer = userId ? await userIdByClerkId(prisma, userId) : null;
   if (userId && !viewer) return telemetryJson({ ok: true, skipped: true });
   const viewerUserId = viewer?.id ?? null;
-  const viewerSellerProfileId = viewerUserId
-    ? (await sellerOwnerCore(viewerUserId))?.sellerProfileId ?? null
-    : null;
-
-  const tracked = await prisma.$transaction(async (tx) => {
-    const updated = await tx.listing.updateMany({
-      where: publicListingWhere({
-        id,
-        ...(viewerSellerProfileId ? { sellerId: { not: viewerSellerProfileId } } : {}),
-      }),
-      data: { viewCount: { increment: 1 } },
-    });
-    if (updated.count === 0) return false;
-
-    const listing = await tx.listing.findUnique({
-      where: { id },
-      select: { sellerId: true },
-    });
-    if (!listing) return false;
-
-    const today = todayUtcBucket();
-    await tx.listingViewDaily.upsert({
-      where: { listingId_date: { listingId: id, date: today } },
-      create: { listingId: id, sellerProfileId: listing.sellerId, date: today, views: 1, clicks: 0 },
-      update: { views: { increment: 1 } },
-    });
-    return true;
-  });
+  const tracked = await recordListingAnalytics(id, "view", viewerUserId);
   if (!tracked) return telemetryJson({ ok: true, skipped: true });
 
   const res = telemetryJson({ ok: true });
