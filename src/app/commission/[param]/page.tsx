@@ -91,7 +91,17 @@ export async function generateMetadata({
 
   // Commission detail metadata (original logic)
   const req = await publicCommissionRequestDetail(null, param);
-  if (!req) notFound();
+  if (!req) {
+    // A signed-in owner or interested maker may still be allowed to open a
+    // terminal request. Metadata runs without that viewer context, so it must
+    // not turn an otherwise-authorized detail page into a 404.
+    return {
+      title: { absolute: "Commission Request | Grainline" },
+      description: "View a custom woodworking commission request on Grainline.",
+      alternates: { canonical: `https://thegrainline.com/commission/${param}` },
+      robots: { index: false, follow: false },
+    };
+  }
 
   const location = req.isNational
     ? "Ships Anywhere"
