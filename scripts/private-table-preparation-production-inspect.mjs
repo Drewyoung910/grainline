@@ -191,7 +191,11 @@ function assertFunctionPosture(row, expected, tableOwner) {
   const identity = `${row.function_name}(${row.identity_arguments})`;
   assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
   assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
-  assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
+  assert.equal(
+    row.security_definer,
+    expected.securityDefiner ?? true,
+    `${identity} security mode drifted`,
+  );
   assert.equal(row.volatility, expected.volatility ?? "v", `${identity} volatility drifted`);
   assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
   const executeRoles = privateTableFunctionExecuteRoles(expected);

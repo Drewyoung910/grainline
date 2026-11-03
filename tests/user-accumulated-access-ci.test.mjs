@@ -145,6 +145,16 @@ const makerVerificationActivationMigration =
   "20261028080000_activate_maker_verification_rls";
 const commissionPreparationMigration =
   "20261101060000_prepare_commission_domain_authorities";
+const adminAuditLogSellerMetricsMigrations = [
+  "20261102010000_prepare_admin_audit_log_authorities",
+  "20261102020000_activate_admin_audit_log_rls",
+  "20261102030000_prepare_seller_metrics_authorities",
+  "20261102040000_activate_seller_metrics_rls",
+];
+const listingDomainPreparationMigration =
+  "20261102050000_prepare_listing_domain_authorities";
+const listingDomainActivationMigration =
+  "20261102060000_activate_listing_domain_rls";
 const serviceReferenceLeastPrivilegeMigration =
   "20261101020000_narrow_service_reference_runtime_privileges";
 const sellerBroadcastPreparationMigration =
@@ -901,6 +911,41 @@ test("Commission preparation is proved, isolated, and restored around historical
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
+test("AdminAuditLog and SellerMetrics packages are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify AdminAuditLog and SellerMetrics source packages";
+  const isolateName = "Isolate AdminAuditLog and SellerMetrics source packages until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore AdminAuditLog and SellerMetrics source packages after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of adminAuditLogSellerMetricsMigrations) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
+test("Listing domain packages are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify Listing domain preparation and activation source packages";
+  const isolateName = "Isolate Listing domain source packages until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore Listing domain source packages after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of [
+    listingDomainPreparationMigration,
+    listingDomainActivationMigration,
+  ]) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
 test("email delivery-ledger preparation is proved, isolated, and restored around historical guards", () => {
   const verifyName = "Verify email delivery-ledger preparation source package";
   const isolateName = "Isolate email delivery-ledger preparation until historical release guards pass";
@@ -1588,6 +1633,14 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${reviewVotePreparationMigration}/migration.sql`;
     const commissionPreparationPath =
       `prisma/migrations/${commissionPreparationMigration}/migration.sql`;
+    const adminAuditLogSellerMetricsPaths =
+      adminAuditLogSellerMetricsMigrations.map(
+        (migration) => `prisma/migrations/${migration}/migration.sql`,
+      );
+    const listingDomainPreparationPath =
+      `prisma/migrations/${listingDomainPreparationMigration}/migration.sql`;
+    const listingDomainActivationPath =
+      `prisma/migrations/${listingDomainActivationMigration}/migration.sql`;
     const makerVerificationCandidatePaths = [
       makerVerificationPreparationMigration,
       makerVerificationActivationMigration,
@@ -1627,6 +1680,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       followPreparationPath,
       reviewVotePreparationPath,
       commissionPreparationPath,
+      ...adminAuditLogSellerMetricsPaths,
+      listingDomainPreparationPath,
+      listingDomainActivationPath,
       ...makerVerificationCandidatePaths,
       favoriteActivationPath,
       followActivationPath,
@@ -1670,6 +1726,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate MakerVerification candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate email service least-privilege preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate Commission preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate AdminAuditLog and SellerMetrics source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate Listing domain source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate SellerBroadcast source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate service and reference least-privilege migration until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate Block source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
@@ -1721,6 +1779,11 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, followPreparationPath)), false);
     assert.equal(existsSync(path.join(root, reviewVotePreparationPath)), false);
     assert.equal(existsSync(path.join(root, commissionPreparationPath)), false);
+    assert.ok(adminAuditLogSellerMetricsPaths.every(
+      (relative) => !existsSync(path.join(root, relative)),
+    ));
+    assert.equal(existsSync(path.join(root, listingDomainPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, listingDomainActivationPath)), false);
     assert.ok(makerVerificationCandidatePaths.every(
       (relative) => !existsSync(path.join(root, relative)),
     ));
@@ -1792,6 +1855,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore ReviewVote source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore MakerVerification candidates after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore Commission preparation after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore Listing domain source packages after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore AdminAuditLog and SellerMetrics source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SellerBroadcast source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore service and reference least-privilege migration after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore Block source packages after historical release guards")], { cwd: root, env: scriptEnv });
