@@ -127,9 +127,9 @@ describe("homepage hero and header contracts", () => {
     const manifest = JSON.parse(source("public/manifest.json"));
 
     assert.match(layout, /viewportFit: "cover"/);
-    // Modern WebKit derives the system-bar treatment from the page. Setting
-    // the legacy `default` mode explicitly insets web content below that bar.
-    assert.doesNotMatch(layout, /statusBarStyle:/);
+    // WebKit's `default` mode insets standalone web content below the status
+    // bar. `black-translucent` is the documented full-screen treatment.
+    assert.match(layout, /statusBarStyle:\s*["']black-translucent["']/);
     assert.match(layout, /<html[^>]*bg-\[#F7F5F0\]/);
     assert.match(layout, /<body[^>]*bg-\[#F7F5F0\]/);
     assert.equal(manifest.background_color, "#F7F5F0");
