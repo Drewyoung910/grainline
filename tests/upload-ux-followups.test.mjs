@@ -237,7 +237,8 @@ describe("upload UX follow-ups", () => {
     assert.match(source("src/components/GalleryUploader.tsx"), /cropAspect=\{3 \/ 2\}/);
     assert.match(source("src/components/GalleryUploader.tsx"), /aspect-\[3\/2\]/);
     assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
-    assert.match(source("src/components/ListingGallery.tsx"), /aspect-\[4\/5\]/);
+    assert.match(source("src/components/ListingGallery.tsx"), /100svh-var\(--site-header-offset\)/);
+    assert.match(source("src/components/ListingGallery.tsx"), /object-contain/);
     assert.match(source("src/components/EditPhotoGrid.tsx"), /aspect-\[4\/5\]/);
     assert.match(source("src/components/PhotoManager.tsx"), /aspect-\[4\/5\]/);
   });
@@ -268,7 +269,7 @@ describe("upload UX follow-ups", () => {
       "src/components/BlogPostForm.tsx",
       "src/components/ImageUploadField.tsx",
       "src/components/VideoUploader.tsx",
-      "src/app/commission/new/page.tsx",
+      "src/components/CommissionRequestForm.tsx",
     ];
 
     for (const path of checked) {

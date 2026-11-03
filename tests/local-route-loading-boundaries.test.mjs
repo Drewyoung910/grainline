@@ -127,7 +127,7 @@ describe("local discovery and niche route loading boundaries", () => {
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     assert.match(customListing, /<main className="mx-auto max-w-2xl p-8">/);
     assert.match(customListing, /className="card-section p-4"/);
-    assert.match(customListing, /min-h-\[44px\] rounded-md bg-\[#2C1F1A\]/);
+    assert.match(customListing, /className="btn btn-primary[^"]*"/);
     assert.doesNotMatch(customListing, /rounded-xl/);
     assert.doesNotMatch(customListing, /bg-black/);
   });

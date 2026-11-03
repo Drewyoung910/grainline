@@ -17,6 +17,7 @@ import FilterChipLink from "@/components/FilterChipLink";
 import RollingNumber from "@/components/RollingNumber";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
+import FlipList from "@/components/FlipList";
 import RecentlyViewed from "@/components/RecentlyViewed";
 import GuildBadge from "@/components/GuildBadge";
 import ListingCard from "@/components/ListingCard";
@@ -573,7 +574,7 @@ async function BrowseContent({
   function GridCard({ l }: { l: ListingWithIncludes }) {
     const shop = sellerRatings.get(l.sellerId);
     return (
-      <ClickTracker listingId={l.id}>
+      <ClickTracker listingId={l.id} flipId={l.id}>
         <ListingCard
           listing={{
             id: l.id,
@@ -756,7 +757,7 @@ async function BrowseContent({
       <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
-        <div className="sticky top-[calc(var(--site-header-offset)+1rem)] self-start">
+        <div className="self-start">
           <FilterSidebar popularTags={visiblePopularTags} />
         </div>
 
@@ -783,23 +784,28 @@ async function BrowseContent({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <SortMenu />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <SortMenu />
+                {(Boolean(q) || activeFilterCount > 0) && (
+                  <SaveSearchButton signedIn={!!userId} />
+                )}
+              </div>
               {/* View toggle: the white thumb slides between Grid and List
                   (the control is kept across the navigation and moves as
                   soon as it is clicked). */}
-              <SegmentedControl
-                label="View"
-                size="sm"
-                value={view === "list" ? "list" : "grid"}
-                options={[
-                  { value: "grid", label: "Grid", href: viewToggleHref("grid") },
-                  { value: "list", label: "List", href: viewToggleHref("list") },
-                ]}
-              />
-
-              <SaveSearchButton signedIn={!!userId} />
-              <Pager />
+              <div className="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                  label="View"
+                  size="sm"
+                  value={view === "list" ? "list" : "grid"}
+                  options={[
+                    { value: "grid", label: "Grid", href: viewToggleHref("grid") },
+                    { value: "list", label: "List", href: viewToggleHref("list") },
+                  ]}
+                />
+                <Pager />
+              </div>
             </div>
           </div>
 
@@ -820,21 +826,20 @@ async function BrowseContent({
           )}
 
           {/* Listings */}
-          {view === "grid" ? (
-            <ul className="results-stagger grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
-              {listings.map((l) => (
-                <GridCard key={l.id} l={l} />
-              ))}
-            </ul>
-          ) : (
-            <ul className="results-stagger space-y-4">
-              {listings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="card-listing">
-                  <ListCard l={l} />
-                </ClickTracker>
-              ))}
-            </ul>
-          )}
+          <FlipList
+            className={view === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8"
+              : "space-y-4"}
+            itemKey={`${view}:${listings.map((l) => l.id).join(",")}`}
+          >
+            {view === "grid"
+              ? listings.map((l) => <GridCard key={l.id} l={l} />)
+              : listings.map((l) => (
+                  <ClickTracker key={l.id} listingId={l.id} flipId={l.id} className="card-listing">
+                    <ListCard l={l} />
+                  </ClickTracker>
+                ))}
+          </FlipList>
 
           {/* Bottom pager */}
           {totalPages > 1 && (

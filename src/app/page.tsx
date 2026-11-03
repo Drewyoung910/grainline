@@ -1,7 +1,6 @@
 // src/app/page.tsx
 import Link from "next/link";
 import Image from "next/image";
-import type { CSSProperties } from "react";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Prisma } from "@prisma/client";
@@ -38,6 +37,9 @@ import {
   sellerPublicFollowStateBatch,
 } from "@/lib/sellerFollowAccess";
 import { getCachedHomepageStats } from "@/lib/homepageStats";
+import { categoryCountLabel, getCachedHomeCategoryCounts } from "@/lib/homeCategoryCounts";
+import HomePromiseBand from "@/components/HomePromiseBand";
+import HomeCommissionBand from "@/components/HomeCommissionBand";
 import { BLOG_TYPE_COLORS, BLOG_TYPE_LABELS } from "@/lib/blog";
 import {
   sellerPublicFeaturedMakers,
@@ -175,11 +177,6 @@ const CATEGORIES = [
   { key: "OUTDOOR",   label: "Outdoor",       Icon: TreePine  },
   { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
-
-// Staggers the hero load sequence (see .hero-rise in globals.css).
-function heroRiseDelay(ms: number): CSSProperties {
-  return { "--hero-rise-delay": `${ms}ms` } as CSSProperties;
-}
 
 export default async function HomePage() {
   const { userId } = await auth();
@@ -386,6 +383,9 @@ export default async function HomePage() {
       ? await getCachedPublicSellerStats(featuredMakers[0].maker.id).catch(() => null)
       : null;
 
+  // The tiles still work without counts, so a failed count only hides them.
+  const categoryCounts = await getCachedHomeCategoryCounts().catch(() => null);
+
   // Maker of the Week pill dates — aligned to Monday–Sunday calendar week
   const nowForPill = new Date();
   const dowForPill = nowForPill.getUTCDay();
@@ -449,7 +449,7 @@ export default async function HomePage() {
             preload
             quality={88}
             sizes="(max-width: 639px) 150vw, 100vw"
-            className="hero-photo-settle object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+            className="object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
           />
         </div>
         <div
@@ -463,30 +463,26 @@ export default async function HomePage() {
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
           <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
-            <h1 className="hero-lines font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
+            <h1 className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
               <span className="block whitespace-nowrap">Buy handmade.</span>
               <span className="block whitespace-nowrap">Buy local.</span>
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-            <p className="hero-rise relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg" style={heroRiseDelay(230)}>
+            <p className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
               More than what&apos;s made for everyone.
             </p>
-            {/* Each button rises on its own: fading a parent would switch off the
-                buttons' frosted blur until the fade ends. */}
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
               <Link
                 href="/browse"
                 data-home-primary-cta
-                style={heroRiseDelay(300)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
+                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
               >
                 Browse
               </Link>
               <Link
                 href="/map"
                 data-home-secondary-cta
-                style={heroRiseDelay(360)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
+                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
               >
                 Find Shops Near You
               </Link>
@@ -494,6 +490,8 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {!showMarketplaceStats && <HomePromiseBand />}
 
       {showMarketplaceStats && (
         /* Zero-height anchor + 50% translation keeps the bar exactly half
@@ -505,7 +503,7 @@ export default async function HomePage() {
         >
           <dl
             data-home-stats-surface
-            className="hero-stats-rise mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+            className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
           >
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
             <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">pieces listed</dt>
@@ -536,7 +534,7 @@ export default async function HomePage() {
       )}
 
       {/* ── Find Shops Near You ───────────────────────────────────────────── */}
-      <ScrollSection className={showMarketplaceStats ? "pb-6 pt-16 sm:pb-8 sm:pt-20" : "pb-6 pt-10 sm:pb-8 sm:pt-12"}>
+      <ScrollSection className="pb-6 pt-16 sm:pb-8 sm:pt-20 md:pt-24">
         <div data-home-map className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}
@@ -556,7 +554,10 @@ export default async function HomePage() {
         {topSaved.length > 0 && (
           <ScrollSection>
             <div data-home-top-picks className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+                <p className="text-sm text-neutral-500">Ranked by ratings, saves and sales</p>
+              </div>
               <Link href="/browse?sort=popular" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
             </div>
 
@@ -617,6 +618,11 @@ export default async function HomePage() {
                 >
                   <c.Icon size={28} className="text-[#2C1F1A] will-change-transform transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-[1.08]" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
+                  {categoryCounts && (
+                    <span className="-mt-1 whitespace-nowrap text-[11px] leading-tight text-neutral-500">
+                      {categoryCountLabel(categoryCounts[c.key] ?? 0)}
+                    </span>
+                  )}
                 </Link>
               ))}
               <Link
@@ -633,7 +639,10 @@ export default async function HomePage() {
         {/* ── New Arrivals ───────────────────────────────────────── */}
         <ScrollSection>
           <div data-home-new-arrivals className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
+              <p className="text-sm text-neutral-500">The newest pieces on Grainline</p>
+            </div>
             <Link href="/browse?sort=newest" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
           </div>
 
@@ -1048,6 +1057,7 @@ export default async function HomePage() {
       </div>
       </div>
 
+      <HomeCommissionBand />
     </main>
   );
 }

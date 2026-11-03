@@ -138,14 +138,14 @@ export default function VacationModeForm({
             <button
               type="button"
               onClick={confirmEnable}
-              className="rounded-md bg-[#2C1F1A] text-white px-4 py-1.5 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
+              className="btn btn-primary btn-sm"
             >
               Enable vacation mode
             </button>
             <button
               type="button"
               onClick={cancelEnable}
-              className="rounded-md border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium hover:bg-neutral-50 transition-colors"
+              className="btn btn-secondary btn-sm"
             >
               Cancel
             </button>
@@ -197,7 +197,7 @@ export default function VacationModeForm({
         type="button"
         onClick={handleSave}
         disabled={isPending || showWarning}
-        className="rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors disabled:opacity-50"
+        className="btn btn-primary btn-sm"
       >
         {isPending ? "Saving…" : "Save vacation settings"}
       </button>

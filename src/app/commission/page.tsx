@@ -1,4 +1,5 @@
 // src/app/commission/page.tsx
+import CommissionPostButton from "@/components/CommissionPostButton";
 import { prisma } from "@/lib/db";
 import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
 import Link from "next/link";
@@ -324,19 +325,17 @@ async function CommissionPageContent({
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold font-display text-neutral-900">Commission Room</h1>
           <p className="text-neutral-500 mt-1 text-sm">
             Buyers post custom piece requests. Makers express interest to connect.
           </p>
         </div>
-        <Link
-          href="/commission/new"
-          className="btn btn-primary"
-        >
-          Post a Request
-        </Link>
+        <CommissionPostButton className="btn btn-sm btn-primary shrink-0 whitespace-nowrap px-3 sm:px-5">
+          <span className="sm:hidden">Post request</span>
+          <span className="hidden sm:inline">Post a Request</span>
+        </CommissionPostButton>
       </div>
 
       {/* Tab strip — only when there is a second tab ("Near Me" needs a
@@ -397,12 +396,9 @@ async function CommissionPageContent({
             Be the first to post a custom piece request. Describe what you&apos;re looking for
             and makers will reach out directly.
           </p>
-          <Link
-            href="/commission/new"
-            className="btn btn-primary"
-          >
+          <CommissionPostButton className="btn btn-primary">
             Post a Request →
-          </Link>
+          </CommissionPostButton>
         </div>
       ) : (
         <div className="space-y-4">

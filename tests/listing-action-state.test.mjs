@@ -119,7 +119,7 @@ describe("listing shop action state", () => {
   it("wires pending-review withdrawal through guarded seller actions and UI", () => {
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const shopUi = source("src/app/seller/[id]/shop/ShopListingActions.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/dashboard/listings/actions.ts") + source("src/app/dashboard/listings/page.tsx");
     const inventoryRow = source("src/app/dashboard/inventory/InventoryRow.tsx");
 
     assert.match(shopActions, /export async function withdrawListingReviewAction/);
@@ -153,7 +153,7 @@ describe("listing shop action state", () => {
 
   it("offers Hide without using privacy as an archive proxy", () => {
     const shopUi = source("src/app/seller/[id]/shop/ShopListingActions.tsx");
-    const dashboard = source("src/app/dashboard/page.tsx");
+    const dashboard = source("src/app/dashboard/listings/actions.ts") + source("src/app/dashboard/listings/page.tsx");
 
     assert.match(shopUi, /status === "ACTIVE" \|\| status === "SOLD_OUT"/);
     assert.doesNotMatch(shopUi, /!isPrivate/);

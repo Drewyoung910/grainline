@@ -426,7 +426,7 @@ export default function NotificationBell({
     <div className="relative flex" ref={containerRef}>
       <button
         onClick={handleOpen}
-        className="group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out hover:bg-current/10 motion-safe:active:scale-[0.92]"
+        className={`group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out [@media(hover:hover)]:hover:bg-current/10 focus:outline-none focus-visible:bg-current/10 motion-safe:active:scale-[0.92] ${open && !closing ? "bg-current/10" : ""}`}
         aria-label="Notifications"
         aria-expanded={open}
         aria-haspopup="dialog"

@@ -6,6 +6,7 @@ type Props = Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src"> & {
   src?: string | null;
   fallbackSrc?: string | null;
   fallbackClassName?: string;
+  ref?: React.Ref<HTMLImageElement | null>;
 };
 
 export default function MediaImage({
@@ -15,9 +16,11 @@ export default function MediaImage({
   className,
   fallbackClassName,
   onError,
+  ref,
   ...props
 }: Props) {
   const imgRef = React.useRef<HTMLImageElement | null>(null);
+  React.useImperativeHandle<HTMLImageElement | null, HTMLImageElement | null>(ref, () => imgRef.current);
   const [failed, setFailed] = React.useState(false);
   const [currentSrc, setCurrentSrc] = React.useState<string | null>(() => src ?? fallbackSrc ?? null);
   const usableFallbackSrc = fallbackSrc && fallbackSrc !== src ? fallbackSrc : null;

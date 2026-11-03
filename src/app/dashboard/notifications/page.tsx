@@ -111,7 +111,7 @@ export default async function NotificationsPage({
     <main className="max-w-2xl mx-auto p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display text-2xl font-bold">Notifications</h1>
+          <h1 className="font-display page-title">Notifications</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-neutral-500 mt-0.5">{unreadCount} unread</p>
           )}
@@ -171,7 +171,7 @@ export default async function NotificationsPage({
           {page > 1 && (
             <Link
               href={`/dashboard/notifications?page=${page - 1}`}
-              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Previous
             </Link>
@@ -182,7 +182,7 @@ export default async function NotificationsPage({
           {page < totalPages && (
             <Link
               href={`/dashboard/notifications?page=${page + 1}`}
-              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next
             </Link>

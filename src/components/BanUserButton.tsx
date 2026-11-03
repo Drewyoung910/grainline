@@ -49,11 +49,7 @@ export function BanUserButton({
       <button
         onClick={() => setOpen((value) => !value)}
         disabled={loading}
-        className={`text-xs px-3 py-1 border font-medium transition-colors disabled:opacity-50 ${
-          banned
-            ? "border-green-300 text-green-700 hover:bg-green-50"
-            : "border-red-300 text-red-700 hover:bg-red-50"
-        }`}
+        className={`btn btn-sm ${banned ? "btn-success" : "btn-danger"}`}
       >
         {banned ? "Unban" : "Ban"}
       </button>
@@ -90,9 +86,7 @@ export function BanUserButton({
             <button
               type="submit"
               disabled={loading || !reason.trim()}
-              className={`text-xs px-3 py-1.5 text-white disabled:opacity-50 ${
-                banned ? "bg-green-700 hover:bg-green-800" : "bg-red-700 hover:bg-red-800"
-              }`}
+              className={`btn btn-sm ${banned ? "btn-primary" : "btn-danger-solid"}`}
             >
               {loading ? "..." : banned ? "Confirm unban" : "Confirm ban"}
             </button>
@@ -103,7 +97,7 @@ export function BanUserButton({
                 setOpen(false);
                 setReason("");
               }}
-              className="text-xs px-3 py-1.5 border border-neutral-300 text-neutral-700 hover:bg-white disabled:opacity-50"
+              className="btn btn-secondary btn-sm"
             >
               Cancel
             </button>

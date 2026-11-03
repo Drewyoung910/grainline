@@ -445,7 +445,9 @@ export default function Header() {
   }, [isSignedIn, loadAnonymousCartCount, loadCartCount]);
 
   const iconButtonClass =
-    "group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out hover:bg-current/10 motion-safe:active:scale-[0.92]";
+    "group relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 ease-out [@media(hover:hover)]:hover:bg-current/10 focus:outline-none focus-visible:bg-current/10 motion-safe:active:scale-[0.92] [&>svg]:block [&>svg]:shrink-0";
+  const mobileIconButtonClass =
+    "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 [@media(hover:hover)]:hover:bg-current/10 focus:outline-none focus-visible:bg-current/10 motion-safe:active:scale-[0.92] [&>svg]:block [&>svg]:shrink-0";
   const navLinkClass = (href: string) => {
     const current = pathname === href || pathname.startsWith(`${href}/`);
     return `relative py-1 text-[15px] font-medium text-current after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-0.5 after:h-[1.5px] after:origin-left after:bg-current after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:after:scale-x-100 ${
@@ -458,7 +460,7 @@ export default function Header() {
     <header
       ref={headerRef}
       data-header-state={clear ? "clear" : "frosted"}
-      className={`${isHome ? "fixed" : pinned ? "sticky" : "relative"} inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] ${
+      className={`${isHome ? "fixed" : pinned ? "sticky" : "relative"} isolate inset-x-0 top-0 z-[50] pt-[env(safe-area-inset-top)] ${
         isHome && headerAnimates ? "transition-colors duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]" : ""
       } ${
         clear
@@ -530,13 +532,19 @@ export default function Header() {
           </div>
 
           <div data-header-actions className="ml-auto flex shrink-0 items-center gap-1">
-            <Show when="signed-in">
-              <NotificationBell initialUnreadCount={0} />
-            </Show>
+            {/* Reserve both signed-in action cells before Clerk resolves so
+                the search and cart never jump when the icons appear. */}
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center">
+              <Show when="signed-in">
+                <NotificationBell initialUnreadCount={0} />
+              </Show>
+            </span>
 
-            <Show when="signed-in">
-              <MessageIconLink />
-            </Show>
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center">
+              <Show when="signed-in">
+                <MessageIconLink />
+              </Show>
+            </span>
 
             {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
             <Link href="/cart" className={iconButtonClass} aria-label="Cart" data-cart-target="">
@@ -589,7 +597,7 @@ export default function Header() {
             aria-label={searchOpen ? "Close search" : "Search"}
             aria-expanded={searchOpen}
             aria-controls={mobileSearchId}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]"
+            className={`${mobileIconButtonClass} ${searchOpen && !searchClosing ? "bg-current/10" : ""}`}
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
@@ -609,12 +617,12 @@ export default function Header() {
               vertical position in the header row. */}
           <Link
             href="/cart"
-            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
+            className="group/cart inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full focus:outline-none"
             aria-label="Cart"
             data-cart-target=""
           >
-            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]">
-              <ShoppingBag size={20} />
+            <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-current transition-[background-color,scale] duration-200 [@media(hover:hover)]:group-hover/cart:bg-current/10 group-focus-visible/cart:bg-current/10 motion-safe:group-active/cart:scale-[0.92] [&>svg]:block [&>svg]:shrink-0">
+              <ShoppingBag size={20} className="translate-y-px" />
               {cartCount != null && cartCount > 0 && (
                 <span key={cartBumpCount} className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-medium leading-none ${clear ? "bg-[#FBF8F3] text-[#2C1F1A]" : "bg-[#2C1F1A] text-[#FBF8F3]"}${cartBumpCount > 0 ? " badge-bump" : ""}`}>
                   {cartCount}
@@ -631,7 +639,7 @@ export default function Header() {
             aria-expanded={drawerOpen}
             aria-haspopup="dialog"
             aria-controls={drawerOpen ? drawerId : undefined}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 text-current transition-[background-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.92]"
+            className={`${mobileIconButtonClass} ${drawerOpen && !drawerClosing ? "bg-current/10" : ""}`}
           >
             <Menu size={24} />
           </button>

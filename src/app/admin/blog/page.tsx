@@ -198,7 +198,7 @@ export default async function AdminBlogPage() {
       return <span className="text-xs text-neutral-500">{notPublicReason}</span>;
     }
     return (
-      <Link href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+      <Link href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
         View
       </Link>
     );
@@ -248,12 +248,12 @@ export default async function AdminBlogPage() {
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <form action={approveComment.bind(null, c.id)}>
-                      <button type="submit" className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50">
+                      <button type="submit" className="btn btn-success btn-sm">
                         Approve
                       </button>
                     </form>
                     <form action={deleteComment.bind(null, c.id)}>
-                      <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
+                      <button type="submit" className="btn btn-danger btn-sm">
                         Delete
                       </button>
                     </form>

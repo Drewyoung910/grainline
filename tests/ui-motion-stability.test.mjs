@@ -69,14 +69,21 @@ describe("motion stability guardrails", () => {
 
   it("reveals unsaved card actions without moving their hit areas", () => {
     const css = source("src/app/globals.css");
+    const card = source("src/components/ListingCard.tsx");
     const favorite = source("src/components/FavoriteButton.tsx");
     const blogSave = source("src/components/SaveBlogButton.tsx");
-    assert.match(css, /\.group \.listing-save-control\[data-saved="false"\]/);
-    assert.match(css, /\.group:hover \.listing-save-control\[data-saved="false"\]/);
+    assert.match(css, /\.listing-card-photo \.listing-save-control\[data-saved="false"\]/);
+    assert.match(css, /\.listing-card-photo:hover \.listing-save-control\[data-saved="false"\]/);
+    assert.doesNotMatch(css, /\.group:hover \.listing-save-control\[data-saved="false"\]/);
+    assert.match(css, /translate: 0 3px;/);
+    assert.match(css, /scale: 0\.94;/);
+    assert.doesNotMatch(css, /transform: translateY\(3px\) scale\(0\.94\)/);
+    assert.match(card, /group\/photo/);
+    assert.match(card, /group-hover\/photo:data-\[ready=true\]:opacity-100/);
     assert.match(favorite, /data-saved=\{saved \? "true" : "false"\}/);
     assert.match(blogSave, /data-saved=\{saved \? "true" : "false"\}/);
-    assert.match(favorite, /transform-gpu items-center justify-center/);
-    assert.match(blogSave, /transform-gpu items-center justify-center/);
+    assert.match(favorite, /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/);
+    assert.match(blogSave, /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/);
   });
 
   it("paints seller tabs edge to edge without introducing viewport-width overflow", () => {

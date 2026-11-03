@@ -16,11 +16,54 @@ import {
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
-import { sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
+import { sellerPublicListingCards, sellerPublicNameSuggestions } from "@/lib/sellerProfilePublicAccess";
 import {
   buildSearchSuggestionItems,
   sellerNameSuggestionInputSupported,
+  type SearchSuggestionDetail,
 } from "@/lib/searchSuggestionResults";
+import { formatCityState } from "@/lib/locationDisplay";
+import { logServerError } from "@/lib/serverErrorLogger";
+
+const RECENT_LISTING_SUGGESTIONS = 3;
+
+// Adds price, photo and maker to piece rows. Search must keep working if this
+// fails, so a failure only costs the extra facts.
+async function listingSuggestionDetails(
+  viewerUserId: string | null,
+  listingIds: string[],
+): Promise<Map<string, SearchSuggestionDetail>> {
+  const details = new Map<string, SearchSuggestionDetail>();
+  if (listingIds.length === 0) return details;
+  try {
+    const [rows, cards] = await Promise.all([
+      prisma.listing.findMany({
+        where: publicListingWhere({ id: { in: listingIds } }),
+        select: {
+          id: true,
+          priceCents: true,
+          currency: true,
+          photos: { select: { url: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }], take: 1 },
+        },
+      }),
+      sellerPublicListingCards(viewerUserId, listingIds),
+    ]);
+    const cardByListingId = new Map(cards.map((card) => [card.listingId, card]));
+    for (const row of rows) {
+      const card = cardByListingId.get(row.id);
+      details.set(row.id, {
+        priceCents: row.priceCents,
+        currency: row.currency,
+        photoUrl: row.photos[0]?.url ?? null,
+        makerName: card?.displayName ?? null,
+        location: card ? formatCityState(card.city, card.state) || null : null,
+      });
+    }
+  } catch (error) {
+    logServerError(error, { source: "search_suggestion_details", extra: { listingCount: listingIds.length } });
+  }
+  return details;
+}
 
 async function listingFuzzySuggestionRows(q: string, blockedSellerIds: string[]) {
   return prisma.$transaction(async (tx) => {
@@ -72,8 +115,13 @@ async function blogFuzzySuggestionRows(q: string, blockedUserIds: string[], bloc
       ? Prisma.sql`AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))`
       : Prisma.empty;
 
-    return tx.$queryRaw<Array<{ slug: string; title: string }>>(Prisma.sql`
-      SELECT bp.slug, bp.title
+    return tx.$queryRaw<Array<{
+      slug: string;
+      title: string;
+      coverImageUrl: string | null;
+      readingTimeMinutes: number | null;
+    }>>(Prisma.sql`
+      SELECT bp.slug, bp.title, bp."coverImageUrl", bp."readingTimeMinutes"
       FROM "BlogPost" bp
       WHERE bp.status = 'PUBLISHED'
         AND bp."publishedAt" IS NOT NULL
@@ -102,7 +150,8 @@ export async function GET(req: NextRequest) {
     return privateResponse(rateLimitResponse(reset, "Too many searches."));
   }
   const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("q"));
-  if (q.length < 2) return privateJson({ suggestions: [] });
+  const wantsRecentListings = req.nextUrl.searchParams.get("recent") === "1";
+  if (q.length < 2 && !wantsRecentListings) return privateJson({ suggestions: [] });
 
   const { userId } = await auth();
   let meDbId: string | null = null;
@@ -118,6 +167,26 @@ export async function GET(req: NextRequest) {
   }
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
   const blockedUserIdList = [...blockedUserIds];
+
+  // The empty search box lists a few new pieces under the recommendations.
+  if (q.length < 2) {
+    const recentRows = await prisma.listing.findMany({
+      where: publicListingWhere(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
+      select: { id: true, title: true },
+      take: RECENT_LISTING_SUGGESTIONS,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const recentDetails = await listingSuggestionDetails(meDbId, recentRows.map((row) => row.id));
+    return privateJson({
+      suggestions: [],
+      recent: buildSearchSuggestionItems({
+        listingTitles: recentRows.map((row) => ({ ...row, detail: recentDetails.get(row.id) })),
+        tags: [],
+        makers: [],
+        fuzzyListingTitles: [],
+      }),
+    });
+  }
 
   const qLower = q.toLowerCase();
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
@@ -163,7 +232,7 @@ export async function GET(req: NextRequest) {
 
   const seen = new Set<string>();
   const suggestions: string[] = [];
-  const blogs: Array<{ slug: string; title: string }> = [];
+  const blogs: Array<{ slug: string; title: string; coverImageUrl: string | null; readingTimeMinutes: number | null }> = [];
 
   function add(s: string | null | undefined) {
     const trimmed = (s ?? "").trim();
@@ -179,16 +248,27 @@ export async function GET(req: NextRequest) {
   for (const row of fuzzyRows) add(row.title);
 
   for (const b of blogRows) {
-    blogs.push({ slug: b.slug, title: b.title });
+    blogs.push({
+      slug: b.slug,
+      title: b.title,
+      coverImageUrl: b.coverImageUrl,
+      readingTimeMinutes: b.readingTimeMinutes,
+    });
   }
 
   // Typed items open their own target (maker page, tag page); categories
   // stay in `categories` only so the dropdown does not list them twice.
+  const details = await listingSuggestionDetails(meDbId, [...listings, ...fuzzyRows].map((row) => row.id));
+  const withDetail = <T extends { id: string; title: string }>(row: T) => ({
+    id: row.id,
+    title: row.title,
+    detail: details.get(row.id),
+  });
   const items = buildSearchSuggestionItems({
-    listingTitles: listings,
+    listingTitles: listings.map(withDetail),
     tags: tagRows.map((row) => row.tag),
     makers: sellers,
-    fuzzyListingTitles: fuzzyRows,
+    fuzzyListingTitles: fuzzyRows.map(withDetail),
   });
 
   return privateJson({

@@ -125,6 +125,11 @@ export default function ThreadMessages({
     cursorForMessage(initial?.[initial.length - 1]),
   );
   const atBottomRef = React.useRef(true);
+  // Only messages that arrive while the thread is open spring in. Everything
+  // already there, including older history loaded later, just appears.
+  const [openedAt] = React.useState(() =>
+    (initial ?? []).reduce((latest, message) => Math.max(latest, new Date(message.createdAt).getTime()), 0),
+  );
 
   const scrollToBottom = (smooth = true) => {
     const el = boxRef.current;
@@ -530,7 +535,7 @@ export default function ThreadMessages({
             ? "bg-white text-neutral-900 border border-stone-200/60"
             : mine
             ? "bg-[#2C1F1A] text-white"
-            : "bg-[#EFEAE0] text-neutral-900";
+            : "bg-white text-neutral-900 shadow-[0_1px_0_rgba(44,31,26,0.08)]";
 
           let bubble: React.ReactNode;
 
@@ -594,7 +599,11 @@ export default function ThreadMessages({
           return (
             <li
               key={m.id}
-              className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
+              className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"} ${
+                new Date(m.createdAt).getTime() > openedAt
+                  ? mine ? "message-new origin-bottom-right" : "message-new origin-bottom-left"
+                  : ""
+              }`}
             >
               {/* Avatar slot for other person's messages */}
               {!mine && (
@@ -624,7 +633,7 @@ export default function ThreadMessages({
                     Regarding {m.contextListing.title}
                   </Link>
                 ) : null}
-                <div className={`inline-block max-w-full break-all rounded-2xl px-3 py-2 text-left ${bubbleClass}`}>
+                <div className={`inline-block max-w-full [overflow-wrap:anywhere] rounded-2xl px-3 py-2 text-left ${bubbleClass}`}>
                   {bubble}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">

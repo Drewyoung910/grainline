@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
@@ -8,6 +8,7 @@ import MediaImage from "@/components/MediaImage";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { formatCityState } from "@/lib/locationDisplay";
+import { isPlainClick, startPhotoTravel } from "@/lib/photoMotion";
 
 export type ListingCardData = {
   id: string;
@@ -73,6 +74,12 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
     setPhotoState(reveal ? "revealed" : "idle");
   };
 
+  const travelToListing = (event: MouseEvent) => {
+    if (!isPlainClick(event)) return;
+    const frame = photoRef.current;
+    startPhotoTravel(frame?.querySelector<HTMLImageElement>("img[data-card-photo]") ?? null, frame, l.id);
+  };
+
   const photo = (
     <>
       <MediaImage
@@ -84,7 +91,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
         data-photo-state={photoState}
         onLoad={() => finishPhoto(true)}
         onError={() => finishPhoto(false)}
-        className="w-full aspect-[4/5] object-cover listing-photo backface-hidden transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:scale-[1.035]"
+        className="w-full aspect-[4/5] object-cover listing-photo backface-hidden transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
         fallbackClassName="w-full aspect-[4/5] bg-gradient-to-br from-amber-50 to-stone-100"
       />
       {/* Second photo: requested on first hover, then swaps in quickly
@@ -96,7 +103,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           src={altSrc}
           data-ready={altReady ? "true" : "false"}
           onLoad={() => setAltReady(true)}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden motion-safe:[transition:opacity_150ms_ease-out,scale_600ms_cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:scale-[1.035] group-hover:data-[ready=true]:opacity-100"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden motion-safe:[transition:opacity_150ms_ease-out,scale_600ms_cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035] group-hover/photo:data-[ready=true]:opacity-100"
           fallbackClassName="hidden"
         />
       )}
@@ -104,11 +111,11 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
   );
 
   return (
-    <div className="card-rise group">
+    <div className="card-rise">
       {/* Photo */}
       <div
         ref={photoRef}
-        className="relative isolate rounded-2xl overflow-hidden bg-[#EFEAE0]"
+        className="listing-card-photo group/photo relative isolate overflow-hidden rounded-2xl bg-[#EFEAE0]"
         data-photo-state={photoState}
         onPointerEnter={(event) => {
           // Touch devices never show the hover photo, so don't download it.
@@ -120,7 +127,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           <span aria-hidden="true" className="card-shimmer pointer-events-none absolute inset-0" />
         )}
         {listingHref ? (
-          <Link href={listingHref} className="block">
+          <Link href={listingHref} className="block" onClick={travelToListing}>
             {photo}
           </Link>
         ) : (
@@ -133,7 +140,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       {/* Metadata area */}
       <div className="@container min-w-0 space-y-1 pt-3">
         {listingHref ? (
-          <Link href={listingHref} className="block space-y-0.5">
+          <Link href={listingHref} className="block space-y-0.5" onClick={travelToListing}>
             <ListingCardTitlePrice
               title={l.title}
               priceCents={l.priceCents}

@@ -231,14 +231,14 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                 setPendingCategory(event.target.value);
                 navigateWith({ category: event.target.value });
               }}
-              className="h-10 w-full appearance-none rounded-xl border-0 bg-white px-3 pr-9 text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] ring-1 ring-black/10 transition-[background-color,box-shadow] hover:bg-[#F3EEE5] focus:ring-2 focus:ring-[#2C1F1A]"
+              className="peer h-10 w-full appearance-none rounded-xl border-0 bg-white px-3 pr-9 text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] outline-none ring-1 ring-black/10 transition-[background-color,box-shadow] hover:bg-[#F3EEE5] focus:outline-none focus:ring-stone-300/70 focus-visible:ring-1 focus-visible:ring-stone-400/70"
             >
               <option value="">All categories</option>
               {CATEGORY_VALUES.map((value) => (
                 <option key={value} value={value}>{CATEGORY_LABELS[value]}</option>
               ))}
             </select>
-            <ChevronDown aria-hidden="true" size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+            <ChevronDown aria-hidden="true" size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] peer-focus:-translate-y-1/2 peer-focus:rotate-180" />
           </div>
         </div>
 

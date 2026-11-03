@@ -93,7 +93,7 @@ export default async function AdminAuditPage({
         </div>
         <button
           type="submit"
-          className="rounded-md border border-[#2C1F1A] bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
+          className="btn btn-primary btn-sm"
         >
           Filter
         </button>
@@ -176,7 +176,7 @@ export default async function AdminAuditPage({
           {page > 1 && (
             <a
               href={pageHref(page - 1)}
-              className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               ← Prev
             </a>
@@ -187,7 +187,7 @@ export default async function AdminAuditPage({
           {page < totalPages && (
             <a
               href={pageHref(page + 1)}
-              className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="btn btn-secondary btn-sm"
             >
               Next →
             </a>

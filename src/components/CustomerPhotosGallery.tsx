@@ -63,7 +63,7 @@ export default function CustomerPhotosGallery({ photos }: Props) {
             key={p.id}
             type="button"
             onClick={() => setOpenIndex(i)}
-            className="block w-full overflow-hidden rounded-lg bg-stone-100 transition-transform hover:-translate-y-0.5 duration-200 cursor-zoom-in"
+            className="block w-full overflow-hidden rounded-lg bg-stone-100 cursor-zoom-in"
             aria-label={`Open photo${p.listingTitle ? ` of ${p.listingTitle}` : ""}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -97,7 +97,7 @@ export default function CustomerPhotosGallery({ photos }: Props) {
               e.stopPropagation();
               setOpenIndex(null);
             }}
-            className="absolute right-4 top-4 z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-2xl font-light text-white hover:text-neutral-300"
+            className="absolute right-4 top-4 z-10 inline-flex min-h-11 min-w-11 items-center justify-center border-0 bg-transparent text-2xl font-light text-white shadow-none outline-none ring-0 hover:text-neutral-300 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             aria-label="Close"
           >
             ✕
