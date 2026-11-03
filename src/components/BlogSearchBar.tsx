@@ -259,7 +259,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <label htmlFor={`${blogSearchListboxId}-input`} className="sr-only">
           Search blog posts
         </label>
-        <div className="flex min-h-[46px] items-stretch overflow-hidden rounded-2xl border border-neutral-200 bg-white/90 shadow-sm transition-[border-color,box-shadow,background-color] focus-within:border-neutral-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-neutral-900/10">
+        <div className="flex min-h-[46px] items-stretch overflow-hidden rounded-full border border-[#2C1F1A]/20 bg-white shadow-[0_6px_20px_-16px_rgba(44,31,26,0.8)] transition-[border-color,box-shadow,background-color] focus-within:border-[#2C1F1A]/45 focus-within:bg-white focus-within:shadow-[0_10px_26px_-18px_rgba(44,31,26,0.95)]">
           <button
             type="submit"
             aria-label="Search"
@@ -314,7 +314,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <ul
           id={blogSearchListboxId}
           role="listbox"
-          className={`scrollbar-hidden absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200/60 bg-white/95 text-neutral-900 shadow-lg backdrop-blur-lg motion-reduce:animate-none ${
+          className={`scrollbar-hidden absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(28rem,calc(100dvh-9rem))] overflow-y-auto overscroll-contain rounded-2xl bg-white/95 p-1.5 text-neutral-900 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-[#2C1F1A]/[0.12] backdrop-blur-lg motion-reduce:animate-none ${
             closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
           }`}
         >
@@ -338,7 +338,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                     e.preventDefault();
                     chooseOption(option);
                   }}
-                  className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-[#F7F5F0] ${
+                  className={`w-full rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F5F0] ${
                     activeIndex === index ? "bg-[#EFEAE0]" : ""
                   } ${option.kind === "topic" ? "flex items-center gap-2" : "flex items-center gap-3 py-2.5"}`}
                 >
