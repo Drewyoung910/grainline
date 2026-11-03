@@ -706,13 +706,15 @@ input, textarea, select {
 @media (hover: hover) and (pointer: fine) {
   .listing-card-photo .listing-save-control[data-saved="false"] {
     opacity: 0;
-    transform: translateY(3px) scale(0.94);
+    translate: 0 3px;
+    scale: 0.94;
   }
   .listing-card-photo:hover .listing-save-control[data-saved="false"],
   .listing-card-photo:focus-within .listing-save-control[data-saved="false"],
   .listing-save-control[data-saved="false"]:focus-visible {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    translate: 0 0;
+    scale: 1;
   }
 }
 
