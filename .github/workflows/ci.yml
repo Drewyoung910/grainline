@@ -7628,7 +7628,7 @@ jobs:
         run: npm run test:database-full-chain
       - name: Audit final full-chain runtime grants on PostgreSQL 17
         env:
-          GRANT_AUDIT_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci
+          GRANT_AUDIT_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/grainline_ci?sslmode=disable
           RUNTIME_DB_ROLE: grainline_app_runtime
           MIGRATION_DB_ROLE: ci
         run: >-
