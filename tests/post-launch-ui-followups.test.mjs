@@ -453,6 +453,7 @@ describe("post-launch UI follow-ups", () => {
     // Listing context card uses the darker cream surface to separate the
     // thread chrome from the body cream page background.
     assert.match(threadPage, /bg-\[#EFEAE0\][\s\S]*?p-3/);
+    assert.match(threadPage, /sticky top-\[var\(--site-header-offset\)\]/);
     // Thread container uses card-section on md+ instead of bare md:border.
     assert.match(thread, /md:card-section md:p-4/);
     // Empty-state visual when there are no messages yet.
