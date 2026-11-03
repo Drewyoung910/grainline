@@ -324,8 +324,8 @@ async function CommissionPageContent({
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold font-display text-neutral-900">Commission Room</h1>
           <p className="text-neutral-500 mt-1 text-sm">
             Buyers post custom piece requests. Makers express interest to connect.
@@ -333,9 +333,10 @@ async function CommissionPageContent({
         </div>
         <Link
           href="/commission/new"
-          className="btn btn-primary"
+          className="btn btn-sm btn-primary shrink-0 whitespace-nowrap px-3 sm:px-5"
         >
-          Post a Request
+          <span className="sm:hidden">Post request</span>
+          <span className="hidden sm:inline">Post a Request</span>
         </Link>
       </div>
 

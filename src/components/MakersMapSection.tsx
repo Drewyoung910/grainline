@@ -92,21 +92,23 @@ export default function MakersMapSection({
           <p className="mt-2 text-neutral-600">
             {subheading ?? "Explore makers in your area. Share your location to see who’s nearby—or browse the full map."}
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3">
             <button
               type="button"
               onClick={onUseMyLocation}
               aria-busy={locating || undefined}
-              className="btn btn-primary"
+              className="btn btn-primary min-w-0 px-3 text-sm sm:px-4"
             >
               <Navigation size={15} className={`shrink-0${locating ? " motion-safe:animate-spin" : ""}`} />
-              {locating ? "Finding you…" : "Use my location"}
+              <span className="truncate">
+                {locating ? "Finding…" : <><span className="sm:hidden">Use location</span><span className="hidden sm:inline">Use my location</span></>}
+              </span>
             </button>
             <a
               href="/map"
-              className="btn btn-secondary"
+              className="btn btn-secondary min-w-0 px-3 text-sm sm:px-4"
             >
-              Explore the full map
+              <span className="sm:hidden">Full map</span><span className="hidden sm:inline">Explore the full map</span>
             </a>
           </div>
           {geoErr && <div role="alert" className="mt-2 text-xs text-red-600">{geoErr}</div>}

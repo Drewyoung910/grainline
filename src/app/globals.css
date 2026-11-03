@@ -347,22 +347,22 @@ input, textarea, select {
     outline-offset: 2px;
   }
   /* Text-entry fields ALWAYS match :focus-visible when focused, so this is
-     the single sitewide field-focus treatment: espresso border + soft warm
-     halo. No amber glow, no dark outline. Do not re-add per-field focus
+     the single sitewide field-focus treatment: a quiet stone border + soft
+     warm halo. No dark keyline. Do not re-add per-field focus
      rings in components — delete them and let this rule own it. */
   :where(input, textarea, select):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgb(44 31 26 / 0.12);
+    box-shadow: 0 0 0 3px rgb(44 31 26 / 0.08);
   }
 }
-/* The espresso field-focus border lives in the utilities layer: a base-layer
+/* The quiet stone field-focus border lives in the utilities layer: a base-layer
    rule always loses to plain border utilities such as border-neutral-200,
    which most fields carry. Zero specificity outside :focus-visible, and later
    in the layer than Tailwind's own utilities, so it beats those plain border
    colours yet still loses to an explicit focus-visible:border-* on a field. */
 @layer utilities {
   :where(input, textarea, select):where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"])):focus-visible {
-    border-color: #2C1F1A; /* espresso, as in the motion study */
+    border-color: #a8a29e; /* stone-400: visible without a dark outline */
   }
 }
 
@@ -668,22 +668,6 @@ input, textarea, select {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* Homepage hero load sequence */
-  .hero-photo-settle {
-    animation: hero-photo-settle 0.8s var(--motion-ease-out) backwards;
-  }
-  .hero-rise,
-  .hero-lines > span {
-    animation: hero-rise 0.55s var(--motion-ease-out) backwards;
-    animation-delay: var(--hero-rise-delay, 0ms);
-  }
-  .hero-lines > span:nth-child(1) { --hero-rise-delay: 50ms; }
-  .hero-lines > span:nth-child(2) { --hero-rise-delay: 110ms; }
-  .hero-lines > span:nth-child(3) { --hero-rise-delay: 170ms; }
-  .hero-stats-rise {
-    animation: hero-stats-rise 0.9s var(--motion-ease-out) 0.55s backwards;
-  }
-
   /* Listing card photo: fades and sharpens in once it has loaded */
   .listing-photo[data-photo-state="revealed"] {
     animation: photo-soft-in 0.5s var(--motion-ease-out) backwards;
@@ -720,30 +704,18 @@ input, textarea, select {
    the card is intentionally hovered or the control receives keyboard focus.
    Saved actions and every touch-device action remain visible. */
 @media (hover: hover) and (pointer: fine) {
-  .group .listing-save-control[data-saved="false"] {
+  .listing-card-photo .listing-save-control[data-saved="false"] {
     opacity: 0;
     transform: translateY(3px) scale(0.94);
   }
-  .group:hover .listing-save-control[data-saved="false"],
-  .group:focus-within .listing-save-control[data-saved="false"],
+  .listing-card-photo:hover .listing-save-control[data-saved="false"],
+  .listing-card-photo:focus-within .listing-save-control[data-saved="false"],
   .listing-save-control[data-saved="false"]:focus-visible {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
 
-@keyframes hero-photo-settle {
-  from { transform: scale(1.06); }
-  to   { transform: scale(1); }
-}
-@keyframes hero-rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes hero-stats-rise {
-  from { opacity: 0; transform: translateY(18px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 @keyframes photo-soft-in {
   from { opacity: 0; transform: scale(1.04); }
   to   { opacity: 1; transform: scale(1); }

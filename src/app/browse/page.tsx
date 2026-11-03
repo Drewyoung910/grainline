@@ -756,7 +756,7 @@ async function BrowseContent({
       <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
-        <div className="sticky top-[calc(var(--site-header-offset)+1rem)] self-start">
+        <div className="self-start">
           <FilterSidebar popularTags={visiblePopularTags} />
         </div>
 
@@ -783,23 +783,28 @@ async function BrowseContent({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <SortMenu />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <SortMenu />
+                {(Boolean(q) || activeFilterCount > 0) && (
+                  <SaveSearchButton signedIn={!!userId} />
+                )}
+              </div>
               {/* View toggle: the white thumb slides between Grid and List
                   (the control is kept across the navigation and moves as
                   soon as it is clicked). */}
-              <SegmentedControl
-                label="View"
-                size="sm"
-                value={view === "list" ? "list" : "grid"}
-                options={[
-                  { value: "grid", label: "Grid", href: viewToggleHref("grid") },
-                  { value: "list", label: "List", href: viewToggleHref("list") },
-                ]}
-              />
-
-              <SaveSearchButton signedIn={!!userId} />
-              <Pager />
+              <div className="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                  label="View"
+                  size="sm"
+                  value={view === "list" ? "list" : "grid"}
+                  options={[
+                    { value: "grid", label: "Grid", href: viewToggleHref("grid") },
+                    { value: "list", label: "List", href: viewToggleHref("list") },
+                  ]}
+                />
+                <Pager />
+              </div>
             </div>
           </div>
 

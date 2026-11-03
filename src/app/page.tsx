@@ -1,7 +1,6 @@
 // src/app/page.tsx
 import Link from "next/link";
 import Image from "next/image";
-import type { CSSProperties } from "react";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { Prisma } from "@prisma/client";
@@ -175,11 +174,6 @@ const CATEGORIES = [
   { key: "OUTDOOR",   label: "Outdoor",       Icon: TreePine  },
   { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
-
-// Staggers the hero load sequence (see .hero-rise in globals.css).
-function heroRiseDelay(ms: number): CSSProperties {
-  return { "--hero-rise-delay": `${ms}ms` } as CSSProperties;
-}
 
 export default async function HomePage() {
   const { userId } = await auth();
@@ -449,7 +443,7 @@ export default async function HomePage() {
             preload
             quality={88}
             sizes="(max-width: 639px) 150vw, 100vw"
-            className="hero-photo-settle object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
+            className="object-cover object-[43%_58%] sm:object-[26%_58%] md:object-[35%_58%] lg:object-[center_58%]"
           />
         </div>
         <div
@@ -463,30 +457,26 @@ export default async function HomePage() {
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
           <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
-            <h1 className="hero-lines font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
+            <h1 className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
               <span className="block whitespace-nowrap">Buy handmade.</span>
               <span className="block whitespace-nowrap">Buy local.</span>
               <span className="block whitespace-nowrap">Buy quality.</span>
             </h1>
-            <p className="hero-rise relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg" style={heroRiseDelay(230)}>
+            <p className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
               More than what&apos;s made for everyone.
             </p>
-            {/* Each button rises on its own: fading a parent would switch off the
-                buttons' frosted blur until the fade ends. */}
             <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
               <Link
                 href="/browse"
                 data-home-primary-cta
-                style={heroRiseDelay(300)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
+                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
               >
                 Browse
               </Link>
               <Link
                 href="/map"
                 data-home-secondary-cta
-                style={heroRiseDelay(360)}
-                className="hero-rise inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
+                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
               >
                 Find Shops Near You
               </Link>
@@ -505,7 +495,7 @@ export default async function HomePage() {
         >
           <dl
             data-home-stats-surface
-            className="hero-stats-rise mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
+            className="mx-auto grid w-full max-w-md -translate-y-1/2 grid-cols-4 divide-x divide-[#2C1F1A]/[0.12] rounded-2xl border border-white/30 bg-[#F7F5F0]/46 px-1 py-3 shadow-[0_18px_45px_rgba(28,25,23,0.14)] ring-1 ring-white/20 backdrop-blur-xl sm:max-w-5xl sm:px-5 sm:py-4"
           >
           <div className="flex min-w-0 flex-col items-center justify-center px-1 text-center sm:px-4">
             <dt className="order-2 mt-1 text-[10px] leading-tight text-[#2C1F1A]/80 sm:text-xs">pieces listed</dt>

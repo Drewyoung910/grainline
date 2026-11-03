@@ -48,11 +48,11 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
   return (
     <button
       onClick={toggle}
-      disabled={loading}
+      aria-busy={loading || undefined}
       title={saved ? "Remove from saved" : "Save post"}
       aria-label={saved ? "Remove from saved" : "Save post"}
       data-saved={saved ? "true" : "false"}
-      className="listing-save-control group/blog-save relative inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,transform] duration-200 ease-out focus-visible:outline-none disabled:opacity-50"
+      className="listing-save-control group/blog-save relative inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,transform] duration-200 ease-out focus-visible:outline-none"
     >
       <span
         aria-hidden="true"

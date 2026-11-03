@@ -83,14 +83,14 @@ export default function SellerGallery({
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="fixed inset-0 z-[9999] bg-black bg-opacity-90 flex items-center justify-center"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90"
           onClick={() => setLightboxOpen(false)}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <button
             onClick={() => setLightboxOpen(false)}
-            className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-2xl font-light text-white hover:text-neutral-300"
+            className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center border-0 bg-transparent text-2xl font-light text-white shadow-none outline-none ring-0 hover:text-neutral-300 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             aria-label="Close"
           >
             ✕

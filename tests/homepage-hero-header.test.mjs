@@ -60,7 +60,7 @@ describe("homepage hero and header contracts", () => {
     // Message threads keep their own pinned chat header, so the site header
     // scrolls away there.
     assert.match(header, /const pinned = !pathname\.startsWith\("\/messages\/"\);/);
-    assert.match(header, /\$\{isHome \? "fixed" : pinned \? "sticky" : "relative"\} inset-x-0 top-0 z-\[50\]/);
+    assert.match(header, /\$\{isHome \? "fixed" : pinned \? "sticky" : "relative"\} isolate inset-x-0 top-0 z-\[50\]/);
     assert.match(header, /data-header-state=\{clear \? "clear" : "frosted"\}/);
     // The frost is its own layer so the menu's fixed click-catcher is not
     // trapped inside a backdrop-filtered header box.
@@ -93,7 +93,7 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(header, /overlay=\{/);
     assert.doesNotMatch(header, /data-home-(overlay|header-surface|logo-mark|menu-surface)/);
     // Header icon buttons follow the header color.
-    assert.match(header, /text-current transition-\[background-color,scale\] duration-200 ease-out hover:bg-current\/10/);
+    assert.match(header, /text-current transition-\[background-color,scale\] duration-200 ease-out \[@media\(hover:hover\)\]:hover:bg-current\/10/);
     assert.match(header, /lg:hidden/);
     assert.match(header, /min-h-\[44px\]/);
     assert.match(header, /min-w-\[44px\]/);
@@ -161,7 +161,10 @@ describe("homepage hero and header contracts", () => {
 
     assert.doesNotMatch(home, /hero-parallax/);
     assert.doesNotMatch(globals, /@keyframes hero-parallax|\.hero-parallax/);
-    assert.match(globals, /\.hero-photo-settle \{\s*animation: hero-photo-settle 0\.8s/);
+    assert.doesNotMatch(home, /hero-photo-settle/);
+    assert.doesNotMatch(globals, /@keyframes hero-photo-settle|\.hero-photo-settle/);
+    assert.doesNotMatch(home, /hero-rise|hero-lines|hero-stats-rise|HomeMotionGate/);
+    assert.doesNotMatch(globals, /@keyframes hero-rise|@keyframes hero-stats-rise|home-hero-motion/);
   });
 
   it("hides tiny pre-launch marketplace totals without deleting the feature", () => {

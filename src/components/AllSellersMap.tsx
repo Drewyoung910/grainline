@@ -159,7 +159,12 @@ export default function AllSellersMap({
         try {
           const zoom = await source.getClusterExpansionZoom(clusterId);
           const coords = (features[0].geometry as GeoJSON.Point).coordinates as [number, number];
-          map.easeTo({ center: coords, zoom });
+          // Land just beyond the first expansion boundary. At the exact
+          // boundary MapLibre can remove the cluster a frame before its leaf
+          // features are queryable, leaving a temporarily empty map until the
+          // visitor zooms again.
+          map.once("idle", updateMarkers);
+          map.easeTo({ center: coords, zoom: Math.min(zoom + 0.35, map.getMaxZoom()) });
         } catch {
           // ignore
         }

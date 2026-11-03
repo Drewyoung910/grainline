@@ -10,6 +10,7 @@ import {
   type SearchSuggestionItem,
   type SearchSuggestionItemType,
 } from "@/lib/searchSuggestionResults";
+import { searchSuggestionPhase } from "@/lib/searchSuggestionPresentation";
 
 type BlogResult = { slug: string; title: string };
 type CategoryResult = { value: string; label: string };
@@ -101,6 +102,10 @@ export default function SearchBar({
   const [items, setItems] = React.useState<SearchSuggestionItem[]>([]);
   const [blogs, setBlogs] = React.useState<BlogResult[]>([]);
   const [categories, setCategories] = React.useState<CategoryResult[]>([]);
+  // The query these remote results belong to. Keeping it separate from the
+  // input prevents old categories/results from flashing while a newer query
+  // is debouncing or in flight.
+  const [resolvedQuery, setResolvedQuery] = React.useState<string | null>(null);
   // True when the latest suggestions request succeeded with no results, so
   // the dropdown can say so instead of silently closing.
   const [noMatches, setNoMatches] = React.useState(false);
@@ -214,6 +219,7 @@ export default function SearchBar({
 
     if (q.length < 2) {
       suggestionsRequestRef.current += 1;
+      setResolvedQuery(null);
       setItems([]);
       setBlogs([]);
       setCategories([]);
@@ -226,6 +232,11 @@ export default function SearchBar({
       openDropdown();
       return;
     }
+
+    // Keep one stable "Search for" row while the matching remote results are
+    // loading. Do not briefly substitute popular categories or stale results.
+    setResolvedQuery(null);
+    setNoMatches(false);
 
     debounceRef.current = setTimeout(async () => {
       const requestId = suggestionsRequestRef.current + 1;
@@ -248,6 +259,7 @@ export default function SearchBar({
         setBlogs(blogResults);
         setCategories(cats);
         setNoMatches(itemResults.length === 0 && blogResults.length === 0 && cats.length === 0);
+        setResolvedQuery(q);
         openDropdown();
         setActiveIndex(-1);
       } catch (error) {
@@ -258,6 +270,7 @@ export default function SearchBar({
         setBlogs([]);
         setCategories([]);
         setNoMatches(false);
+        setResolvedQuery(q);
         setActiveIndex(-1);
       } finally {
         if (suggestionsAbortRef.current === controller) {
@@ -273,6 +286,9 @@ export default function SearchBar({
     [popularTags],
   );
   const query = normalizeSearchQuery(value);
+  const suggestionPhase = searchSuggestionPhase({ query, resolvedQuery, hasItems, noMatches });
+  const waitingForResults = suggestionPhase === "waiting";
+  const hasCurrentItems = suggestionPhase === "results";
   const options = React.useMemo<SearchOption[]>(() => {
     if (!open) return [];
     const prefix = query.toLowerCase();
@@ -284,8 +300,11 @@ export default function SearchBar({
         label: tag,
       }));
     if (query.length === 0) return recommended(visiblePopularTags);
-    if (!hasItems) {
-      if (noMatches && query.length >= 2) {
+    if (waitingForResults) {
+      return [{ kind: "query", key: "query", section: "Search", label: query }];
+    }
+    if (!hasCurrentItems) {
+      if (suggestionPhase === "empty") {
         return [{ kind: "query", key: "query", section: "No matches", label: query }];
       }
       // First letter, or results still on their way: narrow the recommended
@@ -326,7 +345,7 @@ export default function SearchBar({
         label: blog.title,
       })),
     ];
-  }, [blogs, categories, hasItems, items, noMatches, open, query, visiblePopularTags]);
+  }, [blogs, categories, hasCurrentItems, items, open, query, suggestionPhase, visiblePopularTags, waitingForResults]);
 
   React.useEffect(() => {
     setActiveIndex((index) => {
@@ -381,6 +400,7 @@ export default function SearchBar({
     setItems([]);
     setBlogs([]);
     setCategories([]);
+    setResolvedQuery(null);
     setNoMatches(false);
     setActiveIndex(-1);
     void loadPopularTags();
@@ -512,6 +532,7 @@ export default function SearchBar({
         <ul
           id={searchListboxId}
           role="listbox"
+          aria-busy={waitingForResults || undefined}
           // Scrollable, so browsers would make it a Tab stop; arrow keys on
           // the input drive it instead.
           tabIndex={-1}
@@ -582,6 +603,11 @@ export default function SearchBar({
               </li>
             </React.Fragment>
           ))}
+          {waitingForResults && (
+            <li role="status" className="px-3 pb-2 pt-1 text-xs text-neutral-500">
+              Finding matches…
+            </li>
+          )}
         </ul>
       )}
     </div>
