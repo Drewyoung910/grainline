@@ -168,6 +168,22 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(globals, /@keyframes hero-rise|@keyframes hero-stats-rise|home-hero-motion/);
   });
 
+  it("animates fresh-visit hero copy once without moving the photo or header", () => {
+    const home = source("src/app/page.tsx");
+    const intro = source("src/components/HomeHeroIntro.tsx");
+    const globals = source("src/app/globals.css");
+
+    assert.match(home, /<HomeHeroIntro>/);
+    assert.match(home, /data-hero-intro-heading/);
+    assert.match(home, /data-hero-intro-copy/);
+    assert.match(home, /data-hero-intro-actions/);
+    assert.match(intro, /let introPlayed = false/);
+    assert.match(intro, /const \[animate\] = React\.useState\(\(\) => !introPlayed\)/);
+    assert.match(globals, /@keyframes home-hero-copy-in/);
+    assert.match(globals, /\.home-hero-intro \[data-hero-intro-heading\]/);
+    assert.doesNotMatch(home, /home-hero-intro[^\n]*(?:Image|data-home-hero)/);
+  });
+
   it("hides tiny pre-launch marketplace totals without deleting the feature", () => {
     const home = source("src/app/page.tsx");
     assert.match(home, /homepageStats\.makers >= 25/);

@@ -26,7 +26,9 @@ Production promotion.
 - [x] Search, cart, and menu use the same centered 44 px control geometry.
 - [x] Pointer use does not leave a persistent focus halo/background on header
   controls; keyboard Escape still restores an accessible focus target.
-- [x] Hero copy and photo do not replay or lag through an entrance sequence.
+- [x] A fresh visit gives hero copy one short, restrained entrance; the photo
+  and header stay still, and client-side Back/logo navigation does not replay
+  the sequence.
 - [x] Marketplace stats stay hidden until the numbers are credible.
 - [x] Hero overlay remains attached to the hero during elastic overscroll.
 - [ ] Accept the physical safe-area result in current Safari and a newly
@@ -47,6 +49,8 @@ Production promotion.
 - [x] Listing and story save controls reveal over the photo only on pointer
   hover, stay visible on touch, and retain a shadow/ring over white images.
 - [x] Hovering card text does not swap the photo or reveal the save control.
+- [x] Listing-card photo hover uses a stationary soft-shadow response; it does
+  not lift the card, draw a brown keyline, or move the hit area.
 
 ## Search and browse
 

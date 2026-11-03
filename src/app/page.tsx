@@ -18,6 +18,7 @@ import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
+import HomeHeroIntro from "@/components/HomeHeroIntro";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -456,32 +457,34 @@ export default async function HomePage() {
         />
 
         <div className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center px-4 pb-14 pt-24 sm:px-6 sm:pb-16 sm:pt-28 lg:px-8">
-          <div className="w-full max-w-[630px] text-left text-[#E5DFD2]">
-            <h1 className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
-              <span className="block whitespace-nowrap">Buy handmade.</span>
-              <span className="block whitespace-nowrap">Buy local.</span>
-              <span className="block whitespace-nowrap">Buy quality.</span>
-            </h1>
-            <p className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
-              More than what&apos;s made for everyone.
-            </p>
-            <div className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
-              <Link
-                href="/browse"
-                data-home-primary-cta
-                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
-              >
-                Browse
-              </Link>
-              <Link
-                href="/map"
-                data-home-secondary-cta
-                className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
-              >
-                Find Shops Near You
-              </Link>
+          <HomeHeroIntro>
+            <div className="w-full text-left text-[#E5DFD2]">
+              <h1 data-hero-intro-heading className="font-display text-[clamp(2.125rem,10.5vw,4rem)] font-semibold leading-[1] drop-shadow-[0_2px_18px_rgba(0,0,0,0.24)] sm:text-[clamp(3.5rem,7vw,4.75rem)] lg:text-[clamp(4rem,5vw,5.25rem)]">
+                <span className="block whitespace-nowrap">Buy handmade.</span>
+                <span className="block whitespace-nowrap">Buy local.</span>
+                <span className="block whitespace-nowrap">Buy quality.</span>
+              </h1>
+              <p data-hero-intro-copy className="relative z-10 ml-1 mt-7 max-w-md text-base leading-relaxed text-[#E5DFD2]/85 sm:ml-2 sm:mt-8 sm:text-lg">
+                More than what&apos;s made for everyone.
+              </p>
+              <div data-hero-intro-actions className="mt-7 flex flex-col items-start gap-3 sm:mt-8 sm:flex-row">
+                <Link
+                  href="/browse"
+                  data-home-primary-cta
+                  className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/65 bg-[#E5DFD2]/70 px-5 py-3 text-sm font-semibold text-[#2C1F1A] shadow-sm backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:bg-[#E5DFD2]/85 active:bg-[#E5DFD2]/80 sm:px-6"
+                >
+                  Browse
+                </Link>
+                <Link
+                  href="/map"
+                  data-home-secondary-cta
+                  className="inline-flex min-h-[46px] w-fit items-center justify-center rounded-full border border-[#E5DFD2]/55 bg-[#E5DFD2]/[0.08] px-5 py-3 text-sm font-semibold text-[#E5DFD2] backdrop-blur-md transition-[background-color,border-color,scale] motion-safe:active:scale-[0.97] hover:border-[#E5DFD2]/70 hover:bg-[#E5DFD2]/15 active:bg-[#E5DFD2]/20 sm:px-6"
+                >
+                  Find Shops Near You
+                </Link>
+              </div>
             </div>
-          </div>
+          </HomeHeroIntro>
         </div>
       </section>
 

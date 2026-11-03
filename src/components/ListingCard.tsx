@@ -108,7 +108,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       {/* Photo */}
       <div
         ref={photoRef}
-        className="listing-card-photo group/photo relative isolate overflow-hidden rounded-2xl bg-[#EFEAE0]"
+        className="listing-card-photo group/photo relative isolate overflow-hidden rounded-2xl bg-[#EFEAE0] shadow-[0_1px_0_rgba(44,31,26,0.08)] ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_14px_30px_-22px_rgba(44,31,26,0.7)]"
         data-photo-state={photoState}
         onPointerEnter={(event) => {
           // Touch devices never show the hover photo, so don't download it.

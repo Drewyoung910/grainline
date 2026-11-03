@@ -671,6 +671,32 @@ input, textarea, select {
   --motion-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Animate only the homepage copy on a fresh visit. The photo and header stay
+   still, avoiding the large composited layer that lagged and separated from
+   its shade during Safari elastic scrolling. */
+@media (prefers-reduced-motion: no-preference) {
+  .home-hero-intro [data-hero-intro-heading] {
+    animation: home-hero-copy-in 480ms var(--motion-ease-out) both;
+  }
+  .home-hero-intro [data-hero-intro-copy] {
+    animation: home-hero-copy-in 520ms 70ms var(--motion-ease-out) both;
+  }
+  .home-hero-intro [data-hero-intro-actions] {
+    animation: home-hero-copy-in 560ms 125ms var(--motion-ease-out) both;
+  }
+}
+
+@keyframes home-hero-copy-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 /* Listing card photos that had not started rendering at hydration stay
    hidden until they load, then fade in (see ListingCard). */
 .listing-photo[data-photo-state="pending"] {
