@@ -95,7 +95,7 @@ export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAt
       key: "older-orders",
       icon: "truck",
       title: "Check your older orders",
-      detail: "Your newest orders are all handled. This page doesn't look further back",
+      detail: "Only your newest 50 orders were checked here",
       href: "/dashboard/sales",
     });
   }
