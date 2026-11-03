@@ -17,7 +17,11 @@ export default function NewCommissionPage() {
         </p>
       </div>
 
-      <CommissionRequestForm onPosted={() => router.push("/commission")} onCancel={() => router.back()} />
+      <CommissionRequestForm onPosted={() => router.push("/commission")} onCancel={() => {
+          // A tab opened straight onto this page has nowhere to go back to.
+          if (window.history.length > 1) router.back();
+          else router.push("/commission");
+        }} />
     </main>
   );
 }

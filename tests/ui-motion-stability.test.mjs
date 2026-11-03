@@ -31,7 +31,7 @@ describe("motion stability guardrails", () => {
     assert.match(follow, /aria-disabled=\{loading \|\| undefined\}/);
     assert.doesNotMatch(follow, /disabled=\{loading\}/);
     const css = source("src/app/globals.css");
-    assert.match(css, /&\[aria-disabled="true"\] \{\s*cursor: wait;/);
+    assert.match(css, /&\[aria-busy="true"\] \{\s*cursor: wait;/);
     assert.doesNotMatch(css, /&:disabled,\s*&\[aria-disabled="true"\]/);
   });
 

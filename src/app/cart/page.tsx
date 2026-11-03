@@ -34,7 +34,7 @@ import { useToast } from "@/components/Toast";
 import { useQuantitySteps } from "@/lib/useQuantitySteps";
 
 const QUANTITY_STEP_CLASS =
-  "inline-flex size-9 items-center justify-center text-base text-neutral-700 transition-colors hover:bg-[#EFEAE0] aria-disabled:cursor-not-allowed aria-disabled:text-neutral-300 aria-disabled:hover:bg-transparent [@media(pointer:coarse)]:size-11";
+  "inline-flex size-9 touch-manipulation items-center justify-center text-base text-neutral-700 transition-colors hover:bg-[#EFEAE0] aria-disabled:cursor-not-allowed aria-disabled:text-neutral-300 aria-disabled:hover:bg-transparent [@media(pointer:coarse)]:size-11";
 
 function CartLoadingSkeleton() {
   return (
@@ -279,6 +279,7 @@ function CartPage() {
   // Lines whose quantity change is still being saved, mapped to the value
   // picked, so the select shows it instead of snapping back meanwhile.
   const [pendingQuantities, setPendingQuantities] = React.useState<ReadonlyMap<string, number>>(() => new Map());
+  const loadRequestRef = React.useRef(0);
   const { drafts: stepDrafts, step: stepQuantity } = useQuantitySteps((itemId, quantity) => setQuantity(itemId, quantity));
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -438,11 +439,17 @@ function CartPage() {
   }, [step, shippingAddress, clientSecrets, resumingCheckout]);
 
   async function load() {
+    // Two reloads can overlap, as when Undo lands during another line's save.
+    // Only the newest may write, or an older answer could hide a restored line.
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
+    const isStale = () => requestId !== loadRequestRef.current;
     setLoading(true);
     setError(null);
     try {
       const anonymousItems = readAnonymousCartItems();
       const res = await fetch("/api/cart", { cache: "no-store" });
+      if (isStale()) return;
       if (res.status === 401) {
         setNeedsSignIn(true);
         setItems(cartItemsFromAnonymous(anonymousItems));
@@ -473,17 +480,22 @@ function CartPage() {
           throw new Error(data?.error || "Failed to load cart");
         }
         const refreshedData = await refreshed.json();
+        if (isStale()) return;
         setItems(refreshedData.items || []);
         return;
       }
 
       const data = await res.json();
+      if (isStale()) return;
       setItems(data.items || []);
     } catch (e) {
+      if (isStale()) return;
       setError((e as Error).message || "Failed to load cart");
     } finally {
-      setLoading(false);
-      setHasLoadedCart(true);
+      if (!isStale()) {
+        setLoading(false);
+        setHasLoadedCart(true);
+      }
     }
   }
 
@@ -809,7 +821,11 @@ function CartPage() {
                       // counting and collapse into one more save.
                       const controlsWait = cartBusy && !stepDrafts.has(i.id);
                       const atLeast = controlsWait || shownQuantity <= 1;
-                      const atMost = controlsWait || shownQuantity >= maxQty;
+                      // A line can be over stock after someone else buys. One
+                      // press brings it down to what's available, because the
+                      // server would refuse every quantity in between.
+                      const stockLimit = Math.max(1, i.listing.maxQuantity ?? 99);
+                      const atMost = controlsWait || shownQuantity >= stockLimit;
                       return (
                         <div
                           role="group"
@@ -824,7 +840,7 @@ function CartPage() {
                             aria-disabled={atLeast || undefined}
                             className={QUANTITY_STEP_CLASS}
                             onClick={() => {
-                              if (!atLeast) void stepQuantity(i.id, shownQuantity - 1);
+                              if (!atLeast) void stepQuantity(i.id, Math.min(shownQuantity - 1, stockLimit));
                             }}
                           >
                             <span aria-hidden="true">−</span>
@@ -1036,7 +1052,7 @@ function CartPage() {
       </ol>
 
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -1074,6 +1090,7 @@ function CartPage() {
               <button
                 type="button"
                 onClick={refreshChangedPrices}
+                disabled={cartBusy}
                 className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
               >
                 Accept updated prices
@@ -1105,7 +1122,7 @@ function CartPage() {
                 setStep("address");
                 router.replace("/cart?step=address", { scroll: false });
               }}
-              disabled={items.length === 0 || hasBlockingCartChange}
+              disabled={items.length === 0 || hasBlockingCartChange || cartBusy}
               className="btn btn-primary mt-6 w-full sm:w-auto"
             >
               Continue to shipping →

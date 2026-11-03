@@ -555,7 +555,7 @@ async function BrowseContent({
       {clampedPage > 1 ? (
         <Link href={makePageHref(clampedPage - 1)} className="btn btn-sm btn-secondary">← Prev</Link>
       ) : (
-        <span aria-disabled="true" className="btn btn-sm btn-secondary">← Prev</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary pointer-events-none opacity-45">← Prev</span>
       )}
       {totalPages > 1 && (
         <span className="px-2 text-neutral-500">
@@ -565,7 +565,7 @@ async function BrowseContent({
       {clampedPage < totalPages ? (
         <Link href={makePageHref(clampedPage + 1)} className="btn btn-sm btn-secondary">Next →</Link>
       ) : (
-        <span aria-disabled="true" className="btn btn-sm btn-secondary">Next →</span>
+        <span aria-disabled="true" className="btn btn-sm btn-secondary pointer-events-none opacity-45">Next →</span>
       )}
     </nav>
   );

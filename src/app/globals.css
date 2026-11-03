@@ -154,6 +154,9 @@
     pointer-events: none;
   }
   &[aria-disabled="true"] {
+    cursor: default;
+  }
+  &[aria-busy="true"] {
     cursor: wait;
   }
   @media (prefers-reduced-motion: no-preference) {
