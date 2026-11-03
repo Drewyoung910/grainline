@@ -31,7 +31,7 @@ import { deleteListing, setStatus, withdrawListingReview } from "./actions";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const DASHBOARD_ACTION_CLASS = "btn btn-secondary btn-sm";
-const DASHBOARD_WARNING_ACTION_CLASS = "btn btn-secondary btn-sm";
+const DASHBOARD_WARNING_ACTION_CLASS = "btn btn-warning btn-sm";
 const DASHBOARD_DANGER_ACTION_CLASS = "btn btn-danger btn-sm";
 
 const STATUS_PILLS: Partial<Record<ListingStatus, { label: string; className: string }>> = {

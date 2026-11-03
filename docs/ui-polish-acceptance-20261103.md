@@ -18,6 +18,8 @@ Production promotion.
 - [x] Preserve every route and user-facing feature from the original UI stack;
   the correction branches remove defective timing and styling, not product
   capabilities.
+- [x] Signed-in and staff actions share the pill geometry without flattening
+  meaning: warning, success, and destructive actions retain distinct tones.
 
 ## Header, hero, and mobile browser chrome
 

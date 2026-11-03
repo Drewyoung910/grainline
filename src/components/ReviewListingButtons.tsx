@@ -54,14 +54,14 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
         <button
           onClick={() => handle("approve")}
           disabled={loading !== null}
-          className="text-sm px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+          className="btn btn-success-solid btn-sm"
         >
           {loading === "approve" ? "..." : "Approve"}
         </button>
         <button
           onClick={() => setShowRejectReason((value) => !value)}
           disabled={loading !== null}
-          className="text-sm px-3 py-1.5 border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+          className="btn btn-danger btn-sm"
         >
           Reject
         </button>
@@ -101,7 +101,7 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
                 setShowRejectReason(false);
                 setReason("");
               }}
-              className="text-xs px-3 py-1.5 border border-neutral-300 text-neutral-700 hover:bg-white disabled:opacity-50"
+              className="btn btn-secondary btn-sm"
             >
               Cancel
             </button>

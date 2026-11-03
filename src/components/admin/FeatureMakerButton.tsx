@@ -63,7 +63,7 @@ export function FeatureMakerButton({ sellerProfileId, isFeatured, featureAction,
       <button
         type="submit"
         disabled={loading}
-        className="btn btn-secondary btn-sm"
+        className="btn btn-warning btn-sm"
       >
         {loading ? "…" : "Feature →"}
       </button>

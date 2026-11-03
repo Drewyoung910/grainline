@@ -792,7 +792,7 @@ export default async function ProfilePage({
                     <form action={toggleFeaturedListing.bind(null, listing.id)} className="mt-2">
                       <button
                         type="submit"
-                        className="btn btn-secondary btn-sm"
+                        className={`btn btn-sm ${isFeatured ? "btn-warning" : "btn-secondary"}`}
                         disabled={!isFeatured && featured.size >= SELLER_FEATURED_LISTING_LIMIT}
                       >
                         {isFeatured ? "Unfeature" : "Feature"}

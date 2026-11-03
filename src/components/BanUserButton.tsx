@@ -86,7 +86,7 @@ export function BanUserButton({
             <button
               type="submit"
               disabled={loading || !reason.trim()}
-              className={`btn btn-sm ${banned ? "btn-primary" : "btn-danger-solid"}`}
+              className={`btn btn-sm ${banned ? "btn-success-solid" : "btn-danger-solid"}`}
             >
               {loading ? "..." : banned ? "Confirm unban" : "Confirm ban"}
             </button>

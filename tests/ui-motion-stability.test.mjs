@@ -181,6 +181,30 @@ describe("motion stability guardrails", () => {
     assert.doesNotMatch(categoryRow, /flex-wrap/);
   });
 
+  it("keeps shared pill geometry without flattening action meaning", () => {
+    const css = source("src/app/globals.css");
+    const listingAdmin = source("src/components/ReviewListingButtons.tsx");
+    const resolution = source("src/components/CaseResolutionPanel.tsx");
+    const profile = source("src/app/dashboard/profile/page.tsx");
+    const queue = source("src/lib/workshopData.ts");
+
+    for (const tone of [
+      "btn-danger",
+      "btn-danger-solid",
+      "btn-success",
+      "btn-success-solid",
+      "btn-warning",
+      "btn-warning-solid",
+    ]) {
+      assert.match(css, new RegExp(`@utility ${tone} \\{`));
+    }
+    assert.match(listingAdmin, /btn btn-success-solid btn-sm/);
+    assert.match(listingAdmin, /btn btn-danger btn-sm/);
+    assert.match(resolution, /btn btn-warning btn-sm/);
+    assert.match(profile, /isFeatured \? "btn-warning" : "btn-secondary"/);
+    assert.match(queue, /sellerRefundOutcomes/);
+  });
+
   it("does not drop a signed-in Buy Now tap while Clerk hydrates", () => {
     const button = source("src/components/BuyNowButton.tsx");
     const panel = source("src/components/ListingPurchasePanel.tsx");

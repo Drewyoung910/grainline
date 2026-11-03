@@ -307,17 +307,21 @@ describe("workshop queue", async () => {
   });
 
   it("counts only paid work that has not started", () => {
-    assert.equal(ordersAwaitingFulfillment([order()]).length, 1);
-    assert.equal(ordersAwaitingFulfillment([order({ fulfillmentStatus: null })]).length, 1);
+    const none = new Map();
+    assert.equal(ordersAwaitingFulfillment([order()], none).length, 1);
+    assert.equal(ordersAwaitingFulfillment([order({ fulfillmentStatus: null })], none).length, 1);
     for (const fulfillmentStatus of ["SHIPPED", "DELIVERED", "PICKED_UP", "READY_FOR_PICKUP"]) {
-      assert.equal(ordersAwaitingFulfillment([order({ fulfillmentStatus })]).length, 0, fulfillmentStatus);
+      assert.equal(ordersAwaitingFulfillment([order({ fulfillmentStatus })], none).length, 0, fulfillmentStatus);
     }
-    assert.equal(ordersAwaitingFulfillment([order({ paidAt: null })]).length, 0);
+    assert.equal(ordersAwaitingFulfillment([order({ paidAt: null })], none).length, 0);
   });
 
   it("drops fully refunded orders but keeps partly refunded ones", () => {
-    assert.equal(ordersAwaitingFulfillment([order({ sellerRefundAmountCents: 11000 })]).length, 0);
-    assert.equal(ordersAwaitingFulfillment([order({ sellerRefundAmountCents: 500 })]).length, 1);
+    const none = new Map();
+    assert.equal(ordersAwaitingFulfillment([order({ sellerRefundAmountCents: 11000 })], none).length, 0);
+    assert.equal(ordersAwaitingFulfillment([order({ sellerRefundAmountCents: 500 })], none).length, 1);
+    const provider = new Map([["o1", { amountCents: 11000, status: "succeeded" }]]);
+    assert.equal(ordersAwaitingFulfillment([order()], provider).length, 0);
   });
 
   const empty = { ordersToShip: 0, ordersToShipCapped: false, orderNames: [], unreadMessages: 0, underReview: 0, underReviewTitle: null, rejected: 0, lowStock: [] };

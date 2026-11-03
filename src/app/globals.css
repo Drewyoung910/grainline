@@ -267,6 +267,34 @@
     }
   }
 }
+@utility btn-success-solid {
+  background-color: #15803D;
+  color: #FFFFFF;
+  @media (hover: hover) {
+    &:hover {
+      background-color: #166534;
+    }
+  }
+}
+@utility btn-warning {
+  background-color: #FFFFFF;
+  color: #92400E;
+  border-color: rgba(180, 83, 9, 0.32);
+  @media (hover: hover) {
+    &:hover {
+      background-color: #FFFBEB;
+    }
+  }
+}
+@utility btn-warning-solid {
+  background-color: #B45309;
+  color: #FFFFFF;
+  @media (hover: hover) {
+    &:hover {
+      background-color: #92400E;
+    }
+  }
+}
 @utility btn-secondary {
   background-color: #FFFFFF;
   color: #1D1714;

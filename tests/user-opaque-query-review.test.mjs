@@ -39,17 +39,20 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // EmailSuppression write arguments with one fixed SQL authority. The
   // StockNotification subscribe authority also removes one reviewed
   // publicListingDetailWhere call from the application frontier.
-  assert.equal(report.opaqueShapes.length, 146);
-  assert.equal(reviewedFactories.length, 111);
-  assert.equal(reviewedResidual.length, 35);
+  // UI workspace/search work adds two publicListingWhere reads and one
+  // owner-scoped Workshop listing helper. No SellerProfile relation or raw
+  // table authority is added.
+  assert.equal(report.opaqueShapes.length, 149);
+  assert.equal(reviewedFactories.length, 113);
+  assert.equal(reviewedResidual.length, 36);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 90,
-    sha256: "b6292589e8c18026b1b6ac0f7403e56b0439546ea9849958cb05f591eecae845",
+    unique: 92,
+    sha256: "ef5a6638bbb144508b48c75b9783499ae36bb46576177ee63834a50fabf6c4a0",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 29,
-    sha256: "34ab3fdcdd1d88f8f02b8670b9c41065b017808d5dcdccd5cdac0e58ce8eb456",
+    unique: 30,
+    sha256: "2005c3bae3264b8456de248ba1ed56709772fe2ab8eafa43e57cbf12ffade9ff",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,

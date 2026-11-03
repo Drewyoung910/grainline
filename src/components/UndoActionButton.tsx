@@ -55,7 +55,7 @@ export function UndoActionButton({
       <button
         onClick={() => setOpen((value) => !value)}
         disabled={loading}
-        className="text-xs px-2 py-0.5 border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+        className="btn btn-warning btn-sm"
       >
         Undo
       </button>
@@ -82,7 +82,7 @@ export function UndoActionButton({
             <button
               type="submit"
               disabled={loading || !reason.trim()}
-              className="btn btn-primary btn-sm"
+              className="btn btn-warning-solid btn-sm"
             >
               {loading ? "..." : "Confirm undo"}
             </button>
@@ -93,7 +93,7 @@ export function UndoActionButton({
                 setOpen(false);
                 setReason("");
               }}
-              className="text-xs px-3 py-1.5 border border-neutral-300 text-neutral-700 hover:bg-white disabled:opacity-50"
+              className="btn btn-secondary btn-sm"
             >
               Cancel
             </button>

@@ -53,7 +53,7 @@ export default function LabelSection({
             href={`/api/orders/${orderId}/label`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-primary btn-sm"
+            className="btn btn-success-solid btn-sm"
           >
             Download Label
           </a>

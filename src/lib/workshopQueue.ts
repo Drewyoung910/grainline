@@ -13,16 +13,24 @@ type QueueOrder = Readonly<{
   fulfillmentStatus: string | null;
 }>;
 
-// Paid, not started, and not refunded away.
-export function ordersAwaitingFulfillment<T extends QueueOrder>(orders: readonly T[]): T[] {
+type RefundOutcome = Readonly<{ amountCents?: number | null; status?: string | null }>;
+
+// Paid, not started, and not refunded away. Matches what the sales list shows
+// as active work.
+export function ordersAwaitingFulfillment<T extends QueueOrder>(
+  orders: readonly T[],
+  refundOutcomes: ReadonlyMap<string, RefundOutcome>,
+): T[] {
   return orders.filter((order) => {
     const status = order.fulfillmentStatus ?? "PENDING";
     if (status !== "PENDING") return false;
+    const refundOutcome = refundOutcomes.get(order.id) ?? null;
     const paymentState = orderPaymentPresentationState({
       paid: order.paidAt != null,
       orderTotalCents: orderTotalCents(order, { itemsSubtotalCents: order.itemsSubtotalCents }),
-      refundAmountCents: order.sellerRefundAmountCents,
+      refundAmountCents: order.sellerRefundAmountCents ?? refundOutcome?.amountCents ?? null,
       refundRecorded: order.sellerRefundAmountCents != null,
+      providerRefundStatus: refundOutcome?.status ?? null,
     });
     if (paymentState === "UNPAID") return false;
     return !suppressActiveFulfillmentForPaymentState(paymentState, status);

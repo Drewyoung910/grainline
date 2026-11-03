@@ -33,7 +33,7 @@ export default function ResubmitButton({
             }
           });
         }}
-        className="btn btn-primary btn-sm"
+        className="btn btn-warning btn-sm"
       >
         {isPending ? "..." : label}
       </button>

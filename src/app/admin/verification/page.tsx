@@ -943,7 +943,7 @@ export default async function AdminVerificationPage({
                         </label>
                       </div>
                     )}
-                    <SubmitButton className="btn btn-primary btn-sm disabled:cursor-not-allowed self-start">
+                    <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed self-start">
                       Approve Guild Member
                     </SubmitButton>
                   </ActionForm>
@@ -1068,7 +1068,7 @@ export default async function AdminVerificationPage({
                   {m && mc ? (
                     <ActionForm action={approveGuildMaster}>
                       <input type="hidden" name="verificationId" value={v.id} />
-                      <SubmitButton className="btn btn-primary btn-sm disabled:cursor-not-allowed">
+                      <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed">
                         Approve Guild Master
                       </SubmitButton>
                     </ActionForm>
