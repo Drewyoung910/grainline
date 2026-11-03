@@ -33,10 +33,12 @@ describe("public card media styling", () => {
     const blogDetail = source("src/app/blog/[slug]/page.tsx");
     const publicSkeletons = source("src/components/PublicRouteSkeletons.tsx");
 
-    assert.match(blogIndex, /md:w-1\/2 aspect-\[16\/9\]/);
-    assert.match(blogIndex, /<div className="aspect-\[4\/3\] bg-neutral-100 overflow-hidden">/);
+    assert.match(blogIndex, /className="[^"]*aspect-\[16\/9\][^"]*md:w-1\/2/);
+    assert.match(blogIndex, /className="photo-save-surface relative overflow-hidden bg-neutral-100"/);
+    assert.match(blogIndex, /className="block aspect-\[4\/3\]"/);
     assert.doesNotMatch(blogAuthor, /aspect-\[16\/9\]/);
-    assert.match(blogAuthor, /aspect-\[4\/3\] overflow-hidden bg-neutral-100/);
+    assert.match(blogAuthor, /className="photo-save-surface relative overflow-hidden bg-neutral-100"/);
+    assert.match(blogAuthor, /className="block aspect-\[4\/3\]"/);
     assert.match(saved, /<div className="aspect-\[4\/3\] bg-neutral-100 overflow-hidden">/);
     assert.doesNotMatch(saved, /<div className="h-44 bg-neutral-100 overflow-hidden">/);
 

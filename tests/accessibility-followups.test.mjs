@@ -69,7 +69,7 @@ describe("accessibility follow-ups", () => {
     assert.match(modal, /aria-labelledby=\{titleId\}/);
     assert.match(modal, /tabIndex=\{-1\}/);
     assert.match(modal, /items-start justify-center overflow-y-auto overscroll-contain/);
-    assert.match(modal, /className="my-auto w-full max-w-2xl/);
+    assert.match(modal, /className="[^"]*my-auto w-full max-w-2xl/);
   });
 
   it("labels interactive map canvases and exposes text alternatives", () => {
@@ -226,7 +226,7 @@ describe("accessibility follow-ups", () => {
     assert.match(editPhotoGrid, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
     for (const modal of [photoManager, editPhotoGrid]) {
       assert.match(modal, /items-start justify-center overflow-y-auto overscroll-contain/);
-      assert.match(modal, /className="my-auto bg-white/);
+      assert.match(modal, /className="[^"]*my-auto[^"]*bg-white/);
     }
   });
 
