@@ -30,6 +30,12 @@ export default function CoverLightbox({
   useDialogFocus(open, dialogRef, closeViewer);
   useBodyScrollLock(open);
 
+  // Closing as well, so a failed photo can't leave the page scroll-locked.
+  const handleFailed = () => {
+    setFailed(true);
+    setOpen(false);
+  };
+
   if (failed) {
     return (
       <div
@@ -48,7 +54,7 @@ export default function CoverLightbox({
         aria-label="Expand image"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+        <img src={src} alt={alt} className={className} onError={handleFailed} />
       </button>
 
       {open && (
@@ -70,7 +76,7 @@ export default function CoverLightbox({
           </button>
           <div onClick={(e) => e.stopPropagation()} className="max-w-5xl max-h-[90vh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img ref={photoRef} src={src} alt={alt} className="max-w-full max-h-[90vh] object-contain" onError={() => setFailed(true)} />
+            <img ref={photoRef} src={src} alt={alt} className="max-w-full max-h-[90vh] object-contain" onError={handleFailed} />
           </div>
         </div>
       )}

@@ -148,10 +148,13 @@ describe("post-launch UI follow-ups", () => {
   it("keeps browse cards at 4:5 while fitting the full listing photo inside the viewport", () => {
     assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
     const gallery = source("src/components/ListingGallery.tsx");
-    assert.match(gallery, /100svh-var\(--site-header-offset\)/);
+    // The frame height is shared with the loading skeleton, so the two can't drift.
+    const frame = source("src/lib/photoMotion.ts");
+    assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(gallery, /className="h-full w-full object-contain"/);
-    assert.match(gallery, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
-    assert.match(gallery, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
     assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
@@ -453,7 +456,9 @@ describe("post-launch UI follow-ups", () => {
     // Listing context card uses the darker cream surface to separate the
     // thread chrome from the body cream page background.
     assert.match(threadPage, /bg-\[#EFEAE0\][\s\S]*?p-3/);
-    assert.match(threadPage, /sticky top-\[var\(--site-header-offset\)\]/);
+    // The site header scrolls away on threads (Header.tsx `pinned`), so a page
+    // offset here would leave a strip of messages showing above this header.
+    assert.match(threadPage, /sticky top-0 z-10/);
     // Thread container uses card-section on md+ instead of bare md:border.
     assert.match(thread, /md:card-section md:p-4/);
     // Empty-state visual when there are no messages yet.

@@ -79,7 +79,9 @@ export function shrinkPhotoTo(
       [{ backgroundColor: getComputedStyle(backdrop).backgroundColor }, { backgroundColor: "rgba(0, 0, 0, 0)" }],
       { duration: PHOTO_SHRINK_MS, easing: "ease-out", fill: "forwards" },
     );
-    for (const child of Array.from(backdrop.children)) {
+    // Controls fade too, including any that share a wrapper with the photo.
+    const neighbors = [...Array.from(backdrop.children), ...Array.from(photo.parentElement?.children ?? [])];
+    for (const child of neighbors) {
       if (child.contains(photo)) continue;
       child.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: "ease-out", fill: "forwards" });
     }
@@ -103,17 +105,19 @@ export const LISTING_GALLERY_FRAME_HEIGHT =
   "h-[clamp(18rem,calc(100svh-var(--site-header-offset)-12rem),26rem)] lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),32rem)]";
 const TRAVEL_MS = 420;
 const TARGET_WAIT_MS = 4000;
-const LANDED_HOLD_MS = 900;
+const LANDED_HOLD_MS = 5000;
+const SCROLL_TOLERANCE_PX = 4;
+export const PHOTO_FLYER_ATTRIBUTE = "data-photo-flyer";
 const FADE_MS = 160;
 
-let activeFlyer: HTMLImageElement | null = null;
+let activeFlyer: HTMLElement | null = null;
 
-function discardFlyer(flyer: HTMLImageElement): void {
+function discardFlyer(flyer: HTMLElement): void {
   flyer.remove();
   if (activeFlyer === flyer) activeFlyer = null;
 }
 
-function removeFlyer(flyer: HTMLImageElement): void {
+function removeFlyer(flyer: HTMLElement): void {
   if (typeof flyer.animate === "function") {
     const fade = flyer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, fill: "forwards" });
     fade.onfinish = () => discardFlyer(flyer);
@@ -122,6 +126,22 @@ function removeFlyer(flyer: HTMLImageElement): void {
     discardFlyer(flyer);
   }
   if (activeFlyer === flyer) activeFlyer = null;
+}
+
+function flyerImage(source: HTMLImageElement, transform: string): HTMLImageElement {
+  const image = document.createElement("img");
+  image.src = source.currentSrc || source.src;
+  image.alt = "";
+  Object.assign(image.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    transform,
+    transformOrigin: "center",
+  });
+  return image;
 }
 
 // Only a plain click travels. A new tab or window stays where it is.
@@ -137,8 +157,10 @@ export function isPlainClick(event: {
 
 // A copy of the card photo floats over the page while the next page loads,
 // then flies to the gallery as soon as its space exists, which the loading
-// skeleton provides. If that never happens it fades out and nothing is left
-// behind. The header stays above it.
+// skeleton provides, and stays there until the gallery's own photo is ready. It
+// starts as the card looks right now, hover zoom and hover photo included, so
+// the click doesn't snap it. If the visitor scrolls or goes elsewhere first it
+// fades out and nothing is left behind. The header stays above it.
 export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element | null, listingId: string): void {
   if (!photo || !frame || !motionAllowed() || !photo.complete || photo.naturalWidth === 0) return;
   // The frame, not the photo: a hovered card photo is zoomed past its frame.
@@ -147,28 +169,47 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
   if (from.bottom < 0 || from.top > window.innerHeight) return;
 
   if (activeFlyer) removeFlyer(activeFlyer);
-  const flyer = document.createElement("img");
-  flyer.src = photo.currentSrc || photo.src;
-  flyer.alt = "";
+  const flyer = document.createElement("div");
   flyer.setAttribute("aria-hidden", "true");
+  flyer.setAttribute(PHOTO_FLYER_ATTRIBUTE, "");
   Object.assign(flyer.style, {
     position: "fixed",
     left: `${from.left}px`,
     top: `${from.top}px`,
     width: `${from.width}px`,
     height: `${from.height}px`,
-    objectFit: "cover",
+    overflow: "hidden",
     borderRadius: "16px",
     zIndex: "40",
     pointerEvents: "none",
     transformOrigin: "center",
     willChange: "transform",
   });
+  const zoom = getComputedStyle(photo).transform;
+  const image = flyerImage(photo, zoom);
+  flyer.appendChild(image);
+  // A hover photo showing on top dissolves back to the listing's first photo
+  // on the way, because that's the one the gallery opens on.
+  const hoverSource = Array.from(frame.querySelectorAll("img")).find((candidate) =>
+    candidate !== photo
+    && candidate.complete
+    && candidate.naturalWidth > 0
+    && Number(getComputedStyle(candidate).opacity) > 0.5);
+  const hoverImage = hoverSource ? flyerImage(hoverSource, getComputedStyle(hoverSource).transform) : null;
+  if (hoverImage) flyer.appendChild(hoverImage);
   document.body.appendChild(flyer);
   activeFlyer = flyer;
 
   const startedAt = performance.now();
+  const startedPath = window.location.pathname;
+  const startedScrollY = window.scrollY;
   const selector = `[${LISTING_PHOTO_TARGET_ATTRIBUTE}]`;
+  const onListingPage = () => window.location.pathname.startsWith(`/listing/${listingId}`);
+  const movedOn = () => {
+    if (onListingPage()) return false;
+    if (window.location.pathname !== startedPath) return true;
+    return Math.abs(window.scrollY - startedScrollY) > SCROLL_TOLERANCE_PX;
+  };
 
   const land = (target: Element) => {
     const to = target.getBoundingClientRect();
@@ -177,19 +218,20 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
       removeFlyer(flyer);
       return;
     }
-    const animation = flyer.animate([{ transform: "none" }, { transform }], {
-      duration: TRAVEL_MS,
-      easing: EASE,
-      fill: "forwards",
-    });
+    const timing = { duration: TRAVEL_MS, easing: EASE, fill: "forwards" as const };
+    if (zoom !== "none") image.animate([{ transform: zoom }, { transform: "none" }], timing);
+    hoverImage?.animate([{ opacity: 1 }, { opacity: 0 }], timing);
+    const animation = flyer.animate([{ transform: "none" }, { transform }], timing);
     animation.onfinish = () => {
-      // Hold over the gallery until its own photo has had a moment to arrive.
+      // Hold over the gallery until its own photo has arrived, however long the
+      // page takes, so the photo never gives way to an empty frame.
       const holdStart = performance.now();
+      const landedScrollY = window.scrollY;
       const hold = () => {
         if (flyer !== activeFlyer) return;
         const shown = document.querySelector<HTMLImageElement>(`${selector} img`);
-        const ready = Boolean(shown?.complete && shown.naturalWidth > 0);
-        if (ready || performance.now() - holdStart > LANDED_HOLD_MS) removeFlyer(flyer);
+        const gone = !onListingPage() || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX;
+        if (gone || shown?.complete || performance.now() - holdStart > LANDED_HOLD_MS) removeFlyer(flyer);
         else requestAnimationFrame(hold);
       };
       hold();
@@ -199,8 +241,11 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
 
   const waitForTarget = () => {
     if (flyer !== activeFlyer) return;
-    const onListingPage = window.location.pathname.startsWith(`/listing/${listingId}`);
-    const target = onListingPage ? document.querySelector(selector) : null;
+    if (movedOn()) {
+      removeFlyer(flyer);
+      return;
+    }
+    const target = onListingPage() ? document.querySelector(selector) : null;
     if (target && target.getBoundingClientRect().width > 0) {
       land(target);
       return;

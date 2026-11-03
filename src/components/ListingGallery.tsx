@@ -121,7 +121,10 @@ export default function ListingGallery({
 
   if (photos.length === 0) return null;
 
-  const activeUrl = photos[activeIndex]?.url ?? "";
+  // Behind the viewer the page follows along, so the photo it shrinks back into
+  // has already loaded instead of swapping in afterwards.
+  const mainIndex = lightboxOpen ? lightboxIndex : activeIndex;
+  const activeUrl = photos[mainIndex]?.url ?? "";
 
   function openLightbox(i: number) {
     lightboxSwapRef.current = false;
@@ -213,11 +216,11 @@ export default function ListingGallery({
       >
         <Image
           src={activeUrl}
-          alt={photos[activeIndex]?.altText ?? title}
+          alt={photos[mainIndex]?.altText ?? title}
           unoptimized={!isFirstPartyMediaUrl(activeUrl) || optimizerFailures.has(activeUrl)}
           fill
           sizes="(max-width: 1023px) 100vw, 50vw"
-          preload={activeIndex === 0}
+          preload={mainIndex === 0}
           data-fly-to-cart-source=""
           className="h-full w-full object-contain"
           onLoad={(e) => {
