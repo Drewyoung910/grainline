@@ -235,7 +235,7 @@ export default async function ReviewsSection({
         )}
       </div>
 
-      {agg._count._all > 1 && (
+      {agg._count._all > 0 && (
         <dl aria-label="Rating breakdown" className="grid max-w-sm gap-1.5">
           {starCounts.map(({ star, count }) => {
             const pct = Math.round((count / agg._count._all) * 100);

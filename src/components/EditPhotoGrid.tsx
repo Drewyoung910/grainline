@@ -281,7 +281,7 @@ export default function EditPhotoGrid({
             aria-modal="true"
             aria-labelledby="edit-photo-alt-dialog-title"
             tabIndex={-1}
-            className="my-auto bg-white rounded-[20px] modal-card modal-card-in max-w-md w-full p-5 space-y-3"
+            className="modal-card modal-card-in my-auto w-full max-w-md space-y-3 rounded-2xl bg-white p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="edit-photo-alt-dialog-title" className="text-sm font-semibold text-neutral-800">

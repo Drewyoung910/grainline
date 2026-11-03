@@ -184,12 +184,19 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Link>
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
-        <div className="relative">
-          <Link href={listingHref} className="block">
+        <div>
+          <div className="photo-save-surface relative">
+            <Link href={listingHref} className="block">
             {item.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
+            </Link>
+            {item.id && (
+              <FavoriteButton listingId={item.id} initialSaved={!!item.isSaved} />
+            )}
+          </div>
+          <Link href={listingHref} className="block">
             <div className="p-4">
               <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
               {item.priceCents != null && (
@@ -199,9 +206,6 @@ function FeedCard({ item }: { item: FeedItem }) {
               )}
             </div>
           </Link>
-          {item.id && (
-            <FavoriteButton listingId={item.id} initialSaved={!!item.isSaved} />
-          )}
         </div>
       </article>
     );
@@ -219,12 +223,21 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Link>
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
-        <div className="relative">
-          <Link href={`/blog/${item.slug}`} className="block">
+        <div>
+          <div className="photo-save-surface relative">
+            <Link href={`/blog/${item.slug}`} className="block">
             {item.coverImageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.coverImageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
+            </Link>
+            {item.slug && (
+              <div className="absolute top-0 right-0 z-10">
+                <SaveBlogButton slug={item.slug} initialSaved={!!item.isSaved} />
+              </div>
+            )}
+          </div>
+          <Link href={`/blog/${item.slug}`} className="block">
             <div className="p-4">
               <p className="font-medium text-neutral-900 line-clamp-2">{item.title}</p>
               {item.excerpt && (
@@ -232,11 +245,6 @@ function FeedCard({ item }: { item: FeedItem }) {
               )}
             </div>
           </Link>
-          {item.slug && (
-            <div className="absolute top-2 right-2 z-10">
-              <SaveBlogButton slug={item.slug} initialSaved={!!item.isSaved} />
-            </div>
-          )}
         </div>
       </article>
     );

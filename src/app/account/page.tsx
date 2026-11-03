@@ -232,18 +232,18 @@ async function AccountPageContent() {
               {savedItems.map(({ listing }) => {
                 const thumb = listing.photos[0]?.url;
                 return (
-                  <ClickTracker key={listing.id} listingId={listing.id} className="group w-40 shrink-0 snap-start">
+                  <ClickTracker key={listing.id} listingId={listing.id} className="w-40 shrink-0 snap-start">
                     <Link
                       href={publicListingPath(listing.id, listing.title)}
                       className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/25 focus-visible:ring-offset-2"
                     >
-                      <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#EFEAE0]">
+                      <div className="group/photo aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#EFEAE0]">
                         {thumb ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={thumb}
                             alt={listing.title}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
                           />
                         ) : null}
                       </div>

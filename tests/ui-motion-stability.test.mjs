@@ -62,6 +62,16 @@ describe("motion stability guardrails", () => {
     assert.doesNotMatch(mapSection, /w-full min-w-0 flex-1/);
   });
 
+  it("fades map cards without springing them against the moving map", () => {
+    const card = source("src/components/MakerMapCard.tsx");
+    const css = source("src/app/globals.css");
+
+    assert.match(card, /map-card-in/);
+    assert.match(card, /min-h-\[15rem\]/);
+    assert.doesNotMatch(card, /animate-menu-in/);
+    assert.match(css, /@keyframes map-card-fade-in \{[\s\S]*from \{ opacity: 0; \}[\s\S]*to \{ opacity: 1; \}/);
+  });
+
   it("does not replay browse-card entrances on Back or sort navigation", () => {
     const css = source("src/app/globals.css");
     assert.doesNotMatch(css, /\.results-stagger >|\.card-rise\s*\{|@keyframes card-rise/);
@@ -84,6 +94,39 @@ describe("motion stability guardrails", () => {
     assert.match(blogSave, /data-saved=\{saved \? "true" : "false"\}/);
     assert.match(favorite, /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/);
     assert.match(blogSave, /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/);
+  });
+
+  it("keeps every legacy listing and story save action inside the photo surface", () => {
+    const paths = [
+      "src/components/RecentlyViewed.tsx",
+      "src/app/browse/page.tsx",
+      "src/app/listing/[id]/page.tsx",
+      "src/app/account/feed/FeedClient.tsx",
+      "src/app/page.tsx",
+      "src/app/blog/page.tsx",
+      "src/app/blog/author/[slug]/page.tsx",
+    ];
+    for (const path of paths) {
+      const text = source(path);
+      assert.match(text, /photo-save-surface/);
+    }
+
+    const css = source("src/app/globals.css");
+    assert.match(css, /\.photo-save-surface \.listing-save-control\[data-saved="false"\]/);
+    assert.match(css, /\.photo-save-surface:hover \.listing-save-control\[data-saved="false"\]/);
+    assert.doesNotMatch(css, /\.card-listing:hover \.listing-save-control/);
+  });
+
+  it("limits legacy card image zoom to the photo instead of the metadata", () => {
+    const paths = [
+      "src/components/SimilarMakers.tsx",
+      "src/app/account/page.tsx",
+    ];
+    for (const path of paths) {
+      const text = source(path);
+      assert.match(text, /group\/photo[\s\S]*group-hover\/photo:scale-/);
+      assert.doesNotMatch(text, /group-hover:scale-/);
+    }
   });
 
   it("paints seller tabs edge to edge without introducing viewport-width overflow", () => {
@@ -123,6 +166,19 @@ describe("motion stability guardrails", () => {
     assert.doesNotMatch(chip, /setTimeout|filter-chip-out|useRouter/);
     assert.match(saved, /activeSearchKey\.current = searchKey/);
     assert.match(saved, /activeSearchKey\.current === savedSearchKey/);
+  });
+
+  it("keeps commission categories compact instead of wrapping into a wall of controls", () => {
+    const commission = source("src/app/commission/page.tsx");
+    const categoryRow = commission.slice(
+      commission.indexOf("{/* Category filter */}"),
+      commission.indexOf("{requests.length === 0"),
+    );
+
+    assert.match(categoryRow, /<ScrollFadeRow/);
+    assert.match(categoryRow, /overflow-x-auto/);
+    assert.match(categoryRow, /flex min-w-max gap-2/);
+    assert.doesNotMatch(categoryRow, /flex-wrap/);
   });
 
   it("does not drop a signed-in Buy Now tap while Clerk hydrates", () => {

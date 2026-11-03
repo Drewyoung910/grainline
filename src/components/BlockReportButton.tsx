@@ -175,20 +175,20 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
               maxHeight: `calc(100vh - ${(menuPos?.top ?? 0) + MENU_MARGIN}px)`,
               transform: menuPos ? undefined : "translate(-200vw,-200vw)",
             }}
-            className="z-[9999] bg-white rounded-[14px] popover-shadow p-1.5 overflow-y-auto"
+            className="z-[9999] overflow-y-auto rounded-2xl bg-white p-1.5 popover-shadow"
           >
             {view === "menu" ? (
               <>
                 <button
                   onClick={handleBlock}
                   disabled={status === "loading"}
-                  className="w-full rounded-[10px] text-left px-3 py-2 text-sm text-neutral-700 hover:bg-[#F7F5F0]"
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm text-neutral-700 hover:bg-[#F7F5F0]"
                 >
                   {blocked ? `Unblock ${targetName}` : `Block ${targetName}`}
                 </button>
                 <button
                   onClick={() => setView("report")}
-                  className="w-full rounded-[10px] text-left px-3 py-2 text-sm text-red-600 hover:bg-[#F7F5F0]"
+                  className="w-full rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-[#F7F5F0]"
                 >
                   {reportLabel}
                 </button>

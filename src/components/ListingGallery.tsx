@@ -182,7 +182,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className="group/gallery relative isolate block h-[clamp(20rem,calc(100svh-var(--site-header-offset)-7.5rem),36rem)] w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:h-[clamp(26rem,calc(100svh-var(--site-header-offset)-6rem),42rem)]"
+        className="group/gallery relative isolate block h-[clamp(18rem,calc(100svh-var(--site-header-offset)-12rem),26rem)] w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),32rem)]"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -278,7 +278,7 @@ export default function ListingGallery({
 
       {/* Thumbnails */}
       {photos.length > 1 && (
-        <div ref={thumbnailListRef} className="relative mt-2 flex gap-2 overflow-x-auto pb-1">
+        <div ref={thumbnailListRef} className="scrollbar-hidden relative mt-2 flex gap-2 overflow-x-auto pb-1">
           {thumbnailIndicator && (
             <span
               aria-hidden="true"

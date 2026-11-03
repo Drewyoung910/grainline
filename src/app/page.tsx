@@ -550,7 +550,7 @@ export default async function HomePage() {
               <Link href="/browse?sort=popular" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
             </div>
 
-            <ScrollFadeRow arrows className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
@@ -632,7 +632,7 @@ export default async function HomePage() {
               Nothing listed yet — check back soon.
             </div>
           ) : (
-            <ScrollFadeRow arrows className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   return (
@@ -684,7 +684,7 @@ export default async function HomePage() {
                 See full feed <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
             </div>
-            <ScrollFadeRow arrows className="overflow-x-auto -mx-1 px-1">
+            <ScrollFadeRow className="overflow-x-auto -mx-1 px-1">
             <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
@@ -986,12 +986,9 @@ export default async function HomePage() {
                 const { name: authorName, imageUrl: authorAvatar } =
                   publicBlogAuthorPresentation(p, "Former author");
                 return (
-                  <li key={p.slug} className="relative card-listing">
-                    <div className="absolute top-2 right-2 z-10">
-                      <SaveBlogButton slug={p.slug} initialSaved={savedBlogSlugs.has(p.slug)} />
-                    </div>
-                    <Link href={`/blog/${p.slug}`} className="block">
-                      <div className="aspect-[4/3] bg-stone-100 overflow-hidden">
+                  <li key={p.slug} className="card-listing">
+                    <div className="photo-save-surface relative overflow-hidden bg-stone-100">
+                      <Link href={`/blog/${p.slug}`} className="block aspect-[4/3]">
                         <MediaImage
                           src={p.coverImageUrl}
                           alt={p.title}
@@ -999,7 +996,12 @@ export default async function HomePage() {
                           className="w-full h-full object-cover"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
+                      </Link>
+                      <div className="absolute right-0 top-0 z-10">
+                        <SaveBlogButton slug={p.slug} initialSaved={savedBlogSlugs.has(p.slug)} />
                       </div>
+                    </div>
+                    <Link href={`/blog/${p.slug}`} className="block">
                       <div className="p-4 space-y-2 bg-[#EFEAE0]">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>

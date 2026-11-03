@@ -497,7 +497,7 @@ async function BrowseContent({
       <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
         <MobileFilterBar popularTags={visiblePopularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
-          <div className="sticky top-[calc(var(--site-header-offset)+1rem)] self-start">
+          <div className="self-start">
             <FilterSidebar popularTags={visiblePopularTags} />
           </div>
           <div className="flex-1 min-w-0 space-y-8">
@@ -615,11 +615,13 @@ async function BrowseContent({
 
     return (
       <div className="relative flex">
-        <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
-        <Link href={publicListingPath(l.id, l.title)} className="shrink-0 w-36 sm:w-44 aspect-[4/5] overflow-hidden bg-neutral-100">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt={l.photos[0]?.altText ?? l.title} src={img} loading="lazy" width={176} height={220} className="h-full w-full object-cover" />
-        </Link>
+        <div className="photo-save-surface relative shrink-0 w-36 sm:w-44 aspect-[4/5] overflow-hidden bg-neutral-100">
+          <Link href={publicListingPath(l.id, l.title)} className="block h-full w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img alt={l.photos[0]?.altText ?? l.title} src={img} loading="lazy" width={176} height={220} className="h-full w-full object-cover" />
+          </Link>
+          <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
+        </div>
         <div className="flex-1 min-w-0 p-4 pr-12">
           <div className="flex items-start justify-between gap-3">
             <Link href={publicListingPath(l.id, l.title)} className="font-medium hover:underline leading-snug">

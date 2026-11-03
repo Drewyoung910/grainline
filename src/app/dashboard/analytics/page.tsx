@@ -654,7 +654,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Range selector */}
-        <div className="mt-4 flex overflow-x-auto gap-2 pb-1">
+        <div className="scrollbar-hidden mt-4 flex overflow-x-auto gap-2 pb-1">
           {RANGE_OPTIONS.map((r) => (
             <button
               key={r.key}

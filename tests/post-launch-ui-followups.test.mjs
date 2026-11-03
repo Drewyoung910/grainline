@@ -111,7 +111,8 @@ describe("post-launch UI follow-ups", () => {
     const globals = source("src/app/globals.css");
 
     assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
-    assert.match(searchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_POPULAR_SEARCHES/);
+    assert.match(searchBar, /popularSearchPresentation\(\{/);
+    assert.match(searchBar, /popularLoadedRef\.current \|\| popularLoadingRef\.current/);
     assert.match(searchBar, /aria-label="Clear search"/);
     assert.match(searchBar, /params\.delete\("q"\)/);
     assert.match(searchBar, /openDropdown\(\)/);
@@ -149,6 +150,8 @@ describe("post-launch UI follow-ups", () => {
     const gallery = source("src/components/ListingGallery.tsx");
     assert.match(gallery, /100svh-var\(--site-header-offset\)/);
     assert.match(gallery, /className="h-full w-full object-contain"/);
+    assert.match(gallery, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
+    assert.match(gallery, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
     assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
@@ -628,6 +631,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(makerCard, /aria-label="Close maker details"/);
     assert.match(makerCard, /bg-\[#F7F5F0\]/);
     assert.match(makerCard, /border-\[#F7F5F0\]/);
+    assert.match(makerCard, /map-card-in/);
+    assert.doesNotMatch(makerCard, /animate-menu-in/);
     // Content avatars have NO hairline (Drew rejected them) — thick border
     // matches the card background instead.
     assert.match(makerCard, /border-\[3px\] border-\[#F7F5F0\] bg-\[#EFEAE0\]/);

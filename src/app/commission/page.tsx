@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
 import Link from "next/link";
 import SegmentedControl from "@/components/SegmentedControl";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
@@ -369,27 +370,29 @@ async function CommissionPageContent({
       </div>
 
       {/* Category filter */}
-      <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto">
-        <Link
-          href={buildHref({ category: "", page: "" })}
-          className={`rounded-full px-3 py-1 text-sm whitespace-nowrap transition-colors ${
-            !categoryFilter ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-          }`}
-        >
-          All
-        </Link>
-        {CATEGORY_VALUES.map((cat) => (
+      <ScrollFadeRow className="mb-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-max gap-2 pr-1">
           <Link
-            key={cat}
-            href={buildHref({ category: cat, page: "" })}
-            className={`rounded-full px-3 py-1 text-sm whitespace-nowrap transition-colors ${
-              categoryFilter === cat ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+            href={buildHref({ category: "", page: "" })}
+            className={`inline-flex h-9 items-center rounded-full px-3.5 text-sm whitespace-nowrap transition-colors ${
+              !categoryFilter ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
-            {CATEGORY_LABELS[cat]}
+            All
           </Link>
-        ))}
-      </div>
+          {CATEGORY_VALUES.map((cat) => (
+            <Link
+              key={cat}
+              href={buildHref({ category: cat, page: "" })}
+              className={`inline-flex h-9 items-center rounded-full px-3.5 text-sm whitespace-nowrap transition-colors ${
+                categoryFilter === cat ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+              }`}
+            >
+              {CATEGORY_LABELS[cat]}
+            </Link>
+          ))}
+        </div>
+      </ScrollFadeRow>
 
       {requests.length === 0 ? (
         <div className="card-section p-12 text-center">

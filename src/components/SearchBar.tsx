@@ -3,14 +3,17 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import SearchParamsListener from "@/components/SearchParamsListener";
-import { Package, Search, Store, Tag, X } from "@/components/icons";
+import { Grid, Package, Search, Sparkles, Store, Tag, X } from "@/components/icons";
 import { safeInternalPath } from "@/lib/internalReturnUrl";
 import {
   humanizeSearchTag,
   type SearchSuggestionItem,
   type SearchSuggestionItemType,
 } from "@/lib/searchSuggestionResults";
-import { searchSuggestionPhase } from "@/lib/searchSuggestionPresentation";
+import {
+  popularSearchPresentation,
+  searchSuggestionPhase,
+} from "@/lib/searchSuggestionPresentation";
 
 type BlogResult = { slug: string; title: string };
 type CategoryResult = { value: string; label: string };
@@ -78,6 +81,38 @@ export type SearchBarTone = "glass" | "solid";
 const SUGGESTION_STAGGER_MS = 520;
 const SUGGESTION_DEBOUNCE_MS = 150;
 
+// The desktop header search is mounted even at phone widths, so let it warm
+// the same recommendation request the mobile search will consume later. A
+// module-level promise keeps the first mobile tap from starting a second,
+// slower request and painting a different list when it eventually wins.
+let popularSearchCache: string[] | null = null;
+let popularSearchRequest: Promise<string[]> | null = null;
+
+function loadSharedPopularSearches(): Promise<string[]> {
+  if (popularSearchCache !== null) return Promise.resolve(popularSearchCache);
+  if (popularSearchRequest) return popularSearchRequest;
+
+  popularSearchRequest = fetch("/api/search/popular-tags")
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Popular searches failed (${response.status})`);
+      const data = await response.json() as { tags?: unknown };
+      const tags = Array.isArray(data.tags)
+        ? data.tags.filter((tag: unknown): tag is string => typeof tag === "string" && tag.length > 0)
+        : [];
+      popularSearchCache = tags;
+      return tags;
+    })
+    .catch(() => {
+      popularSearchCache = [];
+      return [];
+    })
+    .finally(() => {
+      popularSearchRequest = null;
+    });
+
+  return popularSearchRequest;
+}
+
 export default function SearchBar({
   autoFocus = false,
   tone = "solid",
@@ -113,6 +148,8 @@ export default function SearchBar({
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const [popularTags, setPopularTags] = React.useState<string[]>([]);
   const [popularLoaded, setPopularLoaded] = React.useState(false);
+  const popularLoadedRef = React.useRef(false);
+  const popularLoadingRef = React.useRef(false);
   const [closing, setClosing] = React.useState(false);
   // True only for the first moment after the panel opens, so the entrance
   // stagger plays once instead of on every keystroke.
@@ -167,24 +204,35 @@ export default function SearchBar({
     setValue(pathname === "/browse" ? (searchParams.get("q") ?? "") : "");
   }, [pathname, searchParams]);
 
-  async function loadPopularTags() {
-    if (popularLoaded) return;
+  const loadPopularTags = React.useCallback(async () => {
+    if (popularLoadedRef.current || popularLoadingRef.current) return;
+    popularLoadingRef.current = true;
     try {
-      const res = await fetch("/api/search/popular-tags");
-      const data = await res.json();
-      setPopularTags(data.tags ?? []);
+      const tags = await loadSharedPopularSearches();
+      setPopularTags(tags);
+    } finally {
+      popularLoadedRef.current = true;
+      popularLoadingRef.current = false;
       setPopularLoaded(true);
-    } catch {
-      // fail silently
     }
-  }
+  }, []);
+
+  // Warm the small recommendation request after hydration. The first click
+  // should reveal one settled list, not wait for a click before starting the
+  // request or paint a temporary category set that is immediately replaced.
+  React.useEffect(() => {
+    void loadPopularTags();
+  }, [loadPopularTags]);
 
   // Mobile Safari does not reliably dispatch focus when an input is mounted
   // with autoFocus. Open the fallback recommendations independently so the
   // mobile search popup is useful even when the keyboard stays closed.
   React.useEffect(() => {
-    if (autoFocus && value.length === 0) openDropdown();
-  }, [autoFocus, openDropdown, value.length]);
+    if (autoFocus && value.length === 0) {
+      void loadPopularTags();
+      openDropdown();
+    }
+  }, [autoFocus, loadPopularTags, openDropdown, value.length]);
 
   // Dismiss on click outside
   React.useEffect(() => {
@@ -282,8 +330,12 @@ export default function SearchBar({
 
   const hasItems = items.length > 0 || blogs.length > 0 || categories.length > 0;
   const visiblePopularTags = React.useMemo(
-    () => (popularTags.length > 0 ? popularTags : FALLBACK_POPULAR_SEARCHES),
-    [popularTags],
+    () => popularSearchPresentation({
+      loaded: popularLoaded,
+      tags: popularTags,
+      fallback: FALLBACK_POPULAR_SEARCHES,
+    }),
+    [popularLoaded, popularTags],
   );
   const query = normalizeSearchQuery(value);
   const suggestionPhase = searchSuggestionPhase({ query, resolvedQuery, hasItems, noMatches });
@@ -536,7 +588,7 @@ export default function SearchBar({
           // Scrollable, so browsers would make it a Tab stop; arrow keys on
           // the input drive it instead.
           tabIndex={-1}
-          className={`absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] origin-top overflow-y-auto overscroll-contain rounded-2xl bg-white p-1.5 text-neutral-900 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-[#2C1F1A]/[0.12] motion-reduce:animate-none ${
+          className={`scrollbar-hidden absolute left-0 right-0 top-full z-[60] mt-2 max-h-[min(28rem,calc(100dvh-9rem))] origin-top overflow-y-auto overscroll-contain rounded-2xl bg-white p-1.5 text-neutral-900 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.45)] ring-1 ring-[#2C1F1A]/[0.12] motion-reduce:animate-none ${
             closing ? "animate-search-pop-out pointer-events-none" : "animate-search-pop-in"
           }`}
         >
@@ -566,12 +618,12 @@ export default function SearchBar({
                     e.preventDefault();
                     chooseOption(option);
                   }}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-[15px] transition-colors duration-150 hover:bg-[#F7F5F0] ${
-                    activeIndex === index ? "bg-[#F7F5F0]" : ""
+                  className={`min-h-11 w-full rounded-xl px-3.5 py-2.5 text-left text-[15px] transition-colors duration-150 hover:bg-[#F0EBE2]/70 ${
+                    activeIndex === index ? "bg-[#F0EBE2]/70" : ""
                   } ${option.kind === "item" && option.item.type === "search" ? "" : "flex items-center gap-2.5"}`}
                 >
                   {(option.kind === "tag" || option.kind === "query") && (
-                    <Search size={12} className="text-neutral-500" />
+                    <Search size={14} className="shrink-0 text-neutral-500" />
                   )}
                   {option.kind === "item" && option.item.type === "listing" && (
                     <Package size={14} className="shrink-0 text-neutral-500" />
@@ -583,14 +635,10 @@ export default function SearchBar({
                     <Tag size={14} className="shrink-0 text-neutral-500" />
                   )}
                   {option.kind === "category" && (
-                    <span className="text-xs text-neutral-500 border border-neutral-200 rounded px-1.5 py-0.5 shrink-0">
-                      Category
-                    </span>
+                    <Grid size={14} className="shrink-0 text-neutral-500" />
                   )}
                   {option.kind === "blog" && (
-                    <span className="text-xs text-amber-700 border border-amber-200 bg-amber-50 rounded px-1.5 py-0.5 shrink-0">
-                      Story
-                    </span>
+                    <Sparkles size={14} className="shrink-0 text-neutral-500" />
                   )}
                   <span className={option.kind === "blog" ? "truncate text-neutral-700" : ""}>
                     {option.kind === "tag"

@@ -38,7 +38,7 @@ export default function SortMenu() {
       closeTimerRef.current = null;
       setClosing(false);
       setOpen(false);
-      if (returnFocus) buttonRef.current?.focus();
+      if (returnFocus) buttonRef.current?.focus({ preventScroll: true });
     }, 160);
   }, []);
 
@@ -82,6 +82,7 @@ export default function SortMenu() {
         type="button"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
+        onPointerUp={(event) => event.currentTarget.blur()}
         onClick={() => (open ? close() : setOpen(true))}
         className="btn btn-sm btn-secondary gap-1.5"
       >
@@ -105,12 +106,13 @@ export default function SortMenu() {
                 href={hrefFor(option.value)}
                 scroll={false}
                 aria-current={selected ? "true" : undefined}
+                onPointerUp={(event) => event.currentTarget.blur()}
                 onClick={() => {
                   close();
                   const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
                   window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
                 }}
-                className={`flex items-center justify-between rounded-[10px] px-3 py-2.5 text-[14.5px] hover:bg-[#F7F5F0] ${
+                className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-[14.5px] hover:bg-[#F7F5F0] ${
                   selected ? "font-medium text-neutral-900" : "text-neutral-700"
                 }`}
               >

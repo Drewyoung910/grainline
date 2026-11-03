@@ -591,7 +591,7 @@ async function DashboardPageContent({
             Your workshop is empty — list your first piece and start selling.
           </div>
         ) : (
-          <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 sm:gap-6">
+          <ul className="scrollbar-hidden flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 sm:gap-6">
             {listings.map((l) => {
               const thumb = l.photos[0]?.url;
               // Card link target depends on public visibility:

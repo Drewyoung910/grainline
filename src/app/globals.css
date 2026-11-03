@@ -237,11 +237,11 @@
 @utility btn-secondary {
   background-color: #FFFFFF;
   color: #1D1714;
-  border-color: rgba(44, 31, 26, 0.24);
+  border-color: rgba(120, 113, 108, 0.38);
   @media (hover: hover) {
     &:hover {
       background-color: #F3EEE5;
-      border-color: rgba(44, 31, 26, 0.14);
+      border-color: rgba(120, 113, 108, 0.24);
       box-shadow: 0 10px 24px -18px rgba(44, 31, 26, 0.65);
     }
   }
@@ -276,6 +276,18 @@ html {
   /* Keep the scrollbar lane reserved while a dialog locks scrolling, so the
      page does not nudge sideways on systems with persistent scrollbars. */
   scrollbar-gutter: stable;
+}
+
+/* Horizontal card, chip, thumbnail, and tab rows should scroll by touch,
+   wheel, or trackpad without exposing a heavy platform scrollbar. Keep
+   table/data surfaces out of this utility: their
+   scrollbar is functional navigation rather than visual carousel chrome. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }
 @layer base {
   /* Offset actual in-page destinations instead of the root scroll container.
@@ -423,6 +435,18 @@ input, textarea, select {
 .animate-search-pop-out {
   animation: search-pop-out 0.14s ease-in forwards;
   transform-origin: top center;
+}
+
+/* Map cards are already positioned over a moving surface. Fade only: a
+   spring scale/translate made the card appear to judder against the map. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes map-card-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .map-card-in {
+    animation: map-card-fade-in 0.16s ease-out backwards;
+  }
 }
 
 /* Mobile filter bottom sheet slide-up animation */
@@ -704,13 +728,16 @@ input, textarea, select {
    the card is intentionally hovered or the control receives keyboard focus.
    Saved actions and every touch-device action remain visible. */
 @media (hover: hover) and (pointer: fine) {
-  .listing-card-photo .listing-save-control[data-saved="false"] {
+  .listing-card-photo .listing-save-control[data-saved="false"],
+  .photo-save-surface .listing-save-control[data-saved="false"] {
     opacity: 0;
     translate: 0 3px;
     scale: 0.94;
   }
   .listing-card-photo:hover .listing-save-control[data-saved="false"],
   .listing-card-photo:focus-within .listing-save-control[data-saved="false"],
+  .photo-save-surface:hover .listing-save-control[data-saved="false"],
+  .photo-save-surface:focus-within .listing-save-control[data-saved="false"],
   .listing-save-control[data-saved="false"]:focus-visible {
     opacity: 1;
     translate: 0 0;

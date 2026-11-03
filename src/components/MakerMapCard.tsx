@@ -112,7 +112,7 @@ export default function MakerMapCard({
       role="dialog"
       aria-label={`${name} — maker details`}
       tabIndex={-1}
-      className="pointer-events-auto w-full overflow-hidden rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/10 animate-menu-in motion-reduce:animate-none"
+      className="map-card-in pointer-events-auto min-h-[15rem] w-full overflow-hidden rounded-2xl bg-[#F7F5F0] shadow-2xl ring-1 ring-black/10"
     >
       {/* Cover photo strip */}
       <div className="relative h-20 bg-[#EFEAE0]">

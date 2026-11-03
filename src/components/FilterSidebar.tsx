@@ -45,6 +45,11 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     pendingParamsRef.current = searchKey;
   }, [searchKey]);
   const baseId = React.useId();
+  const categoryMenuRef = React.useRef<HTMLDivElement>(null);
+  const categoryButtonRef = React.useRef<HTMLButtonElement>(null);
+  const categoryCloseTimerRef = React.useRef<number | null>(null);
+  const [categoryOpen, setCategoryOpen] = React.useState(false);
+  const [categoryClosing, setCategoryClosing] = React.useState(false);
   const q = searchParams.get("q") ?? "";
   const selectedTags = normalizeTags(searchParams.getAll("tag"), 10);
 
@@ -217,28 +222,102 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
   const hasLocation = Boolean(lat && lng);
 
+  const closeCategoryMenu = React.useCallback((returnFocus = false) => {
+    if (!categoryOpen || categoryCloseTimerRef.current !== null) return;
+    setCategoryClosing(true);
+    categoryCloseTimerRef.current = window.setTimeout(() => {
+      categoryCloseTimerRef.current = null;
+      setCategoryClosing(false);
+      setCategoryOpen(false);
+      if (returnFocus) categoryButtonRef.current?.focus({ preventScroll: true });
+    }, 140);
+  }, [categoryOpen]);
+
+  React.useEffect(() => {
+    if (!categoryOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!categoryMenuRef.current?.contains(event.target as Node)) closeCategoryMenu();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeCategoryMenu(true);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [categoryOpen, closeCategoryMenu]);
+
+  React.useEffect(() => () => {
+    if (categoryCloseTimerRef.current !== null) window.clearTimeout(categoryCloseTimerRef.current);
+  }, []);
+
   return (
     <aside aria-label="Filters" className="hidden md:block w-56 lg:w-60 shrink-0">
       <div className="-ml-1 space-y-5 pb-8 pl-1 pr-2 pt-1 text-sm">
         {/* Category */}
         <div>
-          <label id={`${baseId}-category`} htmlFor={`${baseId}-category-select`} className={`block ${legendClass}`}>Category</label>
-          <div className="relative">
-            <select
-              id={`${baseId}-category-select`}
-              value={pendingCategory}
-              onChange={(event) => {
-                setPendingCategory(event.target.value);
-                navigateWith({ category: event.target.value });
+          <div id={`${baseId}-category`} className={legendClass}>Category</div>
+          <div ref={categoryMenuRef} className="relative">
+            <button
+              ref={categoryButtonRef}
+              type="button"
+              aria-labelledby={`${baseId}-category`}
+              aria-haspopup="true"
+              aria-expanded={categoryOpen && !categoryClosing}
+              aria-controls={categoryOpen ? `${baseId}-category-options` : undefined}
+              onPointerUp={(event) => event.currentTarget.blur()}
+              onClick={() => {
+                if (categoryCloseTimerRef.current !== null) {
+                  window.clearTimeout(categoryCloseTimerRef.current);
+                  categoryCloseTimerRef.current = null;
+                }
+                if (categoryOpen) closeCategoryMenu();
+                else {
+                  setCategoryClosing(false);
+                  setCategoryOpen(true);
+                }
               }}
-              className="peer h-10 w-full appearance-none rounded-xl border-0 bg-white px-3 pr-9 text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] outline-none ring-1 ring-black/10 transition-[background-color,box-shadow] hover:bg-[#F3EEE5] focus:outline-none focus:ring-stone-300/70 focus-visible:ring-1 focus-visible:ring-stone-400/70"
+              className="flex h-10 w-full items-center justify-between rounded-xl border-0 bg-white px-3 text-left text-[14.5px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] ring-1 ring-black/10 transition-[background-color,box-shadow] hover:bg-[#F3EEE5] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2C1F1A]/20"
             >
-              <option value="">All categories</option>
-              {CATEGORY_VALUES.map((value) => (
-                <option key={value} value={value}>{CATEGORY_LABELS[value]}</option>
-              ))}
-            </select>
-            <ChevronDown aria-hidden="true" size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] peer-focus:-translate-y-1/2 peer-focus:rotate-180" />
+              <span className="truncate">{pendingCategory ? CATEGORY_LABELS[pendingCategory] : "All categories"}</span>
+              <ChevronDown aria-hidden="true" size={16} className={`shrink-0 text-neutral-500 transition-transform duration-300 ${categoryOpen && !categoryClosing ? "rotate-180" : ""}`} />
+            </button>
+            {categoryOpen && (
+              <nav
+                id={`${baseId}-category-options`}
+                aria-labelledby={`${baseId}-category`}
+                className={`scrollbar-hidden absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-[min(26rem,calc(100dvh-var(--site-header-offset)-4rem))] origin-top overflow-y-auto rounded-2xl bg-white p-1.5 popover-shadow motion-reduce:animate-none ${
+                  categoryClosing ? "pointer-events-none animate-menu-out" : "animate-menu-in"
+                }`}
+              >
+                {["", ...CATEGORY_VALUES].map((value) => {
+                  const selected = pendingCategory === value;
+                  return (
+                    <Link
+                      key={value || "all"}
+                      href={hrefWith({ category: value || null })}
+                      scroll={false}
+                      aria-current={selected ? "page" : undefined}
+                      data-filter-changes={JSON.stringify({ category: value || null })}
+                      onPointerUp={(event) => event.currentTarget.blur()}
+                      onClick={(event) => {
+                        setPendingCategory(value);
+                        handleFilterLinkClick(event);
+                        setCategoryClosing(false);
+                        setCategoryOpen(false);
+                      }}
+                      className={`flex min-h-10 items-center rounded-xl px-3 text-[14.5px] transition-colors hover:bg-[#F3EEE5] ${
+                        selected ? "bg-[#EFEAE0] font-semibold text-neutral-900" : "text-neutral-700"
+                      }`}
+                    >
+                      {value ? CATEGORY_LABELS[value] : "All categories"}
+                    </Link>
+                  );
+                })}
+              </nav>
+            )}
           </div>
         </div>
 
@@ -277,6 +356,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                     href={hrefWith({ lat, lng, radius: miles })}
                     scroll={false}
                     data-filter-changes={JSON.stringify({ lat, lng, radius: miles })}
+                    onPointerUp={(event) => event.currentTarget.blur()}
                     onClick={handleFilterLinkClick}
                     aria-current={currentRadius === miles ? "true" : undefined}
                     className={chipClass(currentRadius === miles)}
@@ -330,7 +410,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               onBlur={onPriceBlur}
               aria-invalid={pendingMin === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-[10px] border border-[#2C1F1A]/25 bg-white px-3 text-sm"
+              className="h-11 w-full min-w-0 rounded-xl border border-stone-300 bg-white px-3 text-sm"
             />
             <span className="shrink-0 text-neutral-400" aria-hidden="true">–</span>
             <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
@@ -346,7 +426,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               onBlur={onPriceBlur}
               aria-invalid={pendingMax === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-[10px] border border-[#2C1F1A]/25 bg-white px-3 text-sm"
+              className="h-11 w-full min-w-0 rounded-xl border border-stone-300 bg-white px-3 text-sm"
             />
             {/* Lets Enter submit from either field; not a Tab stop. */}
             <button type="submit" tabIndex={-1} className="sr-only">Apply price</button>
@@ -362,13 +442,14 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Ships within</legend>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => { setPendingShips(""); navigateWith({ ships: null }); }} aria-pressed={!pendingShips} className={chipClass(!pendingShips)}>
+            <button type="button" onPointerUp={(event) => event.currentTarget.blur()} onClick={() => { setPendingShips(""); navigateWith({ ships: null }); }} aria-pressed={!pendingShips} className={chipClass(!pendingShips)}>
               Any time
             </button>
             {SHIPS_WITHIN_OPTIONS.map((days) => (
               <button
                 key={days}
                 type="button"
+                onPointerUp={(event) => event.currentTarget.blur()}
                 onClick={() => { setPendingShips(days); navigateWith({ ships: days }); }}
                 aria-pressed={pendingShips === days}
                 className={chipClass(pendingShips === days)}
@@ -386,13 +467,14 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Shop rating</legend>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => { setPendingRating(""); navigateWith({ rating: null }); }} aria-pressed={!pendingRating} className={chipClass(!pendingRating)}>
+            <button type="button" onPointerUp={(event) => event.currentTarget.blur()} onClick={() => { setPendingRating(""); navigateWith({ rating: null }); }} aria-pressed={!pendingRating} className={chipClass(!pendingRating)}>
               Any
             </button>
             {RATING_OPTIONS.map((stars) => (
               <button
                 key={stars}
                 type="button"
+                onPointerUp={(event) => event.currentTarget.blur()}
                 onClick={() => { setPendingRating(stars); navigateWith({ rating: stars }); }}
                 aria-label={`${stars} stars and up`}
                 aria-pressed={pendingRating === stars}
@@ -417,6 +499,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                     href={tagToggleHref(tag)}
                     scroll={false}
                     data-filter-tag={tag}
+                    onPointerUp={(event) => event.currentTarget.blur()}
                     onClick={handleTagLinkClick}
                     aria-current={active ? "true" : undefined}
                     className={chipClass(active)}
