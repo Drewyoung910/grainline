@@ -18,10 +18,10 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   // Three direct EmailSuppression write arguments and the StockNotification
   // listing-availability query leave the opaque frontier when those checks
   // move behind their fixed SQL authorities.
-  assert.equal(result.reviewedOpaqueShapes, 146);
+  assert.equal(result.reviewedOpaqueShapes, 149);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 120);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 123);
   assert.equal(result.opaqueNonTargetResiduals, 26);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,
