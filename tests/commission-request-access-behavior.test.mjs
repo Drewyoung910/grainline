@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 
 const modulePath = "src/lib/commissionRequestAccess.ts";
+const detailPagePath = "src/app/commission/[param]/page.tsx";
 
 function textWithinRange(value, minimum, maximum) {
   return typeof value === "string"
@@ -103,4 +104,14 @@ test("malformed commission detail ids resolve as not found without querying", as
   assert.equal(await subject.exports.publicCommissionRequestDetail("buyer-1", "bad/id"), null);
   assert.deepEqual(subject.state.contexts, []);
   assert.equal(subject.state.queryCount, 0);
+});
+
+test("terminal commission metadata does not preempt authenticated page access", () => {
+  const page = readFileSync(detailPagePath, "utf8");
+  const metadataStart = page.indexOf("export async function generateMetadata");
+  const metroPageStart = page.indexOf("async function MetroCommissionsPage");
+  const metadata = page.slice(metadataStart, metroPageStart);
+
+  assert.match(metadata, /if \(!req\) \{[\s\S]*robots: \{ index: false, follow: false \}/u);
+  assert.doesNotMatch(metadata, /if \(!req\) notFound\(\)/u);
 });
