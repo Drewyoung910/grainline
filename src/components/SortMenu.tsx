@@ -107,7 +107,8 @@ export default function SortMenu() {
                 scroll={false}
                 aria-current={selected ? "true" : undefined}
                 onPointerUp={(event) => event.currentTarget.blur()}
-                onClick={() => {
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                   close();
                   const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
                   window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });

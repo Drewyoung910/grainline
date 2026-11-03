@@ -21,8 +21,8 @@ export default function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
   const drawerItemHover = "hover:bg-[#F7F5F0]";
-  const drawerSectionText = "text-neutral-400";
-  const drawerIconText = "text-neutral-500";
+  const drawerSectionText = "text-neutral-600";
+  const drawerIconText = "text-neutral-600";
   // The query string arrives through SearchParamsListener so the header can
   // render in the first HTML flush (see that component).
   const [searchQuery, setSearchQuery] = React.useState("");

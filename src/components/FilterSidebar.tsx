@@ -6,6 +6,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { normalizeTags } from "@/lib/tags";
 import SegmentedControl from "@/components/SegmentedControl";
 import { ChevronDown } from "@/components/icons";
+import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
 
 // Every change applies at once and glides the page back to the top of the
 // results (the motion study's floating filter column).
@@ -19,14 +20,6 @@ const RATING_OPTIONS = ["4", "3", "2"];
 const RADIUS_OPTIONS = ["10", "25", "50", "100"];
 
 const legendClass = "mb-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-neutral-600";
-
-// Accepts what shoppers type ("$1,250", "49.99") and returns the plain
-// number, "" for an empty field, or null when it is not a price.
-function cleanPrice(raw: string): string | null {
-  const value = raw.replace(/[\s$,]/g, "");
-  if (value === "") return "";
-  return /^(\d+(\.\d{1,2})?|\.\d{1,2})$/.test(value) ? value : null;
-}
 
 function chipClass(active: boolean) {
   return `inline-flex h-9 items-center rounded-full border px-3.5 text-sm transition-[background-color,border-color,color,box-shadow,scale] duration-200 motion-safe:active:scale-95 ${
@@ -100,8 +93,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     if (document.activeElement !== minRef.current) setMinInput(currentMin);
     if (document.activeElement !== maxRef.current) setMaxInput(currentMax);
   }, [currentMin, currentMax]);
-  const pendingMin = cleanPrice(minInput);
-  const pendingMax = cleanPrice(maxInput);
+  const pendingMin = cleanBrowsePriceInput(minInput);
+  const pendingMax = cleanBrowsePriceInput(maxInput);
 
   function hrefWith(changes: Record<string, string | null>, baseQuery = searchKey) {
     const params = new URLSearchParams(baseQuery);

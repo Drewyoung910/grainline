@@ -842,7 +842,16 @@ export default function SearchBar({
     : undefined;
 
   return (
-    <div ref={containerRef} className="relative w-full min-w-0">
+    <div
+      ref={containerRef}
+      className="relative w-full min-w-0"
+      onBlurCapture={(event) => {
+        const next = event.relatedTarget;
+        if (!(next instanceof Node) || !event.currentTarget.contains(next)) {
+          closeDropdown();
+        }
+      }}
+    >
       <SearchParamsListener onChange={setSearchQuery} />
       <form onSubmit={handleSubmit} role="search">
         <label htmlFor={searchInputId} className="sr-only">

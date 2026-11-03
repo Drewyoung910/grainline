@@ -74,9 +74,9 @@ export default function CoverLightbox({
           >
             ✕
           </button>
-          <div onClick={(e) => e.stopPropagation()} className="max-w-5xl max-h-[90vh] mx-4">
+          <div onClick={(e) => e.stopPropagation()} className="max-w-5xl max-h-[90dvh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img ref={photoRef} src={src} alt={alt} className="max-w-full max-h-[90vh] object-contain" onError={handleFailed} />
+            <img ref={photoRef} src={src} alt={alt} className="max-w-full max-h-[90dvh] object-contain" onError={handleFailed} />
           </div>
         </div>
       )}

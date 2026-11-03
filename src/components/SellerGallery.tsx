@@ -123,13 +123,13 @@ export default function SellerGallery({
               >›</button>
             </>
           )}
-          <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85vh] mx-4">
+          <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85dvh] mx-4">
             <MediaImage
               ref={photoRef}
               src={allImages[lightboxIndex]?.url ?? ""}
               alt={allImages[lightboxIndex]?.alt || `Gallery image ${lightboxIndex + 1}`}
-              className="max-w-full max-h-[85vh] object-contain"
-              fallbackClassName="h-[60vh] w-[80vw] max-w-full bg-neutral-800"
+              className="max-w-full max-h-[85dvh] object-contain"
+              fallbackClassName="h-[60dvh] w-[80vw] max-w-full bg-neutral-800"
             />
             {allImages.length > 1 && (
               <p className="text-center text-white text-sm mt-2 opacity-60">

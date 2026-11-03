@@ -305,12 +305,15 @@ function CartPage() {
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
   // The step entrance plays briefly when the step changes, not whenever the
   // cart re-renders after a reload.
-  const [shownStep, setShownStep] = React.useState(step);
   const [animateStep, setAnimateStep] = React.useState(false);
-  if (shownStep !== step) {
-    setShownStep(step);
-    setAnimateStep(true);
-  }
+  const previousStepRef = React.useRef(step);
+  React.useEffect(() => {
+    if (previousStepRef.current === step) return;
+    previousStepRef.current = step;
+    setAnimateStep(false);
+    const frame = window.requestAnimationFrame(() => setAnimateStep(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [step]);
   React.useEffect(() => {
     if (!animateStep) return;
     const main = document.querySelector<HTMLElement>("main[data-cart-steps]");
@@ -1043,7 +1046,7 @@ function CartPage() {
             key={entry.key}
             aria-current={step === entry.key ? "step" : undefined}
             className={`relative z-[1] px-1 pb-1 text-center transition-colors duration-300 ${
-              step === entry.key ? "font-semibold text-neutral-900" : "text-neutral-500"
+              step === entry.key ? "font-semibold text-neutral-900" : "text-neutral-600"
             }`}
           >
             {entry.label}

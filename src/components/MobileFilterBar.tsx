@@ -1,13 +1,14 @@
 "use client";
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Filter } from "@/components/icons";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { normalizeTags } from "@/lib/tags";
 import SegmentedControl from "@/components/SegmentedControl";
+import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
 
 const SORT_LABELS: Record<string, string> = {
   relevant: "Relevant",
@@ -18,6 +19,7 @@ const SORT_LABELS: Record<string, string> = {
 };
 
 export default function MobileFilterBar({ popularTags }: { popularTags: string[] }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
@@ -30,6 +32,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const [geoLng, setGeoLng] = React.useState(searchParams.get("lng") ?? "");
   const [locating, setLocating] = React.useState(false);
   const [geoError, setGeoError] = React.useState<string | null>(null);
+  const [priceError, setPriceError] = React.useState<string | null>(null);
   const [mounted, setMounted] = React.useState(false);
   const filterSheetRef = React.useRef<HTMLDivElement>(null);
   const sortSheetRef = React.useRef<HTMLDivElement>(null);
@@ -103,6 +106,10 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const currentMax = searchParams.get("max") ?? "";
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   const currentRadius = searchParams.get("radius") ?? "";
+  const hasAppliedPrice = Boolean(
+    (currentMin && cleanBrowsePriceInput(currentMin) !== null)
+    || (currentMax && cleanBrowsePriceInput(currentMax) !== null),
+  );
 
   const sortLabel = SORT_LABELS[currentSort] ?? "Sort";
 
@@ -112,12 +119,39 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     currentShips,
     currentRating,
     geoLat && geoLng ? "loc" : null,
-    currentMin,
-    currentMax,
+    hasAppliedPrice ? "price" : null,
     ...selectedTags,
   ].filter(Boolean).length;
 
   const filterFormId = `${baseId}-mobile-filters`;
+
+  function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const min = cleanBrowsePriceInput(String(data.get("min") ?? ""));
+    const max = cleanBrowsePriceInput(String(data.get("max") ?? ""));
+    if (min === null || max === null) {
+      setPriceError("Enter a price like $1,250 or 49.99.");
+      return;
+    }
+
+    setPriceError(null);
+    const params = new URLSearchParams();
+    for (const [key, value] of data.entries()) {
+      if (typeof value !== "string" || key === "min" || key === "max") continue;
+      const trimmed = value.trim();
+      if (trimmed) params.append(key, trimmed);
+    }
+    if (min) params.set("min", min);
+    if (max) params.set("max", max);
+    params.delete("page");
+
+    setMobileOpen(false);
+    const query = params.toString();
+    router.push(query ? `/browse?${query}` : "/browse", { scroll: false });
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }
 
   const form = (
     <form
@@ -125,6 +159,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       id={filterFormId}
       method="get"
       action="/browse"
+      onSubmit={handleFilterSubmit}
       className="space-y-5 text-sm"
     >
       {/* Preserve q and view */}
@@ -212,7 +247,6 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             name="min"
             type="text"
             inputMode="decimal"
-            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMin}
             placeholder="Min"
             className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
@@ -224,12 +258,12 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             name="max"
             type="text"
             inputMode="decimal"
-            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMax}
             placeholder="Max"
             className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
         </div>
+        {priceError && <p role="alert" className="mt-2 text-xs text-red-700">{priceError}</p>}
       </fieldset>
 
       {/* Sort */}
@@ -300,6 +334,10 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       </button>
       <Link
         href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
+        onClick={() => {
+          setPriceError(null);
+          setMobileOpen(false);
+        }}
         className="btn btn-sm btn-secondary"
       >
         Reset

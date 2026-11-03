@@ -142,7 +142,7 @@ export default function SectionTabs({
             aria-current={activeId === section.id ? "location" : undefined}
             onClick={(event) => goTo(event, section.id)}
             className={`shrink-0 whitespace-nowrap px-3 py-3 text-[15px] font-medium transition-colors duration-200 focus-visible:outline-offset-[-3px] ${
-              activeId === section.id ? "text-neutral-900" : "text-neutral-500 hover:text-neutral-900"
+              activeId === section.id ? "text-neutral-900" : "text-neutral-600 hover:text-neutral-900"
             }`}
           >
             {section.label}

@@ -147,8 +147,12 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
 
         <div
           ref={frameRef}
-          className="relative mx-auto w-full max-w-xl touch-none overflow-hidden rounded-lg border border-neutral-200 bg-neutral-950"
-          style={{ aspectRatio: aspect }}
+          className="relative mx-auto max-w-xl touch-none overflow-hidden rounded-lg border border-neutral-200 bg-neutral-950"
+          style={{
+            aspectRatio: aspect,
+            maxHeight: "60dvh",
+            width: `min(100%, ${aspect * 60}dvh)`,
+          }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

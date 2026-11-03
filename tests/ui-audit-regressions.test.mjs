@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { parseSmartSearch } = await import("../src/lib/smartSearch.ts");
+const { cleanBrowsePriceInput } = await import("../src/lib/browsePriceInput.ts");
 const { formatSnippet } = await import("../src/lib/messageSnippet.ts");
 const { orderRefundedAway, workshopAttentionRows } = await import("../src/lib/workshopQueue.ts");
 const { workshopNavGroups } = await import("../src/lib/workspaceNav.ts");
@@ -41,6 +42,16 @@ describe("smart search only reads real budgets", () => {
   it("reads cents and thousands without stranding punctuation", () => {
     assert.equal(parseSmartSearch("table under $1,200.50").enterHref, "/browse?max=1201&q=table");
     assert.equal(parseSmartSearch("desk under 1,200, walnut").enterHref, "/browse?max=1200&q=desk+walnut");
+  });
+});
+
+describe("browse price fields share one currency parser", () => {
+  it("accepts common currency punctuation on desktop and mobile", () => {
+    assert.equal(cleanBrowsePriceInput("$1,250"), "1250");
+    assert.equal(cleanBrowsePriceInput(" 49.99 "), "49.99");
+    assert.equal(cleanBrowsePriceInput(".50"), ".50");
+    assert.equal(cleanBrowsePriceInput(""), "");
+    assert.equal(cleanBrowsePriceInput("twelve"), null);
   });
 });
 
@@ -151,5 +162,31 @@ describe("guards behind the browser checks", () => {
     const page = source("src/app/dashboard/listings/page.tsx");
     assert.match(page, /listing=\{\{ id: l\.id, stockQuantity: l\.stockQuantity \}\}/);
     assert.match(source("src/app/dashboard/inventory/page.tsx"), /archivedAt: null/);
+  });
+
+  it("keeps existing map pins alive through source and viewport updates", () => {
+    const map = source("src/components/AllSellersMap.tsx");
+    assert.match(map, /const markers = new Map<string, maplibregl\.Marker>\(\)/);
+    assert.match(map, /const existingMarker = markers\.get\(id\)/);
+    assert.match(map, /existingMarker\.setLngLat\(coords\)/);
+    assert.doesNotMatch(map, /markers\.forEach\([^\n]+\.remove\(\)\);\s*markers\.length = 0/);
+  });
+
+  it("closes dialogs before Buy Now success navigation", () => {
+    const checkout = source("src/components/BuyNowCheckoutModal.tsx");
+    assert.match(checkout, /completedRef\.current = true;\s*onClose\(\);\s*router\.push/);
+    assert.match(checkout, /sessionIdRef\.current = null;\s*onClose\(\);\s*router\.push/);
+  });
+
+  it("keeps small-screen controls stable while async work runs", () => {
+    const notify = source("src/components/NotifyMeButton.tsx");
+    const search = source("src/components/SearchBar.tsx");
+    const mobileFilters = source("src/components/MobileFilterBar.tsx");
+    assert.match(notify, /if \(loading\) return;/);
+    assert.match(notify, /aria-busy=\{loading \|\| undefined\}/);
+    assert.doesNotMatch(notify, /\{loading \? "…"/);
+    assert.match(search, /onBlurCapture=\{\(event\) =>/);
+    assert.match(mobileFilters, /onSubmit=\{handleFilterSubmit\}/);
+    assert.match(mobileFilters, /router\.push\(query \? `\/browse\?\$\{query\}` : "\/browse", \{ scroll: false \}\)/);
   });
 });

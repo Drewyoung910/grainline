@@ -132,13 +132,13 @@ export default function CustomerPhotosGallery({ photos }: Props) {
 
           <div
             onClick={(e) => e.stopPropagation()}
-            className="max-w-5xl max-h-[85vh] mx-4 flex flex-col items-center gap-3"
+            className="max-w-5xl max-h-[85dvh] mx-4 flex flex-col items-center gap-3"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={activePhoto.url}
               alt={activePhoto.altText ?? `Customer photo${activePhoto.listingTitle ? ` of ${activePhoto.listingTitle}` : ""}`}
-              className="max-w-full max-h-[75vh] object-contain rounded-md"
+              className="max-w-full max-h-[75dvh] object-contain rounded-md"
             />
             <div className="flex items-center gap-4 text-sm text-white/90">
               <Link

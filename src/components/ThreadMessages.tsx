@@ -134,7 +134,8 @@ export default function ThreadMessages({
   const scrollToBottom = (smooth = true) => {
     const el = boxRef.current;
     if (!el) return;
-    if (smooth) {
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (smooth && !reduceMotion) {
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     } else {
       el.scrollTop = el.scrollHeight;
@@ -232,7 +233,9 @@ export default function ThreadMessages({
       setTimeout(() => {
         if (!active) return;
         const el = boxRef.current;
-        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        if (!el) return;
+        const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? "auto" : "smooth" });
       }, 200);
     };
     document.addEventListener("actionform:ok", onOk);

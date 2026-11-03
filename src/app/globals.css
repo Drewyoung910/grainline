@@ -78,8 +78,10 @@
   overflow: hidden;
   transition: box-shadow 0.2s ease;
 }
-.card-listing:hover {
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .card-listing:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  }
 }
 
 /* Content/section cards — subtle shadow, no hover */
@@ -102,9 +104,11 @@
   overflow: hidden;
   transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
-.card-warm:hover {
-  background: #E5DFD2;
-  box-shadow: 0 4px 14px rgba(28, 25, 23, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .card-warm:hover {
+    background: #E5DFD2;
+    box-shadow: 0 4px 14px rgba(28, 25, 23, 0.08);
+  }
 }
 }
 

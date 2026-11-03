@@ -184,6 +184,7 @@ export default function BuyNowCheckoutModal({
 
       if (typeof data.completedSessionId === "string" && data.completedSessionId) {
         completedRef.current = true;
+        onClose();
         router.push(`/checkout/success?session_id=${data.completedSessionId}`);
         return;
       }
@@ -511,6 +512,7 @@ export default function BuyNowCheckoutModal({
               onComplete={() => {
                 completedRef.current = true;
                 sessionIdRef.current = null;
+                onClose();
                 router.push(
                   `/checkout/success?session_id=${sessionId}`,
                 );

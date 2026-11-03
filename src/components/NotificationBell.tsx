@@ -461,7 +461,7 @@ export default function NotificationBell({
             role="dialog"
             aria-label="Notifications"
             data-home-notification-surface={overlay ? "true" : undefined}
-            className={`scrollbar-hidden fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70vh] rounded-2xl text-neutral-900 popover-shadow motion-reduce:animate-none ${notificationSurfaceClass} ${
+            className={`scrollbar-hidden fixed right-3 top-[calc(var(--site-header-h)+0.375rem+env(safe-area-inset-top))] md:absolute md:right-0 md:top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto max-h-[70dvh] rounded-2xl text-neutral-900 popover-shadow motion-reduce:animate-none ${notificationSurfaceClass} ${
               closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
             }`}
           >

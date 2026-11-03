@@ -620,10 +620,16 @@ describe("post-launch UI follow-ups", () => {
       assert.match(mapSource, /markerEl\.addEventListener\("keydown"/);
       assert.match(mapSource, /<MakerMapCard/);
       assert.match(mapSource, /cache=\{cardCache\}/);
-      assert.match(mapSource, /const markers: maplibregl\.Marker\[\] = \[\]/);
-      assert.match(mapSource, /markers\.push\(marker\)/);
       assert.match(mapSource, /markers\.forEach\([\s\S]*?\.remove\(\)\)/);
     }
+
+    // The homepage keeps marker instances by maker id so source-data and
+    // resize events cannot cut a pin's entrance short. The full map's existing
+    // array lifecycle remains valid because it does not animate those pins.
+    assert.match(allSellersMap, /const markers = new Map<string, maplibregl\.Marker>\(\)/);
+    assert.match(allSellersMap, /markers\.set\(id, marker\)/);
+    assert.match(sellersMap, /const markers: maplibregl\.Marker\[\] = \[\]/);
+    assert.match(sellersMap, /markers\.push\(marker\)/);
 
     assert.match(makerCard, /export type MakerMapCardCache = Map<string, MakerMapCardData \| "error">/);
     assert.match(makerCard, /cache: MakerMapCardCache/);

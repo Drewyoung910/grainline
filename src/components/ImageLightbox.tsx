@@ -113,13 +113,13 @@ export function ImageLightbox({ images }: { images: string[] }) {
           )}
 
           {/* Main image */}
-          <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85vh] mx-4">
+          <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85dvh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={photoRef}
               src={images[activeIndex]}
               alt={`Reference ${activeIndex + 1}`}
-              className="max-w-full max-h-[85vh] object-contain"
+              className="max-w-full max-h-[85dvh] object-contain"
             />
             {images.length > 1 && (
               <p className="text-center text-white text-sm mt-2 opacity-60">

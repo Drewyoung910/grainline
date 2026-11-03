@@ -49,6 +49,8 @@ Production promotion.
   temporarily disappear.
 - [x] Maker cards reserve their final height and use a short opacity entrance,
   not a glitchy spring/reflow.
+- [x] Map pin DOM nodes survive source and viewport updates, so a resize or
+  cluster expansion cannot cut a pin entrance short and make it pop into place.
 - [x] Horizontal homepage rows retain touch/trackpad scrolling without visible
   arrow controls or a platform scrollbar. Gallery arrows belong on listing
   photos, not card carousels.
@@ -74,6 +76,8 @@ Production promotion.
   from fields, editors, browser shortcuts, or open dialogs.
 - [x] Search result rows use a full-size quiet hover surface rather than small
   boxed labels.
+- [x] Keyboard focus leaving the search control closes its results instead of
+  leaving a floating panel over the newly focused content.
 - [x] Search, category, chip, and popover scroll regions hide platform
   scrollbars while retaining scrolling.
 - [x] Desktop Category is a compact animated menu with real links, not the
@@ -96,6 +100,9 @@ Production promotion.
   dropping focus while saving.
 - [x] Text fields use one quiet stone focus border and soft halo, not a thin
   dark brown keyline.
+- [x] Phone filters apply through client navigation, accept the same familiar
+  currency formats as desktop, close on Reset even at the base URL, and count
+  a min/max price range as one filter.
 - [x] Radius follows a semantic system on the reviewed surfaces: pills for
   choices/actions, rounded-xl for fields and compact controls, and rounded-2xl
   for floating cards/popovers. One-off radii are not used as decoration.
@@ -122,6 +129,10 @@ Production promotion.
   rejected save returns to the server-confirmed quantity.
 - [x] Checkout progress uses a restrained moving underline rather than a white
   pill nested inside another pill.
+- [x] Buy Now closes its dialog before success navigation, and checkout step
+  motion re-arms without stranding the next step at the prior scroll position.
+- [x] Stock-alert actions keep their full label and focus while a request is in
+  flight instead of collapsing to a dim ellipsis.
 - [ ] Accept real signed-in cart, Clerk, and Stripe interactions on the canary.
 
 ## Seller profiles, commissions, and reviews
@@ -167,6 +178,9 @@ Production promotion.
 - [x] All interactive maps retain their existing data and controls while using
   the Grainline land, water, road, and label palette; a missing upstream layer
   or paint failure leaves the stock map working.
+- [x] Crop dialogs, lightboxes, custom-order dialogs, and notification panels
+  use the dynamic viewport on mobile; message auto-scroll respects reduced
+  motion.
 
 ## Final acceptance before Production
 

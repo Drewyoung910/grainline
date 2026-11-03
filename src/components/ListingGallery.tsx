@@ -383,13 +383,13 @@ export default function ListingGallery({
             </>
           )}
 
-          <div onClick={(e) => e.stopPropagation()} className="lightbox-photo-in max-w-4xl max-h-[85vh] mx-4">
+          <div onClick={(e) => e.stopPropagation()} className="lightbox-photo-in max-w-4xl max-h-[85dvh] mx-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={lightboxPhotoRef}
               src={photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
-              className="max-w-full max-h-[85vh] object-contain"
+              className="max-w-full max-h-[85dvh] object-contain"
               onLoad={(e) => {
                 if (!lightboxSwapRef.current) return;
                 lightboxSwapRef.current = false;

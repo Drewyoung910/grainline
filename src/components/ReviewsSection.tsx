@@ -240,7 +240,7 @@ export default async function ReviewsSection({
           {starCounts.map(({ star, count }) => {
             const pct = Math.round((count / agg._count._all) * 100);
             return (
-              <div key={star} className="grid grid-cols-[3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5 text-[13px] text-neutral-500 tabular-nums">
+              <div key={star} className="grid grid-cols-[3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5 text-[13px] text-neutral-600 tabular-nums">
                 <dt className="whitespace-nowrap">{star} star{star === 1 ? "" : "s"}</dt>
                 <dd className="h-1.5 overflow-clip rounded-full bg-[#EFEAE0]">
                   {/* The bar fills as the breakdown scrolls into view. */}

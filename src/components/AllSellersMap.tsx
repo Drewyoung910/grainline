@@ -37,10 +37,10 @@ export default function AllSellersMap({
 }: Props) {
   const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  // Pins drop in the first time each maker appears on screen. Markers are
-  // rebuilt on every pan and source update, so remember which pins have
-  // already dropped; pins built while the map was still off screen keep
-  // their (paused) drop until it scrolls into view.
+  // Pins drop in the first time each maker appears on screen. Marker instances
+  // are retained across source and viewport updates so the drop is not cut off
+  // by a resize/moveend rebuild. Pins created while the map is still off screen
+  // keep their paused drop until it scrolls into view.
   const droppedPinIdsRef = useRef(new Set<string>());
   const pendingDropIdsRef = useRef(new Set<string>());
 
@@ -179,7 +179,7 @@ export default function AllSellersMap({
     // Clicking the map background (not a pin) dismisses the maker card.
     map.on("click", () => setSelectedPin(null));
 
-    const markers: maplibregl.Marker[] = [];
+    const markers = new Map<string, maplibregl.Marker>();
 
     // map.resize() can fire moveend before the load handler adds the source;
     // isSourceLoaded() on a missing source logs "There is no tile manager".
@@ -187,9 +187,6 @@ export default function AllSellersMap({
       Boolean(map.getSource("sellers")) && map.isSourceLoaded("sellers");
 
     function updateMarkers() {
-      markers.forEach(m => m.remove());
-      markers.length = 0;
-
       if (!sellersSourceReady()) return;
 
       const features = map.querySourceFeatures("sellers", {
@@ -206,6 +203,11 @@ export default function AllSellersMap({
         seen.add(id);
 
         const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
+        const existingMarker = markers.get(id);
+        if (existingMarker) {
+          existingMarker.setLngLat(coords);
+          continue;
+        }
         const props = feature.properties as Record<string, unknown> | null;
         const nameText = typeof props?.name === "string" ? props.name : "";
         const cityText = typeof props?.city === "string" ? props.city : null;
@@ -244,7 +246,15 @@ export default function AllSellersMap({
           selectPin();
         });
 
-        markers.push(marker);
+        markers.set(id, marker);
+      }
+
+      // A pin that left the rendered source should disappear, but pins that
+      // remain visible keep their DOM node, focus state, and in-flight drop.
+      for (const [id, marker] of markers) {
+        if (seen.has(id)) continue;
+        marker.remove();
+        markers.delete(id);
       }
     }
 
@@ -278,7 +288,8 @@ export default function AllSellersMap({
       ro.disconnect();
       cancelAnimationFrame(raf);
       clearTimeout(settle);
-      markers.forEach(m => m.remove());
+      markers.forEach((marker) => marker.remove());
+      markers.clear();
       map.remove();
     };
   }, [points, initialCenter, initialZoom, mobileInitialZoom]);

@@ -750,7 +750,7 @@ async function BrowseContent({
   // ── Page render ────────────────────────────────────────────────────────────
   const activeFilterCount = [
     categoryFilter, typeFilter, shipsFilter, ratingFilter, hasLocationFilter ? "loc" : null,
-    min, max, ...selectedTags,
+    priceChipLabel ? "price" : null, ...selectedTags,
   ].filter(Boolean).length;
 
   return (
