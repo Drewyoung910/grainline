@@ -83,7 +83,7 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
   ],
   [
     "20261102050000_prepare_listing_domain_authorities",
-    "d78b139032fd82371a684e38f3f8c2eff4c780c4e28908b49515a7d6b126241c",
+    "feee4247d09eeeb6e039a036d6b110885d251fe9cc8252ca523708990492c273",
   ],
 ]);
 

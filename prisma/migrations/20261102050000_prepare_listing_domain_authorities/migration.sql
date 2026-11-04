@@ -18,6 +18,8 @@ SELECT pg_catalog.pg_advisory_xact_lock(
 DO $grainline_listing_domain_preflight$
 DECLARE
   invalid_material_rows bigint;
+  invalid_dimension_rows bigint;
+  invalid_transaction_shape_rows bigint;
 BEGIN
   IF pg_catalog.to_regclass('public."Listing"') IS NULL THEN
     RAISE EXCEPTION 'Listing table is absent';
@@ -272,6 +274,18 @@ BEGIN
          FROM pg_catalog.pg_constraint AS constraint_state
         WHERE constraint_state.conrelid = 'public."Listing"'::pg_catalog.regclass
           AND constraint_state.conname = 'Listing_materials_count_chk'
+     )
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_constraint AS constraint_state
+        WHERE constraint_state.conrelid = 'public."Listing"'::pg_catalog.regclass
+          AND constraint_state.conname = 'Listing_product_dimensions_nonnegative_chk'
+     )
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_constraint AS constraint_state
+        WHERE constraint_state.conrelid = 'public."Listing"'::pg_catalog.regclass
+          AND constraint_state.conname = 'Listing_shipping_package_nonnegative_chk'
      ) THEN
     RAISE EXCEPTION 'Listing materials guard catalog already exists';
   END IF;
@@ -292,11 +306,62 @@ BEGIN
         SELECT 1
           FROM pg_catalog.unnest(listing.materials) AS material(value)
          WHERE material.value IS NULL
-            OR pg_catalog.char_length(material.value) > 100
+            OR pg_catalog.char_length(material.value) NOT BETWEEN 1 AND 100
       );
   IF invalid_material_rows <> 0 THEN
     RAISE EXCEPTION 'Listing materials inventory contains % invalid rows',
       invalid_material_rows;
+  END IF;
+
+  SELECT pg_catalog.count(*)
+    INTO invalid_dimension_rows
+    FROM public."Listing" AS listing
+   WHERE listing."productLengthIn" < 0
+      OR listing."productWidthIn" < 0
+      OR listing."productHeightIn" < 0;
+  IF invalid_dimension_rows <> 0 THEN
+    RAISE EXCEPTION 'Listing product-dimension inventory contains % invalid rows',
+      invalid_dimension_rows;
+  END IF;
+
+  SELECT pg_catalog.count(*)
+    INTO invalid_transaction_shape_rows
+    FROM public."Listing" AS listing
+   WHERE pg_catalog.char_length(listing.title) NOT BETWEEN 1 AND 150
+      OR pg_catalog.cardinality(listing.tags) > 10
+      OR EXISTS (
+        SELECT 1
+          FROM pg_catalog.unnest(listing.tags) AS tag(value)
+         WHERE tag.value IS NULL
+            OR pg_catalog.char_length(tag.value) NOT BETWEEN 1 AND 100
+      )
+      OR listing."packagedWeightGrams" < 0
+      OR listing."packagedLengthCm" < 0
+      OR listing."packagedWidthCm" < 0
+      OR listing."packagedHeightCm" < 0
+      OR (
+        SELECT pg_catalog.count(*)
+          FROM public."Photo" AS photo
+         WHERE photo."listingId" = listing.id
+      ) > 10
+      OR (
+        SELECT pg_catalog.count(*)
+          FROM public."ListingVariantGroup" AS variant_group
+         WHERE variant_group."listingId" = listing.id
+      ) > 3
+      OR EXISTS (
+        SELECT 1
+          FROM public."ListingVariantGroup" AS variant_group
+         WHERE variant_group."listingId" = listing.id
+           AND (
+             SELECT pg_catalog.count(*)
+               FROM public."ListingVariantOption" AS variant_option
+              WHERE variant_option."groupId" = variant_group.id
+           ) > 10
+      );
+  IF invalid_transaction_shape_rows <> 0 THEN
+    RAISE EXCEPTION 'Listing transaction inventory contains % invalid rows',
+      invalid_transaction_shape_rows;
   END IF;
 END
 $grainline_listing_domain_preflight$;
@@ -2945,18 +3010,25 @@ BEGIN
         WHERE material.value IS NULL
            OR pg_catalog.char_length(material.value) NOT BETWEEN 1 AND 100
      )
+     OR p_product_length_in < 0
      OR p_product_length_in = 'NaN'::double precision
      OR p_product_length_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_width_in < 0
      OR p_product_width_in = 'NaN'::double precision
      OR p_product_width_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_height_in < 0
      OR p_product_height_in = 'NaN'::double precision
      OR p_product_height_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_length_cm = 'NaN'::double precision
+     OR p_packaged_length_cm < 0
      OR p_packaged_length_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_width_cm = 'NaN'::double precision
+     OR p_packaged_width_cm < 0
      OR p_packaged_width_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_height_cm = 'NaN'::double precision
+     OR p_packaged_height_cm < 0
      OR p_packaged_height_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_weight_grams < 0
      OR (p_category IS NOT NULL AND p_category NOT IN (
        'FURNITURE', 'KITCHEN', 'DECOR', 'TOOLS', 'TOYS',
        'JEWELRY', 'ART', 'OUTDOOR', 'STORAGE', 'OTHER'
@@ -3201,18 +3273,25 @@ BEGIN
            OR pg_catalog.char_length(material.value) < 1
            OR pg_catalog.char_length(material.value) > 100
      )
+     OR p_product_length_in < 0
      OR p_product_length_in = 'NaN'::double precision
      OR p_product_length_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_width_in < 0
      OR p_product_width_in = 'NaN'::double precision
      OR p_product_width_in IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_product_height_in < 0
      OR p_product_height_in = 'NaN'::double precision
      OR p_product_height_in IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_length_cm = 'NaN'::double precision
+     OR p_packaged_length_cm < 0
      OR p_packaged_length_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_width_cm = 'NaN'::double precision
+     OR p_packaged_width_cm < 0
      OR p_packaged_width_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
      OR p_packaged_height_cm = 'NaN'::double precision
+     OR p_packaged_height_cm < 0
      OR p_packaged_height_cm IN ('Infinity'::double precision, '-Infinity'::double precision)
+     OR p_packaged_weight_grams < 0
      OR (
        p_category IS NOT NULL
        AND p_category NOT IN (
@@ -5670,7 +5749,8 @@ BEGIN
      OR source_listing."updatedAt" IS DISTINCT FROM p_reviewed_at
      OR source_listing."archivedAt" IS NOT NULL
      OR (
-       p_status IN ('ACTIVE', 'SOLD_OUT')
+       p_source_status <> 'PENDING_REVIEW'
+       AND p_status IN ('ACTIVE', 'SOLD_OUT')
        AND NOT source_listing."sellerPubliclyOrderable"
      )
      OR (
@@ -6020,6 +6100,27 @@ ALTER TABLE public."Listing"
 ALTER TABLE public."Listing"
   VALIDATE CONSTRAINT "Listing_materials_count_chk";
 
+ALTER TABLE public."Listing"
+  ADD CONSTRAINT "Listing_product_dimensions_nonnegative_chk"
+  CHECK (
+    ("productLengthIn" IS NULL OR "productLengthIn" >= 0)
+    AND ("productWidthIn" IS NULL OR "productWidthIn" >= 0)
+    AND ("productHeightIn" IS NULL OR "productHeightIn" >= 0)
+  ) NOT VALID;
+ALTER TABLE public."Listing"
+  VALIDATE CONSTRAINT "Listing_product_dimensions_nonnegative_chk";
+
+ALTER TABLE public."Listing"
+  ADD CONSTRAINT "Listing_shipping_package_nonnegative_chk"
+  CHECK (
+    ("packagedWeightGrams" IS NULL OR "packagedWeightGrams" >= 0)
+    AND ("packagedLengthCm" IS NULL OR "packagedLengthCm" >= 0)
+    AND ("packagedWidthCm" IS NULL OR "packagedWidthCm" >= 0)
+    AND ("packagedHeightCm" IS NULL OR "packagedHeightCm" >= 0)
+  ) NOT VALID;
+ALTER TABLE public."Listing"
+  VALIDATE CONSTRAINT "Listing_shipping_package_nonnegative_chk";
+
 CREATE FUNCTION public.grainline_listing_materials_guard()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -6033,7 +6134,7 @@ BEGIN
     SELECT 1
       FROM pg_catalog.unnest(NEW.materials) AS material(value)
      WHERE material.value IS NULL
-        OR pg_catalog.char_length(material.value) > 100
+        OR pg_catalog.char_length(material.value) NOT BETWEEN 1 AND 100
   ) THEN
     RAISE EXCEPTION 'Listing materials are invalid'
       USING ERRCODE = '23514';

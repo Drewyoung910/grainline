@@ -48,6 +48,14 @@ const UPDATE_SQL = `
     )
 `;
 
+const OWNER_REVIEW_TRANSITION_SQL = `
+  SELECT *
+    FROM public.grainline_listing_owner_review_transition(
+      $1::text, $2::timestamp without time zone, $3::text,
+      $4::text, $5::text[], $6::double precision
+    )
+`;
+
 const ALT_TEXT_BACKFILL_SQL = `
   SELECT public.grainline_listing_owner_alt_text_backfill(
     $1::text, $2::text[], $3::text[]
@@ -244,6 +252,28 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
   assert.equal(createResult[0]?.created, true);
   assert.equal(createResult[0]?.id, listingId);
 
+  const invalidDimensionArgs = createArgs({
+    listingId: `listing-negative-dimension-proof-${suffix}`,
+    photos: [],
+  });
+  invalidDimensionArgs[11] = -1;
+  await assert.rejects(
+    runtimeQuery(database, seller.userId, CREATE_SQL, invalidDimensionArgs),
+    (error) => error?.code === "22023",
+    "owner create must reject a forged negative product dimension",
+  );
+
+  const invalidPackageArgs = createArgs({
+    listingId: `listing-negative-package-proof-${suffix}`,
+    photos: [],
+  });
+  invalidPackageArgs[14] = -1;
+  await assert.rejects(
+    runtimeQuery(database, seller.userId, CREATE_SQL, invalidPackageArgs),
+    (error) => error?.code === "22023",
+    "owner create must reject a forged negative package dimension",
+  );
+
   let [listing] = rowsOf(await database.query(
     `SELECT id, title, status::text AS status,
             "listingType"::text AS "listingType", "updatedAt"
@@ -252,6 +282,70 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
     [listingId],
   ));
   assert.ok(listing);
+
+  const vacationReviewListingId = `listing-vacation-review-proof-${suffix}`;
+  const vacationReviewCreate = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    CREATE_SQL,
+    createArgs({
+      listingId: vacationReviewListingId,
+      status: "PENDING_REVIEW",
+      title: "Vacation review transition proof",
+      photos: [{
+        id: `listing-vacation-review-photo-${suffix}`,
+        url: "https://example.test/listing-vacation-review.jpg",
+        originalUrl: "https://example.test/listing-vacation-review.jpg",
+        altText: "Vacation review proof",
+        sortOrder: 0,
+      }],
+    }),
+  ));
+  assert.equal(vacationReviewCreate[0]?.created, true);
+  await database.query(
+    `UPDATE public."Listing"
+        SET "sellerPubliclyOrderable" = false,
+            "updatedAt" = pg_catalog.clock_timestamp()
+      WHERE id = $1`,
+    [vacationReviewListingId],
+  );
+  const [vacationReviewListing] = rowsOf(await database.query(
+    `SELECT id, title, status::text AS status,
+            "listingType"::text AS "listingType", "updatedAt"
+       FROM public."Listing"
+      WHERE id = $1`,
+    [vacationReviewListingId],
+  ));
+  const vacationReviewResult = rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    OWNER_REVIEW_TRANSITION_SQL,
+    [
+      vacationReviewListingId,
+      vacationReviewListing.updatedAt,
+      "PENDING_REVIEW",
+      "ACTIVE",
+      [],
+      0.99,
+    ],
+  ));
+  assert.equal(
+    vacationReviewResult[0]?.applied,
+    true,
+    "an approved edit must leave PENDING_REVIEW even while vacation hides it",
+  );
+  await database.query(
+    `UPDATE public."Listing"
+        SET "sellerPubliclyOrderable" = true
+      WHERE id = $1`,
+    [vacationReviewListingId],
+  );
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT status::text AS status
+       FROM public."Listing"
+      WHERE id = $1`,
+    [vacationReviewListingId],
+  )), [{ status: "ACTIVE" }]);
   assert.deepEqual(rowsOf(await database.query(
     `SELECT id, "sortOrder" AS "sortOrder"
        FROM public."Photo"

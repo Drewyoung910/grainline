@@ -231,7 +231,7 @@ function parseListingActorTransactionSourceRow(row: ListingActorTransactionSourc
     || !(row.category === null || isTextWithinCodePointRange(row.category, 1, 50))
     || !Array.isArray(row.tags)
     || row.tags.length > 50
-    || row.tags.some((tag) => !isTextWithinCodePointRange(tag, 1, 50))
+    || row.tags.some((tag) => !isTextWithinCodePointRange(tag, 1, 100))
     || !(row.stockQuantity === null || (validSafeInteger(row.stockQuantity) && row.stockQuantity >= 0))
     || !(row.packagedWeightGrams === null || (
       validSafeInteger(row.packagedWeightGrams) && row.packagedWeightGrams >= 0

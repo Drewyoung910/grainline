@@ -441,8 +441,17 @@ function validNullableSafeInteger(value: unknown): value is number | null {
   return value === null || validSafeInteger(value);
 }
 
+function validNullableNonnegativeSafeInteger(value: unknown): value is number | null {
+  return value === null || (validSafeInteger(value) && value >= 0);
+}
+
 function validNullableFinite(value: unknown): value is number | null {
   return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+function validNullableNonnegativeFinite(value: unknown): value is number | null {
+  return value === null
+    || (typeof value === "number" && Number.isFinite(value) && value >= 0);
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {
@@ -634,7 +643,7 @@ async function readListingOwnerEditor(
   listingId: string,
 ): Promise<ListingOwnerEditorState | null> {
   if (!validId(listingId)) {
-    throw new RangeError("Listing owner-editor input is invalid");
+    return null;
   }
   const rows = await client.$queryRaw<ListingOwnerEditorRow[]>`
     SELECT * FROM public.grainline_listing_owner_editor(${listingId}::text)
@@ -945,13 +954,13 @@ export function createListingOwner(
     || !Array.isArray(input.materials)
     || input.materials.length > 20
     || !input.materials.every((material) => isTextWithinCodePointRange(material, 1, 100))
-    || !validNullableFinite(input.productLengthIn)
-    || !validNullableFinite(input.productWidthIn)
-    || !validNullableFinite(input.productHeightIn)
-    || !validNullableFinite(input.packagedLengthCm)
-    || !validNullableFinite(input.packagedWidthCm)
-    || !validNullableFinite(input.packagedHeightCm)
-    || !validNullableSafeInteger(input.packagedWeightGrams)
+    || !validNullableNonnegativeFinite(input.productLengthIn)
+    || !validNullableNonnegativeFinite(input.productWidthIn)
+    || !validNullableNonnegativeFinite(input.productHeightIn)
+    || !validNullableNonnegativeFinite(input.packagedLengthCm)
+    || !validNullableNonnegativeFinite(input.packagedWidthCm)
+    || !validNullableNonnegativeFinite(input.packagedHeightCm)
+    || !validNullableNonnegativeSafeInteger(input.packagedWeightGrams)
     || !(input.category === null || CATEGORIES.has(input.category))
     || !LISTING_TYPES.has(input.listingType)
     || !validNullableSafeInteger(input.stockQuantity)
@@ -1145,13 +1154,13 @@ export async function updateListingOwnerContent(
     || !input.materials.every((material) =>
       isTextWithinCodePointRange(material, 1, 100)
     )
-    || !validNullableFinite(input.productLengthIn)
-    || !validNullableFinite(input.productWidthIn)
-    || !validNullableFinite(input.productHeightIn)
-    || !validNullableFinite(input.packagedLengthCm)
-    || !validNullableFinite(input.packagedWidthCm)
-    || !validNullableFinite(input.packagedHeightCm)
-    || !validNullableSafeInteger(input.packagedWeightGrams)
+    || !validNullableNonnegativeFinite(input.productLengthIn)
+    || !validNullableNonnegativeFinite(input.productWidthIn)
+    || !validNullableNonnegativeFinite(input.productHeightIn)
+    || !validNullableNonnegativeFinite(input.packagedLengthCm)
+    || !validNullableNonnegativeFinite(input.packagedWidthCm)
+    || !validNullableNonnegativeFinite(input.packagedHeightCm)
+    || !validNullableNonnegativeSafeInteger(input.packagedWeightGrams)
     || !(input.category === null || CATEGORIES.has(input.category))
     || !LISTING_TYPES.has(input.listingType)
     || !validNullableSafeInteger(input.stockQuantity)

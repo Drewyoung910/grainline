@@ -335,7 +335,7 @@ export async function listingActorDetailSource(
   listingId: string,
 ) {
   if (!validId(listingId)) {
-    throw new RangeError("Listing detail id is outside the supported range");
+    return null;
   }
   if (viewerUserId !== null) {
     if (!validId(viewerUserId)) {

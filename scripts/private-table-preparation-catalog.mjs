@@ -362,7 +362,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   listing_domain_v1: Object.freeze({
     migration: "20261102050000_prepare_listing_domain_authorities",
-    migrationSha256: "d78b139032fd82371a684e38f3f8c2eff4c780c4e28908b49515a7d6b126241c",
+    migrationSha256: "feee4247d09eeeb6e039a036d6b110885d251fe9cc8252ca523708990492c273",
     table: "Listing",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -382,6 +382,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       "tests/listing-owner-summary-authority.test.mjs",
       "tests/listing-public-catalog-page-authority.test.mjs",
       "tests/listing-detail-source-authority.test.mjs",
+      "tests/listing-domain-input-hardening.test.mjs",
       "tests/listing-stock-runtime.test.mjs",
       "tests/listing-message-context-authority.test.mjs",
       "tests/seller-profile-owner-featured-listing-toggle-conversion.test.mjs",

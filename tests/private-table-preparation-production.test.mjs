@@ -313,7 +313,7 @@ test("Listing preparation is byte-sealed and preserves exact function posture", 
   assert.equal(listingVerified.functionSources.size, 45);
   assert.match(
     listingVerified.functionSources.get("grainline_listing_materials_guard"),
-    /char_length\(material\.value\) > 100/u,
+    /char_length\(material\.value\) NOT BETWEEN 1 AND 100/u,
   );
   const messageList = listing.functions.find(
     (entry) => entry.name === "grainline_message_list",
