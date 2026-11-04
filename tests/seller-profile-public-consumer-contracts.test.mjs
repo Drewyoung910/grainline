@@ -15,13 +15,13 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   assert.equal(Object.keys(SELLER_PROFILE_PUBLIC_CONSUMER_CONTRACTS).length, 0);
   assert.equal(result.directWrites, 0);
   assert.equal(result.coordinateFiles, 0);
-  // Three direct EmailSuppression write arguments and the StockNotification
-  // listing-availability query leave the opaque frontier when those checks
-  // move behind their fixed SQL authorities.
-  assert.equal(result.reviewedOpaqueShapes, 149);
+  // UserReport target validation removes three report-route factories while
+  // the UI workspace/search integration adds two reviewed public-listing
+  // factories and one owner-scoped Workshop helper.
+  assert.equal(result.reviewedOpaqueShapes, 146);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 122);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 119);
   assert.equal(result.opaqueNonTargetResiduals, 27);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,

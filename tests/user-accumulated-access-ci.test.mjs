@@ -50,6 +50,7 @@ const heldTests = [
 const packageOwnedTests = [
   "user-clerk-identity-authority-postgres.test.mjs",
   "user-email-address-history.test.mjs",
+  "private-table-rls-activation-production.test.mjs",
 ];
 const accountDeletionSuccessorTests = [
   "account-deletion-side-effect-ci.test.mjs",
@@ -114,6 +115,18 @@ const emailEligibilityLockOrderCorrectionMigration =
   "20261027030000_correct_email_eligibility_lock_order";
 const stockNotificationPreparationMigration =
   "20261026010000_prepare_stock_notification_authorities";
+const blockPreparationMigration =
+  "20261030010000_prepare_block_authorities";
+const blockActivationMigration =
+  "20261030040000_activate_block_rls";
+const userReportPreparationMigration =
+  "20261030020000_prepare_user_report_authorities";
+const userReportActivationMigration =
+  "20261030050000_activate_user_report_rls";
+const sellerFaqPreparationMigration =
+  "20261030030000_prepare_seller_faq_authorities";
+const sellerFaqActivationMigration =
+  "20261030060000_activate_seller_faq_rls";
 const favoritePreparationMigration =
   "20261028010000_prepare_favorite_authorities";
 const followPreparationMigration =
@@ -406,6 +419,70 @@ function stockNotificationPreparationMigrationSourcePath() {
     "missing isolated StockNotification preparation migration",
   );
   return stagedPath;
+}
+
+function blockPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    blockPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env.BLOCK_PREPARATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && existsSync(stagedPath),
+    "missing isolated Block preparation migration",
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
+}
+
+function userReportPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    userReportPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env.USER_REPORT_PREPARATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && existsSync(stagedPath),
+    "missing isolated UserReport preparation migration",
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
+}
+
+function sellerFaqPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    sellerFaqPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env.SELLER_FAQ_PREPARATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && existsSync(stagedPath),
+    "missing isolated SellerFaq preparation migration",
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
+}
+
+function privateTableActivationMigrationSourcePath(migration, envName) {
+  const livePath = path.join("prisma", "migrations", migration);
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env[envName]?.trim() ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    `missing absolute isolated activation migration ${migration}`,
+  );
+  return path.basename(stagedPath) === "migration.sql"
+    ? path.dirname(stagedPath)
+    : stagedPath;
 }
 
 function favoritePreparationMigrationSourcePath() {
@@ -750,6 +827,54 @@ test("StockNotification preparation is proved, isolated, and restored around his
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
+test("Block preparation and activation are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify Block preparation source package";
+  const isolateName = "Isolate Block source packages until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore Block source packages after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of [blockPreparationMigration, blockActivationMigration]) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
+test("UserReport preparation and activation are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify UserReport preparation source package";
+  const isolateName = "Isolate UserReport source packages until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore UserReport source packages after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of [userReportPreparationMigration, userReportActivationMigration]) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
+test("SellerFaq preparation and activation are proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify SellerFaq preparation source package";
+  const isolateName = "Isolate SellerFaq source packages until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = "Restore SellerFaq source packages after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  for (const migration of [sellerFaqPreparationMigration, sellerFaqActivationMigration]) {
+    assert.match(isolate, new RegExp(migration));
+    assert.match(restore, new RegExp(migration));
+  }
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
 test("Favorite preparation and activation are proved, isolated, and restored around historical guards", () => {
   const verifyName = "Verify Favorite source packages";
   const isolateName = "Isolate Favorite source packages until historical release guards pass";
@@ -957,6 +1082,93 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const blockPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      blockPreparationMigration,
+    );
+    if (!existsSync(blockPreparationTarget)) {
+      cpSync(
+        blockPreparationMigrationSourcePath(),
+        blockPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const blockActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      blockActivationMigration,
+    );
+    if (!existsSync(blockActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          blockActivationMigration,
+          "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        blockActivationTarget,
+        { recursive: true },
+      );
+    }
+    const userReportPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      userReportPreparationMigration,
+    );
+    if (!existsSync(userReportPreparationTarget)) {
+      cpSync(
+        userReportPreparationMigrationSourcePath(),
+        userReportPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const userReportActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      userReportActivationMigration,
+    );
+    if (!existsSync(userReportActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          userReportActivationMigration,
+          "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        userReportActivationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerFaqPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerFaqPreparationMigration,
+    );
+    if (!existsSync(sellerFaqPreparationTarget)) {
+      cpSync(
+        sellerFaqPreparationMigrationSourcePath(),
+        sellerFaqPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const sellerFaqActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      sellerFaqActivationMigration,
+    );
+    if (!existsSync(sellerFaqActivationTarget)) {
+      cpSync(
+        privateTableActivationMigrationSourcePath(
+          sellerFaqActivationMigration,
+          "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
+        ),
+        sellerFaqActivationTarget,
+        { recursive: true },
+      );
+    }
     const favoritePreparationTarget = path.join(
       root,
       "prisma",
@@ -1074,6 +1286,18 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${emailEligibilityLockOrderCorrectionMigration}/migration.sql`;
     const stockNotificationPreparationPath =
       `prisma/migrations/${stockNotificationPreparationMigration}/migration.sql`;
+    const blockPreparationPath =
+      `prisma/migrations/${blockPreparationMigration}/migration.sql`;
+    const blockActivationPath =
+      `prisma/migrations/${blockActivationMigration}/migration.sql`;
+    const userReportPreparationPath =
+      `prisma/migrations/${userReportPreparationMigration}/migration.sql`;
+    const userReportActivationPath =
+      `prisma/migrations/${userReportActivationMigration}/migration.sql`;
+    const sellerFaqPreparationPath =
+      `prisma/migrations/${sellerFaqPreparationMigration}/migration.sql`;
+    const sellerFaqActivationPath =
+      `prisma/migrations/${sellerFaqActivationMigration}/migration.sql`;
     const favoritePreparationPath =
       `prisma/migrations/${favoritePreparationMigration}/migration.sql`;
     const followPreparationPath =
@@ -1104,6 +1328,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       emailOutboxContractCorrectionPath,
       emailEligibilityLockOrderCorrectionPath,
       stockNotificationPreparationPath,
+      blockPreparationPath,
+      blockActivationPath,
+      userReportPreparationPath,
+      userReportActivationPath,
+      sellerFaqPreparationPath,
+      sellerFaqActivationPath,
       favoritePreparationPath,
       followPreparationPath,
       reviewVotePreparationPath,
@@ -1147,6 +1377,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate Follow source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate ReviewVote source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate MakerVerification candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate Block source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate UserReport source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate SellerFaq source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1174,6 +1407,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, emailOutboxContractCorrectionPath)), false);
     assert.equal(existsSync(path.join(root, emailEligibilityLockOrderCorrectionPath)), false);
     assert.equal(existsSync(path.join(root, stockNotificationPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, blockPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, blockActivationPath)), false);
+    assert.equal(existsSync(path.join(root, userReportPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, userReportActivationPath)), false);
+    assert.equal(existsSync(path.join(root, sellerFaqPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, sellerFaqActivationPath)), false);
     assert.equal(existsSync(path.join(root, favoritePreparationPath)), false);
     assert.equal(existsSync(path.join(root, followPreparationPath)), false);
     assert.equal(existsSync(path.join(root, reviewVotePreparationPath)), false);
@@ -1246,6 +1485,9 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore Follow source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore ReviewVote source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore MakerVerification candidates after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore Block source packages after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore UserReport source packages after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore SellerFaq source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/account-deletion fence after historical release guards")], { cwd: root, env: scriptEnv });

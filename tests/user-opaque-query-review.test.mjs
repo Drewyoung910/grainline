@@ -41,14 +41,15 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // publicListingDetailWhere call from the application frontier.
   // UI workspace/search work adds two publicListingWhere reads and one
   // owner-scoped Workshop listing helper. No SellerProfile relation or raw
-  // table authority is added.
-  assert.equal(report.opaqueShapes.length, 149);
-  assert.equal(reviewedFactories.length, 113);
+  // table authority is added. UserReport validation moves three public target
+  // factories behind its actor-bound SQL authority.
+  assert.equal(report.opaqueShapes.length, 146);
+  assert.equal(reviewedFactories.length, 110);
   assert.equal(reviewedResidual.length, 36);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 92,
-    sha256: "ef5a6638bbb144508b48c75b9783499ae36bb46576177ee63834a50fabf6c4a0",
+    unique: 89,
+    sha256: "ca02a4179e3c8778111cde2897b08fae69f08326bb08c674d46812d822b96d63",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 30,

@@ -20,6 +20,7 @@ import { createCustomOrderRequestMessage } from "@/lib/customOrderRequestAccess"
 import { userClerkActor } from "@/lib/userIdentityAccess";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { userCustomOrderSellerState } from "@/lib/userRelationshipAccess";
+import { userBlockPairIsBlocked } from "@/lib/blockAccess";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
 
@@ -75,15 +76,7 @@ export async function POST(req: Request) {
   }
 
   // Block check — cannot send custom order request if either user blocked the other
-  const blockExists = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: sellerUserId },
-        { blockerId: sellerUserId, blockedId: me.id },
-      ],
-    },
-  });
-  if (blockExists) {
+  if (await userBlockPairIsBlocked(me.id, sellerUserId)) {
     return privateJson({ error: "Unable to send request." }, { status: 403 });
   }
 
