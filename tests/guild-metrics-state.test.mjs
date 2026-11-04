@@ -46,11 +46,8 @@ describe("Guild metrics state", () => {
 
   it("derives response rate from message history instead of the cached first-response timestamp", () => {
     const source = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
-    const preparation = readFileSync(
-      new URL(
-        "../prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql",
-        import.meta.url,
-      ),
+    const authority = readFileSync(
+      new URL("../src/lib/conversationMessageAuthority.ts", import.meta.url),
       "utf8",
     );
     const serviceSql = readFileSync(
@@ -63,8 +60,8 @@ describe("Guild metrics state", () => {
     );
 
     assert.doesNotMatch(source, /firstResponseAt/);
-    assert.match(source, /public\.grainline_seller_metrics_owner_state/);
-    assert.match(preparation, /FROM public\.grainline_seller_message_response_metrics\(/);
+    assert.match(source, /getSellerMessageResponseMetrics\(seller\.userId, periodStart, db\)/);
+    assert.match(authority, /public\.grainline_seller_message_response_metrics/);
     assert.match(metricFunction, /WITH seller_conversation AS/);
     assert.match(metricFunction, /DISTINCT ON \(message\."conversationId"\)/);
     assert.match(metricFunction, /seller_response AS/);
@@ -83,19 +80,13 @@ describe("Guild metrics state", () => {
 
     assert.match(schema, /model SellerMetrics[\s\S]*totalSalesCents\s+BigInt\s+@default\(0\)/);
     assert.match(migration, /ALTER COLUMN "totalSalesCents" TYPE BIGINT/);
-    assert.match(metricsSource, /totalSalesCents: Number\(row\.totalSalesCents\)/);
+    assert.match(metricsSource, /totalSalesCents: Number\(metrics\.totalSalesCents\)/);
     assert.match(adminVerification, /totalSalesCents: number \| bigint/);
     assert.match(adminVerification, /totalSalesCents: Number\(metrics\.totalSalesCents\)/);
   });
 
   it("keeps private and custom verified purchases in Guild trust metrics by policy", () => {
-    const metricsPreparation = readFileSync(
-      new URL(
-        "../prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
+    const metricsSource = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
     const orderAuthority = readFileSync(
       new URL(
         "../prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
@@ -105,14 +96,8 @@ describe("Guild metrics state", () => {
     );
     const verificationPage = readFileSync(new URL("../src/app/admin/verification/page.tsx", import.meta.url), "utf8");
 
-    assert.match(
-      metricsPreparation,
-      /FROM public\."Review" AS review[\s\S]*JOIN public\."Listing" AS listing[\s\S]*WHERE listing\."sellerId" = p_seller_profile_id/,
-    );
-    assert.match(
-      metricsPreparation,
-      /FROM public\.grainline_order_seller_metrics_facts\([\s\S]*p_seller_profile_id/,
-    );
+    assert.match(metricsSource, /db\.review\.aggregate\(\{[\s\S]*where: \{ listing: \{ sellerId: sellerProfileId \} \}/);
+    assert.match(metricsSource, /readOrderSellerMetricsFacts\(sellerProfileId, periodStart, db\)/);
     assert.match(orderAuthority, /source_order\."sellerProfileId" = p_seller_profile_id/);
     assert.match(orderAuthority, /source_item\."sellerProfileId" = p_seller_profile_id/);
     assert.doesNotMatch(orderAuthority, /"isPrivate"\s*=\s*false/);

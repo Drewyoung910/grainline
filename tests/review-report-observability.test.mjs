@@ -14,8 +14,7 @@ describe("review/report/favorite observability hardening", () => {
 
     assert.match(createRoute, /await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(createRoute, /await refreshSellerRatingSummary\(eligibleOrderItem\.sellerProfileId, tx\)/);
-    assert.match(editRoute, /await refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)/);
-    assert.match(editRoute, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
+    assert.match(editRoute, /await refreshSellerRatingSummary\(listingContext\.sellerProfileId, tx\)/);
     assert.match(
       ratingSummary,
       /FROM public\.grainline_listing_seller_rating_summary_refresh\(/,
