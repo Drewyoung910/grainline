@@ -8,6 +8,7 @@ import yaml from "js-yaml";
 import {
   PRIVATE_TABLE_ENABLE_CONFIRMATION,
   privateTableEnable,
+  verifyPrivateTableEnableSqlShape,
   verifyPrivateTableEnableSource,
 } from "../scripts/private-table-enable-catalog.mjs";
 import {
@@ -122,6 +123,28 @@ test("catalog admits only the byte-sealed policyless ENABLE migration", () => {
   assert.match(sql, /NO FORCE ROW LEVEL SECURITY/u);
   assert.doesNotMatch(sql, /CREATE POLICY/iu);
   assert.doesNotMatch(sql, /DROP (?:TABLE|COLUMN|FUNCTION)/iu);
+});
+
+test("catalog derives the reviewed ENABLE shape from each table entry", () => {
+  const syntheticRelease = Object.freeze({ table: "SyntheticPrivateRecord" });
+  const sql = `
+    ALTER TABLE public."SyntheticPrivateRecord" ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public."SyntheticPrivateRecord" NO FORCE ROW LEVEL SECURITY;
+    REVOKE ALL ON TABLE public."SyntheticPrivateRecord" FROM grainline_app_runtime;
+  `;
+
+  assert.doesNotThrow(() => verifyPrivateTableEnableSqlShape(sql, syntheticRelease));
+  assert.throws(
+    () => verifyPrivateTableEnableSqlShape(
+      sql.replaceAll("SyntheticPrivateRecord", "SupportRequest"),
+      syntheticRelease,
+    ),
+    /migration is not the reviewed policyless ENABLE shape/u,
+  );
+  assert.throws(
+    () => verifyPrivateTableEnableSqlShape(sql, { table: 'SyntheticPrivateRecord".*' }),
+    /reviewed table name is invalid/u,
+  );
 });
 
 test("inspector proves ready and enabled states without recording row data", async () => {
