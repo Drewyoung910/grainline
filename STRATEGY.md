@@ -3581,3 +3581,24 @@ policyless ENABLE plus FORCE and must preserve database-first rollback,
 account-deletion cleanup and User/SellerProfile cascades. Preparation,
 compatible deployment, skew drain and Production activation remain separate
 reviewed gates; this decision is not standing Production authorization.
+
+### Commission domain RLS direction (2026-11-01)
+
+Treat `CommissionRequest` and `CommissionInterest` as one lifecycle and use
+policyless zero-direct Option B. Anonymous discovery receives only a
+column-sealed open-request projection; buyers, interested makers, cron, staff,
+export and account deletion use distinct bounded operations. Retain the
+existing atomic interest/conversation/message authority and trigger-owned
+public buyer/location snapshots rather than duplicating them.
+
+Preparation and activation remain separate, but each is one batched release
+for both tables. Preparation must close participant access to terminal
+requests, status/expiry recipient races, destructive ban cleanup, inconsistent
+block/lifecycle filtering, false "Local makers only" copy, session-dependent
+expiry comparisons and all remaining direct callers. Activation may then use
+policyless ENABLE plus FORCE and revoke direct runtime/staff-read table access
+only after the compatible application is live and drained. Chosen-maker/payment
+linkage and commission email delivery remain explicit product work whose future
+authority boundaries are recorded in `docs/commission-domain-pre-rls-audit.md`.
+This decision is not standing merge, deploy, inspection or production-migration
+authorization.
