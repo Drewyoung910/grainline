@@ -51,7 +51,6 @@ describe("support request helpers", () => {
     assert.match(source, /const SUPPORT_EMAIL_PATTERN = \/\^\[A-Z0-9\._%\+-\]\+\@\[A-Z0-9\.-\]\+\\\.\[A-Z\]\{2,\}\$\/i/);
     assert.match(source, /EMAIL_CONTROL_CHARS\.test\(normalized\)/);
     assert.match(source, /!SUPPORT_EMAIL_PATTERN\.test\(normalized\)/);
-    assert.match(source, /message\.length < 10/);
     assert.match(source, /Enter a valid email address/);
     assert.match(source, /Add a few details so we can help/);
     for (const body of [null, undefined, [], "not-an-object", 42]) {
@@ -70,6 +69,29 @@ describe("support request helpers", () => {
     });
 
     assert.deepEqual(normalized, { ok: false, error: "Enter a valid email address." });
+  });
+
+  it("enforces support request minimums in Unicode code points like PostgreSQL", () => {
+    assert.deepEqual(
+      normalizeSupportRequest("support", {
+        email: "buyer@example.com",
+        message: "🪵".repeat(5),
+      }),
+      { ok: false, error: "Add a few details so we can help." },
+    );
+    assert.equal(
+      normalizeSupportRequest("support", {
+        email: "buyer@example.com",
+        message: "🪵".repeat(10),
+      }).ok,
+      true,
+    );
+
+    assert.deepEqual(
+      normalizeSupportRequestClosureEvidence("🪵".repeat(20)),
+      { ok: false, error: "Add closure evidence before closing this data request." },
+    );
+    assert.equal(normalizeSupportRequestClosureEvidence("🪵".repeat(40)).ok, true);
   });
 
   it("routes data requests to legal and escapes email HTML", () => {
