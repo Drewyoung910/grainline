@@ -130,7 +130,11 @@ describe("public query determinism", () => {
       /grainline_seller_broadcast_public_latest[\s\S]*ORDER BY candidate\."sentAt" DESC, candidate\.id DESC[\s\S]*LIMIT 1/,
     );
     assert.match(sellerPage, /orderBy: \[\{ publishedAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(sellerPage, /orderBy: \[\{ review: \{ createdAt: "desc" \} \}, \{ id: "desc" \}\]/);
+    assert.match(sellerPage, /listingPublicCustomerPhotoPage\(/);
+    assert.match(
+      listingPublicCatalogAuthority,
+      /grainline_listing_public_customer_photo_page[\s\S]*ORDER BY eligible\."reviewCreatedAt" DESC, eligible\.id DESC[\s\S]*OFFSET p_offset[\s\S]*LIMIT p_limit/,
+    );
 
     assert.match(listingPage, /listingPublicCatalogPage\([\s\S]*sort: "quality"/);
     assert.match(listingPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
@@ -350,6 +354,9 @@ describe("public query determinism", () => {
     const tagPage = source("src/app/tag/[slug]/page.tsx");
     const authorPage = source("src/app/blog/author/[slug]/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    const listingReviewHistoryAuthority = source(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
     const footerMetros = source("src/lib/footerMetros.ts");
     const publicSellerStats = source("src/lib/publicSellerStats.ts");
     const publicOrderAuthority = source(
@@ -387,8 +394,11 @@ describe("public query determinism", () => {
 
     assert.match(customerPhotosPage, /const requestedPage = parseBoundedPositiveIntParam\(sp\.page, 1, 500\)/);
     assert.match(customerPhotosPage, /const page = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(customerPhotosPage, /orderBy: \[\{ review: \{ createdAt: "desc" \} \}, \{ id: "desc" \}\]/);
-    assert.match(customerPhotosPage, /skip: \(page - 1\) \* PAGE_SIZE/);
+    assert.match(customerPhotosPage, /listingPublicCustomerPhotoPage\([\s\S]*\(page - 1\) \* PAGE_SIZE,[\s\S]*PAGE_SIZE/);
+    assert.match(
+      listingReviewHistoryAuthority,
+      /grainline_listing_public_customer_photo_page[\s\S]*ORDER BY eligible\."reviewCreatedAt" DESC, eligible\.id DESC[\s\S]*OFFSET p_offset[\s\S]*LIMIT p_limit/,
+    );
     assert.match(customerPhotosPage, /Page \{page\} of \{totalPages\}/);
 
     assert.match(footerMetros, /sellerPublicFooterMetros\(\)/);
