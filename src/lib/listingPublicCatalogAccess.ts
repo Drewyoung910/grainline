@@ -11,6 +11,10 @@ import {
   type DbUserContextTransactionClient,
 } from "@/lib/dbUserContext";
 import { isTextWithinCodePointRange } from "@/lib/textLength";
+import {
+  hasInvalidPublicCatalogPriceRange,
+  isPublicCatalogTagCandidate,
+} from "@/lib/listingPublicCatalogFilter";
 
 type CatalogClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 
@@ -257,7 +261,7 @@ function parseCategoryCounts(
 function normalizedFilter(filter: ListingPublicCatalogFilter) {
   if (
     filter.tag !== undefined
-    && !isTextWithinCodePointRange(filter.tag, 1, 24)
+    && !isPublicCatalogTagCandidate(filter.tag)
   ) throw new RangeError("Public catalog tag is outside the supported range");
   if (filter.category !== undefined && !CATEGORIES.has(filter.category)) {
     throw new RangeError("Public catalog category is outside the supported range");
@@ -279,7 +283,7 @@ function normalizedFilter(filter: ListingPublicCatalogFilter) {
       !Array.isArray(values)
       || values.length > maximum
       || new Set(values).size !== values.length
-      || values.some((value) => !isTextWithinCodePointRange(value, 1, 24))
+      || values.some((value) => !isPublicCatalogTagCandidate(value))
     ) throw new RangeError(`Public catalog ${label} are outside the supported range`);
   }
   for (const [value, maximum, label] of [
@@ -292,9 +296,10 @@ function normalizedFilter(filter: ListingPublicCatalogFilter) {
     ) throw new RangeError(`Public catalog ${label} is outside the supported range`);
   }
   if (
-    filter.minPriceCents !== undefined
-    && filter.maxPriceCents !== undefined
-    && filter.minPriceCents > filter.maxPriceCents
+    hasInvalidPublicCatalogPriceRange(
+      filter.minPriceCents,
+      filter.maxPriceCents,
+    )
   ) throw new RangeError("Public catalog price range is invalid");
   if (
     filter.listingType !== undefined

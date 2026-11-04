@@ -13,6 +13,8 @@ test("main browse uses the shared bounded public catalog authority", async () =>
   ]);
 
   assert.match(browse, /listingPublicCatalogPage/u);
+  assert.match(browse, /hasInvalidPublicCatalogPriceRange/u);
+  assert.match(browse, /filter\(isPublicCatalogTagCandidate\)/u);
   assert.doesNotMatch(browse, /prisma\.listing\.(?:count|findMany)/u);
   assert.doesNotMatch(browse, /function fetchListings/u);
   assert.match(

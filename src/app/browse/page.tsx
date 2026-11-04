@@ -38,8 +38,13 @@ import {
   listingPublicCatalogPage,
   type ListingPublicCatalogFilter,
   type ListingPublicCatalogItem,
+  type ListingPublicCatalogPage,
   type ListingPublicCatalogSort,
 } from "@/lib/listingPublicCatalogAccess";
+import {
+  hasInvalidPublicCatalogPriceRange,
+  isPublicCatalogTagCandidate,
+} from "@/lib/listingPublicCatalogFilter";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -232,6 +237,7 @@ async function BrowseContent({
     if (searchWords.length > 0) {
       const lowerWords = searchWords.map((word) => word.toLowerCase());
       partialTagMatches = popularTags
+        .filter(isPublicCatalogTagCandidate)
         .filter((tag) => lowerWords.some((word) => tag.toLowerCase().includes(word)))
         .slice(0, 20);
     }
@@ -262,12 +268,18 @@ async function BrowseContent({
     sort,
   };
 
-  let catalogPage = await listingPublicCatalogPage(
-    meDbId,
-    catalogFilter,
-    (pageNum - 1) * PAGE_SIZE,
-    PAGE_SIZE,
+  const invalidPriceRange = hasInvalidPublicCatalogPriceRange(
+    boundedMinCents,
+    boundedMaxCents,
   );
+  let catalogPage: ListingPublicCatalogPage = invalidPriceRange
+    ? Object.freeze({ total: 0, listings: Object.freeze([]), categoryCounts: Object.freeze([]) })
+    : await listingPublicCatalogPage(
+      meDbId,
+      catalogFilter,
+      (pageNum - 1) * PAGE_SIZE,
+      PAGE_SIZE,
+    );
   const total = catalogPage.total;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const clampedPage = Math.min(Math.max(pageNum, 1), totalPages);
