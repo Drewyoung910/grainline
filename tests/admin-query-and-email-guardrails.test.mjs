@@ -77,13 +77,16 @@ describe("admin query and email guardrails", () => {
     const users = source("src/app/admin/users/page.tsx");
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
     const messages = source("src/app/messages/page.tsx");
+    const messageControls = source("src/components/MessageInboxControls.tsx");
 
     assert.match(users, /const q = truncateText\(\(qParam \?\? ""\)\.trim\(\), 200\)/);
     assert.match(users, /maxLength=\{200\}/);
     assert.match(broadcasts, /const q = truncateText\(\(sp\.q \?\? ""\)\.trim\(\), 200\)/);
     assert.match(broadcasts, /maxLength=\{200\}/);
     assert.match(messages, /const q = truncateText\(qParam\.trim\(\), 200\)/);
-    assert.match(messages, /maxLength=\{200\}/);
+    assert.match(messages, /import MessageInboxControls/);
+    assert.match(messages, /<MessageInboxControls/);
+    assert.match(messageControls, /maxLength=\{200\}/);
   });
 
   it("routes always-on refund email through the fenced outbox worker", () => {

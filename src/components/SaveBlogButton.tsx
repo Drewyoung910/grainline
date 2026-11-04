@@ -28,6 +28,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
       if (res.ok) {
         const data = (await res.json()) as { saved: boolean; error?: string };
         setSaved(data.saved);
+        toast(data.saved ? "Post saved." : "Removed from saved posts.", "success");
         return;
       }
       let message = "Couldn’t update saved post.";
@@ -56,7 +57,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
     >
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_5px_16px_-7px_rgba(0,0,0,0.55)] ring-1 ring-black/10 transition-[background-color,scale] duration-150 ease-out group-hover/blog-save:bg-white motion-safe:group-active/blog-save:scale-[0.92] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-neutral-900 group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-white"
+        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_5px_16px_-6px_rgba(44,31,26,0.62),0_0_0_1px_rgba(44,31,26,0.14)] transition-[background-color,scale,box-shadow] duration-150 ease-out group-hover/blog-save:bg-white group-hover/blog-save:shadow-[0_6px_18px_-6px_rgba(44,31,26,0.68),0_0_0_1px_rgba(44,31,26,0.2)] motion-safe:group-active/blog-save:scale-[0.92] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-neutral-900 group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-white"
       />
       {/* Match FavoriteButton geometry so the two card actions stay visually
           stable and share the same hover/focus reveal treatment. */}

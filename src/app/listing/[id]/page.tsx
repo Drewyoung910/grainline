@@ -704,67 +704,103 @@ export default async function ListingPage({
         </div>
       </div>
 
-      {/* ── About this piece ──────────────────────────────────────────────── */}
-      {listing.description && (
-        <section className="mb-10 max-w-2xl">
-          <h2 className="font-semibold font-display text-neutral-900 mb-3">About this piece</h2>
-          <DescriptionExpander text={listing.description} />
-        </section>
-      )}
+      {/* ── Story and details ─────────────────────────────────────────────── */}
+      {(listing.description || listing.category || cityState || processingLabel || listing.listingType
+        || listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
+        <section className="mb-12 grid min-w-0 gap-9 border-y border-stone-200/80 py-9 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] lg:gap-14 lg:py-12">
+          {listing.description && (
+            <div className="min-w-0">
+              <h2 className="mb-4 font-display text-[clamp(1.75rem,2.6vw,2.2rem)] font-normal leading-tight text-neutral-900">
+                About this piece
+              </h2>
+              <div className="max-w-[68ch] text-[15px] leading-7 text-neutral-700 sm:text-base">
+                <DescriptionExpander text={listing.description} />
+              </div>
+            </div>
+          )}
 
-      {/* ── Details ──────────────────────────────────────────────────────── */}
-      {(listing.category || cityState || processingLabel || listing.listingType) && (
-        <section className="mb-10 max-w-2xl">
-          <h2 className="font-semibold font-display text-neutral-900 mb-3">Details</h2>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-            {listing.category && (
-              <>
-                <dt className="text-neutral-500 font-medium">Category</dt>
-                <dd>
-                  <Link
-                    href={`/browse?category=${categoryParam ?? listing.category}`}
-                    className="text-neutral-800 hover:underline"
-                  >
-                    {CATEGORY_LABELS[listing.category] ?? listing.category}
-                  </Link>
-                </dd>
-              </>
+          <div className={`min-w-0 ${listing.description ? "lg:border-l lg:border-stone-200/80 lg:pl-10" : "lg:col-span-2 lg:max-w-2xl"}`}>
+            {(listing.category || cityState || processingLabel || listing.listingType) && (
+              <div>
+                <h2 className="mb-4 font-display text-[clamp(1.75rem,2.6vw,2.2rem)] font-normal leading-tight text-neutral-900">
+                  Details
+                </h2>
+                <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-7 gap-y-3 text-[15px] leading-6">
+                  {listing.category && (
+                    <>
+                      <dt className="text-neutral-500">Category</dt>
+                      <dd>
+                        <Link
+                          href={`/browse?category=${categoryParam ?? listing.category}`}
+                          className="text-neutral-800 underline decoration-stone-300 underline-offset-4 transition-colors hover:decoration-neutral-700"
+                        >
+                          {CATEGORY_LABELS[listing.category] ?? listing.category}
+                        </Link>
+                      </dd>
+                    </>
+                  )}
+                  <dt className="text-neutral-500">Type</dt>
+                  <dd className="text-neutral-800">
+                    {listing.listingType === "IN_STOCK" ? "In stock" : "Made to order"}
+                  </dd>
+                  {processingLabel && (
+                    <>
+                      <dt className="text-neutral-500">Processing</dt>
+                      <dd className="text-neutral-800">{processingLabel}</dd>
+                    </>
+                  )}
+                  {listing.materials && listing.materials.length > 0 && (
+                    <>
+                      <dt className="text-neutral-500">Materials</dt>
+                      <dd className="text-neutral-800">{listing.materials.join(", ")}</dd>
+                    </>
+                  )}
+                  {(listing.productLengthIn || listing.productWidthIn || listing.productHeightIn) && (
+                    <>
+                      <dt className="text-neutral-500">Dimensions</dt>
+                      <dd className="text-neutral-800">
+                        {[
+                          listing.productLengthIn && `${listing.productLengthIn}" L`,
+                          listing.productWidthIn && `${listing.productWidthIn}" W`,
+                          listing.productHeightIn && `${listing.productHeightIn}" H`,
+                        ].filter(Boolean).join(" × ")}
+                      </dd>
+                    </>
+                  )}
+                  {cityState && (
+                    <>
+                      <dt className="text-neutral-500">Ships from</dt>
+                      <dd className="text-neutral-800">{cityState}</dd>
+                    </>
+                  )}
+                </dl>
+              </div>
             )}
-            <dt className="text-neutral-500 font-medium">Type</dt>
-            <dd className="text-neutral-800">
-              {listing.listingType === "IN_STOCK" ? "In stock" : "Made to order"}
-            </dd>
-            {processingLabel && (
-              <>
-                <dt className="text-neutral-500 font-medium">Processing</dt>
-                <dd className="text-neutral-800">{processingLabel}</dd>
-              </>
+
+            {(listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
+              <div className="smooth-details mt-8 border-t border-stone-200/80 pt-7">
+                <h3 className="mb-2 font-display text-xl font-normal text-neutral-900">Shop policies</h3>
+                {listing.seller.returnPolicy && (
+                  <details className="border-b border-stone-200/80 last:border-b-0">
+                    <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Return policy</summary>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.returnPolicy}</p>
+                  </details>
+                )}
+                {listing.seller.shippingPolicy && (
+                  <details className="border-b border-stone-200/80 last:border-b-0">
+                    <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Shipping policy</summary>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.shippingPolicy}</p>
+                  </details>
+                )}
+                {listing.seller.customOrderPolicy && (
+                  <details className="border-b border-stone-200/80 last:border-b-0">
+                    <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Custom order policy</summary>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.customOrderPolicy}</p>
+                  </details>
+                )}
+              </div>
             )}
-            {listing.materials && listing.materials.length > 0 && (
-              <>
-                <dt className="text-neutral-500 font-medium">Materials</dt>
-                <dd className="text-neutral-800">{listing.materials.join(", ")}</dd>
-              </>
-            )}
-            {(listing.productLengthIn || listing.productWidthIn || listing.productHeightIn) && (
-              <>
-                <dt className="text-neutral-500 font-medium">Dimensions</dt>
-                <dd className="text-neutral-800">
-                  {[
-                    listing.productLengthIn && `${listing.productLengthIn}" L`,
-                    listing.productWidthIn && `${listing.productWidthIn}" W`,
-                    listing.productHeightIn && `${listing.productHeightIn}" H`,
-                  ].filter(Boolean).join(" × ")}
-                </dd>
-              </>
-            )}
-            {cityState && (
-              <>
-                <dt className="text-neutral-500 font-medium">Ships from</dt>
-                <dd className="text-neutral-800">{cityState}</dd>
-              </>
-            )}
-          </dl>
+          </div>
         </section>
       )}
 
@@ -796,37 +832,6 @@ export default async function ListingPage({
           </div>
         );
       })()}
-
-      {/* ── Shop Policies ──────────────────────────────────────────────────── */}
-      {(listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
-        <section className="smooth-details card-section bg-white mb-10 max-w-2xl">
-          <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-neutral-100">Shop Policies</h2>
-          {listing.seller.returnPolicy && (
-            <details className="border-b border-neutral-100 last:border-b-0">
-              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
-                Return Policy
-              </summary>
-              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.returnPolicy}</p>
-            </details>
-          )}
-          {listing.seller.shippingPolicy && (
-            <details className="border-b border-neutral-100 last:border-b-0">
-              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
-                Shipping Policy
-              </summary>
-              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.shippingPolicy}</p>
-            </details>
-          )}
-          {listing.seller.customOrderPolicy && (
-            <details className="border-b border-neutral-100 last:border-b-0">
-              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
-                Custom Order Policy
-              </summary>
-              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.customOrderPolicy}</p>
-            </details>
-          )}
-        </section>
-      )}
 
       {/* ── More from this maker ────────────────────────────────────────── */}
       {moreFromSeller.length > 0 && (
@@ -879,19 +884,17 @@ export default async function ListingPage({
       />
 
       {/* ── Reviews ───────────────────────────────────────────────────────── */}
-      <section id="reviews">
-        <ReviewsSection
-          listingId={listingId}
-          listingTitle={listing.title}
-          meId={meId}
-          sellerName={sellerName}
-          sellerAvatarUrl={sellerAvatar}
-          viewerIsSeller={viewerIsSeller}
-          initialSort={sortKey}
-          edit={editingMine}
-          blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
-        />
-      </section>
+      <ReviewsSection
+        listingId={listingId}
+        listingTitle={listing.title}
+        meId={meId}
+        sellerName={sellerName}
+        sellerAvatarUrl={sellerAvatar}
+        viewerIsSeller={viewerIsSeller}
+        initialSort={sortKey}
+        edit={editingMine}
+        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+      />
     </main>
     </div>
   );

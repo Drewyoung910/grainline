@@ -105,9 +105,10 @@ Production promotion.
 - [x] Phone filters apply through client navigation, accept the same familiar
   currency formats as desktop, close on Reset even at the base URL, and count
   a min/max price range as one filter.
-- [x] Radius follows a semantic system on the reviewed surfaces: pills for
-  choices/actions, rounded-xl for fields and compact controls, and rounded-2xl
-  for floating cards/popovers. One-off radii are not used as decoration.
+- [x] Radius follows the shared Grainline system on the reviewed surfaces:
+  rounded-full for true pills, rounded-md for controls, and rounded-lg for
+  contained cards. Product-photo rounding remains the deliberate exception;
+  one-off radii are not used as decoration.
 - [x] Workshop rows, workspace navigation, modal cards, and matching skeletons
   use that same radius system; toggles and progress bars animate only the
   property that actually changes.

@@ -47,7 +47,7 @@ describe("seller profile and commission UI markup guardrails", () => {
     assert.match(similarMakers, /US_STATES\.find\(/);
 
     // The All / Near me toggle still only shows when "Near me" is possible.
-    assert.match(commissionBoard, /\{hasLocation && \(\s*<div className="mb-6">\s*<SegmentedControl\s+label="Requests"/);
+    assert.match(commissionBoard, /\{hasLocation && \(\s*<div className="shrink-0 self-start lg:self-auto">\s*<SegmentedControl\s+label="Requests"/);
     assert.doesNotMatch(commissionBoard, /border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50/);
     assert.equal(
       commissionBoard.match(/"bg-\[#EFEAE0\] text-neutral-800 hover:bg-\[#E3DCCB\]"/g)?.length,
