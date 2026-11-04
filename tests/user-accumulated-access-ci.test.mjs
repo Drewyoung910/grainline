@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -842,6 +842,15 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     mkdirSync(path.join(root, "tests"));
     mkdirSync(path.join(root, "docs"));
     cpSync("scripts", path.join(root, "scripts"), { recursive: true });
+    for (const relative of [staffScript, grantAuditScript, runtimeProvisionScript]) {
+      writeFileSync(
+        path.join(root, relative),
+        execFileSync("git", ["show", `HEAD:${relative}`], {
+          cwd: process.cwd(),
+          env: { PATH: process.env.PATH },
+        }),
+      );
+    }
     symlinkSync(path.join(process.cwd(), "node_modules"), path.join(root, "node_modules"), "dir");
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
     for (const file of [
