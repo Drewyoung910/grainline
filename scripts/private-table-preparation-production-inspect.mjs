@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparation,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
@@ -91,6 +92,7 @@ function functionEvidence(row) {
     arguments: row.identity_arguments,
     owner: row.owner_name,
     securityDefiner: row.security_definer,
+    volatility: row.volatility,
     configuration: row.configuration,
     runtimeExecute: row.runtime_execute,
     staffExecute: row.staff_execute,
@@ -107,6 +109,7 @@ async function readFunctionRows(client, functions) {
            owner.rolname AS owner_name,
            owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
            procedure.prosecdef AS security_definer,
+           procedure.provolatile AS volatility,
            procedure.proconfig AS configuration,
            procedure.prosrc AS source,
            pg_catalog.has_function_privilege(
@@ -131,17 +134,22 @@ function assertFunctionPosture(row, expected, tableOwner) {
   const identity = `${row.function_name}(${row.identity_arguments})`;
   assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
   assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
-  assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
-  assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
-  const executeRole = expected.executeRole ?? "runtime";
   assert.equal(
-    row.runtime_execute,
-    executeRole === "runtime",
+    row.security_definer,
+    expected.securityDefiner ?? true,
+    `${identity} security mode drifted`,
+  );
+  assert.equal(row.volatility, expected.volatility ?? "v", `${identity} volatility drifted`);
+  assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
+  const executeRoles = privateTableFunctionExecuteRoles(expected);
+  assert.equal(
+    Boolean(row.runtime_execute),
+    executeRoles.includes("runtime"),
     `${identity} runtime EXECUTE drifted`,
   );
   assert.equal(
-    row.staff_execute,
-    executeRole === "staff",
+    Boolean(row.staff_execute),
+    executeRoles.includes("staff"),
     `${identity} staff EXECUTE drifted`,
   );
   assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);

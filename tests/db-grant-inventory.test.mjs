@@ -3952,7 +3952,6 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...userAuthorityFunctions.map(({ name }) => name),
       "grainline_legacy_stock_restore_claim",
-      "grainline_legacy_stock_restore_apply",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
       "grainline_message_participants_match_conversation",
@@ -6440,7 +6439,7 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      20,
+      existsSync(LISTING_DOMAIN_PREPARATION_MIGRATION) ? 20 : 19,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(

@@ -360,6 +360,87 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       }),
     ]),
   }),
+  listing_domain_v1: Object.freeze({
+    migration: "20261102050000_prepare_listing_domain_authorities",
+    migrationSha256: "bb33648a81822964152584d786fc23581e58b1e05f54da1ecb25f34b1468a661",
+    table: "Listing",
+    expectedPredecessorPosture: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      policyCount: 0,
+      runtimeSelect: true,
+      runtimeInsert: true,
+      runtimeUpdate: true,
+      runtimeDelete: true,
+      staffSelect: false,
+      publicSelect: false,
+    }),
+    addedColumns: Object.freeze([]),
+    sourceTests: Object.freeze([
+      "tests/listing-owner-create-authority.test.mjs",
+      "tests/listing-owner-content-update-authority.test.mjs",
+      "tests/listing-owner-summary-authority.test.mjs",
+      "tests/listing-public-catalog-page-authority.test.mjs",
+      "tests/listing-detail-source-authority.test.mjs",
+      "tests/listing-stock-runtime.test.mjs",
+      "tests/listing-message-context-authority.test.mjs",
+      "tests/seller-profile-staff-listing-review-transition.test.mjs",
+      "tests/listing-account-deletion-authority.test.mjs",
+      "tests/listing-analytics-guardrails.test.mjs",
+    ]),
+    functions: Object.freeze([
+      Object.freeze({ name: "grainline_seller_staff_listing_review_transition", arguments: "text, text, text, text, timestamp without time zone", executeRole: "staff" }),
+      Object.freeze({ name: "grainline_seller_staff_listing_remove_transition", arguments: "text, text, timestamp without time zone", executeRole: "staff" }),
+      Object.freeze({ name: "grainline_seller_staff_listing_undo_transition", arguments: "text, text, text", executeRole: "staff" }),
+      Object.freeze({ name: "grainline_seller_staff_listing_review_queue", arguments: "text, integer", executeRole: "staff", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_staff_reference_targets", arguments: "text, text[]", executeRole: "staff", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_actor_review_contexts", arguments: "text[]", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_public_customer_photo_page", arguments: "text, integer, integer", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_staff_seller_active_public_count", arguments: "text, text", executeRole: "staff", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_editor", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_export_page", arguments: "timestamp without time zone, text, integer", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_catalog_page", arguments: "text, jsonb, integer, integer", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_summary_page", arguments: "text, text, boolean, integer, timestamp without time zone, text, integer", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_workshop_summary", arguments: "", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_counts", arguments: "", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_rating_buckets", arguments: "bigint, bigint, boolean", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_seller_rating_summary_refresh", arguments: "text" }),
+      Object.freeze({ name: "grainline_listing_service_quality_score_apply", arguments: "jsonb" }),
+      Object.freeze({ name: "grainline_listing_owner_stock_lock", arguments: "text, text" }),
+      Object.freeze({ name: "grainline_listing_owner_stock_apply", arguments: "text, text, boolean, integer, integer" }),
+      Object.freeze({ name: "grainline_listing_owner_action_state", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_assign_metros", arguments: "text, timestamp without time zone, text, text" }),
+      Object.freeze({ name: "grainline_listing_children_replace_core", arguments: "text, integer, jsonb, jsonb", executeRoles: Object.freeze([]) }),
+      Object.freeze({ name: "grainline_listing_owner_create", arguments: "text, text, boolean, text, text, text, text, integer, text[], text, text[], double precision, double precision, double precision, double precision, double precision, double precision, integer, text, text, integer, integer, integer, integer, jsonb, jsonb" }),
+      Object.freeze({ name: "grainline_listing_owner_content_update", arguments: "text, timestamp without time zone, text, text, text, text, integer, boolean, text[], text, text[], double precision, double precision, double precision, double precision, double precision, double precision, integer, text, text, integer, integer, integer, integer, jsonb, jsonb" }),
+      Object.freeze({ name: "grainline_listing_actor_transaction_source_core", arguments: "text, boolean", executeRoles: Object.freeze([]), volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_actor_transaction_source", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_actor_cart_transaction_sources", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_public_analytics_increment", arguments: "text, text" }),
+      Object.freeze({ name: "grainline_listing_public_catalog_page", arguments: "jsonb, integer, integer", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_public_title_suggestions", arguments: "text" }),
+      Object.freeze({ name: "grainline_listing_detail_source_core", arguments: "text", executeRoles: Object.freeze([]), volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_actor_detail_source", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_staff_detail_source", arguments: "text, text", executeRole: "staff", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_ai_review_context", arguments: "text", volatility: "s" }),
+      Object.freeze({ name: "grainline_listing_owner_alt_text_backfill", arguments: "text, text[], text[]" }),
+      Object.freeze({ name: "grainline_legacy_stock_restore_apply", arguments: "text, jsonb" }),
+      Object.freeze({ name: "grainline_listing_account_deletion_redact", arguments: "text, text, bigint, uuid, timestamp without time zone" }),
+      Object.freeze({ name: "grainline_listing_owner_delete_lock", arguments: "text" }),
+      Object.freeze({ name: "grainline_listing_owner_archive", arguments: "text, timestamp without time zone" }),
+      Object.freeze({ name: "grainline_listing_owner_hard_delete", arguments: "text, timestamp without time zone" }),
+      Object.freeze({ name: "grainline_listing_owner_transition", arguments: "text, text, timestamp without time zone" }),
+      Object.freeze({ name: "grainline_listing_owner_review_transition", arguments: "text, timestamp without time zone, text, text, text[], double precision" }),
+      Object.freeze({ name: "grainline_listing_message_context_titles", arguments: "text", volatility: "s" }),
+      Object.freeze({
+        name: "grainline_message_list",
+        arguments: "text, text, text, timestamp without time zone, text, integer",
+        securityDefiner: false,
+        predecessorSourceSha256: "3651da639fcbabc46bcb15142d55f22d015c2b5ef0c9eb71087957599b8b9df7",
+      }),
+      Object.freeze({ name: "grainline_listing_materials_guard", arguments: "", executeRoles: Object.freeze([]) }),
+    ]),
+  }),
 });
 
 export const PRIVATE_TABLE_PREPARATION_BATCHES = Object.freeze({
@@ -411,11 +492,26 @@ export function privateTablePreparationMigrationPath(release) {
   return `prisma/migrations/${release.migration}/migration.sql`;
 }
 
+export function privateTableFunctionExecuteRoles(entry) {
+  const roles = entry.executeRoles ?? [entry.executeRole ?? "runtime"];
+  return Object.freeze([...roles]);
+}
+
 export function functionSourceFromMigration(sql, name) {
-  const delimiter = `$${name}$`;
-  const marker = `AS ${delimiter}`;
-  const start = sql.indexOf(marker);
-  if (start < 0) throw stopped(`function source is absent for ${name}`);
+  let delimiter = `$${name}$`;
+  let marker = `AS ${delimiter}`;
+  let start = sql.indexOf(marker);
+  if (start < 0) {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const versioned = new RegExp(
+      `AS (\\$${escapedName}_[A-Za-z0-9_]+\\$)`,
+      "u",
+    ).exec(sql);
+    if (!versioned) throw stopped(`function source is absent for ${name}`);
+    delimiter = versioned[1];
+    marker = `AS ${delimiter}`;
+    start = versioned.index;
+  }
   const bodyStart = start + marker.length;
   const end = sql.indexOf(`${delimiter};`, bodyStart);
   if (end < 0 || end === bodyStart) {
@@ -465,11 +561,24 @@ export function verifyPrivateTablePreparationSource(
   ))) {
     throw stopped("predecessor function digest is invalid");
   }
-  if (release.functions.some((entry) => (
-    (entry.executeRole ?? "runtime") !== "runtime"
-    && entry.executeRole !== "staff"
-  ))) {
+  const allowedExecuteRoles = new Set(["runtime", "staff"]);
+  if (release.functions.some((entry) => {
+    const roles = privateTableFunctionExecuteRoles(entry);
+    return new Set(roles).size !== roles.length
+      || roles.some((role) => !allowedExecuteRoles.has(role));
+  })) {
     throw stopped("function execution role is invalid");
+  }
+  if (release.functions.some((entry) => (
+    entry.volatility !== undefined && !["i", "s", "v"].includes(entry.volatility)
+  ))) {
+    throw stopped("function volatility is invalid");
+  }
+  if (release.functions.some((entry) => (
+    entry.securityDefiner !== undefined
+    && typeof entry.securityDefiner !== "boolean"
+  ))) {
+    throw stopped("function security mode is invalid");
   }
   const functionSources = new Map(release.functions.map((entry) => [
     entry.name,
