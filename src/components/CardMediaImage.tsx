@@ -63,18 +63,24 @@ export default function CardMediaImage({
   const usableFallback = fallbackSrc && fallbackSrc !== src ? fallbackSrc : null;
   const [currentSrc, setCurrentSrc] = useState<string | null>(initialSrc);
   const [failed, setFailed] = useState(false);
+  const [bypassOptimizer, setBypassOptimizer] = useState(false);
 
   useEffect(() => {
     setCurrentSrc(src ?? fallbackSrc ?? null);
     setFailed(false);
+    setBypassOptimizer(false);
   }, [src, fallbackSrc]);
 
-  const optimized = useMemo(() => (currentSrc ? canUseImageOptimizer(currentSrc) : false), [currentSrc]);
+  const optimized = useMemo(
+    () => (!bypassOptimizer && currentSrc ? canUseImageOptimizer(currentSrc) : false),
+    [bypassOptimizer, currentSrc],
+  );
 
   const handleError = () => {
     if (usableFallback && currentSrc !== usableFallback) {
       setCurrentSrc(usableFallback);
       setFailed(false);
+      setBypassOptimizer(false);
       return;
     }
     setFailed(true);
@@ -102,7 +108,7 @@ export default function CardMediaImage({
         aria-hidden={ariaHidden || undefined}
         className={className}
         onLoad={onLoad}
-        onError={handleError}
+        onError={() => setBypassOptimizer(true)}
         {...dataProps}
       />
     );
