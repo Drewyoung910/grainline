@@ -103,6 +103,7 @@ function fakeClientClass({
   ledgerApplied,
   schemaApplied,
   partial = false,
+  functionOverrides = {},
   selectedRelease = release,
   selectedVerified = verified,
 }) {
@@ -187,6 +188,8 @@ function fakeClientClass({
             runtime_execute: roles.includes("runtime"),
             staff_execute: roles.includes("staff"),
             public_execute: false,
+            unexpected_execute_roles: [],
+            ...functionOverrides,
           }); })
           .sort((left, right) => (
             left.function_name.localeCompare(right.function_name)
@@ -197,6 +200,27 @@ function fakeClientClass({
     }
   };
 }
+
+test("preparation inspector rejects EXECUTE granted to an unexpected role", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-function-acl-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTablePreparationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            ledgerApplied: false,
+            schemaApplied: true,
+            functionOverrides: { unexpected_execute_roles: ["unreviewed_service"] },
+          }),
+        },
+      ),
+      /grants EXECUTE to an unexpected role/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 function environment(directory, phase, previousPath, selectedReleaseId = releaseId) {
   return {
