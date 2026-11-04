@@ -824,6 +824,9 @@ test("Listing preparation is proved, isolated, and restored around historical gu
   const restore = step(restoreName);
   assert.match(isolate, new RegExp(listingDomainPreparationMigration));
   assert.match(restore, new RegExp(listingDomainPreparationMigration));
+  assert.match(isolate, /provision-order-staff-read-role\.sql/u);
+  assert.match(isolate, /LISTING_DOMAIN_PREPARATION_ISOLATED=true/u);
+  assert.match(restore, /LISTING_DOMAIN_PREPARATION_ISOLATED=/u);
   assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
   assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
@@ -1195,6 +1198,14 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate ReviewVote source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate MakerVerification candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate Listing preparation until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync(process.execPath, ["--test", "tests/order-staff-read-role-provision.test.mjs"], {
+      cwd: root,
+      env: {
+        PATH: process.env.PATH,
+        LISTING_DOMAIN_PREPARATION_ISOLATED: "true",
+      },
+      stdio: "pipe",
+    });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1296,6 +1307,11 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore ReviewVote source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore MakerVerification candidates after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore Listing preparation after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync(process.execPath, ["--test", "tests/order-staff-read-role-provision.test.mjs"], {
+      cwd: root,
+      env: { PATH: process.env.PATH },
+      stdio: "pipe",
+    });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/account-deletion fence after historical release guards")], { cwd: root, env: scriptEnv });
