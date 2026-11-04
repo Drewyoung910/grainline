@@ -8,6 +8,13 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+function listingPreparationSource() {
+  return source(
+    process.env.LISTING_DOMAIN_PREPARATION_MIGRATION_PATH?.trim()
+      || "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  );
+}
+
 const ORDER_PII_FIELDS = [
   "shipToCity",
   "shipToState",
@@ -326,9 +333,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller listing title and body fields on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = listingPreparationSource();
 
     assert.match(deletion, /redactListingsForAccountDeletion\(tx,/);
     assert.match(listingAuthority, /title = 'Deleted listing'/);
@@ -342,9 +347,7 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("removes retained seller-defined listing variant text on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = listingPreparationSource();
 
     assert.match(deletion, /redactListingsForAccountDeletion\(tx,/);
     assert.match(listingAuthority, /DELETE FROM public\."ListingVariantGroup" AS variant_group/);
