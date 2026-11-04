@@ -33,17 +33,19 @@ export async function GET() {
     archived: false,
     query: "",
     cursor: null,
-    limit: RAIL_CONVERSATIONS,
+    limit: RAIL_CONVERSATIONS + 1,
   });
+  const visibleConversations = conversations.slice(0, RAIL_CONVERSATIONS);
   const otherUserIds = Array.from(new Set(
-    conversations.map((conversation) =>
+    visibleConversations.map((conversation) =>
       conversation.userAId === me.id ? conversation.userB.id : conversation.userA.id),
   ));
   const sellers = await sellerConversationParticipantCards(me.id, otherUserIds);
   const sellerByUserId = new Map(sellers.map((seller) => [seller.userId, seller]));
 
   return privateJson({
-    conversations: conversations.map((conversation) => {
+    hasMore: conversations.length > RAIL_CONVERSATIONS,
+    conversations: visibleConversations.map((conversation) => {
       const other = conversation.userAId === me.id ? conversation.userB : conversation.userA;
       const seller = sellerByUserId.get(other.id) ?? null;
       const latest = conversation.latestMessage;
@@ -54,6 +56,7 @@ export async function GET() {
         snippet: truncateText(formatSnippet(latest?.body, latest?.kind), SNIPPET_LENGTH),
         latestAt: latest?.createdAt ?? null,
         unreadCount: conversation.unreadCount,
+        latestFromMe: latest?.senderId === me.id,
       };
     }),
   });

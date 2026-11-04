@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import MediaImage from "@/components/MediaImage";
 import MessageTime from "@/components/MessageTime";
 import { avatarInitial } from "@/lib/avatarInitials";
+import MessageInboxControls from "@/components/MessageInboxControls";
 
 type RailConversation = {
   id: string;
@@ -14,6 +15,7 @@ type RailConversation = {
   snippet: string;
   latestAt: string | null;
   unreadCount: number;
+  latestFromMe: boolean;
 };
 
 function parseConversations(value: unknown): RailConversation[] {
@@ -28,6 +30,7 @@ function parseConversations(value: unknown): RailConversation[] {
       snippet: typeof item.snippet === "string" ? item.snippet : "",
       latestAt: typeof item.latestAt === "string" ? item.latestAt : null,
       unreadCount: typeof item.unreadCount === "number" ? item.unreadCount : 0,
+      latestFromMe: item.latestFromMe === true,
     }];
   });
 }
@@ -42,6 +45,7 @@ export default function ConversationRail() {
   const pathname = usePathname();
   const [conversations, setConversations] = React.useState<RailConversation[] | null>(null);
   const [failed, setFailed] = React.useState(false);
+  const [hasMore, setHasMore] = React.useState(false);
   const controllerRef = React.useRef<AbortController | null>(null);
 
   const load = React.useCallback(async () => {
@@ -52,9 +56,10 @@ export default function ConversationRail() {
     try {
       const res = await fetch("/api/messages/inbox", { cache: "no-store", signal: controller.signal });
       if (!res.ok) throw new Error(`Inbox failed (${res.status})`);
-      const data: { conversations?: unknown } = await res.json();
+      const data: { conversations?: unknown; hasMore?: unknown } = await res.json();
       if (controller.signal.aborted) return;
       setConversations(parseConversations(data.conversations));
+      setHasMore(data.hasMore === true);
       setFailed(false);
     } catch {
       // Keep whatever is already on screen; the thread itself still works.
@@ -88,20 +93,32 @@ export default function ConversationRail() {
   }, [load]);
 
   const currentId = pathname.split("/")[2] ?? null;
+  const unreadTotal = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0;
+  const awaitingReplyTotal = conversations?.filter((conversation) => conversation.latestFromMe).length ?? 0;
 
   return (
     <aside
       aria-label="Conversations"
-      className="sticky top-[calc(var(--site-header-offset)+1rem)] mt-6 hidden max-h-[calc(100dvh-var(--site-header-offset)-2rem)] min-w-0 overflow-y-auto overscroll-contain rounded-2xl bg-[#EFEAE0] p-2 [scrollbar-width:none] lg:block [&::-webkit-scrollbar]:hidden"
+      className="mt-6 hidden max-h-[calc(100dvh-var(--site-header-offset)-2rem)] min-w-0 flex-col overflow-hidden rounded-3xl border border-[#2C1F1A]/10 bg-[#F2EEE6]/80 shadow-[0_12px_34px_-30px_rgba(44,31,26,0.75)] lg:flex"
     >
-      <div className="flex items-center justify-between px-2.5 pb-2 pt-1.5">
-        <h2 className="font-display text-xl">Messages</h2>
-        <Link href="/messages" className="text-sm text-neutral-600 underline-offset-4 hover:underline">All</Link>
+      <div className="shrink-0 border-b border-[#2C1F1A]/10 p-3">
+        <div className="mb-3 flex items-center justify-between px-1">
+          <h2 className="font-display text-xl">Messages</h2>
+          <Link href="/messages" className="text-sm text-neutral-600 underline-offset-4 hover:underline">Open inbox</Link>
+        </div>
+        <MessageInboxControls
+          tab="inbox"
+          query=""
+          unreadTotal={unreadTotal}
+          awaitingReplyTotal={awaitingReplyTotal}
+          compact
+        />
       </div>
+      <div className="min-h-0 overflow-y-auto overscroll-contain p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {conversations === null && !failed && (
         <div aria-hidden="true" className="grid gap-1">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2.5">
+            <div key={index} className="flex items-center gap-2.5 rounded-md px-2.5 py-2.5">
               <div className="size-9 shrink-0 animate-pulse rounded-full bg-white/70 motion-reduce:animate-none" />
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="h-3.5 w-2/3 animate-pulse rounded bg-white/70 motion-reduce:animate-none" />
@@ -126,7 +143,7 @@ export default function ConversationRail() {
                 <Link
                   href={`/messages/${conversation.id}`}
                   aria-current={current ? "page" : undefined}
-                  className={`flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 transition-colors duration-150 ${
+                  className={`flex items-center gap-2.5 rounded-md px-2.5 py-2.5 transition-colors duration-150 ${
                     current ? "bg-white shadow-[0_1px_0_rgba(44,31,26,0.08)]" : "hover:bg-[#E3DCCB]"
                   }`}
                 >
@@ -166,6 +183,14 @@ export default function ConversationRail() {
           })}
         </ul>
       )}
+      {hasMore && (
+        <div className="px-2.5 pb-2 pt-3 text-center">
+          <Link href="/messages" className="text-sm font-medium text-neutral-700 underline-offset-4 hover:underline">
+            Older conversations
+          </Link>
+        </div>
+      )}
+      </div>
     </aside>
   );
 }

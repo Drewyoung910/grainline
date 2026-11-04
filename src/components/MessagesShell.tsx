@@ -37,7 +37,7 @@ export default function MessagesShell({ children }: { children: React.ReactNode 
 
   if (!isThread) return <>{children}</>;
   return (
-    <div className="mx-auto w-full max-w-[1280px] overflow-x-clip lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start lg:gap-2 lg:px-6">
+    <div className="mx-auto w-full max-w-[1280px] overflow-x-clip lg:grid lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-6">
       <ConversationRail />
       <div ref={threadRef} className="min-w-0">{children}</div>
     </div>

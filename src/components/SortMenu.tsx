@@ -4,14 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Check, ChevronDown } from "@/components/icons";
-
-const SORT_OPTIONS = [
-  { value: "relevant", label: "Most relevant", needsQuery: true },
-  { value: "newest", label: "Newest", needsQuery: false },
-  { value: "price_asc", label: "Price: low to high", needsQuery: false },
-  { value: "price_desc", label: "Price: high to low", needsQuery: false },
-  { value: "popular", label: "Most popular", needsQuery: false },
-];
+import { browseSortLabel, visibleBrowseSortOptions } from "@/lib/browseSortOptions";
 
 // Desktop browse sort: a pill that springs open a small card of orders, the
 // chosen one ticked. Phones keep the sort sheet in MobileFilterBar.
@@ -21,8 +14,8 @@ export default function SortMenu() {
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   // "Most relevant" is offered with a search, and stays labelled (and
   // ticked) when the URL already asks for it without one.
-  const options = SORT_OPTIONS.filter((option) => !option.needsQuery || q || currentSort === option.value);
-  const currentLabel = options.find((option) => option.value === currentSort)?.label ?? "Newest";
+  const options = visibleBrowseSortOptions(q, currentSort);
+  const currentLabel = browseSortLabel(q, currentSort);
 
   const [open, setOpen] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
@@ -94,7 +87,7 @@ export default function SortMenu() {
           id={menuId}
           role="dialog"
           aria-label="Sort results"
-          className={`absolute right-0 top-[calc(100%+8px)] z-30 w-56 origin-top-right rounded-2xl bg-white p-1.5 popover-shadow motion-reduce:animate-none ${
+          className={`absolute right-0 top-[calc(100%+8px)] z-30 w-56 origin-top-right rounded-lg bg-white p-1.5 popover-shadow motion-reduce:animate-none ${
             closing ? "animate-menu-out pointer-events-none" : "animate-menu-in"
           }`}
         >
@@ -113,7 +106,7 @@ export default function SortMenu() {
                   const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
                   window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
                 }}
-                className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-[14.5px] hover:bg-[#F7F5F0] ${
+                className={`flex items-center justify-between rounded-md px-3 py-2.5 text-[14.5px] hover:bg-[#F7F5F0] ${
                   selected ? "font-medium text-neutral-900" : "text-neutral-700"
                 }`}
               >

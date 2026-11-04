@@ -242,7 +242,7 @@ export default function UserAvatarMenu({
               onClick={handleOpenUserProfile}
               className={`flex w-full items-center rounded-xl px-3 py-2.5 text-sm text-neutral-800 ${accountItemHoverClass}`}
             >
-              Manage Account
+              Sign-in &amp; security
             </button>
 
             <button

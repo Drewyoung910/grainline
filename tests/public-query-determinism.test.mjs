@@ -373,7 +373,10 @@ describe("public query determinism", () => {
     assert.match(reviewsSection, /const LISTING_REVIEW_DISPLAY_LIMIT = 100/);
     assert.match(reviewsSection, /function reviewOrderByForSort/);
     assert.match(reviewsSection, /return \[\{ helpfulCount: "desc" \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(reviewsSection, /return \[\{ photos: \{ _count: "desc" \} \}, \{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
+    assert.match(
+      reviewsSection,
+      /return \[\s*\{ photos: \{ _count: "desc" \} \},\s*\{ createdAt: "desc" \},\s*\{ id: "desc" \},?\s*\]/,
+    );
     assert.match(reviewsSection, /orderBy: reviewOrderByForSort\(sort\)/);
     assert.match(reviewsSection, /take: LISTING_REVIEW_DISPLAY_LIMIT/);
     assert.doesNotMatch(reviewsSection, /others\.slice\(\)\.sort/);

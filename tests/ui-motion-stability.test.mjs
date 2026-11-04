@@ -10,11 +10,23 @@ describe("motion stability guardrails", () => {
   it("locks dialogs without changing either document scroll container", () => {
     const dialog = source("src/lib/dialogFocus.ts");
     assert.match(dialog, /installScrollGuards/);
-    assert.match(dialog, /previouslyFocused\.focus\(\{ preventScroll: true \}\)/);
-    assert.match(dialog, /document\.addEventListener\("wheel", onWheel, \{ passive: false \}\)/);
-    assert.match(dialog, /document\.addEventListener\("touchmove", onTouchMove, \{ passive: false \}\)/);
+    assert.match(
+      dialog,
+      /previouslyFocused\.focus\(\{ preventScroll: true \}\)/,
+    );
+    assert.match(
+      dialog,
+      /document\.addEventListener\("wheel", onWheel, \{ passive: false \}\)/,
+    );
+    assert.match(
+      dialog,
+      /document\.addEventListener\("touchmove", onTouchMove, \{ passive: false \}\)/,
+    );
     assert.match(dialog, /document\.addEventListener\("keydown", onKeyDown\)/);
-    assert.doesNotMatch(dialog, /style\.overflow =|style\.position =|style\.top =|window\.scrollTo/);
+    assert.doesNotMatch(
+      dialog,
+      /style\.overflow =|style\.position =|style\.top =|window\.scrollTo/,
+    );
     assert.match(source("src/app/globals.css"), /scrollbar-gutter: stable/);
   });
 
@@ -38,8 +50,14 @@ describe("motion stability guardrails", () => {
   it("collapses removed cart rows while their content fades", () => {
     const cart = source("src/app/cart/page.tsx");
     const css = source("src/app/globals.css");
-    assert.match(cart, /className=\{`cart-row\$\{removingIds\.has\(i\.id\) \? " cart-row-leaving" : ""\}`\}/);
-    assert.match(cart, /className="cart-row-content flex items-center gap-3 py-3"/);
+    assert.match(
+      cart,
+      /className=\{`cart-row\$\{removingIds\.has\(i\.id\) \? " cart-row-leaving" : ""\}`\}/,
+    );
+    assert.match(
+      cart,
+      /className="cart-row-content flex items-center gap-3 py-3"/,
+    );
     assert.match(css, /\.cart-row\s*\{[\s\S]*grid-template-rows: 1fr/);
     assert.match(css, /\.cart-row-leaving\s*\{[\s\S]*grid-template-rows: 0fr/);
   });
@@ -69,18 +87,27 @@ describe("motion stability guardrails", () => {
     assert.match(card, /map-card-in/);
     assert.match(card, /min-h-\[15rem\]/);
     assert.doesNotMatch(card, /animate-menu-in/);
-    assert.match(css, /@keyframes map-card-fade-in \{[\s\S]*from \{ opacity: 0; \}[\s\S]*to \{ opacity: 1; \}/);
+    assert.match(
+      css,
+      /@keyframes map-card-fade-in \{[\s\S]*from \{ opacity: 0; \}[\s\S]*to \{ opacity: 1; \}/,
+    );
   });
 
   it("does not replay browse-card entrances on Back or sort navigation", () => {
     const css = source("src/app/globals.css");
-    assert.doesNotMatch(css, /\.results-stagger >|\.card-rise\s*\{|@keyframes card-rise/);
+    assert.doesNotMatch(
+      css,
+      /\.results-stagger >|\.card-rise\s*\{|@keyframes card-rise/,
+    );
   });
 
   it("glides only changed, visible browse results and respects reduced motion", () => {
     const flip = source("src/components/FlipList.tsx");
     const browse = source("src/app/browse/page.tsx");
-    assert.match(flip, /previousKeyRef\.current !== null && previousKeyRef\.current !== itemKey/);
+    assert.match(
+      flip,
+      /previousKeyRef\.current !== null && previousKeyRef\.current !== itemKey/,
+    );
     assert.match(flip, /prefers-reduced-motion: reduce/);
     assert.match(flip, /window\.innerHeight \+ VIEWPORT_MARGIN/);
     assert.match(flip, /ResizeObserver/);
@@ -94,9 +121,18 @@ describe("motion stability guardrails", () => {
     const card = source("src/components/ListingCard.tsx");
     const favorite = source("src/components/FavoriteButton.tsx");
     const blogSave = source("src/components/SaveBlogButton.tsx");
-    assert.match(css, /\.listing-card-photo \.listing-save-control\[data-saved="false"\]/);
-    assert.match(css, /\.listing-card-photo:hover \.listing-save-control\[data-saved="false"\]/);
-    assert.doesNotMatch(css, /\.group:hover \.listing-save-control\[data-saved="false"\]/);
+    assert.match(
+      css,
+      /\.listing-card-photo \.listing-save-control\[data-saved="false"\]/,
+    );
+    assert.match(
+      css,
+      /\.listing-card-photo:hover \.listing-save-control\[data-saved="false"\]/,
+    );
+    assert.doesNotMatch(
+      css,
+      /\.group:hover \.listing-save-control\[data-saved="false"\]/,
+    );
     assert.match(css, /translate: 0 3px;/);
     assert.match(css, /scale: 0\.94;/);
     assert.doesNotMatch(css, /transform: translateY\(3px\) scale\(0\.94\)/);
@@ -104,8 +140,14 @@ describe("motion stability guardrails", () => {
     assert.match(card, /group-hover\/photo:data-\[ready=true\]:opacity-100/);
     assert.match(favorite, /data-saved=\{saved \? "true" : "false"\}/);
     assert.match(blogSave, /data-saved=\{saved \? "true" : "false"\}/);
-    assert.match(favorite, /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/);
-    assert.match(blogSave, /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/);
+    assert.match(
+      favorite,
+      /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/,
+    );
+    assert.match(
+      blogSave,
+      /transform-gpu items-center justify-center[\s\S]*transition-\[opacity,translate,scale\]/,
+    );
   });
 
   it("keeps every legacy listing and story save action inside the photo surface", () => {
@@ -124,8 +166,14 @@ describe("motion stability guardrails", () => {
     }
 
     const css = source("src/app/globals.css");
-    assert.match(css, /\.photo-save-surface \.listing-save-control\[data-saved="false"\]/);
-    assert.match(css, /\.photo-save-surface:hover \.listing-save-control\[data-saved="false"\]/);
+    assert.match(
+      css,
+      /\.photo-save-surface \.listing-save-control\[data-saved="false"\]/,
+    );
+    assert.match(
+      css,
+      /\.photo-save-surface:hover \.listing-save-control\[data-saved="false"\]/,
+    );
     assert.doesNotMatch(css, /\.card-listing:hover \.listing-save-control/);
   });
 
@@ -152,9 +200,15 @@ describe("motion stability guardrails", () => {
     const home = source("src/app/page.tsx");
     const seller = source("src/app/seller/[id]/page.tsx");
     const toast = source("src/components/Toast.tsx");
-    assert.doesNotMatch(home, /hover:-translate-y-\[3px\]|hover:-translate-y-1/);
+    assert.doesNotMatch(
+      home,
+      /hover:-translate-y-\[3px\]|hover:-translate-y-1/,
+    );
     assert.doesNotMatch(seller, /hover:-translate-y-1/);
-    const leaving = toast.slice(toast.indexOf("t.leaving ?"), toast.indexOf(") : (", toast.indexOf("t.leaving ?")));
+    const leaving = toast.slice(
+      toast.indexOf("t.leaving ?"),
+      toast.indexOf(") : (", toast.indexOf("t.leaving ?")),
+    );
     assert.match(leaving, /t\.action\.label/);
     assert.match(leaving, /t\.type === "error"/);
     assert.match(leaving, /<X size=\{14\}/);
@@ -163,7 +217,10 @@ describe("motion stability guardrails", () => {
   it("swallows the first mobile notification outside tap", () => {
     const bell = source("src/components/NotificationBell.tsx");
     assert.match(bell, /className="fixed inset-0 z-40 md:hidden"/);
-    assert.match(bell, /onPointerDown=\{\(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*event\.stopPropagation\(\);[\s\S]*onClick=\{\(event\) => \{[\s\S]*closeDropdown\(\)/);
+    assert.match(
+      bell,
+      /onPointerDown=\{\(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*event\.stopPropagation\(\);[\s\S]*onClick=\{\(event\) => \{[\s\S]*closeDropdown\(\)/,
+    );
   });
 
   it("keeps navigation state aligned during rapid browse interactions", () => {
@@ -183,7 +240,7 @@ describe("motion stability guardrails", () => {
   it("keeps commission categories compact instead of wrapping into a wall of controls", () => {
     const commission = source("src/app/commission/page.tsx");
     const categoryRow = commission.slice(
-      commission.indexOf("{/* Category filter */}"),
+      commission.indexOf("{/* Filters */}"),
       commission.indexOf("{requests.length === 0"),
     );
 
@@ -191,6 +248,40 @@ describe("motion stability guardrails", () => {
     assert.match(categoryRow, /overflow-x-auto/);
     assert.match(categoryRow, /flex min-w-max gap-2/);
     assert.doesNotMatch(categoryRow, /flex-wrap/);
+  });
+
+  it("composes listing story and facts side by side without dropping policy content", () => {
+    const listing = source("src/app/listing/[id]/page.tsx");
+    const composition = listing.slice(
+      listing.indexOf("{/* ── Story and details"),
+      listing.indexOf("{/* ── Pickup area map"),
+    );
+
+    assert.match(
+      composition,
+      /lg:grid-cols-\[minmax\(0,1\.25fr\)_minmax\(18rem,0\.75fr\)\]/,
+    );
+    assert.match(composition, /About this piece/);
+    assert.match(composition, />\s*Details\s*</);
+    assert.match(composition, /Shop policies/);
+    assert.match(composition, /listing\.seller\.returnPolicy/);
+    assert.match(composition, /listing\.seller\.shippingPolicy/);
+    assert.match(composition, /listing\.seller\.customOrderPolicy/);
+  });
+
+  it("makes the review breakdown prominent while preserving review behavior", () => {
+    const reviews = source("src/components/ReviewsSection.tsx");
+
+    assert.match(reviews, /lg:grid-cols-\[17rem_minmax\(0,1fr\)\]/);
+    assert.match(reviews, /aria-label="Rating breakdown"/);
+    assert.match(reviews, /rating-bar-fill/);
+    assert.match(reviews, /My review/);
+    assert.match(reviews, /<ImageLightbox[\s\S]*?images=\{mine\.photos/);
+    assert.match(reviews, /<ImageLightbox[\s\S]*?images=\{r\.photos/);
+    assert.match(reviews, /reply=\{mine\.sellerReply\}/);
+    assert.match(reviews, /<SellerReplyForm[\s\S]*?reviewId=\{r\.id\}/);
+    assert.match(reviews, /<HelpfulButton/);
+    assert.match(reviews, /<BlockReportButton/);
   });
 
   it("keeps shared pill geometry without flattening action meaning", () => {
@@ -222,19 +313,28 @@ describe("motion stability guardrails", () => {
     const steps = source("src/lib/useQuantitySteps.ts");
     assert.match(steps, /draftsRef\.current\.set\(itemId, quantity\)/);
     assert.match(steps, /if \(savingRef\.current\.has\(itemId\)\) return/);
-    assert.match(steps, /while \(ok && draftsRef\.current\.get\(itemId\) !== saved\)/);
+    assert.match(
+      steps,
+      /while \(ok && draftsRef\.current\.get\(itemId\) !== saved\)/,
+    );
     assert.match(cart, /aria-label="One fewer"/);
     assert.match(cart, /aria-label="One more"/);
     assert.match(cart, /aria-disabled=\{atLeast \|\| undefined\}/);
     assert.match(cart, /aria-disabled=\{atMost \|\| undefined\}/);
-    assert.match(cart, /<RollingNumber value=\{shownQuantity\} grouped=\{false\}/);
+    assert.match(
+      cart,
+      /<RollingNumber value=\{shownQuantity\} grouped=\{false\}/,
+    );
     assert.doesNotMatch(cart, /\sdisabled=\{atLeast|\sdisabled=\{atMost/);
   });
 
   it("does not drop a signed-in Buy Now tap while Clerk hydrates", () => {
     const button = source("src/components/BuyNowButton.tsx");
     const panel = source("src/components/ListingPurchasePanel.tsx");
-    assert.match(button, /const signedInNow = signedIn \|\| isSignedIn === true/);
+    assert.match(
+      button,
+      /const signedInNow = signedIn \|\| isSignedIn === true/,
+    );
     assert.doesNotMatch(button, /disabled=\{!isLoaded\}/);
     assert.match(panel, /<BuyNowButton\s+signedIn/);
   });
@@ -242,7 +342,10 @@ describe("motion stability guardrails", () => {
   it("falls back to original listing images when optimization fails", () => {
     const gallery = source("src/components/ListingGallery.tsx");
     assert.match(gallery, /optimizerFailures\.has\(activeUrl\)/);
-    assert.match(gallery, /setOptimizerFailures\(\(current\) => new Set\(current\)\.add\(activeUrl\)\)/);
+    assert.match(
+      gallery,
+      /setOptimizerFailures\(\(current\) => new Set\(current\)\.add\(activeUrl\)\)/,
+    );
     assert.match(gallery, /optimizerFailures\.has\(p\.url\)/);
   });
 });

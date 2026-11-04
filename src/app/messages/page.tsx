@@ -1,6 +1,5 @@
 // src/app/messages/page.tsx
 import Link from "next/link";
-import SegmentedControl from "@/components/SegmentedControl";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -8,12 +7,13 @@ import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { formatSnippet } from "@/lib/messageSnippet";
 import { truncateText } from "@/lib/sanitize";
 import MessageTime from "@/components/MessageTime";
-import { MessageCircle, Search, X } from "@/components/icons";
+import { MessageCircle } from "@/components/icons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { parseMessageCursor } from "@/lib/messageCursor";
 import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
+import MessageInboxControls, { type MessageInboxTab } from "@/components/MessageInboxControls";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -73,7 +73,10 @@ export default function MessagesPage(props: MessagesPageProps) {
 async function MessagesInbox({
   searchParams,
 }: MessagesPageProps) {
-  const { tab = "inbox", q: qParam = "", before, beforeId } = await searchParams;
+  const { tab: rawTab = "inbox", q: qParam = "", before, beforeId } = await searchParams;
+  const tab: MessageInboxTab = rawTab === "unread" || rawTab === "sent" || rawTab === "archived"
+    ? rawTab
+    : "inbox";
   const q = truncateText(qParam.trim(), 200);
   const pageCursor = parseMessageCursor(before, beforeId, { requireId: true });
 
@@ -86,12 +89,19 @@ async function MessagesInbox({
   const isArchivedTab = tab === "archived";
   // The fixed projection applies participant, archive, reciprocal-block,
   // non-empty-thread, search and stable keyset bounds in one statement.
-  const conversationRows = await listActorConversationInbox(me.id, {
+  const currentRowsPromise = listActorConversationInbox(me.id, {
     archived: isArchivedTab,
     query: q,
     cursor: pageCursor,
     limit: 51,
   });
+  // Tabs describe the active inbox even while someone is viewing archived or
+  // searched results. Reuse the current read whenever it already represents
+  // that inbox; only issue the second bounded read when needed.
+  const summaryRowsPromise = isArchivedTab || q
+    ? listActorConversationInbox(me.id, { archived: false, query: "", cursor: null, limit: 51 })
+    : currentRowsPromise;
+  const [conversationRows, summaryRows] = await Promise.all([currentRowsPromise, summaryRowsPromise]);
   const hasMoreConversations = conversationRows.length > 50;
   const convos = conversationRows.slice(0, 50);
 
@@ -122,15 +132,12 @@ async function MessagesInbox({
   const unreadList = isArchivedTab ? [] : enrich.filter((x) => x.unreadCount > 0);
   const sentList = isArchivedTab ? [] : enrich.filter((x) => x.latestFromMe);
 
-  const unreadTotal = unreadList.reduce((n, x) => n + x.unreadCount, 0);
-  const sentTotal = sentList.length;
+  const unreadTotal = summaryRows.reduce((total, conversation) => total + conversation.unreadCount, 0);
+  const sentTotal = summaryRows.filter((conversation) => conversation.latestMessage?.senderId === me.id).length;
 
   const list =
     tab === "unread" ? unreadList : tab === "sent" ? sentList : tab === "archived" ? enrich : inboxList;
 
-  // Helper to preserve ?q= across tab links
-  const withQ = (base: string) =>
-    q ? `${base}${base.includes("?") ? "&" : "?"}q=${encodeURIComponent(q)}` : base;
   const oldestConversation = convos[convos.length - 1];
   const olderConversationsHref = oldestConversation
     ? (() => {
@@ -153,82 +160,13 @@ async function MessagesInbox({
         </Link>
       </div>
 
-      {/* Tabs + Search */}
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center lg:flex-col lg:items-stretch gap-3">
-        {/* Sliding toggle (motion study); scrolls sideways on narrow phones. */}
-        <SegmentedControl
-          label="Conversations"
-          value={tab}
-          className="max-w-full overflow-x-auto [scrollbar-width:none]"
-          options={[
-            { value: "inbox", label: "Inbox", href: withQ("/messages") },
-            {
-              value: "unread",
-              href: withQ("/messages?tab=unread"),
-              label: (
-                <>
-                  Unread
-                  {unreadTotal > 0 && (
-                    <span className="ml-1.5 rounded-full bg-red-600 px-2 py-[1px] text-xs text-white">{unreadTotal}</span>
-                  )}
-                </>
-              ),
-            },
-            {
-              value: "sent",
-              href: withQ("/messages?tab=sent"),
-              label: (
-                <>
-                  Awaiting reply
-                  {sentTotal > 0 && (
-                    <span className="ml-1.5 rounded-full bg-[#2C1F1A] px-2 py-[1px] text-xs text-[#FBF8F3]">{sentTotal}</span>
-                  )}
-                </>
-              ),
-            },
-            { value: "archived", label: "Archived", href: withQ("/messages?tab=archived") },
-          ]}
+      <div className="mb-4">
+        <MessageInboxControls
+          tab={tab}
+          query={q}
+          unreadTotal={unreadTotal}
+          awaitingReplyTotal={sentTotal}
         />
-
-        <form method="get" className="w-full sm:w-auto sm:ml-auto lg:ml-0 lg:w-full flex items-center gap-2">
-          {/* keep current tab when searching */}
-          {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex min-h-11 w-full items-center overflow-hidden rounded-full border-2 border-stone-400 bg-white shadow-sm transition-shadow focus-within:border-stone-600 focus-within:shadow-md sm:w-auto lg:w-full">
-            <button
-              type="submit"
-              aria-label="Search messages"
-              className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-900 focus-visible:outline-none"
-            >
-              <span
-                aria-hidden="true"
-                className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
-              >
-                <Search size={17} />
-              </span>
-            </button>
-            <input
-              name="q"
-              defaultValue={q}
-              maxLength={200}
-              placeholder="Search messages"
-              className="min-w-0 flex-1 bg-transparent py-2 pr-2 text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:shadow-none sm:w-52"
-            />
-            {q ? (
-              <Link
-                href={tab === "inbox" ? "/messages" : `/messages?tab=${tab}`}
-                aria-label="Clear message search"
-                className="group flex min-w-11 items-center justify-center rounded-full text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:outline-none"
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20"
-                >
-                  <X size={15} />
-                </span>
-              </Link>
-            ) : null}
-          </div>
-        </form>
       </div>
 
       {list.length === 0 ? (

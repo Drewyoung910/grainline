@@ -26,9 +26,16 @@ function Stars({ value }: { value: number }) {
       role="img"
       aria-label={`${value.toFixed(1)} out of 5 stars`}
     >
-      <div className="text-neutral-300" aria-hidden="true">★★★★★</div>
-      <div className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
-        <div className="text-amber-500" aria-hidden="true">★★★★★</div>
+      <div className="text-neutral-300" aria-hidden="true">
+        ★★★★★
+      </div>
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{ width: `${pct}%` }}
+      >
+        <div className="text-amber-500" aria-hidden="true">
+          ★★★★★
+        </div>
       </div>
     </div>
   );
@@ -68,19 +75,29 @@ function SellerReplyCard({
   tone: "cream" | "white";
 }) {
   return (
-    <div className={`rounded-lg p-3 text-sm ${tone === "white" ? "bg-white/80 ring-1 ring-stone-200/60" : "bg-[#EFEAE0]"}`}>
+    <div
+      className={`rounded-lg p-3 text-sm ${tone === "white" ? "bg-white/80 ring-1 ring-stone-200/60" : "bg-[#EFEAE0]"}`}
+    >
       <div className="mb-1.5 flex items-center gap-2">
-        <div className={`flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-stone-200 ${tone === "white" ? "bg-[#EFEAE0]" : "bg-white"}`}>
+        <div
+          className={`flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-stone-200 ${tone === "white" ? "bg-[#EFEAE0]" : "bg-white"}`}
+        >
           {sellerAvatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={sellerAvatarUrl} alt="" className="h-full w-full object-cover" />
+            <img
+              src={sellerAvatarUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
           ) : (
             <span className="text-[9px] font-semibold text-neutral-700">
               {avatarInitials(sellerName, "M")}
             </span>
           )}
         </div>
-        <span className="text-xs font-semibold text-neutral-900">{sellerName}</span>
+        <span className="text-xs font-semibold text-neutral-900">
+          {sellerName}
+        </span>
         <span className="text-[11px] text-neutral-500">replied</span>
         {repliedAt && (
           <span className="ml-auto text-[11px] text-neutral-500">
@@ -88,19 +105,27 @@ function SellerReplyCard({
           </span>
         )}
       </div>
-      <p className="whitespace-pre-wrap break-words text-neutral-800">{reply}</p>
+      <p className="whitespace-pre-wrap break-words text-neutral-800">
+        {reply}
+      </p>
     </div>
   );
 }
 
-function reviewOrderByForSort(sort: "top" | "new" | "rating" | "photos"): Prisma.ReviewOrderByWithRelationInput[] {
+function reviewOrderByForSort(
+  sort: "top" | "new" | "rating" | "photos",
+): Prisma.ReviewOrderByWithRelationInput[] {
   switch (sort) {
     case "new":
       return [{ createdAt: "desc" }, { id: "desc" }];
     case "rating":
       return [{ ratingX2: "desc" }, { createdAt: "desc" }, { id: "desc" }];
     case "photos":
-      return [{ photos: { _count: "desc" } }, { createdAt: "desc" }, { id: "desc" }];
+      return [
+        { photos: { _count: "desc" } },
+        { createdAt: "desc" },
+        { id: "desc" },
+      ];
     default:
       return [{ helpfulCount: "desc" }, { createdAt: "desc" }, { id: "desc" }];
   }
@@ -114,7 +139,7 @@ export default async function ReviewsSection({
   sellerAvatarUrl,
   viewerIsSeller,
   initialSort = "top",
-  edit = false,              // ?redit=1 toggles edit UI
+  edit = false, // ?redit=1 toggles edit UI
   blockedUserIds,
 }: {
   listingId: string;
@@ -148,11 +173,20 @@ export default async function ReviewsSection({
     where: visibleReviewWhere,
     _count: { _all: true },
   });
-  const totalReviewCount = ratingGroups.reduce((sum, group) => sum + group._count._all, 0);
+  const totalReviewCount = ratingGroups.reduce(
+    (sum, group) => sum + group._count._all,
+    0,
+  );
   const agg = { _count: { _all: totalReviewCount } };
-  const avg = totalReviewCount > 0
-    ? ratingGroups.reduce((sum, group) => sum + group.ratingX2 * group._count._all, 0) / totalReviewCount / 2
-    : null;
+  const avg =
+    totalReviewCount > 0
+      ? ratingGroups.reduce(
+          (sum, group) => sum + group.ratingX2 * group._count._all,
+          0,
+        ) /
+        totalReviewCount /
+        2
+      : null;
   const avgQuarter = avg != null ? quarterRound(avg) : null;
 
   // Breakdown rows 5 to 1; a half star counts toward the whole star below it,
@@ -160,15 +194,18 @@ export default async function ReviewsSection({
   const starCounts = [5, 4, 3, 2, 1].map((star) => ({
     star,
     count: ratingGroups
-      .filter((group) => Math.min(5, Math.max(1, Math.floor(group.ratingX2 / 2))) === star)
+      .filter(
+        (group) =>
+          Math.min(5, Math.max(1, Math.floor(group.ratingX2 / 2))) === star,
+      )
       .reduce((sum, group) => sum + group._count._all, 0),
   }));
 
   // Viewer's review (full)
   const mine = meId
     ? await prisma.review.findFirst({
-      where: { listingId, reviewerId: meId },
-      include: {
+        where: { listingId, reviewerId: meId },
+        include: {
           photos: { orderBy: { sortOrder: "asc" } },
         },
       })
@@ -182,11 +219,13 @@ export default async function ReviewsSection({
     // that the POST route rechecks under the parent Order lock. This call's
     // implicit statement transaction releases its lock before rendering; the
     // write route remains the authoritative race-safe decision.
-    canCreate = Boolean(await lockReviewEligibleOrderItem({
-      actorUserId: meId,
-      listingId,
-      since: since90,
-    }));
+    canCreate = Boolean(
+      await lockReviewEligibleOrderItem({
+        actorUserId: meId,
+        listingId,
+        since: since90,
+      }),
+    );
   }
 
   // Other visible reviews, bounded and ordered in the database.
@@ -207,7 +246,10 @@ export default async function ReviewsSection({
   // instead of always reading as "not voted yet".
   let votedReviewIds = new Set<string>();
   if (meId && others.length > 0) {
-    votedReviewIds = await ownerReviewVoteIds(meId, others.map((review) => review.id));
+    votedReviewIds = await ownerReviewVoteIds(
+      meId,
+      others.map((review) => review.id),
+    );
   }
 
   // Link builders (always target listing path + #reviews)
@@ -220,246 +262,321 @@ export default async function ReviewsSection({
   // Compute edit lock (same rule as API: seller reply or >90d)
   const locked =
     !!mine?.sellerReply ||
-    (mine ? Date.now() - new Date(mine.createdAt).getTime() > 90 * 24 * 60 * 60 * 1000 : false);
+    (mine
+      ? Date.now() - new Date(mine.createdAt).getTime() >
+        90 * 24 * 60 * 60 * 1000
+      : false);
 
   return (
-    <section id="reviews" className="space-y-4 mt-8">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold font-display">Reviews</h2>
-        {avgQuarter != null && (
-          <div className="flex items-center gap-2 text-sm text-neutral-700">
-            <Stars value={avgQuarter} />
-            <span>{(Math.round((avg ?? 0) * 10) / 10).toFixed(1)}</span>
-            <span className="text-neutral-500">({agg._count._all})</span>
-          </div>
-        )}
-      </div>
-
-      {agg._count._all > 0 && (
-        <dl aria-label="Rating breakdown" className="grid max-w-sm gap-1.5">
-          {starCounts.map(({ star, count }) => {
-            const pct = Math.round((count / agg._count._all) * 100);
-            return (
-              <div key={star} className="grid grid-cols-[3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2.5 text-[13px] text-neutral-600 tabular-nums">
-                <dt className="whitespace-nowrap">{star} star{star === 1 ? "" : "s"}</dt>
-                <dd className="h-1.5 overflow-clip rounded-full bg-[#EFEAE0]">
-                  {/* The bar fills as the breakdown scrolls into view. */}
-                  <span className="rating-bar-fill block h-full rounded-full bg-[#A8803A]" style={{ width: `${pct}%` }} />
-                  <span className="sr-only">{pct}%</span>
-                </dd>
-                <dd className="text-right">{count}</dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
-
-      {/* My review block — cream inset so "yours" reads differently from other reviews */}
-      {mine ? (
-        <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="font-medium">My review</div>
-            {edit ? (
-              <Link href={editOffHref} className="text-sm underline" scroll={false}>
-                Cancel
-              </Link>
-            ) : locked ? (
-              <span className="whitespace-nowrap rounded-full bg-white ring-1 ring-stone-200/60 px-3 py-1 text-[11px] font-medium text-neutral-500">Locked</span>
-            ) : (
-              <Link href={editOnHref} className="text-sm underline" scroll={false}>
-                Edit
-              </Link>
-            )}
-          </div>
-
-          {edit && !locked ? (
-            <ReviewComposer
-              listingId={listingId}
-              canReview={true}
-              hasReview={true}
-              isEditing
-              existing={{
-                id: mine.id,
-                ratingX2: mine.ratingX2,
-                comment: mine.comment ?? "",
-                photos: mine.photos.map((p) => ({ id: p.id, url: p.url })),
-                locked,
-              }}
-            />
-          ) : (
-            <div className="flex items-start gap-3">
-              <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
-                {!reviewerUnavailable(mine) && mine.reviewerImageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={mine.reviewerImageUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-[10px] font-medium text-neutral-700">
-                    {reviewerInitials(mine)}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                  <Stars value={mine.ratingX2 / 2} />
-                  <span className="text-neutral-700">{(mine.ratingX2 / 2).toFixed(1)}</span>
-                  {mine.verified && (
-                    <span className="whitespace-nowrap rounded-full bg-white ring-1 ring-stone-200/60 px-3 py-1 text-[11px] font-medium text-neutral-700">
-                      Verified purchase
-                    </span>
-                  )}
-                  <span className="ml-auto text-xs text-neutral-500">
-                    {new Date(mine.createdAt).toLocaleDateString("en-US")}
+    <section id="reviews" className="mt-12 border-t border-stone-200/80 pt-10">
+      <div className="grid min-w-0 gap-8 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12">
+        <div className="min-w-0 lg:sticky lg:top-[calc(var(--site-header-offset)+1.5rem)] lg:self-start">
+          <h2 className="font-display text-[clamp(1.9rem,3vw,2.5rem)] font-normal leading-tight text-neutral-900">
+            Reviews
+          </h2>
+          {avgQuarter != null ? (
+            <div className="mt-3">
+              <div className="flex items-end gap-3">
+                <span className="font-display text-5xl leading-none text-neutral-900">
+                  {(Math.round((avg ?? 0) * 10) / 10).toFixed(1)}
+                </span>
+                <div className="pb-0.5 text-sm text-neutral-700">
+                  <Stars value={avgQuarter} />
+                  <span className="mt-1 block text-xs text-neutral-500">
+                    {agg._count._all} review{agg._count._all === 1 ? "" : "s"}
                   </span>
                 </div>
-                {mine.comment && (
-                  <p className="mt-2 text-sm whitespace-pre-wrap break-words">{mine.comment}</p>
-                )}
-                {mine.photos.length > 0 && (
-                  <div className="mt-2">
-                    <ImageLightbox images={mine.photos.map((p) => p.url)} />
-                  </div>
-                )}
-                {mine.sellerReply && (
-                  <div className="mt-3">
-                    <SellerReplyCard
-                      reply={mine.sellerReply}
-                      repliedAt={mine.sellerReplyAt}
-                      sellerName={sellerName}
-                      sellerAvatarUrl={sellerAvatarUrl}
-                      tone="white"
-                    />
-                  </div>
-                )}
               </div>
             </div>
+          ) : (
+            <p className="mt-2 text-sm text-neutral-500">No ratings yet</p>
+          )}
+
+          {agg._count._all > 0 && (
+            <dl aria-label="Rating breakdown" className="mt-6 grid gap-2">
+              {starCounts.map(({ star, count }) => {
+                const pct = Math.round((count / agg._count._all) * 100);
+                return (
+                  <div
+                    key={star}
+                    className="grid grid-cols-[3.25rem_minmax(0,1fr)_2rem] items-center gap-2.5 text-xs text-neutral-600 tabular-nums"
+                  >
+                    <dt className="whitespace-nowrap">
+                      {star} star{star === 1 ? "" : "s"}
+                    </dt>
+                    <dd className="h-1.5 overflow-clip rounded-full bg-[#E7E0D5]">
+                      <span
+                        className="rating-bar-fill block h-full rounded-full bg-[#A8803A]"
+                        style={{ width: `${pct}%` }}
+                      />
+                      <span className="sr-only">{pct}%</span>
+                    </dd>
+                    <dd className="text-right">{count}</dd>
+                  </div>
+                );
+              })}
+            </dl>
           )}
         </div>
-      ) : (
-        // No review yet → show composer if eligible
-        <ReviewComposer listingId={listingId} canReview={canCreate} hasReview={false} />
-      )}
 
-      {/* Sort pills — flex-wrap allows wrapping on narrow viewports without
-          stretching individual pills to two lines. whitespace-nowrap keeps
-          each label on one line so all pills are the same height. Hidden
-          when there are no other reviews to sort. */}
-      {others.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          {(["top", "new", "rating", "photos"] as const).map((k) => {
-            const active = sort === k;
-            return (
-              <Link
-                key={k}
-                href={sortHref(k, edit)}
-                className={`whitespace-nowrap rounded-full px-3 py-1 font-medium transition-colors ${
-                  active
-                    ? "bg-[#2C1F1A] text-white hover:bg-[#3A2A24]"
-                    : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-                }`}
-                scroll={false}
-              >
-                {k === "top"
-                  ? "Top"
-                  : k === "new"
-                  ? "Newest"
-                  : k === "rating"
-                  ? "Highest rated"
-                  : "With photos"}
-              </Link>
-            );
-          })}
-        </div>
-      )}
+        <div className="min-w-0 space-y-4">
+          {/* My review block — cream inset so "yours" reads differently from other reviews */}
+          {mine ? (
+            <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="font-medium">My review</div>
+                {edit ? (
+                  <Link
+                    href={editOffHref}
+                    className="text-sm underline"
+                    scroll={false}
+                  >
+                    Cancel
+                  </Link>
+                ) : locked ? (
+                  <span className="whitespace-nowrap rounded-full bg-white ring-1 ring-stone-200/60 px-3 py-1 text-[11px] font-medium text-neutral-500">
+                    Locked
+                  </span>
+                ) : (
+                  <Link
+                    href={editOnHref}
+                    className="text-sm underline"
+                    scroll={false}
+                  >
+                    Edit
+                  </Link>
+                )}
+              </div>
 
-      {/* Others */}
-      {others.length === 0 ? (
-        <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">No reviews yet — be the first to share your experience.</div>
-      ) : (
-        <ul className="space-y-4">
-          {others.map((r) => {
-            const stars = r.ratingX2 / 2;
-            const displayName = reviewerName(r);
-            const initials = reviewerInitials(r);
-
-            return (
-              <li key={r.id} className="card-section px-4 py-3">
+              {edit && !locked ? (
+                <ReviewComposer
+                  listingId={listingId}
+                  canReview={true}
+                  hasReview={true}
+                  isEditing
+                  existing={{
+                    id: mine.id,
+                    ratingX2: mine.ratingX2,
+                    comment: mine.comment ?? "",
+                    photos: mine.photos.map((p) => ({ id: p.id, url: p.url })),
+                    locked,
+                  }}
+                />
+              ) : (
                 <div className="flex items-start gap-3">
                   <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
-                    {!reviewerUnavailable(r) && r.reviewerImageUrl ? (
+                    {!reviewerUnavailable(mine) && mine.reviewerImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.reviewerImageUrl} alt="" className="h-full w-full object-cover" />
+                      <img
+                        src={mine.reviewerImageUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
-                      <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
+                      <span className="text-[10px] font-medium text-neutral-700">
+                        {reviewerInitials(mine)}
+                      </span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                      <span className="font-medium text-neutral-800 truncate max-w-[140px]">{displayName}</span>
-                      <Stars value={stars} />
-                      <span className="text-neutral-700">{stars.toFixed(1)}</span>
-                      {r.verified && (
-                        <span className="whitespace-nowrap rounded-full bg-[#EFEAE0] px-3 py-1 text-[11px] font-medium text-neutral-700">
+                      <Stars value={mine.ratingX2 / 2} />
+                      <span className="text-neutral-700">
+                        {(mine.ratingX2 / 2).toFixed(1)}
+                      </span>
+                      {mine.verified && (
+                        <span className="whitespace-nowrap rounded-full bg-white ring-1 ring-stone-200/60 px-3 py-1 text-[11px] font-medium text-neutral-700">
                           Verified purchase
                         </span>
                       )}
-                      <span className="ml-auto flex items-center gap-1">
-                        <span className="text-xs text-neutral-500">
-                          {new Date(r.createdAt).toLocaleDateString("en-US")}
-                        </span>
-                        {meId && meId !== r.reviewerId && !reviewerUnavailable(r) && (
-                          <BlockReportButton
-                            targetUserId={r.reviewerId}
-                            targetName={displayName}
-                            targetType="REVIEW"
-                            targetId={r.id}
-                          />
-                        )}
+                      <span className="ml-auto text-xs text-neutral-500">
+                        {new Date(mine.createdAt).toLocaleDateString("en-US")}
                       </span>
                     </div>
-
-                    {r.comment && (
-                      <p className="mt-2 text-sm whitespace-pre-wrap break-words">{r.comment}</p>
+                    {mine.comment && (
+                      <p className="mt-2 text-sm whitespace-pre-wrap break-words">
+                        {mine.comment}
+                      </p>
                     )}
-
-                    {r.photos.length > 0 && (
+                    {mine.photos.length > 0 && (
                       <div className="mt-2">
-                        <ImageLightbox images={r.photos.map((p) => p.url)} />
+                        <ImageLightbox images={mine.photos.map((p) => p.url)} />
                       </div>
                     )}
-
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <HelpfulButton
-                          reviewId={r.id}
-                          initialCount={r.helpfulCount}
-                          initiallyVoted={votedReviewIds.has(r.id)}
-                          canVote={!!meId && !viewerIsSeller && meId !== r.reviewerId}
-                          signedIn={!!meId}
-                        />
-                        {!r.sellerReply && viewerIsSeller && (
-                          <div className="ml-auto">
-                            <SellerReplyForm reviewId={r.id} canReply={viewerIsSeller} />
-                          </div>
-                        )}
-                      </div>
-
-                      {r.sellerReply && (
+                    {mine.sellerReply && (
+                      <div className="mt-3">
                         <SellerReplyCard
-                          reply={r.sellerReply}
-                          repliedAt={r.sellerReplyAt}
+                          reply={mine.sellerReply}
+                          repliedAt={mine.sellerReplyAt}
                           sellerName={sellerName}
                           sellerAvatarUrl={sellerAvatarUrl}
-                          tone="cream"
+                          tone="white"
                         />
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+              )}
+            </div>
+          ) : (
+            // No review yet → show composer if eligible
+            <ReviewComposer
+              listingId={listingId}
+              canReview={canCreate}
+              hasReview={false}
+            />
+          )}
+
+          {/* Sort pills — flex-wrap allows wrapping on narrow viewports without
+          stretching individual pills to two lines. whitespace-nowrap keeps
+          each label on one line so all pills are the same height. Hidden
+          when there are no other reviews to sort. */}
+          {others.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              {(["top", "new", "rating", "photos"] as const).map((k) => {
+                const active = sort === k;
+                return (
+                  <Link
+                    key={k}
+                    href={sortHref(k, edit)}
+                    className={`whitespace-nowrap rounded-full px-3 py-1 font-medium transition-colors ${
+                      active
+                        ? "bg-[#2C1F1A] text-white hover:bg-[#3A2A24]"
+                        : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+                    }`}
+                    scroll={false}
+                  >
+                    {k === "top"
+                      ? "Top"
+                      : k === "new"
+                        ? "Newest"
+                        : k === "rating"
+                          ? "Highest rated"
+                          : "With photos"}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Others */}
+          {others.length === 0 ? (
+            <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">
+              No reviews yet — be the first to share your experience.
+            </div>
+          ) : (
+            <ul className="space-y-4">
+              {others.map((r) => {
+                const stars = r.ratingX2 / 2;
+                const displayName = reviewerName(r);
+                const initials = reviewerInitials(r);
+
+                return (
+                  <li key={r.id} className="card-section px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
+                        {!reviewerUnavailable(r) && r.reviewerImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={r.reviewerImageUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[10px] font-medium text-neutral-700">
+                            {initials}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                          <span className="font-medium text-neutral-800 truncate max-w-[140px]">
+                            {displayName}
+                          </span>
+                          <Stars value={stars} />
+                          <span className="text-neutral-700">
+                            {stars.toFixed(1)}
+                          </span>
+                          {r.verified && (
+                            <span className="whitespace-nowrap rounded-full bg-[#EFEAE0] px-3 py-1 text-[11px] font-medium text-neutral-700">
+                              Verified purchase
+                            </span>
+                          )}
+                          <span className="ml-auto flex items-center gap-1">
+                            <span className="text-xs text-neutral-500">
+                              {new Date(r.createdAt).toLocaleDateString(
+                                "en-US",
+                              )}
+                            </span>
+                            {meId &&
+                              meId !== r.reviewerId &&
+                              !reviewerUnavailable(r) && (
+                                <BlockReportButton
+                                  targetUserId={r.reviewerId}
+                                  targetName={displayName}
+                                  targetType="REVIEW"
+                                  targetId={r.id}
+                                />
+                              )}
+                          </span>
+                        </div>
+
+                        {r.comment && (
+                          <p className="mt-2 text-sm whitespace-pre-wrap break-words">
+                            {r.comment}
+                          </p>
+                        )}
+
+                        {r.photos.length > 0 && (
+                          <div className="mt-2">
+                            <ImageLightbox
+                              images={r.photos.map((p) => p.url)}
+                            />
+                          </div>
+                        )}
+
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center gap-3">
+                            <HelpfulButton
+                              reviewId={r.id}
+                              initialCount={r.helpfulCount}
+                              initiallyVoted={votedReviewIds.has(r.id)}
+                              canVote={
+                                !!meId &&
+                                !viewerIsSeller &&
+                                meId !== r.reviewerId
+                              }
+                              signedIn={!!meId}
+                            />
+                            {!r.sellerReply && viewerIsSeller && (
+                              <div className="ml-auto">
+                                <SellerReplyForm
+                                  reviewId={r.id}
+                                  canReply={viewerIsSeller}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          {r.sellerReply && (
+                            <SellerReplyCard
+                              reply={r.sellerReply}
+                              repliedAt={r.sellerReplyAt}
+                              sellerName={sellerName}
+                              sellerAvatarUrl={sellerAvatarUrl}
+                              tone="cream"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

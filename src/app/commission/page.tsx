@@ -326,71 +326,84 @@ async function CommissionPageContent({
       />
 
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-3">
+      <div className="mb-8 flex items-start justify-between gap-4 sm:items-end">
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold font-display text-neutral-900">Commission Room</h1>
-          <p className="text-neutral-500 mt-1 text-sm">
-            Buyers post custom piece requests. Makers express interest to connect.
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Made together</p>
+          <h1 className="font-display text-[clamp(2.25rem,5vw,4.5rem)] font-normal leading-[0.95] tracking-[-0.025em] text-neutral-900">
+            Commission Room
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600 sm:text-base">
+            Describe a piece you want made. Makers who can build it reach out to you.
           </p>
         </div>
-        <CommissionPostButton className="btn btn-sm btn-primary shrink-0 whitespace-nowrap px-3 sm:px-5">
+        <CommissionPostButton className="btn btn-sm btn-primary shrink-0 whitespace-nowrap px-3.5 sm:px-5">
           <span className="sm:hidden">Post request</span>
           <span className="hidden sm:inline">Post a Request</span>
         </CommissionPostButton>
       </div>
 
-      {/* Tab strip — only when there is a second tab ("Near Me" needs a
-          seller location); a lone "All Requests" tab looks broken. */}
-      {hasLocation && (
-        <div className="mb-6">
-          <SegmentedControl
-            label="Requests"
-            value={tab === "near" ? "near" : "all"}
-            options={[
-              { value: "all", label: "All requests", href: buildHref({ tab: "", page: "" }) },
-              {
-                value: "near",
-                href: buildHref({ tab: "near", page: "" }),
-                label: <span className="flex items-center gap-1"><MapPin size={13} /> Near me</span>,
-              },
-            ]}
-          />
-        </div>
-      )}
-
       {/* How it works explainer */}
-      <div className="bg-amber-50 border border-amber-200/60 rounded-lg p-4 mb-6">
-        <h2 className="font-medium text-amber-900 mb-1">How the Commission Room works</h2>
-        <p className="text-sm text-amber-800">
-          Post a custom piece request describing what you need. Makers browse requests and express interest.
-          You review interested makers and connect directly via messages to discuss your project.
-        </p>
-      </div>
+      <ol className="mb-8 grid list-none gap-3 p-0 sm:grid-cols-3" aria-label="How the Commission Room works">
+        {[
+          ["1", "Post what you want", "Share the size, material, budget, timing, and a reference photo if you have one."],
+          ["2", "Makers reach out", "Interested makers introduce themselves through Grainline Messages."],
+          ["3", "Buy securely", "Choose a maker, agree on the details, and pay through a private Grainline listing."],
+        ].map(([number, title, description]) => (
+          <li key={number} className="flex gap-3 rounded-lg border border-stone-200/80 bg-white p-4 shadow-[0_12px_30px_-28px_rgba(44,31,26,0.6)]">
+            <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#2C1F1A] text-xs font-semibold text-[#FBF8F3]">{number}</span>
+            <span className="min-w-0 text-sm leading-5 text-neutral-600">
+              <strong className="mb-0.5 block font-medium text-neutral-900">{title}</strong>
+              {description}
+            </span>
+          </li>
+        ))}
+      </ol>
 
-      {/* Category filter */}
-      <ScrollFadeRow className="mb-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex min-w-max gap-2 pr-1">
-          <Link
-            href={buildHref({ category: "", page: "" })}
-            className={`inline-flex h-9 items-center rounded-full px-3.5 text-sm whitespace-nowrap transition-colors ${
-              !categoryFilter ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
-            }`}
-          >
-            All
-          </Link>
-          {CATEGORY_VALUES.map((cat) => (
+      {/* Filters */}
+      <div className="mb-7 flex flex-col gap-3 border-y border-stone-200/80 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <ScrollFadeRow className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-max gap-2 pr-1">
             <Link
-              key={cat}
-              href={buildHref({ category: cat, page: "" })}
+              href={buildHref({ category: "", page: "" })}
               className={`inline-flex h-9 items-center rounded-full px-3.5 text-sm whitespace-nowrap transition-colors ${
-                categoryFilter === cat ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+                !categoryFilter ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
               }`}
             >
-              {CATEGORY_LABELS[cat]}
+              All
             </Link>
-          ))}
-        </div>
-      </ScrollFadeRow>
+            {CATEGORY_VALUES.map((cat) => (
+              <Link
+                key={cat}
+                href={buildHref({ category: cat, page: "" })}
+                className={`inline-flex h-9 items-center rounded-full px-3.5 text-sm whitespace-nowrap transition-colors ${
+                  categoryFilter === cat ? "bg-[#2C1F1A] text-white" : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
+                }`}
+              >
+                {CATEGORY_LABELS[cat]}
+              </Link>
+            ))}
+          </div>
+        </ScrollFadeRow>
+
+        {/* A lone "All requests" tab looks broken, so this only renders when
+            the signed-in maker has a location and Near me is meaningful. */}
+        {hasLocation && (
+          <div className="shrink-0 self-start lg:self-auto">
+            <SegmentedControl
+              label="Requests"
+              value={tab === "near" ? "near" : "all"}
+              options={[
+                { value: "all", label: "All requests", href: buildHref({ tab: "", page: "" }) },
+                {
+                  value: "near",
+                  href: buildHref({ tab: "near", page: "" }),
+                  label: <span className="flex items-center gap-1"><MapPin size={13} /> Near me</span>,
+                },
+              ]}
+            />
+          </div>
+        )}
+      </div>
 
       {requests.length === 0 ? (
         <div className="card-section p-12 text-center">
@@ -404,89 +417,90 @@ async function CommissionPageContent({
           </CommissionPostButton>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {requests.map((r) => {
             const buyerName = r.buyer.name?.split(" ")[0] ?? "Buyer";
             return (
-              <div key={r.id} className="card-listing p-5">
-                <div className="flex items-start gap-4">
-                  {/* Thumbnail */}
-                  {r.referenceImageUrls[0] && (
-                    <Link href={`/commission/${r.id}`} className="shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={r.referenceImageUrls[0]}
-                        alt="Reference"
-                        loading="lazy"
-                        className="w-24 h-24 object-cover rounded-lg border border-stone-200"
-                      />
+              <article
+                key={r.id}
+                className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-stone-200/80 bg-white shadow-[0_14px_34px_-30px_rgba(44,31,26,0.65)] transition-[border-color,box-shadow] hover:border-stone-300 hover:shadow-[0_20px_42px_-30px_rgba(44,31,26,0.72)]"
+              >
+                {r.referenceImageUrls[0] && (
+                  <Link href={`/commission/${r.id}`} className="block aspect-video overflow-hidden bg-[#EFEAE0]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={r.referenceImageUrls[0]}
+                      alt="Reference"
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out motion-reduce:transition-none group-hover:scale-[1.025]"
+                    />
+                  </Link>
+                )}
+
+                <div className="flex flex-1 flex-col gap-3 p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link href={`/commission/${r.id}`} className="text-[17px] font-medium leading-snug text-neutral-900 decoration-stone-300 underline-offset-4 hover:underline">
+                      {r.title}
                     </Link>
-                  )}
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <Link href={`/commission/${r.id}`} className="font-medium text-neutral-900 hover:underline">
-                        {r.title}
-                      </Link>
-                      {r.category && (
-                        <span className="text-xs text-stone-500 border border-stone-200 rounded-full px-2 py-0.5 shrink-0">
-                          {CATEGORY_LABELS[r.category]}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Budget — most prominent element */}
-                    {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents) && (
-                      <div className="font-semibold text-lg text-amber-700 mb-1">
-                        {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents)}
-                      </div>
-                    )}
-
-                    <p className="text-sm text-stone-500 line-clamp-2 mb-2">
-                      {truncateTextWithEllipsis(r.description, 200)}
-                    </p>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
-                      {/* Timeline */}
-                      {r.timeline && <span className="text-stone-500">{r.timeline}</span>}
-                      {/* Buyer */}
-                      <span className="flex items-center gap-1">
-                        {r.buyer.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.buyer.imageUrl} alt={buyerName} className="w-4 h-4 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-4 h-4 rounded-full bg-neutral-200" />
-                        )}
-                        {buyerName}
+                    {r.category && (
+                      <span className="shrink-0 rounded-full bg-[#EFEAE0] px-2.5 py-1 text-[11px] font-medium text-neutral-600">
+                        {CATEGORY_LABELS[r.category]}
                       </span>
-                      {/* Time */}
-                      <span>{timeAgo(r.createdAt)}</span>
-                      {/* Interest count */}
-                      <span>{r.interestedCount} maker{r.interestedCount !== 1 ? "s" : ""} interested</span>
-                      {/* Local distance badge */}
-                      {!r.isNational && commissionDistanceBucket(r.distanceMeters) && (
-                        <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
-                          <MapPin size={11} /> {commissionDistanceBucket(r.distanceMeters)}
-                        </span>
-                      )}
-                      {!r.isNational && r.distanceMeters == null && (
-                        <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
-                          <MapPin size={11} /> Local request
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
 
-                  {/* Interest button — only for sellers, not buyer */}
-                  {sellerProfileId && (
-                    <CommissionInterestButton
-                      requestId={r.id}
-                      sellerProfileId={sellerProfileId}
-                      initialInterested={interestedSet.has(r.id)}
-                    />
-                  )}
+                  <p className="line-clamp-2 text-sm leading-6 text-neutral-600">
+                    {truncateTextWithEllipsis(r.description, 200)}
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                    {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents) && (
+                      <span className="rounded-full border border-stone-200 bg-[#FAF8F4] px-3 py-1 text-xs font-medium text-neutral-800">
+                        {formatCommissionBudgetRange(r.budgetMinCents, r.budgetMaxCents)}
+                      </span>
+                    )}
+                    {r.timeline && (
+                      <span className="rounded-full border border-stone-200 bg-[#FAF8F4] px-3 py-1 text-xs text-neutral-700">{r.timeline}</span>
+                    )}
+                    {!r.isNational && commissionDistanceBucket(r.distanceMeters) && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs text-green-700">
+                        <MapPin size={11} /> {commissionDistanceBucket(r.distanceMeters)}
+                      </span>
+                    )}
+                    {!r.isNational && r.distanceMeters == null && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs text-green-700">
+                        <MapPin size={11} /> Local request
+                      </span>
+                    )}
+                    {r.isNational && (
+                      <span className="rounded-full border border-stone-200 bg-[#FAF8F4] px-3 py-1 text-xs text-neutral-700">Ships nationwide</span>
+                    )}
+                  </div>
+
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 pt-4">
+                    <span className="flex min-w-0 items-center gap-2 text-xs text-neutral-500">
+                      {r.buyer.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.buyer.imageUrl} alt={buyerName} className="size-5 rounded-full object-cover" />
+                      ) : (
+                        <span aria-hidden="true" className="size-5 rounded-full bg-neutral-200" />
+                      )}
+                      <span className="truncate">{buyerName} · {timeAgo(r.createdAt)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="whitespace-nowrap">{r.interestedCount} interested</span>
+                    </span>
+
+                    {/* Interest button — only for sellers, not buyer */}
+                    {sellerProfileId && (
+                      <CommissionInterestButton
+                        requestId={r.id}
+                        sellerProfileId={sellerProfileId}
+                        initialInterested={interestedSet.has(r.id)}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -494,21 +508,21 @@ async function CommissionPageContent({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
+        <nav aria-label="Commission request pages" className="mt-8 flex flex-wrap items-center justify-center gap-2">
           {page > 1 && (
-            <Link href={buildHref({ page: String(page - 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page - 1) })} className="btn btn-sm btn-secondary">
               ← Previous
             </Link>
           )}
-          <span className="border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+          <span className="inline-flex min-h-9 items-center rounded-md bg-[#EFEAE0] px-4 py-2 text-sm text-neutral-600">
             Page {page} of {totalPages}
           </span>
           {page < totalPages && (
-            <Link href={buildHref({ page: String(page + 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page + 1) })} className="btn btn-sm btn-secondary">
               Next →
             </Link>
           )}
-        </div>
+        </nav>
       )}
     </main>
   );
