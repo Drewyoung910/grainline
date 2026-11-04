@@ -150,8 +150,10 @@ describe("post-launch UI follow-ups", () => {
     const gallery = source("src/components/ListingGallery.tsx");
     // The frame height is shared with the loading skeleton, so the two can't drift.
     const frame = source("src/lib/photoMotion.ts");
+    const loading = source("src/app/listing/[id]/loading.tsx");
     assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
-    assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(loading, /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(loading, /min-h-\[100svh\]/);
     assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
     assert.match(frame, /aspect-\[4\/5\] h-auto/);
     assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),28rem/);
@@ -381,10 +383,9 @@ describe("post-launch UI follow-ups", () => {
     const header = source("src/components/Header.tsx");
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
-    assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // Search grows to a 720px cap, the text nav follows it, and the tools
-    // sit at the far right (motion prototype layout, 2026-10-30).
-    assert.match(header, /data-header-search-slot className="flex min-w-\[240px\] max-w-\[720px\] flex-1"/);
+    // Search grows to the documented 820px cap, the text nav follows it, and
+    // the tools sit at the far right without an oversized avatar gap.
+    assert.match(header, /data-header-search-slot className="flex min-w-\[240px\] max-w-\[820px\] flex-1"/);
     assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 

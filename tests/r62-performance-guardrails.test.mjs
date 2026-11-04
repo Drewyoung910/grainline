@@ -16,10 +16,11 @@ describe("R62 performance guardrails", () => {
     assert.doesNotMatch(text, /where:\s*\{\s*listing:\s*\{\s*sellerId: listing\.sellerId/s);
   });
 
-  it("keeps high-traffic raw images dimensioned to reduce layout shift", () => {
+  it("keeps high-traffic images responsive or dimensioned to reduce layout shift", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
     assert.match(listing, /width=\{56\}[\s\S]*height=\{56\}[\s\S]*h-14 w-14/);
-    assert.match(listing, /width=\{320\}[\s\S]*height=\{400\}[\s\S]*w-full h-full object-cover/);
+    assert.match(listing, /import CardMediaImage from "@\/components\/CardMediaImage"/);
+    assert.match(listing, /<CardMediaImage[\s\S]*sizes="\(max-width: 639px\) 50vw, 25vw"[\s\S]*className="h-full w-full object-cover/);
 
     const home = source("src/app/page.tsx");
     // Spotlight identity-chip avatar + also-featured avatar (2026-07-11 layout)
