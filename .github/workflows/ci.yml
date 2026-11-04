@@ -363,14 +363,11 @@ jobs:
           mkdir -p "$holding/migrations" "$holding/scripts"
           mv "prisma/migrations/$migration" "$holding/migrations/$migration"
           mv scripts/provision-runtime-db-role.sql "$holding/scripts/provision-runtime-db-role.sql"
-          mv scripts/provision-order-staff-read-role.sql "$holding/scripts/provision-order-staff-read-role.sql"
           mv scripts/audit-runtime-db-grants.mjs "$holding/scripts/audit-runtime-db-grants.mjs"
           git cat-file -e "$predecessor^{commit}"
           git merge-base --is-ancestor "$predecessor" HEAD
           git show "$predecessor:scripts/provision-runtime-db-role.sql" > scripts/provision-runtime-db-role.sql
           test "$(git hash-object scripts/provision-runtime-db-role.sql)" = "e2cda60d0665729a4393747703cdde33aaec5d0a"
-          git show "$predecessor:scripts/provision-order-staff-read-role.sql" > scripts/provision-order-staff-read-role.sql
-          test "$(git hash-object scripts/provision-order-staff-read-role.sql)" = "1797e808088411e173936a85f25ad8a51dbdda85"
           git show "$predecessor:scripts/audit-runtime-db-grants.mjs" > scripts/audit-runtime-db-grants.mjs
           test "$(git hash-object scripts/audit-runtime-db-grants.mjs)" = "39c7dea3ba1801b0ad823eb51382b0eea267265f"
           echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
@@ -7043,9 +7040,8 @@ jobs:
           holding="$RUNNER_TEMP/listing-domain-preparation"
           migration=20261102050000_prepare_listing_domain_authorities
           mv "$holding/migrations/$migration" "prisma/migrations/$migration"
-          rm scripts/provision-runtime-db-role.sql scripts/provision-order-staff-read-role.sql scripts/audit-runtime-db-grants.mjs
+          rm scripts/provision-runtime-db-role.sql scripts/audit-runtime-db-grants.mjs
           mv "$holding/scripts/provision-runtime-db-role.sql" scripts/provision-runtime-db-role.sql
-          mv "$holding/scripts/provision-order-staff-read-role.sql" scripts/provision-order-staff-read-role.sql
           mv "$holding/scripts/audit-runtime-db-grants.mjs" scripts/audit-runtime-db-grants.mjs
           rmdir "$holding/migrations" "$holding/scripts" "$holding"
           echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
