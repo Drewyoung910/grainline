@@ -81,9 +81,11 @@ describe("User public review and commission state source boundary", () => {
       assert.doesNotMatch(source, /prisma\.review/);
     }
 
-    const listingPreparation = read(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPreparation = process.env.LISTING_DOMAIN_PREPARATION_MIGRATION_PATH
+      ? readFileSync(process.env.LISTING_DOMAIN_PREPARATION_MIGRATION_PATH, "utf8")
+      : read(
+          "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+        );
     assert.match(
       listingPreparation,
       /grainline_listing_public_customer_photo_page[\s\S]*review\."reviewerAccountActive" = true/,
