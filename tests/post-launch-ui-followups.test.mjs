@@ -148,9 +148,16 @@ describe("post-launch UI follow-ups", () => {
   it("keeps browse cards at 4:5 while giving listing photos a stable responsive frame", () => {
     const card = source("src/components/ListingCard.tsx");
     const listingPage = source("src/app/listing/[id]/page.tsx");
+    const homePage = source("src/app/page.tsx");
+    const recentlyViewed = source("src/components/RecentlyViewed.tsx");
+    const similarItems = source("src/components/SimilarItems.tsx");
     assert.match(card, /aspect-\[4\/5\]/);
     assert.match(card, /listing-card-photo[\s\S]*rounded-xl/);
     assert.match(listingPage, /photo-save-surface[\s\S]*rounded-xl/);
+    assert.match(homePage, /item\.kind === "listing"[\s\S]*aspect-\[4\/5\][^\n]*rounded-xl/);
+    assert.match(recentlyViewed, /photo-save-surface[^\n]*rounded-xl/);
+    assert.doesNotMatch(recentlyViewed, /aspect-\[4\/5\][^\n]*rounded-2xl|rounded-2xl[^\n]*aspect-\[4\/5\]/);
+    assert.match(similarItems, /aspect-\[4\/5\][^\n]*rounded-xl/);
     const gallery = source("src/components/ListingGallery.tsx");
     // The frame height is shared with the loading skeleton, so the two can't drift.
     const frame = source("src/lib/photoMotion.ts");
