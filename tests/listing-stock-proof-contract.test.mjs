@@ -4,8 +4,12 @@ import { test } from "node:test";
 import {
   loadStockAuthorityDefinitions,
   parseStockProofConfig,
+  resolveStockAuthorityMigrationPath,
   verifyStockProofIdentity,
 } from "../scripts/listing-stock-mutation-postgres-proof.mjs";
+
+const defaultMigrationPath =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
 
 test("native stock proof rejects non-disposable targets and unexpected identities", () => {
   const key = "LISTING_STOCK_MUTATION_PROOF_DATABASE_URL";
@@ -22,7 +26,14 @@ test("native stock proof rejects non-disposable targets and unexpected identitie
     { host: "8.8.8.8" }, { version: 170000 }]) assert.throws(() => verifyStockProofIdentity({ ...identity, ...drift }));
 });
 test("native proof executes the exact migrated stock authorities", () => {
-  const sql = loadStockAuthorityDefinitions("listing_stock_proof_contract");
+  assert.equal(resolveStockAuthorityMigrationPath({}), defaultMigrationPath);
+  assert.equal(resolveStockAuthorityMigrationPath({
+    LISTING_DOMAIN_PREPARATION_MIGRATION_PATH: " /tmp/isolated-listing/migration.sql ",
+  }), "/tmp/isolated-listing/migration.sql");
+  const sql = loadStockAuthorityDefinitions(
+    "listing_stock_proof_contract",
+    defaultMigrationPath,
+  );
   assert.match(sql, /CREATE FUNCTION "listing_stock_proof_contract"\.grainline_listing_owner_stock_lock/u);
   assert.match(sql, /CREATE FUNCTION "listing_stock_proof_contract"\.grainline_listing_owner_stock_apply/u);
   assert.match(sql, /WITH previous_listing AS MATERIALIZED/u);
