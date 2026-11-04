@@ -73,10 +73,12 @@ describe("message body parser guardrails", () => {
         id: "msg_1",
         senderId: "user_1",
         recipientId: "user_2",
-        body: "<b>Hello</b>\u0000",
+        body: "<b>Hello</b>\nI can do walnut.\tSix weeks.\u0000",
+        contextListing: { id: "listing_1", title: "<em>Walnut</em> table" },
         createdAt: "2026-06-01T00:00:00.000Z",
       }],
     }));
-    assert.equal(event?.[0]?.body, "Hello");
+    assert.equal(event?.[0]?.body, "Hello\nI can do walnut.\tSix weeks.");
+    assert.deepEqual(event?.[0]?.contextListing, { id: "listing_1", title: "Walnut table" });
   });
 });
