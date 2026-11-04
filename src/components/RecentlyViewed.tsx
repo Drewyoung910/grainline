@@ -71,7 +71,7 @@ export default function RecentlyViewed() {
         <div className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="animate-pulse shrink-0 w-48">
-              <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-[#EFEAE0]" />
+              <div className="rounded-xl overflow-hidden aspect-[4/5] bg-[#EFEAE0]" />
               <div className="mt-2 space-y-1.5 px-0.5">
                 <div className="h-3 bg-[#EFEAE0] rounded w-3/4" />
                 <div className="h-3 bg-[#EFEAE0] rounded w-1/2" />
@@ -83,7 +83,7 @@ export default function RecentlyViewed() {
         <ul className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
           {listings.map((l) => (
             <li key={l.id} className="relative shrink-0 w-48">
-              <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+              <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100">
                 <Link href={publicListingPath(l.id, l.title)} className="block aspect-[4/5]">
                   {l.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
