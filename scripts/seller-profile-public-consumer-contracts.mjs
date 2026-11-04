@@ -150,9 +150,11 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      // UI workspace/search work adds two publicListingWhere reads for the
-      // search panel. Both remain inside the reviewed public-listing filter.
-      || reviewedNonTargetFactoryCalls.length !== 122
+      // UserReport submission moves three public target shapes behind one
+      // actor-bound SQL authority. UI workspace/search adds two reviewed
+      // publicListingWhere reads, for a net two-shape reduction from the
+      // pre-batch frontier.
+      || reviewedNonTargetFactoryCalls.length !== 119
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.

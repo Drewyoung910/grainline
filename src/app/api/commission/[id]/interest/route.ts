@@ -17,6 +17,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createCommissionInterestMessage } from "@/lib/commissionInterestMessageAccess";
 import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
+import { userBlockPairIsBlocked } from "@/lib/blockAccess";
 
 export async function POST(
   req: NextRequest,
@@ -101,16 +102,7 @@ export async function POST(
     );
   }
 
-  const blockExists = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: commissionRequest.buyerId },
-        { blockerId: commissionRequest.buyerId, blockedId: me.id },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blockExists) {
+  if (await userBlockPairIsBlocked(me.id, commissionRequest.buyerId)) {
     return privateJson(
       { error: "Unable to express interest." },
       { status: 403 },

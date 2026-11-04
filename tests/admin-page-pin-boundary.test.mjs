@@ -89,7 +89,7 @@ const pages = [
   ["users/page.tsx", "userStaffDirectoryCount("],
   ["reviews/page.tsx", "prisma.review.count("],
   ["review/page.tsx", "prisma.listing.count("],
-  ["reports/page.tsx", "prisma.userReport.findMany("],
+  ["reports/page.tsx", "userReportStaffOpenPage("],
   ["support/page.tsx", "readSupportRequestStaffState("],
 ];
 

@@ -81,6 +81,18 @@ export const REVIEWED_MANUALLY_APPLIED_MIGRATIONS = new Map([
     "20261028080000_activate_maker_verification_rls",
     "7868277f03b599768784c0f3a44a3c7bb28c8b64772a24f6183c538ec6f3401c",
   ],
+  [
+    "20261030010000_prepare_block_authorities",
+    "f62bcebf43fa9fccd220aa3cdd3bab41544730f77e72c12ec6884937e0d3cddd",
+  ],
+  [
+    "20261030020000_prepare_user_report_authorities",
+    "f194866b13fd85848e9f15c43b85ca5ac05a00dfe70ec4efddbdb0b4f01e4944",
+  ],
+  [
+    "20261030030000_prepare_seller_faq_authorities",
+    "45cf9935bd9c6492a26ebc167dab20962395e1834f2191d293f0776597803e99",
+  ],
 ]);
 
 export function isReviewedManuallyAppliedMigration(row) {
