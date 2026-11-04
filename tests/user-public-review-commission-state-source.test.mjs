@@ -65,13 +65,29 @@ describe("User public review and commission state source boundary", () => {
     for (const path of [
       "src/app/listing/[id]/page.tsx",
       "src/components/ReviewsSection.tsx",
-      "src/app/seller/[id]/page.tsx",
-      "src/app/seller/[id]/customer-photos/page.tsx",
     ]) {
       const source = read(path);
       assert.doesNotMatch(source, /reviewer:\s*\{\s*(?:select|where|banned):/);
       assert.match(source, /reviewerAccountActive/);
     }
+
+    for (const path of [
+      "src/app/seller/[id]/page.tsx",
+      "src/app/seller/[id]/customer-photos/page.tsx",
+    ]) {
+      const source = read(path);
+      assert.doesNotMatch(source, /reviewer:\s*\{\s*(?:select|where|banned):/);
+      assert.match(source, /listingPublicCustomerPhotoPage/);
+      assert.doesNotMatch(source, /prisma\.review/);
+    }
+
+    const listingPreparation = read(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    );
+    assert.match(
+      listingPreparation,
+      /grainline_listing_public_customer_photo_page[\s\S]*review\."reviewerAccountActive" = true/,
+    );
   });
 
   it("filters every public commission query on snapshots without User joins", () => {
