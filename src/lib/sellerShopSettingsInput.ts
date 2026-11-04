@@ -185,12 +185,12 @@ export function validateSellerShippingInput(
   if (countryInput !== null
     && countryInput !== undefined
     && typeof countryInput !== "string") {
-    return { ok: false, error: "Enter a two-letter ship-from country code, for example US." };
+    return { ok: false, error: "Ship-from addresses must be in the United States (US)." };
   }
   const rawCountry = typeof countryInput === "string" ? countryInput.trim() : "";
   const shipFromCountry = (rawCountry || "US").toUpperCase();
-  if (!/^[A-Z]{2}$/u.test(shipFromCountry)) {
-    return { ok: false, error: "Enter a two-letter ship-from country code, for example US." };
+  if (shipFromCountry !== "US") {
+    return { ok: false, error: "Ship-from addresses must be in the United States (US)." };
   }
   if (!carrierInputs.every((carrier) => typeof carrier === "string")) {
     return { ok: false, error: "The preferred carrier selection is invalid." };

@@ -115,6 +115,7 @@ test("seller shipping input mirrors the database country and carrier bounds", ()
     value: { shipFromCountry: "US", preferredCarriers: ["UPS", "USPS"] },
   });
   assert.equal(validateSellerShippingInput("United States", []).ok, false);
+  assert.equal(validateSellerShippingInput("CA", []).ok, false);
   assert.equal(validateSellerShippingInput("1A", []).ok, false);
   assert.equal(validateSellerShippingInput(new Blob(["US"]), []).ok, false);
   assert.equal(validateSellerShippingInput("US", Array.from({ length: 17 }, (_, i) => `c${i}`)).ok, false);
