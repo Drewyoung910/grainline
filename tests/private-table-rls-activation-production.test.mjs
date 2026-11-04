@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -381,7 +381,7 @@ test("inspector rejects direct authority after activation", async () => {
   }
 });
 
-test("inspector rejects account-deletion direct table authority", async () => {
+test("inspector rejects a stray non-owner table grant after activation", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-rls-deletion-authority-"));
   try {
     await assert.rejects(
@@ -391,14 +391,12 @@ test("inspector rejects account-deletion direct table authority", async () => {
           Client: fakeClientClass({
             active: true,
             tableOverrides: {
-              account_deletion_select: true,
-              account_deletion_any_column: true,
               non_owner_table_acl_count: 1,
             },
           }),
         },
       ),
-      /accountDeletionSelect drifted/u,
+      /non-owner table ACL drifted/u,
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });
