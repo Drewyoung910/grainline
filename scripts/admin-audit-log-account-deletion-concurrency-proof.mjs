@@ -295,7 +295,11 @@ async function deletionFirstProof(config, controller, observer) {
     );
     assert.deepEqual(inserted.rows, [{
       targetId: "[deleted account]",
-      metadata: { marker: "late-sensitive-marker" },
+      metadata: {
+        adminAccountDeleted: true,
+        marker: "late-sensitive-marker",
+        redactedForAccountDeletion: true,
+      },
     }]);
     return true;
   } finally {
