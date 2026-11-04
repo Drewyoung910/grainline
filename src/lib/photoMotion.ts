@@ -3,6 +3,7 @@
 // opacity only, so nothing around it reflows. Every path does nothing under
 // reduced motion and leaves the page correct if the animation never runs.
 type Rect = Pick<DOMRect, "left" | "top" | "width" | "height">;
+type PhotoFit = "cover" | "contain";
 
 const EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
 export const PHOTO_GROW_MS = 340;
@@ -24,6 +25,33 @@ export function photoDeltaTransform(from: Rect, to: Rect): string | null {
   const dy = to.top + to.height / 2 - (from.top + from.height / 2);
   if (!Number.isFinite(scale) || !Number.isFinite(dx) || !Number.isFinite(dy)) return null;
   return `translate(${dx}px, ${dy}px) scale(${scale})`;
+}
+
+// Returns the rectangle occupied by an image inside a frame when it is fitted
+// like CSS object-fit. Keeping this calculation explicit lets a portrait card
+// open into a full desktop photo without stretching or cross-fading two
+// differently shaped images over one another.
+export function fittedPhotoRect(frame: Rect, imageRatio: number, fit: PhotoFit): Rect | null {
+  if (
+    frame.width <= 0
+    || frame.height <= 0
+    || !Number.isFinite(imageRatio)
+    || imageRatio <= 0
+  ) return null;
+
+  const frameRatio = frame.width / frame.height;
+  const widthConstrained = fit === "contain"
+    ? imageRatio >= frameRatio
+    : imageRatio < frameRatio;
+  const width = widthConstrained ? frame.width : frame.height * imageRatio;
+  const height = widthConstrained ? frame.width / imageRatio : frame.height;
+
+  return {
+    left: frame.left + (frame.width - width) / 2,
+    top: frame.top + (frame.height - height) / 2,
+    width,
+    height,
+  };
 }
 
 // Grows the viewer's photo out of the photo that was clicked.
@@ -172,6 +200,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
   const flyer = document.createElement("div");
   flyer.setAttribute("aria-hidden", "true");
   flyer.setAttribute(PHOTO_FLYER_ATTRIBUTE, "");
+  const sourceRadius = getComputedStyle(frame).borderTopLeftRadius || "12px";
   Object.assign(flyer.style, {
     position: "fixed",
     left: `${from.left}px`,
@@ -179,7 +208,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     width: `${from.width}px`,
     height: `${from.height}px`,
     overflow: "hidden",
-    borderRadius: "12px",
+    borderRadius: sourceRadius,
     zIndex: "40",
     pointerEvents: "none",
     transformOrigin: "center",
@@ -215,33 +244,119 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     const to = target.getBoundingClientRect();
     const sourceRatio = from.width / from.height;
     const targetRatio = to.width / to.height;
-    // A portrait card should not visibly stretch into a landscape gallery.
-    // Mobile keeps the same 4:5 frame and gets the full travel; desktop uses
-    // a quiet cross-fade when the two shapes materially differ.
-    if (Math.abs(sourceRatio - targetRatio) / sourceRatio > 0.14) {
-      removeFlyer(flyer);
-      return;
-    }
-    const transform = photoDeltaTransform(from, to);
-    if (!transform) {
-      removeFlyer(flyer);
-      return;
-    }
     const timing = { duration: TRAVEL_MS, easing: EASE, fill: "forwards" as const };
-    if (zoom !== "none") image.animate([{ transform: zoom }, { transform: "none" }], timing);
-    hoverImage?.animate([{ opacity: 1 }, { opacity: 0 }], timing);
-    const animation = flyer.animate([{ transform: "none" }, { transform }], timing);
+    const shapeMismatch = Math.abs(sourceRatio - targetRatio) / sourceRatio > 0.14;
+    let animation: Animation;
+
+    if (shapeMismatch) {
+      const imageRatio = photo.naturalWidth / photo.naturalHeight;
+      const sourcePhoto = fittedPhotoRect(
+        { left: 0, top: 0, width: from.width, height: from.height },
+        imageRatio,
+        "cover",
+      );
+      const targetPhoto = fittedPhotoRect(to, imageRatio, "contain");
+      if (!sourcePhoto || !targetPhoto) {
+        removeFlyer(flyer);
+        return;
+      }
+
+      // The wrapper changes from the card crop to the exact visible bounds of
+      // the contained gallery image. Meanwhile the image reveals the portions
+      // that were outside the card crop. This keeps one continuous photo on
+      // screen instead of dissolving between portrait and landscape boxes.
+      Object.assign(image.style, {
+        inset: "auto",
+        left: `${sourcePhoto.left}px`,
+        top: `${sourcePhoto.top}px`,
+        width: `${sourcePhoto.width}px`,
+        height: `${sourcePhoto.height}px`,
+        objectFit: "fill",
+      });
+      image.animate(
+        [
+          {
+            left: `${sourcePhoto.left}px`,
+            top: `${sourcePhoto.top}px`,
+            width: `${sourcePhoto.width}px`,
+            height: `${sourcePhoto.height}px`,
+            transform: zoom,
+          },
+          {
+            left: "0px",
+            top: "0px",
+            width: `${targetPhoto.width}px`,
+            height: `${targetPhoto.height}px`,
+            transform: "none",
+          },
+        ],
+        timing,
+      );
+      hoverImage?.animate(
+        [{ opacity: 1 }, { opacity: 0 }],
+        { duration: 150, easing: "ease-out", fill: "forwards" },
+      );
+      animation = flyer.animate(
+        [
+          {
+            left: `${from.left}px`,
+            top: `${from.top}px`,
+            width: `${from.width}px`,
+            height: `${from.height}px`,
+            borderRadius: sourceRadius,
+          },
+          {
+            left: `${targetPhoto.left}px`,
+            top: `${targetPhoto.top}px`,
+            width: `${targetPhoto.width}px`,
+            height: `${targetPhoto.height}px`,
+            borderRadius: "8px",
+          },
+        ],
+        timing,
+      );
+    } else {
+      const transform = photoDeltaTransform(from, to);
+      if (!transform) {
+        removeFlyer(flyer);
+        return;
+      }
+      if (zoom !== "none") image.animate([{ transform: zoom }, { transform: "none" }], timing);
+      hoverImage?.animate(
+        [{ opacity: 1 }, { opacity: 0 }],
+        { duration: 150, easing: "ease-out", fill: "forwards" },
+      );
+      animation = flyer.animate([{ transform: "none" }, { transform }], timing);
+    }
+
     animation.onfinish = () => {
       // Hold over the gallery until its own photo has arrived, however long the
       // page takes, so the photo never gives way to an empty frame.
       const holdStart = performance.now();
       const landedScrollY = window.scrollY;
+      let decoding = false;
       const hold = () => {
         if (flyer !== activeFlyer) return;
         const shown = document.querySelector<HTMLImageElement>(`${selector} img`);
         const gone = !onListingPage() || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX;
-        if (gone || shown?.complete || performance.now() - holdStart > LANDED_HOLD_MS) removeFlyer(flyer);
-        else requestAnimationFrame(hold);
+        if (gone || performance.now() - holdStart > LANDED_HOLD_MS) {
+          removeFlyer(flyer);
+          return;
+        }
+        if (shown?.complete && shown.naturalWidth > 0 && !decoding) {
+          decoding = true;
+          shown.decode().catch(() => undefined).then(() => {
+            if (flyer !== activeFlyer) return;
+            if (!onListingPage() || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX) {
+              removeFlyer(flyer);
+              return;
+            }
+            // The decoded page image is already under the flyer at the same
+            // geometry. Removing it directly avoids a pale double exposure.
+            discardFlyer(flyer);
+          });
+        }
+        requestAnimationFrame(hold);
       };
       hold();
     };
