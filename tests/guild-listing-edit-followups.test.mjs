@@ -69,9 +69,6 @@ describe("guild and listing-edit audit follow-ups", () => {
   it("keeps Guild case metrics and reinstatement checks on active unresolved cases", () => {
     const metrics = source("src/lib/metrics.ts");
     const metricsState = source("src/lib/metricsState.ts");
-    const metricsAuthority = source(
-      "prisma/migrations/20261102030000_prepare_seller_metrics_authorities/migration.sql",
-    );
     const revocationAuthority = source(
       sellerProfilePrivateMigrationPath("20261014200000_prepare_seller_profile_private_guild_member_revocation_authority"),
     );
@@ -80,14 +77,12 @@ describe("guild and listing-edit audit follow-ups", () => {
     );
     const adminVerification = source("src/app/admin/verification/page.tsx");
 
-    assert.match(metrics, /grainline_seller_metrics_owner_state/);
+    assert.match(metrics, /getCaseSellerActiveCount\(sellerProfileId, db\)/);
     assert.doesNotMatch(metrics, /\b(?:db|prisma)\.case\./);
     assert.match(metrics, /from "@\/lib\/metricsState"/);
-    assert.match(metricsAuthority, /grainline_case_seller_active_count\(/);
-    assert.match(metricsAuthority, /INTO source_active_case_count/);
     assert.match(metricsState, /export const METRICS_PERIOD_DAYS_PER_MONTH = 30/);
-    assert.match(metricsAuthority, /database_now timestamp\(3\)[^;]*:=/);
-    assert.match(metricsAuthority, /pg_catalog\.make_interval\(days => p_period_months \* 30\)/);
+    assert.match(metrics, /const now = new Date\(\)/);
+    assert.match(metrics, /metricsPeriodStart\(now, periodMonths\)/);
     assert.doesNotMatch(metricsState, /setMonth\(/);
     assert.match(revocationAuthority, /grainline_case_guild_unresolved_guard/);
     assert.doesNotMatch(revocationAuthority, /p_case_created_before/);
