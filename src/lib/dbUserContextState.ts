@@ -11,6 +11,7 @@ export type DbUserContextTransactionOptions = {
   maxWait?: number;
   timeout?: number;
   serializableRetry?: boolean;
+  transactionRetry?: boolean;
 };
 
 export function normalizeDbUserContextUserId(userId: string) {
@@ -27,6 +28,9 @@ export function normalizeDbUserContextUserId(userId: string) {
 }
 
 export function dbUserContextTransactionOptions(options: DbUserContextTransactionOptions = {}) {
+  if (options.serializableRetry && options.transactionRetry) {
+    throw new Error("RLS database user context retry modes are mutually exclusive");
+  }
   const isolationLevel =
     options.isolationLevel ??
     (options.serializableRetry ? DB_USER_CONTEXT_SERIALIZABLE_ISOLATION_LEVEL : undefined);

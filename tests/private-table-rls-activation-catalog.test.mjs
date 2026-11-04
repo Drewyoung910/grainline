@@ -53,6 +53,20 @@ test("catalog byte-seals the combined policyless activation and rollback", () =>
   );
 });
 
+test("catalog byte-seals the coupled Commission domain activation", () => {
+  const commission = privateTableRlsActivation("commission_domain_v1");
+  const commissionVerified = verifyPrivateTableRlsActivationSource(
+    "commission_domain_v1",
+  );
+  assert.equal(commission.table, "CommissionRequest");
+  assert.deepEqual(commission.additionalTables, ["CommissionInterest"]);
+  assert.equal(commission.mode, "policyless_combined_enable_force");
+  assert.deepEqual(commission.policies, []);
+  assert.deepEqual(commission.activatedRuntimePrivileges, []);
+  assert.equal(commissionVerified.migrationDigest, commission.migrationSha256);
+  assert.equal(commissionVerified.rollbackDigest, commission.rollbackSha256);
+});
+
 test("catalog orders and byte-seals the owner social verification activation batch", () => {
   const releaseIds = privateTableRlsActivationReleaseIds(
     "owner_social_verification_v1",
@@ -77,11 +91,70 @@ test("catalog orders and byte-seals the owner social verification activation bat
     ["SELECT"],
     [],
   ]);
+  assert.deepEqual(releases[1]?.functionChanges.retained, [
+    {
+      name: "grainline_user_follower_notification_page",
+      arguments: "text, text, integer",
+      sourceMd5: "471b1caf9907d6d370ec1cb8ea5aa718",
+      securityDefiner: true,
+      predecessorExecuteRole: "runtime",
+      activatedExecuteRole: "none",
+    },
+  ]);
   for (const id of releaseIds) {
     const entry = verifyPrivateTableRlsActivationSource(id);
     assert.equal(entry.migrationDigest, entry.release.migrationSha256);
     assert.equal(entry.rollbackDigest, entry.release.rollbackSha256);
   }
+});
+
+test("catalog byte-seals the policyless SellerBroadcast activation", () => {
+  const broadcast = privateTableRlsActivation("seller_broadcast_v1");
+  const source = verifyPrivateTableRlsActivationSource("seller_broadcast_v1");
+  assert.equal(broadcast.table, "SellerBroadcast");
+  assert.equal(broadcast.mode, "policyless_combined_enable_force");
+  assert.equal(broadcast.preparation.functions.length, 15);
+  assert.deepEqual(broadcast.policies, []);
+  assert.deepEqual(broadcast.activatedRuntimePrivileges, []);
+  assert.equal(source.migrationDigest, broadcast.migrationSha256);
+  assert.equal(source.rollbackDigest, broadcast.rollbackSha256);
+});
+
+test("catalog byte-seals AdminAuditLog and every FORCE-crossing authority", () => {
+  const audit = privateTableRlsActivation("admin_audit_log_v1");
+  const source = verifyPrivateTableRlsActivationSource("admin_audit_log_v1");
+  assert.equal(audit.table, "AdminAuditLog");
+  assert.equal(audit.mode, "policyless_combined_enable_force");
+  assert.equal(
+    audit.minimumCompatibleAppCommit,
+    "f17482eb25adcf6d8d6c0f7d60eb1d1222414883",
+  );
+  assert.equal(audit.preparation.functions.length, 16);
+  assert.equal(audit.preparation.retainedFunctions.length, 23);
+  assert.deepEqual(audit.activatedRuntimePrivileges, []);
+  assert.deepEqual(audit.activatedStaffPrivileges, []);
+  assert.deepEqual(audit.activatedAccountDeletionPrivileges, []);
+  assert.equal(source.migrationDigest, audit.migrationSha256);
+  assert.equal(source.rollbackDigest, audit.rollbackSha256);
+});
+
+test("catalog byte-seals policyless SellerMetrics activation", () => {
+  const metrics = privateTableRlsActivation("seller_metrics_v1");
+  const source = verifyPrivateTableRlsActivationSource("seller_metrics_v1");
+  assert.equal(metrics.table, "SellerMetrics");
+  assert.equal(metrics.mode, "policyless_combined_enable_force");
+  assert.equal(
+    metrics.minimumCompatibleAppCommit,
+    "b4ab428d1e7b62b5bff56ebb0a60a5678fa99aa9",
+  );
+  assert.equal(metrics.preparation.functions.length, 4);
+  assert.equal(metrics.preparation.retainedFunctions.length, 5);
+  assert.deepEqual(metrics.policies, []);
+  assert.deepEqual(metrics.activatedRuntimePrivileges, []);
+  assert.deepEqual(metrics.activatedStaffPrivileges, []);
+  assert.deepEqual(metrics.activatedAccountDeletionPrivileges, []);
+  assert.equal(source.migrationDigest, metrics.migrationSha256);
+  assert.equal(source.rollbackDigest, metrics.rollbackSha256);
 });
 
 test("batch source verification prefers each release's staged paths", () => {

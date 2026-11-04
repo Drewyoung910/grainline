@@ -8,8 +8,12 @@ import pg from "pg";
 
 import {
   privateTableRlsActivation,
+  privateTableRlsActivationTables,
   verifyPrivateTableRlsActivationSource,
 } from "./private-table-rls-activation-catalog.mjs";
+import {
+  privateTableFunctionExecuteRoles,
+} from "./private-table-preparation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import {
   isReviewedSuccessfulMigration,
@@ -56,14 +60,15 @@ function postureFromRow(row) {
     rlsForced: row.rls_forced,
     policyCount: row.policy_count,
     ...Object.fromEntries(
-      ["runtime", "staff", "public"].flatMap((role) =>
+      ["runtime", "staff", "accountDeletion", "public"].flatMap((role) =>
         TABLE_PRIVILEGES.map((privilege) => [
           `${role}${privilege}`,
-          row[`${role}_${privilege.toLowerCase()}`],
+          row[`${role === "accountDeletion" ? "account_deletion" : role}_${privilege.toLowerCase()}`],
         ])),
     ),
     runtimeAnyColumn: row.runtime_any_column,
     staffAnyColumn: row.staff_any_column,
+    accountDeletionAnyColumn: row.account_deletion_any_column,
     publicAnyColumn: row.public_any_column,
     nonOwnerTableAclCount: row.non_owner_table_acl_count,
     nonOwnerColumnAclCount: row.non_owner_column_acl_count,
@@ -89,7 +94,7 @@ function assertReadyPosture(posture, release) {
   for (const [key, value] of Object.entries(expected)) {
     assert.equal(posture[key], value, `${key} drifted before activation`);
   }
-  for (const role of ["staff", "public"]) {
+  for (const role of ["staff", "accountDeletion", "public"]) {
     for (const privilege of TABLE_PRIVILEGES) {
       assert.equal(posture[`${role}${privilege}`], false, `${role}${privilege} drifted`);
     }
@@ -99,6 +104,11 @@ function assertReadyPosture(posture, release) {
   }
   assert.equal(posture.runtimeAnyColumn, true, "runtime predecessor column authority drifted");
   assert.equal(posture.staffAnyColumn, false, "staff predecessor column authority drifted");
+  assert.equal(
+    posture.accountDeletionAnyColumn,
+    false,
+    "account-deletion predecessor column authority drifted",
+  );
   assert.equal(posture.publicAnyColumn, false, "PUBLIC predecessor column authority drifted");
   assert.equal(
     posture.nonOwnerTableAclCount,
@@ -108,12 +118,17 @@ function assertReadyPosture(posture, release) {
   assert.equal(posture.nonOwnerColumnAclCount, 0, "column ACL drifted before activation");
 }
 
-function assertActivePosture(posture, release) {
+function assertActivePosture(posture, release, expectedPolicyCount) {
   assert.equal(posture.rlsEnabled, true, "RLS is not enabled");
   assert.equal(posture.rlsForced, true, "RLS is not forced");
-  assert.equal(posture.policyCount, release.policies.length, "policy count drifted");
+  assert.equal(posture.policyCount, expectedPolicyCount, "policy count drifted");
   assertRolePrivileges(posture, "runtime", release.activatedRuntimePrivileges);
   assertRolePrivileges(posture, "staff", release.activatedStaffPrivileges);
+  assertRolePrivileges(
+    posture,
+    "accountDeletion",
+    release.activatedAccountDeletionPrivileges ?? [],
+  );
   assertRolePrivileges(posture, "public", release.activatedPublicPrivileges);
   assert.equal(
     posture.runtimeAnyColumn,
@@ -123,11 +138,17 @@ function assertActivePosture(posture, release) {
     "runtime column authority drifted",
   );
   assert.equal(posture.staffAnyColumn, false, "staff column authority remains");
+  assert.equal(
+    posture.accountDeletionAnyColumn,
+    false,
+    "account-deletion column authority remains",
+  );
   assert.equal(posture.publicAnyColumn, false, "PUBLIC column authority remains");
   assert.equal(
     posture.nonOwnerTableAclCount,
     release.activatedRuntimePrivileges.length
       + release.activatedStaffPrivileges.length
+      + (release.activatedAccountDeletionPrivileges ?? []).length
       + release.activatedPublicPrivileges.length,
     "non-owner table ACL drifted",
   );
@@ -141,6 +162,7 @@ function assertPolicies(rows, release, active) {
   for (const row of rows) {
     const policy = expectedByName.get(row.name);
     assert.ok(policy, `unexpected policy ${row.name}`);
+    assert.equal(row.table_name, release.table, `${row.name} table drifted`);
     assert.equal(row.command, policy.command, `${row.name} command drifted`);
     assert.equal(row.permissive, policy.permissive, `${row.name} permissiveness drifted`);
     assert.deepEqual(row.roles, policy.roles, `${row.name} roles drifted`);
@@ -167,16 +189,25 @@ function expectedFunctions(verified, active) {
   const entries = verified.preparation.release.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRole: entry.executeRole ?? "runtime",
+    executeRoles: privateTableFunctionExecuteRoles(entry),
     source: verified.preparation.functionSources.get(entry.name),
   }));
+  for (const entry of verified.preparation.release.retainedFunctions ?? []) {
+    entries.push({
+      name: entry.name,
+      arguments: entry.arguments,
+      executeRoles: privateTableFunctionExecuteRoles(entry),
+      sourceSha256: entry.sourceSha256,
+    });
+  }
   for (const retained of verified.release.functionChanges.retained) {
     entries.push({
       name: retained.name,
       arguments: retained.arguments,
-      executeRole: active
+      securityDefiner: retained.securityDefiner,
+      executeRoles: [active
         ? retained.activatedExecuteRole
-        : retained.predecessorExecuteRole,
+        : retained.predecessorExecuteRole].filter((role) => role !== "none"),
       sourceMd5: retained.sourceMd5,
     });
   }
@@ -190,12 +221,12 @@ function expectedFunctions(verified, active) {
       entries.push({
         ...predecessor,
         name: replacement.compatibilityName,
-        executeRole: "none",
+        executeRoles: [],
       });
       entries.push({
         name: replacement.name,
         arguments: replacement.arguments,
-        executeRole: predecessor.executeRole,
+        executeRoles: predecessor.executeRoles,
         source: verified.activeFunctionSources.get(replacement.name),
       });
     }
@@ -203,7 +234,7 @@ function expectedFunctions(verified, active) {
       entries.push({
         name: addition.name,
         arguments: addition.arguments,
-        executeRole: addition.executeRole,
+        executeRoles: addition.executeRole === "none" ? [] : [addition.executeRole],
         source: verified.activeFunctionSources.get(addition.name),
       });
     }
@@ -213,8 +244,13 @@ function expectedFunctions(verified, active) {
 
 async function readFunctions(client, verified, tableOwner, active) {
   const expectedEntries = expectedFunctions(verified, active);
-  const names = expectedEntries.map((entry) => entry.name);
+  const identities = expectedEntries.map((entry) => (
+    `public.${entry.name}(${entry.arguments})`
+  ));
   const rows = (await client.query(`
+    WITH expected(identity) AS (
+      SELECT pg_catalog.unnest($1::text[])
+    )
     SELECT procedure.proname AS function_name,
            pg_catalog.oidvectortypes(procedure.proargtypes)::text AS identity_arguments,
            owner.rolname AS owner_name,
@@ -222,22 +258,27 @@ async function readFunctions(client, verified, tableOwner, active) {
            procedure.prosecdef AS security_definer,
            procedure.proconfig AS configuration,
            procedure.prosrc AS source,
+           pg_catalog.md5(procedure.prosrc) AS source_md5,
            pg_catalog.has_function_privilege(
              'grainline_app_runtime', procedure.oid, 'EXECUTE'
            ) AS runtime_execute,
            pg_catalog.has_function_privilege(
              'grainline_staff_read_runtime', procedure.oid, 'EXECUTE'
            ) AS staff_execute,
+           pg_catalog.has_function_privilege(
+             'grainline_account_deletion_runtime', procedure.oid, 'EXECUTE'
+           ) AS account_deletion_execute,
            pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
              AS public_execute
-      FROM pg_catalog.pg_proc AS procedure
+      FROM expected
+      JOIN pg_catalog.pg_proc AS procedure
+        ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = procedure.pronamespace
       JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
      WHERE namespace.nspname = 'public'
-       AND procedure.proname = ANY($1::text[])
      ORDER BY procedure.proname, identity_arguments
-  `, [names])).rows;
+  `, [identities])).rows;
   assert.equal(rows.length, expectedEntries.length, "function count drifted");
   const expected = new Map(expectedEntries.map((entry) => [
     `${entry.name}(${entry.arguments})`,
@@ -249,25 +290,40 @@ async function readFunctions(client, verified, tableOwner, active) {
     assert.ok(entry, `unexpected function overload ${identity}`);
     assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
     assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
-    assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
+    assert.equal(
+      row.security_definer,
+      entry.securityDefiner ?? true,
+      `${identity} SECURITY mode drifted`,
+    );
     assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
     assert.equal(
       row.runtime_execute,
-      entry.executeRole === "runtime",
+      entry.executeRoles.includes("runtime"),
       `${identity} runtime EXECUTE drifted`,
     );
     assert.equal(
       row.staff_execute,
-      entry.executeRole === "staff",
+      entry.executeRoles.includes("staff"),
       `${identity} staff EXECUTE drifted`,
+    );
+    assert.equal(
+      row.account_deletion_execute,
+      entry.executeRoles.includes("account_deletion"),
+      `${identity} account-deletion EXECUTE drifted`,
     );
     assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
     if (entry.source !== undefined) {
       assert.equal(row.source, entry.source, `${identity} body drifted`);
+    } else if (entry.sourceMd5 !== undefined) {
+      assert.equal(
+        row.source_md5,
+        entry.sourceMd5,
+        `${identity} body drifted`,
+      );
     } else {
       assert.equal(
-        createHash("md5").update(row.source, "utf8").digest("hex"),
-        entry.sourceMd5,
+        createHash("sha256").update(row.source, "utf8").digest("hex"),
+        entry.sourceSha256,
         `${identity} body drifted`,
       );
     }
@@ -282,8 +338,56 @@ async function readFunctions(client, verified, tableOwner, active) {
     configuration: row.configuration,
     runtimeExecute: row.runtime_execute,
     staffExecute: row.staff_execute,
+    accountDeletionExecute: row.account_deletion_execute,
     publicExecute: row.public_execute,
     sourceSha256: createHash("sha256").update(row.source, "utf8").digest("hex"),
+  }));
+}
+
+async function readPreparationTriggers(client, verified) {
+  const expectedEntries = verified.preparation.release.addedTriggers ?? [];
+  if (expectedEntries.length === 0) return [];
+  const rows = (await client.query(`
+    SELECT target.relname AS table_name,
+           trigger_state.tgname AS trigger_name,
+           trigger_state.tgenabled AS enabled,
+           trigger_state.tgtype::integer AS type,
+           trigger_function.proname AS function_name,
+           pg_catalog.oidvectortypes(trigger_function.proargtypes)::text
+             AS function_arguments
+      FROM pg_catalog.pg_trigger AS trigger_state
+      JOIN pg_catalog.pg_class AS target ON target.oid = trigger_state.tgrelid
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = target.relnamespace
+      JOIN pg_catalog.pg_proc AS trigger_function
+        ON trigger_function.oid = trigger_state.tgfoid
+     WHERE namespace.nspname = 'public'
+       AND trigger_state.tgname = ANY($1::text[])
+       AND NOT trigger_state.tgisinternal
+     ORDER BY target.relname, trigger_state.tgname
+  `, [expectedEntries.map((entry) => entry.name)])).rows;
+  assert.equal(rows.length, expectedEntries.length, "preparation trigger count drifted");
+  const expected = new Map(expectedEntries.map((entry) => [
+    `${entry.table ?? verified.preparation.release.table}:${entry.name}`,
+    entry,
+  ]));
+  for (const row of rows) {
+    const identity = `${row.table_name}:${row.trigger_name}`;
+    const entry = expected.get(identity);
+    assert.ok(entry, `unexpected preparation trigger ${identity}`);
+    assert.equal(row.enabled, entry.enabled, `${identity} enabled state drifted`);
+    assert.equal(Number(row.type), entry.type, `${identity} type drifted`);
+    assert.equal(row.function_name, entry.function, `${identity} function drifted`);
+    assert.equal(row.function_arguments, "", `${identity} function arguments drifted`);
+    expected.delete(identity);
+  }
+  assert.equal(expected.size, 0, "reviewed preparation trigger is absent");
+  return rows.map((row) => Object.freeze({
+    table: row.table_name,
+    name: row.trigger_name,
+    enabled: row.enabled,
+    type: Number(row.type),
+    function: row.function_name,
   }));
 }
 
@@ -301,6 +405,7 @@ export async function inspectPrivateTableRlsActivationProduction(
 
   const verified = verifyPrivateTableRlsActivationSource(releaseId, rootDir);
   const release = privateTableRlsActivation(releaseId);
+  const tables = privateTableRlsActivationTables(release);
   const parsed = new URL(directUrl);
   const client = new Client({
     connectionString: directUrl,
@@ -314,10 +419,12 @@ export async function inspectPrivateTableRlsActivationProduction(
   try {
     await client.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const row = (await client.query(`
+    const tableReferences = tables.map((table) => `public."${table}"`);
+    const tableRows = (await client.query(`
       SELECT pg_catalog.current_database() AS database_name,
              current_user AS current_user_name,
              session_user AS session_user_name,
+             target.relname AS table_name,
              owner.rolname AS table_owner_name,
              owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
              target.relrowsecurity AS rls_enabled,
@@ -339,6 +446,13 @@ export async function inspectPrivateTableRlsActivationProduction(
              pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRUNCATE') AS staff_truncate,
              pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'REFERENCES') AS staff_references,
              pg_catalog.has_table_privilege('grainline_staff_read_runtime', target.oid, 'TRIGGER') AS staff_trigger,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'SELECT') AS account_deletion_select,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'INSERT') AS account_deletion_insert,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'UPDATE') AS account_deletion_update,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'DELETE') AS account_deletion_delete,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'TRUNCATE') AS account_deletion_truncate,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'REFERENCES') AS account_deletion_references,
+             pg_catalog.has_table_privilege('grainline_account_deletion_runtime', target.oid, 'TRIGGER') AS account_deletion_trigger,
              pg_catalog.has_table_privilege(0, target.oid, 'SELECT') AS public_select,
              pg_catalog.has_table_privilege(0, target.oid, 'INSERT') AS public_insert,
              pg_catalog.has_table_privilege(0, target.oid, 'UPDATE') AS public_update,
@@ -352,6 +466,9 @@ export async function inspectPrivateTableRlsActivationProduction(
              pg_catalog.has_any_column_privilege(
                'grainline_staff_read_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
              ) AS staff_any_column,
+             pg_catalog.has_any_column_privilege(
+               'grainline_account_deletion_runtime', target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+             ) AS account_deletion_any_column,
              pg_catalog.has_any_column_privilege(
                0, target.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
              ) AS public_any_column,
@@ -369,13 +486,26 @@ export async function inspectPrivateTableRlsActivationProduction(
                  AND acl.grantee <> target.relowner) AS non_owner_column_acl_count
         FROM pg_catalog.pg_class AS target
         JOIN pg_catalog.pg_roles AS owner ON owner.oid = target.relowner
-       WHERE target.oid = $1::pg_catalog.regclass
+       WHERE target.oid = ANY($1::pg_catalog.regclass[])
          AND target.relkind = 'r'
-    `, [`public."${release.table}"`])).rows[0];
-    assert.ok(row, "reviewed table is absent");
-    assert.equal(row.current_user_name, row.session_user_name, "owner session is indirect");
-    assert.equal(row.current_user_name, row.table_owner_name, "session is not table owner");
-    assert.equal(row.owner_bypasses_rls, true, "table owner cannot bypass FORCE");
+       ORDER BY target.relname
+    `, [tableReferences])).rows;
+    assert.equal(tableRows.length, tables.length, "reviewed table count drifted");
+    assert.deepEqual(
+      tableRows.map((row) => row.table_name).sort(),
+      [...tables].sort(),
+      "reviewed table set drifted",
+    );
+    const tableOwners = new Set();
+    for (const row of tableRows) {
+      assert.equal(row.current_user_name, row.session_user_name, "owner session is indirect");
+      assert.equal(row.current_user_name, row.table_owner_name, `${row.table_name} session is not table owner`);
+      assert.equal(row.owner_bypasses_rls, true, `${row.table_name} owner cannot bypass FORCE`);
+      tableOwners.add(row.table_owner_name);
+    }
+    assert.equal(tableOwners.size, 1, "reviewed table owners differ");
+    const primaryRow = tableRows.find((row) => row.table_name === release.table);
+    assert.ok(primaryRow, "primary reviewed table is absent");
 
     const roles = (await client.query(`
       SELECT rolname, rolsuper, rolinherit, rolcanlogin, rolcreatedb,
@@ -383,8 +513,12 @@ export async function inspectPrivateTableRlsActivationProduction(
         FROM pg_catalog.pg_roles
        WHERE rolname = ANY($1::text[])
        ORDER BY rolname
-    `, [["grainline_app_runtime", "grainline_staff_read_runtime"]])).rows;
-    assert.equal(roles.length, 2, "restricted role count drifted");
+    `, [[
+      "grainline_account_deletion_runtime",
+      "grainline_app_runtime",
+      "grainline_staff_read_runtime",
+    ]])).rows;
+    assert.equal(roles.length, 3, "restricted role count drifted");
     assertRestrictedRole(
       roles.find((entry) => entry.rolname === "grainline_app_runtime"),
       "grainline_app_runtime",
@@ -393,9 +527,14 @@ export async function inspectPrivateTableRlsActivationProduction(
       roles.find((entry) => entry.rolname === "grainline_staff_read_runtime"),
       "grainline_staff_read_runtime",
     );
+    assertRestrictedRole(
+      roles.find((entry) => entry.rolname === "grainline_account_deletion_runtime"),
+      "grainline_account_deletion_runtime",
+    );
 
     const policies = (await client.query(`
-      SELECT policy.polname AS name,
+      SELECT target.relname AS table_name,
+             policy.polname AS name,
              policy.polcmd AS command,
              policy.polpermissive AS permissive,
              ARRAY(
@@ -409,9 +548,10 @@ export async function inspectPrivateTableRlsActivationProduction(
              pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, false) AS "using",
              pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, false) AS with_check
         FROM pg_catalog.pg_policy AS policy
-       WHERE policy.polrelid = $1::pg_catalog.regclass
-       ORDER BY policy.polname
-    `, [`public."${release.table}"`])).rows;
+        JOIN pg_catalog.pg_class AS target ON target.oid = policy.polrelid
+       WHERE policy.polrelid = ANY($1::pg_catalog.regclass[])
+       ORDER BY target.relname, policy.polname
+    `, [tableReferences])).rows;
 
     const ledger = (await client.query(`
       SELECT migration_name, checksum, finished_at, rolled_back_at,
@@ -426,20 +566,29 @@ export async function inspectPrivateTableRlsActivationProduction(
       "compatible preparation is not applied",
     );
     const recorded = successfulMigration(ledger, release);
-    const posture = postureFromRow(row);
-    let activeCatalog = false;
-    try {
-      assertActivePosture(posture, release);
-      assertPolicies(policies, release, true);
-      activeCatalog = true;
-    } catch (activeError) {
+    const reviewedTables = tableRows.map((row) => {
+      const posture = postureFromRow(row);
+      const expectedPolicyCount = row.table_name === release.table
+        ? release.policies.length
+        : 0;
+      let state;
       try {
-        assertReadyPosture(posture, release);
-        assertPolicies(policies, release, false);
-      } catch {
-        throw activeError;
+        assertActivePosture(posture, release, expectedPolicyCount);
+        state = "active";
+      } catch (activeError) {
+        try {
+          assertReadyPosture(posture, release);
+          state = "ready";
+        } catch {
+          throw activeError;
+        }
       }
-    }
+      return Object.freeze({ table: row.table_name, posture, state });
+    });
+    const tableStates = new Set(reviewedTables.map((entry) => entry.state));
+    assert.equal(tableStates.size, 1, "reviewed tables are partially activated");
+    const activeCatalog = reviewedTables[0].state === "active";
+    assertPolicies(policies, release, activeCatalog);
     if (recorded) assert.equal(activeCatalog, true, "recorded activation has predecessor posture");
     const state = recorded
       ? "active"
@@ -451,9 +600,10 @@ export async function inspectPrivateTableRlsActivationProduction(
     const functions = await readFunctions(
       client,
       verified,
-      row.table_owner_name,
+      primaryRow.table_owner_name,
       activeCatalog,
     );
+    const triggers = await readPreparationTriggers(client, verified);
     await client.query("COMMIT");
     const evidence = Object.freeze({
       releaseId,
@@ -464,13 +614,25 @@ export async function inspectPrivateTableRlsActivationProduction(
       activationMigration: release.migration,
       activationMigrationSha256: verified.migrationDigest,
       rollbackSha256: verified.rollbackDigest,
-      databaseName: row.database_name,
-      migrationRole: row.current_user_name,
+      databaseName: primaryRow.database_name,
+      migrationRole: primaryRow.current_user_name,
       table: release.table,
+      tables: reviewedTables,
       roles: roles.map((entry) => Object.freeze({ ...entry })),
-      posture,
+      posture: reviewedTables.find((entry) => entry.table === release.table).posture,
+      postures: Object.fromEntries(reviewedTables.map((entry) => [
+        entry.table,
+        entry.posture,
+      ])),
       policies: policies.map((entry) => Object.freeze({ ...entry })),
+      policiesByTable: Object.fromEntries(tables.map((table) => [
+        table,
+        policies
+          .filter((entry) => entry.table_name === table)
+          .map((entry) => Object.freeze({ ...entry })),
+      ])),
       functions,
+      triggers,
       productionChanged: false,
       containsRowData: false,
     });
@@ -481,6 +643,16 @@ export async function inspectPrivateTableRlsActivationProduction(
       assert.equal(previous.releaseId, evidence.releaseId, "release evidence drifted");
       assert.equal(previous.releaseCommit, evidence.releaseCommit, "commit evidence drifted");
       assert.equal(previous.activationMigration, evidence.activationMigration, "migration evidence drifted");
+      const previousTableNames = Array.isArray(previous.tables)
+        ? previous.tables.map((entry) => (
+          typeof entry === "string" ? entry : entry.table
+        ))
+        : [previous.table];
+      assert.deepEqual(
+        previousTableNames,
+        evidence.tables.map((entry) => entry.table),
+        "table group drifted",
+      );
       assert.equal(
         ["ready", "active_unrecorded", "active"].includes(previous.state),
         true,
@@ -496,6 +668,11 @@ export async function inspectPrivateTableRlsActivationProduction(
           previous.functions,
           evidence.functions,
           "function boundary changed during activation",
+        );
+        assert.deepEqual(
+          previous.triggers,
+          evidence.triggers,
+          "trigger boundary changed during activation",
         );
       }
     }

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,6 +9,10 @@ import {
   privateTableRlsActivation,
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
+import {
+  functionSourceFromMigration,
+  privateTableFunctionExecuteRoles,
+} from "../scripts/private-table-preparation-catalog.mjs";
 import {
   inspectPrivateTableRlsActivationProduction,
 } from "../scripts/private-table-rls-activation-production-inspect.mjs";
@@ -19,6 +24,36 @@ import {
 const releaseId = "maker_verification_v1";
 const release = privateTableRlsActivation(releaseId);
 const verified = verifyPrivateTableRlsActivationSource(releaseId);
+const userAccumulatedAccessMigrationsDir =
+  process.env.USER_ACCUMULATED_ACCESS_MIGRATIONS_DIR || "prisma/migrations";
+const conversationAuthorityMigration = readFileSync(
+  join(
+    userAccumulatedAccessMigrationsDir,
+    "20261007160000_converge_user_cross_domain_authorities",
+    "migration.sql",
+  ),
+  "utf8",
+);
+const initialConversationAuthorityMigration = readFileSync(
+  "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+  "utf8",
+);
+const retainedSourceByName = new Map([
+  [
+    "grainline_conversation_inbox",
+    functionSourceFromMigration(
+      conversationAuthorityMigration,
+      "grainline_conversation_inbox",
+    ),
+  ],
+  [
+    "grainline_message_unread_count",
+    functionSourceFromMigration(
+      initialConversationAuthorityMigration,
+      "grainline_message_unread_count",
+    ),
+  ],
+]);
 
 function migrationRow(entry, appliedStepsCount = 1) {
   return {
@@ -35,6 +70,7 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
     ? selectedRelease.activatedRuntimePrivileges
     : selectedRelease.predecessorRuntimePrivileges;
   return {
+    table_name: selectedRelease.table,
     database_name: "grainline",
     current_user_name: "neondb_owner",
     session_user_name: "neondb_owner",
@@ -57,6 +93,13 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
     staff_truncate: false,
     staff_references: false,
     staff_trigger: false,
+    account_deletion_select: false,
+    account_deletion_insert: false,
+    account_deletion_update: false,
+    account_deletion_delete: false,
+    account_deletion_truncate: false,
+    account_deletion_references: false,
+    account_deletion_trigger: false,
     public_select: false,
     public_insert: false,
     public_update: false,
@@ -68,6 +111,7 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
       ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(privilege)
     )),
     staff_any_column: false,
+    account_deletion_any_column: false,
     public_any_column: false,
     non_owner_table_acl_count: privileges.length,
     non_owner_column_acl_count: 0,
@@ -76,7 +120,11 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
 }
 
 function roleRows() {
-  return ["grainline_app_runtime", "grainline_staff_read_runtime"].map((rolname) => ({
+  return [
+    "grainline_account_deletion_runtime",
+    "grainline_app_runtime",
+    "grainline_staff_read_runtime",
+  ].map((rolname) => ({
     rolname,
     rolsuper: false,
     rolinherit: false,
@@ -90,6 +138,7 @@ function roleRows() {
 
 function policyRows(selectedRelease) {
   return selectedRelease.policies.map((policy) => ({
+    table_name: selectedRelease.table,
     name: policy.name,
     command: policy.command,
     permissive: policy.permissive,
@@ -103,17 +152,19 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
   const entries = selectedRelease.preparation.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRole: entry.executeRole ?? "runtime",
+    executeRoles: privateTableFunctionExecuteRoles(entry),
     source: selectedVerified.preparation.functionSources.get(entry.name),
   }));
   for (const retained of selectedRelease.functionChanges.retained) {
     entries.push({
       name: retained.name,
       arguments: retained.arguments,
-      executeRole: active
+      securityDefiner: retained.securityDefiner,
+      executeRoles: [active
         ? retained.activatedExecuteRole
-        : retained.predecessorExecuteRole,
-      source: "retained source",
+        : retained.predecessorExecuteRole].filter((role) => role !== "none"),
+      source: retainedSourceByName.get(retained.name) ?? "retained source",
+      sourceMd5: retained.sourceMd5,
     });
   }
   if (active) {
@@ -125,12 +176,12 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       entries.push({
         ...predecessor,
         name: replacement.compatibilityName,
-        executeRole: "none",
+        executeRoles: [],
       });
       entries.push({
         name: replacement.name,
         arguments: replacement.arguments,
-        executeRole: predecessor.executeRole,
+        executeRoles: predecessor.executeRoles,
         source: selectedVerified.activeFunctionSources.get(replacement.name),
       });
     }
@@ -138,7 +189,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       entries.push({
         name: addition.name,
         arguments: addition.arguments,
-        executeRole: addition.executeRole,
+        executeRoles: addition.executeRole === "none" ? [] : [addition.executeRole],
         source: selectedVerified.activeFunctionSources.get(addition.name),
       });
     }
@@ -149,11 +200,14 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       identity_arguments: entry.arguments,
       owner_name: "neondb_owner",
       owner_bypasses_rls: true,
-      security_definer: true,
+      security_definer: entry.securityDefiner ?? true,
       configuration: ["search_path=pg_catalog"],
       source: entry.source,
-      runtime_execute: entry.executeRole === "runtime",
-      staff_execute: entry.executeRole === "staff",
+      source_md5: entry.sourceMd5
+        ?? createHash("md5").update(entry.source, "utf8").digest("hex"),
+      runtime_execute: entry.executeRoles.includes("runtime"),
+      staff_execute: entry.executeRoles.includes("staff"),
+      account_deletion_execute: entry.executeRoles.includes("account_deletion"),
       public_execute: false,
     }))
     .sort((left, right) => (
@@ -166,20 +220,39 @@ function fakeClientClass({
   active,
   recorded = active,
   tableOverrides = {},
+  tableOverridesByName = {},
   roleOverrides = {},
   selectedRelease = release,
   selectedVerified = verified,
   policyRows = [],
+  tableRowsByTable = {},
+  policyRowsByTable = {},
 }) {
   return class FakeClient {
     async connect() {}
     async end() {}
 
-    async query(statement) {
+    async query(statement, parameters = []) {
       const sql = String(statement);
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
       if (sql.includes("current_database() AS database_name")) {
-        return { rows: [tableRow(active, tableOverrides, selectedRelease)] };
+        const tables = [
+          selectedRelease.table,
+          ...(selectedRelease.additionalTables ?? []),
+        ];
+        return {
+          rows: tables.sort().map((table) => ({
+            ...(tableRowsByTable[`public."${table}"`] ?? tableRow(
+              active,
+              {
+                ...tableOverrides,
+                ...(tableOverridesByName[table] ?? {}),
+              },
+              selectedRelease,
+            )),
+            table_name: table,
+          })),
+        };
       }
       if (sql.includes("rolname, rolsuper, rolinherit")) {
         return {
@@ -198,7 +271,19 @@ function fakeClientClass({
         };
       }
       if (sql.includes("FROM pg_catalog.pg_policy AS policy")) {
-        return { rows: policyRows };
+        return { rows: policyRowsByTable[parameters[0]] ?? policyRows };
+      }
+      if (sql.includes("FROM pg_catalog.pg_trigger AS trigger_state")) {
+        return {
+          rows: (selectedRelease.preparation.addedTriggers ?? []).map((entry) => ({
+            table_name: entry.table ?? selectedRelease.table,
+            trigger_name: entry.name,
+            enabled: entry.enabled,
+            type: entry.type,
+            function_name: entry.function,
+            function_arguments: "",
+          })),
+        };
       }
       if (sql.includes("procedure.prosrc AS source")) {
         return { rows: functionRows(selectedRelease, selectedVerified, active) };
@@ -254,8 +339,8 @@ test("inspector proves ready and active states without row data", async () => {
   }
 });
 
-test("inspector proves exact owner policies and ReviewVote function transitions", async () => {
-  for (const selectedReleaseId of ["favorite_v1", "review_vote_v1"]) {
+test("inspector proves exact policies and function transitions", async () => {
+  for (const selectedReleaseId of ["favorite_v1", "review_vote_v1", "block_v1"]) {
     const selectedRelease = privateTableRlsActivation(selectedReleaseId);
     const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
     const directory = mkdtempSync(join(tmpdir(), `private-table-${selectedReleaseId}-`));
@@ -300,6 +385,105 @@ test("inspector proves exact owner policies and ReviewVote function transitions"
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  }
+});
+
+test("inspector proves the two-table SellerAnalytics activation atomically", async () => {
+  const selectedReleaseId = "seller_analytics_daily_v1";
+  const selectedRelease = privateTableRlsActivation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "private-table-seller-analytics-"));
+  try {
+    assert.equal(
+      REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(selectedRelease.migration),
+      selectedRelease.migrationSha256,
+    );
+    assert.equal(
+      isReviewedSuccessfulMigration(migrationRow(selectedRelease, 0)),
+      true,
+    );
+    const preEnv = environment(directory, "preflight", undefined, selectedReleaseId);
+    const ready = await inspectPrivateTableRlsActivationProduction(
+      preEnv,
+      {
+        Client: fakeClientClass({
+          active: false,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.deepEqual(
+      ready.tables.map((entry) => [entry.table, entry.state]),
+      [
+        ["ListingViewDaily", "ready"],
+        ["SellerProfileViewDaily", "ready"],
+      ],
+    );
+
+    const postEnv = environment(
+      directory,
+      "postflight",
+      preEnv.PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH,
+      selectedReleaseId,
+    );
+    const active = await inspectPrivateTableRlsActivationProduction(
+      postEnv,
+      {
+        Client: fakeClientClass({
+          active: true,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.equal(active.state, "active");
+    assert.equal(active.tables.length, 2);
+    assert.equal(active.tables.every((entry) => entry.state === "active"), true);
+    assert.equal(active.policies.length, 0);
+    assert.equal(
+      active.functions.length,
+      selectedRelease.preparation.functions.length
+        + selectedRelease.functionChanges.retained.length,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector rejects a partially activated two-table release", async () => {
+  const selectedReleaseId = "seller_analytics_daily_v1";
+  const selectedRelease = privateTableRlsActivation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "private-table-seller-partial-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight", undefined, selectedReleaseId),
+        {
+          Client: fakeClientClass({
+            active: true,
+            selectedRelease,
+            selectedVerified,
+            tableOverridesByName: {
+              SellerProfileViewDaily: {
+                rls_enabled: false,
+                rls_forced: false,
+                runtime_select: true,
+                runtime_insert: true,
+                runtime_update: true,
+                runtime_delete: true,
+                runtime_any_column: true,
+                non_owner_table_acl_count: 4,
+              },
+            },
+          }),
+        },
+      ),
+      /reviewed tables are partially activated/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
@@ -358,6 +542,61 @@ test("inspector detects committed activation before Prisma ledger recovery", asy
   }
 });
 
+test("inspector proves coupled Commission tables and refuses a partial activation", async () => {
+  const selectedReleaseId = "commission_domain_v1";
+  const selectedRelease = privateTableRlsActivation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "commission-domain-rls-"));
+  const primary = 'public."CommissionRequest"';
+  const secondary = 'public."CommissionInterest"';
+  try {
+    const preEnv = environment(directory, "preflight", undefined, selectedReleaseId);
+    const ready = await inspectPrivateTableRlsActivationProduction(
+      preEnv,
+      {
+        Client: fakeClientClass({
+          active: false,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.deepEqual(
+      ready.tables.map((entry) => entry.table),
+      ["CommissionInterest", "CommissionRequest"],
+    );
+    assert.deepEqual(
+      Object.keys(ready.postures),
+      ready.tables.map((entry) => entry.table),
+    );
+
+    const partialDirectory = mkdtempSync(join(tmpdir(), "commission-domain-partial-"));
+    try {
+      await assert.rejects(
+        inspectPrivateTableRlsActivationProduction(
+          environment(partialDirectory, "preflight", undefined, selectedReleaseId),
+          {
+            Client: fakeClientClass({
+              active: false,
+              selectedRelease,
+              selectedVerified,
+              tableRowsByTable: {
+                [primary]: tableRow(true, {}, selectedRelease),
+                [secondary]: tableRow(false, {}, selectedRelease),
+              },
+            }),
+          },
+        ),
+        /reviewed tables are partially activated/u,
+      );
+    } finally {
+      rmSync(partialDirectory, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("inspector rejects direct authority after activation", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-rls-authority-"));
   try {
@@ -379,4 +618,38 @@ test("inspector rejects direct authority after activation", async () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("inspector rejects account-deletion direct table authority", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-deletion-authority-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: true,
+            tableOverrides: {
+              account_deletion_select: true,
+              account_deletion_any_column: true,
+              non_owner_table_acl_count: 1,
+            },
+          }),
+        },
+      ),
+      /accountDeletionSelect drifted/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector resolves reviewed function identities without absorbing unrelated overloads", () => {
+  const inspector = readFileSync(
+    "scripts/private-table-rls-activation-production-inspect.mjs",
+    "utf8",
+  );
+
+  assert.match(inspector, /pg_catalog\.to_regprocedure\(expected\.identity\)/u);
+  assert.doesNotMatch(inspector, /procedure\.proname = ANY\(\$1::text\[\]\)/u);
 });

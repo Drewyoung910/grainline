@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
@@ -14,12 +15,31 @@ import {
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
-const RELEASE_SELECTION = "owner_social_verification_v1";
+const RELEASE_SELECTIONS = Object.freeze([
+  "owner_social_verification_v1",
+  "block_report_seller_faq_v1",
+  "commission_domain_v1",
+  "seller_broadcast_v1",
+  "email_service_v1",
+  "seller_analytics_daily_v1",
+  "admin_audit_log_v1",
+  "seller_metrics_v1",
+]);
 const MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_PREPARATION_MIGRATION_PATH",
   follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
+  user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
+  seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
+  commission_domain_v1: "COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH",
+  email_service_v1: "EMAIL_SERVICE_PREPARATION_MIGRATION_PATH",
+  seller_analytics_daily_v1:
+    "SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION_PATH",
+  admin_audit_log_v1: "ADMIN_AUDIT_LOG_PREPARATION_MIGRATION_PATH",
+  seller_metrics_v1: "SELLER_METRICS_PREPARATION_MIGRATION_PATH",
 });
 
 export function privateTableRuntimeReadinessMigrationOverride(
@@ -38,20 +58,39 @@ function sourceSha256(source) {
   return createHash("sha256").update(source, "utf8").digest("hex");
 }
 
-export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
-  privateTablePreparationReleaseIds(RELEASE_SELECTION)
+const reviewedRuntimeReadinessFunctions = RELEASE_SELECTIONS.flatMap((selection) => (
+    privateTablePreparationReleaseIds(selection)
+  ))
     .flatMap((releaseId) => {
       const verified = verifyPrivateTablePreparationSource(
         releaseId,
         process.cwd(),
         privateTableRuntimeReadinessMigrationOverride(releaseId),
       );
-      return verified.release.functions.map((entry) => Object.freeze({
-        identity: `${entry.name}(${entry.arguments})`,
-        executeRole: entry.executeRole ?? "runtime",
-        sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
-      }));
-    }),
+      return verified.release.functions.flatMap((entry) => (
+        privateTableFunctionExecuteRoles(entry)
+          .filter((executeRole) => executeRole === "runtime" || executeRole === "staff")
+          .map((executeRole) => Object.freeze({
+            identity: `${entry.name}(${entry.arguments})`,
+            executeRole,
+            sourceSha256: sourceSha256(verified.functionSources.get(entry.name)),
+          }))
+      ));
+    });
+const runtimeReadinessByIdentity = new Map();
+for (const entry of reviewedRuntimeReadinessFunctions) {
+  const existing = runtimeReadinessByIdentity.get(entry.identity);
+  if (
+    existing
+    && (existing.executeRole !== entry.executeRole
+      || existing.sourceSha256 !== entry.sourceSha256)
+  ) {
+    throw new Error(`private-table runtime readiness catalog conflicts for ${entry.identity}`);
+  }
+  runtimeReadinessByIdentity.set(entry.identity, entry);
+}
+export const PRIVATE_TABLE_RUNTIME_READINESS_FUNCTIONS = Object.freeze(
+  [...runtimeReadinessByIdentity.values()],
 );
 
 const stopped = () => new Error(
@@ -195,7 +234,7 @@ export async function verifyPrivateTableRuntimeReadiness({
   return Object.freeze({
     enforced: true,
     environment: "production",
-    releaseSelection: RELEASE_SELECTION,
+    releaseSelections: RELEASE_SELECTIONS,
     runtimeFunctionCount: runtimeFunctions.length,
     staffFunctionCount: staffFunctions.length,
     readOnly: true,

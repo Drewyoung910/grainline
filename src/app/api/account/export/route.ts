@@ -6,17 +6,16 @@ import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/
 import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { exportActorMessages } from "@/lib/conversationMessageAuthority";
-import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import {
+  ownerCommissionInterestExport,
+  ownerCommissionRequestExport,
+} from "@/lib/commissionRequestAccess";
 import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { exportOwnerSupportRequests } from "@/lib/supportRequestAccess";
 import {
-  accountEmailSuppressionKeysForEmails,
-} from "@/lib/userEmailAddresses";
-import {
-  ownerAccountEmailFallbackEmails,
   ownerUserAccountEmailAddressState,
 } from "@/lib/userEmailAddressOwnerAccess";
 import {
@@ -38,10 +37,8 @@ import {
   exportBuyerOrderPaymentHistory,
   exportSellerOrderPaymentHistory,
 } from "@/lib/orderPaymentEventReadAuthority";
-import {
-  accountEmailOutboxWhere,
-  EMAIL_OUTBOX_EXPORT_SELECT,
-} from "@/lib/emailOutboxContentLifecycle";
+import { withDbUserContext } from "@/lib/dbUserContext";
+import { exportOwnerEmailServiceData } from "@/lib/emailServiceAccess";
 import {
   exportBuyerOrders,
   exportSellerOrders,
@@ -51,6 +48,15 @@ import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAcces
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
+import { ownerSellerBroadcastExport } from "@/lib/sellerBroadcastAccess";
+import { ownerBlockExportRows } from "@/lib/blockAccess";
+import {
+  exportReceivedUserReports,
+  exportSubmittedUserReports,
+} from "@/lib/userReportAccess";
+import { ownerSellerFaqExportRows } from "@/lib/sellerFaqAccess";
+import { listingOwnerExportRows } from "@/lib/listingOwnerAccess";
+import { listingActorReviewContexts } from "@/lib/listingReviewHistoryAccess";
 
 export const runtime = "nodejs";
 
@@ -60,14 +66,44 @@ function jsonDownload(data: unknown, userId: string) {
   return accountExportJsonResponse(data, userId);
 }
 
+async function exportOwnerReviews(userId: string) {
+  const reviews = await prisma.review.findMany({
+    where: { reviewerId: userId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      listingId: true,
+      ratingX2: true,
+      comment: true,
+      verified: true,
+      helpfulCount: true,
+      sellerReply: true,
+      sellerReplyAt: true,
+      createdAt: true,
+      updatedAt: true,
+      photos: { orderBy: { sortOrder: "asc" }, select: { url: true, altText: true, sortOrder: true } },
+    },
+  });
+  const contexts = await listingActorReviewContexts(
+    userId,
+    reviews.map((review) => review.id),
+  );
+  const contextByReviewId = new Map(contexts.map((context) => [context.reviewId, context]));
+  if (contextByReviewId.size !== reviews.length) {
+    throw new Error("Account export Listing review history is incomplete");
+  }
+  return reviews.map((review) => ({
+    ...review,
+    listing: { title: contextByReviewId.get(review.id)!.listingTitle },
+  }));
+}
+
 async function buildExport(user: NonNullable<ExportableUser>) {
   const accountEmail = normalizeEmailAddress(user.email ?? "") ?? user.email?.trim().toLowerCase() ?? null;
   const accountEmailState = await ownerUserAccountEmailAddressState(
     user.id,
     accountEmail,
   );
-  const accountEmails = await ownerAccountEmailFallbackEmails(user.id);
-  const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails(accountEmails);
   const accountEmailAddresses = accountEmailState.rows;
   const sellerProfile = await sellerOwnerExportProfile(user.id);
 
@@ -94,89 +130,24 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     userReportsSubmitted,
     userReportsReceived,
     supportRequests,
-    emailSuppressions,
-    emailOutboxRows,
-    emailFailureCounts,
+    emailServiceData,
     stockNotifications,
     checkoutStockReservationRows,
     makerVerification,
     sellerFaqs,
-    newsletterSubscriptions,
     sellerBroadcasts,
     sellerPayoutEvents,
     directUploads,
     reviewVotes,
   ] = await Promise.all([
-    sellerProfile
-      ? prisma.listing.findMany({
-          where: { sellerId: sellerProfile.id },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            priceCents: true,
-            priceVersion: true,
-            currency: true,
-            status: true,
-            videoUrl: true,
-            isPrivate: true,
-            listingType: true,
-            stockQuantity: true,
-            processingTimeMinDays: true,
-            processingTimeMaxDays: true,
-            shipsWithinDays: true,
-            category: true,
-            tags: true,
-            packagedWeightGrams: true,
-            packagedLengthCm: true,
-            packagedWidthCm: true,
-            packagedHeightCm: true,
-            reservedForUserId: true,
-            customOrderConversationId: true,
-            metaDescription: true,
-            materials: true,
-            productLengthIn: true,
-            productWidthIn: true,
-            productHeightIn: true,
-            createdAt: true,
-            updatedAt: true,
-            photos: { orderBy: { sortOrder: "asc" }, select: { url: true, originalUrl: true, altText: true, sortOrder: true } },
-            variantGroups: {
-              orderBy: { sortOrder: "asc" },
-              select: {
-                name: true,
-                sortOrder: true,
-                options: { orderBy: { sortOrder: "asc" }, select: { label: true, priceAdjustCents: true, sortOrder: true, inStock: true } },
-              },
-            },
-          },
-        })
-      : [],
+    sellerProfile ? listingOwnerExportRows(user.id) : [],
     exportBuyerOrders(user.id),
     sellerProfile ? exportSellerOrders(user.id) : [],
     exportBuyerOrderPaymentHistory(user.id),
     sellerProfile ? exportSellerOrderPaymentHistory(user.id) : new Map(),
     exportActorMessages(user.id),
     exportParticipantCases(user.id),
-    prisma.review.findMany({
-      where: { reviewerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        listingId: true,
-        ratingX2: true,
-        comment: true,
-        verified: true,
-        helpfulCount: true,
-        sellerReply: true,
-        sellerReplyAt: true,
-        createdAt: true,
-        updatedAt: true,
-        photos: { orderBy: { sortOrder: "asc" }, select: { url: true, altText: true, sortOrder: true } },
-        listing: { select: { title: true } },
-      },
-    }),
+    exportOwnerReviews(user.id),
     prisma.blogPost.findMany({
       where: { authorId: user.id },
       orderBy: { createdAt: "desc" },
@@ -210,142 +181,36 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     listOwnerSavedSearches(user.id, prisma),
     sellerOwnerFollowExportRows(user.id),
     ownerSavedBlogPostExportRows(user.id),
-    prisma.commissionRequest.findMany({
-      where: { buyerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        category: true,
-        budgetMinCents: true,
-        budgetMaxCents: true,
-        timeline: true,
-        referenceImageUrls: true,
-        status: true,
-        interestedCount: true,
-        _count: { select: { interests: true } },
-        expiresAt: true,
-        isNational: true,
-        lat: true,
-        lng: true,
-        radiusMeters: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    sellerProfile
-      ? prisma.commissionInterest.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { createdAt: "desc" },
-          select: { commissionRequestId: true, conversationId: true, createdAt: true },
-        })
-      : [],
+    ownerCommissionRequestExport(user.id),
+    ownerCommissionInterestExport(user.id),
     ownerNotificationExportRows(user.id),
-    prisma.block.findMany({
-      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
-      orderBy: { createdAt: "desc" },
-      select: { blockerId: true, blockedId: true, createdAt: true },
-    }),
-    prisma.userReport.findMany({
-      where: { reporterId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reportedId: true,
-        reason: true,
-        details: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
-    prisma.userReport.findMany({
-      where: { reportedId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        reason: true,
-        targetType: true,
-        targetId: true,
-        resolved: true,
-        resolvedAt: true,
-        resolutionNote: true,
-        createdAt: true,
-      },
-    }),
+    ownerBlockExportRows(user.id),
+    exportSubmittedUserReports(user.id),
+    exportReceivedUserReports(user.id),
     exportOwnerSupportRequests(user.id),
-    accountEmailSuppressionKeys.length > 0
-      ? prisma.emailSuppression.findMany({
-          where: { email: { in: accountEmailSuppressionKeys } },
-          orderBy: { createdAt: "desc" },
-          select: { id: true, email: true, reason: true, source: true, eventId: true, details: true, createdAt: true, updatedAt: true },
-        })
-      : [],
-    prisma.emailOutbox.findMany({
-      where: accountEmailOutboxWhere(user.id, accountEmailSuppressionKeys),
-      orderBy: { createdAt: "desc" },
-      select: EMAIL_OUTBOX_EXPORT_SELECT,
-    }),
-    accountEmailSuppressionKeys.length > 0
-      ? prisma.emailFailureCount.findMany({
-          where: { email: { in: accountEmailSuppressionKeys } },
-          orderBy: { lastFailedAt: "desc" },
-          select: { email: true, count: true, firstFailedAt: true, lastFailedAt: true, lastEventId: true },
-        })
-      : [],
+    withDbUserContext(user.id, (tx) => exportOwnerEmailServiceData(tx)),
     ownerStockNotificationExportRows(user.id),
     exportCheckoutStockReservations(user.id),
     sellerProfile ? exportOwnerMakerVerification(user.id) : null,
-    sellerProfile
-      ? prisma.sellerFaq.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, question: true, answer: true, sortOrder: true, createdAt: true },
-        })
-      : [],
-    accountEmailSuppressionKeys.length > 0
-      ? prisma.newsletterSubscriber.findMany({
-          where: { email: { in: accountEmailSuppressionKeys } },
-          orderBy: { subscribedAt: "desc" },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            subscribedAt: true,
-            active: true,
-            confirmedAt: true,
-            confirmationSentAt: true,
-          },
-        })
-      : [],
-    sellerProfile
-      ? prisma.sellerBroadcast.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { sentAt: "desc" },
-          select: { id: true, message: true, imageUrl: true, sentAt: true, recipientCount: true },
-        })
-      : [],
+    ownerSellerFaqExportRows(user.id),
+    sellerProfile ? ownerSellerBroadcastExport(user.id) : [],
     sellerProfile ? exportSellerPayoutEvents(user.id) : [],
     exportOwnedDirectUploads(user.id),
     exportOwnerReviewVotes(user.id),
   ]);
+  const {
+    emailSuppressions,
+    emailOutboxRows,
+    emailFailureCounts,
+    newsletterSubscriptions,
+  } = emailServiceData;
   const messagesSent = messageRows
     .filter((message) => message.senderId === user.id)
     .map(({ senderId: _senderId, ...message }) => message);
   const messagesReceived = messageRows
     .filter((message) => message.recipientId === user.id)
     .map(({ recipientId: _recipientId, ...message }) => message);
-  const commissionRequests = commissionRequestRows.map(({ _count, ...request }) => ({
-    ...request,
-    interestedCount: resolvedInterestedCount({
-      interestedCount: request.interestedCount,
-      _count,
-    }),
-  }));
+  const commissionRequests = commissionRequestRows;
   const checkoutStockReservations = checkoutStockReservationRows;
   const buyerOrdersWithPaymentHistory = buyerOrders.map((order) => ({
     ...order,

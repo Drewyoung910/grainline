@@ -1,5 +1,4 @@
 // src/app/api/seller/broadcast/route.ts
-import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
@@ -40,13 +39,26 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { withSerializableRetry } from "@/lib/transactionRetry";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import { canDeliverSellerBroadcast } from "@/lib/sellerBroadcastDeliveryState";
+import { isTextWithinCodePointRange } from "@/lib/textLength";
+import { withSerializableDbUserContext } from "@/lib/dbUserContext";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
+import {
+  createOwnerSellerBroadcast,
+  ownerSellerBroadcastCooldown,
+  ownerSellerBroadcastCount,
+  ownerSellerBroadcastDeliverySource,
+  ownerSellerBroadcastPage,
+  recordOwnerSellerBroadcastDelivery,
+} from "@/lib/sellerBroadcastAccess";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
-  message: z.string().min(1).max(500),
+  message: z.string().min(1).refine(
+    (message) => isTextWithinCodePointRange(message, 1, 500),
+    { message: "Message must be 500 characters or fewer" },
+  ),
   imageUrl: z
     .string()
     .url()
@@ -59,12 +71,6 @@ const BroadcastSchema = z.object({
   sellersOnly: z.boolean().optional(),
 });
 const BROADCAST_BODY_MAX_BYTES = 32 * 1024;
-const BROADCAST_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-
-function nextBroadcastAvailableAt(sentAt: Date) {
-  return new Date(sentAt.getTime() + BROADCAST_COOLDOWN_MS);
-}
-
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
@@ -157,24 +163,15 @@ export async function POST(req: NextRequest) {
   }
 
   // Enforce 7-day rate limit between broadcasts
-  const lastBroadcast = await prisma.sellerBroadcast.findFirst({
-    where: { sellerProfileId: seller.sellerProfileId },
-    orderBy: { sentAt: "desc" },
-    select: { sentAt: true },
-  });
-  if (lastBroadcast) {
-    const daysSinceLast =
-      (Date.now() - lastBroadcast.sentAt.getTime()) / (1000 * 60 * 60 * 24);
-    if (daysSinceLast < 7) {
-      const nextAvailable = nextBroadcastAvailableAt(lastBroadcast.sentAt);
-      return privateJson(
-        {
-          error: "You can send one broadcast per week.",
-          nextAvailableAt: nextAvailable.toISOString(),
-        },
-        { status: 429 },
-      );
-    }
+  const cooldown = await ownerSellerBroadcastCooldown(me.id);
+  if (cooldown.nextAvailableAt && cooldown.nextAvailableAt.getTime() > Date.now()) {
+    return privateJson(
+      {
+        error: "You can send one broadcast per week.",
+        nextAvailableAt: cooldown.nextAvailableAt.toISOString(),
+      },
+      { status: 429 },
+    );
   }
 
   // Get followers (optionally filtered to sellers only)
@@ -199,38 +196,34 @@ export async function POST(req: NextRequest) {
 
   // Create broadcast record, rechecking the durable DB cooldown inside the
   // transaction so the Redis weekly limiter is not the only concurrency guard.
-  const broadcastResult = await withSerializableRetry(() => prisma.$transaction(async (tx) => {
-    const latest = await tx.sellerBroadcast.findFirst({
-      where: { sellerProfileId: seller.sellerProfileId },
-      orderBy: { sentAt: "desc" },
-      select: { sentAt: true },
-    });
-    if (latest && Date.now() - latest.sentAt.getTime() < BROADCAST_COOLDOWN_MS) {
-      return {
-        ok: false as const,
-        nextAvailableAt: nextBroadcastAvailableAt(latest.sentAt),
-      };
-    }
-
-    const created = await tx.sellerBroadcast.create({
-      data: {
-        sellerProfileId: seller.sellerProfileId,
+  let broadcastResult: Awaited<ReturnType<typeof createOwnerSellerBroadcast>>;
+  try {
+    broadcastResult = await withSerializableDbUserContext(me.id, async (tx) => {
+      const created = await createOwnerSellerBroadcast(tx, {
         message,
         imageUrl,
-        recipientCount: notificationFollowers.length,
-      },
-      select: { id: true },
+        provisionalRecipientCount: notificationFollowers.length,
+      });
+      if (!created.created) return created;
+      await syncSellerBroadcastDirectUploadReferences({
+        client: tx,
+        userId: me.id,
+        sellerBroadcastId: created.id,
+        requireAllTracked: Boolean(imageUrl),
+      });
+      return created;
     });
-    await syncSellerBroadcastDirectUploadReferences({
-      client: tx,
-      userId: me.id,
-      sellerBroadcastId: created.id,
-      requireAllTracked: Boolean(imageUrl),
-    });
-    return { ok: true as const, broadcast: created };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+  } catch (error) {
+    if (getPrismaRawSqlState(error) === "42501") {
+      return privateJson(
+        { error: "Your shop must be active before sending broadcasts." },
+        { status: 403 },
+      );
+    }
+    throw error;
+  }
 
-  if (!broadcastResult.ok) {
+  if (!broadcastResult.created) {
     return privateJson(
       {
         error: "You can send one broadcast per week.",
@@ -239,20 +232,17 @@ export async function POST(req: NextRequest) {
       { status: 429 },
     );
   }
-  const { broadcast } = broadcastResult;
+  const broadcast = { id: broadcastResult.id };
 
   // Send notifications after response; avoids losing work on function teardown.
   after(async () => {
     try {
       const [currentBroadcast, currentSeller] = await Promise.all([
-        prisma.sellerBroadcast.findUnique({
-          where: { id: broadcast.id },
-          select: { sellerProfileId: true },
-        }),
+        ownerSellerBroadcastDeliverySource(me.id, broadcast.id),
         sellerOwnerCore(me.id),
       ]);
       if (!canDeliverSellerBroadcast(
-        currentBroadcast?.sellerProfileId ?? null,
+        currentBroadcast,
         currentSeller,
       )) {
         return;
@@ -289,10 +279,7 @@ export async function POST(req: NextRequest) {
         0,
       );
       if (deliveredCount !== notificationFollowers.length) {
-        await prisma.sellerBroadcast.update({
-          where: { id: broadcast.id },
-          data: { recipientCount: deliveredCount },
-        });
+        await recordOwnerSellerBroadcastDelivery(me.id, broadcast.id, deliveredCount);
       }
       const emailFollowers = (await Promise.all(
         chunkArray(followers.map((f) => f.followerId), 500).map((userIds) =>
@@ -384,22 +371,11 @@ export async function GET(req: NextRequest) {
   const pageSize = 10;
 
   const [broadcasts, total] = await Promise.all([
-    prisma.sellerBroadcast.findMany({
-      where: { sellerProfileId: seller.sellerProfileId },
-      orderBy: [{ sentAt: "desc" }, { id: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: {
-        id: true,
-        message: true,
-        imageUrl: true,
-        sentAt: true,
-        recipientCount: true,
-      },
+    ownerSellerBroadcastPage(me.id, {
+      offset: (page - 1) * pageSize,
+      limit: pageSize,
     }),
-    prisma.sellerBroadcast.count({
-      where: { sellerProfileId: seller.sellerProfileId },
-    }),
+    ownerSellerBroadcastCount(me.id),
   ]);
 
   return privateJson({ broadcasts, total, page, pageSize });

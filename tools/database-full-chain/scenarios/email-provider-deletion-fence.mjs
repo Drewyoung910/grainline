@@ -718,6 +718,17 @@ async function proveSourceOwnerAndAnonymousAlias({
   database,
   seller,
 }) {
+  await database.query("BEGIN");
+  let preexistingSourceOwnerAttempts;
+  try {
+    preexistingSourceOwnerAttempts = await deletionFence(
+      database,
+      seller.userId,
+      ["source-owner@example.test"],
+    );
+  } finally {
+    await database.query("ROLLBACK");
+  }
   const recipient = await seedUser(database, "source_recipient");
   const broadcastId = id("broadcast");
   await database.query(
@@ -725,6 +736,13 @@ async function proveSourceOwnerAndAnonymousAlias({
        (id, "sellerProfileId", message, "sentAt", "recipientCount")
      VALUES ($1, $2, 'Email deletion fence source proof', now(), 1)`,
     [broadcastId, seller.sellerProfileId],
+  );
+  await database.query(
+    `INSERT INTO public."Follow"
+       (id, "followerId", "sellerProfileId", "createdAt")
+     VALUES ($1, $2, $3, now())
+     ON CONFLICT ("followerId", "sellerProfileId") DO NOTHING`,
+    [id("source_recipient_follow"), recipient.userId, seller.sellerProfileId],
   );
   const sourceJob = await enqueue(database, {
     suffix: "source_owner",
@@ -738,15 +756,23 @@ async function proveSourceOwnerAndAnonymousAlias({
   assert.equal(await beginProvider(database, sourceJob, sourceClaim), "ready");
   await database.query("BEGIN");
   try {
-    assert.equal(await deletionFence(
-      database,
-      seller.userId,
-      ["source-owner@example.test"],
-    ), 1, "source-owner deletion must see an in-flight fanout email");
+    assert.equal(
+      await deletionFence(
+        database,
+        seller.userId,
+        ["source-owner@example.test"],
+      ),
+      preexistingSourceOwnerAttempts + 1,
+      "source-owner deletion must add the exact in-flight fanout email",
+    );
   } finally {
     await database.query("ROLLBACK");
   }
-
+  await database.query(
+    `DELETE FROM public."Follow"
+      WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
+    [recipient.userId, seller.sellerProfileId],
+  );
   const gmailOwner = await seedUser(database, "gmailowner", { gmail: true });
   const alias = `${PREFIX.replaceAll("_", "")}.gmail.owner+deletion@googlemail.com`;
   const anonymousJob = await enqueue(database, {

@@ -24,7 +24,6 @@
 // engagement support before reaching their full ranking weight.
 
 import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
 import { getSiteMetricsSnapshot } from "@/lib/site-metrics-snapshot";
 import {
   scoreQualityRow,
@@ -35,6 +34,7 @@ import { getPublicListingOrderCounts } from "@/lib/orderPublicAggregateAuthority
 import { userPublicListingFavoriteCounts } from "@/lib/userFollowerAccess";
 import {
   sellerServiceQualityScoreBatch,
+  sellerServiceApplyQualityScores,
   sellerServiceZeroIneligibleQualityScores,
 } from "@/lib/sellerProfileQualityScoreAccess";
 
@@ -79,17 +79,11 @@ export async function recalculateAllQualityScores(): Promise<{
     const rows = await fetchActiveListingBatch(cursorId);
     if (rows.length === 0) break;
 
-    const values = Prisma.join(
-      rows.map((row) => Prisma.sql`(${row.id}, ${scoreQualityRow(row, globals, now)})`),
-    );
-    await prisma.$executeRaw`
-      UPDATE "Listing" AS l
-      SET "qualityScore" = v.score::double precision
-      FROM (VALUES ${values}) AS v(id, score)
-      WHERE l.id = v.id::text
-    `;
-
-    updated += rows.length;
+    const scores = rows.map((row) => ({
+      id: row.id,
+      score: scoreQualityRow(row, globals, now),
+    }));
+    updated += await sellerServiceApplyQualityScores(scores);
     cursorId = rows[rows.length - 1]?.id ?? null;
     if (rows.length < BATCH_SIZE) {
       break;

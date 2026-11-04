@@ -11,12 +11,12 @@ import {
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { logSecurityEvent } from "@/lib/security";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { createCommissionInterestMessage } from "@/lib/commissionInterestMessageAccess";
 import { userClerkCommissionContext } from "@/lib/userIdentityAccess";
+import { publicCommissionRequestDetail } from "@/lib/commissionRequestAccess";
 
 export async function POST(
   req: NextRequest,
@@ -30,15 +30,6 @@ export async function POST(
   const { id } = await params;
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
-
-  const { success: rlOk, reset } = await safeRateLimit(
-    commissionInterestRatelimit,
-    userId,
-  );
-  if (!rlOk)
-    return privateResponse(
-      rateLimitResponse(reset, "Too many interest expressions today."),
-    );
 
   const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: 401 });
@@ -60,36 +51,16 @@ export async function POST(
     );
   }
 
-  const commissionRequest = await prisma.commissionRequest.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      buyerId: true,
-      title: true,
-      description: true,
-      status: true,
-      expiresAt: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      timeline: true,
-      buyerAccountActive: true,
-    },
-  });
+  const commissionRequest = await publicCommissionRequestDetail(me.id, id);
   if (!commissionRequest)
     return privateJson({ error: "Not found" }, { status: 404 });
-  if (!commissionRequest.buyerAccountActive) {
-    return privateJson({ error: "Not found" }, { status: 404 });
-  }
-  if (
-    commissionRequest.status !== "OPEN" ||
-    commissionIsExpired(commissionRequest)
-  ) {
+  if (commissionRequest.status !== "OPEN") {
     return privateJson(
       { error: "Commission request is no longer open" },
       { status: 400 },
     );
   }
-  if (commissionRequest.buyerId === me.id) {
+  if (commissionRequest.isOwner) {
     logSecurityEvent("spam_attempt", {
       userId: me.id,
       route: "/api/commission/interest",
@@ -101,21 +72,14 @@ export async function POST(
     );
   }
 
-  const blockExists = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: me.id, blockedId: commissionRequest.buyerId },
-        { blockerId: commissionRequest.buyerId, blockedId: me.id },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blockExists) {
-    return privateJson(
-      { error: "Unable to express interest." },
-      { status: 403 },
+  const { success: rlOk, reset } = await safeRateLimit(
+    commissionInterestRatelimit,
+    userId,
+  );
+  if (!rlOk)
+    return privateResponse(
+      rateLimitResponse(reset, "Too many interest expressions today."),
     );
-  }
 
   const result = await createCommissionInterestMessage({
     commissionRequestId: id,

@@ -512,8 +512,8 @@ describe("RLS feasibility plan guardrails", () => {
       assert.match(doc, /Webhook\/cron\/admin\s+low-stock/);
       assert.match(doc, /service\/write-path/);
     }
-    assert.match(stockRoute, /const seller = await sellerOwnerCore\(me\.id\)/);
-    assert.match(stockRoute, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
+    assert.match(stockRoute, /const listing = await listingOwnerActionState\(me\.id, id\)/);
+    assert.match(stockRoute, /listingId: id, sellerId: listing\.sellerId, actorId: me\.id/);
     assert.doesNotMatch(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
     assert.match(messageReadRoute, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
     assert.match(stockRoute, /findRecentOwnerLowStockNotification\(/);
@@ -990,9 +990,12 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
     assert.match(ownerAccess, /export function ownerCartExportRows/);
-    assert.match(ownerAccess, /withSellerActorCartTransaction/);
-    assert.match(ownerAccess, /attachCartSellerStates/);
-    assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
+    assert.match(ownerAccess, /readListingActorCartTransactionSources/);
+    assert.match(ownerAccess, /attachOwnerCartListingSources/);
+    assert.match(sellerTransactionAccess, /grainline_listing_actor_cart_transaction_sources/);
+    assert.doesNotMatch(ownerAccess, /include:\s*\{\s*listing:\s*true/u);
+    assert.doesNotMatch(ownerAccess, /listing:\s*\{\s*include:/u);
+    assert.doesNotMatch(ownerAccess, /listing:\s*\{\s*select:/u);
     assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
     assert.doesNotMatch(ownerAccess, /seller:\s*\{/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);
@@ -1253,6 +1256,25 @@ describe("RLS feasibility plan guardrails", () => {
     for (const file of sourceFiles("src")) {
       const matches = [...source(file).matchAll(directFollowAccessPattern)]
         .map((match) => match[0]);
+      if (matches.length > 0) directCallsByFile[file] = matches;
+    }
+
+    assert.deepEqual(directCallsByFile, {});
+  });
+
+  it("blocks direct CommissionRequest and CommissionInterest access after compatible conversion", () => {
+    const directDelegatePattern =
+      /\b[A-Za-z_$][\w$]*\.commission(?:Request|Interest)\.(?:aggregate|count|create|createMany|delete|deleteMany|findFirst|findMany|findUnique|groupBy|upsert|update|updateMany)\b/g;
+    const rawTablePattern =
+      /\b(?:DELETE\s+FROM|FROM|INSERT\s+INTO|JOIN|UPDATE)\s+(?:public\.)?["']Commission(?:Request|Interest)["']/g;
+    const directCallsByFile = {};
+
+    for (const file of sourceFiles("src")) {
+      const fileSource = source(file);
+      const matches = [
+        ...fileSource.matchAll(directDelegatePattern),
+        ...fileSource.matchAll(rawTablePattern),
+      ].map((match) => match[0]);
       if (matches.length > 0) directCallsByFile[file] = matches;
     }
 

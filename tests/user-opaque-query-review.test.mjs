@@ -37,22 +37,26 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
 
   // The provider/eligibility fence replaces three direct Prisma
   // EmailSuppression write arguments with one fixed SQL authority. The
-  // StockNotification subscribe authority also removes one reviewed
-  // publicListingDetailWhere call from the application frontier.
-  // UI workspace/search work adds two publicListingWhere reads and one
-  // owner-scoped Workshop listing helper. No SellerProfile relation or raw
-  // table authority is added.
-  assert.equal(report.opaqueShapes.length, 149);
-  assert.equal(reviewedFactories.length, 113);
-  assert.equal(reviewedResidual.length, 36);
+  // StockNotification subscribe removes one reviewed public-listing factory.
+  // SellerBroadcast removes one reviewed outbox factory and one residual direct
+  // relation. Listing analytics removes two reviewed publicListingWhere calls,
+  // UserReport removes three report-route factories, Commission removes the
+  // remaining open-commission calls, and email-service preparation moves the
+  // remaining direct EmailOutbox shapes behind fixed SQL authorities. The
+  // Listing public-catalog boundary removes the tag and metro-category direct
+  // Listing shapes while retaining their set-based database behavior.
+  // UI search retains two reviewed publicListingWhere reads.
+  assert.equal(report.opaqueShapes.length, 82);
+  assert.equal(reviewedFactories.length, 66);
+  assert.equal(reviewedResidual.length, 16);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 92,
-    sha256: "ef5a6638bbb144508b48c75b9783499ae36bb46576177ee63834a50fabf6c4a0",
+    unique: 53,
+    sha256: "d8aa4bdf68d722a95eaa2f60264ba5cc632e2ed50037798646e518ff5be7a8c1",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 30,
-    sha256: "2005c3bae3264b8456de248ba1ed56709772fe2ab8eafa43e57cbf12ffade9ff",
+    unique: 11,
+    sha256: "59724907641a37f418816b149f5136e86ea5330bf9bc2c83d553310816d25c77",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,

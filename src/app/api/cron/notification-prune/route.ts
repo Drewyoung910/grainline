@@ -12,6 +12,7 @@ import {
 } from "@/lib/notificationServiceAccess";
 import { pruneClosedSupportRequests } from "@/lib/supportRequestRetention";
 import { pruneWebhookEventRetention } from "@/lib/webhookEventRetention";
+import { pruneExpiredUnconfirmedNewsletterRows } from "@/lib/newsletterRetention";
 import { runBoundedDeletionBatches } from "@/lib/cronBatchState";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
         emailOutboxPruned,
         webhookEventsPruned,
         supportRequestsPruned,
+        newsletterRowsPruned,
       ] = await Promise.all([
         pruneReadNotifications(),
         pruneUnreadNotifications(),
@@ -42,6 +44,7 @@ export async function GET(request: NextRequest) {
         pruneEmailOutboxRetention(),
         pruneWebhookEventRetention(),
         pruneClosedSupportRequests(),
+        pruneExpiredUnconfirmedNewsletterRows(),
       ]);
 
       const response = {
@@ -57,6 +60,8 @@ export async function GET(request: NextRequest) {
         webhookEventsPruneComplete: webhookEventsPruned.complete,
         supportRequestsPruned: supportRequestsPruned.count,
         supportRequestsPruneComplete: supportRequestsPruned.complete,
+        newsletterRowsPruned: newsletterRowsPruned.count,
+        newsletterRowsPruneComplete: newsletterRowsPruned.complete,
         supportRequestsPruneCutoff: supportRequestsPruned.cutoff.toISOString(),
       };
       await completeCronRun(cronRun, response);

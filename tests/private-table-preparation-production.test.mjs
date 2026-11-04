@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import yaml from "js-yaml";
 
 import {
   PRIVATE_TABLE_PREPARATION_CONFIRMATION,
+  functionSourceFromMigration,
   privateTablePreparation,
   privateTablePreparationReleaseIds,
   verifyPrivateTablePreparationSource,
@@ -17,6 +19,7 @@ import {
 } from "../scripts/reviewed-manually-applied-migrations.mjs";
 import {
   inspectPrivateTablePreparationProduction,
+  preparationMarkersAreAbsent,
 } from "../scripts/private-table-preparation-production-inspect.mjs";
 
 const releaseId = "support_request_v1";
@@ -86,17 +89,23 @@ async function runBinding(auxiliaryConclusion = "success") {
   );
 }
 
-function acceptedMigration() {
+function acceptedMigration(selectedRelease = release) {
   return {
-    migration_name: release.migration,
-    checksum: release.migrationSha256,
+    migration_name: selectedRelease.migration,
+    checksum: selectedRelease.migrationSha256,
     finished_at: "2026-10-23T12:00:00.000Z",
     rolled_back_at: null,
     applied_steps_count: 1,
   };
 }
 
-function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
+function fakeClientClass({
+  ledgerApplied,
+  schemaApplied,
+  partial = false,
+  selectedRelease = release,
+  selectedVerified = verified,
+}) {
   return class FakeClient {
     async connect() {}
     async end() {}
@@ -109,6 +118,7 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
           database_name: "grainline",
           current_user_name: "neondb_owner",
           session_user_name: "neondb_owner",
+          table_name: selectedRelease.table,
           table_owner_name: "neondb_owner",
           owner_bypasses_rls: true,
           rls_enabled: false,
@@ -124,31 +134,64 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
         }] };
       }
       if (sql.includes("FROM public._prisma_migrations")) {
-        return { rows: ledgerApplied ? [acceptedMigration()] : [] };
+        return { rows: ledgerApplied ? [acceptedMigration(selectedRelease)] : [] };
       }
       if (sql.includes("AS columns") && sql.includes("AS functions")) {
         return { rows: [{
-          columns: schemaApplied ? release.addedColumns.length : 0,
+          columns: schemaApplied ? selectedRelease.addedColumns.length : 0,
           functions: schemaApplied
-            ? release.functions.length - (partial ? 1 : 0)
+            ? selectedRelease.functions.filter(
+              (entry) => entry.predecessorSourceSha256 === undefined,
+            ).length - (partial ? 1 : 0)
             : 0,
+          constraints: schemaApplied ? (selectedRelease.addedConstraints ?? []).length : 0,
         }] };
       }
       if (sql.includes("pg_catalog.format_type")) {
-        return { rows: [{ name: "emailDeliveryToken", type: "uuid", nullable: true }] };
+        return {
+          rows: [...selectedRelease.addedColumns]
+            .sort((left, right) => left.name.localeCompare(right.name)),
+        };
+      }
+      if (sql.includes("constraint_state.conname AS name")) {
+        return { rows: [...(selectedRelease.addedConstraints ?? [])]
+          .sort((left, right) => (
+            left.table.localeCompare(right.table) || left.name.localeCompare(right.name)
+          )) };
+      }
+      if (sql.includes("AS count") && sql.includes("FROM pg_catalog.pg_trigger")) {
+        return { rows: [{ count: schemaApplied ? 1 : 0 }] };
+      }
+      if (sql.includes("trigger_state.tgname AS name")) {
+        return { rows: (selectedRelease.addedTriggers ?? []).map((entry) => ({
+          name: entry.name,
+          function: entry.function,
+          enabled: entry.enabled,
+          type: entry.type,
+          function_owner: "neondb_owner",
+          owner_bypasses_rls: true,
+          security_definer: true,
+          configuration: ["search_path=pg_catalog"],
+        })) };
       }
       if (sql.includes("procedure.prosrc AS source")) {
-        return { rows: release.functions
+        return { rows: selectedRelease.functions
           .map((entry) => ({
             function_name: entry.name,
             identity_arguments: entry.arguments,
             owner_name: "neondb_owner",
             owner_bypasses_rls: true,
-            security_definer: true,
+            security_definer: entry.securityDefiner ?? true,
+            volatility: entry.volatility ?? "v",
             configuration: ["search_path=pg_catalog"],
-            source: verified.functionSources.get(entry.name),
-            runtime_execute: true,
-            staff_execute: false,
+            source: selectedVerified.functionSources.get(entry.name),
+            runtime_execute: (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+              .includes("runtime"),
+            staff_execute: (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+              .includes("staff"),
+            account_deletion_execute:
+              (entry.executeRoles ?? [entry.executeRole ?? "runtime"])
+                .includes("account_deletion"),
             public_execute: false,
           }))
           .sort((left, right) => (
@@ -161,14 +204,88 @@ function fakeClientClass({ ledgerApplied, schemaApplied, partial = false }) {
   };
 }
 
-function environment(directory, phase, previousPath) {
+function environment(directory, phase, previousPath, selectedReleaseId = releaseId) {
   return {
     DIRECT_URL: "postgresql://example.invalid/grainline",
-    PRIVATE_TABLE_PREPARATION_RELEASE_ID: releaseId,
+    PRIVATE_TABLE_PREPARATION_RELEASE_ID: selectedReleaseId,
     PRIVATE_TABLE_PREPARATION_PHASE: phase,
     PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(directory, `${phase}.json`),
     PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH: previousPath,
     PRODUCTION_MIGRATION_RELEASE_COMMIT: "a".repeat(40),
+  };
+}
+
+function analyticsAppliedClientClass() {
+  const candidate = privateTablePreparation("seller_analytics_daily_v1");
+  const candidateSource = verifyPrivateTablePreparationSource(
+    "seller_analytics_daily_v1",
+  );
+  return class FakeAnalyticsClient {
+    async connect() {}
+    async end() {}
+
+    async query(statement) {
+      const sql = String(statement);
+      if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
+      if (sql.includes("current_database() AS database_name")) {
+        return { rows: [candidate.table, ...candidate.additionalTables].sort()
+          .map((tableName) => ({
+            database_name: "grainline",
+            current_user_name: "neondb_owner",
+            session_user_name: "neondb_owner",
+            table_name: tableName,
+            table_owner_name: "neondb_owner",
+            owner_bypasses_rls: true,
+            rls_enabled: false,
+            rls_forced: false,
+            table_acl: "{neondb_owner=arwdDxt/neondb_owner,grainline_app_runtime=arwd/neondb_owner}",
+            policy_count: 0,
+            runtime_select: true,
+            runtime_insert: true,
+            runtime_update: true,
+            runtime_delete: true,
+            staff_select: false,
+            public_select: false,
+          })) };
+      }
+      if (sql.includes("FROM public._prisma_migrations")) return { rows: [] };
+      if (sql.includes("AS columns") && sql.includes("AS functions")) {
+        return { rows: [{
+          columns: 0,
+          functions: candidate.functions.filter(
+            (entry) => entry.predecessorSourceSha256 === undefined,
+          ).length,
+          constraints: candidate.addedConstraints.length,
+        }] };
+      }
+      if (sql.includes("pg_catalog.format_type")) return { rows: [] };
+      if (sql.includes("constraint_state.conname AS name")) {
+        return { rows: [...candidate.addedConstraints]
+          .sort((left, right) => (
+            left.table.localeCompare(right.table) || left.name.localeCompare(right.name)
+          )) };
+      }
+      if (sql.includes("procedure.prosrc AS source")) {
+        return { rows: candidate.functions.map((entry) => ({
+          function_name: entry.name,
+          identity_arguments: entry.arguments,
+          owner_name: "neondb_owner",
+          owner_bypasses_rls: true,
+          security_definer: true,
+          volatility: entry.volatility ?? "v",
+          configuration: ["search_path=pg_catalog"],
+          source: candidateSource.functionSources.get(entry.name),
+          runtime_execute: true,
+          staff_execute: false,
+          account_deletion_execute: false,
+          public_execute: false,
+        })).sort((left, right) => (
+          left.function_name.localeCompare(right.function_name)
+          || left.identity_arguments.localeCompare(right.identity_arguments)
+        )) };
+      }
+      throw new Error(`unexpected analytics query: ${sql.slice(0, 100)}`);
+    }
   };
 }
 
@@ -243,9 +360,19 @@ test("Favorite preparation is byte-sealed and remains compatible", () => {
     "src/app/api/admin/listings/[id]/route.ts",
     "utf8",
   );
+  const listingPreparation = readFileSync(
+    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+    "utf8",
+  );
+  assert.match(
+    adminRemoval,
+    /sellerProfileStaffListingRemovalTransition\([\s\S]*getOrderStaffReadClient\(\)/u,
+  );
   assert.ok(
-    adminRemoval.indexOf("await tx.listing.update")
-      < adminRemoval.indexOf("await deleteFavoritesForAdminListing"),
+    listingPreparation.indexOf("UPDATE public.\"Listing\"")
+      < listingPreparation.indexOf(
+        "grainline_favorite_admin_listing_cleanup(p_listing_id)",
+      ),
     "admin removal must hide and lock the Listing before Favorite cleanup",
   );
   assert.ok(
@@ -292,6 +419,91 @@ test("ReviewVote preparation is byte-sealed and remains compatible", () => {
   assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
 });
 
+test("SellerAnalyticsDaily preparation is byte-sealed across both daily tables", () => {
+  const analytics = verifyPrivateTablePreparationSource(
+    "seller_analytics_daily_v1",
+  );
+  assert.equal(analytics.release.table, "ListingViewDaily");
+  assert.deepEqual(analytics.release.additionalTables, ["SellerProfileViewDaily"]);
+  assert.equal(analytics.functionSources.size, 5);
+  assert.equal(analytics.release.addedConstraints.length, 4);
+  assert.deepEqual(analytics.release.addedColumns, []);
+  const sql = readFileSync(analytics.migrationPath, "utf8");
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '15min'/u);
+  assert.match(sql, /ListingViewDaily_counts_non_negative_chk/u);
+  assert.match(sql, /SellerProfileViewDaily_date_midnight_utc_chk/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
+test("SellerBroadcast preparation is byte-sealed and remains compatible", () => {
+  const broadcast = verifyPrivateTablePreparationSource("seller_broadcast_v1");
+  assert.equal(broadcast.release.table, "SellerBroadcast");
+  assert.equal(broadcast.functionSources.size, 15);
+  assert.deepEqual(broadcast.release.addedColumns, []);
+  const sql = readFileSync(broadcast.migrationPath, "utf8");
+  assert.match(sql, /grainline_seller_broadcast_owner_create/u);
+  assert.match(sql, /grainline_seller_broadcast_actor_feed_page/u);
+  assert.match(sql, /grainline_seller_broadcast_staff_delete/u);
+  assert.match(sql, /grainline_email_outbox_begin_provider_attempt/u);
+  assert.match(sql, /source_recipient_eligible/u);
+  assert.match(sql, /JOIN public\."Follow" AS source_follow/u);
+  assert.match(sql, /FROM public\."Block" AS source_block/u);
+  assert.match(sql, /Email source relationship became ineligible before provider attempt/u);
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_ids[\s\S]*FOR UPDATE OF broadcast/u,
+  );
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_ids\(\s*p_side_effect_id text,\s*p_expected_user_id text,\s*p_claim_generation bigint,\s*p_claim_token uuid\s*\)[\s\S]*grainline_account_deletion_claim_user\(\s*p_side_effect_id,\s*p_claim_generation,\s*p_claim_token\s*\)/u,
+  );
+  assert.match(
+    sql,
+    /grainline_seller_broadcast_account_deletion_cleanup\(\s*p_side_effect_id text,\s*p_expected_user_id text,\s*p_claim_generation bigint,\s*p_claim_token uuid\s*\)[\s\S]*grainline_account_deletion_claim_user\(\s*p_side_effect_id,\s*p_claim_generation,\s*p_claim_token\s*\)/u,
+  );
+  assert.match(sql, /SESSION_USER <> 'grainline_staff_read_runtime'/u);
+  assert.match(sql, /SET LOCAL lock_timeout = '5s'/u);
+  assert.match(sql, /SET LOCAL statement_timeout = '60s'/u);
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
+test("email service preparation is byte-sealed and remains compatible", () => {
+  const emailService = verifyPrivateTablePreparationSource("email_service_v1");
+  assert.equal(emailService.release.table, "EmailOutbox");
+  assert.equal(emailService.functionSources.size, 21);
+  assert.deepEqual(emailService.release.addedColumns, []);
+  const sql = readFileSync(emailService.migrationPath, "utf8");
+  assert.match(sql, /grainline_email_service_owner_export/u);
+  assert.match(sql, /grainline_email_service_account_deletion_apply/u);
+  assert.match(sql, /grainline_resend_webhook_event_reserve/u);
+  assert.match(sql, /grainline_email_outbox_begin_provider_attempt/u);
+  assert.match(sql, /Email provider-attempt predecessor definition drifted/u);
+  const providerAttempt = emailService.release.functions.find(
+    (entry) => entry.name === "grainline_email_outbox_begin_provider_attempt",
+  );
+  assert.ok(providerAttempt?.predecessorSourceSha256);
+  const predecessorSql = readFileSync(
+    "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql",
+    "utf8",
+  );
+  const predecessorSource = functionSourceFromMigration(
+    predecessorSql,
+    providerAttempt.name,
+  );
+  assert.equal(
+    createHash("sha256").update(predecessorSource, "utf8").digest("hex"),
+    providerAttempt.predecessorSourceSha256,
+  );
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
 test("owner social and verification preparation batch is exact and ordered", () => {
   const releaseIds = privateTablePreparationReleaseIds(
     "owner_social_verification_v1",
@@ -311,6 +523,184 @@ test("owner social and verification preparation batch is exact and ordered", () 
       "20261028040000_prepare_maker_verification_authorities",
     ],
   );
+});
+
+test("Commission preparation is byte-sealed across both domain tables", () => {
+  const commission = privateTablePreparation("commission_domain_v1");
+  const commissionVerified = verifyPrivateTablePreparationSource(
+    "commission_domain_v1",
+  );
+  assert.equal(commission.table, "CommissionRequest");
+  assert.deepEqual(commission.additionalTables, ["CommissionInterest"]);
+  assert.equal(commission.functions.length, 23);
+  assert.equal(commissionVerified.digest, commission.migrationSha256);
+  const sql = readFileSync(commissionVerified.migrationPath, "utf8");
+  assert.doesNotMatch(sql, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /FORCE\s+ROW\s+LEVEL\s+SECURITY/iu);
+  assert.doesNotMatch(sql, /REVOKE[\s\S]{0,500}\bON\s+TABLE/iu);
+});
+
+test("Listing preparation is byte-sealed across its four-table domain", () => {
+  const listing = privateTablePreparation("listing_domain_v1");
+  const listingVerified = verifyPrivateTablePreparationSource("listing_domain_v1");
+  assert.equal(listing.table, "Listing");
+  assert.deepEqual(listing.additionalTables, [
+    "Photo",
+    "ListingVariantGroup",
+    "ListingVariantOption",
+  ]);
+  assert.equal(listing.functions.length, 44);
+  assert.equal(listingVerified.functionSources.size, 44);
+  assert.deepEqual(listing.addedConstraints, [{
+    table: "Listing",
+    name: "Listing_materials_count_chk",
+  }]);
+  assert.deepEqual(listing.addedTriggers, [{
+    name: "grainline_listing_materials_guard",
+    function: "grainline_listing_materials_guard",
+    table: "Listing",
+    enabled: "O",
+    type: 23,
+  }]);
+  const messageList = listing.functions.find(
+    (entry) => entry.name === "grainline_message_list",
+  );
+  assert.equal(messageList.securityDefiner, false);
+  const predecessorSql = readFileSync(
+    "prisma/migrations/20260726022500_prepare_conversation_message_authority/migration.sql",
+    "utf8",
+  );
+  assert.equal(
+    createHash("sha256")
+      .update(functionSourceFromMigration(predecessorSql, messageList.name), "utf8")
+      .digest("hex"),
+    messageList.predecessorSourceSha256,
+  );
+  assert.match(
+    listingVerified.functionSources.get(
+      "grainline_seller_staff_listing_review_transition",
+    ),
+    /reviewed_updated_at/u,
+  );
+  assert.equal(
+    REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(listing.migration),
+    listing.migrationSha256,
+  );
+  assert.equal(
+    REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(
+      "20261102060000_activate_listing_domain_rls",
+    ),
+    "052707ad9d3c87f021a134eeac2dae24ad4025f7bfa0ccb1566f7a9283bcabdb",
+  );
+});
+
+test("Listing preparation inspector accepts the exact applied-unrecorded catalog", async () => {
+  const selectedReleaseId = "listing_domain_v1";
+  const selectedRelease = privateTablePreparation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTablePreparationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "listing-preparation-"));
+  try {
+    const evidence = await inspectPrivateTablePreparationProduction(
+      environment(directory, "preflight", undefined, selectedReleaseId),
+      {
+        Client: fakeClientClass({
+          ledgerApplied: false,
+          schemaApplied: true,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.equal(evidence.state, "applied_unrecorded");
+    assert.deepEqual(evidence.tables, [
+      "Listing",
+      "Photo",
+      "ListingVariantGroup",
+      "ListingVariantOption",
+    ]);
+    assert.equal(evidence.catalog.functions.length, 44);
+    assert.equal(
+      evidence.catalog.functions.find(
+        (entry) => entry.name === "grainline_message_list",
+      ).securityDefiner,
+      false,
+    );
+    assert.equal(evidence.catalog.constraints.length, 1);
+    assert.equal(evidence.catalog.triggers.length, 1);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Block, UserReport, and SellerFaq preparation batch is exact and ordered", () => {
+  const releaseIds = privateTablePreparationReleaseIds(
+    "block_report_seller_faq_v1",
+  );
+  assert.deepEqual(releaseIds, [
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
+  ]);
+  assert.deepEqual(
+    releaseIds.map((releaseId) => privateTablePreparation(releaseId).migration),
+    [
+      "20261030010000_prepare_block_authorities",
+      "20261030020000_prepare_user_report_authorities",
+      "20261030030000_prepare_seller_faq_authorities",
+    ],
+  );
+});
+
+test("AdminAuditLog preparation seals new and retained authorities", () => {
+  const candidate = privateTablePreparation("admin_audit_log_v1");
+  const verifiedCandidate = verifyPrivateTablePreparationSource(
+    "admin_audit_log_v1",
+  );
+  assert.equal(candidate.table, "AdminAuditLog");
+  assert.equal(candidate.functions.length, 16);
+  assert.equal(candidate.retainedFunctions.length, 23);
+  assert.equal(candidate.addedIndexes.length, 2);
+  assert.equal(candidate.addedTriggers.length, 1);
+  assert.equal(verifiedCandidate.functionSources.size, 16);
+  assert.equal(verifiedCandidate.digest, candidate.migrationSha256);
+  assert.deepEqual(
+    candidate.functions
+      .filter((entry) => entry.executeRole === "account_deletion")
+      .map((entry) => entry.name),
+    [
+      "grainline_admin_audit_account_deletion_redaction_apply",
+      "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+    ],
+  );
+  assert.deepEqual(
+    candidate.functions.find(
+      (entry) => entry.name === "grainline_admin_audit_redact_deleted_references",
+    ).executeRoles,
+    [],
+  );
+  assert.deepEqual(
+    candidate.functions.find(
+      (entry) => entry.name === "grainline_admin_audit_insert_write_fence",
+    ).executeRoles,
+    [],
+  );
+});
+
+test("pending preparation accepts clean index and trigger marker families", () => {
+  assert.equal(preparationMarkersAreAbsent({
+    columns: 0,
+    functions: 0,
+    constraints: 0,
+    indexes: 0,
+    triggers: 0,
+  }), true);
+  assert.equal(preparationMarkersAreAbsent({
+    columns: 0,
+    functions: 0,
+    constraints: 0,
+    indexes: 1,
+    triggers: 0,
+  }), false);
 });
 
 test("inspector proves pending and applied states without recording row data", async () => {
@@ -352,6 +742,31 @@ test("inspector proves pending and applied states without recording row data", a
   }
 });
 
+test("inspector recognizes an applied-unrecorded two-table analytics preparation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "seller-analytics-preparation-"));
+  try {
+    const evidencePath = join(directory, "analytics-preflight.json");
+    const evidence = await inspectPrivateTablePreparationProduction({
+      DIRECT_URL: "postgresql://example.invalid/grainline",
+      PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_analytics_daily_v1",
+      PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+      PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: evidencePath,
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: "a".repeat(40),
+    }, { Client: analyticsAppliedClientClass() });
+    assert.equal(evidence.state, "applied_unrecorded");
+    assert.deepEqual(evidence.tables, [
+      "ListingViewDaily",
+      "SellerProfileViewDaily",
+    ]);
+    assert.deepEqual(Object.keys(evidence.postures), evidence.tables);
+    assert.equal(evidence.catalog.constraints.length, 4);
+    assert.equal(evidence.catalog.functions.length, 5);
+    assert.equal(statSync(evidencePath).mode & 0o777, 0o600);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("inspector admits only an exact applied-but-unrecorded preparation", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-table-preparation-restart-"));
   try {
@@ -384,6 +799,32 @@ test("inspector admits only an exact applied-but-unrecorded preparation", async 
   }
 });
 
+test("inspector proves both Commission tables as one preparation group", async () => {
+  const selectedReleaseId = "commission_domain_v1";
+  const selectedRelease = privateTablePreparation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTablePreparationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "commission-preparation-"));
+  try {
+    const evidence = await inspectPrivateTablePreparationProduction(
+      environment(directory, "preflight", undefined, selectedReleaseId),
+      {
+        Client: fakeClientClass({
+          ledgerApplied: false,
+          schemaApplied: true,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.equal(evidence.state, "applied_unrecorded");
+    assert.deepEqual(evidence.tables, ["CommissionRequest", "CommissionInterest"]);
+    assert.deepEqual(Object.keys(evidence.postures), evidence.tables);
+    assert.equal(evidence.catalog.functions.length, 23);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("all generic preparation releases admit only their exact manual ledger row", () => {
   for (const releaseId of [
     "support_request_v1",
@@ -392,6 +833,16 @@ test("all generic preparation releases admit only their exact manual ledger row"
     "follow_v1",
     "review_vote_v1",
     "maker_verification_v1",
+    "seller_analytics_daily_v1",
+    "block_v1",
+    "user_report_v1",
+    "seller_faq_v1",
+    "seller_broadcast_v1",
+    "email_service_v1",
+    "admin_audit_log_v1",
+    "seller_metrics_v1",
+    "commission_domain_v1",
+    "listing_domain_v1",
   ]) {
     const candidate = privateTablePreparation(releaseId);
     assert.equal(
@@ -419,7 +870,15 @@ test("Production workflow is exact-main bound and fails on another red push work
       "follow_v1",
       "review_vote_v1",
       "maker_verification_v1",
+      "seller_broadcast_v1",
+      "email_service_v1",
+      "seller_analytics_daily_v1",
+      "admin_audit_log_v1",
+      "seller_metrics_v1",
       "owner_social_verification_v1",
+      "commission_domain_v1",
+      "block_report_seller_faq_v1",
+      "listing_domain_v1",
     ],
   );
   assert.equal(parsed.concurrency.group, "production-database-migrations");
@@ -427,6 +886,7 @@ test("Production workflow is exact-main bound and fails on another red push work
   assert.match(workflow, /private-table-preparation-catalog\.mjs --release-ids/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --migrations/u);
   assert.match(workflow, /private-table-preparation-catalog\.mjs --tests/u);
+  assert.match(workflow, /tests\/block-preparation-production\.test\.mjs/u);
   assert.match(workflow, /tests\/stock-notification-preparation-production\.test\.mjs/u);
   await assert.doesNotReject(runBinding());
   await assert.rejects(runBinding("failure"), /push workflows are not all green/u);

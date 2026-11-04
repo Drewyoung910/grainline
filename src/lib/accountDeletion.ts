@@ -12,7 +12,12 @@ import { deleteAllOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { deleteAllOwnerSavedBlogPosts } from "@/lib/savedBlogPostOwnerAccess";
 import { accountDeletionMediaKeysForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
-import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
+import {
+  ownerActiveCommissionRequestCount,
+  ownerCommissionReferenceImageUrls,
+  prepareCommissionAccountDeletion,
+  redactCommissionAccountDeletion,
+} from "@/lib/commissionRequestAccess";
 import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
   accountEmailFallbackEmailsForUser,
@@ -34,10 +39,10 @@ import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { stripe } from "@/lib/stripe";
 import {
   Prisma,
-  EmailSuppressionReason,
 } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import {
+  buildAccountDeletionAuditJsonPatches,
   markAccountDeletionAuditMetadata,
   redactAccountDeletionAuditMetadata,
   redactAccountDeletionText,
@@ -80,21 +85,34 @@ import {
   anonymizeSellerForAccountDeletion,
   pauseSellerForAccountDeletion,
 } from "@/lib/sellerAccountDeletionPrivateAccess";
+import { clearSellerProfileViewDailyForAccountDeletion } from "@/lib/sellerAnalyticsDailyAccess";
+import { clearSellerMetricsForAccountDeletion } from "@/lib/metrics";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import { redactListingsForAccountDeletion } from "@/lib/listingAccountDeletionAccess";
+import {
+  cleanupAccountSellerBroadcasts,
+} from "@/lib/sellerBroadcastAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
-import {
-  accountEmailOutboxWhere,
-  redactEmailOutboxRepresentations,
-} from "@/lib/emailOutboxContentLifecycle";
 import { emailOutboxAccountDeletionPendingCount } from "@/lib/emailOutboxAccess";
 import { deleteAllOwnerStockNotifications } from "@/lib/stockNotificationAccess";
 import { deleteAllOwnerFavorites } from "@/lib/favoriteAccess";
 import { cleanupFollowsForAccountDeletion } from "@/lib/sellerFollowAccess";
+import {
+  applyEmailServiceAccountDeletion,
+  redactDeletedSellerEmailOutbox,
+} from "@/lib/emailServiceAccess";
+import { deleteAllOwnerBlocks } from "@/lib/blockAccess";
+import { redactUserReportsForAccountDeletion } from "@/lib/userReportAccess";
+import { cleanupSellerFaqsForAccountDeletion } from "@/lib/sellerFaqAccess";
+import {
+  acquireAdminAuditLogAccountDeletionWriteFence,
+  adminAuditLogAccountDeletionCandidates,
+  appendAdminAuditLog,
+} from "@/lib/adminAuditLogAccess";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
-const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_MIN_AUDIT_REDACTION_VALUE_LENGTH = 3;
 const ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50;
@@ -128,22 +146,13 @@ export type AccountDeletionBlocker = {
 type AuditLogRedactionCandidate = {
   metadata: Prisma.JsonValue;
   reason: string | null;
+  metadataSha256: string;
+  reasonSha256: string;
   directAccountReference: boolean;
 };
 
-type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
-type AccountDeletionMediaDb = Pick<
-  Prisma.TransactionClient,
-  "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
->;
-
-function chunks<T>(items: T[], size = ACCOUNT_DELETION_REDACTION_BATCH_SIZE) {
-  const result: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    result.push(items.slice(index, index + size));
-  }
-  return result;
-}
+type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw">;
+type AccountDeletionMediaDb = DbUserContextTransactionClient;
 
 function accountDeletionLockKey(userId: string) {
   return `account-delete:${userId}`;
@@ -188,21 +197,6 @@ export async function releaseAccountDeletionLock(lock: AccountDeletionLock): Pro
   });
 }
 
-function mergeAuditLogRedactionCandidate(
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  id: string,
-  metadata: Prisma.JsonValue,
-  reason: string | null,
-  directAccountReference: boolean,
-) {
-  const existing = candidates.get(id);
-  candidates.set(id, {
-    metadata: existing?.metadata ?? metadata,
-    reason: existing?.reason ?? reason,
-    directAccountReference: Boolean(existing?.directAccountReference || directAccountReference),
-  });
-}
-
 function normalizedSensitiveValues(values: Iterable<string | null | undefined>) {
   const seen = new Set<string>();
   return [...values]
@@ -216,108 +210,49 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
     });
 }
 
-function auditMetadataExactAccountReferenceSql(value: string) {
-  return Prisma.sql`jsonb_path_exists(
-    metadata,
-    '$.** ? (@ == $account_reference)'::jsonpath,
-    jsonb_build_object('account_reference', to_jsonb(${value}::text)),
-    true
-  )`;
-}
-
-async function collectAuditLogsByExactAccountMetadataReference(
-  db: AuditLogRedactionDb,
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  accountReferenceValues: string[],
-) {
-  for (const value of accountReferenceValues) {
-    const exactReferenceSql = auditMetadataExactAccountReferenceSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, metadata, reason
-          FROM "AdminAuditLog"
-          WHERE id > ${cursor}
-            AND ${exactReferenceSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, metadata, reason
-          FROM "AdminAuditLog"
-          WHERE ${exactReferenceSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; metadata: Prisma.JsonValue; reason: string | null }[] = await db.$queryRaw(query);
-      matches.forEach((log) => mergeAuditLogRedactionCandidate(
-        candidates,
-        log.id,
-        log.metadata,
-        log.reason,
-        true,
-      ));
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-}
-
-async function collectAuditLogsByAccountReference(
-  db: AuditLogRedactionDb,
-  candidates: Map<string, AuditLogRedactionCandidate>,
-  adminId: string,
-  targetIds: string[],
-) {
-  let cursor: string | undefined;
-  const where: Prisma.AdminAuditLogWhereInput = {
-    OR: [
-      { adminId },
-      ...(targetIds.length > 0 ? [{ targetId: { in: targetIds } }] : []),
-    ],
-  };
-
-  for (;;) {
-    const matches = await db.adminAuditLog.findMany({
-      where,
-      select: { id: true, metadata: true, reason: true },
-      orderBy: { id: "asc" },
-      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-
-    matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, log.reason, true));
-
-    if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-    cursor = matches[matches.length - 1]?.id;
-    if (!cursor) break;
-  }
-}
-
 async function collectAdminAuditLogRedactionUpdates({
   db,
+  claim,
   adminId,
   targetIds,
   accountReferenceValues,
   sensitiveValues,
 }: {
   db: AuditLogRedactionDb;
+  claim: {
+    sideEffectId: string;
+    claimGeneration: bigint;
+    claimToken: string;
+  };
   adminId: string;
   targetIds: string[];
   accountReferenceValues: string[];
   sensitiveValues: string[];
 }): Promise<AccountDeletionAuditRedactionUpdate[]> {
   const candidates = new Map<string, AuditLogRedactionCandidate>();
-  await collectAuditLogsByAccountReference(db, candidates, adminId, targetIds);
-  await collectAuditLogsByExactAccountMetadataReference(
-    db,
-    candidates,
-    accountReferenceValues,
-  );
+  let cursor: string | null = null;
+  for (;;) {
+    const matches = await adminAuditLogAccountDeletionCandidates(db, {
+      ...claim,
+      userId: adminId,
+      targetIds,
+      referenceValues: accountReferenceValues,
+      afterId: cursor,
+      limit: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+    });
+    for (const log of matches) {
+      candidates.set(log.id, {
+        metadata: log.metadata,
+        reason: log.reason,
+        metadataSha256: log.metadataSha256,
+        reasonSha256: log.reasonSha256,
+        directAccountReference: true,
+      });
+    }
+    if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+    cursor = matches[matches.length - 1]?.id ?? null;
+    if (!cursor) break;
+  }
 
   const updates: AccountDeletionAuditRedactionUpdate[] = [];
   for (const [id, candidate] of candidates) {
@@ -335,93 +270,29 @@ async function collectAdminAuditLogRedactionUpdates({
     if (!redacted.changed && !marked.changed && !reason.changed) continue;
     updates.push({
       logId: id,
-      metadata: marked.metadata,
-      ...(reason.changed && reason.text !== null ? { reason: reason.text } : {}),
+      expectedMetadataSha256: candidate.metadataSha256,
+      expectedReasonSha256: candidate.reasonSha256,
+      ...(redacted.changed || marked.changed
+        ? {
+            metadataPatches: buildAccountDeletionAuditJsonPatches(
+              candidate.metadata as Parameters<typeof buildAccountDeletionAuditJsonPatches>[0],
+              marked.metadata,
+            ),
+          }
+        : {}),
+      ...(reason.changed && reason.text !== null
+        ? { reasonPatches: reason.patches }
+        : {}),
     });
   }
   return updates;
 }
 
-async function redactEmailOutboxRowsForDeletedMaker(
-  tx: Prisma.TransactionClient,
-  whereInputs: Prisma.EmailOutboxWhereInput[],
-  now: Date,
-) {
-  for (const whereChunk of chunks(whereInputs, 100)) {
-    const where = { OR: whereChunk };
-    await tx.emailOutbox.updateMany({
-      where: {
-        ...where,
-        sentAt: null,
-        status: { in: ["PENDING", "PROCESSING", "FAILED", "DEAD"] },
-      },
-      data: {
-        status: "SKIPPED",
-        nextAttemptAt: null,
-        sentAt: now,
-        lastError: "Skipped because the source maker account was deleted.",
-      },
-    });
-    await redactEmailOutboxRepresentations(tx, where, {
-      subject: "Email removed after maker deletion",
-      html: "[Email removed after maker deletion]",
-    });
-  }
-}
-
 async function cleanupDeletedSellerFanoutRows(
-  tx: Prisma.TransactionClient,
+  tx: DbUserContextTransactionClient,
   sellerProfileId: string,
-  now: Date,
 ) {
-  const broadcasts = await tx.sellerBroadcast.findMany({
-    where: { sellerProfileId },
-    select: { id: true },
-  });
-  const listings = await tx.listing.findMany({
-    where: { sellerId: sellerProfileId },
-    select: { id: true },
-  });
-  const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
-  const listingIds = listings.map((listing) => listing.id);
-  await redactEmailOutboxRowsForDeletedMaker(
-    tx,
-    [
-      ...broadcastIds.flatMap((id) => [
-        {
-          sourceType: "seller_broadcast",
-          sourceId: id,
-        },
-        {
-          templateName: "seller_broadcast",
-          preferenceKey: "EMAIL_SELLER_BROADCAST",
-          dedupKey: { startsWith: `seller-broadcast:${id}:` },
-        },
-      ]),
-      ...listingIds.flatMap((id) => [
-        {
-          sourceType: "followed_maker_new_listing",
-          sourceId: id,
-        },
-        {
-          templateName: "followed_maker_new_listing",
-          preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-          dedupKey: { startsWith: `followed-listing:${id}:` },
-        },
-        {
-          templateName: "followed_maker_new_listing",
-          preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-          dedupKey: { startsWith: `admin-approved-listing:${id}:` },
-        },
-        {
-          templateName: "followed_maker_new_listing",
-          preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-          dedupKey: { startsWith: `followed-listing-active:${id}:` },
-        },
-      ]),
-    ],
-    now,
-  );
+  await redactDeletedSellerEmailOutbox(tx, sellerProfileId);
 }
 
 async function archiveBlogPostsForDeletedAccount(
@@ -497,12 +368,7 @@ async function getAccountDeletionBlockersInTransaction(
     tx,
   );
   const openCases = await getCaseAccountDeletionBlockerCount(userId, tx);
-  const activeCommissions = await tx.commissionRequest.count({
-    where: {
-      buyerId: userId,
-      status: { in: [...ACTIVE_COMMISSION_STATUSES] },
-    },
-  });
+  const activeCommissions = await ownerActiveCommissionRequestCount(tx);
   const accountEmails = await accountEmailFallbackEmailsForUser(tx);
   const emailDeliveryPending = await emailOutboxAccountDeletionPendingCount(
     {
@@ -612,10 +478,7 @@ async function collectAccountDeletionMediaKeys(
     where: { review: { reviewerId: userId } },
     select: { url: true },
   });
-  const commissionRequests = await db.commissionRequest.findMany({
-    where: { buyerId: userId },
-    select: { referenceImageUrls: true },
-  });
+  const commissionReferenceImageUrls = await ownerCommissionReferenceImageUrls(db);
   const messages = await listActorSentMessageBodiesForDeletion(userId, db);
   const blogPosts = await db.blogPost.findMany({
     where: accountDeletionBlogPostMediaOwnerWhere(userId, sellerProfileId),
@@ -629,7 +492,7 @@ async function collectAccountDeletionMediaKeys(
   sellerMediaUrls.forEach((url) => urls.add(url));
 
   reviewPhotos.forEach((photo) => urls.add(photo.url));
-  commissionRequests.forEach((request) => request.referenceImageUrls.forEach((url) => urls.add(url)));
+  commissionReferenceImageUrls.forEach((url) => urls.add(url));
   messages.forEach((message) => {
     const url = messageAttachmentUrl(message.body);
     if (url) urls.add(url);
@@ -973,6 +836,12 @@ export async function anonymizeUserAccount(
   });
 
   const result = await withDbUserContext(userId, async (tx) => {
+    await acquireAdminAuditLogAccountDeletionWriteFence(tx, {
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
+      userId,
+    });
     // This is the account-lifecycle side of the message send protocol. Sends
     // take FOR SHARE on both participants before their final block check and
     // insert. Deletion takes FOR UPDATE before scanning/redacting messages, so
@@ -1029,10 +898,6 @@ export async function anonymizeUserAccount(
       return {
         ok: true,
         alreadyDeleted: true,
-        auditTargetIds: [],
-        accountAuditReferenceValues: [],
-        accountAuditSensitiveValues: [],
-        accountSensitiveValues: [],
       };
     }
 
@@ -1050,8 +915,6 @@ export async function anonymizeUserAccount(
     }
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
     const accountEmails = await accountEmailFallbackEmailsForUser(tx);
-    const accountEmailSuppressionKeys = accountEmailSuppressionKeysForEmails(accountEmails);
-    const suppressionEmailMatches = accountEmailSuppressionKeys;
     const accountSensitiveValues = normalizedSensitiveValues([
       user.id,
       user.clerkId,
@@ -1144,20 +1007,17 @@ export async function anonymizeUserAccount(
       userId: user.id,
     });
 
-    await tx.adminAuditLog.create({
-      data: {
-        adminId: user.id,
-        action: "USER_ACCOUNT_DELETE",
-        targetType: "USER",
-        targetId: user.id,
-        reason: "User requested account deletion",
-        metadata: {
-          actorKind: "user",
-          hadSellerProfile: Boolean(user.sellerProfile),
-          hadStripeAccount: Boolean(stripeAccountId),
-          stripeRejectSucceeded,
-          deletedAt: now.toISOString(),
-        },
+    await appendAdminAuditLog(tx, {
+      adminId: user.id,
+      action: "USER_ACCOUNT_DELETE",
+      targetType: "USER",
+      targetId: user.id,
+      reason: "User requested account deletion",
+      metadata: {
+        hadSellerProfile: Boolean(user.sellerProfile),
+        hadStripeAccount: Boolean(stripeAccountId),
+        stripeRejectSucceeded,
+        deletedAt: now.toISOString(),
       },
     });
 
@@ -1169,7 +1029,7 @@ export async function anonymizeUserAccount(
     await deleteAccountNotificationServiceRows(tx, user.id);
     await deleteAllOwnerSavedBlogPosts(user.id, tx);
     await deleteAllOwnerReviewVotes(tx);
-    await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await deleteAllOwnerBlocks(tx);
     await redactActorMessagesForAccountDeletion({
       sideEffectId: localAnonymizeSideEffectId,
       userId: user.id,
@@ -1206,110 +1066,19 @@ export async function anonymizeUserAccount(
     await tx.reviewPhoto.deleteMany({
       where: { review: { reviewerId: user.id } },
     });
-    await tx.userReport.updateMany({
-      where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
-      data: { details: null },
-    });
-    await tx.userReport.updateMany({
-      where: {
-        OR: [{ reporterId: user.id }, { reportedId: user.id }],
-        resolved: true,
-        resolutionNote: { not: null },
-      },
-      data: {
-        resolutionNote: "Resolution note removed after an involved account was deleted.",
-      },
-    });
-    await tx.userReport.updateMany({
-      where: { reportedId: user.id, resolved: false },
-      data: {
-        resolved: true,
-        resolvedAt: now,
-        resolvedById: null,
-        resolutionNote: "Auto-resolved after the reported account was deleted.",
-      },
+    await redactUserReportsForAccountDeletion(tx, {
+      expectedUserId: user.id,
+      sideEffectId: localAnonymizeSideEffectId,
+      claimGeneration: localClaimGeneration,
+      claimToken: localClaimToken,
     });
     await redactSupportRequestsForAccountDeletion(
       tx,
       accountSensitiveValues,
       accountAuditSensitiveValues,
     );
-    const accountEmailOutboxWhereInput = accountEmailOutboxWhere(
-      user.id,
-      suppressionEmailMatches,
-    );
-    await tx.emailOutbox.updateMany({
-      where: {
-        ...accountEmailOutboxWhereInput,
-        sentAt: null,
-        status: { in: ["PENDING", "PROCESSING", "FAILED", "DEAD"] },
-      },
-      data: {
-        status: "SKIPPED",
-        nextAttemptAt: null,
-        sentAt: now,
-        lastError: "Skipped because the recipient account was deleted.",
-      },
-    });
-    await redactEmailOutboxRepresentations(tx, accountEmailOutboxWhereInput, {
-      subject: "Email removed after account deletion",
-      html: "[Email removed after account deletion]",
-    });
-    await tx.emailOutbox.updateMany({
-      where: accountEmailOutboxWhereInput,
-      data: { recipientEmail: "deleted-account@deleted.thegrainline.local" },
-    });
-    await tx.emailFailureCount.deleteMany({
-      where: { email: { in: suppressionEmailMatches } },
-    });
-    await tx.newsletterSubscriber.deleteMany({
-      where: { email: { in: suppressionEmailMatches } },
-    });
-    const existingEmailSuppressions = await tx.emailSuppression.findMany({
-      where: { email: { in: suppressionEmailMatches } },
-      select: { email: true, reason: true },
-    });
-    const existingSuppressionEmails = new Set(existingEmailSuppressions.map((suppression) => suppression.email));
-    const providerHardSuppressionEmails = new Set(
-      existingEmailSuppressions
-        .filter((suppression) =>
-          suppression.reason === EmailSuppressionReason.BOUNCE ||
-          suppression.reason === EmailSuppressionReason.COMPLAINT)
-        .map((suppression) => suppression.email),
-    );
-    const manualSuppressionEmails = suppressionEmailMatches.filter(
-      (email) => !providerHardSuppressionEmails.has(email),
-    );
-    if (manualSuppressionEmails.length > 0) {
-      await tx.emailSuppression.updateMany({
-        where: {
-          email: { in: manualSuppressionEmails },
-          reason: EmailSuppressionReason.MANUAL,
-        },
-        data: {
-          source: "account_deletion",
-          eventId: null,
-          details: { accountDeleted: true },
-        },
-      });
-      const suppressionEmailsToCreate = manualSuppressionEmails.filter(
-        (email) => !existingSuppressionEmails.has(email),
-      );
-      for (const email of suppressionEmailsToCreate) {
-        await tx.emailSuppression.create({
-          data: {
-            email,
-            reason: EmailSuppressionReason.MANUAL,
-            source: "account_deletion",
-            details: { accountDeleted: true },
-          },
-        });
-      }
-    }
-    await tx.commissionRequest.updateMany({
-      where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
-      data: { status: "CLOSED" },
-    });
+    await applyEmailServiceAccountDeletion(tx);
+    await prepareCommissionAccountDeletion(tx);
 
     if (user.sellerProfile) {
       if (stripeRejectSucceeded) {
@@ -1320,43 +1089,27 @@ export async function anonymizeUserAccount(
           claimToken: localClaimToken,
         });
       }
-      await removeSellerCommissionInterests(tx, user.sellerProfile.id);
-      await tx.sellerProfileViewDaily.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await clearSellerProfileViewDailyForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
-      await tx.sellerMetrics.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await clearSellerMetricsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
-      await tx.review.updateMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-        data: { sellerReply: null, sellerReplyAt: null },
-      });
-      await tx.photo.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listingVariantGroup.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listing.updateMany({
-        where: { sellerId: user.sellerProfile.id },
-        data: {
-          title: "Deleted listing",
-          status: "HIDDEN",
-          isPrivate: true,
-          archivedAt: now,
-          description: "[Listing removed]",
-          videoUrl: null,
-          tags: [],
-          metaDescription: null,
-          materials: [],
-          aiReviewFlags: [],
-          aiReviewScore: null,
-          rejectionReason: "Seller account deleted",
-        },
+      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id);
+      await redactListingsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        expectedSellerProfileId: user.sellerProfile.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+        archivedAt: now,
       });
       await redactOwnerMakerVerificationForDeletion(tx, now);
       await cleanupFollowsForAccountDeletion(tx, {
@@ -1365,11 +1118,17 @@ export async function anonymizeUserAccount(
         claimGeneration: localClaimGeneration,
         claimToken: localClaimToken,
       });
-      await tx.sellerBroadcast.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupAccountSellerBroadcasts(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
-      await tx.sellerFaq.deleteMany({
-        where: { sellerProfileId: user.sellerProfile.id },
+      await cleanupSellerFaqsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       });
       await anonymizeSellerForAccountDeletion(tx, {
         sellerProfileId: user.sellerProfile.id,
@@ -1392,19 +1151,32 @@ export async function anonymizeUserAccount(
     }
 
     await archiveBlogPostsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
-    await tx.commissionRequest.updateMany({
-      where: { buyerId: user.id },
-      data: {
-        title: "Deleted commission request",
-        description: "[Request deleted]",
-        timeline: null,
-        referenceImageUrls: [],
-        lat: null,
-        lng: null,
-        radiusMeters: null,
-        isNational: true,
+    await redactCommissionAccountDeletion(tx);
+
+    const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
+      db: tx,
+      claim: {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
       },
+      adminId: user.id,
+      targetIds: auditTargetIds,
+      accountReferenceValues: accountAuditReferenceValues,
+      sensitiveValues: accountAuditSensitiveValues,
     });
+    await enqueueAccountDeletionAuditRedactionSideEffects(
+      tx,
+      {
+        sideEffectId: localAnonymizeSideEffectId,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+      },
+      user.id,
+      auditTargetIds,
+      accountAuditReferenceValues,
+      redactionUpdates,
+    );
 
     await deleteCurrentUserEmailAddressHistory(tx);
 
@@ -1418,12 +1190,13 @@ export async function anonymizeUserAccount(
     return {
       ok: true,
       alreadyDeleted: false,
-      auditTargetIds,
-      accountAuditReferenceValues,
-      accountAuditSensitiveValues,
-      accountSensitiveValues,
     };
-  }, { timeout: 30000, maxWait: 10000 }).catch((error) => {
+  }, {
+    timeout: 30000,
+    maxWait: 10000,
+    transactionRetry: true,
+    attempts: 3,
+  }).catch((error) => {
     if (stripeRejectSucceeded && stripeAccountId) {
       Sentry.captureException(error, {
         tags: { source: "account_delete_partial" },
@@ -1448,33 +1221,14 @@ export async function anonymizeUserAccount(
     await invalidateAccountStateCache(account.clerkId, "account_delete_account_state_cache_invalidate");
     revalidateDeletedAccountSearchCaches(userId);
 
-    try {
-      const redactionUpdates = await collectAdminAuditLogRedactionUpdates({
-        db: prisma,
-        adminId: userId,
-        targetIds: result.auditTargetIds,
-        accountReferenceValues: result.accountAuditReferenceValues,
-        sensitiveValues: result.accountAuditSensitiveValues,
-      });
-      await enqueueAccountDeletionAuditRedactionSideEffects(
-        getAccountDeletionSideEffectClient(),
-        userId,
-        redactionUpdates,
-      );
-      const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
-        ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
-      ]);
-      if (redactionResult.failed > 0) {
-        Sentry.captureMessage("Account deletion audit redaction side effects pending retry", {
-          level: "warning",
-          tags: { source: "account_delete_audit_redaction" },
-          extra: { userId, failed: redactionResult.failed },
-        });
-      }
-    } catch (error) {
-      Sentry.captureException(error, {
+    const redactionResult = await processAccountDeletionSideEffectsForUser(userId, [
+      ACCOUNT_DELETION_SIDE_EFFECT_KIND.AUDIT_REDACT,
+    ]);
+    if (redactionResult.failed > 0) {
+      Sentry.captureMessage("Account deletion audit redaction side effects pending retry", {
+        level: "warning",
         tags: { source: "account_delete_audit_redaction" },
-        extra: { userId },
+        extra: { userId, failed: redactionResult.failed },
       });
     }
 

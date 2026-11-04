@@ -51,6 +51,9 @@ function route(controls = {}) {
       counts.anonymize++; assert.equal(id, controls.proofUserId ?? (controls.ordinary ? "user_ordinary" : SENTINEL));
       return controls.anonymized ?? { ok: true, alreadyDeleted: true, userAbsent: true };
     } },
+    "@/lib/emailServiceAccess": {
+      clearAccountDeletionEmailSuppressions: unexpected,
+    },
     "@/lib/requestBody": { ...bodyModule.exports, readBoundedWebhookText: async (req, limit) => {
       if (controls.bodyFailure) throw new Error("bad stream"); return bodyModule.exports.readBoundedWebhookText(req, limit);
     } },

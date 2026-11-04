@@ -70,7 +70,7 @@ async function DashboardPageContent({
 
   const [dashboardSeller, listingAttention, orderQueue, unreadMessages] = await Promise.all([
     sellerOwnerDashboardState(me.id),
-    readOptional("listing_attention", () => readWorkshopListingAttention(seller.id)),
+    readOptional("listing_attention", () => readWorkshopListingAttention(me.id)),
     readOptional("order_queue", () => readWorkshopOrderQueue(me.id)),
     readOptional("unread_messages", () => countActorUnreadMessages(me.id)),
   ]);

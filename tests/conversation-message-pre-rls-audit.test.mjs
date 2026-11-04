@@ -103,9 +103,12 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     );
 
     assert.match(request, /sendActorCustomOrderRequest\(input\)/);
-    assert.match(commission, /createActorCommissionInterest\(input\)/);
+    assert.match(
+      commission,
+      /withDbUserContext\(\s*input\.sellerUserId,\s*\(client\) =>\s*createActorCommissionInterest\(input, client\),?\s*\)/u,
+    );
     assert.match(authority, /public\.grainline_message_send_custom_request/);
-    assert.match(authority, /public\.grainline_message_create_commission_interest/);
+    assert.match(authority, /public\.grainline_commission_interest_actor_create/);
     assert.match(authority, /public\.grainline_message_send_custom_order_ready/);
     for (const writer of [customFunction, commissionFunction, readyFunction]) {
       assert.match(writer, /FOR UPDATE/);

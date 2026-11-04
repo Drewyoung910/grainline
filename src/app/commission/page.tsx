@@ -11,11 +11,14 @@ import { auth } from "@clerk/nextjs/server";
 import { Category } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import CommissionInterestButton from "./CommissionInterestButton";
-import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { MapPin } from "@/components/icons";
 import { safeJsonLd } from "@/lib/json-ld";
-import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
+import {
+  actorCommissionInterestRequestIds,
+  publicCommissionRequestCount,
+  publicCommissionRequestPage,
+} from "@/lib/commissionRequestAccess";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { Suspense } from "react";
@@ -79,199 +82,49 @@ async function CommissionPageContent({
   }
 
   const hasLocation = viewerLat != null && viewerLng != null;
-  const blockedUserIds = await getBlockedUserIdsFor(meId);
-
-  // Build where clause
-  const where = openCommissionWhere({
-    ...(categoryValid ? { category: categoryFilter as Category } : {}),
-    ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+  // The bounded authority owns visibility, reciprocal blocks, expiry and the
+  // privacy-safe distance calculation for both tabs.
+  const publicFilter = {
+    category: categoryValid ? categoryFilter as Category : null,
+    near: tab === "near" && hasLocation
+      ? { lat: viewerLat!, lng: viewerLng!, radiusMeters: 80000 }
+      : null,
+  };
+  const total = await publicCommissionRequestCount(meId, publicFilter);
+  page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
+  const { rows: found } = await publicCommissionRequestPage(meId, {
+    ...publicFilter,
+    offset: (page - 1) * pageSize,
+    limit: pageSize,
   });
-
-  // For Near Me tab: filter by distance using raw SQL
-  let requests: Array<{
-    id: string;
-    title: string;
-    description: string;
-    category: Category | null;
-    budgetMinCents: number | null;
-    budgetMaxCents: number | null;
-    timeline: string | null;
-    referenceImageUrls: string[];
-    interestedCount: number;
-    createdAt: Date;
-    isNational: boolean;
-    buyer: { name: string | null; imageUrl: string | null };
-    distanceMeters?: number;
-  }>;
-  let total: number;
-
-  if (tab === "near" && hasLocation) {
-    // Near Me: show local requests first, then national ones, filtered by 80km
-    const radius = 80000; // 80km
-
-    // SECURITY: $queryRawUnsafe is used here because Prisma's $queryRaw
-    // tagged template cannot handle conditional SQL fragments. All user
-    // input (categoryFilter) is passed as bound positional parameters ($9/$5),
-    // never interpolated into the SQL string. categoryFilter is also
-    // validated against CATEGORY_VALUES allowlist before reaching this code.
-    const categoryConditionSelect = categoryValid ? `AND cr.category::text = $9` : "";
-    const categoryConditionCount = categoryValid ? `AND cr.category::text = $5` : "";
-
-    const countSql = `
-      SELECT COUNT(*) FROM "CommissionRequest" cr
-      WHERE cr.status = 'OPEN'
-        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
-        AND cr."buyerAccountActive" = true
-        AND NOT (cr."buyerId" = ANY($4::text[]))
-        ${categoryConditionCount}
-        AND (
-          cr."isNational" = true
-          OR (cr.lat BETWEEN -90 AND 90 AND cr.lng BETWEEN -180 AND 180 AND
-              6371000 * acos(
-                LEAST(1.0, GREATEST(-1.0,
-                  cos(radians($1)) * cos(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0)))) *
-                  cos(radians(LEAST(179.975, GREATEST(-179.975, (floor(cr.lng::float8 * 20.0) + 0.5) / 20.0))) - radians($2)) +
-                  sin(radians($1)) * sin(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0))))
-                ))
-              ) <= $3
-          )
-        )`;
-
-    const countArgs: unknown[] = [viewerLat, viewerLng, radius, [...blockedUserIds]];
-    if (categoryValid) countArgs.push(categoryFilter);
-    const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...countArgs);
-
-    total = Number(countResult[0].count);
-    page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
-
-    const selectSql = `
-      SELECT
-        cr.id, cr.title, cr.description, cr.category,
-        cr."budgetMinCents", cr."budgetMaxCents", cr.timeline,
-        cr."referenceImageUrls", cr."createdAt",
-        cr."isNational",
-        cr."buyerId", cr."buyerName", cr."buyerImageUrl",
-        CASE
-          WHEN cr.lat BETWEEN -90 AND 90 AND cr.lng BETWEEN -180 AND 180
-          THEN (6371000 * acos(
-            LEAST(1.0, GREATEST(-1.0,
-              cos(radians($1)) * cos(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0)))) *
-              cos(radians(LEAST(179.975, GREATEST(-179.975, (floor(cr.lng::float8 * 20.0) + 0.5) / 20.0))) - radians($2)) +
-              sin(radians($1)) * sin(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0))))
-            ))
-          ))
-          ELSE NULL
-        END AS distance_m
-      FROM "CommissionRequest" cr
-      WHERE cr.status = 'OPEN'
-        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
-        AND cr."buyerAccountActive" = true
-        AND NOT (cr."buyerId" = ANY($8::text[]))
-        ${categoryConditionSelect}
-        AND (
-          cr."isNational" = true
-          OR (cr.lat BETWEEN -90 AND 90 AND cr.lng BETWEEN -180 AND 180 AND
-              6371000 * acos(
-                LEAST(1.0, GREATEST(-1.0,
-                  cos(radians($3)) * cos(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0)))) *
-                  cos(radians(LEAST(179.975, GREATEST(-179.975, (floor(cr.lng::float8 * 20.0) + 0.5) / 20.0))) - radians($4)) +
-                  sin(radians($3)) * sin(radians(LEAST(89.975, GREATEST(-89.975, (floor(cr.lat::float8 * 20.0) + 0.5) / 20.0))))
-                ))
-              ) <= $5
-          )
-        )
-      ORDER BY
-        CASE WHEN cr."isNational" = false AND cr.lat IS NOT NULL THEN 0 ELSE 1 END ASC,
-        distance_m ASC NULLS LAST,
-        cr."createdAt" DESC,
-        cr.id DESC
-      LIMIT $6 OFFSET $7`;
-
-    const rawResults = await prisma.$queryRawUnsafe<Array<{
-      id: string;
-      title: string;
-      description: string;
-      category: string | null;
-      budgetMinCents: number | null;
-      budgetMaxCents: number | null;
-      timeline: string | null;
-      referenceImageUrls: string[];
-      createdAt: Date;
-      isNational: boolean;
-      buyerId: string;
-      buyerName: string | null;
-      buyerImageUrl: string | null;
-      distance_m: number | null;
-    }>>(selectSql, ...((): unknown[] => {
-      const args: unknown[] = [viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, (page - 1) * pageSize, [...blockedUserIds]];
-      if (categoryValid) args.push(categoryFilter);
-      return args;
-    })());
-
-    const interestCounts = rawResults.length > 0
-      ? await publicCommissionInterestCounts(rawResults.map(({ id }) => id), null)
-      : new Map<string, number>();
-    requests = rawResults.map((r) => ({
-      id: r.id,
-      title: r.title,
-      description: r.description,
-      category: r.category as Category | null,
-      budgetMinCents: r.budgetMinCents,
-      budgetMaxCents: r.budgetMaxCents,
-      timeline: r.timeline,
-      referenceImageUrls: r.referenceImageUrls,
-      interestedCount: interestCounts.get(r.id) ?? 0,
-      createdAt: r.createdAt,
-      isNational: r.isNational,
-      buyer: { name: r.buyerName, imageUrl: r.buyerImageUrl },
-      distanceMeters: r.distance_m != null ? Number(r.distance_m) : undefined,
-    }));
-  } else {
-    total = await prisma.commissionRequest.count({ where });
-    page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
-    const found = await prisma.commissionRequest.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        category: true,
-        budgetMinCents: true,
-        budgetMaxCents: true,
-        timeline: true,
-        referenceImageUrls: true,
-        createdAt: true,
-        isNational: true,
-        buyerName: true,
-        buyerImageUrl: true,
-      },
-    });
-    const interestCounts = found.length > 0
-      ? await publicCommissionInterestCounts(found.map(({ id }) => id), null)
-      : new Map<string, number>();
-    requests = found.map(({ buyerName, buyerImageUrl, ...request }) => ({
-      ...request,
-      interestedCount: interestCounts.get(request.id) ?? 0,
-      buyer: { name: buyerName, imageUrl: buyerImageUrl },
-    }));
-  }
+  const interestCounts = found.length > 0
+    ? await publicCommissionInterestCounts(found.map(({ id }) => id), meId)
+    : new Map<string, number>();
+  const requests = found.map((request) => ({
+    id: request.id,
+    title: request.title,
+    description: request.description,
+    category: request.category,
+    budgetMinCents: request.budgetMinCents,
+    budgetMaxCents: request.budgetMaxCents,
+    timeline: request.timeline,
+    referenceImageUrls: request.referenceImageUrls,
+    interestedCount: interestCounts.get(request.id) ?? 0,
+    createdAt: request.createdAt,
+    isNational: request.isNational,
+    buyer: { name: request.buyerName, imageUrl: request.buyerImageUrl },
+    distanceMeters: request.distanceMeters ?? undefined,
+  }));
 
   const totalPages = Math.ceil(total / pageSize);
 
   // Load interest set for this seller
   let interestedSet = new Set<string>();
   if (sellerProfileId && requests.length > 0) {
-    const interests = await prisma.commissionInterest.findMany({
-      where: {
-        sellerProfileId,
-        commissionRequestId: { in: requests.map((r) => r.id) },
-      },
-      select: { commissionRequestId: true },
-    });
-    interestedSet = new Set(interests.map((i) => i.commissionRequestId));
+    interestedSet = await actorCommissionInterestRequestIds(
+      meId!,
+      requests.map((request) => request.id),
+    );
   }
 
   function buildHref(overrides: Record<string, string>) {

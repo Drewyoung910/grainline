@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { sellerBroadcastPreparationMigrationPath } from "./helpers/seller-broadcast-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -11,7 +12,6 @@ describe("admin server action guardrails", () => {
     for (const path of [
       "src/app/admin/actions.ts",
       "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/verification/page.tsx",
     ]) {
       const text = source(path);
@@ -27,6 +27,9 @@ describe("admin server action guardrails", () => {
       );
     }
 
+    const broadcastActions = source("src/app/admin/broadcasts/page.tsx");
+    assert.match(broadcastActions, /requireAdminPageAccess\(\)/);
+    assert.doesNotMatch(broadcastActions, /\bprisma\.user\./);
     const supportActions = source("src/app/admin/support/actions.ts");
     assert.match(supportActions, /requireAdminPageAccess\(\)/);
     assert.doesNotMatch(supportActions, /\bprisma\.user\./);
@@ -73,14 +76,14 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/flagged/page.tsx", "readStaffOrderPage("],
       ["src/app/admin/cases/page.tsx", "getStaffCaseQueue"],
       ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
-      ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
+      ["src/app/admin/broadcasts/page.tsx", "staffSellerBroadcastCount("],
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],
       ["src/app/admin/verification/page.tsx", "makerVerificationStaffPendingPage("],
-      ["src/app/admin/audit/page.tsx", "prisma.adminAuditLog.count"],
+      ["src/app/admin/audit/page.tsx", "adminAuditLogStaffCount("],
       ["src/app/admin/users/page.tsx", "userStaffDirectoryCount("],
       ["src/app/admin/reviews/page.tsx", "prisma.review.count"],
-      ["src/app/admin/review/page.tsx", "prisma.listing.count"],
-      ["src/app/admin/reports/page.tsx", "prisma.userReport.findMany"],
+      ["src/app/admin/review/page.tsx", "sellerProfileStaffListingReviewQueue("],
+      ["src/app/admin/reports/page.tsx", "userReportStaffOpenPage("],
       ["src/app/admin/support/page.tsx", "readSupportRequestStaffState("],
     ]) {
       const text = source(path);
@@ -104,7 +107,6 @@ describe("admin server action guardrails", () => {
     for (const path of [
       "src/app/admin/actions.ts",
       "src/app/admin/blog/page.tsx",
-      "src/app/admin/broadcasts/page.tsx",
       "src/app/admin/verification/page.tsx",
     ]) {
       const text = source(path);
@@ -117,6 +119,13 @@ describe("admin server action guardrails", () => {
       );
     }
 
+    const broadcastActions = source("src/app/admin/broadcasts/page.tsx");
+    assert.match(broadcastActions, /safeRateLimit\(adminActionRatelimit, userId\)/);
+    assert.ok(
+      broadcastActions.indexOf("safeRateLimit(adminActionRatelimit, userId)") <
+        broadcastActions.indexOf("requireAdminPageAccess()"),
+      "broadcast actions must rate-limit before the shared admin DB and PIN boundary",
+    );
     const supportActions = source("src/app/admin/support/actions.ts");
     assert.match(supportActions, /const \{ userId \} = await auth\(\)/);
     assert.match(supportActions, /safeRateLimit\(adminActionRatelimit, userId\)/);
@@ -193,18 +202,18 @@ describe("admin server action guardrails", () => {
 
   it("handles stale broadcast deletes without throwing and cleans queued side effects", () => {
     const broadcasts = source("src/app/admin/broadcasts/page.tsx");
-    const emailOutboxLifecycle = source("src/lib/emailOutboxContentLifecycle.ts");
+    const migration = source(sellerBroadcastPreparationMigrationPath());
 
-    assert.match(broadcasts, /tx\.sellerBroadcast\.findUnique/);
-    assert.match(broadcasts, /tx\.sellerBroadcast\.deleteMany\(\{ where: \{ id \} \}\)/);
-    assert.match(broadcasts, /if \(deleted\.count !== 1\) return/);
-    assert.doesNotMatch(broadcasts, /sellerBroadcast\.delete\(\{/);
-    assert.match(broadcasts, /deleteSellerBroadcastNotificationServiceRows\(tx, broadcast\.id\)/);
-    assert.doesNotMatch(broadcasts, /tx\.notification\.|sourceType: null|sourceId: null/);
-    assert.match(broadcasts, /tx\.emailOutbox\.deleteMany\(\{/);
-    assert.match(broadcasts, /sellerBroadcastOutboxCancellationWhere\(broadcast\.id\)/);
-    assert.match(emailOutboxLifecycle, /preferenceKey: "EMAIL_SELLER_BROADCAST"/);
-    assert.match(emailOutboxLifecycle, /sourceType: "seller_broadcast"/);
-    assert.match(emailOutboxLifecycle, /sourceId: broadcastId/);
+    assert.match(broadcasts, /deleteStaffSellerBroadcast\(getOrderStaffReadClient\(\), \{/);
+    assert.match(broadcasts, /await requireAdminPageAccess\(\)/);
+    assert.doesNotMatch(broadcasts, /prisma\.sellerBroadcast\.|tx\.sellerBroadcast\./);
+    assert.match(migration, /IF NOT FOUND THEN RETURN false; END IF;/);
+    assert.match(migration, /DELETE FROM public\."Notification" AS notification/);
+    assert.match(migration, /notification\."sourceType" = 'seller_broadcast'/);
+    assert.match(migration, /DELETE FROM public\."EmailOutbox" AS outbox/);
+    assert.match(migration, /outbox\.status IN \('PENDING', 'FAILED'\)/);
+    assert.match(migration, /outbox\."preferenceKey" = 'EMAIL_SELLER_BROADCAST'/);
+    assert.match(migration, /DELETE FROM public\."SellerBroadcast" WHERE id = source_row\.id/);
+    assert.match(migration, /'DELETE_BROADCAST'/);
   });
 });

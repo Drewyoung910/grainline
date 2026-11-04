@@ -24,6 +24,21 @@ test("Order checkout receipt authority is one exact compatible successor pair", 
   assert.equal(result.productionTouched, false);
 });
 
+test("historical checkout receipt replay removes every unconsumed later migration", () => {
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  const isolateStep = workflow.match(
+    /- name: Isolate all later migrations before historical checkout receipt replay[\s\S]*?- name: Verify compatible Order checkout receipt authority release/u,
+  )?.[0];
+
+  assert.ok(isolateStep, "checkout receipt historical-replay isolation step is missing");
+  assert.match(
+    isolateStep,
+    /boundary="20260901110000_prepare_order_checkout_receipt_authority"/u,
+  );
+  assert.match(isolateStep, /if \[\[ "\$migration" > "\$boundary" \]\]; then/u);
+  assert.match(isolateStep, /mv "prisma\/migrations\/\$migration" "\$holding\/\$migration"/u);
+});
+
 test("Order checkout receipt authority fails closed on migration byte drift", () => {
   const root = mkdtempSync(path.join(tmpdir(), "grainline-order-receipt-release-"));
   try {

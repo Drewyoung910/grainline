@@ -39,6 +39,12 @@ import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
 import { proveSellerProfilePublicReviewVoteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-review-vote-target.mjs";
 import { proveReviewVoteAuthorities } from "../tools/database-full-chain/scenarios/review-vote-authorities.mjs";
+import { proveListingDomainOwnerMutations } from "../tools/database-full-chain/scenarios/listing-domain-owner-mutations.mjs";
+import { proveListingDomainDetailAuthorities } from "../tools/database-full-chain/scenarios/listing-domain-detail-authorities.mjs";
+import { proveListingDomainPublicCatalog } from "../tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs";
+import { proveListingDomainStaffReferences } from "../tools/database-full-chain/scenarios/listing-domain-staff-references.mjs";
+import { proveListingDomainReviewHistory } from "../tools/database-full-chain/scenarios/listing-domain-review-history.mjs";
+import { proveServiceReferenceLeastPrivilege } from "../tools/database-full-chain/scenarios/service-reference-least-privilege.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -54,6 +60,8 @@ import { proveSellerProfileOwnerFollowExport } from "../tools/database-full-chai
 import { proveSellerProfilePublicRecentlyViewedListings } from "../tools/database-full-chain/scenarios/seller-profile-public-recently-viewed-listings.mjs";
 import { proveSellerProfileOwnerReviewReply } from "../tools/database-full-chain/scenarios/seller-profile-owner-review-reply.mjs";
 import { proveSellerProfilePublicCommissionInterestAuthority } from "../tools/database-full-chain/scenarios/seller-profile-public-commission-interest.mjs";
+import { proveCommissionDomainPreparedAuthorities } from "../tools/database-full-chain/scenarios/commission-domain-authorities.mjs";
+import { proveCommissionDomainRlsActivation } from "../tools/database-full-chain/scenarios/commission-domain-activation.mjs";
 import { proveSellerProfileOwnerGuildApplicationAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-guild-application.mjs";
 import { proveMakerVerificationPreparedAuthorities } from "../tools/database-full-chain/scenarios/maker-verification-authorities.mjs";
 import { proveSellerProfileOwnerBootstrapAuthority } from "../tools/database-full-chain/scenarios/seller-profile-owner-bootstrap.mjs";
@@ -104,6 +112,14 @@ import {
 import { proveEmailProviderEligibilityFence } from
   "../tools/database-full-chain/scenarios/email-provider-eligibility-fence.mjs";
 import {
+  EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION,
+  EMAIL_SERVICE_LEAST_PRIVILEGE_PREPARATION_MIGRATION,
+  proveEmailServiceLeastPrivilegeActivation,
+  proveEmailServiceLeastPrivilegeAuthorities,
+  proveEmailServiceLeastPrivilegeRollback,
+  seedEmailServiceLeastPrivilegePredecessor,
+} from "../tools/database-full-chain/scenarios/email-service-least-privilege.mjs";
+import {
   STOCK_NOTIFICATION_PREPARATION_MIGRATION,
   STOCK_NOTIFICATION_RLS_MIGRATION,
   proveStockNotificationPredecessorBlockGap,
@@ -131,6 +147,50 @@ import {
   proveFollowRlsRollback,
   seedFollowPredecessorFixture,
 } from "../tools/database-full-chain/scenarios/follow-authorities.mjs";
+import {
+  SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION,
+  SELLER_ANALYTICS_DAILY_RLS_MIGRATION,
+  proveSellerAnalyticsDailyPreparedAuthorities,
+} from "../tools/database-full-chain/scenarios/seller-analytics-daily-authorities.mjs";
+import {
+  SELLER_METRICS_PREPARATION_MIGRATION,
+  SELLER_METRICS_RLS_MIGRATION,
+  proveSellerMetricsPreparedAuthorities,
+  proveSellerMetricsRlsAuthorities,
+  proveSellerMetricsRlsRollback,
+} from "../tools/database-full-chain/scenarios/seller-metrics-authorities.mjs";
+import {
+  SELLER_BROADCAST_PREPARATION_MIGRATION,
+  SELLER_BROADCAST_RLS_MIGRATION,
+  proveSellerBroadcastEligibilityGapClosed,
+  proveSellerBroadcastPreparedAuthorities,
+  proveSellerBroadcastRlsAuthorities,
+  proveSellerBroadcastRlsRollback,
+  seedSellerBroadcastPredecessorEligibilityGap,
+} from
+  "../tools/database-full-chain/scenarios/seller-broadcast-authorities.mjs";
+import {
+  BLOCK_PREPARATION_MIGRATION,
+  BLOCK_RLS_MIGRATION,
+  proveBlockPreparedAuthorities,
+  proveBlockRlsAuthorities,
+  proveBlockRlsRollback,
+} from "../tools/database-full-chain/scenarios/block-authorities.mjs";
+import {
+  proveUserReportPreparedAuthorities,
+  proveUserReportRlsAuthorities,
+  proveUserReportRlsRollback,
+  seedUserReportPredecessorFixture,
+  USER_REPORT_PREPARATION_MIGRATION,
+  USER_REPORT_RLS_MIGRATION,
+} from "../tools/database-full-chain/scenarios/user-report-authorities.mjs";
+import {
+  SELLER_FAQ_PREPARATION_MIGRATION,
+  SELLER_FAQ_RLS_MIGRATION,
+  proveSellerFaqPreparedAuthorities,
+  proveSellerFaqRlsAuthorities,
+  proveSellerFaqRlsRollback,
+} from "../tools/database-full-chain/scenarios/seller-faq-authorities.mjs";
 import { inspectSellerProfilePublicPreparationProduction } from "../scripts/seller-profile-public-preparation-production-inspect.mjs";
 import { inspectOwnerTableRlsActivationProduction } from "../scripts/owner-table-rls-activation-production-inspect.mjs";
 import { inspectPrivateTablePreparationProduction } from "../scripts/private-table-preparation-production-inspect.mjs";
@@ -151,6 +211,14 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   ["20261028060000_activate_follow_rls", "follow_v1"],
   ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
   ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+  ["20261101070000_activate_commission_domain_rls", "commission_domain_v1"],
+  [SELLER_BROADCAST_RLS_MIGRATION, "seller_broadcast_v1"],
+  [SELLER_ANALYTICS_DAILY_RLS_MIGRATION, "seller_analytics_daily_v1"],
+  [BLOCK_RLS_MIGRATION, "block_v1"],
+  [USER_REPORT_RLS_MIGRATION, "user_report_v1"],
+  [SELLER_FAQ_RLS_MIGRATION, "seller_faq_v1"],
+  ["20261102020000_activate_admin_audit_log_rls", "admin_audit_log_v1"],
+  [SELLER_METRICS_RLS_MIGRATION, "seller_metrics_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -269,6 +337,26 @@ test(
       let followPredecessorEvidence;
       let followPreparationPreflightPath;
       let followPreparationPostflightClosed = false;
+      let emailServiceLeastPrivilegeFixture;
+      let emailServiceLeastPrivilegePreparationProved = false;
+      let commissionPreparationPreflightPath;
+      let commissionPreparationPostflightClosed = false;
+      let sellerAnalyticsPreparationPreflightPath;
+      let sellerAnalyticsOtherSeller;
+      let sellerMetricsPreparationPreflightPath;
+      let followRollbackReapplyProven = false;
+      let sellerBroadcastPredecessorEligibilityGap;
+      let sellerBroadcastPreparationPreflightPath;
+      let sellerBroadcastPreparationPostflightClosed = false;
+      let sellerBroadcastRollbackReapplyProven = false;
+      let blockPreparationPreflightPath;
+      let blockPreparationPostflightClosed = false;
+      let userReportFixture;
+      let userReportPreparationPreflightPath;
+      let userReportPreparationPostflightClosed = false;
+      let sellerFaqPreparationPreflightPath;
+      let sellerFaqPreparationPostflightClosed = false;
+      let sellerFaqFixture;
       const privateActivationPreflightPaths = new Map();
       class DisposableOwnerClient extends pg.Client {
         constructor() {
@@ -402,6 +490,167 @@ test(
               historical: historicalEmailProviderDeletionFenceRows,
             });
           }
+          if (
+            artifact.name === EMAIL_SERVICE_LEAST_PRIVILEGE_PREPARATION_MIGRATION
+          ) {
+            emailServiceLeastPrivilegeFixture =
+              await seedEmailServiceLeastPrivilegePredecessor({
+                database: adapter,
+              });
+          }
+          if (artifact.name === SELLER_BROADCAST_PREPARATION_MIGRATION) {
+            assert.ok(
+              fixture,
+              "seller fixture must exist before SellerBroadcast predecessor proof",
+            );
+            sellerBroadcastPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-broadcast-preparation-preflight.json",
+            );
+            const preparationPreflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_broadcast_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                    sellerBroadcastPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "b".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPreflight.state, "pending");
+            sellerBroadcastPredecessorEligibilityGap =
+              await seedSellerBroadcastPredecessorEligibilityGap({
+                database: adapter,
+                seller: fixture,
+              });
+          }
+          if (artifact.name === SELLER_BROADCAST_RLS_MIGRATION) {
+            assert.ok(
+              sellerBroadcastPreparationPreflightPath,
+              "SellerBroadcast preparation preflight must precede preparation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_broadcast_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "seller-broadcast-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    sellerBroadcastPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "b".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 15);
+            sellerBroadcastPreparationPostflightClosed = true;
+            assert.ok(
+              sellerBroadcastPredecessorEligibilityGap,
+              "SellerBroadcast predecessor email gap must be seeded",
+            );
+            await proveSellerBroadcastEligibilityGapClosed({
+              database: adapter,
+              predecessor: sellerBroadcastPredecessorEligibilityGap,
+            });
+            await proveSellerBroadcastPreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
+          }
+          if (
+            artifact.name ===
+            "20261101060000_prepare_commission_domain_authorities"
+          ) {
+            assert.equal(
+              sellerBroadcastPreparationPostflightClosed,
+              true,
+              "SellerBroadcast preparation postflight must close before activation",
+            );
+            await proveSellerBroadcastRlsAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
+            await client.query(readFileSync(
+              join(
+                repositoryRoot,
+                "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+              ),
+              "utf8",
+            ));
+            await proveSellerBroadcastRlsRollback({ database: adapter });
+            await client.query(readFileSync(
+              join(
+                repositoryRoot,
+                `prisma/migrations/${SELLER_BROADCAST_RLS_MIGRATION}/migration.sql`,
+              ),
+              "utf8",
+            ));
+            await proveSellerBroadcastRlsAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
+            sellerBroadcastRollbackReapplyProven = true;
+          }
+          if (artifact.name === "20261028070000_activate_review_vote_rls") {
+            assert.ok(
+              followFixture,
+              "Follow fixture must exist for chronological rollback proof",
+            );
+            await proveFollowRlsAuthorities({
+              database: adapter,
+              fixture: followFixture,
+            });
+            await client.query(readFileSync(
+              join(repositoryRoot, "docs/rls-drafts/follow-activation-rollback.sql"),
+              "utf8",
+            ));
+            await proveFollowRlsRollback({
+              database: adapter,
+              fixture: followFixture,
+            });
+            await client.query(readFileSync(
+              join(
+                repositoryRoot,
+                `prisma/migrations/${FOLLOW_RLS_MIGRATION}/migration.sql`,
+              ),
+              "utf8",
+            ));
+            await proveFollowRlsAuthorities({
+              database: adapter,
+              fixture: followFixture,
+            });
+            followRollbackReapplyProven = true;
+          }
+          if (
+            artifact.name === EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION
+          ) {
+            assert.ok(
+              emailServiceLeastPrivilegeFixture,
+              "email service predecessor fixture must precede activation",
+            );
+            await proveEmailServiceDeliveryLedger({ database: adapter });
+            await proveEmailProviderDeletionFence({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+              seller: fixture,
+              historical: historicalEmailProviderDeletionFenceRows,
+            });
+            await proveEmailProviderEligibilityFence({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
+            await proveEmailServiceLeastPrivilegeAuthorities({
+              database: adapter,
+              fixture: emailServiceLeastPrivilegeFixture,
+            });
+            emailServiceLeastPrivilegePreparationProved = true;
+          }
           if (artifact.name === STOCK_NOTIFICATION_PREPARATION_MIGRATION) {
             assert.ok(fixture, "seller fixture must exist before StockNotification proof");
             stockNotificationPreparationPreflightPath = join(
@@ -529,6 +778,259 @@ test(
               fixture: followFixture,
             });
           }
+          if (artifact.name === "20261101060000_prepare_commission_domain_authorities") {
+            commissionPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "commission-domain-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "commission_domain_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  commissionPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.deepEqual(
+              preparationPreflight.tables,
+              ["CommissionRequest", "CommissionInterest"],
+            );
+          }
+          if (artifact.name === SELLER_ANALYTICS_DAILY_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before analytics proof");
+            sellerAnalyticsPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-analytics-daily-preparation-preflight.json",
+            );
+            const preparationPreflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID:
+                    "seller_analytics_daily_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                    sellerAnalyticsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 1);
+          }
+          if (artifact.name === SELLER_METRICS_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before metrics proof");
+            sellerMetricsPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-metrics-preparation-preflight.json",
+            );
+            const preparationPreflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                    sellerMetricsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "7".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
+          }
+          if (artifact.name === SELLER_METRICS_RLS_MIGRATION) {
+            assert.ok(
+              sellerMetricsPreparationPreflightPath,
+              "SellerMetrics preparation preflight must precede activation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_metrics_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "seller-metrics-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    sellerMetricsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "7".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 4);
+            assert.deepEqual(preparationPostflight.catalog.triggers, [{
+              name: "grainline_seller_metrics_inactive_owner_cleanup",
+              function: "grainline_seller_metrics_inactive_owner_cleanup",
+              table: "SellerProfile",
+              enabled: "O",
+              type: 17,
+            }]);
+            assert.ok(fixture, "seller fixture must exist before SellerMetrics proof");
+            await proveSellerMetricsPreparedAuthorities({
+              connectionString: proofDatabaseUrl,
+              database: adapter,
+              seller: fixture,
+            });
+          }
+          if (artifact.name === BLOCK_PREPARATION_MIGRATION) {
+            blockPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "block-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "block_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  blockPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(
+              preparationPreflight.catalog.functions.length,
+              0,
+              "all seven Block functions are new and must be absent before preparation",
+            );
+          }
+          if (artifact.name === USER_REPORT_PREPARATION_MIGRATION) {
+            assert.ok(fixture, "seller fixture must exist before UserReport proof");
+            userReportPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "user-report-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "user_report_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  userReportPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
+            userReportFixture = await seedUserReportPredecessorFixture({
+              database: adapter,
+              seller: fixture,
+            });
+          }
+          if (artifact.name === SELLER_FAQ_PREPARATION_MIGRATION) {
+            sellerFaqPreparationPreflightPath = join(
+              preparationEvidenceDirectory,
+              "seller-faq-preparation-preflight.json",
+            );
+            const preparationPreflight = await inspectPrivateTablePreparationProduction(
+              {
+                DIRECT_URL: proofDatabaseUrl,
+                PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_faq_v1",
+                PRIVATE_TABLE_PREPARATION_PHASE: "preflight",
+                PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH:
+                  sellerFaqPreparationPreflightPath,
+                PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+              },
+              { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+            );
+            assert.equal(preparationPreflight.state, "pending");
+            assert.equal(preparationPreflight.catalog.functions.length, 0);
+          }
+          if (artifact.name === BLOCK_RLS_MIGRATION) {
+            assert.ok(
+              blockPreparationPreflightPath,
+              "Block Production preflight must run before its preparation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "block_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "block-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    blockPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 7);
+            await proveBlockPreparedAuthorities({ database: adapter });
+            blockPreparationPostflightClosed = true;
+          }
+          if (artifact.name === USER_REPORT_RLS_MIGRATION) {
+            assert.ok(
+              userReportPreparationPreflightPath,
+              "UserReport Production preflight must run before its preparation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "user_report_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "user-report-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    userReportPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "e".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 8);
+            assert.ok(userReportFixture, "UserReport predecessor fixture must be seeded");
+            await proveUserReportPreparedAuthorities({
+              database: adapter,
+              fixture: userReportFixture,
+            });
+            userReportPreparationPostflightClosed = true;
+          }
+          if (artifact.name === SELLER_FAQ_RLS_MIGRATION) {
+            assert.ok(
+              sellerFaqPreparationPreflightPath,
+              "SellerFaq Production preflight must run before its preparation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID: "seller_faq_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "seller-faq-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    sellerFaqPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "f".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 4);
+            sellerFaqFixture = await proveSellerFaqPreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+            });
+            sellerFaqPreparationPostflightClosed = true;
+          }
           if (artifact.name === FAVORITE_RLS_MIGRATION) {
             assert.ok(
               favoriteFixture,
@@ -646,10 +1148,74 @@ test(
               fixture: followFixture,
             });
           }
+          if (artifact.name === SELLER_ANALYTICS_DAILY_RLS_MIGRATION) {
+            assert.ok(
+              sellerAnalyticsPreparationPreflightPath,
+              "SellerAnalyticsDaily preparation preflight must precede activation",
+            );
+            const preparationPostflight =
+              await inspectPrivateTablePreparationProduction(
+                {
+                  DIRECT_URL: proofDatabaseUrl,
+                  PRIVATE_TABLE_PREPARATION_RELEASE_ID:
+                    "seller_analytics_daily_v1",
+                  PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                  PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                    preparationEvidenceDirectory,
+                    "seller-analytics-daily-preparation-postflight.json",
+                  ),
+                  PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                    sellerAnalyticsPreparationPreflightPath,
+                  PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+                },
+                { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+              );
+            assert.equal(preparationPostflight.state, "applied");
+            assert.equal(preparationPostflight.catalog.functions.length, 5);
+            sellerAnalyticsOtherSeller = await seedSellerProfilePrivateFixture(
+              adapter,
+              { suffix: "seller_analytics_other" },
+            );
+            await proveSellerAnalyticsDailyPreparedAuthorities({
+              database: adapter,
+              connectionString: proofDatabaseUrl,
+              seller: fixture,
+              otherSeller: sellerAnalyticsOtherSeller,
+              directTableAuthority: true,
+            });
+          }
           const privateActivationReleaseId = PRIVATE_TABLE_ACTIVATION_RELEASES.get(
             artifact.name,
           );
           if (privateActivationReleaseId) {
+            if (privateActivationReleaseId === "commission_domain_v1") {
+              assert.ok(
+                commissionPreparationPreflightPath,
+                "Commission preparation preflight must precede activation",
+              );
+              const preparationPostflight =
+                await inspectPrivateTablePreparationProduction(
+                  {
+                    DIRECT_URL: proofDatabaseUrl,
+                    PRIVATE_TABLE_PREPARATION_RELEASE_ID: "commission_domain_v1",
+                    PRIVATE_TABLE_PREPARATION_PHASE: "postflight",
+                    PRIVATE_TABLE_PREPARATION_EVIDENCE_PATH: join(
+                      preparationEvidenceDirectory,
+                      "commission-domain-preparation-postflight.json",
+                    ),
+                    PRIVATE_TABLE_PREPARATION_PREVIOUS_EVIDENCE_PATH:
+                      commissionPreparationPreflightPath,
+                    PRODUCTION_MIGRATION_RELEASE_COMMIT: "8".repeat(40),
+                  },
+                  { Client: DisposableOwnerClient, rootDir: repositoryRoot },
+                );
+              assert.equal(preparationPostflight.state, "applied");
+              assert.deepEqual(
+                preparationPostflight.tables,
+                ["CommissionRequest", "CommissionInterest"],
+              );
+              commissionPreparationPostflightClosed = true;
+            }
             const evidencePath = join(
               preparationEvidenceDirectory,
               `${privateActivationReleaseId}-activation-preflight.json`,
@@ -711,6 +1277,41 @@ test(
         );
         assert.equal(activationPostflight.state, "active");
       }
+      assert.ok(fixture, "seller fixture must exist before SellerMetrics activation proof");
+      await proveSellerMetricsRlsAuthorities({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        seller: fixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          "docs/rls-drafts/seller-metrics-activation-rollback.sql",
+        ),
+        "utf8",
+      ));
+      await proveSellerMetricsRlsRollback({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        seller: fixture,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${SELLER_METRICS_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveSellerMetricsRlsAuthorities({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        seller: fixture,
+      });
+      assert.equal(
+        commissionPreparationPostflightClosed,
+        true,
+        "Commission preparation postflight must close before activation",
+      );
 
       assert.ok(
         stockNotificationPreparationPreflightPath,
@@ -736,6 +1337,46 @@ test(
         forced: true,
       });
       assert.ok(fixture, "seller fixture must be seeded before Case follow-up");
+      assert.ok(
+        sellerAnalyticsOtherSeller,
+        "SellerAnalyticsDaily fixture must exist before active proof",
+      );
+      await proveSellerAnalyticsDailyPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        seller: fixture,
+        otherSeller: sellerAnalyticsOtherSeller,
+        directTableAuthority: false,
+        comprehensiveProof: true,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          "docs/rls-drafts/seller-analytics-daily-activation-rollback.sql",
+        ),
+        "utf8",
+      ));
+      await proveSellerAnalyticsDailyPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        seller: fixture,
+        otherSeller: sellerAnalyticsOtherSeller,
+        directTableAuthority: true,
+      });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${SELLER_ANALYTICS_DAILY_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveSellerAnalyticsDailyPreparedAuthorities({
+        database: adapter,
+        connectionString: proofDatabaseUrl,
+        seller: fixture,
+        otherSeller: sellerAnalyticsOtherSeller,
+        directTableAuthority: false,
+      });
       assert.ok(
         historicalCaseRefundDamage,
         "#710 damage must be seeded by the predecessor before Case follow-up",
@@ -777,6 +1418,26 @@ test(
         connectionString: proofDatabaseUrl,
         database: adapter,
         repositoryRoot,
+        seller: fixture,
+      });
+      await proveListingDomainOwnerMutations({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainDetailAuthorities({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainPublicCatalog({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainStaffReferences({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainReviewHistory({
+        database: adapter,
         seller: fixture,
       });
       await proveSellerProfileActorReviewListingTarget({
@@ -842,6 +1503,18 @@ test(
       await proveMakerVerificationPreparedAuthorities({
         database: adapter,
         seller: fixture,
+        connectionString: proofDatabaseUrl,
+      });
+      assert.ok(
+        sellerBroadcastPredecessorEligibilityGap,
+        "SellerBroadcast predecessor eligibility proof must run before preparation",
+      );
+      await proveSellerBroadcastEligibilityGapClosed({
+        database: adapter,
+        predecessor: sellerBroadcastPredecessorEligibilityGap,
+      });
+      await proveSellerBroadcastPreparedAuthorities({
+        database: adapter,
         connectionString: proofDatabaseUrl,
       });
       await proveSellerProfileOwnerBootstrapAuthority({
@@ -1031,17 +1704,34 @@ test(
         fixture: cartCartItemFixture,
         connectionString: proofDatabaseUrl,
       });
-      await proveEmailServiceDeliveryLedger({ database: adapter });
-      await proveEmailProviderDeletionFence({
-        database: adapter,
-        connectionString: proofDatabaseUrl,
-        seller: fixture,
-        historical: historicalEmailProviderDeletionFenceRows,
-      });
-      await proveEmailProviderEligibilityFence({
-        database: adapter,
-        connectionString: proofDatabaseUrl,
-      });
+      assert.ok(
+        emailServiceLeastPrivilegeFixture,
+        "email service predecessor fixture must precede preparation",
+      );
+      if (!emailServiceLeastPrivilegePreparationProved) {
+        await proveEmailServiceLeastPrivilegeAuthorities({
+          database: adapter,
+          fixture: emailServiceLeastPrivilegeFixture,
+        });
+      } else {
+        await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            "docs/rls-drafts/email-service-least-privilege-activation-rollback.sql",
+          ),
+          "utf8",
+        ));
+        await proveEmailServiceLeastPrivilegeRollback({ database: adapter });
+        await client.query(readFileSync(
+          join(
+            repositoryRoot,
+            `prisma/migrations/${EMAIL_SERVICE_LEAST_PRIVILEGE_ACTIVATION_MIGRATION}/migration.sql`,
+          ),
+          "utf8",
+        ));
+        await proveEmailServiceLeastPrivilegeActivation({ database: adapter });
+      }
       assert.deepEqual(stockNotificationPredecessorEvidence, {
         blockedNotificationCreated: true,
       });
@@ -1057,6 +1747,80 @@ test(
       await proveStockNotificationRlsAuthorities({
         database: adapter,
         fixture: stockNotificationFixture,
+      });
+      assert.equal(
+        blockPreparationPostflightClosed,
+        true,
+        "Block preparation postflight must close before activation",
+      );
+      assert.equal(
+        userReportPreparationPostflightClosed,
+        true,
+        "UserReport preparation postflight must close before activation",
+      );
+      assert.equal(
+        sellerFaqPreparationPostflightClosed,
+        true,
+        "SellerFaq preparation postflight must close before activation",
+      );
+      assert.ok(userReportFixture, "UserReport predecessor fixture must be seeded");
+      assert.ok(sellerFaqFixture, "SellerFaq prepared fixture must be retained");
+
+      await proveBlockRlsAuthorities({ database: adapter });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/block-activation-rollback.sql"),
+        "utf8",
+      ));
+      await proveBlockRlsRollback({ database: adapter });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${BLOCK_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveBlockRlsAuthorities({ database: adapter });
+
+      await proveUserReportRlsAuthorities({
+        database: adapter,
+        fixture: userReportFixture,
+      });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/user-report-activation-rollback.sql"),
+        "utf8",
+      ));
+      await proveUserReportRlsRollback({ database: adapter });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${USER_REPORT_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveUserReportRlsAuthorities({
+        database: adapter,
+        fixture: userReportFixture,
+      });
+
+      await proveSellerFaqRlsAuthorities({
+        database: adapter,
+        fixture: sellerFaqFixture,
+      });
+      await client.query(readFileSync(
+        join(repositoryRoot, "docs/rls-drafts/seller-faq-activation-rollback.sql"),
+        "utf8",
+      ));
+      await proveSellerFaqRlsRollback({ database: adapter });
+      await client.query(readFileSync(
+        join(
+          repositoryRoot,
+          `prisma/migrations/${SELLER_FAQ_RLS_MIGRATION}/migration.sql`,
+        ),
+        "utf8",
+      ));
+      await proveSellerFaqRlsAuthorities({
+        database: adapter,
+        fixture: sellerFaqFixture,
       });
       assert.ok(
         stockNotificationActivationReadyEvidencePath,
@@ -1151,24 +1915,19 @@ test(
         database: adapter,
         fixture: followFixture,
       });
-      await client.query(readFileSync(
-        join(repositoryRoot, "docs/rls-drafts/follow-activation-rollback.sql"),
-        "utf8",
-      ));
-      await proveFollowRlsRollback({
+      assert.equal(
+        followRollbackReapplyProven,
+        true,
+        "Follow rollback/reapply must be proven before later reviewed readers exist",
+      );
+      assert.equal(
+        sellerBroadcastRollbackReapplyProven,
+        true,
+        "SellerBroadcast rollback/reapply must be proven before later reviewed readers exist",
+      );
+      await proveSellerBroadcastRlsAuthorities({
         database: adapter,
-        fixture: followFixture,
-      });
-      await client.query(readFileSync(
-        join(
-          repositoryRoot,
-          `prisma/migrations/${FOLLOW_RLS_MIGRATION}/migration.sql`,
-        ),
-        "utf8",
-      ));
-      await proveFollowRlsAuthorities({
-        database: adapter,
-        fixture: followFixture,
+        connectionString: proofDatabaseUrl,
       });
       await client.query(readFileSync(
         join(repositoryRoot, "docs/rls-drafts/cart-cartitem-activation-rollback.sql"),
@@ -1225,6 +1984,40 @@ test(
         database: adapter,
         repositoryRoot,
       });
+      // The rollback proof deliberately mutates the shared full-chain database.
+      // Restore the exact reviewed activation before later scenarios and the
+      // final grant audit inspect branch-tip state.
+      await adapter.query(readFileSync(join(
+        repositoryRoot,
+        "prisma/migrations/20261023070000_activate_saved_blog_post_rls/migration.sql",
+      ), "utf8"));
+      await proveCommissionDomainPreparedAuthorities({
+        database: adapter,
+        seller: fixture,
+        connectionString: proofDatabaseUrl,
+        expectedActivated: true,
+      });
+      await proveCommissionDomainRlsActivation({
+        database: adapter,
+        repositoryRoot,
+        seller: fixture,
+      });
+      assert.deepEqual(
+        await proveServiceReferenceLeastPrivilege({
+          connectionString: proofDatabaseUrl,
+          database: adapter,
+          ownerClient: client,
+          repositoryRoot,
+        }),
+        {
+          siteConfig: ["SELECT"],
+          systemAuditLog: ["INSERT", "SELECT"],
+          foundingMakerGrant: ["SELECT"],
+          metro: ["INSERT", "SELECT", "UPDATE"],
+          siteMetricsSnapshot: ["INSERT", "SELECT", "UPDATE"],
+          sellerExactMapConsentEvent: [],
+        },
+      );
     } finally {
       await client.end();
       rmSync(preparationEvidenceDirectory, { recursive: true, force: true });

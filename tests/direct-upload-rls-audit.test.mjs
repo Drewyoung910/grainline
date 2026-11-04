@@ -6,6 +6,10 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const commissionPreparationMigration =
+  process.env.COMMISSION_DOMAIN_PREPARATION_MIGRATION_PATH ??
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+
 describe("DirectUpload RLS audit contracts", () => {
   it("pins converted fixed-operation surfaces while compatible table grants remain", () => {
     const convertedPaths = [
@@ -40,8 +44,8 @@ describe("DirectUpload RLS audit contracts", () => {
 
   it("pins every current durable-reference claim family", () => {
     const callSites = [
-      ["src/app/dashboard/listings/new/page.tsx", "syncListingDirectUploadReferences"],
-      ["src/app/dashboard/listings/custom/page.tsx", "syncListingDirectUploadReferences"],
+      ["src/app/dashboard/listings/new/page.tsx", "createListingOwner"],
+      ["src/app/dashboard/listings/custom/page.tsx", "createListingOwner"],
       ["src/app/dashboard/listings/[id]/edit/page.tsx", "syncListingDirectUploadReferences"],
       ["src/app/dashboard/onboarding/actions.ts", "syncSellerProfileDirectUploadReferences"],
       ["src/app/dashboard/profile/page.tsx", "syncSellerProfileDirectUploadReferences"],
@@ -49,7 +53,7 @@ describe("DirectUpload RLS audit contracts", () => {
       ["src/app/api/reviews/[id]/route.ts", "syncReviewDirectUploadReferences"],
       ["src/app/dashboard/blog/new/page.tsx", "syncBlogPostDirectUploadReferences"],
       ["src/app/dashboard/blog/[id]/edit/page.tsx", "syncBlogPostDirectUploadReferences"],
-      ["src/app/api/commission/route.ts", "syncCommissionRequestDirectUploadReferences"],
+      ["src/app/api/commission/route.ts", "createOwnerCommissionRequest"],
       ["src/app/api/seller/broadcast/route.ts", "syncSellerBroadcastDirectUploadReferences"],
       ["src/app/messages/[id]/page.tsx", "syncLegacyMessageDirectUploadReference"],
     ];
@@ -59,6 +63,11 @@ describe("DirectUpload RLS audit contracts", () => {
       assert.match(text, new RegExp(syncHelper), path);
       assert.doesNotMatch(text, /claimedByType|claimedById/, path);
     }
+    assert.match(
+      source(commissionPreparationMigration),
+      /grainline_commission_request_owner_create[\s\S]*grainline_direct_upload_sync_commission_request/,
+      "Commission creation must bind its verified uploads in the same database transaction",
+    );
     assert.match(
       source("src/app/api/cases/[id]/messages/route.ts"),
       /replyToCaseWithFixedAuthority/,

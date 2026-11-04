@@ -1,10 +1,8 @@
 // src/app/dashboard/profile/page.tsx
-import { Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import ProfileBannerUploader from "@/components/ProfileBannerUploader";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
@@ -12,6 +10,7 @@ import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
 import GalleryUploader from "@/components/GalleryUploader";
 import ActionForm from "@/components/ActionForm";
 import type { Metadata } from "next";
+import { ListingStatus } from "@prisma/client";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
@@ -28,14 +27,18 @@ import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
-import { withSerializableRetry } from "@/lib/transactionRetry";
 import { withDbUserContext } from "@/lib/dbUserContext";
+import {
+  createOwnerSellerFaq,
+  removeOwnerSellerFaq,
+} from "@/lib/sellerFaqAccess";
 import {
   clearSellerOwnerAvatar,
   sellerOwnerProfileEditorState,
   toggleSellerOwnerFeaturedListing,
   updateSellerOwnerProfile,
 } from "@/lib/sellerOwnerPrivateAccess";
+import { listingOwnerSummaryRows } from "@/lib/listingOwnerAccess";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm";
@@ -236,33 +239,13 @@ async function addFaq(formData: FormData) {
   if (!userId) return;
   const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
   if (!success) return;
-  const { seller } = await ensureSeller();
+  const { me, seller } = await ensureSeller();
 
   const question = truncateText(sanitizeText(String(formData.get("question") ?? "")), 200).trim();
   const answer = truncateText(sanitizeRichText(String(formData.get("answer") ?? "")), 2000).trim();
   if (!question || !answer) return;
 
-  await withSerializableRetry(() => prisma.$transaction(async (tx) => {
-    const faqCount = await tx.sellerFaq.count({
-      where: { sellerProfileId: seller.id },
-    });
-    if (faqCount >= SELLER_FAQ_LIMIT) return;
-
-    const last = await tx.sellerFaq.findFirst({
-      where: { sellerProfileId: seller.id },
-      orderBy: { sortOrder: "desc" },
-      select: { sortOrder: true },
-    });
-
-    await tx.sellerFaq.create({
-      data: {
-        sellerProfileId: seller.id,
-        question,
-        answer,
-        sortOrder: (last?.sortOrder ?? 0) + 1,
-      },
-    });
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+  await createOwnerSellerFaq(me.id, question, answer);
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
@@ -274,11 +257,9 @@ async function deleteFaq(faqId: string) {
   if (!userId) return;
   const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
   if (!success) return;
-  const { seller } = await ensureSeller();
+  const { me, seller } = await ensureSeller();
 
-  await prisma.sellerFaq.deleteMany({
-    where: { id: faqId, sellerProfileId: seller.id },
-  });
+  await removeOwnerSellerFaq(me.id, faqId);
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
@@ -342,10 +323,9 @@ export default async function ProfilePage({
 
   const [fullSeller, activeListings] = await Promise.all([
     sellerOwnerProfileEditorState(seller.id, seller.userId),
-    prisma.listing.findMany({
-      where: { sellerId: seller.id, status: "ACTIVE" },
-      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
-      orderBy: { updatedAt: "desc" },
+    listingOwnerSummaryRows(me.id, {
+      status: ListingStatus.ACTIVE,
+      includeArchived: true,
     }),
   ]);
 

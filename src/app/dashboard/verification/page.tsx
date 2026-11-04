@@ -2,7 +2,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
 import {
   calculateSellerMetrics,
@@ -29,6 +28,7 @@ import {
   applyOwnerGuildMasterVerification,
   applyOwnerGuildMemberVerification,
 } from "@/lib/makerVerificationAccess";
+import { listingOwnerCounts } from "@/lib/listingOwnerAccess";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -59,7 +59,7 @@ async function getGuildMemberEligibility({
   accountCreatedAt: Date | null | undefined;
 }) {
   const [listingCount, totalSalesCents, caseCount] = await Promise.all([
-    prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false } }),
+    listingOwnerCounts(sellerUserId).then((counts) => counts.activePublicCount),
     getSellerVerificationOrderSales({
       actorUserId: sellerUserId,
       sellerProfileId,
@@ -136,7 +136,7 @@ export default async function VerificationPage() {
   let masterCriteria = null;
   if (showSectionB && !isMasterActive) {
     try {
-      masterMetrics = await getFreshSellerMetrics(seller.id);
+      masterMetrics = await getFreshSellerMetrics(me.id);
       masterCriteria = meetsGuildMasterRequirements(masterMetrics);
     } catch {
       // metrics unavailable — don't block rendering
@@ -244,7 +244,7 @@ export default async function VerificationPage() {
     ) {
       redirect("/dashboard/verification");
     }
-    const metrics = await calculateSellerMetrics(s.id);
+    const metrics = await calculateSellerMetrics(s.userId);
     const criteria = meetsGuildMasterRequirements(metrics);
     if (!criteria.allMet) redirect("/dashboard/verification");
 

@@ -8,6 +8,7 @@ import pg from "pg";
 import { USER_AUTHORITY_FUNCTIONS, USER_AUTHORITY_GROUPS } from "../scripts/user-authority-catalog.mjs";
 import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+  CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/conversation-message-authority-catalog.mjs";
 import {
@@ -85,6 +86,59 @@ import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
+import {
+  privateTablePreparation,
+} from "../scripts/private-table-preparation-catalog.mjs";
+
+const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1");
+const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_staff_listing_review_transition",
+  "grainline_seller_staff_listing_remove_transition",
+  "grainline_seller_staff_listing_undo_transition",
+  "grainline_seller_staff_listing_review_queue",
+  "grainline_listing_staff_reference_targets",
+  "grainline_listing_staff_seller_active_public_count",
+  "grainline_listing_actor_review_contexts",
+  "grainline_listing_public_customer_photo_page",
+  "grainline_listing_owner_editor",
+  "grainline_listing_owner_export_page",
+  "grainline_listing_owner_catalog_page",
+  "grainline_listing_owner_summary_page",
+  "grainline_listing_owner_workshop_summary",
+  "grainline_listing_owner_counts",
+  "grainline_listing_owner_rating_buckets",
+  "grainline_listing_seller_rating_summary_refresh",
+  "grainline_listing_service_quality_score_apply",
+  "grainline_listing_owner_stock_lock",
+  "grainline_listing_owner_stock_apply",
+  "grainline_listing_owner_action_state",
+  "grainline_listing_actor_transaction_source_core",
+  "grainline_listing_actor_transaction_source",
+  "grainline_listing_actor_cart_transaction_sources",
+  "grainline_listing_public_catalog_page",
+  "grainline_listing_public_title_suggestions",
+  "grainline_listing_detail_source_core",
+  "grainline_listing_actor_detail_source",
+  "grainline_listing_staff_detail_source",
+  "grainline_listing_owner_ai_review_context",
+  "grainline_listing_owner_assign_metros",
+  "grainline_listing_children_replace_core",
+  "grainline_listing_owner_create",
+  "grainline_listing_owner_content_update",
+  "grainline_listing_owner_alt_text_backfill",
+  "grainline_legacy_stock_restore_apply",
+  "grainline_listing_account_deletion_redact",
+  "grainline_listing_owner_delete_lock",
+  "grainline_listing_owner_archive",
+  "grainline_listing_owner_hard_delete",
+  "grainline_listing_owner_transition",
+  "grainline_listing_owner_review_transition",
+  "grainline_listing_message_context_titles",
+  "grainline_listing_materials_guard",
+]);
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -230,6 +284,65 @@ const STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES = [
   "grainline_stock_notification_block_cleanup",
   "grainline_stock_notification_owner_export",
 ];
+const COMMISSION_DOMAIN_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101060000_prepare_commission_domain_authorities/migration.sql";
+const COMMISSION_DOMAIN_RLS_MIGRATION =
+  "prisma/migrations/20261101070000_activate_commission_domain_rls/migration.sql";
+const COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES = [
+  "grainline_commission_request_public_count",
+  "grainline_commission_request_public_page",
+  "grainline_commission_request_public_detail",
+  "grainline_commission_request_public_sitemap_page",
+  "grainline_commission_request_public_metro_ids",
+  "grainline_commission_request_actor_report_target",
+  "grainline_commission_interest_actor_request_ids",
+  "grainline_commission_interest_actor_create",
+  "grainline_commission_request_owner_create",
+  "grainline_commission_request_owner_assign_metros",
+  "grainline_commission_request_owner_page",
+  "grainline_commission_request_owner_export",
+  "grainline_commission_request_owner_active_count",
+  "grainline_commission_request_owner_reference_image_urls",
+  "grainline_commission_interest_owner_export",
+  "grainline_commission_request_owner_transition",
+  "grainline_commission_account_deletion_prepare",
+  "grainline_commission_account_deletion_redact",
+  "grainline_commission_request_staff_ban_close",
+  "grainline_commission_request_staff_ban_restore",
+  "grainline_commission_request_service_expire_batch",
+  "grainline_commission_request_service_expired_count",
+];
+const BLOCK_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030010000_prepare_block_authorities/migration.sql";
+const BLOCK_PREPARATION_FUNCTION_NAMES = [
+  "grainline_user_block_pair_is_blocked",
+  "grainline_user_block_create",
+  "grainline_user_block_remove",
+  "grainline_user_block_export",
+  "grainline_user_block_delete_owned",
+  "grainline_conversation_inbox_owner",
+  "grainline_message_unread_count_owner",
+];
+const USER_REPORT_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030020000_prepare_user_report_authorities/migration.sql";
+const USER_REPORT_PREPARATION_FUNCTION_NAMES = [
+  "grainline_user_report_submit",
+  "grainline_user_report_owner_submitted_export",
+  "grainline_user_report_owner_received_export",
+  "grainline_user_report_staff_open_count",
+  "grainline_user_report_staff_open_page",
+  "grainline_user_report_staff_top_reporters",
+  "grainline_user_report_staff_resolve",
+  "grainline_user_report_account_deletion_redact",
+];
+const SELLER_FAQ_PREPARATION_MIGRATION =
+  "prisma/migrations/20261030030000_prepare_seller_faq_authorities/migration.sql";
+const SELLER_FAQ_PREPARATION_FUNCTION_NAMES = [
+  "grainline_seller_faq_owner_create",
+  "grainline_seller_faq_owner_remove",
+  "grainline_seller_faq_owner_export",
+  "grainline_seller_faq_account_deletion_cleanup",
+];
 const FAVORITE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028010000_prepare_favorite_authorities/migration.sql";
 const FAVORITE_RLS_MIGRATION =
@@ -263,6 +376,26 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
   "grainline_follow_seller_owner_incoming_count",
   "grainline_follow_account_deletion_cleanup",
 ];
+const SELLER_BROADCAST_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101010000_prepare_seller_broadcast_authorities/migration.sql";
+const SELLER_BROADCAST_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101050000_activate_seller_broadcast_rls/migration.sql";
+const SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES = [
+  "grainline_seller_broadcast_owner_cooldown",
+  "grainline_seller_broadcast_owner_create",
+  "grainline_seller_broadcast_owner_count",
+  "grainline_seller_broadcast_owner_page",
+  "grainline_seller_broadcast_owner_export",
+  "grainline_seller_broadcast_public_latest",
+  "grainline_seller_broadcast_actor_feed_page",
+  "grainline_seller_broadcast_owner_delivery_source",
+  "grainline_seller_broadcast_owner_record_delivery",
+  "grainline_seller_broadcast_account_deletion_ids",
+  "grainline_seller_broadcast_account_deletion_cleanup",
+  "grainline_seller_broadcast_staff_count",
+  "grainline_seller_broadcast_staff_page",
+  "grainline_seller_broadcast_staff_delete",
+];
 const MAKER_VERIFICATION_PREPARATION_MIGRATION =
   "prisma/migrations/20261028040000_prepare_maker_verification_authorities/migration.sql";
 const MAKER_VERIFICATION_ACTIVATION_MIGRATION =
@@ -287,6 +420,17 @@ const MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES = [
 const MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES = [
   ...MAKER_VERIFICATION_PREPARATION_RUNTIME_FUNCTION_NAMES,
   ...MAKER_VERIFICATION_PREPARATION_PRIVATE_FUNCTION_NAMES,
+];
+const SELLER_ANALYTICS_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101030000_prepare_seller_analytics_daily_authorities/migration.sql";
+const SELLER_ANALYTICS_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101040000_activate_seller_analytics_daily_rls/migration.sql";
+const SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES = [
+  "grainline_listing_analytics_record",
+  "grainline_seller_profile_view_record",
+  "grainline_seller_engagement_analytics",
+  "grainline_seller_analytics_retention_prune",
+  "grainline_seller_profile_view_daily_account_deletion_clear",
 ];
 const EMAIL_DELIVERY_LEDGER_MIGRATION =
   "prisma/migrations/20261025010000_prepare_email_delivery_ledger/migration.sql";
@@ -327,6 +471,33 @@ const EMAIL_PROVIDER_ELIGIBILITY_FENCE_MIGRATION_PATH =
   "prisma/migrations/20261025030000_fence_email_provider_and_eligibility_changes/migration.sql";
 const EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES = [
   "grainline_email_hard_suppression_apply",
+];
+const EMAIL_SERVICE_PREPARATION_MIGRATION =
+  "prisma/migrations/20261101080000_prepare_email_service_least_privilege/migration.sql";
+const EMAIL_SERVICE_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101090000_activate_email_service_least_privilege/migration.sql";
+const EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES = [
+  "grainline_email_suppression_exists",
+  "grainline_email_one_click_suppression_clear",
+  "grainline_newsletter_signup_reserve",
+  "grainline_newsletter_signup_release",
+  "grainline_newsletter_confirmation_valid",
+  "grainline_newsletter_confirm",
+  "grainline_newsletter_token_superseded",
+  "grainline_email_unsubscribe_apply",
+  "grainline_email_account_deletion_suppression_clear",
+  "grainline_email_service_owner_export",
+  "grainline_email_service_account_deletion_apply",
+  "grainline_resend_webhook_event_reserve",
+  "grainline_resend_webhook_event_complete",
+  "grainline_resend_webhook_event_fail",
+  "grainline_email_outbox_begin_provider_attempt",
+  "grainline_newsletter_expired_unconfirmed_delete_batch",
+  "grainline_email_outbox_retention_delete_batch",
+  "grainline_resend_webhook_event_retention_delete_batch",
+  "grainline_email_service_ops_health",
+  "grainline_email_outbox_cancel_seller_broadcast",
+  "grainline_email_outbox_redact_deleted_seller",
 ];
 const REVIEW_VOTE_PREPARATION_MIGRATION =
   "prisma/migrations/20261028030000_prepare_review_vote_authorities/migration.sql";
@@ -417,6 +588,10 @@ const {
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES,
   SELLER_PROFILE_TABLE,
+  LISTING_DOMAIN_TABLES: IMPORTED_LISTING_DOMAIN_TABLES,
+  LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES:
+    IMPORTED_LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES,
+  LISTING_DOMAIN_RLS_POLICIES: IMPORTED_LISTING_DOMAIN_RLS_POLICIES,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
@@ -424,7 +599,19 @@ const {
   FOLLOW_TABLE,
   FOLLOW_RLS_ACTIVATION_MIGRATION,
   FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
+  BLOCK_PREPARATION_MIGRATION: BLOCK_PREPARATION_LEDGER_MIGRATION,
+  BLOCK_PREPARATION_MIGRATION_SHA256: BLOCK_PREPARATION_LEDGER_MIGRATION_SHA256,
+  BLOCK_TABLE,
+  BLOCK_RLS_ACTIVATION_MIGRATION,
+  BLOCK_RLS_ACTIVATION_MIGRATION_SHA256,
+  USER_REPORT_TABLE,
+  USER_REPORT_RLS_ACTIVATION_MIGRATION,
+  USER_REPORT_RLS_ACTIVATION_MIGRATION_SHA256,
+  SELLER_FAQ_TABLE,
+  SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
+  SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
   FOLLOW_ACTIVATED_PRIVATE_FUNCTION_NAMES,
+  BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   SAVED_BLOG_POST_TABLE,
   SAVED_BLOG_POST_OWNER_TABLE_PRIVILEGES,
   CART_CART_ITEM_OWNER_TABLE_PRIVILEGES,
@@ -478,6 +665,20 @@ const {
   supportRequestRlsForceExpected,
   followRlsActivationExpected,
   followRlsForceExpected,
+  listingDomainRlsActivationExpected: importedListingDomainRlsActivationExpected,
+  listingDomainRlsForceExpected: importedListingDomainRlsForceExpected,
+  sellerAnalyticsDailyRlsActivationExpected,
+  sellerAnalyticsDailyRlsForceExpected,
+  blockRlsActivationExpected,
+  blockRlsForceExpected,
+  userReportRlsActivationExpected,
+  userReportRlsForceExpected,
+  sellerFaqRlsActivationExpected,
+  sellerFaqRlsForceExpected,
+  adminAuditLogRlsActivationExpected,
+  adminAuditLogRlsForceExpected,
+  sellerMetricsRlsActivationExpected,
+  sellerMetricsRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -504,6 +705,10 @@ const {
   readClerkWebhookEventActivationState,
   readClerkWebhookEventForceState,
   readFollowRlsActivationState,
+  readBlockPreparationState,
+  readBlockRlsActivationState,
+  readUserReportRlsActivationState,
+  readSellerFaqRlsActivationState,
   readEmailDeliveryLedgerPreparationState,
   readEmailProviderDeletionFenceState,
   readEmailProviderEligibilityFenceState,
@@ -526,6 +731,18 @@ const {
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
+
+const LISTING_DOMAIN_TABLES = IMPORTED_LISTING_DOMAIN_TABLES ?? [];
+const LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES =
+  IMPORTED_LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES ?? {};
+const LISTING_DOMAIN_RLS_POLICIES = IMPORTED_LISTING_DOMAIN_RLS_POLICIES ?? {};
+const listingDomainRlsActivationExpected =
+  importedListingDomainRlsActivationExpected;
+const listingDomainRlsForceExpected = importedListingDomainRlsForceExpected;
+const listingDomainGrantAuditSupported =
+  LISTING_DOMAIN_TABLES.length === 4
+  && typeof listingDomainRlsActivationExpected === "function"
+  && typeof listingDomainRlsForceExpected === "function";
 
 describe("temporary SellerProfile CI isolation", () => {
   it("is absent by default and accepted only for exact loopback GitHub CI", () => {
@@ -825,6 +1042,41 @@ async function withAuditFixture(options, fn) {
 }
 
 describe("database grant inventory guardrails", () => {
+  it("pins exact Listing-domain public policy expressions", () => {
+    if (!listingDomainGrantAuditSupported) return;
+    for (const tableName of LISTING_DOMAIN_TABLES) {
+      const [policyName, expected] = Object.entries(
+        LISTING_DOMAIN_RLS_POLICIES[tableName],
+      )[0];
+      const row = {
+        rls_enabled: true,
+        rls_forced: true,
+        policy_name: policyName,
+        policy_command: expected.command,
+        policy_permissive: true,
+        policy_roles: ["grainline_app_runtime"],
+        using_expression: expected.usingExpression,
+        check_expression: expected.checkExpression,
+      };
+      assert.deepEqual(
+        collectListingDomainPolicyIssues(
+          [row],
+          "grainline_app_runtime",
+          tableName,
+        ),
+        [],
+      );
+      assert.match(
+        collectListingDomainPolicyIssues(
+          [{ ...row, using_expression: "true" }],
+          "grainline_app_runtime",
+          tableName,
+        ).join("\n"),
+        /unexpected USING expression/u,
+      );
+    }
+  });
+
   it("rejects every table privilege outside non-grantable CRUD", () => {
     assert.match(
       collectTablePrivilegeAllowlistIssues({}, "table SavedSearch").join("\n"),
@@ -917,6 +1169,20 @@ describe("database grant inventory guardrails", () => {
       rlsForceTables: ["DirectUpload", "DirectUploadReference"],
       rlsPolicyTables: [],
     };
+    const adminAuditLogActivatedInventory = {
+      tables: ["AdminAuditLog"],
+      rlsEnableTables: ["AdminAuditLog"],
+      rlsForceTables: ["AdminAuditLog"],
+      rlsPolicyTables: [],
+      adminAuditLogRlsActivationApplied: true,
+    };
+    const sellerMetricsActivatedInventory = {
+      tables: ["SellerMetrics"],
+      rlsEnableTables: ["SellerMetrics"],
+      rlsForceTables: ["SellerMetrics"],
+      rlsPolicyTables: [],
+      sellerMetricsRlsActivationApplied: true,
+    };
     const caseActivationInventory = {
       rlsEnableTables: ["Case", "CaseMessage", "CaseMessageAttachment"],
       rlsForceTables: ["DirectUpload", "DirectUploadReference"],
@@ -964,6 +1230,17 @@ describe("database grant inventory guardrails", () => {
       rlsEnableTables: [FOLLOW_TABLE],
       rlsForceTables: [FOLLOW_TABLE],
     };
+    const batchPredecessorInventory = {
+      tables: [BLOCK_TABLE, USER_REPORT_TABLE, SELLER_FAQ_TABLE],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const batchActivatedInventory = {
+      ...batchPredecessorInventory,
+      rlsEnableTables: [BLOCK_TABLE, USER_REPORT_TABLE, SELLER_FAQ_TABLE],
+      rlsForceTables: [BLOCK_TABLE, USER_REPORT_TABLE, SELLER_FAQ_TABLE],
+    };
     const savedBlogPostPredecessorInventory = {
       rlsPolicyTables: [],
       savedBlogPostOwnerPrivilegesProvisioned: false,
@@ -1000,10 +1277,74 @@ describe("database grant inventory guardrails", () => {
     const favoriteActivatedInventory = {
       rlsPolicyTables: [FAVORITE_TABLE],
     };
+    const listingDomainPredecessorInventory = listingDomainGrantAuditSupported
+      ? {
+          tables: [...LISTING_DOMAIN_TABLES],
+          rlsEnableTables: [],
+          rlsForceTables: [],
+          rlsPolicyTables: [],
+        }
+      : null;
+    const listingDomainActivatedInventory = listingDomainGrantAuditSupported
+      ? {
+          ...listingDomainPredecessorInventory,
+          rlsEnableTables: [...LISTING_DOMAIN_TABLES],
+          rlsForceTables: [...LISTING_DOMAIN_TABLES],
+          rlsPolicyTables: [...LISTING_DOMAIN_TABLES],
+        }
+      : null;
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
     );
+    if (listingDomainGrantAuditSupported) {
+      assert.equal(
+        listingDomainRlsActivationExpected(listingDomainPredecessorInventory),
+        false,
+      );
+      assert.equal(
+        listingDomainRlsForceExpected(listingDomainPredecessorInventory),
+        false,
+      );
+      for (const tableName of LISTING_DOMAIN_TABLES) {
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(
+            tableName,
+            listingDomainPredecessorInventory,
+          ),
+          REQUIRED_TABLE_PRIVILEGES,
+        );
+        assert.deepEqual(
+          requiredRuntimeColumnPrivileges(
+            tableName,
+            listingDomainPredecessorInventory,
+          ),
+          [],
+        );
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(
+            tableName,
+            listingDomainActivatedInventory,
+          ),
+          [],
+        );
+        assert.deepEqual(
+          requiredRuntimeColumnPrivileges(
+            tableName,
+            listingDomainActivatedInventory,
+          ),
+          LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName],
+        );
+      }
+      assert.equal(
+        listingDomainRlsActivationExpected(listingDomainActivatedInventory),
+        true,
+      );
+      assert.equal(
+        listingDomainRlsForceExpected(listingDomainActivatedInventory),
+        true,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", phaseAInventory),
       SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
@@ -1041,6 +1382,54 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
       [],
+    );
+    assert.equal(
+      adminAuditLogRlsActivationExpected(adminAuditLogActivatedInventory),
+      true,
+    );
+    assert.equal(
+      adminAuditLogRlsForceExpected(adminAuditLogActivatedInventory),
+      true,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        "AdminAuditLog",
+        adminAuditLogActivatedInventory,
+      ),
+      [],
+    );
+    assert.equal(
+      sellerMetricsRlsActivationExpected(sellerMetricsActivatedInventory),
+      true,
+    );
+    assert.equal(
+      sellerMetricsRlsForceExpected(sellerMetricsActivatedInventory),
+      true,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        "SellerMetrics",
+        sellerMetricsActivatedInventory,
+      ),
+      [],
+    );
+    assert.equal(
+      runtimePrivateFunctionNames({
+        listingDomainPreparationApplied: true,
+      }).includes("grainline_listing_children_replace_core"),
+      true,
+    );
+    assert.equal(
+      runtimePrivateFunctionNames({
+        listingDomainPreparationApplied: true,
+      }).includes("grainline_listing_actor_review_contexts"),
+      false,
+    );
+    assert.equal(
+      runtimePrivateFunctionNames({
+        listingDomainPreparationApplied: true,
+      }).includes("grainline_listing_public_customer_photo_page"),
+      false,
     );
     const sellerExactMapConsentEventAudited = source(
       "scripts/audit-runtime-db-grants.mjs",
@@ -1210,6 +1599,87 @@ describe("database grant inventory guardrails", () => {
       ]);
     } else {
       assert.equal(followRlsForceExpected, undefined);
+    }
+    const batchActivationCases = [
+      {
+        table: BLOCK_TABLE,
+        activationExpected: blockRlsActivationExpected,
+        forceExpected: blockRlsForceExpected,
+        stateField: "blockRlsActivationApplied",
+      },
+      {
+        table: USER_REPORT_TABLE,
+        activationExpected: userReportRlsActivationExpected,
+        forceExpected: userReportRlsForceExpected,
+        stateField: "userReportRlsActivationApplied",
+      },
+      {
+        table: SELLER_FAQ_TABLE,
+        activationExpected: sellerFaqRlsActivationExpected,
+        forceExpected: sellerFaqRlsForceExpected,
+        stateField: "sellerFaqRlsActivationApplied",
+      },
+    ];
+    if (batchActivationCases.every(({ activationExpected, forceExpected }) => (
+      typeof activationExpected === "function"
+      && typeof forceExpected === "function"
+    ))) {
+      for (const {
+        table,
+        activationExpected,
+        forceExpected,
+        stateField,
+      } of batchActivationCases) {
+        assert.equal(activationExpected(batchPredecessorInventory), false);
+        assert.equal(forceExpected(batchPredecessorInventory), false);
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(table, batchPredecessorInventory),
+          REQUIRED_TABLE_PRIVILEGES,
+        );
+        assert.equal(activationExpected(batchActivatedInventory), true);
+        assert.equal(forceExpected(batchActivatedInventory), true);
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(table, batchActivatedInventory),
+          [],
+        );
+        assert.equal(
+          policylessServiceRlsTableNames(batchActivatedInventory).includes(table),
+          true,
+        );
+        assert.equal(activationExpected({
+          ...batchActivatedInventory,
+          [stateField]: false,
+        }), false);
+      }
+      assert.deepEqual(collectPolicylessServiceRlsIssues(
+        [BLOCK_TABLE, USER_REPORT_TABLE, SELLER_FAQ_TABLE].map((tableName) => ({
+          table_name: tableName,
+          rls_enabled: true,
+          rls_forced: true,
+          policy_count: 0,
+        })),
+        batchActivatedInventory,
+      ), []);
+      assert.deepEqual(BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES, [
+        "grainline_conversation_inbox",
+        "grainline_message_unread_count",
+      ]);
+      for (const retiredName of BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES) {
+        assert.equal(
+          runtimePrivateFunctionNames({
+            ...batchActivatedInventory,
+            blockRlsActivationApplied: false,
+          }).includes(retiredName),
+          false,
+        );
+        assert.equal(
+          runtimePrivateFunctionNames({
+            ...batchActivatedInventory,
+            blockRlsActivationApplied: true,
+          }).includes(retiredName),
+          true,
+        );
+      }
     }
     assert.deepEqual(collectPolicylessServiceRlsIssues([{
       table_name: SELLER_PROFILE_TABLE,
@@ -1418,6 +1888,8 @@ describe("database grant inventory guardrails", () => {
             "grainline_review_vote_update_forbidden",
           ]
         : []),
+      "grainline_seller_metrics_refresh_prepared_impl",
+      "grainline_seller_metrics_inactive_owner_cleanup",
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
       ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
@@ -2097,6 +2569,43 @@ describe("database grant inventory guardrails", () => {
       collectAccountDeletionWorkerBoundaryIssues(preparedState, preparedInventory),
       [],
     );
+
+    const adminAuditWorkerBoundarySupported = source(
+      "scripts/audit-runtime-db-grants.mjs",
+    ).includes("grainline_admin_audit_account_deletion_redaction_apply");
+    if (adminAuditWorkerBoundarySupported) {
+      const adminAuditFunctions = [
+        "grainline_admin_audit_account_deletion_legacy_redaction_apply(text,bigint,uuid,text)",
+        "grainline_admin_audit_account_deletion_redaction_apply(text,bigint,uuid,text)",
+      ];
+      const adminAuditInventory = {
+        ...preparedInventory,
+        functions: [
+          ...preparedInventory.functions,
+          "grainline_admin_audit_account_deletion_legacy_redaction_apply",
+          "grainline_admin_audit_account_deletion_redaction_apply",
+        ],
+      };
+      const adminAuditState = {
+        ...preparedState,
+        function_identities: [
+          ...preparedState.function_identities,
+          ...adminAuditFunctions,
+        ],
+        effective_function_identities: [
+          ...preparedState.effective_function_identities,
+          ...adminAuditFunctions,
+        ],
+      };
+      assert.deepEqual(
+        collectAccountDeletionWorkerBoundaryIssues(adminAuditState, adminAuditInventory),
+        [],
+      );
+      assert.match(
+        collectAccountDeletionWorkerBoundaryIssues(preparedState, adminAuditInventory).join("\n"),
+        /function authority drifted/u,
+      );
+    }
 
     const activeInventory = {
       ...preparedInventory,
@@ -2940,6 +3449,9 @@ describe("database grant inventory guardrails", () => {
     const exactRows = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map(
       (entry) => functionRow(entry),
     );
+    const blockPreparedRows = CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS.map(
+      (entry) => functionRow(entry),
+    );
     const redactionEntry = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.find(
       (entry) => entry.name === "grainline_message_redact_for_account_deletion",
     );
@@ -2983,6 +3495,54 @@ describe("database grant inventory guardrails", () => {
       [],
       "source-only preparation files must not change live predecessor expectations",
     );
+    if (typeof readBlockPreparationState === "function") {
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          [...exactRows, ...blockPreparedRows],
+          runtimeRole,
+          migrationRole,
+          { blockPreparationApplied: true },
+        ),
+        [],
+        "an applied Block preparation adds only the context-bound owner wrappers",
+      );
+      const blockActivatedRows = [
+        ...exactRows.map((row) => (
+          [
+            "grainline_conversation_inbox",
+            "grainline_message_unread_count",
+          ].includes(row.function_name)
+            ? { ...row, execute_priv: false, runtime_direct_execute: false }
+            : row
+        )),
+        ...blockPreparedRows,
+      ];
+      assert.deepEqual(
+        collectConversationMessageFunctionIssues(
+          blockActivatedRows,
+          runtimeRole,
+          migrationRole,
+          {
+            blockPreparationApplied: true,
+            blockRlsActivationApplied: true,
+          },
+        ),
+        [],
+        "Block activation retires the caller-supplied inbox and unread entry points",
+      );
+      assert.match(
+        collectConversationMessageFunctionIssues(
+          [...exactRows, ...blockPreparedRows],
+          runtimeRole,
+          migrationRole,
+          {
+            blockPreparationApplied: true,
+            blockRlsActivationApplied: true,
+          },
+        ).join("\n"),
+        /grainline_(?:conversation_inbox|message_unread_count).*runtime role must not have effective EXECUTE/,
+      );
+    }
     assert.deepEqual(
       collectConversationMessageFunctionIssues(
         [...exactRows, claimedRedactionRow],
@@ -3424,6 +3984,15 @@ describe("database grant inventory guardrails", () => {
     ) && source(orderItemQuoteRuntimeLockMigrationPath).includes(
       'REVOKE ALL ON TABLE\n  public."OrderItem",\n  public."OrderShippingRateQuote"\nFROM PUBLIC, grainline_app_runtime;',
     );
+    const serviceReferenceLeastPrivilegeMigrationPresent = existsSync(
+      "prisma/migrations/20261101020000_narrow_service_reference_runtime_privileges/migration.sql",
+    );
+    const adminAuditLogPreparationPresent = existsSync(
+      "prisma/migrations/20261102010000_prepare_admin_audit_log_authorities/migration.sql",
+    );
+    const adminAuditLogActivationPresent = existsSync(
+      "prisma/migrations/20261102020000_activate_admin_audit_log_rls/migration.sql",
+    );
     const sellerProfilePrivateForceMigrationPresent = existsSync(
       "prisma/migrations/20261015120000_force_seller_profile_private_rls/migration.sql",
     );
@@ -3665,9 +4234,40 @@ describe("database grant inventory guardrails", () => {
       source(STOCK_NOTIFICATION_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const commissionDomainAuthorityPrepared = existsSync(
+      COMMISSION_DOMAIN_PREPARATION_MIGRATION,
+    ) && COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(COMMISSION_DOMAIN_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const commissionDomainRlsActivationPresent = existsSync(
+      COMMISSION_DOMAIN_RLS_MIGRATION,
+    ) && source(COMMISSION_DOMAIN_RLS_MIGRATION).includes(
+      'ALTER TABLE public."CommissionRequest" ENABLE ROW LEVEL SECURITY',
+    ) && source(COMMISSION_DOMAIN_RLS_MIGRATION).includes(
+      'ALTER TABLE public."CommissionInterest" FORCE ROW LEVEL SECURITY',
+    );
     const stockNotificationRlsActivationPresent = existsSync(
       STOCK_NOTIFICATION_RLS_MIGRATION,
     );
+    const blockAuthorityPrepared = existsSync(
+      BLOCK_PREPARATION_MIGRATION,
+    ) && BLOCK_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(BLOCK_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const userReportAuthorityPrepared = existsSync(
+      USER_REPORT_PREPARATION_MIGRATION,
+    ) && USER_REPORT_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(USER_REPORT_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const sellerFaqAuthorityPrepared = existsSync(
+      SELLER_FAQ_PREPARATION_MIGRATION,
+    ) && SELLER_FAQ_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_FAQ_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const favoriteAuthorityPrepared = existsSync(
       FAVORITE_PREPARATION_MIGRATION,
     ) && FAVORITE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -3680,6 +4280,17 @@ describe("database grant inventory guardrails", () => {
       source(FOLLOW_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const sellerBroadcastAuthorityPrepared = existsSync(
+      SELLER_BROADCAST_PREPARATION_MIGRATION,
+    ) && SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_BROADCAST_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const sellerBroadcastRlsActivationPresent = existsSync(
+      SELLER_BROADCAST_ACTIVATION_MIGRATION,
+    ) && source(SELLER_BROADCAST_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL ON TABLE public."SellerBroadcast"',
+    );
     const reviewVoteAuthorityPrepared = existsSync(
       REVIEW_VOTE_PREPARATION_MIGRATION,
     ) && REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -3696,6 +4307,39 @@ describe("database grant inventory guardrails", () => {
       MAKER_VERIFICATION_ACTIVATION_MIGRATION,
     ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
+    );
+    const sellerAnalyticsAuthorityPrepared = existsSync(
+      SELLER_ANALYTICS_PREPARATION_MIGRATION,
+    ) && SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(SELLER_ANALYTICS_PREPARATION_MIGRATION).includes(
+        `public.${functionName}(`,
+      ));
+    const sellerMetricsAuthorityPrepared = existsSync(
+      `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
+    ) && SELLER_METRICS_PREPARATION.functions.every((entry) =>
+      source(
+        `prisma/migrations/${SELLER_METRICS_PREPARATION.migration}/migration.sql`,
+      ).includes(`FUNCTION public.${entry.name}(`),
+    );
+    const listingDomainAuthorityPrepared = existsSync(
+      LISTING_DOMAIN_PREPARATION_MIGRATION,
+    ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const sellerMetricsRlsActivationPresent = existsSync(
+      "prisma/migrations/20261102040000_activate_seller_metrics_rls/migration.sql",
+    ) && source(
+      "prisma/migrations/20261102040000_activate_seller_metrics_rls/migration.sql",
+    ).includes(
+      'ALTER TABLE public."SellerMetrics" FORCE ROW LEVEL SECURITY',
+    );
+    const sellerAnalyticsRlsActivationPresent = existsSync(
+      SELLER_ANALYTICS_ACTIVATION_MIGRATION,
+    ) && source(SELLER_ANALYTICS_ACTIVATION_MIGRATION).includes(
+      'ALTER TABLE public."ListingViewDaily" FORCE ROW LEVEL SECURITY',
+    ) && source(SELLER_ANALYTICS_ACTIVATION_MIGRATION).includes(
+      'ALTER TABLE public."SellerProfileViewDaily" FORCE ROW LEVEL SECURITY',
     );
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
@@ -3731,6 +4375,17 @@ describe("database grant inventory guardrails", () => {
     const emailProviderEligibilitySubstitutesUnsubscribeRevoke =
       emailProviderEligibilityFencePrepared
       && !userUnsubscribeOptionalPreferencesCorrectionPresent;
+    const emailServiceAuthorityPrepared = existsSync(
+      EMAIL_SERVICE_PREPARATION_MIGRATION,
+    ) && EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(EMAIL_SERVICE_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const emailServiceActivationPresent = existsSync(
+      EMAIL_SERVICE_ACTIVATION_MIGRATION,
+    ) && source(EMAIL_SERVICE_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL PRIVILEGES ON TABLE',
+    );
     const availableUserAuthorityIdentities = new Set(USER_AUTHORITY_GROUPS
       .filter(({ migration }) => existsSync(`prisma/migrations/${migration}/migration.sql`))
       .flatMap(({ functions }) => functions.map(({ identity }) => identity)));
@@ -3746,6 +4401,9 @@ describe("database grant inventory guardrails", () => {
     assert.equal(inventory.tables.length, disputeRecoveryMigrationPresent ? 70 : 69);
     assert.equal(inventory.enums.length, disputeRecoveryMigrationPresent ? 23 : 22);
     assert.deepEqual(inventory.functions, [...new Set([
+      ...(adminAuditLogPreparationPresent
+        ? ADMIN_AUDIT_LOG_PREPARATION.functions.map((entry) => entry.name)
+        : []),
       ...(accountDeletionClaimFencePrepared
         ? accountDeletionClaimFenceFunctionNames
         : []),
@@ -3914,17 +4572,44 @@ describe("database grant inventory guardrails", () => {
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(favoriteAuthorityPrepared
         ? FAVORITE_PREPARATION_FUNCTION_NAMES
         : []),
       ...(followAuthorityPrepared
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerBroadcastAuthorityPrepared
+        ? [
+            ...SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES,
+            "grainline_email_outbox_begin_provider_attempt",
+          ]
+        : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerAnalyticsAuthorityPrepared
+        ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerMetricsAuthorityPrepared
+        ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
+        : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(blockAuthorityPrepared
+        ? BLOCK_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(userReportAuthorityPrepared
+        ? USER_REPORT_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
         : []),
       ...(reviewVoteRlsActivationPresent
         ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
@@ -3938,6 +4623,9 @@ describe("database grant inventory guardrails", () => {
       ...(emailProviderEligibilityFencePrepared
         ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
         : []),
+      ...(emailServiceAuthorityPrepared
+        ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES
+        : []),
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
@@ -3946,6 +4634,9 @@ describe("database grant inventory guardrails", () => {
       ).filter((name) => name !== "grainline_stripe_webhook_begin"),
       ...(conversationMessageAuthorityPrepared
         ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
+        : []),
+      ...(blockAuthorityPrepared
+        ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS.map((entry) => entry.name)
         : []),
       ...(sellerProfilePublicCandidatePresent
         ? SELLER_PROFILE_PUBLIC_CANDIDATE_FUNCTION_NAMES
@@ -3962,6 +4653,9 @@ describe("database grant inventory guardrails", () => {
       inventory.publicRevokes.length,
       157 // historical-prefix baseline before the currently staged successors
         + (orderItemQuoteRuntimeLockMigrationPresent ? 1 : 0)
+        + (serviceReferenceLeastPrivilegeMigrationPresent ? 1 : 0)
+        + (adminAuditLogPreparationPresent ? 3 : 0)
+        + (adminAuditLogActivationPresent ? 1 : 0)
         + (postForceCheckoutSuccessorRevokePresent ? 1 : 0)
         + (sellerBuyerEmailProjectionMigrationPresent ? 2 : 0)
         + (orderOpsHealthMigrationPresent ? 1 : 0)
@@ -3993,13 +4687,31 @@ describe("database grant inventory guardrails", () => {
         + (stockNotificationAuthorityPrepared
           ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES.length
           : 0)
+        + (commissionDomainAuthorityPrepared
+          ? COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (commissionDomainRlsActivationPresent ? 1 : 0)
         + (stockNotificationRlsActivationPresent ? 1 : 0)
+        + (blockAuthorityPrepared
+          ? BLOCK_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (userReportAuthorityPrepared
+          ? USER_REPORT_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (sellerFaqAuthorityPrepared
+          ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES.length
+          : 0)
         + (favoriteAuthorityPrepared
           ? FAVORITE_PREPARATION_FUNCTION_NAMES.length
           : 0)
         + (followAuthorityPrepared
           ? FOLLOW_PREPARATION_FUNCTION_NAMES.length
           : 0)
+        + (sellerBroadcastAuthorityPrepared
+          ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
+            + 1 // reasserted provider-attempt PUBLIC/runtime revoke
+          : 0)
+        + (sellerBroadcastRlsActivationPresent ? 1 : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
           : 0)
@@ -4008,8 +4720,28 @@ describe("database grant inventory guardrails", () => {
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
         + (makerVerificationActivationPresent ? 1 : 0)
+        + (sellerAnalyticsAuthorityPrepared
+          ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES.length
+            - 1 // seller-profile view recording already has an exact PUBLIC revoke
+          : 0)
+        + (sellerMetricsAuthorityPrepared
+          ? SELLER_METRICS_PREPARATION.functions.length
+          : 0)
+        + (listingDomainAuthorityPrepared
+          ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (sellerMetricsRlsActivationPresent ? 1 : 0)
+        + (sellerAnalyticsRlsActivationPresent ? 2 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
+        + (typeof blockRlsActivationExpected === "function"
+          && blockRlsActivationExpected(inventory)
+          ? 3 // Block table plus two retired caller-supplied messaging RPCs
+          : 0)
+        + (typeof userReportRlsActivationExpected === "function"
+          && userReportRlsActivationExpected(inventory) ? 1 : 0)
+        + (typeof sellerFaqRlsActivationExpected === "function"
+          && sellerFaqRlsActivationExpected(inventory) ? 1 : 0)
         // Activation revokes the table and count-repair trigger function.
         + (reviewVoteRlsActivationPresent
           ? 1
@@ -4024,6 +4756,14 @@ describe("database grant inventory guardrails", () => {
         + (emailProviderEligibilityFencePrepared
           ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES.length
           : 0)
+        + (emailServiceAuthorityPrepared
+          ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES.length
+            // The staged historical CI prefix temporarily removes the
+            // delivery-ledger migration. Only subtract the exact duplicate
+            // begin_provider_attempt revoke while that predecessor is present.
+            - (emailDeliveryLedgerPrepared ? 1 : 0)
+          : 0)
+        + (emailServiceActivationPresent ? 1 : 0)
         // CI proves the C-875 release before isolating this successor. While
         // C-875 is held aside, the successor's redefinition still contributes
         // the same unsubscribe-function PUBLIC revoke.
@@ -4113,6 +4853,18 @@ describe("database grant inventory guardrails", () => {
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
     ));
+    if (sellerAnalyticsRlsActivationPresent) {
+      assert.equal(sellerAnalyticsDailyRlsActivationExpected(inventory), true);
+      assert.equal(sellerAnalyticsDailyRlsForceExpected(inventory), true);
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges("ListingViewDaily", inventory),
+        [],
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges("SellerProfileViewDaily", inventory),
+        [],
+      );
+    }
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
     ));
@@ -4123,17 +4875,44 @@ describe("database grant inventory guardrails", () => {
       ...(stockNotificationAuthorityPrepared
         ? STOCK_NOTIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(commissionDomainAuthorityPrepared
+        ? COMMISSION_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(favoriteAuthorityPrepared
         ? FAVORITE_PREPARATION_FUNCTION_NAMES
         : []),
       ...(followAuthorityPrepared
         ? FOLLOW_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(sellerBroadcastAuthorityPrepared
+        ? [
+            ...SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES,
+            "grainline_email_outbox_begin_provider_attempt",
+          ]
+        : []),
       ...(reviewVoteAuthorityPrepared
         ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerAnalyticsAuthorityPrepared
+        ? SELLER_ANALYTICS_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerMetricsAuthorityPrepared
+        ? SELLER_METRICS_PREPARATION.functions.map((entry) => entry.name)
+        : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(blockAuthorityPrepared
+        ? BLOCK_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(userReportAuthorityPrepared
+        ? USER_REPORT_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(sellerFaqAuthorityPrepared
+        ? SELLER_FAQ_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
@@ -4143,6 +4922,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(emailProviderEligibilityFencePrepared
         ? EMAIL_PROVIDER_ELIGIBILITY_FENCE_SOURCE_NEW_FUNCTION_NAMES
+        : []),
+      ...(emailServiceAuthorityPrepared
+        ? EMAIL_SERVICE_PREPARATION_FUNCTION_NAMES
         : []),
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
@@ -4412,7 +5194,12 @@ describe("database grant inventory guardrails", () => {
       );
     }
     if (conversationMessageAuthorityPrepared) {
-      for (const { name } of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
+      for (const { name } of [
+        ...CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+        ...(blockAuthorityPrepared
+          ? CONVERSATION_MESSAGE_BLOCK_PREPARATION_FUNCTIONS
+          : []),
+      ]) {
         assert.equal(
           inventory.publicRevokes.some((statement) => (
             statement.includes(`public.${name}(`)
@@ -4450,6 +5237,9 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsActivationExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(adminAuditLogActivationPresent ? ["AdminAuditLog"] : []),
+        ...(typeof blockRlsActivationExpected === "function"
+          && blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Case",
         "CaseMessage",
@@ -4462,12 +5252,16 @@ describe("database grant inventory guardrails", () => {
         ...(clerkWebhookEventRlsActivationExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
           : []),
+        ...(commissionDomainRlsActivationPresent
+          ? ["CommissionInterest", "CommissionRequest"]
+          : []),
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(sellerAnalyticsRlsActivationPresent ? ["ListingViewDaily"] : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -4485,11 +5279,18 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
+        ...(typeof sellerFaqRlsActivationExpected === "function"
+          && sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+        ...(sellerMetricsRlsActivationPresent ? ["SellerMetrics"] : []),
         "SellerPayoutEvent",
         ...(sellerProfilePublicCandidatePresent ? ["SellerProfile"] : []),
         ...(sellerProfilePrivateEnableMigrationPresent
           ? ["SellerProfilePrivate"]
+          : []),
+        ...(sellerAnalyticsRlsActivationPresent
+          ? ["SellerProfileViewDaily"]
           : []),
         ...(stockNotificationRlsActivationPresent
           ? ["StockNotification"]
@@ -4502,6 +5303,10 @@ describe("database grant inventory guardrails", () => {
         ...(userEmailAddressRlsActivationExpected(inventory)
           ? ["UserEmailAddress"]
           : []),
+        ...(typeof userReportRlsActivationExpected === "function"
+          && userReportRlsActivationExpected(inventory)
+          ? [USER_REPORT_TABLE]
+          : []),
       ],
     );
     assert.deepEqual(
@@ -4510,6 +5315,9 @@ describe("database grant inventory guardrails", () => {
         ...(accountDeletionSideEffectRlsForceExpected(inventory)
           ? [ACCOUNT_DELETION_SIDE_EFFECT_TABLE]
           : []),
+        ...(adminAuditLogActivationPresent ? ["AdminAuditLog"] : []),
+        ...(typeof blockRlsForceExpected === "function"
+          && blockRlsForceExpected(inventory) ? [BLOCK_TABLE] : []),
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Case",
         "CaseMessage",
@@ -4522,12 +5330,16 @@ describe("database grant inventory guardrails", () => {
         ...(clerkWebhookEventRlsForceExpected(inventory)
           ? [CLERK_WEBHOOK_EVENT_TABLE]
           : []),
+        ...(commissionDomainRlsActivationPresent
+          ? ["CommissionInterest", "CommissionRequest"]
+          : []),
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsForceExpected === "function"
           && followRlsForceExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(sellerAnalyticsRlsActivationPresent ? ["ListingViewDaily"] : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -4545,13 +5357,20 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
+        ...(typeof sellerFaqRlsForceExpected === "function"
+          && sellerFaqRlsForceExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
+        ...(sellerMetricsRlsActivationPresent ? ["SellerMetrics"] : []),
         "SellerPayoutEvent",
         ...(sellerProfilePublicForceMigrationPresent
           ? ["SellerProfile"]
           : []),
         ...(sellerProfilePrivateForceMigrationPresent
           ? ["SellerProfilePrivate"]
+          : []),
+        ...(sellerAnalyticsRlsActivationPresent
+          ? ["SellerProfileViewDaily"]
           : []),
         ...(stockNotificationRlsActivationPresent
           ? ["StockNotification"]
@@ -4564,6 +5383,8 @@ describe("database grant inventory guardrails", () => {
         ...(userEmailAddressRlsForceExpected(inventory)
           ? ["UserEmailAddress"]
           : []),
+        ...(typeof userReportRlsForceExpected === "function"
+          && userReportRlsForceExpected(inventory) ? [USER_REPORT_TABLE] : []),
       ],
     );
   });
@@ -4645,11 +5466,11 @@ describe("database grant inventory guardrails", () => {
     assert.ok(start >= 0 && end > start);
     const stagedProof = workflow.slice(start, end);
     const auditMatches = stagedProof.match(/npm run audit:db-grants/g) ?? [];
-    assert.equal(auditMatches.length, 5);
+    assert.equal(auditMatches.length, 6);
     const combinedStaffStageMatches = stagedProof.match(
       /--staff-read-stage=order-user-combined/g,
     ) ?? [];
-    assert.equal(combinedStaffStageMatches.length, 5);
+    assert.equal(combinedStaffStageMatches.length, 6);
     const preparationAudit = stagedProof.indexOf("npm run audit:db-grants");
     const runtimeConvergence = stagedProof.indexOf(
       "--file=scripts/provision-runtime-db-role.sql",
@@ -4686,7 +5507,32 @@ describe("database grant inventory guardrails", () => {
       "npx prisma migrate deploy",
       restoreCorrection,
     );
-    const finalAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
+    const correctionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyCorrection,
+    );
+    const restoreLockOrderCorrection = stagedProof.indexOf(
+      '"$holding/migrations/$lock_order_correction_migration" \\\n            "prisma/migrations/$lock_order_correction_migration"',
+    );
+    const applyLockOrderCorrection = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreLockOrderCorrection,
+    );
+    const lockOrderCorrectionAudit = stagedProof.indexOf(
+      "npm run audit:db-grants",
+      applyLockOrderCorrection,
+    );
+    const restoreBroadcastPreparation = stagedProof.indexOf(
+      '"$holding/migrations/$broadcast_preparation" \\\n            "prisma/migrations/$broadcast_preparation"',
+    );
+    const restoreBroadcastActivation = stagedProof.indexOf(
+      '"$holding/migrations/$broadcast_activation" \\\n            "prisma/migrations/$broadcast_activation"',
+    );
+    const applyBroadcast = stagedProof.indexOf(
+      "npx prisma migrate deploy",
+      restoreBroadcastActivation,
+    );
+    const broadcastAudit = stagedProof.lastIndexOf("npm run audit:db-grants");
     assert.ok(runtimeConvergence >= 0 && runtimeConvergence < preparationAudit);
     assert.ok(staffConvergence >= 0 && staffConvergence < preparationAudit);
     assert.ok(preparationAudit < restoreDeletionFence);
@@ -4702,7 +5548,18 @@ describe("database grant inventory guardrails", () => {
     assert.ok(
       eligibilityFenceAudit < restoreCorrection
       && restoreCorrection < applyCorrection
-      && applyCorrection < finalAudit,
+      && applyCorrection < correctionAudit,
+    );
+    assert.ok(
+      correctionAudit < restoreLockOrderCorrection
+      && restoreLockOrderCorrection < applyLockOrderCorrection
+      && applyLockOrderCorrection < lockOrderCorrectionAudit,
+    );
+    assert.ok(
+      lockOrderCorrectionAudit < restoreBroadcastPreparation
+      && restoreBroadcastPreparation < restoreBroadcastActivation
+      && restoreBroadcastActivation < applyBroadcast
+      && applyBroadcast < broadcastAudit,
     );
   });
 
@@ -5071,6 +5928,37 @@ describe("database grant inventory guardrails", () => {
           FOLLOW_RLS_ACTIVATION_MIGRATION,
           FOLLOW_RLS_ACTIVATION_MIGRATION_SHA256,
         )),
+        { applied: true, issues: [] },
+      );
+    }
+    if (typeof readBlockPreparationState === "function") {
+      assert.deepEqual(
+        await readBlockPreparationState(exactClient(
+          BLOCK_PREPARATION_LEDGER_MIGRATION,
+          BLOCK_PREPARATION_LEDGER_MIGRATION_SHA256,
+        )),
+        { applied: true, issues: [] },
+      );
+    }
+    for (const [reader, migration, checksum] of [
+      [
+        readBlockRlsActivationState,
+        BLOCK_RLS_ACTIVATION_MIGRATION,
+        BLOCK_RLS_ACTIVATION_MIGRATION_SHA256,
+      ],
+      [
+        readUserReportRlsActivationState,
+        USER_REPORT_RLS_ACTIVATION_MIGRATION,
+        USER_REPORT_RLS_ACTIVATION_MIGRATION_SHA256,
+      ],
+      [
+        readSellerFaqRlsActivationState,
+        SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
+        SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
+      ],
+    ].filter(([reader]) => typeof reader === "function")) {
+      assert.deepEqual(
+        await reader(exactClient(migration, checksum)),
         { applied: true, issues: [] },
       );
     }
@@ -6103,6 +6991,27 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const commissionDomainProvisioningPresent = provision.includes(
+      "grainline_commission_domain_rls_active",
+    );
+    const sellerBroadcastProvisioningPresent = provision.includes(
+      "seller_broadcast_rls_active",
+    );
+    const sellerAnalyticsProvisioningPresent = provision.includes(
+      "grainline_seller_analytics_daily_rls_active",
+    );
+    const emailServiceActivationProvisioningPresent = provision.includes(
+      "grainline_email_service_activation_applied",
+    );
+    const serviceReferenceLeastPrivilegeProvisioningPresent = provision.includes(
+      "grainline_service_reference_least_privilege_applied",
+    );
+    const adminAuditLogProvisioningPresent = provision.includes(
+      "admin_audit_log_rls_active",
+    );
+    const sellerMetricsProvisioningPresent = provision.includes(
+      "seller_metrics_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6113,8 +7022,35 @@ describe("database grant inventory guardrails", () => {
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
-        + Number(reviewVoteProvisioningPresent),
+        + Number(reviewVoteProvisioningPresent)
+        + Number(commissionDomainProvisioningPresent)
+        + Number(sellerAnalyticsProvisioningPresent)
+        + Number(emailServiceActivationProvisioningPresent)
+        + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
+        + Number(sellerBroadcastProvisioningPresent)
+        + Number(adminAuditLogProvisioningPresent)
+        + Number(sellerMetricsProvisioningPresent),
     );
+    if (emailServiceActivationProvisioningPresent) {
+      assert.match(
+        provision,
+        /20261101090000_activate_email_service_least_privilege/u,
+      );
+      assert.match(
+        provision,
+        /REVOKE ALL PRIVILEGES ON TABLE[\s\S]*public\."EmailFailureCount"[\s\S]*FROM PUBLIC, :"runtime_role", grainline_staff_read_runtime/u,
+      );
+    }
+    if (commissionDomainProvisioningPresent) {
+      assert.match(
+        provision,
+        /Commission domain RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :grainline_commission_domain_rls_active[\s\S]*REVOKE ALL ON TABLE\s+public\."CommissionRequest",\s+public\."CommissionInterest"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
       assert.match(
@@ -6196,6 +7132,26 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :grainline_follow_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Follow"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
+    if (sellerBroadcastProvisioningPresent) {
+      assert.match(
+        provision,
+        /SellerBroadcast RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /\\if :seller_broadcast_rls_active[\s\S]*REVOKE ALL ON TABLE public\."SellerBroadcast" FROM PUBLIC, :"runtime_role"/,
+      );
+    }
+    if (provision.includes("grainline_block_report_seller_faq_provisioning_posture")) {
+      assert.match(
+        provision,
+        /ARRAY\['Block', 'UserReport', 'SellerFaq'\][\s\S]*% RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /REVOKE ALL ON TABLE public\.%I FROM PUBLIC, %I'[\s\S]*FROM activated/,
       );
     }
     assert.equal(
@@ -6376,7 +7332,11 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      19,
+      provision.includes('public."grainline_conversation_inbox_owner"(')
+        ? 22
+        : provision.includes('public."grainline_listing_message_context_titles"(')
+          ? 20
+          : 19,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(

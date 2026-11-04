@@ -6,7 +6,7 @@ import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/
 import { parsePositiveInt } from "@/lib/stripeWebhookState";
 import { stripe } from "@/lib/stripe";
 import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReservationRepairState";
-import { claimLegacyStockRestore } from "@/lib/stripeWebhookMaintenance";
+import { applyLegacyStockRestore } from "@/lib/stripeWebhookMaintenance";
 import {
   claimStaleCheckoutStockReservations,
   bindCheckoutStockReservationSession,
@@ -117,24 +117,6 @@ function restorableStockItemsFromMetadata(metadata: Record<string, string | unde
   }
 
   return mergeRestorableStockItems(items);
-}
-
-export async function restoreReservedStockItems(tx: Prisma.TransactionClient, items: RestorableStockItem[]) {
-  let stockStatusRestoredCount = 0;
-  for (const item of mergeRestorableStockItems(items)) {
-    await tx.$executeRaw`
-      UPDATE "Listing"
-      SET "stockQuantity" = "stockQuantity" + ${item.quantity}
-      WHERE id = ${item.listingId}
-        AND "listingType" = 'IN_STOCK'
-    `;
-    const stockStatusUpdate = await tx.listing.updateMany({
-      where: { id: item.listingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-      data: { status: "ACTIVE" },
-    });
-    stockStatusRestoredCount += stockStatusUpdate.count;
-  }
-  return stockStatusRestoredCount;
 }
 
 export async function restoreStaleCheckoutStockReservations(input: {
@@ -287,10 +269,6 @@ export async function pruneTerminalCheckoutStockReservations(input: {
   return { pruned, cutoff: cutoff.toISOString() };
 }
 
-async function claimCheckoutStockRestore(tx: Prisma.TransactionClient, sessionId: string) {
-  return claimLegacyStockRestore(sessionId, tx);
-}
-
 async function handleFixedReservationTransition(
   transition: CheckoutReservationTransition,
   sessionId: string,
@@ -333,10 +311,8 @@ async function restoreLegacyUnorderedCheckoutStockOnce(input: {
       return 0;
     }
 
-    const claimed = await claimCheckoutStockRestore(tx, input.sessionId);
-    if (!claimed) return 0;
-
-    return restoreReservedStockItems(tx, items);
+    const result = await applyLegacyStockRestore(input.sessionId, items, tx);
+    return result.stockVisibilityChanged;
   });
 
   await releaseCheckoutLock(input.metadata.checkoutLockKey, input.sessionId);
