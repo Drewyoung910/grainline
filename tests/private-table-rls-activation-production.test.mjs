@@ -173,6 +173,7 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       runtime_execute: entry.executeRole === "runtime",
       staff_execute: entry.executeRole === "staff",
       public_execute: false,
+      unexpected_execute_roles: [],
     }))
     .sort((left, right) => (
       left.function_name.localeCompare(right.function_name)
@@ -188,6 +189,7 @@ function fakeClientClass({
   selectedRelease = release,
   selectedVerified = verified,
   policyRows = [],
+  functionOverrides = {},
 }) {
   return class FakeClient {
     async connect() {}
@@ -228,7 +230,12 @@ function fakeClientClass({
         return { rows: policyRows };
       }
       if (sql.includes("procedure.prosrc AS source")) {
-        return { rows: functionRows(selectedRelease, selectedVerified, active) };
+        return {
+          rows: functionRows(selectedRelease, selectedVerified, active).map((row) => ({
+            ...row,
+            ...functionOverrides,
+          })),
+        };
       }
       throw new Error(`unexpected query: ${sql.slice(0, 120)}`);
     }
@@ -455,6 +462,26 @@ test("inspector rejects direct authority after activation", async () => {
         },
       ),
       /staffSelect drifted/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("activation inspector rejects EXECUTE granted to an unexpected role", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-function-acl-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: false,
+            functionOverrides: { unexpected_execute_roles: ["unreviewed_service"] },
+          }),
+        },
+      ),
+      /grants EXECUTE to an unexpected role/u,
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });

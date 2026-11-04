@@ -262,7 +262,26 @@ async function readFunctions(client, verified, tableOwner, active) {
              'grainline_staff_read_runtime', procedure.oid, 'EXECUTE'
            ) AS staff_execute,
            pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
-             AS public_execute
+             AS public_execute,
+           ARRAY(
+             SELECT DISTINCT privilege_role.rolname
+               FROM pg_catalog.aclexplode(
+                 COALESCE(
+                   procedure.proacl,
+                   pg_catalog.acldefault('f', procedure.proowner)
+                 )
+               ) AS acl
+               JOIN pg_catalog.pg_roles AS privilege_role
+                 ON privilege_role.oid = acl.grantee
+              WHERE acl.privilege_type = 'EXECUTE'
+                AND acl.grantee <> procedure.proowner
+                AND acl.grantee <> 0
+                AND privilege_role.rolname NOT IN (
+                  'grainline_app_runtime',
+                  'grainline_staff_read_runtime'
+                )
+              ORDER BY privilege_role.rolname
+           ) AS unexpected_execute_roles
       FROM expected
       JOIN pg_catalog.pg_proc AS procedure
         ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
@@ -303,6 +322,11 @@ async function readFunctions(client, verified, tableOwner, active) {
       `${identity} staff EXECUTE drifted`,
     );
     assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
+    assert.deepEqual(
+      row.unexpected_execute_roles,
+      [],
+      `${identity} grants EXECUTE to an unexpected role`,
+    );
     if (entry.source !== undefined) {
       assert.equal(row.source, entry.source, `${identity} body drifted`);
     } else {
@@ -324,6 +348,7 @@ async function readFunctions(client, verified, tableOwner, active) {
     runtimeExecute: row.runtime_execute,
     staffExecute: row.staff_execute,
     publicExecute: row.public_execute,
+    unexpectedExecuteRoles: row.unexpected_execute_roles,
     sourceSha256: createHash("sha256").update(row.source, "utf8").digest("hex"),
   }));
 }
