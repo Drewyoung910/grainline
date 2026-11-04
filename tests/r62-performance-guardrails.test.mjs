@@ -30,7 +30,12 @@ describe("R62 performance guardrails", () => {
     const browse = source("src/app/browse/page.tsx");
     const listingCard = source("src/components/ListingCard.tsx");
     assert.match(browse, /<ListingCard[\s\S]*variant="grid"/);
-    assert.match(listingCard, /className="w-full aspect-\[4\/5\] object-cover/);
+    assert.match(listingCard, /className="relative block aspect-\[4\/5\] w-full"/);
+    assert.match(listingCard, /sizes="\(max-width: 639px\) 50vw, \(max-width: 1023px\) 33vw, 25vw"/);
+    const cardMedia = source("src/components/CardMediaImage.tsx");
+    assert.match(cardMedia, /import Image from "next\/image"/);
+    assert.match(cardMedia, /<Image[\s\S]*fill[\s\S]*sizes=\{sizes\}/);
+    assert.match(cardMedia, /Legacy UploadThing media is outside the current optimizer allowlist/);
     assert.match(browse, /width=\{176\} height=\{220\} className="h-full w-full/);
   });
 });
