@@ -12,6 +12,7 @@ import GalleryUploader from "@/components/GalleryUploader";
 import ActionForm from "@/components/ActionForm";
 import type { Metadata } from "next";
 import { ListingStatus } from "@prisma/client";
+import { prisma } from "@/lib/db";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";

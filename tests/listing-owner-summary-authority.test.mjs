@@ -8,15 +8,17 @@ const migrationPath = new URL(
 );
 const accessPath = new URL("../src/lib/listingOwnerAccess.ts", import.meta.url);
 const dashboardPath = new URL("../src/app/dashboard/page.tsx", import.meta.url);
+const workshopDataPath = new URL("../src/lib/workshopData.ts", import.meta.url);
 const profilePath = new URL("../src/app/dashboard/profile/page.tsx", import.meta.url);
 const inventoryPath = new URL("../src/app/dashboard/inventory/page.tsx", import.meta.url);
 const provisionPath = new URL("../scripts/provision-runtime-db-role.sql", import.meta.url);
 
 test("owner workshop listing summaries use one actor-bound paged authority", async () => {
-  const [migration, access, dashboard, profile, inventory, provision] = await Promise.all([
+  const [migration, access, dashboard, workshopData, profile, inventory, provision] = await Promise.all([
     readFile(migrationPath, "utf8"),
     readFile(accessPath, "utf8"),
     readFile(dashboardPath, "utf8"),
+    readFile(workshopDataPath, "utf8"),
     readFile(profilePath, "utf8"),
     readFile(inventoryPath, "utf8"),
     readFile(provisionPath, "utf8"),
@@ -24,7 +26,7 @@ test("owner workshop listing summaries use one actor-bound paged authority", asy
 
   assert.match(
     migration,
-    /CREATE FUNCTION public\.grainline_listing_owner_summary_page\([\s\S]*p_status text,[\s\S]*p_listing_type text,[\s\S]*p_include_archived boolean,[\s\S]*p_before_updated_at timestamp without time zone,[\s\S]*p_before_listing_id text,[\s\S]*p_limit integer/u,
+    /CREATE FUNCTION public\.grainline_listing_owner_summary_page\([\s\S]*p_status text,[\s\S]*p_listing_type text,[\s\S]*p_include_archived boolean,[\s\S]*p_offset integer,[\s\S]*p_before_updated_at timestamp without time zone,[\s\S]*p_before_listing_id text,[\s\S]*p_limit integer/u,
   );
   assert.match(migration, /current_setting\('app\.user_id', true\)/u);
   assert.match(migration, /listing\."sellerId" = seller_id/u);
@@ -36,16 +38,26 @@ test("owner workshop listing summaries use one actor-bound paged authority", asy
 
   assert.match(access, /export function listingOwnerSummaryRows\(\s*userId: string/u);
   assert.match(access, /FROM public\.grainline_listing_owner_summary_page\(/u);
+  assert.match(access, /\$\{pageOffset\}::integer/u);
   assert.match(access, /Prisma\.TransactionIsolationLevel\.RepeatableRead/u);
 
-  assert.match(dashboard, /listingOwnerSummaryRows\(me\.id,[\s\S]*includeArchived: false,[\s\S]*take: 6/u);
+  assert.match(migration, /CREATE FUNCTION public\.grainline_listing_owner_workshop_summary\(\)/u);
+  assert.match(migration, /WITH owner_listing AS MATERIALIZED/u);
+  assert.match(access, /export function listingOwnerWorkshopSummary\(userId: string\)/u);
+  assert.match(dashboard, /readWorkshopListingAttention\(me\.id\)/u);
+  assert.match(workshopData, /listingOwnerWorkshopSummary/u);
+  assert.match(workshopData, /listingOwnerSummaryRows\(actorUserId,[\s\S]*skip:/u);
   assert.match(profile, /listingOwnerSummaryRows\(me\.id,[\s\S]*status: ListingStatus\.ACTIVE/u);
   assert.match(inventory, /listingOwnerSummaryRows\(me\.id,[\s\S]*listingType: ListingType\.IN_STOCK,[\s\S]*take: 100/u);
-  for (const source of [dashboard, profile, inventory]) {
+  for (const source of [dashboard, workshopData, profile, inventory]) {
     assert.doesNotMatch(source, /prisma\.listing\.findMany\(/u);
   }
   assert.match(
     provision,
-    /public\."grainline_listing_owner_summary_page"\(text,text,boolean,timestamp without time zone,text,integer\)'\s*,\s*true/u,
+    /public\."grainline_listing_owner_summary_page"\(text,text,boolean,integer,timestamp without time zone,text,integer\)'\s*,\s*true/u,
+  );
+  assert.match(
+    provision,
+    /public\."grainline_listing_owner_workshop_summary"\(\)'\s*,\s*true/u,
   );
 });

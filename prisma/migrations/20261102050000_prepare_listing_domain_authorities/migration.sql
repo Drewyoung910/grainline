@@ -78,9 +78,14 @@ BEGIN
     RAISE EXCEPTION 'Listing owner-export authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
-       'public.grainline_listing_owner_summary_page(text,text,boolean,timestamp without time zone,text,integer)'
+       'public.grainline_listing_owner_summary_page(text,text,boolean,integer,timestamp without time zone,text,integer)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing owner-summary authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_owner_workshop_summary()'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing owner workshop-summary authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
        'public.grainline_listing_owner_catalog_page(text,jsonb,integer,integer)'
@@ -153,6 +158,11 @@ BEGIN
        'public.grainline_listing_actor_cart_transaction_sources(text)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing actor cart transaction-source authority already exists';
+  END IF;
+  IF pg_catalog.to_regprocedure(
+       'public.grainline_listing_public_analytics_increment(text,text)'
+     ) IS NOT NULL THEN
+    RAISE EXCEPTION 'Listing public analytics authority already exists';
   END IF;
   IF pg_catalog.to_regprocedure(
        'public.grainline_listing_public_catalog_page(jsonb,integer,integer)'
@@ -1698,6 +1708,7 @@ CREATE FUNCTION public.grainline_listing_owner_summary_page(
   p_status text,
   p_listing_type text,
   p_include_archived boolean,
+  p_offset integer,
   p_before_updated_at timestamp without time zone,
   p_before_listing_id text,
   p_limit integer
@@ -1748,6 +1759,9 @@ BEGIN
        AND p_listing_type NOT IN ('MADE_TO_ORDER', 'IN_STOCK')
      )
      OR p_include_archived IS NULL
+     OR p_offset IS NULL
+     OR p_offset < 0
+     OR p_offset > 100000
      OR (p_before_updated_at IS NULL) <> (p_before_listing_id IS NULL)
      OR (
        p_before_listing_id IS NOT NULL
@@ -1823,16 +1837,113 @@ BEGIN
        )
      )
    ORDER BY listing."updatedAt" DESC, listing.id DESC
+   OFFSET p_offset
    LIMIT p_limit;
 END
 $grainline_listing_owner_summary_page$;
 
 REVOKE ALL ON FUNCTION public.grainline_listing_owner_summary_page(
-  text,text,boolean,timestamp without time zone,text,integer
+  text,text,boolean,integer,timestamp without time zone,text,integer
 ) FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_summary_page(
-  text,text,boolean,timestamp without time zone,text,integer
+  text,text,boolean,integer,timestamp without time zone,text,integer
 ) TO grainline_app_runtime;
+
+CREATE FUNCTION public.grainline_listing_owner_workshop_summary()
+RETURNS TABLE (
+  "listingCount" bigint,
+  "statusCounts" jsonb,
+  "inStockCount" bigint,
+  "underReviewTitle" text,
+  "lowStock" jsonb
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_owner_workshop_summary$
+DECLARE
+  actor_id text := NULLIF(
+    pg_catalog.btrim(pg_catalog.current_setting('app.user_id', true)),
+    ''
+  );
+  seller_id text;
+BEGIN
+  IF actor_id IS NULL
+     OR actor_id !~ '^[A-Za-z0-9._:-]{1,191}$' THEN
+    RAISE EXCEPTION 'Listing workshop-summary actor is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT seller.id
+    INTO seller_id
+    FROM public."User" AS actor
+    JOIN public."SellerProfile" AS seller
+      ON seller."userId" = actor.id
+   WHERE actor.id = actor_id
+     AND actor.banned = false
+     AND actor."deletedAt" IS NULL
+     AND seller."ownerAccountActive" = true;
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH owner_listing AS MATERIALIZED (
+    SELECT listing.*
+      FROM public."Listing" AS listing
+     WHERE listing."sellerId" = seller_id
+       AND listing."archivedAt" IS NULL
+  )
+  SELECT
+    (SELECT pg_catalog.count(*) FROM owner_listing)::bigint,
+    COALESCE((
+      SELECT pg_catalog.jsonb_object_agg(grouped.status, grouped.total)
+        FROM (
+          SELECT listing.status::text AS status,
+                 pg_catalog.count(*)::bigint AS total
+            FROM owner_listing AS listing
+           GROUP BY listing.status
+        ) AS grouped
+    ), '{}'::jsonb),
+    (
+      SELECT pg_catalog.count(*)
+        FROM owner_listing AS listing
+       WHERE listing."listingType"::text = 'IN_STOCK'
+    )::bigint,
+    (
+      SELECT listing.title::text
+        FROM owner_listing AS listing
+       WHERE listing.status::text = 'PENDING_REVIEW'
+       ORDER BY listing."updatedAt" DESC, listing.id DESC
+       LIMIT 1
+    ),
+    COALESCE((
+      SELECT pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
+          'title', low_stock.title,
+          'stockQuantity', low_stock."stockQuantity"
+        )
+        ORDER BY low_stock."stockQuantity" ASC, low_stock.id ASC
+      )
+        FROM (
+          SELECT listing.id, listing.title, listing."stockQuantity"
+            FROM owner_listing AS listing
+           WHERE listing.status::text = 'ACTIVE'
+             AND listing."listingType"::text = 'IN_STOCK'
+             AND listing."stockQuantity" BETWEEN 1 AND 2
+           ORDER BY listing."stockQuantity" ASC, listing.id ASC
+           LIMIT 3
+        ) AS low_stock
+    ), '[]'::jsonb);
+END
+$grainline_listing_owner_workshop_summary$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_owner_workshop_summary()
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_workshop_summary()
+  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_owner_counts()
 RETURNS TABLE (
@@ -3630,6 +3741,91 @@ REVOKE ALL ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(t
 GRANT EXECUTE ON FUNCTION public.grainline_listing_actor_cart_transaction_sources(text)
   TO grainline_app_runtime;
 
+-- View and click counters are public telemetry, but their writes must remain
+-- bounded after direct runtime Listing writes are revoked. Resolve the signed
+-- actor from the transaction-local identity, reject owner self-traffic, and
+-- update the aggregate and daily row while holding the Listing lock first.
+CREATE FUNCTION public.grainline_listing_public_analytics_increment(
+  p_listing_id text,
+  p_event_kind text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_listing_public_analytics_increment$
+DECLARE
+  request_user_id text := NULLIF(
+    pg_catalog.current_setting('app.user_id', true),
+    ''
+  );
+  actor_seller_id text;
+  source_seller_id text;
+  bucket_date date := (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::date;
+BEGIN
+  IF p_listing_id IS NULL
+     OR p_listing_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_event_kind NOT IN ('view', 'click') THEN
+    RAISE EXCEPTION 'Listing analytics input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF request_user_id IS NOT NULL THEN
+    SELECT seller.id
+      INTO actor_seller_id
+      FROM public."SellerProfile" AS seller
+     WHERE seller."userId" = request_user_id;
+  END IF;
+
+  SELECT listing."sellerId"
+    INTO source_seller_id
+    FROM public."Listing" AS listing
+   WHERE listing.id = p_listing_id
+     AND listing.status = 'ACTIVE'::public."ListingStatus"
+     AND listing."isPrivate" = false
+     AND listing."archivedAt" IS NULL
+     AND listing."sellerPubliclyOrderable" = true
+     AND (
+       actor_seller_id IS NULL
+       OR listing."sellerId" <> actor_seller_id
+     )
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public."Listing" AS listing
+     SET "viewCount" = listing."viewCount" + CASE WHEN p_event_kind = 'view' THEN 1 ELSE 0 END,
+         "clickCount" = listing."clickCount" + CASE WHEN p_event_kind = 'click' THEN 1 ELSE 0 END
+   WHERE listing.id = p_listing_id;
+
+  INSERT INTO public."ListingViewDaily" AS daily (
+    id, "listingId", "sellerProfileId", date, views, clicks
+  ) VALUES (
+    'listing-analytics:' || pg_catalog.gen_random_uuid()::text,
+    p_listing_id,
+    source_seller_id,
+    bucket_date::timestamp,
+    CASE WHEN p_event_kind = 'view' THEN 1 ELSE 0 END,
+    CASE WHEN p_event_kind = 'click' THEN 1 ELSE 0 END
+  )
+  ON CONFLICT ("listingId", date) DO UPDATE
+    SET views = daily.views
+                + CASE WHEN p_event_kind = 'view' THEN 1 ELSE 0 END,
+        clicks = daily.clicks
+                 + CASE WHEN p_event_kind = 'click' THEN 1 ELSE 0 END;
+
+  RETURN true;
+END
+$grainline_listing_public_analytics_increment$;
+
+REVOKE ALL ON FUNCTION public.grainline_listing_public_analytics_increment(text,text)
+  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
+GRANT EXECUTE ON FUNCTION public.grainline_listing_public_analytics_increment(text,text)
+  TO grainline_app_runtime;
+
 -- Public catalog filters use operators which PostgreSQL cannot safely push
 -- through an RLS barrier. Keep those operators and the active-public
 -- predicate together inside one bounded definer operation, returning only a
@@ -4957,6 +5153,7 @@ CREATE FUNCTION public.grainline_listing_account_deletion_redact(
 )
 RETURNS TABLE (
   seller_profile_id text,
+  listing_ids text[],
   photos_deleted integer,
   variant_groups_deleted integer,
   listings_redacted integer
@@ -4970,6 +5167,7 @@ AS $grainline_listing_account_deletion_redact$
 DECLARE
   claimed_user_id text;
   source_seller_profile_id text;
+  source_listing_ids text[];
   source_photos_deleted integer;
   source_variant_groups_deleted integer;
   source_listings_redacted integer;
@@ -5005,6 +5203,14 @@ BEGIN
     RAISE EXCEPTION 'Listing account-deletion seller profile is missing'
       USING ERRCODE = '23503';
   END IF;
+
+  SELECT COALESCE(
+           pg_catalog.array_agg(listing.id ORDER BY listing.id),
+           ARRAY[]::text[]
+         )
+    INTO source_listing_ids
+    FROM public."Listing" AS listing
+   WHERE listing."sellerId" = source_seller_profile_id;
 
   DELETE FROM public."Photo" AS photo
    USING public."Listing" AS listing
@@ -5051,6 +5257,7 @@ BEGIN
 
   RETURN QUERY SELECT
     source_seller_profile_id,
+    source_listing_ids,
     source_photos_deleted,
     source_variant_groups_deleted,
     source_listings_redacted;

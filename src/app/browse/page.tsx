@@ -567,8 +567,8 @@ async function BrowseContent({
   }
   // Label the price chip from the amounts actually applied, not the raw URL
   // text (?min=abc applies nothing and shows no chip).
-  const appliedMinLabel = priceFilter.gte !== undefined ? formatCurrencyCents(priceFilter.gte, DEFAULT_CURRENCY) : null;
-  const appliedMaxLabel = priceFilter.lte !== undefined ? formatCurrencyCents(priceFilter.lte, DEFAULT_CURRENCY) : null;
+  const appliedMinLabel = boundedMinCents !== undefined ? formatCurrencyCents(boundedMinCents, DEFAULT_CURRENCY) : null;
+  const appliedMaxLabel = boundedMaxCents !== undefined ? formatCurrencyCents(boundedMaxCents, DEFAULT_CURRENCY) : null;
   const priceChipLabel = appliedMinLabel && appliedMaxLabel
     ? `${appliedMinLabel}–${appliedMaxLabel}`
     : appliedMinLabel

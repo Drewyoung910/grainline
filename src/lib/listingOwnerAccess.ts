@@ -296,6 +296,14 @@ type ListingOwnerCountsRow = {
   oldestListingId: unknown;
 };
 
+type ListingOwnerWorkshopSummaryRow = {
+  listingCount: unknown;
+  statusCounts: unknown;
+  inStockCount: unknown;
+  underReviewTitle: unknown;
+  lowStock: unknown;
+};
+
 type ListingOwnerActionStateRow = {
   listingId: unknown;
   sellerProfileId: unknown;
@@ -355,7 +363,19 @@ export type ListingOwnerSummaryOptions = Readonly<{
   status?: ListingStatus;
   listingType?: ListingType;
   includeArchived?: boolean;
+  skip?: number;
   take?: number;
+}>;
+
+export type ListingOwnerWorkshopSummary = Readonly<{
+  listingCount: number;
+  statusCounts: Readonly<Record<string, number>>;
+  inStock: number;
+  underReviewTitle: string | null;
+  lowStock: ReadonlyArray<Readonly<{
+    title: string;
+    stockQuantity: number;
+  }>>;
 }>;
 
 export type ListingOwnerCountsState = Readonly<{
@@ -1684,11 +1704,15 @@ export function listingOwnerSummaryRows(
   const status = options.status ?? null;
   const listingType = options.listingType ?? null;
   const includeArchived = options.includeArchived ?? false;
+  const skip = options.skip ?? 0;
   const take = options.take ?? null;
   if (
     (status !== null && !LISTING_STATUSES.has(status))
     || (listingType !== null && !LISTING_TYPES.has(listingType))
     || typeof includeArchived !== "boolean"
+    || !Number.isSafeInteger(skip)
+    || skip < 0
+    || skip > 100_000
     || (take !== null && (!Number.isSafeInteger(take) || take < 1 || take > 1_000))
   ) {
     throw new RangeError("Listing owner-summary options are invalid");
@@ -1699,6 +1723,7 @@ export function listingOwnerSummaryRows(
     const ids = new Set<string>();
     let beforeUpdatedAt: Date | null = null;
     let beforeListingId: string | null = null;
+    let pageOffset = skip;
 
     for (;;) {
       const remaining = take === null ? LISTING_OWNER_SUMMARY_PAGE_LIMIT : take - result.length;
@@ -1710,6 +1735,7 @@ export function listingOwnerSummaryRows(
             ${status}::text,
             ${listingType}::text,
             ${includeArchived}::boolean,
+            ${pageOffset}::integer,
             ${beforeUpdatedAt}::timestamp,
             ${beforeListingId}::text,
             ${pageLimit}::integer
@@ -1757,11 +1783,71 @@ export function listingOwnerSummaryRows(
       }
       beforeUpdatedAt = last.updatedAt;
       beforeListingId = last.id;
+      pageOffset = 0;
     }
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
     maxWait: 10_000,
     timeout: 30_000,
+  });
+}
+
+export function listingOwnerWorkshopSummary(userId: string) {
+  return withDbUserContext(userId, async (client) => {
+    const rows = await client.$queryRaw<ListingOwnerWorkshopSummaryRow[]>`
+      SELECT * FROM public.grainline_listing_owner_workshop_summary()
+    `;
+    if (rows.length !== 1) {
+      throw new Error("Listing workshop-summary authority returned invalid cardinality");
+    }
+    const row = rows[0];
+    const statusCounts = recordValue(row.statusCounts);
+    const statusCountValues = statusCounts ? Object.values(statusCounts) : [];
+    const lowStock = Array.isArray(row.lowStock)
+      ? row.lowStock.map((candidate) => {
+        const item = recordValue(candidate);
+        if (
+          !item
+          || !isTextWithinCodePointRange(item.title, 1, 150)
+          || !validSafeInteger(item.stockQuantity)
+          || item.stockQuantity < 1
+          || item.stockQuantity > 2
+        ) return null;
+        return Object.freeze({
+          title: item.title,
+          stockQuantity: item.stockQuantity,
+        });
+      })
+      : null;
+    if (
+      !validCount(row.listingCount)
+      || !validCount(row.inStockCount)
+      || Number(row.inStockCount) > Number(row.listingCount)
+      || !statusCounts
+      || Object.entries(statusCounts).some(([status, count]) => (
+        !LISTING_STATUSES.has(status)
+        || !validSafeInteger(count)
+        || count < 0
+      ))
+      || statusCountValues.reduce<number>((sum, count) => sum + Number(count), 0)
+        !== Number(row.listingCount)
+      || !(row.underReviewTitle === null
+        || isTextWithinCodePointRange(row.underReviewTitle, 1, 150))
+      || lowStock === null
+      || lowStock.length > 3
+      || lowStock.some((item) => item === null)
+    ) {
+      throw new Error("Listing workshop-summary authority returned invalid data");
+    }
+    return Object.freeze({
+      listingCount: Number(row.listingCount),
+      statusCounts: Object.freeze(statusCounts as Record<string, number>),
+      inStock: Number(row.inStockCount),
+      underReviewTitle: row.underReviewTitle as string | null,
+      lowStock: Object.freeze(
+        lowStock as Array<NonNullable<(typeof lowStock)[number]>>,
+      ),
+    });
   });
 }
 

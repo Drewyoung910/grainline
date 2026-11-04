@@ -69,6 +69,12 @@ const LISTING_CART_TRANSACTION_SOURCES_SQL = `
     FROM public.grainline_listing_actor_cart_transaction_sources($1::text)
 `;
 
+const LISTING_PUBLIC_ANALYTICS_INCREMENT_SQL = `
+  SELECT public.grainline_listing_public_analytics_increment(
+    $1::text, $2::text
+  ) AS tracked
+`;
+
 const LEGACY_STOCK_RESTORE_SQL = `
   SELECT claimed, stock_visibility_changed
     FROM public.grainline_legacy_stock_restore_apply(
@@ -747,6 +753,37 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
     false,
     "Transaction source must not expose pre-crop photo URLs",
   );
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    seller.userId,
+    LISTING_PUBLIC_ANALYTICS_INCREMENT_SQL,
+    [transactionListingId, "view"],
+  )), [{ tracked: false }], "seller self-traffic must not increment analytics");
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    buyerId,
+    LISTING_PUBLIC_ANALYTICS_INCREMENT_SQL,
+    [transactionListingId, "view"],
+  )), [{ tracked: true }], "signed-in public traffic must increment analytics");
+  assert.deepEqual(rowsOf(await runtimeQuery(
+    database,
+    null,
+    LISTING_PUBLIC_ANALYTICS_INCREMENT_SQL,
+    [transactionListingId, "click"],
+  )), [{ tracked: true }], "anonymous public traffic must increment analytics");
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT "viewCount" AS "viewCount", "clickCount" AS "clickCount"
+       FROM public."Listing"
+      WHERE id = $1`,
+    [transactionListingId],
+  )), [{ viewCount: 1, clickCount: 1 }]);
+  assert.deepEqual(rowsOf(await database.query(
+    `SELECT views, clicks
+       FROM public."ListingViewDaily"
+      WHERE "listingId" = $1
+        AND date = (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')::date`,
+    [transactionListingId],
+  )), [{ views: 1, clicks: 1 }]);
   await database.query(
     `UPDATE public."Listing"
         SET "isPrivate" = true, "reservedForUserId" = NULL
@@ -1009,6 +1046,7 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
   ));
   assert.deepEqual(deletionResult, [{
     seller_profile_id: deletionSellerId,
+    listing_ids: [deletionListingId],
     photos_deleted: 1,
     variant_groups_deleted: 1,
     listings_redacted: 1,

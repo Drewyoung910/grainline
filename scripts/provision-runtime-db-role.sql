@@ -3472,7 +3472,8 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_listing_owner_editor"(text)', true),
     ('public."grainline_listing_owner_export_page"(timestamp without time zone,text,integer)', true),
     ('public."grainline_listing_owner_catalog_page"(text,jsonb,integer,integer)', true),
-    ('public."grainline_listing_owner_summary_page"(text,text,boolean,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_summary_page"(text,text,boolean,integer,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_workshop_summary"()', true),
     ('public."grainline_listing_owner_counts"()', true),
     ('public."grainline_listing_owner_rating_buckets"(bigint,bigint,boolean)', true),
     ('public."grainline_listing_seller_rating_summary_refresh"(text)', true),
@@ -3483,6 +3484,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_listing_actor_transaction_source_core"(text,boolean)', false),
     ('public."grainline_listing_actor_transaction_source"(text)', true),
     ('public."grainline_listing_actor_cart_transaction_sources"(text)', true),
+    ('public."grainline_listing_public_analytics_increment"(text,text)', true),
     ('public."grainline_listing_public_catalog_page"(jsonb, integer, integer)', true),
     ('public."grainline_listing_public_title_suggestions"(text)', true),
     ('public."grainline_listing_detail_source_core"(text)', false),
@@ -3616,7 +3618,8 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_listing_owner_editor"(text)', true),
     ('public."grainline_listing_owner_export_page"(timestamp without time zone,text,integer)', true),
     ('public."grainline_listing_owner_catalog_page"(text,jsonb,integer,integer)', true),
-    ('public."grainline_listing_owner_summary_page"(text,text,boolean,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_summary_page"(text,text,boolean,integer,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_workshop_summary"()', true),
     ('public."grainline_listing_owner_counts"()', true),
     ('public."grainline_listing_owner_rating_buckets"(bigint,bigint,boolean)', true),
     ('public."grainline_listing_seller_rating_summary_refresh"(text)', true),
@@ -3627,6 +3630,7 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_listing_actor_transaction_source_core"(text,boolean)', false),
     ('public."grainline_listing_actor_transaction_source"(text)', true),
     ('public."grainline_listing_actor_cart_transaction_sources"(text)', true),
+    ('public."grainline_listing_public_analytics_increment"(text,text)', true),
     ('public."grainline_listing_public_catalog_page"(jsonb, integer, integer)', true),
     ('public."grainline_listing_public_title_suggestions"(text)', true),
     ('public."grainline_listing_detail_source_core"(text)', false),
@@ -3898,7 +3902,7 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_unread_batch() TO 
 
 -- Conversation/Message authority preparation may be absent before its
 -- reviewed migration. When present, converge all function ACLs:
--- six generic helper cores stay owner-only and the 19 fixed projections /
+-- six generic helper cores stay owner-only and the 20 fixed projections /
 -- operations are runtime-callable. Paired table-grant convergence is handled
 -- above once exact RLS activation is detected.
 WITH conversation_message_authority(function_signature) AS (

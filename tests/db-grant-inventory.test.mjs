@@ -100,6 +100,7 @@ const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_listing_owner_export_page",
   "grainline_listing_owner_catalog_page",
   "grainline_listing_owner_summary_page",
+  "grainline_listing_owner_workshop_summary",
   "grainline_listing_owner_counts",
   "grainline_listing_owner_rating_buckets",
   "grainline_listing_seller_rating_summary_refresh",
@@ -110,6 +111,7 @@ const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_listing_actor_transaction_source_core",
   "grainline_listing_actor_transaction_source",
   "grainline_listing_actor_cart_transaction_sources",
+  "grainline_listing_public_analytics_increment",
   "grainline_listing_public_catalog_page",
   "grainline_listing_public_title_suggestions",
   "grainline_listing_detail_source_core",
@@ -6438,7 +6440,7 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      19,
+      20,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(

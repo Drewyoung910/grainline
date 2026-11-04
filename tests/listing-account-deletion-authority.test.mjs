@@ -25,6 +25,7 @@ test("listing account deletion is bound to the durable local-anonymize claim", a
 
   assert.match(authority, /grainline_account_deletion_claim_user\(/u);
   assert.match(authority, /claimed_user_id IS DISTINCT FROM p_expected_user_id/u);
+  assert.match(authority, /pg_catalog\.array_agg\(listing\.id ORDER BY listing\.id\)/u);
   assert.match(authority, /DELETE FROM public\."Photo"/u);
   assert.match(authority, /DELETE FROM public\."ListingVariantGroup"/u);
   assert.match(authority, /title = 'Deleted listing'/u);
@@ -34,10 +35,13 @@ test("listing account deletion is bound to the durable local-anonymize claim", a
 
   assert.match(wrapper, /export async function redactListingsForAccountDeletion/u);
   assert.match(wrapper, /grainline_listing_account_deletion_redact/u);
+  assert.match(wrapper, /listingIds: Object\.freeze\(\[\.\.\.row\.listing_ids\]\)/u);
   assert.match(deletion, /redactListingsForAccountDeletion\(tx,/u);
+  assert.match(deletion, /listingDeletion\.listingIds/u);
   assert.doesNotMatch(deletion, /tx\.photo\.deleteMany/u);
   assert.doesNotMatch(deletion, /tx\.listingVariantGroup\.deleteMany/u);
   assert.doesNotMatch(deletion, /tx\.listing\.updateMany/u);
+  assert.doesNotMatch(deletion, /tx\.listing\.findMany/u);
 
   assert.match(
     provision,

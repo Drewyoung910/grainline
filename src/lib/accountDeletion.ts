@@ -373,18 +373,14 @@ async function redactEmailOutboxRowsForDeletedMaker(
 async function cleanupDeletedSellerFanoutRows(
   tx: Prisma.TransactionClient,
   sellerProfileId: string,
+  listingIds: readonly string[],
   now: Date,
 ) {
   const broadcasts = await tx.sellerBroadcast.findMany({
     where: { sellerProfileId },
     select: { id: true },
   });
-  const listings = await tx.listing.findMany({
-    where: { sellerId: sellerProfileId },
-    select: { id: true },
-  });
   const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
-  const listingIds = listings.map((listing) => listing.id);
   await redactEmailOutboxRowsForDeletedMaker(
     tx,
     [
@@ -1331,8 +1327,7 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
-      await redactListingsForAccountDeletion(tx, {
+      const listingDeletion = await redactListingsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,
         expectedUserId: user.id,
         expectedSellerProfileId: user.sellerProfile.id,
@@ -1340,6 +1335,12 @@ export async function anonymizeUserAccount(
         claimToken: localClaimToken,
         archivedAt: now,
       });
+      await cleanupDeletedSellerFanoutRows(
+        tx,
+        user.sellerProfile.id,
+        listingDeletion.listingIds,
+        now,
+      );
       await redactOwnerMakerVerificationForDeletion(tx, now);
       await cleanupFollowsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,

@@ -36,6 +36,7 @@ function isSellerProfileReportTarget(targetType: string | null) {
 export default async function AdminReportsPage() {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
+  const staffClient = getOrderStaffReadClient();
 
   const reports = await prisma.userReport.findMany({
     where: { resolved: false },
@@ -52,7 +53,7 @@ export default async function AdminReportsPage() {
       reportedId: true,
     },
   });
-  const reportUsers = await userStaffAdminLabels(getOrderStaffReadClient(), {
+  const reportUsers = await userStaffAdminLabels(staffClient, {
     actorId: staff.id,
     userIds: reports.flatMap((report) => [report.reporterId, report.reportedId]),
   });
@@ -108,7 +109,7 @@ export default async function AdminReportsPage() {
   }
 
   if (sellerTargetIds.length > 0) {
-    const sellers = await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
+    const sellers = await sellerProfileStaffReportTargets(staffClient, {
       actorId: staff.id,
       sellerProfileIds: sellerTargetIds,
     });
@@ -136,7 +137,7 @@ export default async function AdminReportsPage() {
     take: 5,
   });
   const reporterUsers = topReporters.length > 0
-    ? await userStaffReportLabels(getOrderStaffReadClient(), {
+    ? await userStaffReportLabels(staffClient, {
         actorId: staff.id,
         userIds: topReporters.map((r) => r.reporterId),
       })

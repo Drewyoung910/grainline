@@ -7,15 +7,18 @@ const migrationPath = new URL(
   import.meta.url,
 );
 const accessPath = new URL("../src/lib/listingOwnerAccess.ts", import.meta.url);
-const dashboardPath = new URL("../src/app/dashboard/page.tsx", import.meta.url);
+const dashboardActionsPath = new URL(
+  "../src/app/dashboard/listings/actions.ts",
+  import.meta.url,
+);
 const shopActionsPath = new URL("../src/app/seller/[id]/shop/actions.ts", import.meta.url);
 const provisionPath = new URL("../scripts/provision-runtime-db-role.sql", import.meta.url);
 
 test("simple owner listing transitions use one actor-bound locked authority", async () => {
-  const [migration, access, dashboard, shopActions, provision] = await Promise.all([
+  const [migration, access, dashboardActions, shopActions, provision] = await Promise.all([
     readFile(migrationPath, "utf8"),
     readFile(accessPath, "utf8"),
-    readFile(dashboardPath, "utf8"),
+    readFile(dashboardActionsPath, "utf8"),
     readFile(shopActionsPath, "utf8"),
     readFile(provisionPath, "utf8"),
   ]);
@@ -39,7 +42,11 @@ test("simple owner listing transitions use one actor-bound locked authority", as
 
   assert.match(access, /export function listingOwnerTransition\(/u);
   assert.match(access, /FROM public\.grainline_listing_owner_transition\(/u);
-  assert.equal(dashboard.match(/listingOwnerTransition\(me\.id,/gu)?.length, 2);
+  assert.equal(dashboardActions.match(/listingOwnerTransition\(me\.id,/gu)?.length, 2);
+  assert.doesNotMatch(
+    dashboardActions,
+    /prisma\.listing\.(?:update|updateMany)\(/u,
+  );
   assert.equal(shopActions.match(/listingOwnerTransition\(listing\.seller\.userId,/gu)?.length, 3);
   assert.match(
     provision,
