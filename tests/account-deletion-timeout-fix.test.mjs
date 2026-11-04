@@ -53,7 +53,9 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const mediaCollection = accountDeletion.slice(mediaCollectionStart, mediaCollectionEnd);
     assert.doesNotMatch(sellerFanout, /Promise\.all\s*\(/);
     assert.doesNotMatch(mediaCollection, /Promise\.all\s*\(/);
-    assert.match(sellerFanout, /await tx\.sellerBroadcast\.findMany[\s\S]*await tx\.listing\.findMany/);
+    assert.match(sellerFanout, /await tx\.sellerBroadcast\.findMany/);
+    assert.match(sellerFanout, /listingIds: readonly string\[\]/);
+    assert.doesNotMatch(sellerFanout, /tx\.listing\./);
     assert.doesNotMatch(sellerFanout, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
     assert.match(
       mediaCollection,

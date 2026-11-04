@@ -82,12 +82,3 @@ export function stripeWebhookHealthSummaryFromRows(
   }
   return summary;
 }
-
-export function legacyStockRestoreClaimFromRows(
-  rows: readonly Readonly<{ claimed: unknown }>[],
-) {
-  if (rows.length !== 1 || typeof rows[0]?.claimed !== "boolean") {
-    throw new Error("Checkout stock restore claim returned an invalid result");
-  }
-  return rows[0].claimed;
-}

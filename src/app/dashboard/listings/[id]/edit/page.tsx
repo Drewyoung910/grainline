@@ -20,6 +20,11 @@ import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { listingPriceMaxError } from "@/lib/listingPrice";
 import {
+  MAX_LISTING_MATERIAL_CODE_POINTS,
+  MAX_LISTING_MATERIALS,
+  parseListingMaterials,
+} from "@/lib/listingMaterials";
+import {
   normalizeVariantPriceAdjustCents,
   validateVariantGroupsForBasePrice,
 } from "@/lib/listingVariants";
@@ -38,6 +43,15 @@ import { lockListingStock, prepareListingStockMutation, recordListingStockMutati
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
+import {
+  listingOwnerActionState,
+  listingOwnerAiReviewContext,
+  listingOwnerEditor,
+  listingOwnerTransition,
+  updateListingOwnerContent,
+} from "@/lib/listingOwnerAccess";
+import { applyVersionBoundListingAiReviewTransition } from "@/lib/listingAiReviewTransition";
+import { withDbUserContext } from "@/lib/dbUserContext";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -67,10 +81,10 @@ const toInt = (v: unknown) => {
 };
 
 function normalizeVariantGroupsForCompare(
-  groups: Array<{
+  groups: ReadonlyArray<{
     name: string;
     sortOrder: number;
-    options: Array<{ label: string; priceAdjustCents: number; sortOrder: number; inStock: boolean }>;
+    options: ReadonlyArray<{ label: string; priceAdjustCents: number; sortOrder: number; inStock: boolean }>;
   }>
 ) {
   return groups
@@ -103,16 +117,9 @@ type PhotoManifestItem = {
   altText: string | null;
 };
 
-class ListingPhotoConflictError extends Error {
-  constructor() {
-    super("Listing photos changed. Refresh and try again.");
-    this.name = "ListingPhotoConflictError";
-  }
-}
-
 function parsePhotoManifestField(
   value: FormDataEntryValue | null,
-  existingPhotos: ExistingPhotoForManifest[],
+  existingPhotos: ReadonlyArray<ExistingPhotoForManifest>,
   clerkUserId: string,
 ): { ok: true; photos: PhotoManifestItem[] } | { ok: false; error: string } {
   if (typeof value !== "string" || value.trim() === "") {
@@ -251,10 +258,9 @@ async function updateListing(
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
-  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
-  const materials = materialsRaw
-    ? materialsRaw.split(",").map((s: string) => s.trim()).filter(Boolean).slice(0, 20)
-    : [];
+  const materialsResult = parseListingMaterials(String(formData.get("materials") ?? ""));
+  if (!materialsResult.ok) return { ok: false, error: materialsResult.error };
+  const materials = materialsResult.value;
 
   // Product dimensions (inches)
   const productLengthIn = toFloat(formData.get("productLengthIn"));
@@ -301,16 +307,7 @@ async function updateListing(
   if (processingWindowError) return { ok: false, error: processingWindowError };
 
   // Guard ownership
-  const listing = await prisma.listing.findFirst({
-    where: { id: listingId, sellerId: sellerCore.sellerProfileId },
-    include: {
-      photos: { orderBy: { sortOrder: "asc" } },
-      variantGroups: {
-        orderBy: { sortOrder: "asc" },
-        include: { options: { orderBy: { sortOrder: "asc" } } },
-      },
-    },
-  });
+  const listing = await listingOwnerEditor(actor.id, listingId);
   if (!listing) return { ok: false, error: "Not allowed" };
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
@@ -364,19 +361,14 @@ async function updateListing(
   // photos route used to flip status mid-edit). The seller controls
   // when review runs by clicking Save. Bypassing review by skipping
   // Save isn't possible because Save is the only way to commit edits.
-  const needsPublicContentReview =
-    listing.status === ListingStatus.ACTIVE ||
-    listing.status === ListingStatus.SOLD_OUT;
-  let approvedPublicStatus =
-    listing.status === ListingStatus.ACTIVE &&
-    listingType === "IN_STOCK" &&
-    (stockQuantity ?? 0) <= 0
-      ? ListingStatus.SOLD_OUT
-      : listing.status;
-
-  let updatedListing: { title: string; updatedAt: Date };
+  let updatedListing: {
+    title: string;
+    updatedAt: Date;
+    requiresReview: boolean;
+    approvedStatus: ListingStatus;
+  };
   try {
-    updatedListing = await prisma.$transaction(async (tx) => {
+    updatedListing = await withDbUserContext(actor.id, async (tx) => {
       // Ordinary content saves never rewrite stock. A listing-type conversion
       // is an explicit, separately identified inventory operation in this same
       // transaction, so replay cannot recreate stock after a later conversion.
@@ -393,94 +385,52 @@ async function updateListing(
       }
       const lockedBlockReason = listingEditBlockReason({ ...locked, status: locked.status as ListingStatus });
       if (lockedBlockReason) throw new StockMutationConflict(lockedBlockReason);
-      const nextStock = listingType === stockContext.listingType ? locked.stockQuantity : stockQuantity;
-      approvedPublicStatus = locked.status === ListingStatus.ACTIVE && listingType === "IN_STOCK" && (nextStock ?? 0) <= 0
-        ? ListingStatus.SOLD_OUT : listing.status;
-      const updated = await tx.listing.update({
-        where: { id: listingId },
-        data: {
-          title,
-          description,
-          priceCents,
-          ...(priceValueChanged || variantsChanged ? { priceVersion: { increment: 1 } } : {}),
-          tags,
-          metaDescription,
-          materials,
-          productLengthIn,
-          productWidthIn,
-          productHeightIn,
-          packagedLengthCm,
-          packagedWidthCm,
-          packagedHeightCm,
-          packagedWeightGrams,
-          category,
-          listingType,
-          ...(listingType !== stockContext.listingType ? { stockQuantity } : {}),
-          shipsWithinDays,
-          processingTimeMinDays,
-          processingTimeMaxDays,
-          ...(needsPublicContentReview ? { status: ListingStatus.PENDING_REVIEW } : {}),
-        },
-        select: { title: true, updatedAt: true },
+      const updated = await updateListingOwnerContent(tx, {
+        listingId,
+        expectedUpdatedAt: listing.updatedAt,
+        expectedStatus: listing.status,
+        expectedListingType: stockContext.listingType,
+        title,
+        description,
+        priceCents,
+        incrementPriceVersion: priceValueChanged || variantsChanged,
+        tags,
+        metaDescription,
+        materials,
+        productLengthIn,
+        productWidthIn,
+        productHeightIn,
+        packagedLengthCm,
+        packagedWidthCm,
+        packagedHeightCm,
+        packagedWeightGrams,
+        category,
+        listingType,
+        stockQuantity,
+        shipsWithinDays,
+        processingTimeMinDays,
+        processingTimeMaxDays,
+        photos: photoManifest.photos.map((photo) => ({
+          id: photo.id,
+          url: photo.url,
+          originalUrl: photo.originalUrl ?? photo.url,
+          altText: photo.altText,
+        })),
+        variantGroups: variantGroups.map((group) => ({
+          name: group.name,
+          options: group.options.filter((option) => option.label).map((option) => ({
+            label: option.label,
+            priceAdjustCents: option.priceAdjustCents,
+            inStock: option.inStock,
+          })),
+        })),
       });
-
-      // Update variants with the listing row so failures cannot leave mixed old/new state.
-      await tx.listingVariantGroup.deleteMany({ where: { listingId } });
-      for (let gi = 0; gi < variantGroups.length; gi++) {
-        const g = variantGroups[gi];
-        if (!g.name || g.options.length === 0) continue;
-        await tx.listingVariantGroup.create({
-          data: {
-            listingId,
-            name: g.name,
-            sortOrder: gi,
-            options: {
-              create: g.options.filter((o) => o.label).map((o, oi) => ({
-                label: o.label,
-                priceAdjustCents: o.priceAdjustCents,
-                sortOrder: oi,
-                inStock: o.inStock,
-              })),
-            },
-          },
-        });
+      if (!updated.applied) {
+        throw new StockMutationConflict(
+          "Listing state changed. Refresh before saving; newer edits were preserved.",
+        );
       }
 
-      const retainedPhotoIds = photoManifest.photos
-        .map((photo) => photo.id)
-        .filter((id): id is string => Boolean(id));
-      await tx.photo.deleteMany({
-        where: retainedPhotoIds.length
-          ? { listingId, id: { notIn: retainedPhotoIds } }
-          : { listingId },
-      });
-      for (let index = 0; index < photoManifest.photos.length; index++) {
-        const photo = photoManifest.photos[index];
-        if (photo.id) {
-          const updatedPhoto = await tx.photo.updateMany({
-            where: { id: photo.id, listingId },
-            data: {
-              url: photo.url,
-              originalUrl: photo.originalUrl ?? photo.url,
-              altText: photo.altText,
-              sortOrder: index,
-            },
-          });
-          if (updatedPhoto.count === 0) {
-            throw new ListingPhotoConflictError();
-          }
-        } else {
-          await tx.photo.create({
-            data: {
-              listingId,
-              url: photo.url,
-              originalUrl: photo.originalUrl ?? photo.url,
-              altText: photo.altText,
-              sortOrder: index,
-            },
-          });
-        }
-      }
       await syncListingDirectUploadReferences({
         client: tx,
         userId: actor.id,
@@ -491,11 +441,11 @@ async function updateListing(
 
       return updated;
     });
-    if (needsPublicContentReview && listing.status === ListingStatus.ACTIVE) {
+    if (updatedListing.requiresReview && listing.status === ListingStatus.ACTIVE) {
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_pending_review");
     }
   } catch (error) {
-    if (error instanceof ListingPhotoConflictError || error instanceof StockMutationConflict) {
+    if (error instanceof StockMutationConflict) {
       // The transaction left new uploads unreferenced. The fenced lifecycle
       // worker removes them without racing a valid public reuse.
       return { ok: false, error: error.message };
@@ -512,20 +462,23 @@ async function updateListing(
   // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
   //   stays on the edit page (?saved=pending banner) instead of being
   //   redirected to a 404'd public listing path.
-  if (needsPublicContentReview) {
+  if (updatedListing.requiresReview) {
     try {
       const sellerReview = await sellerOwnerListingReview(actor.id);
       if (
         sellerReview?.sellerProfileId === listing.sellerId
         && sellerCore.chargesEnabled
       ) {
-        const photos = await prisma.photo.findMany({
-          where: { listingId },
-          select: { url: true },
-          orderBy: { sortOrder: "asc" },
-          take: 10,
-        });
+        const aiContext = await listingOwnerAiReviewContext(actor.id, listingId);
+        if (
+          !aiContext
+          || aiContext.sellerProfileId !== listing.sellerId
+          || aiContext.listingUpdatedAt.getTime() !== updatedListing.updatedAt.getTime()
+        ) {
+          throw new Error("Listing AI-review context changed before review");
+        }
         const { reviewListingWithAI } = await import("@/lib/ai-review");
+        const reviewedImageUrls = [...aiContext.photoUrls];
         const aiResult = await reviewListingWithAI({
           listingId,
           sellerId: sellerCore.sellerProfileId,
@@ -537,7 +490,10 @@ async function updateListing(
           tags,
           sellerName: sellerCore.displayName,
           listingCount: sellerReview.totalListingCount,
-          imageUrls: photos.map((p) => p.url),
+          imageUrls: reviewedImageUrls,
+          recentListingTitles: aiContext.recentTitles.map((recentTitle) => ({
+            title: recentTitle,
+          })),
         }).catch(() => ({
           approved: false,
           flags: ["AI review error"] as string[],
@@ -546,22 +502,20 @@ async function updateListing(
           altTexts: [] as string[],
         }));
 
-        // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-        const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
-        await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
         const shouldHold =
           !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
         if (shouldHold) {
-          const holdResult = await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-            data: {
-              status: ListingStatus.PENDING_REVIEW,
-              aiReviewFlags: aiResult.flags,
-              aiReviewScore: aiResult.confidence,
-            },
+          const holdResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
+            listingId,
+            reviewedAt: updatedListing.updatedAt,
+            sourceStatus: ListingStatus.PENDING_REVIEW,
+            status: ListingStatus.PENDING_REVIEW,
+            flags: aiResult.flags,
+            score: aiResult.confidence,
           });
-          if (holdResult.count > 0) {
+          if (holdResult) {
+            const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
+            await backfillEmptyAltTexts(actor.id, listingId, aiResult.altTexts, reviewedImageUrls);
             queueCheckoutSessionExpiryForListing(
               listingId,
               sellerCore.sellerProfileId,
@@ -570,22 +524,27 @@ async function updateListing(
           }
         } else {
           // Stays in the current public status; refresh AI metadata for this pass.
-          await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-            data: {
-              status: approvedPublicStatus,
-              aiReviewFlags: aiResult.flags,
-              aiReviewScore: aiResult.confidence,
-            },
+          const activationResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
+            listingId,
+            reviewedAt: updatedListing.updatedAt,
+            sourceStatus: ListingStatus.PENDING_REVIEW,
+            status: updatedListing.approvedStatus,
+            flags: aiResult.flags,
+            score: aiResult.confidence,
           });
+          if (activationResult) {
+            const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
+            await backfillEmptyAltTexts(actor.id, listingId, aiResult.altTexts, reviewedImageUrls);
+          }
         }
       } else {
         // Seller lost chargesEnabled mid-edit: send the listing to draft.
-        const draftResult = await prisma.listing.updateMany({
-          where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-          data: { status: ListingStatus.DRAFT },
+        const returnedToDraft = await listingOwnerTransition(actor.id, {
+          listingId,
+          operation: "RETURN_TO_DRAFT",
+          expectedUpdatedAt: updatedListing.updatedAt,
         });
-        if (draftResult.count > 0) {
+        if (returnedToDraft) {
           queueCheckoutSessionExpiryForListing(
             listingId,
             sellerCore.sellerProfileId,
@@ -601,15 +560,15 @@ async function updateListing(
       });
       // AI infrastructure error — flip to PENDING_REVIEW conservatively so
       // staff can review the new content.
-      const pendingResult = await prisma.listing.updateMany({
-        where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
-        data: {
-          status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: ["AI review error"],
-          aiReviewScore: 0,
-        },
+      const pendingResult = await applyVersionBoundListingAiReviewTransition(actor.id, {
+        listingId,
+        reviewedAt: updatedListing.updatedAt,
+        sourceStatus: ListingStatus.PENDING_REVIEW,
+        status: ListingStatus.PENDING_REVIEW,
+        flags: ["AI review error"],
+        score: 0,
       });
-      if (pendingResult.count > 0) {
+      if (pendingResult) {
         queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_ai_error");
       }
     }
@@ -622,10 +581,7 @@ async function updateListing(
   // Publish button is shown on those statuses.
   const wantsPublish = formData.get("publish") === "true";
   if (wantsPublish) {
-    const current = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: { status: true },
-    });
+    const current = await listingOwnerActionState(actor.id, listingId);
     if (
       current && (
         current.status === ListingStatus.DRAFT ||
@@ -637,6 +593,9 @@ async function updateListing(
       const publishResult = await publishListingAction(listingId);
       if ("error" in publishResult) {
         return { ok: false, error: publishResult.error };
+      }
+      if (publishResult.warning) {
+        return { ok: false, error: publishResult.warning };
       }
     }
   }
@@ -653,10 +612,7 @@ async function updateListing(
   // Re-query final status after AI re-review may have transitioned the listing.
   // Public listing path 404s for DRAFT, HIDDEN, REJECTED, PENDING_REVIEW — must
   // redirect to the edit page with a saved banner instead of the public URL.
-  const final = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: { status: true, title: true },
-  });
+  const final = await listingOwnerActionState(actor.id, listingId);
   const finalStatus = final?.status ?? listing.status;
   const finalTitle = final?.title ?? updatedListing.title;
 
@@ -696,16 +652,7 @@ export default async function EditListingPage(props: {
   const sellerCore = await sellerOwnerCore(actor.id);
   if (!sellerCore) return notFound();
 
-  const listing = await prisma.listing.findFirst({
-    where: { id, sellerId: sellerCore.sellerProfileId },
-    include: {
-      photos: { orderBy: { sortOrder: "asc" } },
-      variantGroups: {
-        orderBy: { sortOrder: "asc" },
-        include: { options: { orderBy: { sortOrder: "asc" } } },
-      },
-    },
-  });
+  const listing = await listingOwnerEditor(actor.id, id);
   if (!listing) return notFound();
   if (listing.archivedAt) return notFound();
   const editBlockReason = listingEditBlockReason(listing);
@@ -806,7 +753,9 @@ export default async function EditListingPage(props: {
             placeholder="e.g. walnut, maple, brass hardware"
             className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
           />
-          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
+          <p className="text-xs text-neutral-500 mt-1">
+            Comma-separated, up to {MAX_LISTING_MATERIALS}; {MAX_LISTING_MATERIAL_CODE_POINTS} characters each.
+          </p>
         </div>
 
         <div>

@@ -1,6 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
-import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { restoreSellerExpiredCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
@@ -64,17 +63,6 @@ export async function expireOpenCheckoutSessionsForBlockedPair(input: {
       });
     },
   });
-}
-
-async function checkoutSessionBelongsToSeller(session: Stripe.Checkout.Session, sellerId: string) {
-  const metadata = session.metadata ?? {};
-  if (metadata.sellerId === sellerId) return true;
-  if (!metadata.listingId) return false;
-  const listing = await prisma.listing.findUnique({
-    where: { id: metadata.listingId },
-    select: { sellerId: true },
-  });
-  return listing?.sellerId === sellerId;
 }
 
 async function checkoutSessionBelongsToListing(session: Stripe.Checkout.Session, listingId: string) {
@@ -150,7 +138,7 @@ export async function expireOpenCheckoutSessionsForSeller({
     }
 
     for (const session of sessions.data) {
-      if (!(await checkoutSessionBelongsToSeller(session, sellerId))) continue;
+      if (session.metadata?.sellerId !== sellerId) continue;
       result.checked += 1;
       try {
         await stripe.checkout.sessions.expire(session.id);

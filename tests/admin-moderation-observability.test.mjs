@@ -88,7 +88,7 @@ describe("admin moderation hardening follow-ups", () => {
     );
 
     assert.match(route, /await prisma\.\$transaction\(async \(tx\) => \{/);
-    assert.match(route, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
+    assert.match(route, /await refreshSellerRatingSummary\(listing\.sellerProfileId, tx\)/);
     assert.doesNotMatch(route, /source: "admin_review_rating_summary_refresh"/);
     assert.doesNotMatch(route, /deletePublicObjectsBestEffort|deleteObject\(|directUpload\./);
     assert.match(

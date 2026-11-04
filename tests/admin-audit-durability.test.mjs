@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 import { supportRequestPreparationMigrationPath } from "./helpers/support-request-preparation-migration-path.mjs";
 
 function source(path) {
@@ -33,7 +34,6 @@ describe("admin audit durability", () => {
     for (const path of [
       "src/app/admin/blog/page.tsx",
       "src/app/admin/broadcasts/page.tsx",
-      "src/app/api/admin/listings/[id]/route.ts",
       "src/app/api/admin/reports/[id]/resolve/route.ts",
       "src/app/api/admin/reviews/[id]/route.ts",
     ]) {
@@ -46,6 +46,14 @@ describe("admin audit durability", () => {
       );
     }
 
+    const listingRemoval = source("src/app/api/admin/listings/[id]/route.ts");
+    const listingPreparation = source(listingDomainPreparationMigrationPath());
+    assert.match(listingRemoval, /sellerProfileStaffListingRemovalTransition\(/);
+    assert.match(
+      listingPreparation,
+      /CREATE FUNCTION public\.grainline_seller_staff_listing_remove_transition[\s\S]*UPDATE public\."Listing"[\s\S]*INSERT INTO public\."AdminAuditLog"/,
+      "listing removal must co-commit its mutation, dependent cleanup, and audit witness",
+    );
     const supportActions = source("src/app/admin/support/actions.ts");
     const supportTransition = source(supportRequestPreparationMigrationPath());
     assert.match(supportActions, /transitionSupportRequest\(\{/);

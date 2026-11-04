@@ -8,6 +8,13 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+function listingPreparationSource() {
+  return source(
+    process.env.LISTING_DOMAIN_PREPARATION_MIGRATION_PATH?.trim()
+      || "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  );
+}
+
 const ORDER_PII_FIELDS = [
   "shipToCity",
   "shipToState",
@@ -326,34 +333,26 @@ describe("Round 9 account deletion PII guardrails", () => {
 
   it("scrubs seller listing title and body fields on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const listingAuthority = listingPreparationSource();
 
-    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({");
-    const listingUpdateEnd = deletion.indexOf("await redactOwnerMakerVerificationForDeletion", listingUpdateStart);
-    const listingUpdate = deletion.slice(listingUpdateStart, listingUpdateEnd);
-
-    assert.ok(listingUpdateStart > -1, "account deletion must update seller listings");
-    assert.match(listingUpdate, /title: "Deleted listing"/);
-    assert.match(listingUpdate, /status: "HIDDEN"/);
-    assert.match(listingUpdate, /isPrivate: true/);
-    assert.match(listingUpdate, /description: "\[Listing removed\]"/);
-    assert.match(listingUpdate, /tags: \[\]/);
-    assert.match(listingUpdate, /metaDescription: null/);
-    assert.match(listingUpdate, /materials: \[\]/);
+    assert.match(deletion, /redactListingsForAccountDeletion\(tx,/);
+    assert.match(listingAuthority, /title = 'Deleted listing'/);
+    assert.match(listingAuthority, /status = 'HIDDEN'/);
+    assert.match(listingAuthority, /"isPrivate" = true/);
+    assert.match(listingAuthority, /description = '\[Listing removed\]'/);
+    assert.match(listingAuthority, /tags = ARRAY\[\]::text\[\]/);
+    assert.match(listingAuthority, /"metaDescription" = NULL/);
+    assert.match(listingAuthority, /materials = ARRAY\[\]::text\[\]/);
   });
 
   it("removes retained seller-defined listing variant text on account deletion", () => {
     const deletion = source("src/lib/accountDeletion.ts");
+    const listingAuthority = listingPreparationSource();
 
-    const variantDeleteStart = deletion.indexOf("await tx.listingVariantGroup.deleteMany({");
-    const listingUpdateStart = deletion.indexOf("await tx.listing.updateMany({", variantDeleteStart);
-    const variantDelete = deletion.slice(variantDeleteStart, listingUpdateStart);
-
-    assert.ok(variantDeleteStart > -1, "account deletion must remove seller variant groups");
-    assert.ok(
-      listingUpdateStart > variantDeleteStart,
-      "variant text should be removed before retained listing rows are scrubbed",
-    );
-    assert.match(variantDelete, /where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    assert.match(deletion, /redactListingsForAccountDeletion\(tx,/);
+    assert.match(listingAuthority, /DELETE FROM public\."ListingVariantGroup" AS variant_group/);
+    assert.match(listingAuthority, /listing\."sellerId" = source_seller_profile_id/);
+    assert.match(listingAuthority, /GET DIAGNOSTICS source_variant_groups_deleted = ROW_COUNT/);
   });
 
   it("scrubs maker verification personal details and reviewer linkage", () => {

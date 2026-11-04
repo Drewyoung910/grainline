@@ -81,12 +81,13 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     }
   });
 
-  it("moves the legacy stock-restore dedup claim to its dedicated fixed operation", () => {
+  it("retires the unbound legacy stock-restore mutation path", () => {
     const restore = source("src/lib/checkoutStockRestore.ts");
     const maintenance = source("src/lib/stripeWebhookMaintenance.ts");
 
-    assert.match(restore, /claimLegacyStockRestore\(sessionId, tx\)/);
-    assert.match(maintenance, /grainline_legacy_stock_restore_claim\(\$\{sessionId\}\)/);
+    assert.match(restore, /reportMissingDurableStockReservation/);
+    assert.match(restore, /checkout_stock_restore_missing_reservation/);
+    assert.doesNotMatch(maintenance, /grainline_legacy_stock_restore_apply/);
     assert.doesNotMatch(restore, /beginStripeWebhookEvent/);
     assert.doesNotMatch(restore, /markStripeWebhookEventProcessed/);
     assert.doesNotMatch(restore, /tx\.stripeWebhookEvent\.create/);

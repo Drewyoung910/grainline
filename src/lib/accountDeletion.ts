@@ -82,6 +82,7 @@ import {
 } from "@/lib/sellerAccountDeletionPrivateAccess";
 import { sellerAccountDeletionPublicMediaUrls } from "@/lib/sellerAccountDeletionMediaAccess";
 import { deleteAllOwnerReviewVotes } from "@/lib/reviewVoteAccess";
+import { redactListingsForAccountDeletion } from "@/lib/listingAccountDeletionAccess";
 import { drainMutatingFilterBatches } from "@/lib/drainMutatingFilterBatches";
 import { accountDeletionBlogPostMediaOwnerWhere } from "@/lib/accountDeletionMediaState";
 import {
@@ -372,18 +373,14 @@ async function redactEmailOutboxRowsForDeletedMaker(
 async function cleanupDeletedSellerFanoutRows(
   tx: Prisma.TransactionClient,
   sellerProfileId: string,
+  listingIds: readonly string[],
   now: Date,
 ) {
   const broadcasts = await tx.sellerBroadcast.findMany({
     where: { sellerProfileId },
     select: { id: true },
   });
-  const listings = await tx.listing.findMany({
-    where: { sellerId: sellerProfileId },
-    select: { id: true },
-  });
   const broadcastIds = broadcasts.map((broadcast) => broadcast.id);
-  const listingIds = listings.map((listing) => listing.id);
   await redactEmailOutboxRowsForDeletedMaker(
     tx,
     [
@@ -1330,34 +1327,20 @@ export async function anonymizeUserAccount(
       await tx.sellerRatingSummary.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
       });
-      await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now);
-      await tx.review.updateMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-        data: { sellerReply: null, sellerReplyAt: null },
+      const listingDeletion = await redactListingsForAccountDeletion(tx, {
+        sideEffectId: localAnonymizeSideEffectId,
+        expectedUserId: user.id,
+        expectedSellerProfileId: user.sellerProfile.id,
+        claimGeneration: localClaimGeneration,
+        claimToken: localClaimToken,
+        archivedAt: now,
       });
-      await tx.photo.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listingVariantGroup.deleteMany({
-        where: { listing: { sellerId: user.sellerProfile.id } },
-      });
-      await tx.listing.updateMany({
-        where: { sellerId: user.sellerProfile.id },
-        data: {
-          title: "Deleted listing",
-          status: "HIDDEN",
-          isPrivate: true,
-          archivedAt: now,
-          description: "[Listing removed]",
-          videoUrl: null,
-          tags: [],
-          metaDescription: null,
-          materials: [],
-          aiReviewFlags: [],
-          aiReviewScore: null,
-          rejectionReason: "Seller account deleted",
-        },
-      });
+      await cleanupDeletedSellerFanoutRows(
+        tx,
+        user.sellerProfile.id,
+        listingDeletion.listingIds,
+        now,
+      );
       await redactOwnerMakerVerificationForDeletion(tx, now);
       await cleanupFollowsForAccountDeletion(tx, {
         sideEffectId: localAnonymizeSideEffectId,

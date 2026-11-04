@@ -512,8 +512,8 @@ describe("RLS feasibility plan guardrails", () => {
       assert.match(doc, /Webhook\/cron\/admin\s+low-stock/);
       assert.match(doc, /service\/write-path/);
     }
-    assert.match(stockRoute, /const seller = await sellerOwnerCore\(me\.id\)/);
-    assert.match(stockRoute, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
+    assert.match(stockRoute, /const listing = await listingOwnerActionState\(me\.id, id\)/);
+    assert.match(stockRoute, /listingId: id, sellerId: listing\.sellerId, actorId: me\.id/);
     assert.doesNotMatch(stockRoute, /where: \{ id, seller: \{ userId: me\.id \} \}/);
     assert.match(messageReadRoute, /markOwnerMessageNotificationsRead\(me\.id, id\)/);
     assert.match(stockRoute, /findRecentOwnerLowStockNotification\(/);
@@ -990,9 +990,12 @@ describe("RLS feasibility plan guardrails", () => {
     assert.match(ownerAccess, /export async function ownerCartForShippingQuoteById/);
     assert.match(ownerAccess, /export async function ownerCartForShippingQuote/);
     assert.match(ownerAccess, /export function ownerCartExportRows/);
-    assert.match(ownerAccess, /withSellerActorCartTransaction/);
-    assert.match(ownerAccess, /attachCartSellerStates/);
-    assert.match(sellerTransactionAccess, /grainline_seller_actor_cart_transaction_states/);
+    assert.match(ownerAccess, /readListingActorCartTransactionSources/);
+    assert.match(ownerAccess, /attachOwnerCartListingSources/);
+    assert.match(sellerTransactionAccess, /grainline_listing_actor_cart_transaction_sources/);
+    assert.doesNotMatch(ownerAccess, /include:\s*\{\s*listing:\s*true/u);
+    assert.doesNotMatch(ownerAccess, /listing:\s*\{\s*include:/u);
+    assert.doesNotMatch(ownerAccess, /listing:\s*\{\s*select:/u);
     assert.match(sellerCheckoutAccess, /grainline_seller_checkout_private_state/);
     assert.doesNotMatch(ownerAccess, /seller:\s*\{/);
     assert.match(ownerAccess, /db\.cart\.findUnique/);

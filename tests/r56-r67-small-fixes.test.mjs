@@ -13,9 +13,10 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     const end = text.indexOf("export async function deleteListingAction");
     const body = text.slice(start, end);
 
-    assert.match(body, /prisma\.listing\.updateMany/);
-    assert.match(body, /sellerId: listing\.sellerId/);
-    assert.match(body, /status: \{ in: \[ListingStatus\.ACTIVE, ListingStatus\.SOLD_OUT\] \}/);
+    assert.match(body, /listingOwnerTransition\(listing\.seller\.userId, \{/);
+    assert.match(body, /operation: "MARK_SOLD"/);
+    assert.match(body, /if \(!result\) return \{ ok: false, error: "Listing state changed; refresh and try again\." \}/);
+    assert.doesNotMatch(body, /prisma\.listing\.updateMany/);
     assert.doesNotMatch(body, /prisma\.listing\.update\(\{ where: \{ id: listingId \}/);
   });
 
@@ -52,10 +53,10 @@ describe("R56-R67 small audit follow-up guardrails", () => {
   it("keeps existing-listing photo writes behind Save and defers safe object cleanup", () => {
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(editPage, /class ListingPhotoConflictError extends Error/);
     assert.match(editPage, /const submittedNewPhotoUrls = new Set<string>\(\)/);
-    assert.match(editPage, /const updatedPhoto = await tx\.photo\.updateMany/);
-    assert.match(editPage, /if \(updatedPhoto\.count === 0\) \{\s*throw new ListingPhotoConflictError\(\);/s);
+    assert.match(editPage, /updateListingOwnerContent\(tx,/);
+    assert.match(editPage, /photos: photoManifest\.photos\.map/);
+    assert.doesNotMatch(editPage, /tx\.photo\.(?:create|update|delete)/);
     assert.match(editPage, /syncListingDirectUploadReferences/);
     assert.doesNotMatch(editPage, /deleteR2ObjectByUrl/);
     assert.match(editPage, /fenced lifecycle\s+\/\/ worker removes them/s);

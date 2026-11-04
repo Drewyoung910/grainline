@@ -85,6 +85,53 @@ import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
+const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_staff_listing_review_transition",
+  "grainline_seller_staff_listing_remove_transition",
+  "grainline_seller_staff_listing_undo_transition",
+  "grainline_seller_staff_listing_review_queue",
+  "grainline_listing_staff_reference_targets",
+  "grainline_listing_staff_seller_active_public_count",
+  "grainline_listing_actor_review_contexts",
+  "grainline_listing_public_customer_photo_page",
+  "grainline_listing_owner_editor",
+  "grainline_listing_owner_export_page",
+  "grainline_listing_owner_catalog_page",
+  "grainline_listing_owner_summary_page",
+  "grainline_listing_owner_workshop_summary",
+  "grainline_listing_owner_counts",
+  "grainline_listing_owner_rating_buckets",
+  "grainline_listing_seller_rating_summary_refresh",
+  "grainline_listing_service_quality_score_apply",
+  "grainline_listing_owner_stock_lock",
+  "grainline_listing_owner_stock_apply",
+  "grainline_listing_owner_action_state",
+  "grainline_listing_actor_transaction_source_core",
+  "grainline_listing_actor_transaction_source",
+  "grainline_listing_actor_cart_transaction_sources",
+  "grainline_listing_public_analytics_increment",
+  "grainline_listing_public_catalog_page",
+  "grainline_listing_public_title_suggestions",
+  "grainline_listing_detail_source_core",
+  "grainline_listing_actor_detail_source",
+  "grainline_listing_staff_detail_source",
+  "grainline_listing_owner_ai_review_context",
+  "grainline_listing_owner_assign_metros",
+  "grainline_listing_children_replace_core",
+  "grainline_listing_owner_create",
+  "grainline_listing_owner_content_update",
+  "grainline_listing_owner_alt_text_backfill",
+  "grainline_listing_account_deletion_redact",
+  "grainline_listing_owner_delete_lock",
+  "grainline_listing_owner_archive",
+  "grainline_listing_owner_hard_delete",
+  "grainline_listing_owner_transition",
+  "grainline_listing_owner_review_transition",
+  "grainline_listing_message_context_titles",
+  "grainline_listing_materials_guard",
+]);
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -3697,6 +3744,12 @@ describe("database grant inventory guardrails", () => {
     ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
+    const listingDomainAuthorityPrepared = existsSync(
+      LISTING_DOMAIN_PREPARATION_MIGRATION,
+    ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -3926,6 +3979,9 @@ describe("database grant inventory guardrails", () => {
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(reviewVoteRlsActivationPresent
         ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
         : []),
@@ -4008,6 +4064,9 @@ describe("database grant inventory guardrails", () => {
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
         + (makerVerificationActivationPresent ? 1 : 0)
+        + (listingDomainAuthorityPrepared
+          ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.length
+          : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         // Activation revokes the table and count-repair trigger function.
@@ -4134,6 +4193,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
@@ -6376,7 +6438,7 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      19,
+      existsSync(LISTING_DOMAIN_PREPARATION_MIGRATION) ? 20 : 19,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(

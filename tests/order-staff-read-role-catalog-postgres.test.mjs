@@ -43,7 +43,7 @@ test("historical six-operation database rejects the newer staff script until suc
     assert.equal(refusal.grainline_staff_role_failed, true);
     assert.match(
       refusal.grainline_staff_role_failure,
-      /^missing staff operation: public\."grainline_(?:seller|user)_/,
+      /^missing staff operation: public\."grainline_(?:listing|seller|user)_/,
     );
     assert.deepEqual((await database.query(requiredOperations(historical))).rows, [{
       grainline_staff_role_failed: false, grainline_staff_role_failure: "",

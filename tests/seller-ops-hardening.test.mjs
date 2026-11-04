@@ -239,7 +239,7 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /const analyticsDateRange = \{ gte: startDate, \.\.\.dateEndFilter \}/);
     assert.match(
       analytics,
-      /const rangeEndSql = endExclusive \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
+      /listingOwnerRatingBuckets\(me\.id, \{\s*startDate,\s*endDate,\s*endExclusive,\s*\}\)/s,
     );
     assert.doesNotMatch(analytics, /date: \{ gte: startDate, lte: endDate \}/);
     assert.doesNotMatch(analytics, /createdAt: \{ gte: startDate, lte: endDate \}/);
@@ -299,8 +299,8 @@ describe("seller operational route hardening", () => {
     assert.match(analytics, /const metrics = await getFreshSellerMetrics\(sellerId, 3, existingMetrics\);/);
     assert.doesNotMatch(analytics, /import \{ isSellerMetricsFresh \} from "@\/lib\/metricsFreshness"/);
     assert.doesNotMatch(analytics, /const isStale = !existingMetrics/);
-    assert.match(analytics, /AND r\."createdAt" >= \$\{startDate\}/);
-    assert.match(analytics, /AND r\."createdAt" \$\{rangeEndSql\}/);
+    assert.match(analytics, /listingOwnerRatingBuckets\(me\.id, \{/);
+    assert.doesNotMatch(analytics, /JOIN "Listing" l ON l\.id = r\."listingId"/);
     assert.doesNotMatch(analytics, /24 \* 60 \* 60 \* 1000/);
     assert.doesNotMatch(analytics, /const topFavsRows/);
     assert.doesNotMatch(analytics, /const topStockRows/);
@@ -309,25 +309,46 @@ describe("seller operational route hardening", () => {
 
   it("keeps listing stock updates owner-scoped in the final mutation", () => {
     const route = source("src/app/api/listings/[id]/stock/route.ts");
+    const authority = source("src/lib/listingStockMutation.ts");
 
-    assert.match(route, /const seller = await sellerOwnerCore\(me\.id\)/);
-    assert.match(route, /where: \{ id, sellerId: seller\.sellerProfileId \}/);
-    assert.match(route, /AND "sellerId" = \$\{seller\.sellerProfileId\}/);
+    assert.match(route, /const listing = await listingOwnerActionState\(me\.id, id\)/);
+    assert.match(route, /listingId: id, sellerId: listing\.sellerId, actorId: me\.id/);
+    assert.match(route, /applyListingStockMutation\(tx, \{[\s\S]*sellerId: listing\.sellerId/);
+    assert.match(authority, /public\.grainline_listing_owner_stock_apply\([\s\S]*input\.listingId[\s\S]*input\.sellerId/);
     assert.match(route, /source: "stock_back_in_stock_fanout"/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
-  it("keeps seller listing status follow-up mutations owner-scoped", () => {
+  it("keeps seller listing review transitions actor- and version-scoped", () => {
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const createListing = source("src/app/dashboard/listings/new/page.tsx");
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(shopActions, /WHERE id = \$\{listingId\}\s+AND "sellerId" = \$\{listing\.sellerId\}/);
-    assert.match(createListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
-    assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
-    assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.PENDING_REVIEW, updatedAt: updatedListing\.updatedAt \}/);
-    assert.match(editListing, /status: approvedPublicStatus/);
+    assert.equal(
+      (shopActions.match(/applyVersionBoundListingAiReviewTransition\(\s*listing\.seller\.userId,/g) ?? []).length,
+      3,
+    );
+    assert.equal(
+      (createListing.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/g) ?? []).length,
+      3,
+    );
+    assert.equal(
+      (customListing.match(/applyVersionBoundListingAiReviewTransition\(seller\.userId,/g) ?? []).length,
+      1,
+    );
+    assert.equal(
+      (customListing.match(/applyVersionBoundListingAiReviewTransitionState\(seller\.userId,/g) ?? []).length,
+      1,
+    );
+    assert.equal(
+      (editListing.match(/applyVersionBoundListingAiReviewTransition\(actor\.id,/g) ?? []).length,
+      3,
+    );
+    assert.doesNotMatch(shopActions, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
+    assert.doesNotMatch(createListing, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
+    assert.doesNotMatch(customListing, /UPDATE "Listing"[\s\S]*SET status = 'SOLD_OUT'/);
+    assert.match(editListing, /status: updatedListing\.approvedStatus/);
   });
 
   it("rate-limits seller listing server actions before owner mutation work", () => {

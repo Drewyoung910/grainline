@@ -88,7 +88,7 @@ const pages = [
   ["audit/page.tsx", "prisma.adminAuditLog.count("],
   ["users/page.tsx", "userStaffDirectoryCount("],
   ["reviews/page.tsx", "prisma.review.count("],
-  ["review/page.tsx", "prisma.listing.count("],
+  ["review/page.tsx", "sellerProfileStaffListingReviewQueue("],
   ["reports/page.tsx", "prisma.userReport.findMany("],
   ["support/page.tsx", "readSupportRequestStaffState("],
 ];

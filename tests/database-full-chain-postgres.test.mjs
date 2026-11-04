@@ -39,6 +39,11 @@ import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
 import { proveSellerProfilePublicReviewVoteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-review-vote-target.mjs";
 import { proveReviewVoteAuthorities } from "../tools/database-full-chain/scenarios/review-vote-authorities.mjs";
+import { proveListingDomainOwnerMutations } from "../tools/database-full-chain/scenarios/listing-domain-owner-mutations.mjs";
+import { proveListingDomainDetailAuthorities } from "../tools/database-full-chain/scenarios/listing-domain-detail-authorities.mjs";
+import { proveListingDomainPublicCatalog } from "../tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs";
+import { proveListingDomainStaffReferences } from "../tools/database-full-chain/scenarios/listing-domain-staff-references.mjs";
+import { proveListingDomainReviewHistory } from "../tools/database-full-chain/scenarios/listing-domain-review-history.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -777,6 +782,26 @@ test(
         connectionString: proofDatabaseUrl,
         database: adapter,
         repositoryRoot,
+        seller: fixture,
+      });
+      await proveListingDomainOwnerMutations({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainDetailAuthorities({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainPublicCatalog({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainStaffReferences({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainReviewHistory({
+        database: adapter,
         seller: fixture,
       });
       await proveSellerProfileActorReviewListingTarget({

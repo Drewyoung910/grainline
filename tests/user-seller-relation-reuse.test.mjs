@@ -17,7 +17,7 @@ function fixture(options = {}) {
     ? { id: "owner", banned: false, deletedAt: null } : options.actor;
   const state = { owner: "owner", active: true, reply: options.reply ?? null,
     reads: 0, writes: 0, gateCalls: 0, sellerOwnerCalls: 0,
-    sellerOwnerReviewReplyCalls: 0 };
+    sellerOwnerReviewReplyCalls: 0, reviewContextCalls: 0 };
   let bothRead;
   const barrier = new Promise((resolve) => { bothRead = resolve; });
   const prisma = { review: {
@@ -25,8 +25,8 @@ function fixture(options = {}) {
       state.reads++;
       if (options.missingReview) return null;
       const snapshot = {
+        id: "review",
         sellerReply: state.reply,
-        listing: { sellerId: options.foreignOwner ? "other-seller" : "seller" },
       };
       if (options.concurrent) {
         if (state.reads === 2) bothRead();
@@ -52,6 +52,20 @@ function fixture(options = {}) {
       assert.equal(clerkId, "clerk-owner");
       return actor;
     } },
+    "@/lib/listingReviewHistoryAccess": {
+      listingActorReviewContexts: async (userId, reviewIds) => {
+        state.reviewContextCalls++;
+        assert.equal(userId, actor.id);
+        assert.deepEqual([...reviewIds], ["review"]);
+        return [{
+          reviewId: "review",
+          listingId: "listing",
+          listingTitle: "Listing",
+          sellerProfileId: options.foreignOwner ? "other-seller" : "seller",
+          listingPhotoUrl: null,
+        }];
+      },
+    },
     "@/lib/sellerProfileOwnerAccess": {
       sellerOwnerCore: async (userId) => {
         state.sellerOwnerCalls++;

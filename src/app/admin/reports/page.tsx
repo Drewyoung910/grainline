@@ -8,6 +8,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { userStaffAdminLabels, userStaffReportLabels } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
+import { listingStaffReferenceTargets } from "@/lib/listingStaffAccess";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
 
@@ -35,6 +36,7 @@ function isSellerProfileReportTarget(targetType: string | null) {
 export default async function AdminReportsPage() {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
+  const staffClient = getOrderStaffReadClient();
 
   const reports = await prisma.userReport.findMany({
     where: { resolved: false },
@@ -51,7 +53,7 @@ export default async function AdminReportsPage() {
       reportedId: true,
     },
   });
-  const reportUsers = await userStaffAdminLabels(getOrderStaffReadClient(), {
+  const reportUsers = await userStaffAdminLabels(staffClient, {
     actorId: staff.id,
     userIds: reports.flatMap((report) => [report.reporterId, report.reportedId]),
   });
@@ -72,6 +74,7 @@ export default async function AdminReportsPage() {
     .map((r) => r.targetId!);
 
   const reviewListingMap = new Map<string, { id: string; title: string }>();
+  const reviewListingIdMap = new Map<string, string>();
   const blogCommentSlugMap = new Map<string, string>();
   const listingPathMap = new Map<string, string>();
   const sellerPathMap = new Map<string, string>();
@@ -79,25 +82,34 @@ export default async function AdminReportsPage() {
   if (reviewTargetIds.length > 0) {
     const reviews = await prisma.review.findMany({
       where: { id: { in: reviewTargetIds } },
-      select: { id: true, listing: { select: { id: true, title: true } } },
+      select: { id: true, listingId: true },
     });
     for (const rv of reviews) {
-      reviewListingMap.set(rv.id, rv.listing);
+      reviewListingIdMap.set(rv.id, rv.listingId);
     }
   }
 
-  if (listingTargetIds.length > 0) {
-    const listings = await prisma.listing.findMany({
-      where: { id: { in: listingTargetIds } },
-      select: { id: true, title: true },
+  const referencedListingIds = [
+    ...listingTargetIds,
+    ...reviewListingIdMap.values(),
+  ];
+  if (referencedListingIds.length > 0) {
+    const listings = await listingStaffReferenceTargets(staffClient, {
+      actorId: staff.id,
+      listingIds: referencedListingIds,
     });
+    const listingById = new Map(listings.map((listing) => [listing.id, listing]));
     for (const listing of listings) {
       listingPathMap.set(listing.id, publicListingPath(listing.id, listing.title));
+    }
+    for (const [reviewId, listingId] of reviewListingIdMap) {
+      const listing = listingById.get(listingId);
+      if (listing) reviewListingMap.set(reviewId, listing);
     }
   }
 
   if (sellerTargetIds.length > 0) {
-    const sellers = await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
+    const sellers = await sellerProfileStaffReportTargets(staffClient, {
       actorId: staff.id,
       sellerProfileIds: sellerTargetIds,
     });
@@ -125,7 +137,7 @@ export default async function AdminReportsPage() {
     take: 5,
   });
   const reporterUsers = topReporters.length > 0
-    ? await userStaffReportLabels(getOrderStaffReadClient(), {
+    ? await userStaffReportLabels(staffClient, {
         actorId: staff.id,
         userIds: topReporters.map((r) => r.reporterId),
       })

@@ -104,9 +104,10 @@ describe("account-state residue hardening", () => {
     assert.match(reportsPage, /if \(user\.deletedAt\) return "Deleted user"/);
     assert.match(reportsPage, /function reportUserSearchValue/);
     assert.match(reportsPage, /if \(!user \|\| user\.deletedAt\) return ""/);
-    assert.match(reportsPage, /userStaffAdminLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: reports\.flatMap\(\(report\) => \[report\.reporterId, report\.reportedId\]\),/s);
+    assert.match(reportsPage, /const staffClient = getOrderStaffReadClient\(\)/);
+    assert.match(reportsPage, /userStaffAdminLabels\(staffClient, \{\s*actorId: staff\.id,\s*userIds: reports\.flatMap\(\(report\) => \[report\.reporterId, report\.reportedId\]\),/s);
     assert.match(reportsPage, /const reportUserById = new Map\(reportUsers\.map\(\(user\) => \[user\.id, user\]\)\)/);
-    assert.match(reportsPage, /userStaffReportLabels\(getOrderStaffReadClient\(\), \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
+    assert.match(reportsPage, /userStaffReportLabels\(staffClient, \{\s*actorId: staff\.id,\s*userIds: topReporters\.map\(\(r\) => r\.reporterId\),/s);
     assert.match(source("src/lib/userStaffAccess.ts"), /UserStaffReportLabel = UserStaffEmailTarget & \{\s*deletedAt: Date \| null;/s);
     assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reporterId\)\)/);
     assert.match(reportsPage, /reportUserLabel\(reportUserById\.get\(r\.reportedId\)\)/);
@@ -163,16 +164,19 @@ describe("account-state residue hardening", () => {
         helperStart,
       ),
     );
-    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(tx, user.sellerProfile.id, now)");
+    const listingRedactionIndex = deletion.indexOf("const listingDeletion = await redactListingsForAccountDeletion");
+    const callIndex = deletion.indexOf("await cleanupDeletedSellerFanoutRows(");
     const broadcastDeleteIndex = deletion.indexOf("await tx.sellerBroadcast.deleteMany");
-    const listingAnonymizeIndex = deletion.indexOf("await tx.listing.updateMany");
     const blogArchiveIndex = deletion.indexOf("await archiveBlogPostsForDeletedAccount");
 
     assert.ok(helperStart >= 0, "account deletion should have a seller fanout cleanup helper");
+    assert.ok(listingRedactionIndex >= 0, "Listing authority should return ids while redacting the seller's listings");
     assert.ok(callIndex >= 0, "account deletion should call seller fanout cleanup");
+    assert.ok(listingRedactionIndex < callIndex, "Listing authority should return exact ids before fanout cleanup");
     assert.ok(callIndex < broadcastDeleteIndex, "fanout cleanup should run before broadcast rows are deleted");
-    assert.ok(callIndex < listingAnonymizeIndex, "fanout cleanup should collect listing ids before listing anonymization");
     assert.ok(callIndex < blogArchiveIndex, "fanout cleanup should collect blog slugs before blog archive slugs are written");
+    assert.match(deletion, /listingDeletion\.listingIds/);
+    assert.doesNotMatch(helper, /tx\.listing\./);
     assert.match(deletion, /await deleteAccountNotificationServiceRows\(tx, user\.id\)/);
     assert.doesNotMatch(helper, /tx\.notification\.|deleteNotification(?:Source|Link)Rows/);
     assert.doesNotMatch(deletion, /notificationTextMatchSql|redactNotificationsAboutDeletedAccount/);

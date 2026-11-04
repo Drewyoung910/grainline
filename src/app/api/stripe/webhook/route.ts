@@ -1202,36 +1202,11 @@ export async function POST(req: Request) {
       return processIdempotentEvent(async () => {
       const expiredSession = event.data.object as { id: string; metadata?: Record<string, string> };
       const expiredMeta = expiredSession.metadata ?? {};
-      const expiredCartId = expiredMeta.cartId;
-      const expiredSellerId = expiredMeta.sellerId;
-      let expiredLineItems: CheckoutLineItem[] = [];
-
-      // Retrieve Stripe line items before the DB transaction. The transaction
-      // re-checks order existence after taking the advisory lock.
-      if (expiredCartId && expiredSellerId) {
-        try {
-          const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
-            expand: ["line_items.data.price.product"],
-          });
-          expiredLineItems = (expiredS as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
-        } catch (error) {
-          Sentry.captureException(error, {
-            tags: { source: "stripe_webhook_expired_line_items_retrieve" },
-            extra: {
-              stripeSessionId: expiredSession.id,
-              cartId: expiredCartId,
-              sellerId: expiredSellerId,
-            },
-          });
-        }
-      }
-
       await restoreUnorderedCheckoutStockOnce({
         eventId: event.id,
         claimGeneration,
         sessionId: expiredSession.id,
         metadata: expiredMeta,
-        lineItems: expiredLineItems,
       });
 
       return NextResponse.json({ ok: true });

@@ -40,8 +40,8 @@ describe("DirectUpload RLS audit contracts", () => {
 
   it("pins every current durable-reference claim family", () => {
     const callSites = [
-      ["src/app/dashboard/listings/new/page.tsx", "syncListingDirectUploadReferences"],
-      ["src/app/dashboard/listings/custom/page.tsx", "syncListingDirectUploadReferences"],
+      ["src/app/dashboard/listings/new/page.tsx", "createListingOwner"],
+      ["src/app/dashboard/listings/custom/page.tsx", "createListingOwner"],
       ["src/app/dashboard/listings/[id]/edit/page.tsx", "syncListingDirectUploadReferences"],
       ["src/app/dashboard/onboarding/actions.ts", "syncSellerProfileDirectUploadReferences"],
       ["src/app/dashboard/profile/page.tsx", "syncSellerProfileDirectUploadReferences"],

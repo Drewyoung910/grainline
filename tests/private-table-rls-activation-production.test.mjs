@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -379,4 +379,36 @@ test("inspector rejects direct authority after activation", async () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("inspector rejects a stray non-owner table grant after activation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-deletion-authority-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: true,
+            tableOverrides: {
+              non_owner_table_acl_count: 1,
+            },
+          }),
+        },
+      ),
+      /non-owner table ACL drifted/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector resolves reviewed function identities without absorbing unrelated overloads", () => {
+  const inspector = readFileSync(
+    "scripts/private-table-rls-activation-production-inspect.mjs",
+    "utf8",
+  );
+
+  assert.match(inspector, /pg_catalog\.to_regprocedure\(expected\.identity\)/u);
+  assert.doesNotMatch(inspector, /procedure\.proname = ANY\(\$1::text\[\]\)/u);
 });

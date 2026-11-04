@@ -1,6 +1,5 @@
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
-import { prisma } from "@/lib/db";
 import { ReviewListingButtons } from "@/components/ReviewListingButtons";
 import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
 import Link from "next/link";
@@ -8,7 +7,10 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
-import { sellerProfileStaffReportTargets } from "@/lib/sellerProfileStaffAccess";
+import {
+  sellerProfileStaffListingReviewQueue,
+  sellerProfileStaffReportTargets,
+} from "@/lib/sellerProfileStaffAccess";
 
 export const metadata: Metadata = { title: "Review Queue — Admin" };
 
@@ -19,44 +21,21 @@ export default async function AdminReviewPage() {
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
 
-  const [totalPending, listings] = await Promise.all([
-    prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
-    prisma.listing.findMany({
-      where: { status: "PENDING_REVIEW" },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      take: REVIEW_QUEUE_LIMIT,
-      select: {
-        id: true,
-        sellerId: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        createdAt: true,
-        aiReviewFlags: true,
-        aiReviewScore: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-      },
-    }),
-  ]);
+  const staffClient = getOrderStaffReadClient();
+  const reviewQueue = await sellerProfileStaffListingReviewQueue(staffClient, {
+    actorId: staff.id,
+    limit: REVIEW_QUEUE_LIMIT,
+  });
+  const { totalPending, listings } = reviewQueue;
   const sellerProfileIds = [...new Set(listings.map((listing) => listing.sellerId))];
-  const listingCounts = sellerProfileIds.length > 0
-    ? await prisma.listing.groupBy({
-        by: ["sellerId"],
-        where: { sellerId: { in: sellerProfileIds } },
-        _count: { id: true },
-      })
-    : [];
   const sellerTargets = [];
   for (let start = 0; start < sellerProfileIds.length; start += SELLER_TARGET_CHUNK_SIZE) {
-    sellerTargets.push(...await sellerProfileStaffReportTargets(getOrderStaffReadClient(), {
+    sellerTargets.push(...await sellerProfileStaffReportTargets(staffClient, {
       actorId: staff.id,
       sellerProfileIds: sellerProfileIds.slice(start, start + SELLER_TARGET_CHUNK_SIZE),
     }));
   }
   const sellerTargetById = new Map(sellerTargets.map((seller) => [seller.id, seller]));
-  const listingCountBySellerId = new Map(
-    listingCounts.map((row) => [row.sellerId, row._count.id]),
-  );
   if (sellerTargetById.size !== sellerProfileIds.length) {
     throw new Error("Admin listing review seller projection returned an incomplete result");
   }
@@ -89,8 +68,8 @@ export default async function AdminReviewPage() {
             if (!seller) {
               throw new Error("Admin listing review seller projection is missing a target");
             }
-            const isFirstListing = (listingCountBySellerId.get(listing.sellerId) ?? 0) <= 1;
-            const thumb = listing.photos[0]?.url;
+            const isFirstListing = listing.sellerListingCount <= 1;
+            const thumb = listing.photoUrl;
 
             return (
               <div
@@ -149,8 +128,14 @@ export default async function AdminReviewPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <ReviewListingButtons listingId={listing.id} />
-                  <DeleteListingButton listingId={listing.id} />
+                  <ReviewListingButtons
+                    listingId={listing.id}
+                    reviewedAt={listing.updatedAt.toISOString()}
+                  />
+                  <DeleteListingButton
+                    listingId={listing.id}
+                    reviewedAt={listing.updatedAt.toISOString()}
+                  />
                   <Link
                     href={`${publicListingPath(listing.id, listing.title)}?preview=admin`}
                     target="_blank"

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const route = readFileSync("src/app/api/admin/listings/[id]/review/route.ts", "utf8");
 const access = readFileSync("src/lib/sellerProfileStaffAccess.ts", "utf8");
@@ -8,6 +9,12 @@ const migration = readFileSync(
   "prisma/migrations/20261020235999_prepare_seller_profile_staff_listing_review_transition/migration.sql",
   "utf8",
 );
+const listingPreparation = readFileSync(
+  listingDomainPreparationMigrationPath(),
+  "utf8",
+);
+const reviewPage = readFileSync("src/app/admin/review/page.tsx", "utf8");
+const reviewButtons = readFileSync("src/components/ReviewListingButtons.tsx", "utf8");
 
 test("admin listing review uses one isolated-staff transition", () => {
   assert.match(
@@ -19,6 +26,32 @@ test("admin listing review uses one isolated-staff transition", () => {
   assert.doesNotMatch(route, /include:\s*\{[\s\S]*?seller:\s*\{/u);
   assert.doesNotMatch(route, /logAdminActionOrThrow/u);
   assert.match(access, /grainline_seller_staff_listing_review_transition/u);
+});
+
+test("staff listing decisions bind the exact content version shown in the queue", () => {
+  assert.match(reviewPage, /sellerProfileStaffListingReviewQueue\(/u);
+  assert.match(reviewPage, /reviewedAt=\{listing\.updatedAt\.toISOString\(\)\}/u);
+  assert.match(reviewButtons, /reviewedAt: string/u);
+  assert.match(reviewButtons, /JSON\.stringify\(\{ action, reason: trimmedReason, reviewedAt \}\)/u);
+  assert.match(route, /reviewedAt: z\.iso\.datetime/u);
+  assert.match(route, /reviewedAt: new Date\(reviewedAt\)/u);
+  assert.match(route, /transition\.blockReason === 'LISTING_VERSION_CHANGED'/u);
+  assert.match(access, /reviewedAt: Date/u);
+  assert.match(access, /\$\{input\.reviewedAt\}::timestamp/u);
+  assert.match(
+    listingPreparation,
+    /grainline_seller_staff_listing_review_transition\(\s*p_actor_id text,\s*p_listing_id text,\s*p_operation text,\s*p_reason text,\s*p_reviewed_updated_at timestamp without time zone/,
+  );
+  assert.match(listingPreparation, /source_listing\."updatedAt" IS DISTINCT FROM p_reviewed_updated_at/u);
+  assert.match(listingPreparation, /'LISTING_VERSION_CHANGED'::text/u);
+  assert.match(
+    listingPreparation,
+    /GRANT EXECUTE ON FUNCTION public\.grainline_seller_staff_listing_review_transition\(\s*text,text,text,text,timestamp without time zone\s*\) TO grainline_staff_read_runtime/u,
+  );
+  assert.doesNotMatch(
+    listingPreparation,
+    /DROP FUNCTION[^;]*grainline_seller_staff_listing_review_transition\(text,text,text,text\)/u,
+  );
 });
 
 test("listing review transition retains staff, state, availability, and audit gates", () => {
