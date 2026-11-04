@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -90,6 +91,7 @@ describe("Round 8 public profile privacy guardrails", () => {
     const seller = source("src/app/seller/[id]/page.tsx");
     const customerPhotos = source("src/app/seller/[id]/customer-photos/page.tsx");
     const similar = source("src/app/api/listings/[id]/similar/route.ts");
+    const listingPreparation = source(listingDomainPreparationMigrationPath());
 
     assert.match(listing, /reviewerAccountActive: true/);
     assert.doesNotMatch(listing, /reviewer: \{ banned: false, deletedAt: null \}/);
@@ -105,15 +107,15 @@ describe("Round 8 public profile privacy guardrails", () => {
     assert.match(listingDetailAuthority, /seller\."allowLocalPickup"/);
     assert.match(listing, /const showPickupMap = listing\.seller\.allowLocalPickup && pickupMapPoint != null/);
     assert.match(listing, /\{showPickupMap && pickupMapPoint && \(/);
-    assert.match(seller, /reviewerAccountActive: true/);
+    assert.match(seller, /listingPublicCustomerPhotoPage\(/);
     assert.doesNotMatch(seller, /reviewer: \{ banned: false, deletedAt: null \}/);
-    assert.match(seller, /select: \{ listingId: true, reviewerId: true/);
-    assert.match(seller, /new Set\(customerPhotos\.map\(\(p\) => p\.review\.reviewerId\)\)\.size/);
+    assert.match(seller, /new Set\(customerPhotos\.map\(\(p\) => p\.reviewerId\)\)\.size/);
     assert.doesNotMatch(seller, /reviewerId:\s*p\.review\.reviewerId/);
-    assert.match(customerPhotos, /reviewerAccountActive: true/);
+    assert.match(customerPhotos, /listingPublicCustomerPhotoPage\(/);
     assert.doesNotMatch(customerPhotos, /reviewer: \{ banned: false, deletedAt: null \}/);
-    assert.match(customerPhotos, /reviewerId: \{ notIn: \[\.\.\.blockedUserIds\] \}/);
     assert.doesNotMatch(customerPhotos, /select: \{ listingId: true, reviewerId: true/);
+    assert.match(listingPreparation, /review\."reviewerAccountActive" = true/);
+    assert.match(listingPreparation, /relationship\."blockedId" IN \(\s*seller\."userId", review\."reviewerId"\s*\)/);
     assert.match(seller, /function safeSellerSocialUrl/);
     assert.match(seller, /normalizePublicHttpsUrl\(value, 2048\)/);
     assert.match(seller, /const sameAs = socialLinks\.map\(\(link\) => link\.url\)/);

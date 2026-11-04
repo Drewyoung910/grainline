@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -744,9 +745,7 @@ describe("post-launch UI follow-ups", () => {
   it("keeps customer-photo galleries scoped to publicly viewable listing detail pages", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
-    const listingAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingAuthority = source(listingDomainPreparationMigrationPath());
     const sitemap = source("src/app/sitemap.ts");
 
     assert.match(sellerPage, /listingPublicCustomerPhotoPage\(\s*meId,\s*seller\.id,/);

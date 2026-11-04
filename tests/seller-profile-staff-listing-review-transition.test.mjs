@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const route = readFileSync("src/app/api/admin/listings/[id]/review/route.ts", "utf8");
 const access = readFileSync("src/lib/sellerProfileStaffAccess.ts", "utf8");
@@ -9,7 +10,7 @@ const migration = readFileSync(
   "utf8",
 );
 const listingPreparation = readFileSync(
-  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+  listingDomainPreparationMigrationPath(),
   "utf8",
 );
 const reviewPage = readFileSync("src/app/admin/review/page.tsx", "utf8");

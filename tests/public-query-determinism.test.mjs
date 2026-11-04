@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -48,9 +49,7 @@ describe("public query determinism", () => {
     const browse = source("src/app/browse/page.tsx");
     const sellerShop = source("src/app/seller/[id]/shop/page.tsx");
     const sellerPage = source("src/app/seller/[id]/page.tsx");
-    const listingPublicCatalogAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPublicCatalogAuthority = source(listingDomainPreparationMigrationPath());
     const listingPage = source("src/app/listing/[id]/page.tsx");
     const tagPage = source("src/app/tag/[slug]/page.tsx");
     const metroPage = source("src/app/browse/[metroSlug]/page.tsx");
@@ -219,9 +218,7 @@ describe("public query determinism", () => {
       "prisma/migrations/20261019030000_prepare_seller_profile_public_browse_authority/migration.sql",
     );
 
-    const listingPublicCatalogAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingPublicCatalogAuthority = source(listingDomainPreparationMigrationPath());
 
     assert.match(browse, /locationLat: latFilter!/);
     assert.match(listingPublicCatalogAuthority, /grainline_seller_public_browse_nearby\(/);
@@ -266,9 +263,7 @@ describe("public query determinism", () => {
   it("keeps public search suggestion caps stable on ties", () => {
     const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
-    const listingSuggestionAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingSuggestionAuthority = source(listingDomainPreparationMigrationPath());
     const sellerPublicNameAuthority = source(
       "prisma/migrations/20261019040000_prepare_seller_profile_public_name_authority/migration.sql",
     );
@@ -306,9 +301,7 @@ describe("public query determinism", () => {
   it("keeps public fuzzy suggestions on indexable trigram predicates", () => {
     const searchSuggestions = source("src/app/api/search/suggestions/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
-    const listingSuggestionAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingSuggestionAuthority = source(listingDomainPreparationMigrationPath());
 
     for (const text of [searchSuggestions, blogSuggestions]) {
       assert.match(text, /set_config\('pg_trgm\.similarity_threshold'/);
@@ -344,9 +337,7 @@ describe("public query determinism", () => {
     const tagPage = source("src/app/tag/[slug]/page.tsx");
     const authorPage = source("src/app/blog/author/[slug]/page.tsx");
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
-    const listingReviewHistoryAuthority = source(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    );
+    const listingReviewHistoryAuthority = source(listingDomainPreparationMigrationPath());
     const footerMetros = source("src/lib/footerMetros.ts");
     const publicSellerStats = source("src/lib/publicSellerStats.ts");
     const publicOrderAuthority = source(
