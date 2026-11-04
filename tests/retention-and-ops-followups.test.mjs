@@ -120,7 +120,11 @@ describe("retention and ops-health follow-ups", () => {
       "utf8",
     );
 
-    assert.equal((source.match(/await calculateSellerMetrics\(seller\.userId\)/g) ?? []).length, 1);
+    // The bounded Guild batch now returns both the SellerProfile id and its
+    // owner user id. Metrics are keyed by SellerProfile, so the final
+    // pre-transition recheck must use seller.id rather than the owner's id.
+    assert.equal((source.match(/await calculateSellerMetrics\(seller\.id\)/g) ?? []).length, 1);
+    assert.doesNotMatch(source, /await calculateSellerMetrics\(seller\.userId\)/);
     assert.match(source, /calculatedAt: metrics\.calculatedAt/);
     assert.match(authority, /metrics\."calculatedAt" = p_calculated_at/);
     assert.match(authority, /metrics\."calculatedAt" >= source_now - INTERVAL '10 minutes'/);
