@@ -268,7 +268,7 @@ export default async function ReviewsSection({
       : false);
 
   return (
-    <section id="reviews" className="mt-12 border-t border-stone-200/80 pt-10">
+    <section id="reviews" className="mb-12 mt-12 border-t border-stone-200/80 pt-10">
       <div className="grid min-w-0 gap-8 lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-12">
         <div className="min-w-0 lg:sticky lg:top-[calc(var(--site-header-offset)+1.5rem)] lg:self-start">
           <h2 className="font-display text-[clamp(1.9rem,3vw,2.5rem)] font-normal leading-tight text-neutral-900">

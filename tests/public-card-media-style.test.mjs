@@ -34,7 +34,7 @@ describe("public card media styling", () => {
     const publicSkeletons = source("src/components/PublicRouteSkeletons.tsx");
 
     assert.match(blogIndex, /className="[^"]*aspect-\[16\/9\][^"]*md:w-1\/2/);
-    assert.match(blogIndex, /className="photo-save-surface relative overflow-hidden bg-neutral-100"/);
+    assert.match(blogIndex, /className="photo-save-surface group\/photo relative overflow-hidden bg-neutral-100"/);
     assert.match(blogIndex, /className="block aspect-\[4\/3\]"/);
     assert.doesNotMatch(blogAuthor, /aspect-\[16\/9\]/);
     assert.match(blogAuthor, /className="photo-save-surface relative overflow-hidden bg-neutral-100"/);

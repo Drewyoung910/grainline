@@ -470,7 +470,7 @@ export default function Header() {
       />
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-[1600px] items-center gap-2 px-3 py-2.5 sm:px-6 lg:gap-6 lg:px-8 lg:py-3 xl:gap-8"
+        className="mx-auto flex max-w-[1600px] items-center gap-2 px-3 py-2.5 sm:px-6 lg:gap-5 lg:px-8 lg:py-3 xl:gap-6"
       >
         {/* Logo: one mask so its color can follow the header from cream over
             the photo to espresso on frosted paper. */}
@@ -489,12 +489,12 @@ export default function Header() {
         </Link>
 
         {/* ── Desktop (lg+): search, nav, tools ─────────────────────────── */}
-        <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex xl:gap-8">
-          <span data-header-search-slot className="flex min-w-[220px] max-w-[640px] flex-1">
+        <div className="hidden min-w-0 flex-1 items-center gap-4 lg:flex xl:gap-6">
+          <span data-header-search-slot className="flex min-w-[240px] max-w-[820px] flex-1">
             <SearchBar tone={clear ? "glass" : "solid"} />
           </span>
 
-          <div data-header-nav className="flex shrink-0 items-center gap-6">
+          <div data-header-nav className="flex shrink-0 items-center gap-5 xl:gap-6">
             <Link href="/browse" aria-current={navLinkCurrent("/browse")} className={navLinkClass("/browse")}>
               Browse
             </Link>
@@ -535,7 +535,7 @@ export default function Header() {
             {/* Keep one stable auth slot while Clerk resolves. Without the
                 reserved width, the late Sign in pill shifted the cart and
                 search after first paint on every signed-out desktop load. */}
-            <span className="ml-1.5 inline-flex min-w-[76px] justify-end">
+            <span className="inline-flex w-[76px] shrink-0 justify-center">
               <Show
                 when="signed-in"
                 fallback={

@@ -23,6 +23,7 @@ import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
+import CardMediaImage from "@/components/CardMediaImage";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Wrench } from "@/components/icons";
@@ -304,7 +305,7 @@ export default async function ListingPage({
         title: true,
         priceCents: true,
         currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, originalUrl: true } },
       },
     }),
     prisma.review.findMany({
@@ -522,7 +523,7 @@ export default async function ListingPage({
         {/* Left: gallery */}
         <div className="relative min-w-0">
           {/* Favorite button overlaid */}
-          <FavoriteButton listingId={listingId} initialSaved={isFavorited} size={22} />
+          <FavoriteButton listingId={listingId} initialSaved={isFavorited} />
           <ListingGallery photos={listing.photos} title={listing.title} />
         </div>
 
@@ -857,6 +858,21 @@ export default async function ListingPage({
         );
       })()}
 
+      {/* Reviews are purchase evidence, not a recommendation rail. Keep them
+          with the listing's core information so they are not buried below
+          three unrelated discovery sections. */}
+      <ReviewsSection
+        listingId={listingId}
+        listingTitle={listing.title}
+        meId={meId}
+        sellerName={sellerName}
+        sellerAvatarUrl={sellerAvatar}
+        viewerIsSeller={viewerIsSeller}
+        initialSort={sortKey}
+        edit={editingMine}
+        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+      />
+
       {/* ── More from this maker ────────────────────────────────────────── */}
       {moreFromSeller.length > 0 && (
         <section className="mb-10">
@@ -866,14 +882,20 @@ export default async function ListingPage({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
               <div key={ml.id} className="relative">
-                <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+                <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-black/[0.05] shadow-[0_2px_8px_-7px_rgba(44,31,26,0.42)] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_18px_34px_-14px_rgba(44,31,26,0.42),0_4px_10px_-4px_rgba(44,31,26,0.22)]">
                   <Link href={publicListingPath(ml.id, ml.title)} className="block aspect-[4/5]">
                     {ml.photos[0]?.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
-                        width={320}
-                        height={400}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" />
+                      <span className="relative block h-full w-full">
+                        <CardMediaImage
+                          src={ml.photos[0].url}
+                          fallbackSrc={ml.photos[0].originalUrl}
+                          alt={ml.title}
+                          sizes="(max-width: 639px) 50vw, 25vw"
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
+                          fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
+                      </span>
                     ) : (
                       <div className="w-full h-full bg-neutral-200" />
                     )}
@@ -907,18 +929,6 @@ export default async function ListingPage({
         viewerUserId={meId}
       />
 
-      {/* ── Reviews ───────────────────────────────────────────────────────── */}
-      <ReviewsSection
-        listingId={listingId}
-        listingTitle={listing.title}
-        meId={meId}
-        sellerName={sellerName}
-        sellerAvatarUrl={sellerAvatar}
-        viewerIsSeller={viewerIsSeller}
-        initialSort={sortKey}
-        edit={editingMine}
-        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
-      />
     </main>
     </div>
   );

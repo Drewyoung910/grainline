@@ -4,12 +4,12 @@
 import * as React from "react";
 import { Suspense } from "react";
 import { flushSync } from "react-dom";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import GiftNoteSection from "@/components/GiftNoteSection";
 import ShippingAddressForm from "@/components/ShippingAddressForm";
 import ShippingRateSelector from "@/components/ShippingRateSelector";
-import EmbeddedCheckoutPanel from "@/components/EmbeddedCheckoutPanel";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
 import {
   clearAnonymousCart,
@@ -32,6 +32,17 @@ import RollingAmount from "@/components/RollingAmount";
 import RollingNumber from "@/components/RollingNumber";
 import { useToast } from "@/components/Toast";
 import { useQuantitySteps } from "@/lib/useQuantitySteps";
+
+// Keep Stripe.js out of ordinary browsing and cart-prefetch traffic. The
+// payment integration is only fetched after the buyer reaches payment.
+const EmbeddedCheckoutPanel = dynamic(() => import("@/components/EmbeddedCheckoutPanel"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-md border border-neutral-200 bg-[#F7F5F0] p-4 text-sm text-neutral-600">
+      Loading secure checkout...
+    </div>
+  ),
+});
 
 const QUANTITY_STEP_CLASS =
   "inline-flex size-9 touch-manipulation items-center justify-center text-base text-neutral-700 transition-colors hover:bg-[#EFEAE0] aria-disabled:cursor-not-allowed aria-disabled:text-neutral-300 aria-disabled:hover:bg-transparent [@media(pointer:coarse)]:size-11";

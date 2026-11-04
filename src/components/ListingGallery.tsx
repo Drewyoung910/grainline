@@ -200,7 +200,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900`}
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:bg-transparent`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -222,7 +222,7 @@ export default function ListingGallery({
           sizes="(max-width: 1023px) 100vw, 50vw"
           preload={mainIndex === 0}
           data-fly-to-cart-source=""
-          className="h-full w-full object-contain"
+          className="h-full w-full object-cover lg:object-contain"
           onLoad={(e) => {
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
@@ -286,7 +286,7 @@ export default function ListingGallery({
           className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
           aria-hidden="true"
         >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
+          <span className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#2C1F1A]/62 text-[#FBF8F3] shadow-[0_6px_18px_-8px_rgba(20,13,10,0.9),0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
             </svg>

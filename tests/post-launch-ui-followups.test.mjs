@@ -145,16 +145,32 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
 
-  it("keeps browse cards at 4:5 while fitting the full listing photo inside the viewport", () => {
-    assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
+  it("keeps browse cards at 4:5 while giving listing photos a stable responsive frame", () => {
+    const card = source("src/components/ListingCard.tsx");
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+    const homePage = source("src/app/page.tsx");
+    const recentlyViewed = source("src/components/RecentlyViewed.tsx");
+    const similarItems = source("src/components/SimilarItems.tsx");
+    assert.match(card, /aspect-\[4\/5\]/);
+    assert.match(card, /listing-card-photo[\s\S]*rounded-xl/);
+    assert.match(listingPage, /photo-save-surface[\s\S]*rounded-xl/);
+    assert.match(homePage, /item\.kind === "listing"[\s\S]*aspect-\[4\/5\][^\n]*rounded-xl/);
+    assert.match(recentlyViewed, /photo-save-surface[^\n]*rounded-xl/);
+    assert.doesNotMatch(recentlyViewed, /aspect-\[4\/5\][^\n]*rounded-2xl|rounded-2xl[^\n]*aspect-\[4\/5\]/);
+    assert.match(similarItems, /aspect-\[4\/5\][^\n]*rounded-xl/);
     const gallery = source("src/components/ListingGallery.tsx");
     // The frame height is shared with the loading skeleton, so the two can't drift.
     const frame = source("src/lib/photoMotion.ts");
+    const loading = source("src/app/listing/[id]/loading.tsx");
     assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
-    assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
-    assert.match(gallery, /className="h-full w-full object-contain"/);
-    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
-    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
+    assert.match(loading, /LISTING_GALLERY_FRAME_HEIGHT/);
+    assert.match(loading, /min-h-\[100svh\]/);
+    assert.match(loading, /bg-\[#EFEAE0\] animate-pulse lg:bg-transparent lg:animate-none/);
+    assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
+    assert.match(gallery, /overflow-hidden rounded-lg/);
+    assert.doesNotMatch(gallery, /overflow-hidden rounded-xl/);
+    assert.match(frame, /aspect-\[4\/5\] h-auto/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),28rem/);
     assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
@@ -381,10 +397,9 @@ describe("post-launch UI follow-ups", () => {
     const header = source("src/components/Header.tsx");
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
-    assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // Search grows to a 640px cap, the text nav follows it, and the tools
-    // sit at the far right (motion prototype layout, 2026-10-30).
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    // Search grows to the documented 820px cap, the text nav follows it, and
+    // the tools sit at the far right without an oversized avatar gap.
+    assert.match(header, /data-header-search-slot className="flex min-w-\[240px\] max-w-\[820px\] flex-1"/);
     assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 
@@ -554,6 +569,13 @@ describe("post-launch UI follow-ups", () => {
     assert.match(docs, /Blog comment form[\s\S]*inherits the sitewide text-field focus treatment/);
     assert.match(docs, /MessageComposer\.tsx[\s\S]*sitewide field-focus treatment/);
     assert.doesNotMatch(docs, /Blog comment form[\s\S]{0,160}focus:border-stone-500/);
+  });
+
+  it("does not show inert blog discovery controls before the first story", () => {
+    const blog = source("src/app/blog/page.tsx");
+    assert.match(blog, /const showDiscoveryControls = Boolean\(isSearching \|\| total > 0\)/);
+    assert.match(blog, /\{showDiscoveryControls && \([\s\S]*?<BlogSearchBar/);
+    assert.match(blog, /\{showDiscoveryControls && <div className="flex flex-wrap items-center gap-2 mb-6">/);
   });
 
   it("keeps the Fable newsletter and follow CTA placement honest", () => {

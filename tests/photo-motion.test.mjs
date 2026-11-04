@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { isPlainClick, photoDeltaTransform } = await import("../src/lib/photoMotion.ts");
+const { fittedPhotoRect, isPlainClick, photoDeltaTransform } = await import("../src/lib/photoMotion.ts");
 
 function source(path) {
   return readFileSync(path, "utf8");
@@ -35,6 +35,25 @@ describe("photo continuity motion", () => {
     }
   });
 
+  it("opens a cropped card into the visible bounds of a contained photo", () => {
+    assert.deepEqual(
+      fittedPhotoRect({ left: 0, top: 0, width: 200, height: 250 }, 4 / 3, "cover"),
+      { left: -66.66666666666666, top: 0, width: 333.3333333333333, height: 250 },
+    );
+    assert.deepEqual(
+      fittedPhotoRect({ left: 300, top: 100, width: 600, height: 450 }, 4 / 3, "contain"),
+      { left: 300, top: 100, width: 600, height: 450 },
+    );
+    assert.deepEqual(
+      fittedPhotoRect({ left: 300, top: 100, width: 600, height: 450 }, 2 / 3, "contain"),
+      { left: 450, top: 100, width: 300, height: 450 },
+    );
+    assert.equal(
+      fittedPhotoRect({ left: 0, top: 0, width: 0, height: 450 }, 4 / 3, "contain"),
+      null,
+    );
+  });
+
   it("keeps motion optional and every viewer's existing safety boundaries intact", () => {
     const motion = source("src/lib/photoMotion.ts");
     const hook = source("src/lib/usePhotoViewerMotion.ts");
@@ -47,6 +66,8 @@ describe("photo continuity motion", () => {
     assert.match(motion, /if \(from\.bottom < 0 \|\| from\.top > window\.innerHeight\) return/);
     assert.match(motion, /if \(!photo\.isConnected \|\| !source\.isConnected\) return/);
     assert.match(motion, /function discardFlyer/);
+    assert.match(motion, /shown\.decode\(\)/);
+    assert.match(motion, /discardFlyer\(flyer\)/);
     assert.match(hook, /if \(closingRef\.current\) return/);
     assert.match(hook, /latestRef\.current\.onClosed\(\)/);
     assert.match(card, /if \(!isPlainClick\(event\)\) return/);

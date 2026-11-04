@@ -91,13 +91,13 @@ export default function FavoriteButton({
       className="listing-save-control group/fav absolute right-0 top-0 z-10 inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,translate,scale] duration-200 ease-out focus-visible:outline-none"
       style={{ lineHeight: 0 }}
     >
-      {/* Solid white circle keeps the heart readable on any photo. It stays
+      {/* A dark frosted circle keeps the heart readable on any photo. It stays
           put when tapped; only the heart inside pops. The 44px button is the
           tap target; the visible circle is smaller so it clears the photo
           edges. */}
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_5px_16px_-6px_rgba(44,31,26,0.62),0_0_0_1px_rgba(44,31,26,0.14)] transition-[background-color,scale,box-shadow] duration-150 ease-out group-hover/fav:bg-white group-hover/fav:shadow-[0_6px_18px_-6px_rgba(44,31,26,0.68),0_0_0_1px_rgba(44,31,26,0.2)] motion-safe:group-active/fav:scale-[0.92] group-focus-visible/fav:ring-2 group-focus-visible/fav:ring-neutral-900 group-focus-visible/fav:ring-offset-2 group-focus-visible/fav:ring-offset-white"
+        className="absolute h-[34px] w-[34px] rounded-full bg-[#2C1F1A]/62 shadow-[0_6px_18px_-8px_rgba(20,13,10,0.9),0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-[background-color,scale,box-shadow] duration-180 ease-out group-hover/fav:scale-[1.06] group-hover/fav:bg-[#2C1F1A]/74 group-hover/fav:shadow-[0_8px_22px_-9px_rgba(20,13,10,0.95),0_0_0_1px_rgba(255,255,255,0.38)] motion-safe:group-active/fav:scale-[0.94] group-focus-visible/fav:ring-2 group-focus-visible/fav:ring-white group-focus-visible/fav:ring-offset-2 group-focus-visible/fav:ring-offset-[#2C1F1A]"
       />
       {popCount > 0 && (
         <span key={`burst-${popCount}`} aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -116,7 +116,7 @@ export default function FavoriteButton({
         height={size - 2}
         viewBox="0 0 24 24"
         aria-hidden="true"
-        className={`relative block -translate-y-px transform-gpu overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
+        className={`relative block transform-gpu overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
@@ -124,7 +124,7 @@ export default function FavoriteButton({
           strokeWidth={1.8}
           strokeLinejoin="round"
           className={`transition-[fill,stroke] duration-200 ${
-            saved ? "fill-red-500 stroke-red-500" : "fill-transparent stroke-neutral-900"
+            saved ? "fill-red-500 stroke-red-400" : "fill-transparent stroke-[#FBF8F3]"
           }`}
         />
       </svg>
