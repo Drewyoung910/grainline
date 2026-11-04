@@ -146,7 +146,11 @@ describe("post-launch UI follow-ups", () => {
   });
 
   it("keeps browse cards at 4:5 while giving listing photos a stable responsive frame", () => {
-    assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
+    const card = source("src/components/ListingCard.tsx");
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+    assert.match(card, /aspect-\[4\/5\]/);
+    assert.match(card, /listing-card-photo[\s\S]*rounded-xl/);
+    assert.match(listingPage, /photo-save-surface[\s\S]*rounded-xl/);
     const gallery = source("src/components/ListingGallery.tsx");
     // The frame height is shared with the loading skeleton, so the two can't drift.
     const frame = source("src/lib/photoMotion.ts");
@@ -155,6 +159,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(loading, /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(loading, /min-h-\[100svh\]/);
     assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
+    assert.match(gallery, /overflow-hidden rounded-lg/);
+    assert.doesNotMatch(gallery, /overflow-hidden rounded-xl/);
     assert.match(frame, /aspect-\[4\/5\] h-auto/);
     assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),28rem/);
     assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
