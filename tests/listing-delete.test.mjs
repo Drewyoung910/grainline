@@ -102,23 +102,38 @@ describe("listing delete lifecycle", () => {
       "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
       "utf8",
     );
-    assert.match(dashboard, /listingOwnerSummaryRows\(me\.id,[\s\S]*includeArchived: false/);
+    assert.match(
+      dashboard,
+      /listingOwnerSummaryRows\(actorUserId,[\s\S]*includeArchived: false/,
+    );
     assert.match(
       listingOwnerMigration,
       /p_include_archived OR listing\."archivedAt" IS NULL/,
     );
-    assert.match(shop, /\{ sellerId, archivedAt: null,/);
+    assert.match(shop, /listingOwnerCatalogPage/);
+    assert.match(shop, /publicListingWhere\(\{ sellerId,/);
   });
 
   it("enforces archivedAt in stale edit locks and every listing-detail visibility path", () => {
     const stockMutation = readFileSync("src/lib/listingStockMutation.ts", "utf8");
     const visibility = readFileSync("src/lib/listingVisibility.ts", "utf8");
     const listingPage = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
+    const listingDetailAccess = readFileSync("src/lib/listingDetailAccess.ts", "utf8");
+    const listingOwnerMigration = readFileSync(
+      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      "utf8",
+    );
 
-    assert.match(stockMutation, /SELECT[\s\S]*"archivedAt"[\s\S]*FOR UPDATE/);
+    assert.match(stockMutation, /grainline_listing_owner_stock_lock/);
+    assert.match(
+      listingOwnerMigration,
+      /grainline_listing_owner_stock_lock[\s\S]*listing\."archivedAt"[\s\S]*FOR UPDATE OF listing/,
+    );
     assert.match(visibility, /if \(listing\.archivedAt\) return false/);
     assert.match(visibility, /archivedAt: null/);
-    assert.match(listingPage, /archivedAt: true/);
+    assert.match(listingPage, /getListingForDetailPage/);
+    assert.match(listingPage, /listingStaffDetailSource/);
+    assert.match(listingDetailAccess, /row\.archivedAt !== null/);
   });
 
   it("isolates the additive migration from historical release guards and restores it for PostgreSQL proof", () => {
