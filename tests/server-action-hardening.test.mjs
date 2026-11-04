@@ -74,7 +74,12 @@ describe("server action hardening guardrails", () => {
     assert.match(createPage, /logServerError\(updateError, \{/);
     assert.match(createPage, /logServerError\(e, \{/);
     assert.doesNotMatch(createPage, /console\.error\("\[listing-create\]/);
-    assert.match(createPage, /updateMany\(\{\s*where: \{ id: created\.id, status: ListingStatus\.PENDING_REVIEW \}/s);
+    assert.match(
+      createPage,
+      /import \{ applyVersionBoundListingAiReviewTransition \} from "@\/lib\/listingAiReviewTransition"/,
+    );
+    assert.match(createPage, /reviewedAt: reviewedListingVersion/);
+    assert.match(createPage, /activatedByThisReview = reviewApplied/);
     const createFanoutBlock = createPage.slice(createPage.lastIndexOf("fanOutListingToFollowers"));
     assert.doesNotMatch(createFanoutBlock, /catch \{ \/\* non-fatal \*\/ \}/);
   });

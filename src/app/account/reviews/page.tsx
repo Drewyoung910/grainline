@@ -5,6 +5,7 @@ import { ensureUserForPage } from "@/lib/pageAuth";
 import { DeleteOwnReviewButton } from "@/components/DeleteOwnReviewButton";
 import { publicListingPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { listingActorReviewContexts } from "@/lib/listingReviewHistoryAccess";
 
 export const metadata: Metadata = { title: "My Reviews", robots: { index: false, follow: false } };
 
@@ -23,22 +24,31 @@ export default async function MyReviewsPage({
   const totalPages = Math.max(1, Math.ceil(totalReviews / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
 
-  const reviews = await prisma.review.findMany({
+  const reviewRows = await prisma.review.findMany({
     where: { reviewerId: me.id },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     include: {
-      listing: {
-        select: {
-          id: true,
-          title: true,
-          photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        },
-      },
       photos: { orderBy: { sortOrder: "asc" } },
     },
   });
+  const listingContexts = await listingActorReviewContexts(
+    me.id,
+    reviewRows.map((review) => review.id),
+  );
+  const listingByReviewId = new Map(listingContexts.map((context) => [context.reviewId, context]));
+  if (listingByReviewId.size !== reviewRows.length) {
+    throw new Error("My Reviews listing history is incomplete");
+  }
+  const reviews = reviewRows.map((review) => ({
+    ...review,
+    listing: {
+      id: listingByReviewId.get(review.id)!.listingId,
+      title: listingByReviewId.get(review.id)!.listingTitle,
+      listingPhotoUrl: listingByReviewId.get(review.id)!.listingPhotoUrl,
+    },
+  }));
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
@@ -59,11 +69,11 @@ export default async function MyReviewsPage({
         <div className="space-y-4">
           {reviews.map((r) => (
             <div key={r.id} className="card-section flex gap-4 p-4">
-              {r.listing.photos[0]?.url && (
+              {r.listing.listingPhotoUrl && (
                 <Link href={publicListingPath(r.listing.id, r.listing.title)} className="shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={r.listing.photos[0].url}
+                    src={r.listing.listingPhotoUrl}
                     alt={r.listing.title}
                     className="h-16 w-16 rounded-lg object-cover"
                   />

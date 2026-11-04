@@ -39,6 +39,12 @@ import { proveSellerProfilePublicProfileAuthority } from "../tools/database-full
 import { proveSellerProfilePublicFavoriteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-favorite-target.mjs";
 import { proveSellerProfilePublicReviewVoteTarget } from "../tools/database-full-chain/scenarios/seller-profile-public-review-vote-target.mjs";
 import { proveReviewVoteAuthorities } from "../tools/database-full-chain/scenarios/review-vote-authorities.mjs";
+import { proveListingDomainOwnerMutations } from "../tools/database-full-chain/scenarios/listing-domain-owner-mutations.mjs";
+import { proveListingDomainDetailAuthorities } from "../tools/database-full-chain/scenarios/listing-domain-detail-authorities.mjs";
+import { proveListingDomainPublicCatalog } from "../tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs";
+import { proveListingDomainStaffReferences } from "../tools/database-full-chain/scenarios/listing-domain-staff-references.mjs";
+import { proveListingDomainReviewHistory } from "../tools/database-full-chain/scenarios/listing-domain-review-history.mjs";
+import { proveListingDomainRlsActivation } from "../tools/database-full-chain/scenarios/listing-domain-activation.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -151,6 +157,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   ["20261028060000_activate_follow_rls", "follow_v1"],
   ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
   ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+  ["20261102060000_activate_listing_domain_rls", "listing_domain_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -776,6 +783,33 @@ test(
       await proveReviewVoteAuthorities({
         connectionString: proofDatabaseUrl,
         database: adapter,
+        repositoryRoot,
+        seller: fixture,
+      });
+      await proveListingDomainOwnerMutations({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainDetailAuthorities({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainPublicCatalog({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainStaffReferences({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainReviewHistory({
+        database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainRlsActivation({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        ownerClient: client,
         repositoryRoot,
         seller: fixture,
       });

@@ -45,7 +45,7 @@ describe("Notification inventory authority", () => {
   it("writes manual low-stock and restock authority atomically", () => {
     assert.equal((stockRoute.match(/await createNotification\(\{/g) ?? []).length, 1);
     assert.equal((stockRoute.match(/sourceType: NOTIFICATION_SOURCE_TYPES/g) ?? []).length, 1);
-    assert.match(stockRoute, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(stockRoute, /withDbUserContext\(me\.id, async \(tx\) =>/);
     assert.match(stockRoute, /action: "MANUAL_LISTING_STOCK_LOW"/);
     assert.match(stockRoute, /client: tx/);
     assert.match(stockRoute, /sourceType: NOTIFICATION_SOURCE_TYPES\.MANUAL_LOW_STOCK/);

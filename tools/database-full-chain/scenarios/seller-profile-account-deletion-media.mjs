@@ -123,14 +123,15 @@ export async function proveSellerProfileAccountDeletionMediaAuthority({ database
 
   await database.query("SET ROLE grainline_app_runtime");
   try {
-    assert.deepEqual(rowsOf(await database.query(
+    const actualUrls = rowsOf(await database.query(
       `SELECT url
          FROM public.grainline_seller_account_deletion_public_media_urls(
            $1, 1, $2::uuid
          )
         ORDER BY url ASC`,
       [sideEffectId, claimToken],
-    )).map((row) => row.url), allExpectedUrls);
+    )).map((row) => row.url).sort();
+    assert.deepEqual(actualUrls, allExpectedUrls);
 
     await assert.rejects(
       database.query(

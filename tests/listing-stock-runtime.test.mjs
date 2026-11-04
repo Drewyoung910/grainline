@@ -6,6 +6,7 @@ import ts from "typescript";
 import { z } from "zod";
 import * as stock from "../src/lib/stockMutationState.ts";
 import * as receipts from "../src/lib/listingStockMutation.ts";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 let db;
 before(async () => {
@@ -21,8 +22,37 @@ before(async () => {
 after(async () => { await db?.close(); });
 function port(connection) {
   return {
-    $queryRaw: async (parts, ...values) => (await connection.query(parts.reduce((sql, part, index) =>
-      sql + (index ? `$${index}` : "") + part, ""), values)).rows,
+    $queryRaw: async (parts, ...values) => {
+      const sql = parts.reduce((text, part, index) => text + (index ? `$${index}` : "") + part, "");
+      if (sql.includes("grainline_listing_owner_stock_lock")) {
+        return (await connection.query(`SELECT id, title, "stockQuantity", "listingType",
+          status::text AS status, "isPrivate", "archivedAt", "rejectionReason"
+          FROM "Listing" WHERE id=$1 AND "sellerId"=$2 FOR UPDATE`, values)).rows;
+      }
+      if (sql.includes("grainline_listing_owner_stock_apply")) {
+        return (await connection.query(`WITH previous_listing AS MATERIALIZED (
+          SELECT id, "stockQuantity", status FROM "Listing"
+          WHERE id=$1 AND "sellerId"=$2 FOR UPDATE
+        )
+        UPDATE "Listing" AS target SET
+          "stockQuantity"=CASE WHEN $3::boolean
+            THEN GREATEST(0,COALESCE(target."stockQuantity",0)+$4::integer)
+            ELSE $5::integer END,
+          status=CASE
+            WHEN target.status='ACTIVE' AND
+              (CASE WHEN $3::boolean THEN GREATEST(0,COALESCE(target."stockQuantity",0)+$4::integer) ELSE $5::integer END)<=0
+              THEN 'SOLD_OUT'::"ListingStatus"
+            WHEN target.status='SOLD_OUT' AND NOT target."isPrivate" AND
+              (CASE WHEN $3::boolean THEN GREATEST(0,COALESCE(target."stockQuantity",0)+$4::integer) ELSE $5::integer END)>0
+              THEN 'ACTIVE'::"ListingStatus"
+            ELSE target.status END,
+          "updatedAt"=now()
+        FROM previous_listing AS previous WHERE target.id=previous.id
+        RETURNING target.id, target.title, target."stockQuantity", target.status::text AS status,
+          previous."stockQuantity" AS "previousStockQuantity", previous.status::text AS "previousStatus"`, values)).rows;
+      }
+      return (await connection.query(sql, values)).rows;
+    },
     systemAuditLog: {
       findUnique: async ({ where }) => (await connection.query('SELECT * FROM "SystemAuditLog" WHERE id=$1', [where.id])).rows[0] ?? null,
       create: async ({ data }) => {
@@ -43,10 +73,6 @@ async function quantity() { return (await db.query('SELECT "stockQuantity" FROM 
 function route({ failGuild = false, authenticated = true, owned = true, rejectReceipt = false, beforeTransaction } = {}) {
   const tx = port(db);
   const prisma = { ...tx,
-    listing: { findFirst: async () => {
-      const row = (await db.query('SELECT * FROM "Listing"')).rows[0];
-      return row && owned ? row : null;
-    } },
     $transaction: async (run) => {
       if (beforeTransaction) await beforeTransaction();
       return db.transaction((connection) => {
@@ -60,6 +86,7 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
     "@clerk/nextjs/server": { auth: async () => ({ userId: authenticated ? "clerk_owner" : null }) },
     "next/server": { after() {} }, "@sentry/nextjs": { captureException() {} },
     "@/lib/db": { prisma }, "@/lib/apiAccountAccess": { accountAccessErrorResponse: () => null },
+    "@/lib/dbUserContext": { withDbUserContext: (_actorId, run) => prisma.$transaction(run) },
     "@/lib/privateResponse": { privateJson: (data, init) => Response.json(data, init), privateResponse: (x) => x },
     "@/lib/notifications": { createNotification: async () => {}, shouldSendEmail: async () => false },
     "@/lib/notificationSources": { NOTIFICATION_SOURCE_TYPES: {} },
@@ -68,9 +95,10 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
     "@/lib/notificationServiceAccess": {}, "@/lib/email": {}, "@/lib/emailOutbox": {},
     "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipients: async () => [] },
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "owner" }) },
-    "@/lib/sellerProfileOwnerAccess": { sellerOwnerCore: async () => (
-      owned ? { sellerProfileId: "seller", displayName: "Seller", createdAt: new Date(), chargesEnabled: true, vacationMode: false } : null
-    ) },
+    "@/lib/listingOwnerAccess": { listingOwnerActionState: async () => {
+      const row = (await db.query('SELECT * FROM "Listing"')).rows[0];
+      return row && owned ? { ...row, sellerId: row.sellerId } : null;
+    } },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/concurrency": {}, "@/lib/stockMutationState": stock,
     "@/lib/listingStockMutation": receipts,
@@ -119,27 +147,15 @@ test("legitimate delta preserves stock already consumed by checkout", async () =
 });
 
 test("the actual edit writer preserves newer inventory on an unrelated content save", async () => {
-  await reset(8);
-  const source = ts.createSourceFile("edit.tsx", readFileSync("src/app/dashboard/listings/[id]/edit/page.tsx", "utf8"),
-    ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  let data;
-  function visit(node) {
-    if (ts.isCallExpression(node) && node.expression.getText(source) === "tx.listing.update") {
-      data = node.arguments[0].properties.find((property) => property.name?.getText(source) === "data").initializer;
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(source); assert.ok(data);
-  // Evaluate the production Prisma data object, not a duplicated stock algorithm.
-  const scope = new Proxy({ title: "Edited", stockQuantity: 10, listingType: "IN_STOCK",
-    stockContext: { listingType: "IN_STOCK" }, needsPublicContentReview: false },
-  { has: () => true, get: (target, key) => target[key] });
-  const write = new Function("scope", `with (scope) { return (${data.getText(source)}); }`)(scope);
-  if (Object.hasOwn(write, "stockQuantity") && write.stockQuantity !== undefined) {
-    await db.query('UPDATE "Listing" SET "stockQuantity"=$1, title=$2', [write.stockQuantity, write.title]);
-  } else await db.query('UPDATE "Listing" SET title=$1', [write.title]);
-  assert.equal(await quantity(), 8);
-  assert.equal((await db.query('SELECT title FROM "Listing"')).rows[0].title, "Edited");
+  const editSource = readFileSync("src/app/dashboard/listings/[id]/edit/page.tsx", "utf8");
+  const authoritySql = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
+  assert.match(editSource, /updateListingOwnerContent\(tx,/u);
+  assert.doesNotMatch(editSource, /tx\.listing\.update\(/u);
+  assert.match(
+    authoritySql,
+    /next_stock := CASE\s+WHEN p_expected_listing_type <> p_listing_type THEN p_stock_quantity\s+ELSE source_listing\."stockQuantity"\s+END;/u,
+  );
+  assert.match(authoritySql, /"stockQuantity" = next_stock/u);
 });
 
 test("authentication, ownership, missing identity and payload drift cannot mutate stock", async () => {

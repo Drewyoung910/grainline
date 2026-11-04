@@ -125,12 +125,9 @@ describe("listing shop action state", () => {
     assert.match(shopActions, /export async function withdrawListingReviewAction/);
     assert.match(shopActions, /withdrawReviewBlockReason\(listing\)/);
     assert.match(shopActions, /publishListingBlockReason\(listing\)/);
-    assert.match(shopActions, /status: ListingStatus\.PENDING_REVIEW/);
-    assert.match(shopActions, /sellerId: listing\.sellerId/);
-    assert.match(shopActions, /updatedAt: listing\.updatedAt/);
-    assert.match(shopActions, /status: ListingStatus\.DRAFT/);
-    assert.match(shopActions, /aiReviewFlags: \[\]/);
-    assert.match(shopActions, /reviewedByAdmin: false/);
+    assert.match(shopActions, /listingOwnerTransition\(listing\.seller\.userId, \{/);
+    assert.match(shopActions, /operation: "WITHDRAW_REVIEW"/);
+    assert.match(shopActions, /expectedUpdatedAt: listing\.updatedAt/);
 
     assert.match(shopUi, /withdrawListingReviewAction/);
     assert.match(shopUi, /status === "PENDING_REVIEW"/);
@@ -139,10 +136,9 @@ describe("listing shop action state", () => {
 
     assert.match(dashboard, /async function withdrawListingReview/);
     assert.match(dashboard, /withdrawReviewBlockReason\(listing\)/);
-    assert.match(dashboard, /status: ListingStatus\.PENDING_REVIEW/);
-    assert.match(dashboard, /sellerId: listing\.sellerId/);
-    assert.match(dashboard, /updatedAt: listing\.updatedAt/);
-    assert.match(dashboard, /status: ListingStatus\.DRAFT/);
+    assert.match(dashboard, /listingOwnerTransition\(me\.id, \{/);
+    assert.match(dashboard, /operation: "WITHDRAW_REVIEW"/);
+    assert.match(dashboard, /expectedUpdatedAt: listing\.updatedAt/);
     assert.match(dashboard, /action=\{withdrawListingReview\.bind\(null, l\.id\)\}/);
     assert.match(dashboard, />\s*Withdraw\s*</);
 

@@ -38,12 +38,44 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   follow_v1: "FOLLOW_PREPARATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_PREPARATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_PREPARATION_MIGRATION_PATH",
+  listing_domain_v1: "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
   follow_v1: "FOLLOW_RLS_ACTIVATION_MIGRATION_PATH",
   review_vote_v1: "REVIEW_VOTE_RLS_ACTIVATION_MIGRATION_PATH",
   maker_verification_v1: "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH",
+  listing_domain_v1: "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH",
+});
+
+const LISTING_DOMAIN_TABLES = Object.freeze([
+  "Listing",
+  "Photo",
+  "ListingVariantGroup",
+  "ListingVariantOption",
+]);
+
+const LISTING_DOMAIN_PUBLIC_COLUMNS = Object.freeze({
+  Listing: Object.freeze([
+    "id", "sellerId", "title", "description", "priceCents", "currency",
+    "status", "createdAt", "updatedAt", "archivedAt", "videoUrl", "tags",
+    "processingTimeMinDays", "processingTimeMaxDays", "listingType",
+    "stockQuantity", "shipsWithinDays", "category", "clickCount", "viewCount",
+    "isPrivate", "cityMetroId", "metroId", "qualityScore", "materials",
+    "metaDescription", "productHeightIn", "productLengthIn", "productWidthIn",
+    "sellerPubliclyOrderable", "sellerDisplayName",
+    "sellerDisplayNameNormalized", "sellerAverageRating", "sellerReviewCount",
+    "favoriteCount",
+  ]),
+  Photo: Object.freeze([
+    "id", "listingId", "url", "altText", "sortOrder", "createdAt",
+  ]),
+  ListingVariantGroup: Object.freeze([
+    "id", "listingId", "name", "sortOrder",
+  ]),
+  ListingVariantOption: Object.freeze([
+    "id", "groupId", "label", "priceAdjustCents", "sortOrder", "inStock",
+  ]),
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -172,6 +204,77 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     activatedStaffPrivileges: NO_PRIVILEGES,
     activatedPublicPrivileges: NO_PRIVILEGES,
     sourceTests: Object.freeze(["tests/maker-verification-preparation.test.mjs"]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  listing_domain_v1: Object.freeze({
+    preparationReleaseId: "listing_domain_v1",
+    minimumCompatibleAppCommit:
+      "36e2da832de2935f5b782192a0d00b12538c9509",
+    migration: "20261102060000_activate_listing_domain_rls",
+    migrationSha256:
+      "e68390cb74cf83f240749f09fbc1417b1ef8aa190b4602a75a50a535ece538c5",
+    rollbackPath: "docs/rls-drafts/listing-domain-activation-rollback.sql",
+    rollbackSha256:
+      "5a465ba80fb7b7249580db534dfea1b4b209d6cbf989c15a091ceba49bf7ae0b",
+    table: "Listing",
+    tables: LISTING_DOMAIN_TABLES,
+    mode: "public_catalog_combined_enable_force",
+    policies: Object.freeze([
+      Object.freeze({
+        table: "Listing",
+        name: "listing_public_select",
+        command: "r",
+        permissive: true,
+        roles: Object.freeze(["grainline_app_runtime"]),
+        using:
+          `((status = 'ACTIVE'::"ListingStatus") AND ("isPrivate" = false) AND ("archivedAt" IS NULL) AND ("sellerPubliclyOrderable" = true))`,
+        withCheck: null,
+      }),
+      Object.freeze({
+        table: "Photo",
+        name: "photo_public_select",
+        command: "r",
+        permissive: true,
+        roles: Object.freeze(["grainline_app_runtime"]),
+        using:
+          `(EXISTS ( SELECT 1
+   FROM "Listing" listing
+  WHERE ((listing.id = "Photo"."listingId") AND (listing.status = 'ACTIVE'::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))`,
+        withCheck: null,
+      }),
+      Object.freeze({
+        table: "ListingVariantGroup",
+        name: "listing_variant_group_public_select",
+        command: "r",
+        permissive: true,
+        roles: Object.freeze(["grainline_app_runtime"]),
+        using:
+          `(EXISTS ( SELECT 1
+   FROM "Listing" listing
+  WHERE ((listing.id = "ListingVariantGroup"."listingId") AND (listing.status = 'ACTIVE'::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))`,
+        withCheck: null,
+      }),
+      Object.freeze({
+        table: "ListingVariantOption",
+        name: "listing_variant_option_public_select",
+        command: "r",
+        permissive: true,
+        roles: Object.freeze(["grainline_app_runtime"]),
+        using:
+          `(EXISTS ( SELECT 1
+   FROM ("ListingVariantGroup" variant_group
+     JOIN "Listing" listing ON ((listing.id = variant_group."listingId")))
+  WHERE ((variant_group.id = "ListingVariantOption"."groupId") AND (listing.status = 'ACTIVE'::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))`,
+        withCheck: null,
+      }),
+    ]),
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedRuntimeColumns: LISTING_DOMAIN_PUBLIC_COLUMNS,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze(["tests/listing-domain-rls-activation.test.mjs"]),
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
   }),
@@ -332,6 +435,127 @@ export function verifyPrivateTableRlsActivationSource(
     ))
   ) {
     throw stopped("source-test catalog is invalid");
+  }
+  if (release.mode === "public_catalog_combined_enable_force") {
+    if (
+      !Array.isArray(release.tables)
+      || release.tables.length < 2
+      || new Set(release.tables).size !== release.tables.length
+      || !release.tables.includes(release.table)
+      || !release.activatedRuntimeColumns
+      || Object.keys(release.activatedRuntimeColumns).sort().join("|")
+        !== [...release.tables].sort().join("|")
+      || release.activatedRuntimePrivileges.length !== 0
+      || release.functionChanges !== NO_FUNCTION_CHANGES
+    ) {
+      throw stopped("public-catalog activation catalog is invalid");
+    }
+    const activationPolicyNames = [
+      ...activation.sql.matchAll(/\bCREATE\s+POLICY\s+([a-z][a-z0-9_]*)/giu),
+    ].map((match) => match[1]).sort();
+    const expectedPolicyNames = release.policies.map((policy) => policy.name).sort();
+    if (activationPolicyNames.join("|") !== expectedPolicyNames.join("|")) {
+      throw stopped("activation policy set drifted");
+    }
+    const rollbackPolicyNames = [
+      ...rollback.sql.matchAll(/\bDROP\s+POLICY\s+([a-z][a-z0-9_]*)/giu),
+    ].map((match) => match[1]).sort();
+    if (rollbackPolicyNames.join("|") !== expectedPolicyNames.join("|")) {
+      throw stopped("rollback policy set drifted");
+    }
+    const columnGrants = new Map(
+      [...activation.sql.matchAll(
+        /GRANT\s+SELECT\s*\(([\s\S]*?)\)\s+ON\s+TABLE\s+public\."([^"]+)"\s+TO\s+grainline_app_runtime/giu,
+      )].map((match) => [
+        match[2],
+        match[1].split(",").map(
+          (column) => column.trim().replace(/^"|"$/gu, ""),
+        ),
+      ]),
+    );
+    for (const table of release.tables) {
+      const quotedTable = escapeRegExp(table);
+      const tablePattern = `public\\."${quotedTable}"`;
+      if (
+        !new RegExp(
+          `ALTER\\s+TABLE\\s+${tablePattern}\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          "iu",
+        ).test(activation.sql)
+        || !new RegExp(
+          `ALTER\\s+TABLE\\s+${tablePattern}\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          "iu",
+        ).test(activation.sql)
+        || !new RegExp(
+          `ALTER\\s+TABLE\\s+${tablePattern}\\s+NO\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          "iu",
+        ).test(rollback.sql)
+        || !new RegExp(
+          `ALTER\\s+TABLE\\s+${tablePattern}\\s+DISABLE\\s+ROW\\s+LEVEL\\s+SECURITY`,
+          "iu",
+        ).test(rollback.sql)
+      ) {
+        throw stopped(`public-catalog table transition drifted for ${table}`);
+      }
+      const actualColumns = columnGrants.get(table);
+      if (
+        !actualColumns
+        || actualColumns.join("|")
+          !== release.activatedRuntimeColumns[table].join("|")
+      ) {
+        throw stopped(`public-catalog column grant drifted for ${table}`);
+      }
+    }
+    for (const policy of release.policies) {
+      if (
+        !release.tables.includes(policy.table)
+        || !new RegExp(
+          `CREATE\\s+POLICY\\s+${escapeRegExp(policy.name)}\\s+ON\\s+public\\."${escapeRegExp(policy.table)}"`,
+          "iu",
+        ).test(activation.sql)
+        || !new RegExp(
+          `DROP\\s+POLICY\\s+${escapeRegExp(policy.name)}\\s+ON\\s+public\\."${escapeRegExp(policy.table)}"`,
+          "iu",
+        ).test(rollback.sql)
+      ) {
+        throw stopped(`reviewed policy ${policy.name} table binding drifted`);
+      }
+    }
+    const activationLock = activation.sql.match(
+      /LOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE/iu,
+    )?.[1] ?? "";
+    const rollbackLock = rollback.sql.match(
+      /LOCK\s+TABLE\s+([\s\S]*?)\s+IN\s+ACCESS\s+EXCLUSIVE\s+MODE/iu,
+    )?.[1] ?? "";
+    if (release.tables.some((table) => (
+      !activationLock.includes(`public."${table}"`)
+      || !rollbackLock.includes(`public."${table}"`)
+    ))) {
+      throw stopped("public-catalog lock set drifted");
+    }
+    if (
+      /\b(?:NO\s+FORCE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY\b/iu.test(activation.sql)
+      || /\bCREATE\s+POLICY\b/iu.test(rollback.sql)
+      || /\bDROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)\b/iu.test(activation.sql)
+      || /\bDROP\s+(?:TABLE|COLUMN|FUNCTION|TRIGGER)\b/iu.test(rollback.sql)
+    ) {
+      throw stopped("public-catalog activation or rollback is destructive");
+    }
+    for (const entry of preparation.release.functions) {
+      const literal = signatureLiteral(entry).replaceAll("'", "''");
+      if (!activation.sql.includes(`'${literal}'`)) {
+        throw stopped(`reviewed operation ${literal} is absent from activation preflight`);
+      }
+    }
+    return Object.freeze({
+      releaseId,
+      release,
+      preparation,
+      migrationPath: activation.path,
+      migrationDigest: activation.digest,
+      rollbackPath: rollback.path,
+      rollbackDigest: rollback.digest,
+      activeFunctionSources: new Map(),
+    });
   }
   const quotedTable = escapeRegExp(release.table);
   const tablePattern = `public\\."${quotedTable}"`;

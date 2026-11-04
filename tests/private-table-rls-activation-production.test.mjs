@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,6 +8,9 @@ import {
   privateTableRlsActivation,
   verifyPrivateTableRlsActivationSource,
 } from "../scripts/private-table-rls-activation-catalog.mjs";
+import {
+  privateTableFunctionExecuteRoles,
+} from "../scripts/private-table-preparation-catalog.mjs";
 import {
   inspectPrivateTableRlsActivationProduction,
 } from "../scripts/private-table-rls-activation-production-inspect.mjs";
@@ -30,19 +33,30 @@ function migrationRow(entry, appliedStepsCount = 1) {
   };
 }
 
-function tableRow(active, overrides = {}, selectedRelease = release) {
+function tableRow(
+  active,
+  overrides = {},
+  selectedRelease = release,
+  tableName = selectedRelease.table,
+) {
   const privileges = active
     ? selectedRelease.activatedRuntimePrivileges
     : selectedRelease.predecessorRuntimePrivileges;
+  const activeColumns = selectedRelease.activatedRuntimeColumns?.[tableName] ?? [];
   return {
     database_name: "grainline",
     current_user_name: "neondb_owner",
     session_user_name: "neondb_owner",
+    table_name: tableName,
     table_owner_name: "neondb_owner",
     owner_bypasses_rls: true,
     rls_enabled: active,
     rls_forced: active,
-    policy_count: active ? selectedRelease.policies.length : 0,
+    policy_count: active
+      ? selectedRelease.policies.filter(
+        (policy) => (policy.table ?? selectedRelease.table) === tableName,
+      ).length
+      : 0,
     runtime_select: privileges.includes("SELECT"),
     runtime_insert: privileges.includes("INSERT"),
     runtime_update: privileges.includes("UPDATE"),
@@ -66,11 +80,11 @@ function tableRow(active, overrides = {}, selectedRelease = release) {
     public_trigger: false,
     runtime_any_column: privileges.some((privilege) => (
       ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(privilege)
-    )),
+    )) || activeColumns.length > 0,
     staff_any_column: false,
     public_any_column: false,
     non_owner_table_acl_count: privileges.length,
-    non_owner_column_acl_count: 0,
+    non_owner_column_acl_count: active ? activeColumns.length : 0,
     ...overrides,
   };
 }
@@ -90,6 +104,7 @@ function roleRows() {
 
 function policyRows(selectedRelease) {
   return selectedRelease.policies.map((policy) => ({
+    table_name: policy.table ?? selectedRelease.table,
     name: policy.name,
     command: policy.command,
     permissive: policy.permissive,
@@ -103,7 +118,9 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
   const entries = selectedRelease.preparation.functions.map((entry) => ({
     name: entry.name,
     arguments: entry.arguments,
-    executeRole: entry.executeRole ?? "runtime",
+    executeRole: privateTableFunctionExecuteRoles(entry)[0] ?? "none",
+    securityDefiner: entry.securityDefiner ?? true,
+    volatility: entry.volatility ?? "v",
     source: selectedVerified.preparation.functionSources.get(entry.name),
   }));
   for (const retained of selectedRelease.functionChanges.retained) {
@@ -149,12 +166,14 @@ function functionRows(selectedRelease = release, selectedVerified = verified, ac
       identity_arguments: entry.arguments,
       owner_name: "neondb_owner",
       owner_bypasses_rls: true,
-      security_definer: true,
+      security_definer: entry.securityDefiner ?? true,
+      volatility: entry.volatility ?? "v",
       configuration: ["search_path=pg_catalog"],
       source: entry.source,
       runtime_execute: entry.executeRole === "runtime",
       staff_execute: entry.executeRole === "staff",
       public_execute: false,
+      unexpected_execute_roles: [],
     }))
     .sort((left, right) => (
       left.function_name.localeCompare(right.function_name)
@@ -170,6 +189,7 @@ function fakeClientClass({
   selectedRelease = release,
   selectedVerified = verified,
   policyRows = [],
+  functionOverrides = {},
 }) {
   return class FakeClient {
     async connect() {}
@@ -179,7 +199,16 @@ function fakeClientClass({
       const sql = String(statement);
       if (/^(?:BEGIN|COMMIT|ROLLBACK)/u.test(sql.trim())) return { rows: [] };
       if (sql.includes("current_database() AS database_name")) {
-        return { rows: [tableRow(active, tableOverrides, selectedRelease)] };
+        return {
+          rows: (selectedRelease.tables ?? [selectedRelease.table]).map(
+            (tableName) => tableRow(
+              active,
+              tableOverrides[tableName] ?? tableOverrides,
+              selectedRelease,
+              tableName,
+            ),
+          ),
+        };
       }
       if (sql.includes("rolname, rolsuper, rolinherit")) {
         return {
@@ -201,7 +230,12 @@ function fakeClientClass({
         return { rows: policyRows };
       }
       if (sql.includes("procedure.prosrc AS source")) {
-        return { rows: functionRows(selectedRelease, selectedVerified, active) };
+        return {
+          rows: functionRows(selectedRelease, selectedVerified, active).map((row) => ({
+            ...row,
+            ...functionOverrides,
+          })),
+        };
       }
       throw new Error(`unexpected query: ${sql.slice(0, 120)}`);
     }
@@ -303,6 +337,59 @@ test("inspector proves exact owner policies and ReviewVote function transitions"
   }
 });
 
+test("inspector proves the four-table Listing catalog as one activation", async () => {
+  const selectedReleaseId = "listing_domain_v1";
+  const selectedRelease = privateTableRlsActivation(selectedReleaseId);
+  const selectedVerified = verifyPrivateTableRlsActivationSource(selectedReleaseId);
+  const directory = mkdtempSync(join(tmpdir(), "listing-domain-activation-"));
+  try {
+    const preEnv = environment(directory, "preflight", undefined, selectedReleaseId);
+    const ready = await inspectPrivateTableRlsActivationProduction(
+      preEnv,
+      {
+        Client: fakeClientClass({
+          active: false,
+          selectedRelease,
+          selectedVerified,
+        }),
+      },
+    );
+    assert.equal(ready.state, "ready");
+    assert.deepEqual(ready.tables, selectedRelease.tables);
+
+    const postEnv = environment(
+      directory,
+      "postflight",
+      preEnv.PRIVATE_TABLE_RLS_ACTIVATION_EVIDENCE_PATH,
+      selectedReleaseId,
+    );
+    const active = await inspectPrivateTableRlsActivationProduction(
+      postEnv,
+      {
+        Client: fakeClientClass({
+          active: true,
+          selectedRelease,
+          selectedVerified,
+          policyRows: policyRows(selectedRelease),
+        }),
+      },
+    );
+    assert.equal(active.state, "active");
+    assert.equal(Object.keys(active.postures).length, 4);
+    assert.equal(active.policies.length, 4);
+    for (const tableName of selectedRelease.tables) {
+      assert.equal(active.postures[tableName].rlsEnabled, true);
+      assert.equal(active.postures[tableName].rlsForced, true);
+      assert.equal(
+        active.postures[tableName].nonOwnerColumnAclCount,
+        selectedRelease.activatedRuntimeColumns[tableName].length,
+      );
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("inspector rejects partial activation and elevated runtime roles", async () => {
   const firstDirectory = mkdtempSync(join(tmpdir(), "private-table-rls-partial-"));
   const secondDirectory = mkdtempSync(join(tmpdir(), "private-table-rls-role-"));
@@ -379,4 +466,56 @@ test("inspector rejects direct authority after activation", async () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("activation inspector rejects EXECUTE granted to an unexpected role", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-function-acl-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: false,
+            functionOverrides: { unexpected_execute_roles: ["unreviewed_service"] },
+          }),
+        },
+      ),
+      /grants EXECUTE to an unexpected role/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector rejects a stray non-owner table grant after activation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-table-rls-deletion-authority-"));
+  try {
+    await assert.rejects(
+      inspectPrivateTableRlsActivationProduction(
+        environment(directory, "preflight"),
+        {
+          Client: fakeClientClass({
+            active: true,
+            tableOverrides: {
+              non_owner_table_acl_count: 1,
+            },
+          }),
+        },
+      ),
+      /non-owner table ACL drifted/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("inspector resolves reviewed function identities without absorbing unrelated overloads", () => {
+  const inspector = readFileSync(
+    "scripts/private-table-rls-activation-production-inspect.mjs",
+    "utf8",
+  );
+
+  assert.match(inspector, /pg_catalog\.to_regprocedure\(expected\.identity\)/u);
+  assert.doesNotMatch(inspector, /procedure\.proname = ANY\(\$1::text\[\]\)/u);
 });

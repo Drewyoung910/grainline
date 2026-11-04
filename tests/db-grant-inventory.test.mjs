@@ -85,6 +85,55 @@ import {
   ORDER_ZERO_DIRECT_COMPATIBLE_PUBLIC_REVOKE_COUNT,
 } from "../scripts/stage-order-zero-direct-compatible-prefix.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
+const LISTING_DOMAIN_PREPARATION_MIGRATION =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261102060000_activate_listing_domain_rls/migration.sql";
+const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
+  "grainline_seller_staff_listing_review_transition",
+  "grainline_seller_staff_listing_remove_transition",
+  "grainline_seller_staff_listing_undo_transition",
+  "grainline_seller_staff_listing_review_queue",
+  "grainline_listing_staff_reference_targets",
+  "grainline_listing_staff_seller_active_public_count",
+  "grainline_listing_actor_review_contexts",
+  "grainline_listing_public_customer_photo_page",
+  "grainline_listing_owner_editor",
+  "grainline_listing_owner_export_page",
+  "grainline_listing_owner_catalog_page",
+  "grainline_listing_owner_summary_page",
+  "grainline_listing_owner_workshop_summary",
+  "grainline_listing_owner_counts",
+  "grainline_listing_owner_rating_buckets",
+  "grainline_listing_seller_rating_summary_refresh",
+  "grainline_listing_service_quality_score_apply",
+  "grainline_listing_owner_stock_lock",
+  "grainline_listing_owner_stock_apply",
+  "grainline_listing_owner_action_state",
+  "grainline_listing_actor_transaction_source_core",
+  "grainline_listing_actor_transaction_source",
+  "grainline_listing_actor_cart_transaction_sources",
+  "grainline_listing_public_analytics_increment",
+  "grainline_listing_public_catalog_page",
+  "grainline_listing_public_title_suggestions",
+  "grainline_listing_detail_source_core",
+  "grainline_listing_actor_detail_source",
+  "grainline_listing_staff_detail_source",
+  "grainline_listing_owner_ai_review_context",
+  "grainline_listing_owner_assign_metros",
+  "grainline_listing_children_replace_core",
+  "grainline_listing_owner_create",
+  "grainline_listing_owner_content_update",
+  "grainline_listing_owner_alt_text_backfill",
+  "grainline_listing_account_deletion_redact",
+  "grainline_listing_owner_delete_lock",
+  "grainline_listing_owner_archive",
+  "grainline_listing_owner_hard_delete",
+  "grainline_listing_owner_transition",
+  "grainline_listing_owner_review_transition",
+  "grainline_listing_message_context_titles",
+  "grainline_listing_materials_guard",
+]);
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
@@ -434,11 +483,15 @@ const {
   STOCK_NOTIFICATION_OWNER_TABLE_PRIVILEGES,
   FAVORITE_TABLE,
   FAVORITE_OWNER_TABLE_PRIVILEGES,
+  LISTING_DOMAIN_TABLES,
+  LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES,
+  LISTING_DOMAIN_RLS_POLICIES,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
   collectConversationPolicyIssues,
   collectMessagePolicyIssues,
+  collectListingDomainPolicyIssues,
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
   collectPolicylessServiceRlsIssues,
@@ -478,6 +531,8 @@ const {
   supportRequestRlsForceExpected,
   followRlsActivationExpected,
   followRlsForceExpected,
+  listingDomainRlsActivationExpected,
+  listingDomainRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -526,6 +581,13 @@ const {
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
+const listingDomainActivationAuditAvailable =
+  Array.isArray(LISTING_DOMAIN_TABLES)
+  && LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES !== undefined
+  && LISTING_DOMAIN_RLS_POLICIES !== undefined
+  && typeof collectListingDomainPolicyIssues === "function"
+  && typeof listingDomainRlsActivationExpected === "function"
+  && typeof listingDomainRlsForceExpected === "function";
 
 describe("temporary SellerProfile CI isolation", () => {
   it("is absent by default and accepted only for exact loopback GitHub CI", () => {
@@ -825,6 +887,39 @@ async function withAuditFixture(options, fn) {
 }
 
 describe("database grant inventory guardrails", () => {
+  it("pins exact Listing-domain public policies", {
+    skip: !listingDomainActivationAuditAvailable,
+  }, () => {
+    const runtimeRole = "grainline_app_runtime";
+    for (const tableName of LISTING_DOMAIN_TABLES) {
+      const [policyName, expected] = Object.entries(
+        LISTING_DOMAIN_RLS_POLICIES[tableName],
+      )[0];
+      const exactRows = [{
+        rls_enabled: true,
+        rls_forced: true,
+        policy_name: policyName,
+        policy_command: expected.command,
+        policy_permissive: true,
+        policy_roles: [runtimeRole],
+        using_expression: expected.usingExpression,
+        check_expression: expected.checkExpression,
+      }];
+      assert.deepEqual(
+        collectListingDomainPolicyIssues(exactRows, runtimeRole, tableName),
+        [],
+      );
+      assert.match(
+        collectListingDomainPolicyIssues(
+          exactRows.map((row) => ({ ...row, policy_roles: ["PUBLIC"] })),
+          runtimeRole,
+          tableName,
+        ).join("\n"),
+        /expected only grainline_app_runtime/u,
+      );
+    }
+  });
+
   it("rejects every table privilege outside non-grantable CRUD", () => {
     assert.match(
       collectTablePrivilegeAllowlistIssues({}, "table SavedSearch").join("\n"),
@@ -1000,6 +1095,66 @@ describe("database grant inventory guardrails", () => {
     const favoriteActivatedInventory = {
       rlsPolicyTables: [FAVORITE_TABLE],
     };
+    if (listingDomainActivationAuditAvailable) {
+      const listingDomainPredecessorInventory = {
+        tables: [...LISTING_DOMAIN_TABLES],
+        rlsEnableTables: [],
+        rlsForceTables: [],
+        rlsPolicyTables: [],
+      };
+      const listingDomainActivatedInventory = {
+        ...listingDomainPredecessorInventory,
+        rlsEnableTables: [...LISTING_DOMAIN_TABLES],
+        rlsForceTables: [...LISTING_DOMAIN_TABLES],
+        rlsPolicyTables: [...LISTING_DOMAIN_TABLES],
+      };
+      assert.equal(
+        listingDomainRlsActivationExpected(listingDomainPredecessorInventory),
+        false,
+      );
+      assert.equal(
+        listingDomainRlsForceExpected(listingDomainPredecessorInventory),
+        false,
+      );
+      for (const tableName of LISTING_DOMAIN_TABLES) {
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(
+            tableName,
+            listingDomainPredecessorInventory,
+          ),
+          REQUIRED_TABLE_PRIVILEGES,
+        );
+        assert.deepEqual(
+          requiredRuntimeColumnPrivileges(
+            tableName,
+            listingDomainPredecessorInventory,
+          ),
+          [],
+        );
+        assert.deepEqual(
+          requiredRuntimeTablePrivileges(
+            tableName,
+            listingDomainActivatedInventory,
+          ),
+          [],
+        );
+        assert.deepEqual(
+          requiredRuntimeColumnPrivileges(
+            tableName,
+            listingDomainActivatedInventory,
+          ),
+          LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName],
+        );
+      }
+      assert.equal(
+        listingDomainRlsActivationExpected(listingDomainActivatedInventory),
+        true,
+      );
+      assert.equal(
+        listingDomainRlsForceExpected(listingDomainActivatedInventory),
+        true,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -3697,6 +3852,19 @@ describe("database grant inventory guardrails", () => {
     ) && source(MAKER_VERIFICATION_ACTIVATION_MIGRATION).includes(
       'REVOKE ALL PRIVILEGES ON TABLE public."MakerVerification"',
     );
+    const listingDomainAuthorityPrepared = existsSync(
+      LISTING_DOMAIN_PREPARATION_MIGRATION,
+    ) && LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.every((functionName) =>
+      source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
+        `FUNCTION public.${functionName}(`,
+      ));
+    const listingDomainRlsActivationPresent = existsSync(
+      LISTING_DOMAIN_ACTIVATION_MIGRATION,
+    ) && source(LISTING_DOMAIN_ACTIVATION_MIGRATION).includes(
+      "CREATE POLICY listing_public_select",
+    ) && source(LISTING_DOMAIN_ACTIVATION_MIGRATION).includes(
+      'ALTER TABLE public."ListingVariantOption" FORCE ROW LEVEL SECURITY',
+    );
     const favoriteRlsActivationPresent = existsSync(FAVORITE_RLS_MIGRATION)
       && source(FAVORITE_RLS_MIGRATION).includes(
         "CREATE POLICY favorite_owner_select",
@@ -3926,6 +4094,9 @@ describe("database grant inventory guardrails", () => {
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
         : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
+        : []),
       ...(reviewVoteRlsActivationPresent
         ? REVIEW_VOTE_ACTIVATION_FUNCTION_NAMES
         : []),
@@ -4008,6 +4179,10 @@ describe("database grant inventory guardrails", () => {
             + 2 // member-revoke and metrics wrappers now also revoke staff-read
           : 0)
         + (makerVerificationActivationPresent ? 1 : 0)
+        + (listingDomainAuthorityPrepared
+          ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.length
+          : 0)
+        + (listingDomainRlsActivationPresent ? 1 : 0)
         + (typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? 1 : 0)
         // Activation revokes the table and count-repair trigger function.
@@ -4134,6 +4309,9 @@ describe("database grant inventory guardrails", () => {
         : []),
       ...(makerVerificationAuthorityPrepared
         ? MAKER_VERIFICATION_PREPARATION_FUNCTION_NAMES
+        : []),
+      ...(listingDomainAuthorityPrepared
+        ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES
         : []),
       ...(emailDeliveryLedgerPrepared
         ? EMAIL_DELIVERY_LEDGER_FUNCTION_NAMES
@@ -4432,8 +4610,12 @@ describe("database grant inventory guardrails", () => {
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Conversation",
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? LISTING_DOMAIN_TABLES.filter((tableName) => tableName !== "Photo")
+          : []),
         "Message",
         "Notification",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -4468,6 +4650,9 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? LISTING_DOMAIN_TABLES.filter((tableName) => tableName !== "Photo")
+          : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -4480,6 +4665,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -4528,6 +4714,9 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsForceExpected === "function"
           && followRlsForceExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? LISTING_DOMAIN_TABLES.filter((tableName) => tableName !== "Photo")
+          : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
         "Notification",
@@ -4540,6 +4729,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -6103,6 +6293,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const listingDomainProvisioningPresent = provision.includes(
+      "grainline_listing_domain_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -6113,7 +6306,8 @@ describe("database grant inventory guardrails", () => {
         + Number(makerVerificationProvisioningPresent)
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
-        + Number(reviewVoteProvisioningPresent),
+        + Number(reviewVoteProvisioningPresent)
+        + Number(listingDomainProvisioningPresent),
     );
     if (sellerProfilePublicProvisioningPresent) {
       assert.match(provision, /seller_profile_rls_active/);
@@ -6196,6 +6390,20 @@ describe("database grant inventory guardrails", () => {
       assert.match(
         provision,
         /\\if :grainline_follow_rls_active[\s\S]*REVOKE ALL ON TABLE public\."Follow"\s+FROM PUBLIC, :"runtime_role"/,
+      );
+    }
+    if (listingDomainProvisioningPresent) {
+      assert.match(
+        provision,
+        /Listing domain RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+      );
+      assert.match(
+        provision,
+        /GRANT SELECT \([\s\S]*"sellerId"[\s\S]*\) ON TABLE public\."Listing" TO :"runtime_role"/,
+      );
+      assert.match(
+        provision,
+        /GRANT SELECT \("id", "listingId", "url"[\s\S]*\)\s+ON TABLE public\."Photo" TO :"runtime_role"/,
       );
     }
     assert.equal(
@@ -6376,7 +6584,7 @@ describe("database grant inventory guardrails", () => {
           /\('public\."grainline_[^"]+"\(/g,
         ) ?? []
       ).length,
-      19,
+      existsSync(LISTING_DOMAIN_PREPARATION_MIGRATION) ? 20 : 19,
     );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(
@@ -6445,6 +6653,11 @@ describe("database grant inventory guardrails", () => {
     const runtimePrivateTablesForProvision = new Set(RUNTIME_PRIVATE_TABLES);
     if (!sellerProfilePublicProvisioningPresent) {
       runtimePrivateTablesForProvision.add("SellerExactMapConsentEvent");
+    }
+    if (listingDomainProvisioningPresent) {
+      for (const tableName of LISTING_DOMAIN_TABLES) {
+        runtimePrivateTablesForProvision.add(tableName);
+      }
     }
     assert.deepEqual(
       provisionedObjects(provision, "TABLE"),

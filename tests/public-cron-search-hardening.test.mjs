@@ -181,7 +181,9 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /getBlockedIdsFor\(meDbId\)/);
     assert.match(globalSuggestions, /bp\."authorId" != ALL\(\$\{blockedUserIds\}\)/);
     assert.match(globalSuggestions, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
-    assert.match(globalSuggestions, /publicListingWhere/);
+    assert.match(globalSuggestions, /listingPublicCatalogPage\(/);
+    assert.match(globalSuggestions, /listingPublicTitleSuggestions\(/);
+    assert.doesNotMatch(globalSuggestions, /prisma\.listing\./);
     assert.match(globalSuggestions, /sellerPublicNameSuggestions\(meDbId, q, normalizedDisplayNameQuery, true, 2\)/);
     assert.match(globalSuggestions, /bp\."publishedAt" IS NOT NULL/);
     assert.match(globalSuggestions, /bp\."publishedAt" <= NOW\(\)/);

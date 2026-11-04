@@ -51,6 +51,8 @@ import { sellerOwnerFollowExportRows } from "@/lib/sellerProfileParticipantAcces
 import { ownerStockNotificationExportRows } from "@/lib/stockNotificationAccess";
 import { exportOwnerReviewVotes } from "@/lib/reviewVoteAccess";
 import { exportOwnerMakerVerification } from "@/lib/makerVerificationAccess";
+import { listingOwnerExportRows } from "@/lib/listingOwnerAccess";
+import { listingActorReviewContexts } from "@/lib/listingReviewHistoryAccess";
 
 export const runtime = "nodejs";
 
@@ -58,6 +60,38 @@ type ExportableUser = Awaited<ReturnType<typeof ensureUser>>;
 
 function jsonDownload(data: unknown, userId: string) {
   return accountExportJsonResponse(data, userId);
+}
+
+async function exportOwnerReviews(userId: string) {
+  const reviews = await prisma.review.findMany({
+    where: { reviewerId: userId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      listingId: true,
+      ratingX2: true,
+      comment: true,
+      verified: true,
+      helpfulCount: true,
+      sellerReply: true,
+      sellerReplyAt: true,
+      createdAt: true,
+      updatedAt: true,
+      photos: { orderBy: { sortOrder: "asc" }, select: { url: true, altText: true, sortOrder: true } },
+    },
+  });
+  const contexts = await listingActorReviewContexts(
+    userId,
+    reviews.map((review) => review.id),
+  );
+  const contextByReviewId = new Map(contexts.map((context) => [context.reviewId, context]));
+  if (contextByReviewId.size !== reviews.length) {
+    throw new Error("Account export Listing review history is incomplete");
+  }
+  return reviews.map((review) => ({
+    ...review,
+    listing: { title: contextByReviewId.get(review.id)!.listingTitle },
+  }));
 }
 
 async function buildExport(user: NonNullable<ExportableUser>) {
@@ -107,76 +141,14 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     directUploads,
     reviewVotes,
   ] = await Promise.all([
-    sellerProfile
-      ? prisma.listing.findMany({
-          where: { sellerId: sellerProfile.id },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            priceCents: true,
-            priceVersion: true,
-            currency: true,
-            status: true,
-            videoUrl: true,
-            isPrivate: true,
-            listingType: true,
-            stockQuantity: true,
-            processingTimeMinDays: true,
-            processingTimeMaxDays: true,
-            shipsWithinDays: true,
-            category: true,
-            tags: true,
-            packagedWeightGrams: true,
-            packagedLengthCm: true,
-            packagedWidthCm: true,
-            packagedHeightCm: true,
-            reservedForUserId: true,
-            customOrderConversationId: true,
-            metaDescription: true,
-            materials: true,
-            productLengthIn: true,
-            productWidthIn: true,
-            productHeightIn: true,
-            createdAt: true,
-            updatedAt: true,
-            photos: { orderBy: { sortOrder: "asc" }, select: { url: true, originalUrl: true, altText: true, sortOrder: true } },
-            variantGroups: {
-              orderBy: { sortOrder: "asc" },
-              select: {
-                name: true,
-                sortOrder: true,
-                options: { orderBy: { sortOrder: "asc" }, select: { label: true, priceAdjustCents: true, sortOrder: true, inStock: true } },
-              },
-            },
-          },
-        })
-      : [],
+    sellerProfile ? listingOwnerExportRows(user.id) : [],
     exportBuyerOrders(user.id),
     sellerProfile ? exportSellerOrders(user.id) : [],
     exportBuyerOrderPaymentHistory(user.id),
     sellerProfile ? exportSellerOrderPaymentHistory(user.id) : new Map(),
     exportActorMessages(user.id),
     exportParticipantCases(user.id),
-    prisma.review.findMany({
-      where: { reviewerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        listingId: true,
-        ratingX2: true,
-        comment: true,
-        verified: true,
-        helpfulCount: true,
-        sellerReply: true,
-        sellerReplyAt: true,
-        createdAt: true,
-        updatedAt: true,
-        photos: { orderBy: { sortOrder: "asc" }, select: { url: true, altText: true, sortOrder: true } },
-        listing: { select: { title: true } },
-      },
-    }),
+    exportOwnerReviews(user.id),
     prisma.blogPost.findMany({
       where: { authorId: user.id },
       orderBy: { createdAt: "desc" },

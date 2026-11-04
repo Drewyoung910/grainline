@@ -150,9 +150,9 @@ export function verifySellerProfilePublicConsumerContracts(root) {
     throw new Error("A residual opaque shape unexpectedly targets SellerProfile");
   }
   if (targetOpaqueShapes.length !== 0
-      // UI workspace/search work adds two publicListingWhere reads for the
-      // search panel. Both remain inside the reviewed public-listing filter.
-      || reviewedNonTargetFactoryCalls.length !== 122
+      // Listing preparation replaces the remaining public, owner, analytics,
+      // review, and staff Listing ORM shapes with bounded SQL authorities.
+      || reviewedNonTargetFactoryCalls.length !== 96
       // C-715 adds three typed EmailSuppression client adapters. They are
       // non-target calls whose exact source frontier is also pinned by the
       // User opaque-query digest test.
@@ -166,10 +166,7 @@ export function verifySellerProfilePublicConsumerContracts(root) {
       // deliberately removes three duplicate non-target residual shapes.
       // StockNotification subscription now validates listing availability in
       // its fixed SQL authority, removing one publicListingDetailWhere call.
-      // The Workshop listing pager contributes one owner-scoped Listing
-      // helper (sellerId + archivedAt + a bounded filter). Keeping the helper
-      // avoids duplicating and drifting the ownership predicate.
-      || reviewedNonTargetResiduals.length !== 27) {
+      || reviewedNonTargetResiduals.length !== 15) {
     throw new Error(
       `SellerProfile opaque-shape review drifted: target=${targetOpaqueShapes.length}; `
       + `factoryCalls=${reviewedNonTargetFactoryCalls.length}; residuals=${reviewedNonTargetResiduals.length}`,

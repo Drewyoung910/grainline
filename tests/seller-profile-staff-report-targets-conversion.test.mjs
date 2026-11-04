@@ -26,7 +26,8 @@ test("seller report targets require the isolated active-staff authority", () => 
 
 test("admin reports use the bounded staff projection after the PIN gate", () => {
   assert.match(page, /requireAdminPageAccess\(\)/u);
-  assert.match(page, /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/u);
+  assert.match(page, /const staffClient = getOrderStaffReadClient\(\)/u);
+  assert.match(page, /sellerProfileStaffReportTargets\(staffClient, \{/u);
   assert.match(page, /actorId: staff\.id/u);
   assert.doesNotMatch(page, /prisma\.sellerProfile\./u);
   assert.match(access, /grainline_seller_staff_report_targets/u);
@@ -38,9 +39,9 @@ test("admin listing review resolves seller labels through the bounded staff proj
   assert.match(reviewQueue, /const SELLER_TARGET_CHUNK_SIZE = 50/u);
   assert.match(
     reviewQueue,
-    /sellerProfileStaffReportTargets\(getOrderStaffReadClient\(\), \{/u,
+    /sellerProfileStaffReportTargets\(staffClient, \{/u,
   );
   assert.match(reviewQueue, /actorId: staff\.id/u);
-  assert.match(reviewQueue, /prisma\.listing\.groupBy\(/u);
+  assert.match(reviewQueue, /sellerProfileStaffListingReviewQueue\(staffClient, \{/u);
   assert.doesNotMatch(reviewQueue, /seller:\s*\{\s*select:/u);
 });

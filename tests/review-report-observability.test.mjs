@@ -14,9 +14,12 @@ describe("review/report/favorite observability hardening", () => {
 
     assert.match(createRoute, /await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(createRoute, /await refreshSellerRatingSummary\(eligibleOrderItem\.sellerProfileId, tx\)/);
-    assert.match(editRoute, /await refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)/);
-    assert.match(editRoute, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
-    assert.match(ratingSummary, /pg_advisory_xact_lock\(913343, hashtext\(\$\{sellerProfileId\}\)\)/);
+    assert.match(editRoute, /await refreshSellerRatingSummary\(listingContext\.sellerProfileId, tx\)/);
+    assert.match(
+      ratingSummary,
+      /FROM public\.grainline_listing_seller_rating_summary_refresh\(/,
+    );
+    assert.doesNotMatch(ratingSummary, /JOIN "Listing"|sellerRatingSummary\.upsert/);
     assert.match(ratingSummary, /db: RatingDbClient = prisma/);
     assert.match(ratingSummary, /if \(db === prisma\)[\s\S]*prisma\.\$transaction/);
     assert.doesNotMatch(createRoute, /source: "review_rating_summary_refresh"/);

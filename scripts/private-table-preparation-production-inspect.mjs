@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  privateTableFunctionExecuteRoles,
   privateTablePreparation,
   verifyPrivateTablePreparationSource,
 } from "./private-table-preparation-catalog.mjs";
@@ -52,15 +53,14 @@ async function readPreparationMarkers(client, release) {
           AND attribute.attnum > 0
           AND NOT attribute.attisdropped) AS columns,
       (SELECT pg_catalog.count(*)::integer
-         FROM pg_catalog.pg_proc AS procedure
-         JOIN pg_catalog.pg_namespace AS namespace
-           ON namespace.oid = procedure.pronamespace
-        WHERE namespace.nspname = 'public'
-          AND procedure.proname = ANY($3::text[])) AS functions
+         FROM pg_catalog.unnest($3::text[]) AS expected(identity)
+        WHERE pg_catalog.to_regprocedure(
+          'public.' || expected.identity
+        ) IS NOT NULL) AS functions
   `, [
     `public."${release.table}"`,
     release.addedColumns.map((entry) => entry.name),
-    newFunctions.map((entry) => entry.name),
+    newFunctions.map((entry) => `${entry.name}(${entry.arguments})`),
   ])).rows[0];
 }
 
@@ -91,10 +91,12 @@ function functionEvidence(row) {
     arguments: row.identity_arguments,
     owner: row.owner_name,
     securityDefiner: row.security_definer,
+    volatility: row.volatility,
     configuration: row.configuration,
     runtimeExecute: row.runtime_execute,
     staffExecute: row.staff_execute,
     publicExecute: row.public_execute,
+    unexpectedExecuteRoles: row.unexpected_execute_roles,
     sourceSha256: createHash("sha256").update(row.source, "utf8").digest("hex"),
   });
 }
@@ -107,6 +109,7 @@ async function readFunctionRows(client, functions) {
            owner.rolname AS owner_name,
            owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
            procedure.prosecdef AS security_definer,
+           procedure.provolatile AS volatility,
            procedure.proconfig AS configuration,
            procedure.prosrc AS source,
            pg_catalog.has_function_privilege(
@@ -116,35 +119,72 @@ async function readFunctionRows(client, functions) {
              'grainline_staff_read_runtime', procedure.oid, 'EXECUTE'
            ) AS staff_execute,
            pg_catalog.has_function_privilege(0, procedure.oid, 'EXECUTE')
-             AS public_execute
+             AS public_execute,
+           ARRAY(
+             SELECT DISTINCT privilege_role.rolname
+               FROM pg_catalog.aclexplode(
+                 COALESCE(
+                   procedure.proacl,
+                   pg_catalog.acldefault('f', procedure.proowner)
+                 )
+               ) AS acl
+               JOIN pg_catalog.pg_roles AS privilege_role
+                 ON privilege_role.oid = acl.grantee
+              WHERE acl.privilege_type = 'EXECUTE'
+                AND acl.grantee <> procedure.proowner
+                AND acl.grantee <> 0
+                AND privilege_role.rolname NOT IN (
+                  'grainline_app_runtime',
+                  'grainline_staff_read_runtime'
+                )
+              ORDER BY privilege_role.rolname
+           )::text[] AS unexpected_execute_roles
       FROM pg_catalog.pg_proc AS procedure
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = procedure.pronamespace
       JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+      JOIN pg_catalog.unnest($1::text[]) AS expected(identity)
+        ON procedure.oid = pg_catalog.to_regprocedure(
+          'public.' || expected.identity
+        )
      WHERE namespace.nspname = 'public'
-       AND procedure.proname = ANY($1::text[])
      ORDER BY procedure.proname, identity_arguments
-  `, [functions.map((entry) => entry.name)])).rows;
+  `, [functions.map((entry) => `${entry.name}(${entry.arguments})`)])).rows;
 }
 
 function assertFunctionPosture(row, expected, tableOwner) {
   const identity = `${row.function_name}(${row.identity_arguments})`;
   assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
   assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
-  assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
-  assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
-  const executeRole = expected.executeRole ?? "runtime";
   assert.equal(
-    row.runtime_execute,
-    executeRole === "runtime",
+    row.security_definer,
+    expected.securityDefiner ?? true,
+    `${identity} security mode drifted`,
+  );
+  // Older catalog entries predate exact volatility pinning. Enforce the
+  // contract for releases that reviewed and recorded it (including Listing)
+  // without inventing a VOLATILE default for historical STABLE functions.
+  if (expected.volatility !== undefined) {
+    assert.equal(row.volatility, expected.volatility, `${identity} volatility drifted`);
+  }
+  assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
+  const executeRoles = privateTableFunctionExecuteRoles(expected);
+  assert.equal(
+    Boolean(row.runtime_execute),
+    executeRoles.includes("runtime"),
     `${identity} runtime EXECUTE drifted`,
   );
   assert.equal(
-    row.staff_execute,
-    executeRole === "staff",
+    Boolean(row.staff_execute),
+    executeRoles.includes("staff"),
     `${identity} staff EXECUTE drifted`,
   );
   assert.equal(row.public_execute, false, `${identity} PUBLIC EXECUTE is present`);
+  assert.deepEqual(
+    row.unexpected_execute_roles,
+    [],
+    `${identity} grants EXECUTE to an unexpected role`,
+  );
   assert.equal(identity, `${expected.name}(${expected.arguments})`);
   return identity;
 }

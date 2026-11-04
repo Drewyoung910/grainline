@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -124,6 +124,10 @@ const makerVerificationPreparationMigration =
   "20261028040000_prepare_maker_verification_authorities";
 const makerVerificationActivationMigration =
   "20261028080000_activate_maker_verification_rls";
+const listingDomainPreparationMigration =
+  "20261102050000_prepare_listing_domain_authorities";
+const listingDomainActivationMigration =
+  "20261102060000_activate_listing_domain_rls";
 const favoriteActivationMigration =
   "20261028050000_activate_favorite_rls";
 const followActivationMigration =
@@ -517,6 +521,36 @@ function reviewVoteActivationMigrationSourcePath() {
   assert.fail("ReviewVote activation migration is unavailable");
 }
 
+function listingDomainPreparationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    listingDomainPreparationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env.PRIVATE_TABLE_PREPARATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated Listing domain preparation migration",
+  );
+  return path.dirname(stagedPath);
+}
+
+function listingDomainActivationMigrationSourcePath() {
+  const livePath = path.join(
+    "prisma",
+    "migrations",
+    listingDomainActivationMigration,
+  );
+  if (existsSync(livePath)) return livePath;
+  const stagedPath = process.env.LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH ?? "";
+  assert.ok(
+    stagedPath && path.isAbsolute(stagedPath) && existsSync(stagedPath),
+    "missing isolated Listing domain activation migration",
+  );
+  return path.dirname(stagedPath);
+}
+
 test("every test with a literal held-migration dependency is admitted before replay isolation", () => {
   const omitted = [];
   for (const file of readdirSync("tests").filter((name) => name.endsWith(".test.mjs"))) {
@@ -798,6 +832,36 @@ test("ReviewVote preparation is proved, isolated, and restored around historical
   assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
 });
 
+test("Listing preparation is proved, isolated, and restored around historical guards", () => {
+  const verifyName = "Verify Listing domain preparation source package";
+  const activationAvailable = existsSync(
+    process.env.LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH
+      ?? path.join(
+        "prisma",
+        "migrations",
+        listingDomainActivationMigration,
+        "migration.sql",
+      ),
+  );
+  const isolateName = activationAvailable
+    ? "Isolate Listing releases until historical release guards pass"
+    : "Isolate Listing preparation until historical release guards pass";
+  const checkoutReceipt = "Verify compatible Order checkout receipt authority release";
+  const restoreName = activationAvailable
+    ? "Restore Listing releases after historical release guards"
+    : "Restore Listing preparation after historical release guards";
+  const isolate = step(isolateName);
+  const restore = step(restoreName);
+  assert.match(isolate, new RegExp(listingDomainPreparationMigration));
+  assert.match(restore, new RegExp(listingDomainPreparationMigration));
+  assert.match(isolate, /provision-order-staff-read-role\.sql/u);
+  assert.match(isolate, /LISTING_DOMAIN_PREPARATION_ISOLATED=true/u);
+  assert.match(restore, /LISTING_DOMAIN_PREPARATION_ISOLATED=/u);
+  assert.ok(workflow.indexOf(verifyName) < workflow.indexOf(isolateName));
+  assert.ok(workflow.indexOf(isolateName) < workflow.indexOf(checkoutReceipt));
+  assert.ok(workflow.indexOf(checkoutReceipt) < workflow.indexOf(restoreName));
+});
+
 test("actual isolation and restoration scripts preserve source bytes while staging the follower catalog", () => {
   const temporary = mkdtempSync(path.join(tmpdir(), "grainline-user-ci-staging-"));
   const root = path.join(temporary, "checkout");
@@ -808,6 +872,15 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     mkdirSync(path.join(root, "tests"));
     mkdirSync(path.join(root, "docs"));
     cpSync("scripts", path.join(root, "scripts"), { recursive: true });
+    for (const relative of [staffScript, grantAuditScript, runtimeProvisionScript]) {
+      writeFileSync(
+        path.join(root, relative),
+        execFileSync("git", ["show", `HEAD:${relative}`], {
+          cwd: process.cwd(),
+          env: { PATH: process.env.PATH },
+        }),
+      );
+    }
     symlinkSync(path.join(process.cwd(), "node_modules"), path.join(root, "node_modules"), "dir");
     cpSync("prisma", path.join(root, "prisma"), { recursive: true });
     for (const file of [
@@ -1009,6 +1082,32 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
         { recursive: true },
       );
     }
+    const listingDomainPreparationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      listingDomainPreparationMigration,
+    );
+    if (!existsSync(listingDomainPreparationTarget)) {
+      cpSync(
+        listingDomainPreparationMigrationSourcePath(),
+        listingDomainPreparationTarget,
+        { recursive: true },
+      );
+    }
+    const listingDomainActivationTarget = path.join(
+      root,
+      "prisma",
+      "migrations",
+      listingDomainActivationMigration,
+    );
+    if (!existsSync(listingDomainActivationTarget)) {
+      cpSync(
+        listingDomainActivationMigrationSourcePath(),
+        listingDomainActivationTarget,
+        { recursive: true },
+      );
+    }
     for (const migration of [
       makerVerificationPreparationMigration,
       makerVerificationActivationMigration,
@@ -1080,6 +1179,10 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       `prisma/migrations/${followPreparationMigration}/migration.sql`;
     const reviewVotePreparationPath =
       `prisma/migrations/${reviewVotePreparationMigration}/migration.sql`;
+    const listingDomainPreparationPath =
+      `prisma/migrations/${listingDomainPreparationMigration}/migration.sql`;
+    const listingDomainActivationPath =
+      `prisma/migrations/${listingDomainActivationMigration}/migration.sql`;
     const makerVerificationCandidatePaths = [
       makerVerificationPreparationMigration,
       makerVerificationActivationMigration,
@@ -1107,6 +1210,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
       favoritePreparationPath,
       followPreparationPath,
       reviewVotePreparationPath,
+      listingDomainPreparationPath,
+      listingDomainActivationPath,
       ...makerVerificationCandidatePaths,
       favoriteActivationPath,
       followActivationPath,
@@ -1147,6 +1252,15 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Isolate Follow source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate ReviewVote source packages until historical release guards pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate MakerVerification candidates until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Isolate Listing releases until historical release guards pass")], { cwd: root, env: scriptEnv });
+    execFileSync(process.execPath, ["--test", "tests/order-staff-read-role-provision.test.mjs"], {
+      cwd: root,
+      env: {
+        PATH: process.env.PATH,
+        LISTING_DOMAIN_PREPARATION_ISOLATED: "true",
+      },
+      stdio: "pipe",
+    });
     execFileSync("bash", ["-c", bashBody("Isolate AccountDeletionSideEffect claim-fence until its predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate post-retirement account-deletion repair until all predecessors pass")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Isolate accumulated User access until its predecessors pass")], { cwd: root, env: scriptEnv });
@@ -1180,6 +1294,8 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.ok(makerVerificationCandidatePaths.every(
       (relative) => !existsSync(path.join(root, relative)),
     ));
+    assert.equal(existsSync(path.join(root, listingDomainPreparationPath)), false);
+    assert.equal(existsSync(path.join(root, listingDomainActivationPath)), false);
     assert.equal(existsSync(path.join(root, favoriteActivationPath)), false);
     assert.equal(existsSync(path.join(root, followActivationPath)), false);
     assert.ok(emailDeliveryLedgerCandidateTests.every(
@@ -1232,7 +1348,31 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     assert.equal(existsSync(path.join(root, `prisma/migrations/${forceMigration}`)), false);
     execFileSync(process.execPath, ["--test", "tests/db-grant-inventory.test.mjs"], {
       cwd: root,
-      env: { PATH: process.env.PATH },
+      env: {
+        PATH: process.env.PATH,
+        LISTING_DOMAIN_PREPARATION_MIGRATION_PATH: path.join(
+          holding,
+          "listing-domain-preparation",
+          "migrations",
+          listingDomainPreparationMigration,
+          "migration.sql",
+        ),
+        PRIVATE_TABLE_PREPARATION_MIGRATION_PATH: path.join(
+          holding,
+          "listing-domain-preparation",
+          "migrations",
+          listingDomainPreparationMigration,
+          "migration.sql",
+        ),
+        LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH: path.join(
+          holding,
+          "listing-domain-preparation",
+          "migrations",
+          listingDomainActivationMigration,
+          "migration.sql",
+        ),
+        LISTING_DOMAIN_PREPARATION_ISOLATED: "true",
+      },
       stdio: "pipe",
     });
     execFileSync("bash", ["-c", bashBody("Restore User policyless FORCE source package")], { cwd: root, env: scriptEnv });
@@ -1246,6 +1386,12 @@ test("actual isolation and restoration scripts preserve source bytes while stagi
     execFileSync("bash", ["-c", bashBody("Restore Follow source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore ReviewVote source packages after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore MakerVerification candidates after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync("bash", ["-c", bashBody("Restore Listing releases after historical release guards")], { cwd: root, env: scriptEnv });
+    execFileSync(process.execPath, ["--test", "tests/order-staff-read-role-provision.test.mjs"], {
+      cwd: root,
+      env: { PATH: process.env.PATH },
+      stdio: "pipe",
+    });
     execFileSync("bash", ["-c", bashBody("Restore SavedBlogPost RLS candidate after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email delivery-ledger preparation after historical release guards")], { cwd: root, env: scriptEnv });
     execFileSync("bash", ["-c", bashBody("Restore email provider/account-deletion fence after historical release guards")], { cwd: root, env: scriptEnv });

@@ -6,6 +6,9 @@ const script = readFileSync(
   "scripts/provision-order-staff-read-role.sql",
   "utf8",
 );
+const listingDomainPreparationIsolated =
+  process.env.LISTING_DOMAIN_PREPARATION_ISOLATED === "true";
+const hasListingDomainCandidate = /listing_domain_candidate/u.test(script);
 
 test("staff-read role convergence is credential-free and fail closed", () => {
   assert.match(script, /This script never creates a role or sets a password/u);
@@ -71,20 +74,44 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
       new RegExp(`GRANT EXECUTE ON FUNCTION\\s+public\\.${signature}`, "u"),
     );
   }
-  for (const signature of [
+  const optionalSignatures = [
     'public."grainline_maker_verification_staff_pending_count"(text)',
     'public."grainline_maker_verification_staff_pending_page"(text, timestamp without time zone, text, integer)',
     'public."grainline_seller_guild_staff_master_pending_count"(text)',
     'public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)',
     'public."grainline_seller_guild_staff_roster_count"(text, text)',
     'public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)',
-  ]) {
-    assert.match(script, new RegExp(signature.replace(/[()]/gu, "\\$&"), "u"));
+    ...(hasListingDomainCandidate ? [
+      'public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)',
+      'public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)',
+      'public."grainline_seller_staff_listing_undo_transition"(text, text, text)',
+      'public."grainline_seller_staff_listing_review_queue"(text, integer)',
+    ] : []),
+  ];
+  for (const signature of optionalSignatures) {
+    assert.ok(
+      script.includes(signature),
+      `staff convergence must retain optional authority ${signature}`,
+    );
   }
   assert.match(script, /maker_verification_candidate\(function_signature\)/u);
+  if (!listingDomainPreparationIsolated) {
+    assert.equal(
+      hasListingDomainCandidate,
+      true,
+      "current staff convergence must retain the Listing-domain candidate",
+    );
+  }
+  if (hasListingDomainCandidate) {
+    assert.match(script, /listing_domain_candidate\(function_signature\)/u);
+    assert.match(script, /listing_domain_candidate_state\.installed_count > 0/u);
+  }
   assert.match(script, /candidate_state\.installed_count > 0/u);
   assert.match(script, /WHERE pg_catalog\.to_regprocedure\(function_signature\) IS NOT NULL;/u);
-  assert.equal((script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length, 26);
+  assert.equal(
+    (script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length,
+    hasListingDomainCandidate ? 27 : 26,
+  );
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public/u);

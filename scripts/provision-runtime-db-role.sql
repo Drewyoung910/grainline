@@ -326,9 +326,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."Favorite",
   public."Follow",
   public."FoundingMakerGrant",
-  public."Listing",
-  public."ListingVariantGroup",
-  public."ListingVariantOption",
   public."ListingViewDaily",
   public."MakerVerification",
   public."Message",
@@ -339,7 +336,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."OrderItem",
   public."OrderPaymentEvent",
   public."OrderShippingRateQuote",
-  public."Photo",
   public."ResendWebhookEvent",
   public."Review",
   public."ReviewPhoto",
@@ -363,6 +359,153 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."UserEmailAddress",
   public."UserReport"
 TO :"runtime_role";
+
+-- The public Listing family retains direct runtime reads only for pinned safe
+-- columns after its four-table activation. Before activation, preserve the
+-- predecessor CRUD surface so preparation remains deployment-compatible. A
+-- partial policy/RLS posture fails closed before any Listing grant changes.
+WITH expected(table_name, policy_name, policy_qual) AS (
+  VALUES
+    (
+      'Listing',
+      'listing_public_select',
+      '((status = ''ACTIVE''::"ListingStatus") AND ("isPrivate" = false) AND ("archivedAt" IS NULL) AND ("sellerPubliclyOrderable" = true))'
+    ),
+    (
+      'Photo',
+      'photo_public_select',
+      '(EXISTS ( SELECT 1 FROM "Listing" listing WHERE ((listing.id = "Photo"."listingId") AND (listing.status = ''ACTIVE''::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))'
+    ),
+    (
+      'ListingVariantGroup',
+      'listing_variant_group_public_select',
+      '(EXISTS ( SELECT 1 FROM "Listing" listing WHERE ((listing.id = "ListingVariantGroup"."listingId") AND (listing.status = ''ACTIVE''::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))'
+    ),
+    (
+      'ListingVariantOption',
+      'listing_variant_option_public_select',
+      '(EXISTS ( SELECT 1 FROM ("ListingVariantGroup" variant_group JOIN "Listing" listing ON ((listing.id = variant_group."listingId"))) WHERE ((variant_group.id = "ListingVariantOption"."groupId") AND (listing.status = ''ACTIVE''::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))'
+    )
+), state AS (
+  SELECT expected.table_name,
+         class.relrowsecurity,
+         class.relforcerowsecurity,
+         pg_catalog.count(policy.oid)::integer AS policy_count,
+         pg_catalog.bool_and(
+           policy.polname IS NULL OR (
+             policy.polname = expected.policy_name
+             AND policy.polcmd = 'r'
+             AND policy.polpermissive
+             AND policy.polroles = ARRAY[
+               (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = :'runtime_role')
+             ]::oid[]
+             AND policy.polwithcheck IS NULL
+             AND pg_catalog.regexp_replace(
+                   pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                   '[[:space:]]+', ' ', 'g'
+                 ) = expected.policy_qual
+           )
+         ) AS policy_shape_ok
+    FROM expected
+    LEFT JOIN pg_catalog.pg_class AS class
+      ON class.relname = expected.table_name
+     AND class.relkind = 'r'
+    LEFT JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+     AND namespace.nspname = 'public'
+    LEFT JOIN pg_catalog.pg_policy AS policy
+      ON policy.polrelid = class.oid
+   WHERE namespace.oid IS NOT NULL
+   GROUP BY expected.table_name, class.relrowsecurity,
+            class.relforcerowsecurity
+), posture AS (
+  SELECT
+    pg_catalog.count(*) = 4
+      AND pg_catalog.bool_and(
+        relrowsecurity AND relforcerowsecurity
+        AND policy_count = 1 AND policy_shape_ok
+      ) AS active,
+    pg_catalog.count(*) = 4
+      AND pg_catalog.bool_and(
+        NOT relrowsecurity AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM state
+), failure AS (
+  SELECT
+    'Listing domain RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS grainline_listing_domain_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_listing_domain_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_listing_domain_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_listing_domain_rls_active
+REVOKE ALL ON TABLE
+  public."Listing", public."Photo",
+  public."ListingVariantGroup", public."ListingVariantOption"
+FROM PUBLIC, :"runtime_role";
+
+SELECT pg_catalog.format(
+         'REVOKE ALL PRIVILEGES (%I) ON TABLE public.%I FROM %I',
+         attribute.attname,
+         relation.relname,
+         :'runtime_role'
+       )
+  FROM pg_catalog.pg_class AS relation
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  JOIN pg_catalog.pg_attribute AS attribute
+    ON attribute.attrelid = relation.oid
+ WHERE namespace.nspname = 'public'
+   AND relation.relname IN (
+     'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'
+   )
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+ ORDER BY relation.relname, attribute.attnum;
+\gexec
+
+GRANT SELECT (
+  "id", "sellerId", "title", "description", "priceCents", "currency",
+  "status", "createdAt", "updatedAt", "archivedAt", "videoUrl", "tags",
+  "processingTimeMinDays", "processingTimeMaxDays", "listingType",
+  "stockQuantity", "shipsWithinDays", "category", "clickCount", "viewCount",
+  "isPrivate", "cityMetroId", "metroId", "qualityScore", "materials",
+  "metaDescription", "productHeightIn", "productLengthIn", "productWidthIn",
+  "sellerPubliclyOrderable", "sellerDisplayName",
+  "sellerDisplayNameNormalized", "sellerAverageRating", "sellerReviewCount",
+  "favoriteCount"
+) ON TABLE public."Listing" TO :"runtime_role";
+GRANT SELECT ("id", "listingId", "url", "altText", "sortOrder", "createdAt")
+  ON TABLE public."Photo" TO :"runtime_role";
+GRANT SELECT ("id", "listingId", "name", "sortOrder")
+  ON TABLE public."ListingVariantGroup" TO :"runtime_role";
+GRANT SELECT ("id", "groupId", "label", "priceAdjustCents", "sortOrder", "inStock")
+  ON TABLE public."ListingVariantOption" TO :"runtime_role";
+\else
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  public."Listing", public."Photo",
+  public."ListingVariantGroup", public."ListingVariantOption"
+TO :"runtime_role";
+\endif
+\unset grainline_listing_domain_rls_active
 
 -- Public SellerProfile keeps compatible predecessor CRUD only while RLS is
 -- cleanly off. Once the reviewed policyless ENABLE (or later FORCE) posture is
@@ -3458,6 +3601,48 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
     ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text)', false),
+    ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_remove_transition"(text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_undo_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_listing_review_queue"(text,integer)', false),
+    ('public."grainline_listing_staff_reference_targets"(text,text[])', false),
+    ('public."grainline_listing_staff_seller_active_public_count"(text,text)', false),
+    ('public."grainline_listing_actor_review_contexts"(text[])', true),
+    ('public."grainline_listing_public_customer_photo_page"(text,integer,integer)', true),
+    ('public."grainline_listing_owner_editor"(text)', true),
+    ('public."grainline_listing_owner_export_page"(timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_catalog_page"(text,jsonb,integer,integer)', true),
+    ('public."grainline_listing_owner_summary_page"(text,text,boolean,integer,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_workshop_summary"()', true),
+    ('public."grainline_listing_owner_counts"()', true),
+    ('public."grainline_listing_owner_rating_buckets"(bigint,bigint,boolean)', true),
+    ('public."grainline_listing_seller_rating_summary_refresh"(text)', true),
+    ('public."grainline_listing_service_quality_score_apply"(jsonb)', true),
+    ('public."grainline_listing_owner_stock_lock"(text,text)', true),
+    ('public."grainline_listing_owner_stock_apply"(text,text,boolean,integer,integer)', true),
+    ('public."grainline_listing_owner_action_state"(text)', true),
+    ('public."grainline_listing_actor_transaction_source_core"(text,boolean)', false),
+    ('public."grainline_listing_actor_transaction_source"(text)', true),
+    ('public."grainline_listing_actor_cart_transaction_sources"(text)', true),
+    ('public."grainline_listing_public_analytics_increment"(text,text)', true),
+    ('public."grainline_listing_public_catalog_page"(jsonb, integer, integer)', true),
+    ('public."grainline_listing_public_title_suggestions"(text)', true),
+    ('public."grainline_listing_detail_source_core"(text)', false),
+    ('public."grainline_listing_actor_detail_source"(text)', true),
+    ('public."grainline_listing_staff_detail_source"(text,text)', false),
+    ('public."grainline_listing_owner_ai_review_context"(text)', true),
+    ('public."grainline_listing_owner_assign_metros"(text,timestamp without time zone,text,text)', true),
+    ('public."grainline_listing_children_replace_core"(text,integer,jsonb,jsonb)', false),
+    ('public."grainline_listing_owner_create"(text,text,boolean,text,text,text,text,integer,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_content_update"(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_alt_text_backfill"(text,text[],text[])', true),
+    ('public."grainline_listing_account_deletion_redact"(text,text,bigint,uuid,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_delete_lock"(text)', true),
+    ('public."grainline_listing_owner_archive"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_hard_delete"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_transition"(text,text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_review_transition"(text,timestamp without time zone,text,text,text[],double precision)', true),
+    ('public."grainline_listing_materials_guard"()', false),
     ('public."grainline_seller_staff_listing_detail_profile"(text,text)', false),
     ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
@@ -3562,6 +3747,48 @@ WITH seller_profile_public_candidate(function_signature, runtime_execute) AS (
     ('public."grainline_user_block_follow_cleanup"(text)', true),
     ('public."grainline_seller_staff_feature_transition"(text,text,text)', false),
     ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text)', false),
+    ('public."grainline_seller_staff_listing_review_transition"(text,text,text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_remove_transition"(text,text,timestamp without time zone)', false),
+    ('public."grainline_seller_staff_listing_undo_transition"(text,text,text)', false),
+    ('public."grainline_seller_staff_listing_review_queue"(text,integer)', false),
+    ('public."grainline_listing_staff_reference_targets"(text,text[])', false),
+    ('public."grainline_listing_staff_seller_active_public_count"(text,text)', false),
+    ('public."grainline_listing_actor_review_contexts"(text[])', true),
+    ('public."grainline_listing_public_customer_photo_page"(text,integer,integer)', true),
+    ('public."grainline_listing_owner_editor"(text)', true),
+    ('public."grainline_listing_owner_export_page"(timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_catalog_page"(text,jsonb,integer,integer)', true),
+    ('public."grainline_listing_owner_summary_page"(text,text,boolean,integer,timestamp without time zone,text,integer)', true),
+    ('public."grainline_listing_owner_workshop_summary"()', true),
+    ('public."grainline_listing_owner_counts"()', true),
+    ('public."grainline_listing_owner_rating_buckets"(bigint,bigint,boolean)', true),
+    ('public."grainline_listing_seller_rating_summary_refresh"(text)', true),
+    ('public."grainline_listing_service_quality_score_apply"(jsonb)', true),
+    ('public."grainline_listing_owner_stock_lock"(text,text)', true),
+    ('public."grainline_listing_owner_stock_apply"(text,text,boolean,integer,integer)', true),
+    ('public."grainline_listing_owner_action_state"(text)', true),
+    ('public."grainline_listing_actor_transaction_source_core"(text,boolean)', false),
+    ('public."grainline_listing_actor_transaction_source"(text)', true),
+    ('public."grainline_listing_actor_cart_transaction_sources"(text)', true),
+    ('public."grainline_listing_public_analytics_increment"(text,text)', true),
+    ('public."grainline_listing_public_catalog_page"(jsonb, integer, integer)', true),
+    ('public."grainline_listing_public_title_suggestions"(text)', true),
+    ('public."grainline_listing_detail_source_core"(text)', false),
+    ('public."grainline_listing_actor_detail_source"(text)', true),
+    ('public."grainline_listing_staff_detail_source"(text,text)', false),
+    ('public."grainline_listing_owner_ai_review_context"(text)', true),
+    ('public."grainline_listing_owner_assign_metros"(text,timestamp without time zone,text,text)', true),
+    ('public."grainline_listing_children_replace_core"(text,integer,jsonb,jsonb)', false),
+    ('public."grainline_listing_owner_create"(text,text,boolean,text,text,text,text,integer,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_content_update"(text,timestamp without time zone,text,text,text,text,integer,boolean,text[],text,text[],double precision,double precision,double precision,double precision,double precision,double precision,integer,text,text,integer,integer,integer,integer,jsonb,jsonb)', true),
+    ('public."grainline_listing_owner_alt_text_backfill"(text,text[],text[])', true),
+    ('public."grainline_listing_account_deletion_redact"(text,text,bigint,uuid,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_delete_lock"(text)', true),
+    ('public."grainline_listing_owner_archive"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_hard_delete"(text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_transition"(text,text,timestamp without time zone)', true),
+    ('public."grainline_listing_owner_review_transition"(text,timestamp without time zone,text,text,text[],double precision)', true),
+    ('public."grainline_listing_materials_guard"()', false),
     ('public."grainline_seller_staff_listing_detail_profile"(text,text)', false),
     ('public."grainline_seller_staff_broadcast_targets"(text,text[])', false),
     ('public."grainline_seller_staff_orderability_transition"(text,text,boolean,boolean,boolean,boolean)', true),
@@ -3815,12 +4042,13 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_unread_batch() TO 
 
 -- Conversation/Message authority preparation may be absent before its
 -- reviewed migration. When present, converge all function ACLs:
--- six generic helper cores stay owner-only and the 19 fixed projections /
+-- six generic helper cores stay owner-only and the 20 fixed projections /
 -- operations are runtime-callable. Paired table-grant convergence is handled
 -- above once exact RLS activation is detected.
 WITH conversation_message_authority(function_signature) AS (
   VALUES
     ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_listing_message_context_titles"(text)'),
     ('public."grainline_conversation_get"(text, text)'),
     ('public."grainline_conversation_pair"(text, text)'),
     ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
@@ -3857,6 +4085,7 @@ SELECT format(
 WITH conversation_message_authority(function_signature) AS (
   VALUES
     ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_listing_message_context_titles"(text)'),
     ('public."grainline_conversation_get"(text, text)'),
     ('public."grainline_conversation_pair"(text, text)'),
     ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
@@ -3894,6 +4123,7 @@ SELECT format(
 WITH conversation_message_public_authority(function_signature) AS (
   VALUES
     ('public."grainline_conversation_staff_report_visible"(text)'),
+    ('public."grainline_listing_message_context_titles"(text)'),
     ('public."grainline_conversation_get"(text, text)'),
     ('public."grainline_conversation_pair"(text, text)'),
     ('public."grainline_message_list"(text, text, text, timestamp, text, integer)'),
@@ -4666,7 +4896,14 @@ WITH user_isolated_staff_private(function_signature) AS (
     ('public."grainline_seller_guild_staff_transition"(text, text, text, text, text, boolean)'),
     ('public."grainline_seller_staff_feature_transition"(text, text, text)'),
     ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)'),
+    ('public."grainline_seller_staff_listing_undo_transition"(text, text, text)'),
+    ('public."grainline_seller_staff_listing_review_queue"(text, integer)'),
     ('public."grainline_seller_staff_listing_detail_profile"(text, text)'),
+    ('public."grainline_listing_staff_detail_source"(text, text)'),
+    ('public."grainline_listing_staff_reference_targets"(text, text[])'),
+    ('public."grainline_listing_staff_seller_active_public_count"(text, text)'),
     ('public."grainline_seller_staff_broadcast_targets"(text, text[])'),
     ('public."grainline_seller_staff_report_targets"(text, text[])'),
     ('public."grainline_seller_staff_verification_target"(text, text)'),

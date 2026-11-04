@@ -73,7 +73,7 @@ describe("public cache invalidation guardrails", () => {
     assert.match(sellerShop, /function revalidateListingSurfaces[\s\S]*revalidateListingSearchCaches\(\)/);
     assert.match(sellerShop, /function revalidateListingSurfaces[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(adminReview, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(adminRemove, /status: "REJECTED"[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(adminRemove, /sellerProfileStaffListingRemovalTransition\([\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(adminUndo, /log\.action === 'BAN_USER'[\s\S]*revalidatePublicSellerVisibilityCaches\(\)/);
     assert.match(adminUndo, /log\.action === 'REMOVE_LISTING' \|\| log\.action === 'HOLD_LISTING'[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(dashboard, /revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
@@ -94,8 +94,8 @@ describe("public cache invalidation guardrails", () => {
     assert.match(reviewCreate, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(reviewUpdateDelete, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(reviewCreate, /refreshSellerRatingSummary\(eligibleOrderItem\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{r\.listingId\}`\)/);
-    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{review\.listingId\}`\)/);
+    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(listingContext\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{r\.listingId\}`\)/);
+    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(listingContext\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{review\.listingId\}`\)/);
   });
 
   it("avoids double caching public tag APIs and keeps why-grainline counts fresh", () => {
@@ -143,8 +143,8 @@ describe("public cache invalidation guardrails", () => {
     assert.doesNotMatch(caseResolve, /(?:prisma|tx)\.listing\.updateMany/);
 
     assert.match(stockRestore, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
-    assert.match(stockRestore, /return restoreReservedStockItems\(tx, items\)/);
-    assert.match(stockRestore, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(stockRestore, /transition\.stockVisibilityChanged > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.doesNotMatch(stockRestore, /applyLegacyStockRestore/);
 
     assert.match(stockRoute, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
     assert.match(stockRoute, /updated\.previousStatus !== updated\.status[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);

@@ -20,6 +20,7 @@ import { createCustomOrderRequestMessage } from "@/lib/customOrderRequestAccess"
 import { userClerkActor } from "@/lib/userIdentityAccess";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { userCustomOrderSellerState } from "@/lib/userRelationshipAccess";
+import { listingPublicCatalogPage } from "@/lib/listingPublicCatalogAccess";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
 
@@ -109,15 +110,15 @@ export async function POST(req: Request) {
   }
 
   if (listingId) {
-    const listing = await prisma.listing.findFirst({
-      where: {
-        id: listingId,
+    const { listings: [listing] } = await listingPublicCatalogPage(
+      me.id,
+      {
         sellerId: seller.sellerProfileId,
-        status: "ACTIVE",
-        isPrivate: false,
+        listingIds: [listingId],
       },
-      select: { id: true, title: true },
-    });
+      0,
+      1,
+    );
     if (!listing) {
       return privateJson({ error: "Invalid listing context." }, { status: 400 });
     }

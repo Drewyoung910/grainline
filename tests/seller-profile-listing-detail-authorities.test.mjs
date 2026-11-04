@@ -248,7 +248,8 @@ test("listing page reads SellerProfile through the bounded detail authorities", 
 
   assert.doesNotMatch(loader, /seller:\s*\{/u);
   assert.match(page, /sellerListingDetailProfile\(viewerUserId, listingId\)/u);
-  assert.match(page, /sellerStaffListingDetailProfile\([\s\S]*getOrderStaffReadClient\(\)/u);
+  assert.match(page, /const staffClient = staffPreview \? getOrderStaffReadClient\(\) : null/u);
+  assert.match(page, /sellerStaffListingDetailProfile\(\s*staffClient,/u);
   assert.match(page, /staffPreview[\s\S]*verifyAdminPinCookieValue[\s\S]*sellerStaffListingDetailProfile/u);
   assert.match(access, /grainline_seller_actor_listing_detail_profile/u);
   assert.match(access, /grainline_seller_staff_listing_detail_profile/u);

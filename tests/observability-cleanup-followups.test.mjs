@@ -10,20 +10,22 @@ function source(path) {
 
 describe("observability cleanup follow-ups", () => {
   it("keeps listing view and click counters scoped to public sellable listings", () => {
+    const analyticsAccess = source("src/lib/listingAnalyticsAccess.ts");
     for (const path of [
       "src/app/api/listings/[id]/view/route.ts",
       "src/app/api/listings/[id]/click/route.ts",
     ]) {
       const text = source(path);
-      assert.match(text, /publicListingWhere\(\{\s*id,/);
       assert.match(text, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(text, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(text, /sellerOwnerCore\(viewerUserId\)/);
-      assert.match(text, /viewerSellerProfileId \? \{ sellerId: \{ not: viewerSellerProfileId \} \} : \{\}/);
+      assert.match(text, /incrementPublicListingAnalytics\(\{/);
+      assert.match(text, /viewerUserId,/);
+      assert.doesNotMatch(text, /sellerOwnerCore\(/);
       assert.doesNotMatch(text, /seller: \{ user: \{ clerkId:/);
-      assert.match(text, /listing\.updateMany/);
-      assert.doesNotMatch(text, /listing\.update\(\{\s*where: \{ id \}/);
+      assert.doesNotMatch(text, /(?:prisma|tx)\.listing\./);
     }
+    assert.match(analyticsAccess, /withDbUserContext\(input\.viewerUserId,/);
+    assert.match(analyticsAccess, /grainline_listing_public_analytics_increment/);
   });
 
   it("separates visible seller profiles from currently sellable seller profiles", () => {
