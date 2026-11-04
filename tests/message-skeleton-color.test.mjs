@@ -22,11 +22,9 @@ describe("message skeleton colors", () => {
     const inbox = source("src/app/messages/page.tsx");
     const thread = source("src/app/messages/[id]/loading.tsx");
 
-    assert.match(
-      inbox,
-      /divide-y divide-stone-300\/50 overflow-hidden rounded-lg bg-\[#EFEAE0\]/,
-    );
-    assert.match(inbox, /bg-\[#EFEAE0\] animate-pulse/);
+    assert.match(inbox, /rounded-3xl border border-\[#2C1F1A\]\/10 bg-\[#F2EEE6\]\/80/);
+    assert.match(inbox, /grid gap-0\.5 p-2/);
+    assert.match(inbox, /bg-white\/70 motion-reduce:animate-none/);
     assert.match(thread, /bg-\[#EFEAE0\] animate-pulse/);
     assert.doesNotMatch(inbox, /bg-\[#E3DCCB\] animate-pulse/);
     assert.doesNotMatch(thread, /bg-\[#E3DCCB\] animate-pulse/);

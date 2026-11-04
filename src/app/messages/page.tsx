@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import { formatSnippet } from "@/lib/messageSnippet";
-import MessageTime from "@/components/MessageTime";
 import { MessageCircle } from "@/components/icons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
@@ -14,6 +13,7 @@ import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
 import MessageInboxControls, { type MessageInboxTab } from "@/components/MessageInboxControls";
 import { messageSearchQuery } from "@/lib/messageInputState";
+import ConversationListItem from "@/components/ConversationListItem";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -23,41 +23,33 @@ type MessagesPageProps = {
 
 function MessagesInboxSkeleton() {
   return (
-    <main className="mx-auto max-w-4xl p-8" aria-busy="true" aria-label="Loading messages">
-      <div className="mb-6 flex items-end justify-between">
-        <div className="h-8 w-36 rounded-md bg-[#EFEAE0] animate-pulse" />
-        <div className="h-4 w-28 rounded bg-[#EFEAE0] animate-pulse" />
-      </div>
-
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-8 w-20 rounded-full bg-[#EFEAE0] animate-pulse"
-            />
-          ))}
+    <main className="mx-auto max-w-4xl p-4 sm:p-8 lg:grid lg:max-w-[1280px] lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-6" aria-busy="true" aria-label="Loading messages">
+      <section className="overflow-hidden rounded-3xl border border-[#2C1F1A]/10 bg-[#F2EEE6]/80 shadow-[0_12px_34px_-30px_rgba(44,31,26,0.75)]">
+        <div className="border-b border-[#2C1F1A]/10 p-3">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <div className="h-7 w-28 animate-pulse rounded-md bg-white/70 motion-reduce:animate-none" />
+            <div className="h-4 w-24 animate-pulse rounded bg-white/70 motion-reduce:animate-none" />
+          </div>
+          <div className="grid grid-cols-4 gap-1 rounded-full bg-[#EFEAE0] p-1">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-8 animate-pulse rounded-full bg-white/60 motion-reduce:animate-none" />
+            ))}
+          </div>
+          <div className="mt-3 h-11 w-full animate-pulse rounded-full bg-white/70 motion-reduce:animate-none" />
         </div>
-        <div className="h-11 w-full rounded-full bg-[#EFEAE0] animate-pulse sm:ml-auto sm:w-64" />
-      </div>
-
-      <ul className="divide-y divide-stone-300/50 overflow-hidden rounded-lg bg-[#EFEAE0]">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <li key={index} className="px-4 py-3">
-            <div className="flex items-start gap-3">
-              <div className="h-9 w-9 shrink-0 rounded-full bg-white/70 animate-pulse" />
+        <ul className="grid gap-0.5 p-2">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <li key={index} className="flex items-center gap-2.5 rounded-xl px-3 py-3">
+              <div className="size-10 shrink-0 animate-pulse rounded-full bg-white/70 motion-reduce:animate-none" />
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="h-4 w-2/5 rounded bg-white/70 animate-pulse" />
-                <div className="h-3 w-3/5 rounded bg-white/70 animate-pulse" />
+                <div className="h-3.5 w-2/3 animate-pulse rounded bg-white/70 motion-reduce:animate-none" />
+                <div className="h-3 w-5/6 animate-pulse rounded bg-white/70 motion-reduce:animate-none" />
               </div>
-              <div className="ml-auto flex shrink-0 items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-white/70 animate-pulse" />
-                <div className="hidden h-3 w-16 rounded bg-white/70 animate-pulse sm:block" />
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <div className="hidden min-h-[420px] animate-pulse rounded-2xl border border-stone-200/60 bg-white/30 motion-reduce:animate-none lg:block" />
     </main>
   );
 }
@@ -151,120 +143,77 @@ async function MessagesInbox({
     : null;
 
   return (
-    <main className="mx-auto max-w-4xl p-8 lg:grid lg:max-w-[1280px] lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-6">
-      <div className="min-w-0">
-      <div className="mb-6 flex items-end justify-between">
-        <h1 className="text-2xl font-semibold font-display">Messages</h1>
-        <Link href="/browse" className="text-sm underline">
-          Back to browse
-        </Link>
-      </div>
+    <main className="mx-auto max-w-4xl p-4 sm:p-8 lg:grid lg:max-w-[1280px] lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-6">
+      <section className="min-w-0 overflow-hidden rounded-3xl border border-[#2C1F1A]/10 bg-[#F2EEE6]/80 shadow-[0_12px_34px_-30px_rgba(44,31,26,0.75)]">
+        <div className="border-b border-[#2C1F1A]/10 p-3">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <h1 className="font-display text-xl">Messages</h1>
+            <Link href="/browse" className="text-sm text-neutral-600 underline-offset-4 hover:underline">
+              Back to browse
+            </Link>
+          </div>
+          <MessageInboxControls
+            tab={tab}
+            query={q}
+            unreadTotal={unreadTotal}
+            awaitingReplyTotal={sentTotal}
+          />
+        </div>
 
-      <div className="mb-4">
-        <MessageInboxControls
-          tab={tab}
-          query={q}
-          unreadTotal={unreadTotal}
-          awaitingReplyTotal={sentTotal}
-        />
-      </div>
-
-      {list.length === 0 ? (
-        <div className="rounded-lg bg-[#EFEAE0] p-6 text-neutral-700">
-          {q ? (
-            <>
-              No results for “<span className="font-medium">{q}</span>”.
-            </>
-          ) : tab === "unread" ? (
-            <>No unread messages.</>
-          ) : tab === "sent" ? (
-            <>No conversations yet — reach out to a maker about their work.</>
-          ) : tab === "archived" ? (
-            <>No archived conversations.</>
+        <div className="p-2">
+          {list.length === 0 ? (
+            <div className="rounded-2xl bg-white/60 p-6 text-neutral-700">
+              {q ? (
+                <>
+                  No results for “<span className="font-medium">{q}</span>”.
+                </>
+              ) : tab === "unread" ? (
+                <>No unread messages.</>
+              ) : tab === "sent" ? (
+                <>No conversations yet — reach out to a maker about their work.</>
+              ) : tab === "archived" ? (
+                <>No archived conversations.</>
+              ) : (
+                <>No conversations yet — reach out to a maker about their work.</>
+              )}
+            </div>
           ) : (
-            <>No conversations yet — reach out to a maker about their work.</>
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
+              {list.map(({ c, other, latest, unreadCount, ctxThumb, seller }) => {
+                // Prefer seller display name + avatar when the other party is a
+                // seller. Falls back to Clerk name/imageUrl for buyer-only users.
+                const title = seller?.displayName || other?.name || "User";
+                const avatarUrl = seller?.avatarImageUrl || other?.imageUrl || null;
+                const snippet = formatSnippet(latest?.body, latest?.kind);
+
+                return (
+                  <ConversationListItem
+                    key={c.id}
+                    id={c.id}
+                    title={title}
+                    avatarUrl={avatarUrl}
+                    snippet={snippet}
+                    latestAt={latest?.createdAt ?? null}
+                    unreadCount={unreadCount}
+                    archived={tab === "archived"}
+                    contextThumb={ctxThumb}
+                  />
+                );
+              })}
+            </ul>
+          )}
+          {hasMoreConversations && olderConversationsHref && (
+            <div className="mt-4 flex justify-center">
+              <Link
+                href={olderConversationsHref}
+                className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Older conversations
+              </Link>
+            </div>
           )}
         </div>
-      ) : (
-        <ul className="divide-y divide-stone-300/50 rounded-lg bg-[#EFEAE0] overflow-hidden">
-          {list.map(({ c, other, latest, unreadCount, ctxThumb, seller }) => {
-            // Prefer seller display name + avatar when the other party is a
-            // seller. Falls back to Clerk name/imageUrl for buyer-only users.
-            const title = seller?.displayName || other?.name || "User";
-            const avatarUrl = seller?.avatarImageUrl || other?.imageUrl || null;
-            const snippet = formatSnippet(latest?.body, latest?.kind);
-            const hasTime = !!latest;
-            const isUnread = unreadCount > 0;
-
-            return (
-              <li key={c.id}>
-                <Link
-                  href={`/messages/${c.id}`}
-                  className="block px-4 py-3 hover:bg-[#E3DCCB] transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Avatar */}
-                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200">
-                      {avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-                      ) : null}
-                    </div>
-
-                    {/* Main */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className={`truncate ${isUnread ? "font-semibold" : ""}`}>
-                          {title}
-                        </div>
-                        {isUnread ? (
-                          <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs text-white">
-                            {unreadCount}
-                          </span>
-                        ) : null}
-                        {tab === "archived" ? (
-                          <span className="ml-2 rounded-full bg-[#EFEAE0] px-2.5 py-[2px] text-[11px] font-medium text-neutral-600">
-                            Archived
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className={`mt-1 truncate text-sm text-neutral-600 ${isUnread ? "font-semibold" : ""}`}>
-                        {snippet}
-                      </div>
-                    </div>
-
-                    {/* Context thumb + time */}
-                    <div className="ml-auto flex shrink-0 items-center gap-3">
-                      {ctxThumb ? (
-                        <div className="h-10 w-10 overflow-hidden rounded-lg bg-neutral-100">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={ctxThumb} alt="" className="h-full w-full object-cover" />
-                        </div>
-                      ) : null}
-                      {hasTime && (
-                        <div className="hidden sm:block whitespace-nowrap text-xs text-neutral-500">
-                          <MessageTime date={latest!.createdAt} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {hasMoreConversations && olderConversationsHref && (
-        <div className="mt-4 flex justify-center">
-          <Link
-            href={olderConversationsHref}
-            className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-          >
-            Older conversations
-          </Link>
-        </div>
-      )}
-      </div>
+      </section>
 
       {/* Desktop: the thread opens here once a conversation is chosen. */}
       <div className="sticky top-[calc(var(--site-header-offset)+1.5rem)] hidden min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-stone-300/70 px-6 text-center lg:flex">
