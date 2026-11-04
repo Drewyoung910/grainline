@@ -52,7 +52,7 @@ export default function SellerLocationSearch({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key !== "Enter") return;
+            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
             event.preventDefault();
             if (loading || query.trim().length < 2) return;
             void search();
