@@ -94,6 +94,8 @@ const ADMIN_AUDIT_LOG_PREPARATION = privateTablePreparation("admin_audit_log_v1"
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
 const LISTING_DOMAIN_PREPARATION_MIGRATION =
   "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+const LISTING_DOMAIN_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261102060000_activate_listing_domain_rls/migration.sql";
 const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_seller_staff_listing_review_transition",
   "grainline_seller_staff_listing_remove_transition",
@@ -588,10 +590,9 @@ const {
   EMAIL_PROVIDER_ELIGIBILITY_FENCE_NEW_FUNCTION_NAMES,
   EMAIL_DELIVERY_PRIVATE_FUNCTION_NAMES,
   SELLER_PROFILE_TABLE,
-  LISTING_DOMAIN_TABLES: IMPORTED_LISTING_DOMAIN_TABLES,
-  LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES:
-    IMPORTED_LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES,
-  LISTING_DOMAIN_RLS_POLICIES: IMPORTED_LISTING_DOMAIN_RLS_POLICIES,
+  LISTING_DOMAIN_TABLES,
+  LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES,
+  LISTING_DOMAIN_RLS_POLICIES,
   STRIPE_WEBHOOK_EVENT_TABLE,
   USER_TABLE,
   USER_EMAIL_ADDRESS_TABLE,
@@ -626,6 +627,7 @@ const {
   collectConversationMessageFunctionIssues,
   collectConversationPolicyIssues,
   collectMessagePolicyIssues,
+  collectListingDomainPolicyIssues,
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
   collectPolicylessServiceRlsIssues,
@@ -665,8 +667,8 @@ const {
   supportRequestRlsForceExpected,
   followRlsActivationExpected,
   followRlsForceExpected,
-  listingDomainRlsActivationExpected: importedListingDomainRlsActivationExpected,
-  listingDomainRlsForceExpected: importedListingDomainRlsForceExpected,
+  listingDomainRlsActivationExpected,
+  listingDomainRlsForceExpected,
   sellerAnalyticsDailyRlsActivationExpected,
   sellerAnalyticsDailyRlsForceExpected,
   blockRlsActivationExpected,
@@ -731,18 +733,6 @@ const {
   withAppliedSellerProfilePrivateInvariants,
   withAppliedSellerProfilePredecessorRetirement,
 } = await import("../scripts/audit-runtime-db-grants.mjs");
-
-const LISTING_DOMAIN_TABLES = IMPORTED_LISTING_DOMAIN_TABLES ?? [];
-const LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES =
-  IMPORTED_LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES ?? {};
-const LISTING_DOMAIN_RLS_POLICIES = IMPORTED_LISTING_DOMAIN_RLS_POLICIES ?? {};
-const listingDomainRlsActivationExpected =
-  importedListingDomainRlsActivationExpected;
-const listingDomainRlsForceExpected = importedListingDomainRlsForceExpected;
-const listingDomainGrantAuditSupported =
-  LISTING_DOMAIN_TABLES.length === 4
-  && typeof listingDomainRlsActivationExpected === "function"
-  && typeof listingDomainRlsForceExpected === "function";
 
 describe("temporary SellerProfile CI isolation", () => {
   it("is absent by default and accepted only for exact loopback GitHub CI", () => {
@@ -1043,7 +1033,6 @@ async function withAuditFixture(options, fn) {
 
 describe("database grant inventory guardrails", () => {
   it("pins exact Listing-domain public policy expressions", () => {
-    if (!listingDomainGrantAuditSupported) return;
     for (const tableName of LISTING_DOMAIN_TABLES) {
       const [policyName, expected] = Object.entries(
         LISTING_DOMAIN_RLS_POLICIES[tableName],
@@ -1277,74 +1266,68 @@ describe("database grant inventory guardrails", () => {
     const favoriteActivatedInventory = {
       rlsPolicyTables: [FAVORITE_TABLE],
     };
-    const listingDomainPredecessorInventory = listingDomainGrantAuditSupported
-      ? {
-          tables: [...LISTING_DOMAIN_TABLES],
-          rlsEnableTables: [],
-          rlsForceTables: [],
-          rlsPolicyTables: [],
-        }
-      : null;
-    const listingDomainActivatedInventory = listingDomainGrantAuditSupported
-      ? {
-          ...listingDomainPredecessorInventory,
-          rlsEnableTables: [...LISTING_DOMAIN_TABLES],
-          rlsForceTables: [...LISTING_DOMAIN_TABLES],
-          rlsPolicyTables: [...LISTING_DOMAIN_TABLES],
-        }
-      : null;
+    const listingDomainPredecessorInventory = {
+      tables: [...LISTING_DOMAIN_TABLES],
+      rlsEnableTables: [],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
+    const listingDomainActivatedInventory = {
+      ...listingDomainPredecessorInventory,
+      rlsEnableTables: [...LISTING_DOMAIN_TABLES],
+      rlsForceTables: [...LISTING_DOMAIN_TABLES],
+      rlsPolicyTables: [...LISTING_DOMAIN_TABLES],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
     );
-    if (listingDomainGrantAuditSupported) {
-      assert.equal(
-        listingDomainRlsActivationExpected(listingDomainPredecessorInventory),
-        false,
+    assert.equal(
+      listingDomainRlsActivationExpected(listingDomainPredecessorInventory),
+      false,
+    );
+    assert.equal(
+      listingDomainRlsForceExpected(listingDomainPredecessorInventory),
+      false,
+    );
+    for (const tableName of LISTING_DOMAIN_TABLES) {
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          tableName,
+          listingDomainPredecessorInventory,
+        ),
+        REQUIRED_TABLE_PRIVILEGES,
       );
-      assert.equal(
-        listingDomainRlsForceExpected(listingDomainPredecessorInventory),
-        false,
+      assert.deepEqual(
+        requiredRuntimeColumnPrivileges(
+          tableName,
+          listingDomainPredecessorInventory,
+        ),
+        [],
       );
-      for (const tableName of LISTING_DOMAIN_TABLES) {
-        assert.deepEqual(
-          requiredRuntimeTablePrivileges(
-            tableName,
-            listingDomainPredecessorInventory,
-          ),
-          REQUIRED_TABLE_PRIVILEGES,
-        );
-        assert.deepEqual(
-          requiredRuntimeColumnPrivileges(
-            tableName,
-            listingDomainPredecessorInventory,
-          ),
-          [],
-        );
-        assert.deepEqual(
-          requiredRuntimeTablePrivileges(
-            tableName,
-            listingDomainActivatedInventory,
-          ),
-          [],
-        );
-        assert.deepEqual(
-          requiredRuntimeColumnPrivileges(
-            tableName,
-            listingDomainActivatedInventory,
-          ),
-          LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName],
-        );
-      }
-      assert.equal(
-        listingDomainRlsActivationExpected(listingDomainActivatedInventory),
-        true,
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(
+          tableName,
+          listingDomainActivatedInventory,
+        ),
+        [],
       );
-      assert.equal(
-        listingDomainRlsForceExpected(listingDomainActivatedInventory),
-        true,
+      assert.deepEqual(
+        requiredRuntimeColumnPrivileges(
+          tableName,
+          listingDomainActivatedInventory,
+        ),
+        LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName],
       );
     }
+    assert.equal(
+      listingDomainRlsActivationExpected(listingDomainActivatedInventory),
+      true,
+    );
+    assert.equal(
+      listingDomainRlsForceExpected(listingDomainActivatedInventory),
+      true,
+    );
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", phaseAInventory),
       SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
@@ -4327,6 +4310,13 @@ describe("database grant inventory guardrails", () => {
       source(LISTING_DOMAIN_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const listingDomainRlsActivationPresent = existsSync(
+      LISTING_DOMAIN_ACTIVATION_MIGRATION,
+    ) && source(LISTING_DOMAIN_ACTIVATION_MIGRATION).includes(
+      'CREATE POLICY listing_public_select',
+    ) && source(LISTING_DOMAIN_ACTIVATION_MIGRATION).includes(
+      'ALTER TABLE public."ListingVariantOption" FORCE ROW LEVEL SECURITY',
+    );
     const sellerMetricsRlsActivationPresent = existsSync(
       "prisma/migrations/20261102040000_activate_seller_metrics_rls/migration.sql",
     ) && source(
@@ -4730,6 +4720,7 @@ describe("database grant inventory guardrails", () => {
         + (listingDomainAuthorityPrepared
           ? LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES.length
           : 0)
+        + (listingDomainRlsActivationPresent ? 1 : 0)
         + (sellerMetricsRlsActivationPresent ? 1 : 0)
         + (sellerAnalyticsRlsActivationPresent ? 2 : 0)
         + (typeof followRlsActivationExpected === "function"
@@ -5219,8 +5210,12 @@ describe("database grant inventory guardrails", () => {
         ...(cartCartItemRlsActivationPresent ? ["Cart", "CartItem"] : []),
         "Conversation",
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? [...LISTING_DOMAIN_TABLES.filter((tableName) => tableName !== "Photo")]
+          : []),
         "Message",
         "Notification",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -5261,6 +5256,9 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsActivationExpected === "function"
           && followRlsActivationExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? ["Listing", "ListingVariantGroup", "ListingVariantOption"]
+          : []),
         ...(sellerAnalyticsRlsActivationPresent ? ["ListingViewDaily"] : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
@@ -5274,6 +5272,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -5339,6 +5338,9 @@ describe("database grant inventory guardrails", () => {
         ...(favoriteRlsActivationPresent ? [FAVORITE_TABLE] : []),
         ...(typeof followRlsForceExpected === "function"
           && followRlsForceExpected(inventory) ? [FOLLOW_TABLE] : []),
+        ...(listingDomainRlsActivationPresent
+          ? ["Listing", "ListingVariantGroup", "ListingVariantOption"]
+          : []),
         ...(sellerAnalyticsRlsActivationPresent ? ["ListingViewDaily"] : []),
         ...(makerVerificationActivationPresent ? ["MakerVerification"] : []),
         "Message",
@@ -5352,6 +5354,7 @@ describe("database grant inventory guardrails", () => {
           ? ["OrderShippingRateQuote"]
           : []),
         "OrderStaffCapability",
+        ...(listingDomainRlsActivationPresent ? ["Photo"] : []),
         ...(reviewVoteRlsActivationPresent ? ["ReviewVote"] : []),
         ...(savedBlogPostRlsActivationMigrationPresent
           ? ["SavedBlogPost"]
@@ -7012,6 +7015,9 @@ describe("database grant inventory guardrails", () => {
     const sellerMetricsProvisioningPresent = provision.includes(
       "seller_metrics_rls_active",
     );
+    const listingDomainProvisioningPresent = provision.includes(
+      "grainline_listing_domain_rls_active",
+    );
     assert.equal(
       guardResultCount,
       (sellerProfilePublicProvisioningPresent ? 25 : 24)
@@ -7029,8 +7035,23 @@ describe("database grant inventory guardrails", () => {
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
         + Number(sellerBroadcastProvisioningPresent)
         + Number(adminAuditLogProvisioningPresent)
-        + Number(sellerMetricsProvisioningPresent),
+        + Number(sellerMetricsProvisioningPresent)
+        + Number(listingDomainProvisioningPresent),
     );
+    if (listingDomainProvisioningPresent) {
+      assert.match(
+        provision,
+        /Listing domain RLS is partially or unexpectedly configured/u,
+      );
+      assert.match(
+        provision,
+        /GRANT SELECT \(\s*"id", "sellerId", "title", "description", "priceCents"/u,
+      );
+      assert.match(
+        provision,
+        /GRANT SELECT \("id", "listingId", "url", "altText", "sortOrder", "createdAt"\)\s+ON TABLE public\."Photo"/u,
+      );
+    }
     if (emailServiceActivationProvisioningPresent) {
       assert.match(
         provision,
@@ -7403,6 +7424,11 @@ describe("database grant inventory guardrails", () => {
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+TO/i);
 
     const runtimePrivateTablesForProvision = new Set(RUNTIME_PRIVATE_TABLES);
+    if (listingDomainProvisioningPresent) {
+      for (const tableName of LISTING_DOMAIN_TABLES) {
+        runtimePrivateTablesForProvision.add(tableName);
+      }
+    }
     if (!sellerProfilePublicProvisioningPresent) {
       runtimePrivateTablesForProvision.add("SellerExactMapConsentEvent");
     }

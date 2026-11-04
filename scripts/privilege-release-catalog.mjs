@@ -92,6 +92,164 @@ export const PRIVILEGE_RELEASES = Object.freeze({
       "public.grainline_resend_webhook_event_retention_delete_batch(timestamp without time zone,integer)": fixedFunctionContract("8877e5067e8e3434f909f43c9bfeed250899f0de0f02da66c59def4f4ca81b9f", "integer"),
     }),
   }),
+  listing_catalog_v1: Object.freeze({
+    migration: "20261102060000_activate_listing_domain_rls",
+    migrationSha256:
+      "052707ad9d3c87f021a134eeac2dae24ad4025f7bfa0ccb1566f7a9283bcabdb",
+    preparationMigration: Object.freeze({
+      name: "20261102050000_prepare_listing_domain_authorities",
+      sha256:
+        "9c91a7c6b260345aaf98a685b53c6f5130f03220bb3bedd85033d616248b706b",
+    }),
+    compatibleDeployment: Object.freeze({
+      minimumAppCommit: "10f19c213493fea0da5aa22667168c47339528fe",
+    }),
+    rollback: Object.freeze({
+      path: "docs/rls-drafts/listing-domain-activation-rollback.sql",
+      sha256:
+        "472add39e92f63cbd06de6fe0781a0df582f1b9965b74eb867b363ce0da27ef3",
+    }),
+    sourceTests: Object.freeze([
+      "tests/listing-domain-rls-activation.test.mjs",
+    ]),
+    tables: Object.freeze({
+      Listing: Object.freeze([]),
+      ListingVariantGroup: Object.freeze([]),
+      ListingVariantOption: Object.freeze([]),
+      Photo: Object.freeze([]),
+    }),
+    tableContracts: Object.freeze({
+      Listing: Object.freeze({
+        rlsEnabled: true,
+        rlsForced: true,
+        runtimeColumnPrivileges: Object.freeze([
+          "archivedAt:SELECT",
+          "category:SELECT",
+          "cityMetroId:SELECT",
+          "clickCount:SELECT",
+          "createdAt:SELECT",
+          "currency:SELECT",
+          "description:SELECT",
+          "favoriteCount:SELECT",
+          "id:SELECT",
+          "isPrivate:SELECT",
+          "listingType:SELECT",
+          "materials:SELECT",
+          "metaDescription:SELECT",
+          "metroId:SELECT",
+          "priceCents:SELECT",
+          "processingTimeMaxDays:SELECT",
+          "processingTimeMinDays:SELECT",
+          "productHeightIn:SELECT",
+          "productLengthIn:SELECT",
+          "productWidthIn:SELECT",
+          "qualityScore:SELECT",
+          "sellerAverageRating:SELECT",
+          "sellerDisplayName:SELECT",
+          "sellerDisplayNameNormalized:SELECT",
+          "sellerId:SELECT",
+          "sellerPubliclyOrderable:SELECT",
+          "sellerReviewCount:SELECT",
+          "shipsWithinDays:SELECT",
+          "status:SELECT",
+          "stockQuantity:SELECT",
+          "tags:SELECT",
+          "title:SELECT",
+          "updatedAt:SELECT",
+          "videoUrl:SELECT",
+          "viewCount:SELECT",
+        ]),
+        policies: Object.freeze([
+          Object.freeze({
+            name: "listing_public_select",
+            permissive: true,
+            command: "SELECT",
+            roles: Object.freeze(["grainline_app_runtime"]),
+            usingExpression:
+              "status = 'ACTIVE'::\"ListingStatus\" AND \"isPrivate\" = false AND \"archivedAt\" IS NULL AND \"sellerPubliclyOrderable\" = true",
+            checkExpression: null,
+          }),
+        ]),
+      }),
+      ListingVariantGroup: Object.freeze({
+        rlsEnabled: true,
+        rlsForced: true,
+        runtimeColumnPrivileges: Object.freeze([
+          "id:SELECT",
+          "listingId:SELECT",
+          "name:SELECT",
+          "sortOrder:SELECT",
+        ]),
+        policies: Object.freeze([
+          Object.freeze({
+            name: "listing_variant_group_public_select",
+            permissive: true,
+            command: "SELECT",
+            roles: Object.freeze(["grainline_app_runtime"]),
+            usingExpression:
+              "(EXISTS ( SELECT 1\n   FROM \"Listing\" listing\n  WHERE listing.id = \"ListingVariantGroup\".\"listingId\" AND listing.status = 'ACTIVE'::\"ListingStatus\" AND listing.\"isPrivate\" = false AND listing.\"archivedAt\" IS NULL AND listing.\"sellerPubliclyOrderable\" = true))",
+            checkExpression: null,
+          }),
+        ]),
+      }),
+      ListingVariantOption: Object.freeze({
+        rlsEnabled: true,
+        rlsForced: true,
+        runtimeColumnPrivileges: Object.freeze([
+          "groupId:SELECT",
+          "id:SELECT",
+          "inStock:SELECT",
+          "label:SELECT",
+          "priceAdjustCents:SELECT",
+          "sortOrder:SELECT",
+        ]),
+        policies: Object.freeze([
+          Object.freeze({
+            name: "listing_variant_option_public_select",
+            permissive: true,
+            command: "SELECT",
+            roles: Object.freeze(["grainline_app_runtime"]),
+            usingExpression:
+              "(EXISTS ( SELECT 1\n   FROM \"ListingVariantGroup\" variant_group\n     JOIN \"Listing\" listing ON listing.id = variant_group.\"listingId\"\n  WHERE variant_group.id = \"ListingVariantOption\".\"groupId\" AND listing.status = 'ACTIVE'::\"ListingStatus\" AND listing.\"isPrivate\" = false AND listing.\"archivedAt\" IS NULL AND listing.\"sellerPubliclyOrderable\" = true))",
+            checkExpression: null,
+          }),
+        ]),
+      }),
+      Photo: Object.freeze({
+        rlsEnabled: true,
+        rlsForced: true,
+        runtimeColumnPrivileges: Object.freeze([
+          "altText:SELECT",
+          "createdAt:SELECT",
+          "id:SELECT",
+          "listingId:SELECT",
+          "sortOrder:SELECT",
+          "url:SELECT",
+        ]),
+        policies: Object.freeze([
+          Object.freeze({
+            name: "photo_public_select",
+            permissive: true,
+            command: "SELECT",
+            roles: Object.freeze(["grainline_app_runtime"]),
+            usingExpression:
+              "(EXISTS ( SELECT 1\n   FROM \"Listing\" listing\n  WHERE listing.id = \"Photo\".\"listingId\" AND listing.status = 'ACTIVE'::\"ListingStatus\" AND listing.\"isPrivate\" = false AND listing.\"archivedAt\" IS NULL AND listing.\"sellerPubliclyOrderable\" = true))",
+            checkExpression: null,
+          }),
+        ]),
+      }),
+    }),
+    constraints: Object.freeze([
+      Object.freeze({
+        table: "Listing",
+        name: "Listing_public_reservation_routing_chk",
+        type: "c",
+        validated: true,
+        definition:
+          "CHECK (\"isPrivate\" OR \"reservedForUserId\" IS NULL AND \"customOrderConversationId\" IS NULL)",
+      }),
+    ]),
+  }),
   service_reference_v1: Object.freeze({
     migration: "20261101020000_narrow_service_reference_runtime_privileges",
     migrationSha256:

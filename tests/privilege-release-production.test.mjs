@@ -10,6 +10,8 @@ import {
   verifyPrivilegeReleaseSource,
 } from "../scripts/privilege-release-catalog.mjs";
 import {
+  classifyConstraints,
+  classifyTables,
   inspectPrivilegeReleaseProduction,
 } from "../scripts/privilege-release-production-inspect.mjs";
 
@@ -41,6 +43,7 @@ function tableRows(posture, partial = false) {
       rls_enabled: false,
       rls_forced: false,
       policy_count: 0,
+      policies: [],
       runtime_privileges: posture === "predecessor" || (partial && index === 0)
         ? ["DELETE", "INSERT", "SELECT", "UPDATE"]
         : successor,
@@ -145,6 +148,87 @@ test("catalog byte-seals the reviewed email-service activation boundary", () => 
   });
 });
 
+test("catalog byte-seals the reviewed Listing public-catalog activation", () => {
+  const listing = privilegeRelease("listing_catalog_v1");
+  const verified = verifyPrivilegeReleaseSource("listing_catalog_v1", rootDir);
+  assert.equal(verified.digest, listing.migrationSha256);
+  assert.equal(verified.rollbackDigest, listing.rollback.sha256);
+  assert.equal(
+    listing.preparationMigration.name,
+    "20261102050000_prepare_listing_domain_authorities",
+  );
+  assert.equal(
+    listing.compatibleDeployment.minimumAppCommit,
+    "10f19c213493fea0da5aa22667168c47339528fe",
+  );
+  assert.deepEqual(Object.keys(listing.tables).sort(), [
+    "Listing",
+    "ListingVariantGroup",
+    "ListingVariantOption",
+    "Photo",
+  ]);
+  assert.equal(listing.tableContracts.Listing.policies.length, 1);
+  assert.ok(
+    listing.tableContracts.Listing.runtimeColumnPrivileges.includes(
+      "sellerPubliclyOrderable:SELECT",
+    ),
+  );
+  assert.equal(listing.constraints.length, 1);
+});
+
+test("Listing catalog distinguishes exact predecessor and successor postures", () => {
+  const listing = privilegeRelease("listing_catalog_v1");
+  const common = (table) => ({
+    table_name: table,
+    current_user_name: "neondb_owner",
+    session_user_name: "neondb_owner",
+    table_owner_name: "neondb_owner",
+    owner_bypasses_rls: true,
+    public_privileges: [],
+    staff_privileges: [],
+    runtime_grant_options: [],
+    staff_grant_options: [],
+    staff_column_privileges: [],
+  });
+  const predecessor = Object.keys(listing.tables).sort().map((table) => ({
+    ...common(table),
+    rls_enabled: false,
+    rls_forced: false,
+    policy_count: 0,
+    policies: [],
+    runtime_privileges: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+    runtime_column_privileges: [],
+  }));
+  assert.equal(classifyTables(predecessor, listing).posture, "predecessor");
+  const successor = Object.keys(listing.tables).sort().map((table) => {
+    const contract = listing.tableContracts[table];
+    return {
+      ...common(table),
+      rls_enabled: contract.rlsEnabled,
+      rls_forced: contract.rlsForced,
+      policy_count: contract.policies.length,
+      policies: contract.policies,
+      runtime_privileges: [],
+      runtime_column_privileges: contract.runtimeColumnPrivileges,
+    };
+  });
+  assert.equal(classifyTables(successor, listing).posture, "successor");
+  const drifted = structuredClone(successor);
+  drifted[0].policies[0].usingExpression = "true";
+  assert.throws(
+    () => classifyTables(drifted, listing),
+    /privilege\/RLS contract drifted/u,
+  );
+  assert.deepEqual(
+    classifyConstraints([], listing, "predecessor"),
+    [],
+  );
+  assert.deepEqual(
+    classifyConstraints(listing.constraints, listing, "successor"),
+    listing.constraints,
+  );
+});
+
 test("production inspector recognizes all three restart-safe release states", async () => {
   const directory = mkdtempSync(join(tmpdir(), "grainline-privilege-release-"));
   try {
@@ -213,7 +297,7 @@ test("workflow is exact-main, serialized, restart-safe, and evidence preserving"
   assert.equal(parsed.concurrency["cancel-in-progress"], false);
   assert.deepEqual(
     parsed.on.workflow_dispatch.inputs.release_id.options,
-    ["email_service_v1", releaseId],
+    ["email_service_v1", "listing_catalog_v1", releaseId],
   );
   assert.match(source, /github\.ref == 'refs\/heads\/main'/u);
   assert.match(source, /main\.commit\.sha !== sha/u);
