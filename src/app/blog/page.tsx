@@ -258,6 +258,7 @@ async function BlogIndexPageContent({
   }
 
   const isSearching = q || tagsFilter.length > 0 || authorFilter;
+  const showDiscoveryControls = Boolean(isSearching || total > 0);
   const blogLd = {
     "@context": "https://schema.org",
     "@type": "Blog",
@@ -288,14 +289,15 @@ async function BlogIndexPageContent({
         <p className="text-lg text-neutral-600 max-w-xl mx-auto mb-6">
           Spotlights, gift guides, build stories, and practical education from the Grainline community.
         </p>
-        {/* Search bar */}
-        <div className="max-w-xl mx-auto">
-          <BlogSearchBar initialQ={q} />
-        </div>
+        {showDiscoveryControls && (
+          <div className="max-w-xl mx-auto">
+            <BlogSearchBar initialQ={q} />
+          </div>
+        )}
       </section>
 
       {/* Filter tabs + sort */}
-      <div className="flex flex-wrap items-center gap-2 mb-6">
+      {showDiscoveryControls && <div className="flex flex-wrap items-center gap-2 mb-6">
         {TYPE_TABS.map((tab) => {
           const active = typeFilter === tab.value;
           return (
@@ -329,7 +331,7 @@ async function BlogIndexPageContent({
             />
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Active tag filter chips */}
       {tagsFilter.length > 0 && (
@@ -373,7 +375,7 @@ async function BlogIndexPageContent({
       {allPosts.length === 0 ? (
         <div className="card-section p-12 text-center">
           <p className="text-neutral-500 mb-4">
-            {q ? `No posts found for "${q}"` : "No posts yet — check back soon."}
+            {q ? `No posts found for "${q}"` : "The first workshop stories are being made — check back soon."}
           </p>
           {q && tagCloud.length > 0 && (
             <>
