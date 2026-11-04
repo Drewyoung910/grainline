@@ -138,7 +138,7 @@ async function readFunctionRows(client, functions) {
                   'grainline_staff_read_runtime'
                 )
               ORDER BY privilege_role.rolname
-           ) AS unexpected_execute_roles
+           )::text[] AS unexpected_execute_roles
       FROM pg_catalog.pg_proc AS procedure
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = procedure.pronamespace
