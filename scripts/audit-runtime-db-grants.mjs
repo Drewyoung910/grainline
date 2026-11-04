@@ -75,8 +75,22 @@ const { Client } = pg;
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SELLER_METRICS_PREPARATION = privateTablePreparation("seller_metrics_v1");
+const ADMIN_AUDIT_LOG_PREPARATION =
+  privateTablePreparation("admin_audit_log_v1");
+const LISTING_DOMAIN_PREPARATION =
+  privateTablePreparation("listing_domain_v1");
 const SELLER_METRICS_PRIVATE_FUNCTION_NAMES = Object.freeze(
   SELLER_METRICS_PREPARATION.functions
+    .filter((entry) => privateTableFunctionExecuteRoles(entry).length === 0)
+    .map((entry) => entry.name),
+);
+const ADMIN_AUDIT_LOG_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  ADMIN_AUDIT_LOG_PREPARATION.functions
+    .filter((entry) => privateTableFunctionExecuteRoles(entry).length === 0)
+    .map((entry) => entry.name),
+);
+const LISTING_DOMAIN_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  LISTING_DOMAIN_PREPARATION.functions
     .filter((entry) => privateTableFunctionExecuteRoles(entry).length === 0)
     .map((entry) => entry.name),
 );
@@ -156,11 +170,15 @@ const SELLER_FAQ_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_faq_v1");
 const SELLER_METRICS_RLS_ACTIVATION_RELEASE =
   privateTableRlsActivation("seller_metrics_v1");
+const ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE =
+  privateTableRlsActivation("admin_audit_log_v1");
 export const BLOCK_TABLE = BLOCK_RLS_ACTIVATION_RELEASE.table;
 export const USER_REPORT_TABLE = USER_REPORT_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_FAQ_TABLE = SELLER_FAQ_RLS_ACTIVATION_RELEASE.table;
 export const SELLER_METRICS_TABLE =
   SELLER_METRICS_RLS_ACTIVATION_RELEASE.table;
+export const ADMIN_AUDIT_LOG_TABLE =
+  ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.table;
 export const BLOCK_PREPARATION_MIGRATION =
   BLOCK_PREPARATION_RELEASE.migration;
 export const BLOCK_PREPARATION_MIGRATION_SHA256 =
@@ -754,8 +772,6 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_listing_staff_detail_source",
   "grainline_listing_staff_reference_targets",
   "grainline_listing_staff_seller_active_public_count",
-  "grainline_listing_actor_review_contexts",
-  "grainline_listing_public_customer_photo_page",
   "grainline_seller_staff_broadcast_targets",
   "grainline_seller_staff_report_targets",
   "grainline_seller_staff_verification_target",
@@ -1763,6 +1779,22 @@ export function sellerMetricsRlsForceExpected(inventory) {
   );
 }
 
+export function adminAuditLogRlsActivationExpected(inventory) {
+  return policylessCatalogActivationExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
+  );
+}
+
+export function adminAuditLogRlsForceExpected(inventory) {
+  return policylessCatalogForceExpected(
+    inventory,
+    ADMIN_AUDIT_LOG_TABLE,
+    "adminAuditLogRlsActivationApplied",
+  );
+}
+
 function policylessCatalogActivationExpected(inventory, tableName, stateField) {
   if (typeof inventory?.[stateField] === "boolean") {
     return inventory[stateField];
@@ -1868,6 +1900,10 @@ export function runtimePrivateFunctionNames(inventory) {
     typeof inventory?.blockRlsActivationApplied === "boolean"
       ? inventory.blockRlsActivationApplied
       : blockRlsActivationExpected(inventory);
+  const adminAuditLogPrepared =
+    inventory?.adminAuditLogPreparationApplied === true;
+  const listingDomainPrepared =
+    inventory?.listingDomainPreparationApplied === true;
   if (
     !directUploadActivated
     && !reservationActivated
@@ -1877,6 +1913,8 @@ export function runtimePrivateFunctionNames(inventory) {
     && !sellerProfilePrivatePredecessorPrepared
     && !followActivated
     && !blockActivated
+    && !adminAuditLogPrepared
+    && !listingDomainPrepared
   ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
@@ -1908,6 +1946,12 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(blockActivated
       ? BLOCK_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(adminAuditLogPrepared
+      ? ADMIN_AUDIT_LOG_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(listingDomainPrepared
+      ? LISTING_DOMAIN_PRIVATE_FUNCTION_NAMES
       : []),
   ]);
 }
@@ -2103,6 +2147,38 @@ export async function readSellerFaqRlsActivationState(client) {
     migration: SELLER_FAQ_RLS_ACTIVATION_MIGRATION,
     checksum: SELLER_FAQ_RLS_ACTIVATION_MIGRATION_SHA256,
     label: "SellerFaq RLS activation",
+  });
+}
+
+export async function readAdminAuditLogPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ADMIN_AUDIT_LOG_PREPARATION.migration,
+    checksum: ADMIN_AUDIT_LOG_PREPARATION.migrationSha256,
+    label: "AdminAuditLog compatible preparation",
+  });
+}
+
+export async function readAdminAuditLogRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.migration,
+    checksum: ADMIN_AUDIT_LOG_RLS_ACTIVATION_RELEASE.migrationSha256,
+    label: "AdminAuditLog RLS activation",
+  });
+}
+
+export async function readSellerMetricsRlsActivationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: SELLER_METRICS_RLS_ACTIVATION_RELEASE.migration,
+    checksum: SELLER_METRICS_RLS_ACTIVATION_RELEASE.migrationSha256,
+    label: "SellerMetrics RLS activation",
+  });
+}
+
+export async function readListingDomainPreparationState(client) {
+  return readExactMigrationAppliedState(client, {
+    migration: LISTING_DOMAIN_PREPARATION.migration,
+    checksum: LISTING_DOMAIN_PREPARATION.migrationSha256,
+    label: "Listing domain compatible preparation",
   });
 }
 
@@ -2362,6 +2438,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(sellerMetricsRlsActivationExpected(inventory)
       ? [SELLER_METRICS_TABLE]
+      : []),
+    ...(adminAuditLogRlsActivationExpected(inventory)
+      ? [ADMIN_AUDIT_LOG_TABLE]
       : []),
     ...(blockRlsActivationExpected(inventory) ? [BLOCK_TABLE] : []),
     ...(userReportRlsActivationExpected(inventory) ? [USER_REPORT_TABLE] : []),
@@ -3435,6 +3514,14 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       && sellerProfileRlsActivationExpected(inventory)
     )
     || (
+      tableName === ADMIN_AUDIT_LOG_TABLE
+      && adminAuditLogRlsActivationExpected(inventory)
+    )
+    || (
+      tableName === SELLER_METRICS_TABLE
+      && sellerMetricsRlsActivationExpected(inventory)
+    )
+    || (
       COMMISSION_DOMAIN_TABLES.includes(tableName)
       && commissionDomainRlsActivationExpected(inventory)
     )
@@ -3548,6 +3635,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? sellerAnalyticsDailyRlsForceExpected(inventory)
         : tableName === SELLER_METRICS_TABLE
           ? sellerMetricsRlsForceExpected(inventory)
+        : tableName === ADMIN_AUDIT_LOG_TABLE
+          ? adminAuditLogRlsForceExpected(inventory)
         : tableName === BLOCK_TABLE
           ? blockRlsForceExpected(inventory)
         : tableName === USER_REPORT_TABLE
@@ -3929,6 +4018,18 @@ export async function auditLiveDatabase({
   const sellerFaqRlsActivation =
     await readSellerFaqRlsActivationState(client);
   issues.push(...sellerFaqRlsActivation.issues);
+  const adminAuditLogPreparation =
+    await readAdminAuditLogPreparationState(client);
+  issues.push(...adminAuditLogPreparation.issues);
+  const adminAuditLogRlsActivation =
+    await readAdminAuditLogRlsActivationState(client);
+  issues.push(...adminAuditLogRlsActivation.issues);
+  const sellerMetricsRlsActivation =
+    await readSellerMetricsRlsActivationState(client);
+  issues.push(...sellerMetricsRlsActivation.issues);
+  const listingDomainPreparation =
+    await readListingDomainPreparationState(client);
+  issues.push(...listingDomainPreparation.issues);
   issues.push(...collectClerkWebhookEventMigrationOrderIssues({
     activationApplied: clerkWebhookEventActivation.applied,
     forceApplied: clerkWebhookEventForce.applied,
@@ -4065,6 +4166,10 @@ export async function auditLiveDatabase({
     blockRlsActivationApplied: blockRlsActivation.applied,
     userReportRlsActivationApplied: userReportRlsActivation.applied,
     sellerFaqRlsActivationApplied: sellerFaqRlsActivation.applied,
+    adminAuditLogPreparationApplied: adminAuditLogPreparation.applied,
+    adminAuditLogRlsActivationApplied: adminAuditLogRlsActivation.applied,
+    sellerMetricsRlsActivationApplied: sellerMetricsRlsActivation.applied,
+    listingDomainPreparationApplied: listingDomainPreparation.applied,
   };
   liveAuthorityInventory.functions = sortedUnique([
     ...liveAuthorityInventory.functions,

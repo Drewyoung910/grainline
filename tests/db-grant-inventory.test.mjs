@@ -675,6 +675,10 @@ const {
   userReportRlsForceExpected,
   sellerFaqRlsActivationExpected,
   sellerFaqRlsForceExpected,
+  adminAuditLogRlsActivationExpected,
+  adminAuditLogRlsForceExpected,
+  sellerMetricsRlsActivationExpected,
+  sellerMetricsRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -1165,6 +1169,20 @@ describe("database grant inventory guardrails", () => {
       rlsForceTables: ["DirectUpload", "DirectUploadReference"],
       rlsPolicyTables: [],
     };
+    const adminAuditLogActivatedInventory = {
+      tables: ["AdminAuditLog"],
+      rlsEnableTables: ["AdminAuditLog"],
+      rlsForceTables: ["AdminAuditLog"],
+      rlsPolicyTables: [],
+      adminAuditLogRlsActivationApplied: true,
+    };
+    const sellerMetricsActivatedInventory = {
+      tables: ["SellerMetrics"],
+      rlsEnableTables: ["SellerMetrics"],
+      rlsForceTables: ["SellerMetrics"],
+      rlsPolicyTables: [],
+      sellerMetricsRlsActivationApplied: true,
+    };
     const caseActivationInventory = {
       rlsEnableTables: ["Case", "CaseMessage", "CaseMessageAttachment"],
       rlsForceTables: ["DirectUpload", "DirectUploadReference"],
@@ -1364,6 +1382,54 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
       [],
+    );
+    assert.equal(
+      adminAuditLogRlsActivationExpected(adminAuditLogActivatedInventory),
+      true,
+    );
+    assert.equal(
+      adminAuditLogRlsForceExpected(adminAuditLogActivatedInventory),
+      true,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        "AdminAuditLog",
+        adminAuditLogActivatedInventory,
+      ),
+      [],
+    );
+    assert.equal(
+      sellerMetricsRlsActivationExpected(sellerMetricsActivatedInventory),
+      true,
+    );
+    assert.equal(
+      sellerMetricsRlsForceExpected(sellerMetricsActivatedInventory),
+      true,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        "SellerMetrics",
+        sellerMetricsActivatedInventory,
+      ),
+      [],
+    );
+    assert.equal(
+      runtimePrivateFunctionNames({
+        listingDomainPreparationApplied: true,
+      }).includes("grainline_listing_children_replace_core"),
+      true,
+    );
+    assert.equal(
+      runtimePrivateFunctionNames({
+        listingDomainPreparationApplied: true,
+      }).includes("grainline_listing_actor_review_contexts"),
+      false,
+    );
+    assert.equal(
+      runtimePrivateFunctionNames({
+        listingDomainPreparationApplied: true,
+      }).includes("grainline_listing_public_customer_photo_page"),
+      false,
     );
     const sellerExactMapConsentEventAudited = source(
       "scripts/audit-runtime-db-grants.mjs",

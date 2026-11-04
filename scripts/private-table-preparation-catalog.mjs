@@ -1203,7 +1203,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   listing_domain_v1: Object.freeze({
     migration: "20261102050000_prepare_listing_domain_authorities",
-    migrationSha256: "9d4f078861f365bb2494eecdb7f781deec6343160ef5eb89065bd7a8c6403a2f",
+    migrationSha256: "9c91a7c6b260345aaf98a685b53c6f5130f03220bb3bedd85033d616248b706b",
     table: "Listing",
     additionalTables: Object.freeze([
       "Photo",

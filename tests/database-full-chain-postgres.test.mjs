@@ -1984,6 +1984,13 @@ test(
         database: adapter,
         repositoryRoot,
       });
+      // The rollback proof deliberately mutates the shared full-chain database.
+      // Restore the exact reviewed activation before later scenarios and the
+      // final grant audit inspect branch-tip state.
+      await adapter.query(readFileSync(join(
+        repositoryRoot,
+        "prisma/migrations/20261023070000_activate_saved_blog_post_rls/migration.sql",
+      ), "utf8"));
       await proveCommissionDomainPreparedAuthorities({
         database: adapter,
         seller: fixture,

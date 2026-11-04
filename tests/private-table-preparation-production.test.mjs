@@ -549,8 +549,8 @@ test("Listing preparation is byte-sealed across its four-table domain", () => {
     "ListingVariantGroup",
     "ListingVariantOption",
   ]);
-  assert.equal(listing.functions.length, 43);
-  assert.equal(listingVerified.functionSources.size, 43);
+  assert.equal(listing.functions.length, 44);
+  assert.equal(listingVerified.functionSources.size, 44);
   assert.deepEqual(listing.addedConstraints, [{
     table: "Listing",
     name: "Listing_materials_count_chk",
@@ -618,7 +618,7 @@ test("Listing preparation inspector accepts the exact applied-unrecorded catalog
       "ListingVariantGroup",
       "ListingVariantOption",
     ]);
-    assert.equal(evidence.catalog.functions.length, 43);
+    assert.equal(evidence.catalog.functions.length, 44);
     assert.equal(
       evidence.catalog.functions.find(
         (entry) => entry.name === "grainline_message_list",
