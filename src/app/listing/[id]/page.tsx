@@ -866,6 +866,21 @@ export default async function ListingPage({
         );
       })()}
 
+      {/* Reviews are purchase evidence, not a recommendation rail. Keep them
+          with the listing's core information so they are not buried below
+          three unrelated discovery sections. */}
+      <ReviewsSection
+        listingId={listingId}
+        listingTitle={listing.title}
+        meId={meId}
+        sellerName={sellerName}
+        sellerAvatarUrl={sellerAvatar}
+        viewerIsSeller={viewerIsSeller}
+        initialSort={sortKey}
+        edit={editingMine}
+        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+      />
+
       {/* ── More from this maker ────────────────────────────────────────── */}
       {moreFromSeller.length > 0 && (
         <section className="mb-10">
@@ -916,18 +931,6 @@ export default async function ListingPage({
         viewerUserId={meId}
       />
 
-      {/* ── Reviews ───────────────────────────────────────────────────────── */}
-      <ReviewsSection
-        listingId={listingId}
-        listingTitle={listing.title}
-        meId={meId}
-        sellerName={sellerName}
-        sellerAvatarUrl={sellerAvatar}
-        viewerIsSeller={viewerIsSeller}
-        initialSort={sortKey}
-        edit={editingMine}
-        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
-      />
     </main>
     </div>
   );

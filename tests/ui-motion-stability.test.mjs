@@ -271,6 +271,7 @@ describe("motion stability guardrails", () => {
 
   it("makes the review breakdown prominent while preserving review behavior", () => {
     const reviews = source("src/components/ReviewsSection.tsx");
+    const listing = source("src/app/listing/[id]/page.tsx");
 
     assert.match(reviews, /lg:grid-cols-\[17rem_minmax\(0,1fr\)\]/);
     assert.match(reviews, /aria-label="Rating breakdown"/);
@@ -278,6 +279,10 @@ describe("motion stability guardrails", () => {
     assert.match(reviews, /My review/);
     assert.match(reviews, /<ImageLightbox[\s\S]*?images=\{mine\.photos/);
     assert.match(reviews, /<ImageLightbox[\s\S]*?images=\{r\.photos/);
+    assert.ok(
+      listing.indexOf("<ReviewsSection") < listing.indexOf("You might also like"),
+      "reviews should remain ahead of recommendation rails",
+    );
     assert.match(reviews, /reply=\{mine\.sellerReply\}/);
     assert.match(reviews, /<SellerReplyForm[\s\S]*?reviewId=\{r\.id\}/);
     assert.match(reviews, /<HelpfulButton/);
