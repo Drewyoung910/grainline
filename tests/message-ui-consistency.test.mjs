@@ -12,6 +12,8 @@ describe("message UI consistency", () => {
     const controls = source("src/components/MessageInboxControls.tsx");
     assert.match(inbox, /<MessageInboxControls/);
     assert.match(rail, /<MessageInboxControls/);
+    assert.match(inbox, /<ConversationListItem/);
+    assert.match(rail, /<ConversationListItem/);
     assert.match(rail, /onTabChange=\{setTab\}/);
     assert.match(rail, /onQueryChange=\{setQuery\}/);
     assert.match(controls, /const controlled = Boolean\(onTabChange \|\| onQueryChange\)/);

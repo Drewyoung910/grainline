@@ -3,10 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import MediaImage from "@/components/MediaImage";
-import MessageTime from "@/components/MessageTime";
-import { avatarInitial } from "@/lib/avatarInitials";
 import MessageInboxControls, { type MessageInboxTab } from "@/components/MessageInboxControls";
+import ConversationListItem from "@/components/ConversationListItem";
 
 type RailConversation = {
   id: string;
@@ -166,48 +164,18 @@ export default function ConversationRail() {
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5">
           {conversations.map((conversation) => {
             const current = conversation.id === currentId;
-            const unread = conversation.unreadCount > 0 && !current;
             return (
-              <li key={conversation.id}>
-                <Link
-                  href={`/messages/${conversation.id}`}
-                  aria-current={current ? "page" : undefined}
-                  className={`flex items-center gap-2.5 rounded-md px-2.5 py-2.5 transition-colors duration-150 ${
-                    current ? "bg-white shadow-[0_1px_0_rgba(44,31,26,0.08)]" : "hover:bg-[#E3DCCB]"
-                  }`}
-                >
-                  <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-sm font-medium text-neutral-700">
-                    {avatarInitial(conversation.title)}
-                    {conversation.avatarUrl && (
-                      <MediaImage
-                        src={conversation.avatarUrl}
-                        alt=""
-                        width={36}
-                        height={36}
-                        loading="lazy"
-                        className="absolute inset-0 size-9 object-cover"
-                        fallbackClassName="hidden"
-                      />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className={`min-w-0 truncate text-sm ${unread ? "font-semibold" : "font-medium"}`}>{conversation.title}</span>
-                      {conversation.latestAt && (
-                        <span className="shrink-0 text-[11px] text-neutral-500"><MessageTime date={conversation.latestAt} /></span>
-                      )}
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className={`min-w-0 flex-1 truncate text-[13px] ${unread ? "font-medium text-neutral-800" : "text-neutral-600"}`}>{conversation.snippet}</span>
-                      {unread && (
-                        <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-[#2C1F1A] px-1 text-[11px] tabular-nums text-[#FBF8F3]">
-                          {conversation.unreadCount}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                </Link>
-              </li>
+              <ConversationListItem
+                key={conversation.id}
+                id={conversation.id}
+                title={conversation.title}
+                avatarUrl={conversation.avatarUrl}
+                snippet={conversation.snippet}
+                latestAt={conversation.latestAt}
+                unreadCount={conversation.unreadCount}
+                current={current}
+                archived={tab === "archived"}
+              />
             );
           })}
         </ul>
