@@ -222,7 +222,7 @@ export default function ListingGallery({
           sizes="(max-width: 1023px) 100vw, 50vw"
           preload={mainIndex === 0}
           data-fly-to-cart-source=""
-          className="h-full w-full object-contain"
+          className="h-full w-full object-cover"
           onLoad={(e) => {
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
@@ -286,7 +286,7 @@ export default function ListingGallery({
           className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
           aria-hidden="true"
         >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
+          <span className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/82 text-neutral-900 shadow-[0_5px_16px_-7px_rgba(44,31,26,0.72),0_0_0_1px_rgba(44,31,26,0.18)] backdrop-blur-md">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
             </svg>

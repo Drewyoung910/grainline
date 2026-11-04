@@ -102,7 +102,7 @@ export const LISTING_PHOTO_TARGET_ATTRIBUTE = "data-listing-photo-target";
 // the page doesn't move when it arrives and a traveling photo lands in the
 // right place.
 export const LISTING_GALLERY_FRAME_HEIGHT =
-  "h-[clamp(18rem,calc(100svh-var(--site-header-offset)-12rem),26rem)] lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),32rem)]";
+  "aspect-[4/5] h-auto lg:aspect-auto lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),28rem)]";
 const TRAVEL_MS = 420;
 const TARGET_WAIT_MS = 4000;
 const LANDED_HOLD_MS = 5000;
@@ -179,7 +179,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     width: `${from.width}px`,
     height: `${from.height}px`,
     overflow: "hidden",
-    borderRadius: "16px",
+    borderRadius: "12px",
     zIndex: "40",
     pointerEvents: "none",
     transformOrigin: "center",
@@ -213,6 +213,15 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
 
   const land = (target: Element) => {
     const to = target.getBoundingClientRect();
+    const sourceRatio = from.width / from.height;
+    const targetRatio = to.width / to.height;
+    // A portrait card should not visibly stretch into a landscape gallery.
+    // Mobile keeps the same 4:5 frame and gets the full travel; desktop uses
+    // a quiet cross-fade when the two shapes materially differ.
+    if (Math.abs(sourceRatio - targetRatio) / sourceRatio > 0.14) {
+      removeFlyer(flyer);
+      return;
+    }
     const transform = photoDeltaTransform(from, to);
     if (!transform) {
       removeFlyer(flyer);

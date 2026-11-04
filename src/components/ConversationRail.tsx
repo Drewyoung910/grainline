@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import MediaImage from "@/components/MediaImage";
 import MessageTime from "@/components/MessageTime";
 import { avatarInitial } from "@/lib/avatarInitials";
-import MessageInboxControls from "@/components/MessageInboxControls";
+import MessageInboxControls, { type MessageInboxTab } from "@/components/MessageInboxControls";
 
 type RailConversation = {
   id: string;
@@ -46,6 +46,10 @@ export default function ConversationRail() {
   const [conversations, setConversations] = React.useState<RailConversation[] | null>(null);
   const [failed, setFailed] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(false);
+  const [tab, setTab] = React.useState<MessageInboxTab>("inbox");
+  const [query, setQuery] = React.useState("");
+  const [unreadTotal, setUnreadTotal] = React.useState(0);
+  const [awaitingReplyTotal, setAwaitingReplyTotal] = React.useState(0);
   const controllerRef = React.useRef<AbortController | null>(null);
 
   const load = React.useCallback(async () => {
@@ -54,22 +58,35 @@ export default function ConversationRail() {
     const controller = new AbortController();
     controllerRef.current = controller;
     try {
-      const res = await fetch("/api/messages/inbox", { cache: "no-store", signal: controller.signal });
+      const params = new URLSearchParams();
+      if (tab !== "inbox") params.set("tab", tab);
+      if (query.trim()) params.set("q", query.trim());
+      const suffix = params.toString();
+      const res = await fetch(`/api/messages/inbox${suffix ? `?${suffix}` : ""}`, { cache: "no-store", signal: controller.signal });
       if (!res.ok) throw new Error(`Inbox failed (${res.status})`);
-      const data: { conversations?: unknown; hasMore?: unknown } = await res.json();
+      const data: {
+        conversations?: unknown;
+        hasMore?: unknown;
+        unreadTotal?: unknown;
+        awaitingReplyTotal?: unknown;
+      } = await res.json();
       if (controller.signal.aborted) return;
       setConversations(parseConversations(data.conversations));
       setHasMore(data.hasMore === true);
+      setUnreadTotal(typeof data.unreadTotal === "number" ? data.unreadTotal : 0);
+      setAwaitingReplyTotal(typeof data.awaitingReplyTotal === "number" ? data.awaitingReplyTotal : 0);
       setFailed(false);
     } catch {
       // Keep whatever is already on screen; the thread itself still works.
       if (!controller.signal.aborted) setFailed(true);
     }
-  }, []);
+  }, [query, tab]);
 
   React.useEffect(() => {
-    void load();
-  }, [load, pathname]);
+    const delay = query ? 220 : 0;
+    const timer = window.setTimeout(() => void load(), delay);
+    return () => window.clearTimeout(timer);
+  }, [load, pathname, query]);
 
   React.useEffect(() => {
     let timer: number | null = null;
@@ -93,9 +110,6 @@ export default function ConversationRail() {
   }, [load]);
 
   const currentId = pathname.split("/")[2] ?? null;
-  const unreadTotal = conversations?.reduce((total, conversation) => total + conversation.unreadCount, 0) ?? 0;
-  const awaitingReplyTotal = conversations?.filter((conversation) => conversation.latestFromMe).length ?? 0;
-
   return (
     <aside
       aria-label="Conversations"
@@ -107,11 +121,13 @@ export default function ConversationRail() {
           <Link href="/messages" className="text-sm text-neutral-600 underline-offset-4 hover:underline">Open inbox</Link>
         </div>
         <MessageInboxControls
-          tab="inbox"
-          query=""
+          tab={tab}
+          query={query}
           unreadTotal={unreadTotal}
           awaitingReplyTotal={awaitingReplyTotal}
           compact
+          onTabChange={setTab}
+          onQueryChange={setQuery}
         />
       </div>
       <div className="min-h-0 overflow-y-auto overscroll-contain p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -132,6 +148,19 @@ export default function ConversationRail() {
         <p role="status" className="px-2.5 py-3 text-sm text-neutral-600">
           Couldn&apos;t load your conversations. <Link href="/messages" className="underline underline-offset-2">Open the inbox</Link>
         </p>
+      )}
+      {conversations !== null && conversations.length === 0 && (
+        <div role="status" className="px-4 py-8 text-center text-sm text-neutral-600">
+          {query.trim()
+            ? "No conversations match that search."
+            : tab === "archived"
+              ? "No archived conversations."
+              : tab === "unread"
+                ? "You’re all caught up."
+                : tab === "sent"
+                  ? "No conversations are awaiting a reply."
+                  : "No conversations yet."}
+        </div>
       )}
       {conversations !== null && (
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-0.5">

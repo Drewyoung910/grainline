@@ -868,11 +868,12 @@ export default function SearchBar({
           <button
             type="submit"
             aria-label="Search"
+            onPointerUp={(event) => event.currentTarget.blur()}
             className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-current opacity-80 transition-opacity hover:opacity-100 focus-visible:outline-none"
           >
             <span
               aria-hidden="true"
-              className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-current/10 group-active:bg-current/15 group-focus-visible:ring-2 group-focus-visible:ring-current/30"
+              className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-current/10 group-active:bg-current/15 group-focus-visible:bg-current/10"
             >
               <Search size={18} />
             </span>
@@ -910,11 +911,12 @@ export default function SearchBar({
               // opens in place instead of blurring the field.
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
+              onPointerUp={(event) => event.currentTarget.blur()}
               className="group flex min-w-11 items-center justify-center rounded-full text-current opacity-60 transition-opacity hover:opacity-100 focus-visible:outline-none"
             >
               <span
                 aria-hidden="true"
-                className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-current/10 group-active:bg-current/15 group-focus-visible:ring-2 group-focus-visible:ring-current/30"
+                className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-current/10 group-active:bg-current/15 group-focus-visible:bg-current/10"
               >
                 <X size={15} />
               </span>

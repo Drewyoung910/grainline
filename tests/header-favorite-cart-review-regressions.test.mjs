@@ -12,11 +12,14 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.doesNotMatch(header, /sign-in\?redirect_url=\/messages/);
   });
 
-  it("keeps a 44px favorite target around a smaller solid white circle", () => {
+  it("keeps a 44px favorite target around a centered frosted circle", () => {
     const favorite = source("src/components/FavoriteButton.tsx");
     assert.match(favorite, /h-11 w-11/);
-    // Solid white circle so the heart reads on any photo (Drew, 2026-10-30).
-    assert.match(favorite, /absolute h-9 w-9 rounded-full bg-white\/95/);
+    // A translucent white circle, subtle outline and shadow keep the heart
+    // legible on both pale and dark photos without looking oversized.
+    assert.match(favorite, /absolute h-\[34px\] w-\[34px\] rounded-full bg-white\/82/);
+    assert.match(favorite, /backdrop-blur-md/);
+    assert.match(favorite, /group-hover\/fav:scale-\[1\.06\]/);
     assert.doesNotMatch(favorite, /bg-black\/10|rgba\(0,0,0,0\.25\)/);
     // Pending saves ignore clicks without the disabled attribute, which
     // restyled the button mid-tap.
@@ -24,8 +27,8 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.doesNotMatch(favorite, /disabled=\{isPending\}/);
     assert.match(favorite, /saved \? "fill-red-500 stroke-red-500" : "fill-transparent stroke-neutral-900"/);
     assert.match(favorite, /toast\(next \? "Saved to favorites\." : "Removed from favorites\.", "success"\)/);
-    assert.match(favorite, /-translate-y-px/);
-    assert.match(favorite, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
+    assert.doesNotMatch(favorite, /-translate-y-px/);
+    assert.match(favorite, /0_0_0_1px_rgba\(44,31,26,0\.18\)/);
   });
 
   it("confirms saved blog changes with the same durable toast system", () => {

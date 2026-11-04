@@ -9,8 +9,13 @@ describe("message UI consistency", () => {
   it("shares the inbox controls between the inbox and an open thread", () => {
     const inbox = source("src/app/messages/page.tsx");
     const rail = source("src/components/ConversationRail.tsx");
+    const controls = source("src/components/MessageInboxControls.tsx");
     assert.match(inbox, /<MessageInboxControls/);
     assert.match(rail, /<MessageInboxControls/);
+    assert.match(rail, /onTabChange=\{setTab\}/);
+    assert.match(rail, /onQueryChange=\{setQuery\}/);
+    assert.match(controls, /const controlled = Boolean\(onTabChange \|\| onQueryChange\)/);
+    assert.match(controls, /event\.preventDefault\(\)/);
     assert.doesNotMatch(rail, /className="sticky/);
     assert.match(source("src/components/MessagesShell.tsx"), /grid-cols-\[400px_minmax\(0,1fr\)\]/);
   });
@@ -37,6 +42,8 @@ describe("message UI consistency", () => {
     const rail = source("src/components/ConversationRail.tsx");
     assert.match(route, /limit: RAIL_CONVERSATIONS \+ 1/);
     assert.match(route, /hasMore: conversations\.length > RAIL_CONVERSATIONS/);
+    assert.match(route, /url\.searchParams\.get\("tab"\)/);
+    assert.match(route, /url\.searchParams\.get\("q"\)/);
     assert.match(rail, /Older conversations/);
   });
 
