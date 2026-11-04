@@ -362,7 +362,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   listing_domain_v1: Object.freeze({
     migration: "20261102050000_prepare_listing_domain_authorities",
-    migrationSha256: "fe9588a0a706c9356e46647798b085a2ba6405ab2bd3fae64b1bb6bc4f8cab7a",
+    migrationSha256: "d78b139032fd82371a684e38f3f8c2eff4c780c4e28908b49515a7d6b126241c",
     table: "Listing",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -384,6 +384,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       "tests/listing-detail-source-authority.test.mjs",
       "tests/listing-stock-runtime.test.mjs",
       "tests/listing-message-context-authority.test.mjs",
+      "tests/seller-profile-owner-featured-listing-toggle-conversion.test.mjs",
       "tests/seller-profile-staff-listing-review-transition.test.mjs",
       "tests/listing-account-deletion-authority.test.mjs",
       "tests/listing-analytics-guardrails.test.mjs",
@@ -431,6 +432,11 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({ name: "grainline_listing_owner_transition", arguments: "text, text, timestamp without time zone" }),
       Object.freeze({ name: "grainline_listing_owner_review_transition", arguments: "text, timestamp without time zone, text, text, text[], double precision" }),
       Object.freeze({ name: "grainline_listing_message_context_titles", arguments: "text", volatility: "s" }),
+      Object.freeze({
+        name: "grainline_seller_owner_featured_listing_toggle",
+        arguments: "text, text",
+        predecessorSourceSha256: "941d21df3f4816d7906e6d45b4e48b6ead29fc718f0b47316a58264a87dbe30c",
+      }),
       Object.freeze({
         name: "grainline_message_list",
         arguments: "text, text, text, timestamp without time zone, text, integer",

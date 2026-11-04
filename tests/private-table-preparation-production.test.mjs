@@ -309,8 +309,8 @@ test("Listing preparation is byte-sealed and preserves exact function posture", 
   const listing = privateTablePreparation("listing_domain_v1");
   const listingVerified = verifyPrivateTablePreparationSource("listing_domain_v1");
   assert.equal(listing.table, "Listing");
-  assert.equal(listing.functions.length, 44);
-  assert.equal(listingVerified.functionSources.size, 44);
+  assert.equal(listing.functions.length, 45);
+  assert.equal(listingVerified.functionSources.size, 45);
   assert.match(
     listingVerified.functionSources.get("grainline_listing_materials_guard"),
     /char_length\(material\.value\) > 100/u,
@@ -328,6 +328,19 @@ test("Listing preparation is byte-sealed and preserves exact function posture", 
       .update(functionSourceFromMigration(predecessorSql, messageList.name), "utf8")
       .digest("hex"),
     messageList.predecessorSourceSha256,
+  );
+  const featuredToggle = listing.functions.find(
+    (entry) => entry.name === "grainline_seller_owner_featured_listing_toggle",
+  );
+  const featuredTogglePredecessor = readFileSync(
+    "prisma/migrations/20261020160000_prepare_seller_profile_owner_featured_listing_toggle/migration.sql",
+    "utf8",
+  );
+  assert.equal(
+    createHash("sha256")
+      .update(functionSourceFromMigration(featuredTogglePredecessor, featuredToggle.name), "utf8")
+      .digest("hex"),
+    featuredToggle.predecessorSourceSha256,
   );
   assert.equal(
     REVIEWED_MANUALLY_APPLIED_MIGRATIONS.get(listing.migration),
@@ -373,7 +386,7 @@ test("Listing preparation inspector accepts its exact applied-unrecorded catalog
     );
     assert.equal(evidence.state, "applied_unrecorded");
     assert.equal(evidence.table, "Listing");
-    assert.equal(evidence.catalog.functions.length, 44);
+    assert.equal(evidence.catalog.functions.length, 45);
     assert.equal(
       evidence.catalog.functions.find(
         (entry) => entry.name === "grainline_message_list",

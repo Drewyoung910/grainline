@@ -395,20 +395,20 @@ queries.
 
 | Finding | Classification | Closure required |
 | --- | --- | --- |
-| Ordinary listing creation accepts a stale AI result for a newer resubmission | `FIX_BEFORE_ACTIVATION` | Bind the result to the captured `updatedAt`/content version; failing-first race/state test |
-| Pure mixed-principal RLS hides ordinary public ordering and non-leakproof filter indexes | `BLOCKS_RLS_DESIGN` | Resolved in design by active-public-only generic policy plus bounded filter/suggestion authorities; exact migration plan gate still required |
-| Runtime `grainline_message_list` directly joins Listing for retained context | `FIX_BEFORE_ACTIVATION` | Reuse the installed participant-safe conversation-context authority; hidden/archived context regression test |
-| Generic public grants cannot include reservation routing, moderation fields, package dimensions or `Photo.originalUrl` | `BLOCKS_RLS_DESIGN` | Pinned reviewed column manifest; unsafe-column and `SELECT *` denial proof |
-| Owner editor/export needs fields excluded from generic grants | `FIX_BEFORE_ACTIVATION` | Bounded owner editor/export projections; active owner and cross-user tests |
-| Staff review does not bind the content version; listing removal reads/audits state before its transaction; staff list/count reads use ordinary Prisma | `FIX_BEFORE_ACTIVATION` | Protected staff projections and version-bound transitions. Middleware already enforces the PIN on `/api/admin/**`; this is not a live PIN bypass |
-| Retained review/message views cannot disappear merely because a listing is hidden or archived | `FIX_BEFORE_ACTIVATION` | Purpose-bound historical projections with party/staff tests |
-| No constraint prevents a public listing row from retaining reservation ids | `BLOCKS_RLS_DESIGN` | Exclude routing columns from generic grants and enforce/repair the intended public/private invariant before activation |
-| Similar-list ranking returns nullable `categoryMatch`, which strict result validation turns into a page error | `FIX_BEFORE_ACTIVATION` | Coalesce in SQL and execute an uncategorized-candidate behavior test |
-| Ranking treats a zero-review summary as zero rather than marketplace fallback and does not cap click-through rate at one | `FIX_BEFORE_ACTIVATION` | Apply the reviewed ranking correction and behavior tests for removed-last-review and click-only traffic |
-| Materials entries have no per-item storage limit | `FIX_BEFORE_ACTIVATION` | Choose and enforce a code-point and database bound; prove existing inventory fits or repair first |
-| Ordinary edit can restore a pre-AI status after concurrent stock state change | `FIX_BEFORE_ACTIVATION` | Lock/version-bind final transition and derive status from current stock/type; failing race test |
-| `publishListingAction` ignores a failed custom-ready message delivery | `FIX_BEFORE_ACTIVATION` | Surface/retry the durable delivery result without rolling back a committed publish |
-| Featured-listing removal first requires the Listing to exist, so hard-deleted stale ids cannot be removed and consume the six-slot cap | `FIX_BEFORE_ACTIVATION` | Permit owner-bound removal of a stale id; executed regression |
+| Ordinary listing creation accepts a stale AI result for a newer resubmission | `CLOSED_IN_PREPARATION` | The actor-bound transition matches the captured status and `updatedAt`; `tests/listing-ai-review-transition.test.mjs` pins the stale-result refusal |
+| Pure mixed-principal RLS hides ordinary public ordering and non-leakproof filter indexes | `DESIGN_RESOLVED_ACTIVATION_PROOF_REQUIRED` | Active-public-only generic policy plus bounded filter/suggestion authorities selected; repeat the exact activation plan gate |
+| Runtime `grainline_message_list` directly joins Listing for retained context | `CLOSED_IN_PREPARATION` | Participant/staff-safe title authority replaces the direct join; executed retained-title and unrelated-user denial proof lives in `tests/listing-message-context-authority.test.mjs` |
+| Generic public grants cannot include reservation routing, moderation fields, package dimensions or `Photo.originalUrl` | `ACTIVATION_EVIDENCE_REQUIRED` | Generate the activation safe-column manifest and prove restricted-column and `SELECT *` denial |
+| Owner editor/export needs fields excluded from generic grants | `CLOSED_IN_PREPARATION` | Bounded actor-bound editor and paged export authorities replace direct reads; source and pagination contracts are pinned by the owner editor/export tests |
+| Staff review does not bind the content version; listing removal reads/audits state before its transaction; staff list/count reads use ordinary Prisma | `CLOSED_IN_PREPARATION` | Protected staff projections and version-bound transitions are installed and app callers use the staff role. Middleware still enforces the PIN on `/api/admin/**` |
+| Retained review/message views cannot disappear merely because a listing is hidden or archived | `CLOSED_IN_PREPARATION` | Purpose-bound review, customer-photo and message-history projections retain authorized history without generic Listing access |
+| No constraint prevents a public listing row from retaining reservation ids | `FORWARD_GUARD_ADDED_ACTIVATION_INVENTORY_REQUIRED` | Preparation adds a `NOT VALID` constraint that rejects new drift. Activation must inventory/repair predecessor rows, validate it, and keep routing columns out of public grants |
+| Similar-list ranking returns nullable `categoryMatch`, which strict result validation turns into a page error | `CLOSED_IN_ANCESTOR` | Null is normalized to `false`; `tests/seller-profile-similar-listing-null-category.test.mjs` and candidate tests cover uncategorized rows |
+| Ranking treats a zero-review summary as zero rather than marketplace fallback and does not cap click-through rate at one | `CLOSED_IN_ANCESTOR` | The score uses the marketplace rating fallback for zero reviews and clamps CTR to one; behavior tests cover both cases |
+| Materials entries have no per-item storage limit | `CLOSED_IN_PREPARATION` | App and database enforce 20 entries and 100 Unicode code points per entry; the migration preflight rejects incompatible inventory |
+| Ordinary edit can restore a pre-AI status after concurrent stock state change | `CLOSED_IN_PREPARATION` | The content writer locks/version-binds the row and preserves current stock unless listing type changes; stock runtime tests pin the behavior |
+| `publishListingAction` ignores a failed custom-ready message delivery | `CLOSED_IN_ANCESTOR` | Delivery is durable and retryable; seller/staff callers surface a warning without rolling back a committed publish |
+| Featured-listing removal first requires the Listing to exist, so hard-deleted stale ids cannot be removed and consume the six-slot cap | `CLOSED_IN_PREPARATION` | The replacement removes an already-featured id before requiring a live owned Listing for additions; an executed database regression covers stale removal and missing-id refusal |
 | Seller suggestion uses unescaped `%`/`_` patterns | `STALE_CLOSED` | Current `grainline_seller_public_name_suggestions` escapes `\\`, `%` and `_` and uses an explicit `ESCAPE` clause for both raw and normalized patterns. Retain a literal-input regression test in the Listing preparation proof. |
 | Upload cleanup would delete inline blog images and retained listing photos not registered as live | `DEFERRED_PRODUCT_WORK` | Keep cleanup unscheduled until the upload-reference findings are fixed and the dry-run is empty; not a reason to weaken catalog RLS |
 
@@ -418,8 +418,8 @@ queries.
 | --- | --- |
 | Buy Now variants charge without order (`#1218`) | Fixed in ancestor `c2546eae0`; metadata now carries the exact variant key. Keep end-to-end paid-order coverage. |
 | Hard delete races checkout (`#423/#567`) | Stale. Both paths lock the same Listing before reservation insert/reference decision. Add an executed two-session regression. |
-| Similar-list uncategorized row crashes (`#1193`) | Valid and still open on this branch. |
-| Review/ranking integrity (`#1194/#1195`) | Valid and still open; reviewed side-branch patch is not an ancestor. |
+| Similar-list uncategorized row crashes (`#1193`) | Closed in the current ancestor: nullable category matches normalize to `false`, with executed uncategorized-candidate coverage. |
+| Review/ranking integrity (`#1194/#1195`) | Closed in the current ancestor: zero-review sellers use the marketplace fallback and CTR is capped before dampening. |
 | Favorite cleanup/count guard (`#1396/#1399`) | Stale. Current removal order and the BEFORE guard/lock protocol close both claims. |
 | Inline upload cleanup (`#171`) | Valid, but cleanup is not scheduled. Classified deferred with an explicit schedule blocker. |
 
@@ -558,3 +558,30 @@ The application requires a durable reservation and fails closed when one is
 missing. Focused authority, grant, cache, webhook and release-inspector tests
 plus TypeScript validation pass on the remediation. This is still preparation
 evidence only and does not change the activation NO-GO.
+
+The remediation delta
+`4072ea30726bc15e6328395d733618790430e742..caae6821819530011846f85c2fa7a1c8c2a9e78c`
+received a second complete Codex Security diff review. Scan
+`bd0b786b-96d4-4553-b491-20ec20694f19` reviewed all 12 changed files and
+reported zero findings.
+
+## Final preparation-integrity closures (2026-11-04)
+
+The clean preparation also closes the last two data-integrity findings that
+belong before activation:
+
+- a `NOT VALID` check now rejects every new or updated public Listing that
+  carries reserved-buyer or custom-conversation routing. Existing rows are not
+  silently rewritten; activation must inventory and repair any predecessor
+  drift before validating the constraint;
+- the actor-bound featured-listing toggle now removes an already-featured id
+  before requiring the Listing row to exist. This recovers slots consumed by a
+  prior hard delete while still refusing to add an absent or foreign Listing.
+  An executed runtime-role database regression covers stale removal, missing-id
+  refusal and a normal live addition.
+
+The remaining NO-GO is now narrow: execute the two-session checkout/delete
+race, inventory and validate the public reservation guard, prove the exact
+safe-column/policy/performance activation bytes, and bind those bytes to the
+protected release and rollback. No production activation is authorized by this
+update.
