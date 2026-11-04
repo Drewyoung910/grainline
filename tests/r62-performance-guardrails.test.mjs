@@ -35,6 +35,7 @@ describe("R62 performance guardrails", () => {
     const cardMedia = source("src/components/CardMediaImage.tsx");
     assert.match(cardMedia, /import Image from "next\/image"/);
     assert.match(cardMedia, /<Image[\s\S]*fill[\s\S]*sizes=\{sizes\}/);
+    assert.match(cardMedia, /onError=\{\(\) => setBypassOptimizer\(true\)\}/);
     assert.match(cardMedia, /Legacy UploadThing media is outside the current optimizer allowlist/);
     assert.match(browse, /width=\{176\} height=\{220\} className="h-full w-full/);
   });
