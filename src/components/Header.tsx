@@ -849,13 +849,14 @@ export default function Header() {
                   <span className="truncate text-sm font-medium text-neutral-800">{name ?? "Account"}</span>
                 </div>
 
-                {/* Manage Account — opens Clerk modal directly, no dropdown */}
+                {/* Clerk manages login methods and session security; keep that
+                    distinct from Grainline's My Account pages. */}
                 <button
                   type="button"
                   onClick={handleOpenUserProfile}
                   className="flex min-h-[44px] w-full items-center rounded-md px-3 py-2 text-sm text-neutral-700 hover:bg-[#F7F5F0]"
                 >
-                  Manage Account
+                  Sign-in &amp; security
                 </button>
 
                 {/* Sign Out */}

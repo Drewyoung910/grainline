@@ -23,6 +23,15 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.match(favorite, /if \(isPending\) return;/);
     assert.doesNotMatch(favorite, /disabled=\{isPending\}/);
     assert.match(favorite, /saved \? "fill-red-500 stroke-red-500" : "fill-transparent stroke-neutral-900"/);
+    assert.match(favorite, /toast\(next \? "Saved to favorites\." : "Removed from favorites\.", "success"\)/);
+    assert.match(favorite, /-translate-y-px/);
+    assert.match(favorite, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
+  });
+
+  it("confirms saved blog changes with the same durable toast system", () => {
+    const savedPost = source("src/components/SaveBlogButton.tsx");
+    assert.match(savedPost, /toast\(data\.saved \? "Post saved\." : "Removed from saved posts\.", "success"\)/);
+    assert.match(savedPost, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
   });
 
   it("provides a leaf review loader that mirrors review cards", () => {
@@ -32,6 +41,13 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.match(loader, /aria-label="Loading reviews"/);
     assert.match(loader, /card-section flex gap-4 p-4/);
     assert.match(loader, /h-16 w-16 shrink-0 rounded-lg/);
+  });
+
+  it("gives the listing review region one stable anchor", () => {
+    const listing = source("src/app/listing/[id]/page.tsx");
+    const reviews = source("src/components/ReviewsSection.tsx");
+    assert.doesNotMatch(listing, /<section id="reviews">/);
+    assert.match(reviews, /<section id="reviews"/);
   });
 
   it("makes the cart fallback match its progress, items, gift, total, and action layout", () => {

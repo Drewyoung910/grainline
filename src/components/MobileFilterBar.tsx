@@ -4,19 +4,26 @@ import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
-import { Filter } from "@/components/icons";
+import { Check, ChevronDown, Filter, X } from "@/components/icons";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { normalizeTags } from "@/lib/tags";
 import SegmentedControl from "@/components/SegmentedControl";
 import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
+import { browseSortLabel, visibleBrowseSortOptions } from "@/lib/browseSortOptions";
 
-const SORT_LABELS: Record<string, string> = {
-  relevant: "Relevant",
-  newest: "Newest",
-  price_asc: "Price ↑",
-  price_desc: "Price ↓",
-  popular: "Popular",
-};
+const SHIPS_WITHIN_OPTIONS = ["3", "7", "14", "30"];
+const RATING_OPTIONS = ["4", "3", "2"];
+const RADIUS_OPTIONS = ["10", "25", "50", "100"];
+
+const filterLegendClass = "mb-2.5 block text-[12px] font-semibold uppercase tracking-[0.06em] text-neutral-600";
+
+function choicePillClass(active: boolean) {
+  return `inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition-[background-color,border-color,color,box-shadow,scale] duration-200 motion-safe:active:scale-95 ${
+    active
+      ? "border-transparent bg-[#2C1F1A] text-[#FBF8F3] shadow-[0_5px_14px_-10px_rgba(44,31,26,0.9)]"
+      : "border-transparent bg-white text-neutral-800 ring-1 ring-black/10 hover:bg-[#F0E9DE] hover:ring-black/5"
+  }`;
+}
 
 export default function MobileFilterBar({ popularTags }: { popularTags: string[] }) {
   const router = useRouter();
@@ -33,12 +40,13 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const [locating, setLocating] = React.useState(false);
   const [geoError, setGeoError] = React.useState<string | null>(null);
   const [priceError, setPriceError] = React.useState<string | null>(null);
+  const [categoryOpen, setCategoryOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const filterSheetRef = React.useRef<HTMLDivElement>(null);
   const sortSheetRef = React.useRef<HTMLDivElement>(null);
 
-  useDialogFocus(mobileOpen, filterSheetRef, () => setMobileOpen(false));
-  useDialogFocus(sortOpen, sortSheetRef, () => setSortOpen(false));
+  useDialogFocus(mobileOpen, filterSheetRef, () => setMobileOpen(false), { initialFocus: "container" });
+  useDialogFocus(sortOpen, sortSheetRef, () => setSortOpen(false), { initialFocus: "container" });
   useBodyScrollLock(mobileOpen || sortOpen);
 
   React.useEffect(() => {
@@ -63,7 +71,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         setGeoError(
           error.code === error.PERMISSION_DENIED
             ? "Location permission was denied."
-            : "Could not detect your location. Try again or enter a radius without location filtering."
+            : "Could not detect your location. Try again."
         );
       },
       { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
@@ -106,24 +114,45 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const currentMax = searchParams.get("max") ?? "";
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   const currentRadius = searchParams.get("radius") ?? "";
+  const [draftCategory, setDraftCategory] = React.useState(currentCategory);
+  const [draftShips, setDraftShips] = React.useState(currentShips);
+  const [draftRating, setDraftRating] = React.useState(currentRating);
+  const [draftRadius, setDraftRadius] = React.useState(currentRadius);
+
+  React.useEffect(() => {
+    setDraftCategory(currentCategory);
+    setDraftShips(currentShips);
+    setDraftRating(currentRating);
+    setDraftRadius(currentRadius);
+  }, [currentCategory, currentRadius, currentRating, currentShips]);
   const hasAppliedPrice = Boolean(
     (currentMin && cleanBrowsePriceInput(currentMin) !== null)
     || (currentMax && cleanBrowsePriceInput(currentMax) !== null),
   );
 
-  const sortLabel = SORT_LABELS[currentSort] ?? "Sort";
+  const sortLabel = browseSortLabel(q, currentSort, true);
+  const sortOptions = visibleBrowseSortOptions(q, currentSort);
 
   const activeFilterCount = [
     currentCategory,
     currentType,
     currentShips,
     currentRating,
-    geoLat && geoLng ? "loc" : null,
+    searchParams.get("lat") && searchParams.get("lng") && currentRadius ? "loc" : null,
     hasAppliedPrice ? "price" : null,
     ...selectedTags,
   ].filter(Boolean).length;
 
   const filterFormId = `${baseId}-mobile-filters`;
+
+  function openFilters() {
+    setDraftCategory(currentCategory);
+    setDraftShips(currentShips);
+    setDraftRating(currentRating);
+    setDraftRadius(currentRadius);
+    setCategoryOpen(false);
+    setMobileOpen(true);
+  }
 
   function handleFilterSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -165,8 +194,10 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       {/* Preserve q and view */}
       {q && <input type="hidden" name="q" value={q} />}
       {view !== "grid" && <input type="hidden" name="view" value={view} />}
-      {geoLat && <input type="hidden" name="lat" value={geoLat} />}
-      {geoLng && <input type="hidden" name="lng" value={geoLng} />}
+      {geoLat && geoLng && draftRadius && <input type="hidden" name="lat" value={geoLat} />}
+      {geoLat && geoLng && draftRadius && <input type="hidden" name="lng" value={geoLng} />}
+      {geoLat && geoLng && draftRadius && <input type="hidden" name="radius" value={draftRadius} />}
+      <input type="hidden" name="sort" value={currentSort} />
       {/* Selected tags preserved as hidden inputs */}
       {selectedTags.map((t) => (
         <input key={t} type="hidden" name="tag" value={t} />
@@ -174,25 +205,67 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
       {/* Category */}
       <div>
-        <label htmlFor={`${baseId}-mobile-category`} className="block font-medium mb-1.5">Category</label>
-        <select
-          id={`${baseId}-mobile-category`}
-          name="category"
-          defaultValue={currentCategory}
-          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
+        <span id={`${baseId}-mobile-category-label`} className={filterLegendClass}>Category</span>
+        <input type="hidden" name="category" value={draftCategory} />
+        <button
+          type="button"
+          aria-labelledby={`${baseId}-mobile-category-label`}
+          aria-expanded={categoryOpen}
+          aria-controls={`${baseId}-mobile-category-options`}
+          onPointerUp={(event) => event.currentTarget.blur()}
+          onClick={() => setCategoryOpen((open) => !open)}
+          className="flex min-h-11 w-full items-center justify-between rounded-md border border-neutral-200 bg-white px-3.5 text-left text-[15px] font-medium text-neutral-900 shadow-[0_5px_18px_-14px_rgba(44,31,26,0.8)] transition-[background-color,box-shadow] hover:bg-[#F3EEE5]"
         >
-          <option value="">All categories</option>
-          {CATEGORY_VALUES.map((v) => (
-            <option key={v} value={v}>
-              {CATEGORY_LABELS[v]}
-            </option>
-          ))}
-        </select>
+          <span className="truncate">{draftCategory ? CATEGORY_LABELS[draftCategory] : "All categories"}</span>
+          <ChevronDown
+            aria-hidden="true"
+            size={17}
+            className={`shrink-0 text-neutral-500 transition-transform duration-300 ${categoryOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        {categoryOpen && (
+          <div
+            id={`${baseId}-mobile-category-options`}
+            role="radiogroup"
+            aria-labelledby={`${baseId}-mobile-category-label`}
+            className="mt-2 space-y-0.5 rounded-lg bg-[#EFEAE0]/70 p-1.5 animate-menu-in motion-reduce:animate-none"
+          >
+            {["", ...CATEGORY_VALUES].map((value) => {
+              const selected = draftCategory === value;
+              return (
+                <button
+                  key={value || "all"}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onPointerUp={(event) => event.currentTarget.blur()}
+                  onClick={() => {
+                    setDraftCategory(value);
+                    setCategoryOpen(false);
+                  }}
+                  className={`flex min-h-11 w-full items-center justify-between rounded-md px-3.5 text-left text-[15px] transition-[background-color,box-shadow,color] ${
+                    selected
+                      ? "bg-white font-semibold text-neutral-900 shadow-[0_5px_16px_-12px_rgba(44,31,26,0.75)]"
+                      : "text-neutral-700 hover:bg-white/70"
+                  }`}
+                >
+                  <span>{value ? CATEGORY_LABELS[value] : "All categories"}</span>
+                  <Check
+                    size={16}
+                    className={`text-[#2C1F1A] transition-[opacity,scale] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                      selected ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Availability (sliding toggle, submitted with the form) */}
       <fieldset>
-        <legend className="font-medium mb-1.5">Availability</legend>
+        <legend className={filterLegendClass}>Availability</legend>
         <SegmentedControl
           label="Availability"
           name="type"
@@ -207,39 +280,43 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       </fieldset>
 
       {/* Ships within */}
-      <div>
-        <label htmlFor={`${baseId}-mobile-ships`} className="block font-medium mb-1.5">Ships within (days)</label>
-        <input
-          id={`${baseId}-mobile-ships`}
-          name="ships"
-          type="number"
-          inputMode="numeric"
-          min="1"
-          defaultValue={currentShips}
-          placeholder="e.g. 7"
-          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
-        />
-      </div>
+      <fieldset>
+        <legend className={filterLegendClass}>Ships within</legend>
+        <input type="hidden" name="ships" value={draftShips} />
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Ships within">
+          <button type="button" aria-pressed={!draftShips} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftShips("")} className={choicePillClass(!draftShips)}>
+            Any time
+          </button>
+          {SHIPS_WITHIN_OPTIONS.map((days) => (
+            <button key={days} type="button" aria-pressed={draftShips === days} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftShips(days)} className={choicePillClass(draftShips === days)}>
+              {days} days
+            </button>
+          ))}
+          {draftShips && !SHIPS_WITHIN_OPTIONS.includes(draftShips) && (
+            <span aria-current="true" className={choicePillClass(true)}>{draftShips} days</span>
+          )}
+        </div>
+      </fieldset>
 
       {/* Min seller rating */}
-      <div>
-        <label htmlFor={`${baseId}-mobile-rating`} className="block font-medium mb-1.5">Min seller rating</label>
-        <select
-          id={`${baseId}-mobile-rating`}
-          name="rating"
-          defaultValue={currentRating}
-          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
-        >
-          <option value="">Any rating</option>
-          <option value="4">★★★★ and up</option>
-          <option value="3">★★★ and up</option>
-          <option value="2">★★ and up</option>
-        </select>
-      </div>
+      <fieldset>
+        <legend className={filterLegendClass}>Shop rating</legend>
+        <input type="hidden" name="rating" value={draftRating} />
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Minimum shop rating">
+          <button type="button" aria-pressed={!draftRating} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating("")} className={choicePillClass(!draftRating)}>
+            Any
+          </button>
+          {RATING_OPTIONS.map((stars) => (
+            <button key={stars} type="button" aria-label={`${stars} stars and up`} aria-pressed={draftRating === stars} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating(stars)} className={choicePillClass(draftRating === stars)}>
+              {stars}★ and up
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       {/* Price range */}
       <fieldset>
-        <legend className="font-medium mb-1.5">Price (USD)</legend>
+        <legend className={filterLegendClass}>Price (USD)</legend>
         <div className="flex items-center gap-2">
           <label htmlFor={`${baseId}-mobile-min`} className="sr-only">Minimum price</label>
           <input
@@ -249,7 +326,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             inputMode="decimal"
             defaultValue={currentMin}
             placeholder="Min"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
+            className="min-h-[44px] w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
           <span className="text-neutral-500 shrink-0">–</span>
           <label htmlFor={`${baseId}-mobile-max`} className="sr-only">Maximum price</label>
@@ -260,61 +337,65 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             inputMode="decimal"
             defaultValue={currentMax}
             placeholder="Max"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
+            className="min-h-[44px] w-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm"
           />
         </div>
         {priceError && <p role="alert" className="mt-2 text-xs text-red-700">{priceError}</p>}
       </fieldset>
 
-      {/* Sort */}
-      <div>
-        <label htmlFor={`${baseId}-mobile-sort`} className="block font-medium mb-1.5">Sort by</label>
-        <select
-          id={`${baseId}-mobile-sort`}
-          name="sort"
-          defaultValue={currentSort}
-          className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
-        >
-          {q && <option value="relevant">Most relevant</option>}
-          <option value="newest">Newest</option>
-          <option value="price_asc">Price: Low → High</option>
-          <option value="price_desc">Price: High → Low</option>
-          <option value="popular">Most popular</option>
-        </select>
-      </div>
-
       {/* Location */}
       <fieldset>
-        <legend className="font-medium mb-1.5">Near location</legend>
-        <div className="space-y-1.5">
-          <button
-            type="button"
-            onClick={detectLocation}
-            className="min-h-[44px] rounded-xl border border-neutral-200 bg-white px-3 py-1 text-xs hover:bg-neutral-50"
-          >
-            {locating ? "Detecting…" : "Use my location"}
-          </button>
-          {(geoLat || geoLng) && (
-            <div className="text-xs text-neutral-500 truncate">
-              {geoLat}, {geoLng}
-            </div>
+        <legend className={filterLegendClass}>Near location</legend>
+        <div className="space-y-2.5">
+          {!(geoLat && geoLng) ? (
+            <button
+              type="button"
+              onPointerUp={(event) => event.currentTarget.blur()}
+              onClick={detectLocation}
+              disabled={locating}
+              className="btn btn-sm btn-secondary"
+            >
+              {locating ? "Finding you…" : "Use my location"}
+            </button>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Distance from you">
+                {RADIUS_OPTIONS.map((miles) => (
+                  <button
+                    key={miles}
+                    type="button"
+                    aria-pressed={draftRadius === miles}
+                    onPointerUp={(event) => event.currentTarget.blur()}
+                    onClick={() => setDraftRadius(miles)}
+                    className={choicePillClass(draftRadius === miles)}
+                  >
+                    {miles} mi
+                  </button>
+                ))}
+                {draftRadius && !RADIUS_OPTIONS.includes(draftRadius) && (
+                  <span aria-current="true" className={choicePillClass(true)}>{draftRadius} mi</span>
+                )}
+              </div>
+              {!draftRadius && <p className="text-xs text-neutral-600">Choose a distance from you.</p>}
+              <button
+                type="button"
+                onPointerUp={(event) => event.currentTarget.blur()}
+                onClick={() => {
+                  setGeoLat("");
+                  setGeoLng("");
+                  setDraftRadius("");
+                }}
+                className="min-h-11 text-xs text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
+              >
+                Clear location
+              </button>
+            </>
           )}
           {geoError && (
             <div role="alert" className="text-xs text-red-600">
               {geoError}
             </div>
           )}
-          <label htmlFor={`${baseId}-mobile-radius`} className="sr-only">Radius in miles</label>
-          <input
-            id={`${baseId}-mobile-radius`}
-            name="radius"
-            type="number"
-            inputMode="numeric"
-            min="1"
-            defaultValue={currentRadius}
-            placeholder="Radius (miles)"
-            className="min-h-[44px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-sm"
-          />
         </div>
       </fieldset>
     </form>
@@ -403,16 +484,19 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-modal="true"
         aria-label="Filters"
         tabIndex={-1}
-        className="fixed inset-x-0 bottom-0 z-[61] flex max-h-[85dvh] flex-col rounded-t-3xl bg-white shadow-2xl animate-slide-up after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[61] flex max-h-[85dvh] flex-col rounded-t-3xl bg-white shadow-2xl animate-slide-up focus:outline-none focus-visible:outline-none after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white md:hidden"
       >
         {/* Header row */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
           <span className="font-semibold text-sm">Filters</span>
           <button
+            type="button"
+            aria-label="Close filters"
+            onPointerUp={(event) => event.currentTarget.blur()}
             onClick={() => setMobileOpen(false)}
-            className="rounded-full bg-[#EFEAE0] px-3.5 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors min-h-[44px]"
+            className="group flex size-11 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-[#EFEAE0] hover:text-neutral-900"
           >
-            Close
+            <X size={20} className="transition-transform duration-200 group-active:scale-90" />
           </button>
         </div>
 
@@ -446,50 +530,36 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-modal="true"
         aria-label="Sort listings"
         tabIndex={-1}
-        className="fixed inset-x-0 bottom-0 z-[61] flex max-h-[50dvh] flex-col rounded-t-3xl bg-white shadow-2xl animate-slide-up after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[61] flex max-h-[50dvh] flex-col rounded-t-3xl bg-white shadow-2xl animate-slide-up focus:outline-none focus-visible:outline-none after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-24 after:bg-white md:hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 shrink-0">
           <span className="font-semibold text-sm">Sort by</span>
           <button
+            type="button"
+            aria-label="Close sort"
+            onPointerUp={(event) => event.currentTarget.blur()}
             onClick={() => setSortOpen(false)}
-            className="rounded-full bg-[#EFEAE0] px-3.5 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors min-h-[44px]"
+            className="group flex size-11 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-[#EFEAE0] hover:text-neutral-900"
           >
-            Close
+            <X size={20} className="transition-transform duration-200 group-active:scale-90" />
           </button>
         </div>
 
         {/* Sort options — each navigates and closes sheet. Bottom padding
             keeps the last option clear of the iPhone home indicator. */}
-        <div className="scrollbar-hidden overflow-y-auto overscroll-contain pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
-          {q && (
-            <Link
-              href={sortHref("relevant")}
-              onClick={() => setSortOpen(false)}
-              className={`flex items-center justify-between px-4 py-3 text-sm min-h-[44px] hover:bg-neutral-50 ${
-                currentSort === "relevant" ? "font-semibold text-neutral-900" : "text-neutral-700"
-              }`}
-            >
-              Most relevant
-              {currentSort === "relevant" && <span className="text-neutral-500 text-base">✓</span>}
-            </Link>
-          )}
-          {[
-            { value: "newest", label: "Newest" },
-            { value: "price_asc", label: "Price: Low → High" },
-            { value: "price_desc", label: "Price: High → Low" },
-            { value: "popular", label: "Most popular" },
-          ].map(({ value, label }) => (
+        <div className="scrollbar-hidden overflow-y-auto overscroll-contain p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+          {sortOptions.map(({ value, label }) => (
             <Link
               key={value}
               href={sortHref(value)}
               onClick={() => setSortOpen(false)}
-              className={`flex items-center justify-between px-4 py-3 text-sm min-h-[44px] hover:bg-neutral-50 ${
-                currentSort === value ? "font-semibold text-neutral-900" : "text-neutral-700"
+              className={`flex min-h-11 items-center justify-between rounded-md px-3.5 py-2.5 text-[15px] transition-[background-color,box-shadow,color] hover:bg-[#F3EEE5] ${
+                currentSort === value ? "bg-[#EFEAE0] font-semibold text-neutral-900" : "text-neutral-700"
               }`}
             >
               {label}
-              {currentSort === value && <span className="text-neutral-500 text-base">✓</span>}
+              <Check size={17} className={`text-[#2C1F1A] transition-[opacity,scale] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${currentSort === value ? "scale-100 opacity-100" : "scale-50 opacity-0"}`} />
             </Link>
           ))}
         </div>
@@ -501,10 +571,11 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
       {/* top-[2px] + pt-3 pulls bar 2px below viewport top so button outlines aren't clipped */}
-      <div className="md:hidden sticky top-[var(--site-header-offset)] z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-3 pb-3 flex items-center gap-3">
+      <div className="md:hidden sticky top-[var(--site-header-offset)] z-30 -mx-4 -mt-4 flex items-center gap-3 border-b border-neutral-200 bg-[#F7F5F0] px-4 py-3 sm:-mx-6 sm:-mt-6 sm:px-6">
           <button
-            onClick={() => setMobileOpen(true)}
-            className="btn btn-sm btn-secondary mt-0.5"
+            onPointerUp={(event) => event.currentTarget.blur()}
+            onClick={openFilters}
+            className="btn btn-sm btn-secondary"
           >
             <Filter size={16} />
             Filters
@@ -516,8 +587,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           </button>
 
           <button
+            onPointerUp={(event) => event.currentTarget.blur()}
             onClick={() => setSortOpen(true)}
-            className="btn btn-sm btn-secondary mt-0.5"
+            className="btn btn-sm btn-secondary"
           >
             Sort: {sortLabel}
           </button>

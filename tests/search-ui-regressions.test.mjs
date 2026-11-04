@@ -38,10 +38,13 @@ describe("search UI regression guardrails", () => {
 
   it("uses discoverable, accessible search and clear controls in the inbox", () => {
     const inbox = source("src/app/messages/page.tsx");
+    const inboxControls = source("src/components/MessageInboxControls.tsx");
 
-    assert.match(inbox, /type="submit"[\s\S]*?aria-label="Search messages"[\s\S]*?<Search size=\{17\} \/>/);
-    assert.match(inbox, /aria-label="Clear message search"[\s\S]*?<X size=\{15\} \/>/);
-    assert.doesNotMatch(inbox, />\s*Clear\s*</);
+    assert.match(inbox, /import MessageInboxControls/);
+    assert.match(inbox, /<MessageInboxControls/);
+    assert.match(inboxControls, /type="submit"[\s\S]*?aria-label="Search messages"[\s\S]*?<Search size=\{17\} \/>/);
+    assert.match(inboxControls, /aria-label="Clear message search"[\s\S]*?<X size=\{15\} \/>/);
+    assert.doesNotMatch(inboxControls, />\s*Clear\s*</);
   });
 
   it("keeps the blog input artifact-free and animates both dropdown directions", () => {

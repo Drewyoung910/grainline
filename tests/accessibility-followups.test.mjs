@@ -153,21 +153,22 @@ describe("accessibility follow-ups", () => {
     assert.match(segmented, /role="radio"\s+aria-checked=\{selected\}/);
     assert.match(segmented, /aria-label=\{labelledBy \? undefined : label\}\s+aria-labelledby=\{labelledBy\}/);
 
-    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-category`\}/);
-    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-category`\}/);
-    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Availability<\/legend>/);
-    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-ships`\}/);
-    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-ships`\}/);
-    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-rating`\}/);
-    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-rating`\}/);
-    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Price \(USD\)<\/legend>/);
+    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-category-label`\}/);
+    assert.match(mobileFilters, /aria-labelledby=\{`\$\{baseId\}-mobile-category-label`\}/);
+    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-category-options`\}/);
+    assert.match(mobileFilters, /role="radiogroup"/);
+    assert.match(mobileFilters, /role="radio"/);
+    assert.match(mobileFilters, /aria-checked=\{selected\}/);
+    assert.match(mobileFilters, /<legend className=\{filterLegendClass\}>Availability<\/legend>/);
+    assert.match(mobileFilters, /<legend className=\{filterLegendClass\}>Ships within<\/legend>/);
+    assert.match(mobileFilters, /role="group" aria-label="Ships within"/);
+    assert.match(mobileFilters, /<legend className=\{filterLegendClass\}>Shop rating<\/legend>/);
+    assert.match(mobileFilters, /role="group" aria-label="Minimum shop rating"/);
+    assert.match(mobileFilters, /<legend className=\{filterLegendClass\}>Price \(USD\)<\/legend>/);
     assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-min`\}/);
     assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-max`\}/);
-    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-sort`\}/);
-    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-sort`\}/);
-    assert.match(mobileFilters, /<legend className="font-medium mb-1.5">Near location<\/legend>/);
-    assert.match(mobileFilters, /htmlFor=\{`\$\{baseId\}-mobile-radius`\}/);
-    assert.match(mobileFilters, /id=\{`\$\{baseId\}-mobile-radius`\}/);
+    assert.match(mobileFilters, /<legend className=\{filterLegendClass\}>Near location<\/legend>/);
+    assert.match(mobileFilters, /role="group" aria-label="Distance from you"/);
   });
 
   it("gives listing type and variant editor controls machine-readable labels", () => {
@@ -240,7 +241,7 @@ describe("accessibility follow-ups", () => {
       const text = source(path);
       assert.match(text, /role="img"/);
       assert.match(text, /aria-label=\{`\$\{value\.toFixed\(1\)\} out of 5 stars`\}/);
-      assert.match(text, /aria-hidden="true">★★★★★/);
+      assert.match(text, /aria-hidden="true">\s*★★★★★/);
     }
   });
 
@@ -302,7 +303,7 @@ describe("accessibility follow-ups", () => {
     assert.match(favorite, /h-9 w-9 rounded-full/);
     assert.match(saveBlog, /h-11 w-11/);
     assert.match(saveBlog, /h-9 w-9 rounded-full/);
-    assert.match(saveBlog, /ring-1 ring-black\/10/);
+    assert.match(saveBlog, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.doesNotMatch(home, /<span aria-hidden="true">★<\/span>/);
