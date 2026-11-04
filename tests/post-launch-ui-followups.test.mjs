@@ -152,7 +152,7 @@ describe("post-launch UI follow-ups", () => {
     const frame = source("src/lib/photoMotion.ts");
     assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
-    assert.match(gallery, /className="h-full w-full object-cover"/);
+    assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
     assert.match(frame, /aspect-\[4\/5\] h-auto/);
     assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),28rem/);
     assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);

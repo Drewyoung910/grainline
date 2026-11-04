@@ -17,11 +17,14 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
 
   async function toggle() {
     if (loading) return;
+    const next = !saved;
+    setSaved(next);
     setLoading(true);
-    const method = saved ? "DELETE" : "POST";
+    const method = next ? "POST" : "DELETE";
     try {
       const res = await fetch(`/api/blog/${slug}/save`, { method });
       if (res.status === 401) {
+        setSaved(!next);
         router.push(`/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
@@ -31,6 +34,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
         toast(data.saved ? "Post saved." : "Removed from saved posts.", "success");
         return;
       }
+      setSaved(!next);
       let message = "Couldn’t update saved post.";
       try {
         const data = (await res.json()) as { error?: string };
@@ -40,6 +44,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
       }
       toast(message, "error");
     } catch {
+      setSaved(!next);
       toast("Network error. Please try again.", "error");
     } finally {
       setLoading(false);
@@ -50,14 +55,16 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
     <button
       onClick={toggle}
       aria-busy={loading || undefined}
+      aria-pressed={saved}
       title={saved ? "Remove from saved" : "Save post"}
       aria-label={saved ? "Remove from saved" : "Save post"}
       data-saved={saved ? "true" : "false"}
+      onPointerUp={(event) => event.currentTarget.blur()}
       className="listing-save-control group/blog-save relative inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,translate,scale] duration-200 ease-out focus-visible:outline-none"
     >
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_5px_16px_-6px_rgba(44,31,26,0.62),0_0_0_1px_rgba(44,31,26,0.14)] transition-[background-color,scale,box-shadow] duration-150 ease-out group-hover/blog-save:bg-white group-hover/blog-save:shadow-[0_6px_18px_-6px_rgba(44,31,26,0.68),0_0_0_1px_rgba(44,31,26,0.2)] motion-safe:group-active/blog-save:scale-[0.92] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-neutral-900 group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-white"
+        className="absolute h-[34px] w-[34px] rounded-full bg-[#2C1F1A]/62 shadow-[0_6px_18px_-8px_rgba(20,13,10,0.9),0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md transition-[background-color,scale,box-shadow] duration-180 ease-out group-hover/blog-save:scale-[1.06] group-hover/blog-save:bg-[#2C1F1A]/74 group-hover/blog-save:shadow-[0_8px_22px_-9px_rgba(20,13,10,0.95),0_0_0_1px_rgba(255,255,255,0.38)] motion-safe:group-active/blog-save:scale-[0.94] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-white group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-[#2C1F1A]"
       />
       {/* Match FavoriteButton geometry so the two card actions stay visually
           stable and share the same hover/focus reveal treatment. */}
@@ -81,7 +88,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
           height={18}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#171717"
+          stroke="#FBF8F3"
           strokeWidth={1.8}
           strokeLinecap="round"
           strokeLinejoin="round"

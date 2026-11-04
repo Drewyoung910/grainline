@@ -340,9 +340,9 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                     e.preventDefault();
                     chooseOption(option);
                   }}
-                  className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F5F0] ${
+                  className={`w-full rounded-xl px-3.5 py-2.5 text-left text-sm transition-[background-color,translate] duration-150 hover:bg-[#F7F5F0] active:translate-y-px ${
                     activeIndex === index ? "bg-[#EFEAE0]" : ""
-                  } ${option.kind === "topic" ? "flex items-center gap-2" : "flex items-center gap-3 py-2.5"}`}
+                  } ${option.kind === "topic" ? "flex items-center gap-2" : "flex items-center gap-3"}`}
                 >
                   {option.kind === "topic" ? (
                     <>
