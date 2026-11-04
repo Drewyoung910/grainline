@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { RUNTIME_PRIVATE_FUNCTIONS } from "../scripts/audit-runtime-db-grants.mjs";
+
 const root = new URL("../", import.meta.url);
 
 test("Listing review and customer-photo history use bounded reusable authorities", async () => {
@@ -69,6 +71,14 @@ test("Listing review and customer-photo history use bounded reusable authorities
 
   assert.match(provision, /public\."grainline_listing_actor_review_contexts"\(text\[\]\)/u);
   assert.match(provision, /public\."grainline_listing_public_customer_photo_page"\(text,integer,integer\)/u);
+  assert.equal(
+    RUNTIME_PRIVATE_FUNCTIONS.includes("grainline_listing_actor_review_contexts"),
+    false,
+  );
+  assert.equal(
+    RUNTIME_PRIVATE_FUNCTIONS.includes("grainline_listing_public_customer_photo_page"),
+    false,
+  );
   assert.match(staffProvision, /public\."grainline_listing_staff_reference_targets"\(text, text\[\]\)/u);
   assert.match(fullChain, /proveListingDomainReviewHistory/u);
 });

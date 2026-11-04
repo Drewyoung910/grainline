@@ -53,15 +53,14 @@ async function readPreparationMarkers(client, release) {
           AND attribute.attnum > 0
           AND NOT attribute.attisdropped) AS columns,
       (SELECT pg_catalog.count(*)::integer
-         FROM pg_catalog.pg_proc AS procedure
-         JOIN pg_catalog.pg_namespace AS namespace
-           ON namespace.oid = procedure.pronamespace
-        WHERE namespace.nspname = 'public'
-          AND procedure.proname = ANY($3::text[])) AS functions
+         FROM pg_catalog.unnest($3::text[]) AS expected(identity)
+        WHERE pg_catalog.to_regprocedure(
+          'public.' || expected.identity
+        ) IS NOT NULL) AS functions
   `, [
     `public."${release.table}"`,
     release.addedColumns.map((entry) => entry.name),
-    newFunctions.map((entry) => entry.name),
+    newFunctions.map((entry) => `${entry.name}(${entry.arguments})`),
   ])).rows[0];
 }
 
@@ -124,10 +123,13 @@ async function readFunctionRows(client, functions) {
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = procedure.pronamespace
       JOIN pg_catalog.pg_roles AS owner ON owner.oid = procedure.proowner
+      JOIN pg_catalog.unnest($1::text[]) AS expected(identity)
+        ON procedure.oid = pg_catalog.to_regprocedure(
+          'public.' || expected.identity
+        )
      WHERE namespace.nspname = 'public'
-       AND procedure.proname = ANY($1::text[])
      ORDER BY procedure.proname, identity_arguments
-  `, [functions.map((entry) => entry.name)])).rows;
+  `, [functions.map((entry) => `${entry.name}(${entry.arguments})`)])).rows;
 }
 
 function assertFunctionPosture(row, expected, tableOwner) {

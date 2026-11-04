@@ -7,9 +7,11 @@ Status: **AUDIT COMPLETE — GO for isolated preparation; NO-GO for activation.*
 This audit covers `Listing`, `Photo`, `ListingVariantGroup` and
 `ListingVariantOption` as one coupled catalog lifecycle. It began on
 2026-11-02 against exact source
-`7060b504a9f4503af26dd11a14e316fa89ed93b8`, after the SellerMetrics
-preparation and activation candidates were committed and pushed. No catalog
-policy, grant, function or migration design predates this audit.
+`7060b504a9f4503af26dd11a14e316fa89ed93b8`. The clean preparation branch was
+subsequently rebased onto exact `main`
+`2c920bbba080bb2a332a36340ce7a08541fed772`; draft PR #741 contains the
+isolated Listing-domain successor. No catalog policy, grant, function or
+migration design predates this audit.
 
 The options comparison is in `docs/listing-domain-rls-options.md`. Drew's
 standing instruction is to choose the safer scalable design; the executed
@@ -497,8 +499,11 @@ paths without changing the activation decision:
 
 - owner AI alt-text backfill is actor-bound, exact-photo-sequence-bound and
   preserves nonempty seller text;
-- legacy checkout stock restoration combines the durable Session claim and
-  mutation atomically, with exactly-once replay behavior;
+- checkout stock restoration requires the durable
+  `CheckoutStockReservation` authority; the older no-reservation fallback now
+  fails closed, reports the missing reservation and releases its processing
+  lock instead of reconstructing stock from caller-controlled checkout
+  metadata;
 - Listing-family account deletion is bound to the exact active local-anonymize
   side-effect claim rather than a caller-selected seller id.
 
@@ -523,9 +528,33 @@ not accept it. Commit `8078bc5fcb3e0c0acdc3a371137f1a2b5715d916`
 adds that existing sort to the boundary and pins it with a focused regression;
 the 38-test Listing suite passes.
 
-Draft PR #732 is deliberately stacked on the SellerMetrics activation branch
-so that its diff contains only the Listing-domain successor. It is evidence and
-CI coordination only. Activation remains **NO-GO for Production** until every
-predecessor is released, the candidate is rebased onto the exact released
-chain, exact-head CI and PostgreSQL 17 full-chain proofs pass again, and the
-protected release admission is separately approved.
+That superseded stacked candidate was not merged. Draft PR #741 is the clean,
+isolated preparation based on exact `main`; it is evidence and CI coordination
+only. Activation remains **NO-GO for Production** until exact-head CI and the
+PostgreSQL 17 full-chain proofs pass on the final preparation bytes, every
+activation prerequisite is independently reviewed, and protected release
+admission is separately approved.
+
+## Clean preparation security review update (2026-11-03)
+
+Codex Security reviewed the exact immutable pre-remediation range
+`2c920bbba080bb2a332a36340ce7a08541fed772..4072ea30726bc15e6328395d733618790430e742`
+and closed all 107 changed-file review items. Scan
+`eb7e1a22-9cb9-4f7d-81d0-c67fd3f0f04b` reported three findings:
+
+- the production inspector resolved overloaded functions by name rather than
+  exact identity, so the retained predecessor overload would fail the release
+  closed;
+- the global grant audit classified two required runtime read authorities as
+  runtime-private, also failing the release closed; and
+- the proposed legacy stock-restoration authority accepted a synthetic
+  checkout identifier and caller-selected listing quantities without a durable
+  reservation witness.
+
+The preparation now resolves reviewed functions through exact
+`to_regprocedure` identities, keeps the two application read authorities in the
+runtime grant catalog, and removes the unsafe legacy stock mutation authority.
+The application requires a durable reservation and fails closed when one is
+missing. Focused authority, grant, cache, webhook and release-inspector tests
+plus TypeScript validation pass on the remediation. This is still preparation
+evidence only and does not change the activation NO-GO.

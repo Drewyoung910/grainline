@@ -123,7 +123,6 @@ const LISTING_DOMAIN_PREPARATION_FUNCTION_NAMES = Object.freeze([
   "grainline_listing_owner_create",
   "grainline_listing_owner_content_update",
   "grainline_listing_owner_alt_text_backfill",
-  "grainline_legacy_stock_restore_apply",
   "grainline_listing_account_deletion_redact",
   "grainline_listing_owner_delete_lock",
   "grainline_listing_owner_archive",

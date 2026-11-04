@@ -2237,8 +2237,7 @@ WITH stripe_webhook_service(function_signature) AS (
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
     ('public."grainline_stripe_webhook_health_summary"()'),
-    ('public."grainline_legacy_stock_restore_claim"(text)'),
-    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)')
+    ('public."grainline_legacy_stock_restore_claim"(text)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM stripe_webhook_service
@@ -2253,8 +2252,7 @@ WITH stripe_webhook_service(function_signature) AS (
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
     ('public."grainline_stripe_webhook_health_summary"()'),
-    ('public."grainline_legacy_stock_restore_claim"(text)'),
-    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)')
+    ('public."grainline_legacy_stock_restore_claim"(text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -2273,8 +2271,7 @@ WITH stripe_webhook_service(function_signature) AS (
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
     ('public."grainline_stripe_webhook_health_summary"()'),
-    ('public."grainline_legacy_stock_restore_claim"(text)'),
-    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)')
+    ('public."grainline_legacy_stock_restore_claim"(text)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
@@ -4683,7 +4680,6 @@ WITH order_zero_direct_authority(function_signature) AS (
     ('public."grainline_case_legacy_refund_lock_release"(text, text)'),
     ('public."grainline_order_legacy_refund_lock_prune"(integer)'),
     ('public."grainline_legacy_stock_restore_claim"(text)'),
-    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)'),
     ('public."grainline_order_refund_reconciliation_committed"(text, text, bigint)'),
     ('public."grainline_order_staff_mark_reviewed"(text, text)'),
     ('public."grainline_order_staff_record_label_voided"(text, text)'),
@@ -4718,7 +4714,6 @@ WITH order_zero_direct_runtime(function_signature) AS (
     ('public."grainline_case_legacy_refund_lock_release"(text, text)'),
     ('public."grainline_order_legacy_refund_lock_prune"(integer)'),
     ('public."grainline_legacy_stock_restore_claim"(text)'),
-    ('public."grainline_legacy_stock_restore_apply"(text,jsonb)'),
     ('public."grainline_order_refund_reconciliation_committed"(text, text, bigint)'),
     ('public."grainline_order_flag_banned_seller_open_orders"(text, text)'),
     ('public."grainline_order_restore_banned_seller_reviews"(text, text, jsonb)'),

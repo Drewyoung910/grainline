@@ -309,8 +309,8 @@ test("Listing preparation is byte-sealed and preserves exact function posture", 
   const listing = privateTablePreparation("listing_domain_v1");
   const listingVerified = verifyPrivateTablePreparationSource("listing_domain_v1");
   assert.equal(listing.table, "Listing");
-  assert.equal(listing.functions.length, 45);
-  assert.equal(listingVerified.functionSources.size, 45);
+  assert.equal(listing.functions.length, 44);
+  assert.equal(listingVerified.functionSources.size, 44);
   assert.match(
     listingVerified.functionSources.get("grainline_listing_materials_guard"),
     /char_length\(material\.value\) > 100/u,
@@ -335,6 +335,25 @@ test("Listing preparation is byte-sealed and preserves exact function posture", 
   );
 });
 
+test("preparation inspection resolves exact function identities instead of every overload", () => {
+  const inspector = readFileSync(
+    "scripts/private-table-preparation-production-inspect.mjs",
+    "utf8",
+  );
+  assert.match(
+    inspector,
+    /pg_catalog\.to_regprocedure\(\s*'public\.' \|\| expected\.identity\s*\)/u,
+  );
+  assert.match(
+    inspector,
+    /newFunctions\.map\(\(entry\) => `\$\{entry\.name\}\(\$\{entry\.arguments\}\)`\)/u,
+  );
+  assert.doesNotMatch(
+    inspector,
+    /procedure\.proname = ANY\(\$[13]::text\[\]\)/u,
+  );
+});
+
 test("Listing preparation inspector accepts its exact applied-unrecorded catalog", async () => {
   const selectedReleaseId = "listing_domain_v1";
   const selectedRelease = privateTablePreparation(selectedReleaseId);
@@ -354,7 +373,7 @@ test("Listing preparation inspector accepts its exact applied-unrecorded catalog
     );
     assert.equal(evidence.state, "applied_unrecorded");
     assert.equal(evidence.table, "Listing");
-    assert.equal(evidence.catalog.functions.length, 45);
+    assert.equal(evidence.catalog.functions.length, 44);
     assert.equal(
       evidence.catalog.functions.find(
         (entry) => entry.name === "grainline_message_list",

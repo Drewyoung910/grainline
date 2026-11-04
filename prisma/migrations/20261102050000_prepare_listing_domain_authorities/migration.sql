@@ -197,11 +197,6 @@ BEGIN
     RAISE EXCEPTION 'Listing detail-source seller authorization dependencies are missing';
   END IF;
   IF pg_catalog.to_regprocedure(
-       'public.grainline_legacy_stock_restore_apply(text,jsonb)'
-     ) IS NOT NULL THEN
-    RAISE EXCEPTION 'Legacy checkout stock-restore apply authority already exists';
-  END IF;
-  IF pg_catalog.to_regprocedure(
        'public.grainline_listing_account_deletion_redact(text,text,bigint,uuid,timestamp without time zone)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Listing account-deletion authority already exists';
@@ -5051,98 +5046,6 @@ REVOKE ALL ON FUNCTION public.grainline_listing_owner_alt_text_backfill(
 GRANT EXECUTE ON FUNCTION public.grainline_listing_owner_alt_text_backfill(
   text,text[],text[]
 ) TO grainline_app_runtime;
-
-CREATE FUNCTION public.grainline_legacy_stock_restore_apply(
-  p_session_id text,
-  p_reserved_items jsonb
-)
-RETURNS TABLE (claimed boolean, stock_visibility_changed integer)
-LANGUAGE plpgsql
-VOLATILE
-PARALLEL UNSAFE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $grainline_legacy_stock_restore_apply$
-DECLARE
-  source_item record;
-  source_claimed boolean;
-  updated_count integer;
-  visibility_count integer := 0;
-BEGIN
-  IF p_session_id IS NULL
-     OR pg_catalog.char_length(p_session_id) = 0
-     OR pg_catalog.char_length(p_session_id) > 255
-     OR p_session_id IS DISTINCT FROM pg_catalog.btrim(p_session_id)
-     OR p_session_id !~ '^cs_(test_|live_)?[A-Za-z0-9]+$'
-     OR p_reserved_items IS NULL
-     OR pg_catalog.jsonb_typeof(p_reserved_items) <> 'array'
-     OR pg_catalog.jsonb_array_length(p_reserved_items) NOT BETWEEN 1 AND 100
-     OR pg_catalog.octet_length(p_reserved_items::text) > 65536
-     OR EXISTS (
-       SELECT 1
-         FROM pg_catalog.jsonb_array_elements(p_reserved_items) AS item(value)
-        WHERE pg_catalog.jsonb_typeof(item.value) <> 'object'
-           OR pg_catalog.jsonb_typeof(item.value->'listingId') <> 'string'
-           OR item.value->>'listingId' !~ '^[A-Za-z0-9._:-]{1,191}$'
-           OR pg_catalog.jsonb_typeof(item.value->'quantity') <> 'number'
-           OR item.value->>'quantity' !~ '^[1-9][0-9]{0,6}$'
-           OR (item.value->>'quantity')::bigint > 1000000
-     )
-     OR EXISTS (
-       SELECT 1
-         FROM (
-           SELECT
-             item.value->>'listingId' AS listing_id,
-             pg_catalog.sum((item.value->>'quantity')::bigint) AS quantity
-             FROM pg_catalog.jsonb_array_elements(p_reserved_items) AS item(value)
-            GROUP BY item.value->>'listingId'
-         ) AS grouped_item
-        WHERE grouped_item.quantity > 1000000
-     ) THEN
-    RAISE EXCEPTION 'Legacy checkout stock-restore input is invalid'
-      USING ERRCODE = '22023';
-  END IF;
-
-  -- The predecessor claim owns the shared Session advisory lock, exact Order
-  -- absence fence, and durable one-shot event. Calling it inside this function
-  -- keeps that claim and every stock mutation in one database statement and
-  -- therefore one transaction.
-  source_claimed := public.grainline_legacy_stock_restore_claim(p_session_id);
-  IF NOT source_claimed THEN
-    RETURN QUERY SELECT false, 0;
-    RETURN;
-  END IF;
-
-  FOR source_item IN
-    SELECT
-      item.value->>'listingId' AS listing_id,
-      pg_catalog.sum((item.value->>'quantity')::integer)::integer AS quantity
-      FROM pg_catalog.jsonb_array_elements(p_reserved_items) AS item(value)
-     GROUP BY item.value->>'listingId'
-     ORDER BY item.value->>'listingId'
-  LOOP
-    UPDATE public."Listing" AS listing
-       SET "stockQuantity" = listing."stockQuantity" + source_item.quantity
-     WHERE listing.id = source_item.listing_id
-       AND listing."listingType" = 'IN_STOCK';
-
-    UPDATE public."Listing" AS listing
-       SET status = 'ACTIVE'
-     WHERE listing.id = source_item.listing_id
-       AND listing.status = 'SOLD_OUT'
-       AND listing."stockQuantity" > 0;
-    GET DIAGNOSTICS updated_count = ROW_COUNT;
-    visibility_count := visibility_count + updated_count;
-  END LOOP;
-
-  RETURN QUERY SELECT true, visibility_count;
-END
-$grainline_legacy_stock_restore_apply$;
-
-REVOKE ALL ON FUNCTION public.grainline_legacy_stock_restore_apply(text,jsonb)
-  FROM PUBLIC, grainline_app_runtime, grainline_staff_read_runtime;
-GRANT EXECUTE ON FUNCTION public.grainline_legacy_stock_restore_apply(text,jsonb)
-  TO grainline_app_runtime;
 
 CREATE FUNCTION public.grainline_listing_account_deletion_redact(
   p_side_effect_id text,

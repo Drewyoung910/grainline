@@ -1,12 +1,9 @@
 import * as Sentry from "@sentry/nextjs";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
-import { parsePositiveInt } from "@/lib/stripeWebhookState";
 import { stripe } from "@/lib/stripe";
 import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReservationRepairState";
-import { applyLegacyStockRestore } from "@/lib/stripeWebhookMaintenance";
 import {
   claimStaleCheckoutStockReservations,
   bindCheckoutStockReservationSession,
@@ -31,19 +28,8 @@ export type CheckoutStockRestoreLineItem = {
   } | null;
 };
 
-type RestorableStockItem = { listingId: string; quantity: number };
-
 export async function lockCheckoutSessionMutation(tx: Prisma.TransactionClient, sessionId: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${sessionId}))`;
-}
-
-function mergeRestorableStockItems(items: RestorableStockItem[]) {
-  const merged = new Map<string, number>();
-  for (const item of items) {
-    if (!item.listingId || item.quantity <= 0) continue;
-    merged.set(item.listingId, (merged.get(item.listingId) ?? 0) + item.quantity);
-  }
-  return [...merged.entries()].map(([listingId, quantity]) => ({ listingId, quantity }));
 }
 
 export function checkoutStockReservationMetadata(
@@ -89,34 +75,6 @@ export async function markCheckoutStockReservationCompleted(
     }, tx);
   }
   return completeCheckoutStockReservation(tx, input);
-}
-
-export function restorableStockItemsFromLineItems(lineItems: CheckoutStockRestoreLineItem[]) {
-  return mergeRestorableStockItems(
-    lineItems.flatMap((lineItem) => {
-      const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
-      const listingId = product?.metadata?.listingId;
-      const quantity = parsePositiveInt(lineItem.quantity, 0);
-      return listingId && quantity > 0 ? [{ listingId, quantity }] : [];
-    }),
-  );
-}
-
-function restorableStockItemsFromMetadata(metadata: Record<string, string | undefined>) {
-  const items: RestorableStockItem[] = [];
-  const singleListingId = metadata.listingId;
-  const singleQuantity = parsePositiveInt(metadata.quantity, 0);
-  if (singleListingId && singleQuantity > 0) {
-    items.push({ listingId: singleListingId, quantity: singleQuantity });
-  }
-
-  for (const token of (metadata.reservedStock ?? "").split(",")) {
-    const [listingId, quantityValue] = token.split(":");
-    const quantity = parsePositiveInt(quantityValue, 0);
-    if (listingId && quantity > 0) items.push({ listingId, quantity });
-  }
-
-  return mergeRestorableStockItems(items);
 }
 
 export async function restoreStaleCheckoutStockReservations(input: {
@@ -284,43 +242,25 @@ async function handleFixedReservationTransition(
   return true;
 }
 
-async function restoreLegacyUnorderedCheckoutStockOnce(input: {
+async function reportMissingDurableStockReservation(input: {
   sessionId: string;
   metadata: Record<string, string | undefined>;
-  lineItems?: CheckoutStockRestoreLineItem[];
+  source: "webhook" | "buyer_expiry" | "seller_expiry";
 }) {
-  const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
-    await lockCheckoutSessionMutation(tx, input.sessionId);
-
-    let items = restorableStockItemsFromLineItems(input.lineItems ?? []);
-    if (items.length === 0) {
-      items = restorableStockItemsFromMetadata(input.metadata);
-    }
-
-    if (items.length === 0) {
-      Sentry.captureMessage("Checkout stock restoration skipped because no reserved items were recoverable", {
-        level: "warning",
-        tags: { source: "checkout_stock_restore" },
-        extra: {
-          stripeSessionId: input.sessionId,
-          cartId: input.metadata.cartId,
-          sellerId: input.metadata.sellerId,
-          listingId: input.metadata.listingId,
-        },
-      });
-      return 0;
-    }
-
-    const result = await applyLegacyStockRestore(input.sessionId, items, tx);
-    return result.stockVisibilityChanged;
+  Sentry.captureMessage("Checkout stock restoration requires a durable reservation", {
+    level: "error",
+    tags: {
+      source: "checkout_stock_restore_missing_reservation",
+      restoreSource: input.source,
+    },
+    extra: {
+      stripeSessionId: input.sessionId,
+      cartId: input.metadata.cartId,
+      sellerId: input.metadata.sellerId,
+      checkoutGroupId: input.metadata.checkoutGroupId,
+    },
   });
-
   await releaseCheckoutLock(input.metadata.checkoutLockKey, input.sessionId);
-
-  if (stockStatusRestoredCount > 0) {
-    revalidateListingSearchCaches();
-    revalidateFeaturedMakerCaches();
-  }
 }
 
 export async function restoreUnorderedCheckoutStockOnce(input: {
@@ -328,7 +268,6 @@ export async function restoreUnorderedCheckoutStockOnce(input: {
   claimGeneration: bigint;
   sessionId: string;
   metadata: Record<string, string | undefined>;
-  lineItems?: CheckoutStockRestoreLineItem[];
 }) {
   const reservationRestore = await restoreCheckoutStockReservationFromWebhook({
     eventId: input.eventId,
@@ -336,33 +275,31 @@ export async function restoreUnorderedCheckoutStockOnce(input: {
     sessionId: input.sessionId,
   });
   if (await handleFixedReservationTransition(reservationRestore, input.sessionId)) return;
-  await restoreLegacyUnorderedCheckoutStockOnce(input);
+  await reportMissingDurableStockReservation({ ...input, source: "webhook" });
 }
 
 export async function restoreBuyerExpiredCheckoutStockOnce(input: {
   buyerId: string;
   sessionId: string;
   metadata: Record<string, string | undefined>;
-  lineItems?: CheckoutStockRestoreLineItem[];
 }) {
   const transition = await restoreBuyerExpiredCheckoutStockReservation({
     buyerId: input.buyerId,
     sessionId: input.sessionId,
   });
   if (await handleFixedReservationTransition(transition, input.sessionId)) return;
-  await restoreLegacyUnorderedCheckoutStockOnce(input);
+  await reportMissingDurableStockReservation({ ...input, source: "buyer_expiry" });
 }
 
 export async function restoreSellerExpiredCheckoutStockOnce(input: {
   sellerProfileId: string;
   sessionId: string;
   metadata: Record<string, string | undefined>;
-  lineItems?: CheckoutStockRestoreLineItem[];
 }) {
   const transition = await restoreSellerExpiredCheckoutStockReservation({
     sellerProfileId: input.sellerProfileId,
     sessionId: input.sessionId,
   });
   if (await handleFixedReservationTransition(transition, input.sessionId)) return;
-  await restoreLegacyUnorderedCheckoutStockOnce(input);
+  await reportMissingDurableStockReservation({ ...input, source: "seller_expiry" });
 }

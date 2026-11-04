@@ -362,7 +362,7 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
   }),
   listing_domain_v1: Object.freeze({
     migration: "20261102050000_prepare_listing_domain_authorities",
-    migrationSha256: "bb33648a81822964152584d786fc23581e58b1e05f54da1ecb25f34b1468a661",
+    migrationSha256: "fe9588a0a706c9356e46647798b085a2ba6405ab2bd3fae64b1bb6bc4f8cab7a",
     table: "Listing",
     expectedPredecessorPosture: Object.freeze({
       rlsEnabled: false,
@@ -424,7 +424,6 @@ export const PRIVATE_TABLE_PREPARATIONS = Object.freeze({
       Object.freeze({ name: "grainline_listing_staff_detail_source", arguments: "text, text", executeRole: "staff", volatility: "s" }),
       Object.freeze({ name: "grainline_listing_owner_ai_review_context", arguments: "text", volatility: "s" }),
       Object.freeze({ name: "grainline_listing_owner_alt_text_backfill", arguments: "text, text[], text[]" }),
-      Object.freeze({ name: "grainline_legacy_stock_restore_apply", arguments: "text, jsonb" }),
       Object.freeze({ name: "grainline_listing_account_deletion_redact", arguments: "text, text, bigint, uuid, timestamp without time zone" }),
       Object.freeze({ name: "grainline_listing_owner_delete_lock", arguments: "text" }),
       Object.freeze({ name: "grainline_listing_owner_archive", arguments: "text, timestamp without time zone" }),

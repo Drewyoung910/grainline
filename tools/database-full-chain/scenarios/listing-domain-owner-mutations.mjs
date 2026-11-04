@@ -75,13 +75,6 @@ const LISTING_PUBLIC_ANALYTICS_INCREMENT_SQL = `
   ) AS tracked
 `;
 
-const LEGACY_STOCK_RESTORE_SQL = `
-  SELECT claimed, stock_visibility_changed
-    FROM public.grainline_legacy_stock_restore_apply(
-      $1::text, $2::jsonb
-    )
-`;
-
 const LISTING_ACCOUNT_DELETION_SQL = `
   SELECT *
     FROM public.grainline_listing_account_deletion_redact(
@@ -879,70 +872,6 @@ export async function proveListingDomainOwnerMutations({ database, seller }) {
     /Listing actor cart transaction-source input is invalid/u,
     "Cart transaction source must reject an absent actor",
   );
-
-  const stockListingId = `listing-stock-restore-proof-${suffix}`;
-  const stockPhotoId = `listing-stock-restore-photo-${suffix}`;
-  const stockCreate = rowsOf(await runtimeQuery(
-    database,
-    seller.userId,
-    CREATE_SQL,
-    createArgs({
-      listingId: stockListingId,
-      title: "Legacy stock restore full-chain proof",
-      listingType: "IN_STOCK",
-      stockQuantity: 1,
-      photos: [{
-        id: stockPhotoId,
-        url: "https://example.test/stock-restore.jpg",
-        originalUrl: "https://example.test/stock-restore.jpg",
-        altText: "Stock restore proof",
-        sortOrder: 0,
-      }],
-    }),
-  ));
-  assert.equal(stockCreate[0]?.created, true);
-  await database.query(
-    `UPDATE public."Listing"
-        SET status = 'SOLD_OUT', "stockQuantity" = 0
-      WHERE id = $1`,
-    [stockListingId],
-  );
-  const restoreSessionId = `cs_test_${suffix.replaceAll("-", "")}`;
-  const restoreItems = JSON.stringify([{ listingId: stockListingId, quantity: 2 }]);
-  const firstRestore = rowsOf(await runtimeQuery(
-    database,
-    seller.userId,
-    LEGACY_STOCK_RESTORE_SQL,
-    [restoreSessionId, restoreItems],
-  ));
-  assert.deepEqual(
-    firstRestore,
-    [{ claimed: true, stock_visibility_changed: 1 }],
-    "Legacy stock restore must apply exactly once",
-  );
-  assert.deepEqual(rowsOf(await database.query(
-    `SELECT status::text AS status, "stockQuantity" AS "stockQuantity"
-       FROM public."Listing"
-      WHERE id = $1`,
-    [stockListingId],
-  )), [{ status: "ACTIVE", stockQuantity: 2 }]);
-  const replayRestore = rowsOf(await runtimeQuery(
-    database,
-    seller.userId,
-    LEGACY_STOCK_RESTORE_SQL,
-    [restoreSessionId, restoreItems],
-  ));
-  assert.deepEqual(
-    replayRestore,
-    [{ claimed: false, stock_visibility_changed: 0 }],
-    "Legacy stock restore replay must not duplicate stock",
-  );
-  assert.deepEqual(rowsOf(await database.query(
-    `SELECT "stockQuantity" AS "stockQuantity"
-       FROM public."Listing"
-      WHERE id = $1`,
-    [stockListingId],
-  )), [{ stockQuantity: 2 }]);
 
   const deletionUserId = `listing-deletion-user-${suffix}`;
   const deletionSellerId = `listing-deletion-seller-${suffix}`;

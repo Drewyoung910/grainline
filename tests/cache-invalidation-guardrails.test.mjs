@@ -94,8 +94,8 @@ describe("public cache invalidation guardrails", () => {
     assert.match(reviewCreate, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(reviewUpdateDelete, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(reviewCreate, /refreshSellerRatingSummary\(eligibleOrderItem\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
-    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{r\.listingId\}`\)/);
-    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{review\.listingId\}`\)/);
+    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(listingContext\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{r\.listingId\}`\)/);
+    assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(listingContext\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{review\.listingId\}`\)/);
   });
 
   it("avoids double caching public tag APIs and keeps why-grainline counts fresh", () => {
@@ -143,8 +143,8 @@ describe("public cache invalidation guardrails", () => {
     assert.doesNotMatch(caseResolve, /(?:prisma|tx)\.listing\.updateMany/);
 
     assert.match(stockRestore, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
-    assert.match(stockRestore, /applyLegacyStockRestore\(input\.sessionId, items, tx\)/);
-    assert.match(stockRestore, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(stockRestore, /transition\.stockVisibilityChanged > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.doesNotMatch(stockRestore, /applyLegacyStockRestore/);
 
     assert.match(stockRoute, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
     assert.match(stockRoute, /updated\.previousStatus !== updated\.status[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
