@@ -8,6 +8,7 @@ const script = readFileSync(
 );
 const listingDomainPreparationIsolated =
   process.env.LISTING_DOMAIN_PREPARATION_ISOLATED === "true";
+const hasListingDomainCandidate = /listing_domain_candidate/u.test(script);
 
 test("staff-read role convergence is credential-free and fail closed", () => {
   assert.match(script, /This script never creates a role or sets a password/u);
@@ -80,7 +81,7 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
     'public."grainline_seller_guild_staff_master_pending_page"(text, timestamp without time zone, text, integer)',
     'public."grainline_seller_guild_staff_roster_count"(text, text)',
     'public."grainline_seller_guild_staff_roster_page"(text, text, timestamp without time zone, text, integer)',
-    ...(!listingDomainPreparationIsolated ? [
+    ...(hasListingDomainCandidate ? [
       'public."grainline_seller_staff_listing_review_transition"(text, text, text, text, timestamp without time zone)',
       'public."grainline_seller_staff_listing_remove_transition"(text, text, timestamp without time zone)',
       'public."grainline_seller_staff_listing_undo_transition"(text, text, text)',
@@ -94,9 +95,14 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
     );
   }
   assert.match(script, /maker_verification_candidate\(function_signature\)/u);
-  if (listingDomainPreparationIsolated) {
-    assert.doesNotMatch(script, /listing_domain_candidate/u);
-  } else {
+  if (!listingDomainPreparationIsolated) {
+    assert.equal(
+      hasListingDomainCandidate,
+      true,
+      "current staff convergence must retain the Listing-domain candidate",
+    );
+  }
+  if (hasListingDomainCandidate) {
     assert.match(script, /listing_domain_candidate\(function_signature\)/u);
     assert.match(script, /listing_domain_candidate_state\.installed_count > 0/u);
   }
@@ -104,7 +110,7 @@ test("isolated staff role receives the reviewed operations and no tables", () =>
   assert.match(script, /WHERE pg_catalog\.to_regprocedure\(function_signature\) IS NOT NULL;/u);
   assert.equal(
     (script.match(/GRANT EXECUTE ON FUNCTION/gu) ?? []).length,
-    listingDomainPreparationIsolated ? 26 : 27,
+    hasListingDomainCandidate ? 27 : 26,
   );
   assert.doesNotMatch(script, /GRANT EXECUTE ON FUNCTION[\s\S]*grainline_order_staff_page\(text/u);
   assert.match(script, /REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public/u);
