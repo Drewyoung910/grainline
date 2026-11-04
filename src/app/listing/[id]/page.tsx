@@ -522,7 +522,7 @@ export default async function ListingPage({
         {/* Left: gallery */}
         <div className="relative min-w-0">
           {/* Favorite button overlaid */}
-          <FavoriteButton listingId={listingId} initialSaved={isFavorited} size={22} />
+          <FavoriteButton listingId={listingId} initialSaved={isFavorited} />
           <ListingGallery photos={listing.photos} title={listing.title} />
         </div>
 

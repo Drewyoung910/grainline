@@ -463,12 +463,12 @@ async function BlogIndexPageContent({
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
                   <li key={post.id} className="card-listing">
-                    <div className="photo-save-surface relative overflow-hidden bg-neutral-100">
+                    <div className="photo-save-surface group/photo relative overflow-hidden bg-neutral-100">
                       <Link href={`/blog/${post.slug}`} className="block aspect-[4/3]">
                         <MediaImage
                           src={post.coverImageUrl}
                           alt={post.title}
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </Link>
