@@ -139,7 +139,12 @@ function assertFunctionPosture(row, expected, tableOwner) {
     expected.securityDefiner ?? true,
     `${identity} security mode drifted`,
   );
-  assert.equal(row.volatility, expected.volatility ?? "v", `${identity} volatility drifted`);
+  // Older catalog entries predate exact volatility pinning. Enforce the
+  // contract for releases that reviewed and recorded it (including Listing)
+  // without inventing a VOLATILE default for historical STABLE functions.
+  if (expected.volatility !== undefined) {
+    assert.equal(row.volatility, expected.volatility, `${identity} volatility drifted`);
+  }
   assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
   const executeRoles = privateTableFunctionExecuteRoles(expected);
   assert.equal(
