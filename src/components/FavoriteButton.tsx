@@ -97,7 +97,7 @@ export default function FavoriteButton({
           edges. */}
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_5px_16px_-6px_rgba(44,31,26,0.62),0_0_0_1px_rgba(44,31,26,0.14)] transition-[background-color,scale,box-shadow] duration-150 ease-out group-hover/fav:bg-white group-hover/fav:shadow-[0_6px_18px_-6px_rgba(44,31,26,0.68),0_0_0_1px_rgba(44,31,26,0.2)] motion-safe:group-active/fav:scale-[0.92] group-focus-visible/fav:ring-2 group-focus-visible/fav:ring-neutral-900 group-focus-visible/fav:ring-offset-2 group-focus-visible/fav:ring-offset-white"
+        className="absolute h-[34px] w-[34px] rounded-full bg-white/82 shadow-[0_5px_16px_-7px_rgba(44,31,26,0.72),0_0_0_1px_rgba(44,31,26,0.18)] backdrop-blur-md transition-[background-color,scale,box-shadow] duration-180 ease-out group-hover/fav:scale-[1.06] group-hover/fav:bg-white/92 group-hover/fav:shadow-[0_7px_20px_-8px_rgba(44,31,26,0.78),0_0_0_1px_rgba(44,31,26,0.24)] motion-safe:group-active/fav:scale-[0.94] group-focus-visible/fav:ring-2 group-focus-visible/fav:ring-neutral-900 group-focus-visible/fav:ring-offset-2 group-focus-visible/fav:ring-offset-white"
       />
       {popCount > 0 && (
         <span key={`burst-${popCount}`} aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -116,7 +116,7 @@ export default function FavoriteButton({
         height={size - 2}
         viewBox="0 0 24 24"
         aria-hidden="true"
-        className={`relative block -translate-y-px transform-gpu overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
+        className={`relative block transform-gpu overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path

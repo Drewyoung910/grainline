@@ -259,13 +259,14 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <label htmlFor={`${blogSearchListboxId}-input`} className="sr-only">
           Search blog posts
         </label>
-        <div className="flex min-h-[46px] items-stretch overflow-hidden rounded-full border border-[#2C1F1A]/20 bg-white shadow-[0_6px_20px_-16px_rgba(44,31,26,0.8)] transition-[border-color,box-shadow,background-color] focus-within:border-[#2C1F1A]/45 focus-within:bg-white focus-within:shadow-[0_10px_26px_-18px_rgba(44,31,26,0.95)]">
+        <div className="flex min-h-[46px] items-stretch overflow-hidden rounded-full border border-[#2C1F1A]/16 bg-white shadow-[0_6px_20px_-16px_rgba(44,31,26,0.8)] transition-[border-color,box-shadow,background-color] focus-within:border-[#2C1F1A]/28 focus-within:bg-white focus-within:shadow-[0_12px_28px_-18px_rgba(44,31,26,0.95)]">
           <button
             type="submit"
+            onPointerUp={(event) => event.currentTarget.blur()}
             aria-label="Search"
             className="group flex min-w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 transition-colors hover:text-neutral-900 focus-visible:outline-none"
           >
-            <span className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20">
+            <span className="flex size-9 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:bg-neutral-100">
               <Search size={18} />
             </span>
           </button>
@@ -299,9 +300,10 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { setValue(""); setSuggestions([]); closeDropdown(); navigate(""); }}
                 className="group absolute right-0 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:outline-none"
+                onPointerUp={(event) => event.currentTarget.blur()}
                 aria-label="Clear search"
               >
-                <span className="flex size-8 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:ring-2 group-focus-visible:ring-neutral-900/20">
+                <span className="flex size-8 items-center justify-center rounded-full transition-colors group-hover:bg-neutral-100 group-active:bg-neutral-200/70 group-focus-visible:bg-neutral-100">
                   <X size={15} />
                 </span>
               </button>

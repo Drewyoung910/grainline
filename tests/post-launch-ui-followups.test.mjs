@@ -145,16 +145,16 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
 
-  it("keeps browse cards at 4:5 while fitting the full listing photo inside the viewport", () => {
+  it("keeps browse cards at 4:5 while giving listing photos a stable responsive frame", () => {
     assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
     const gallery = source("src/components/ListingGallery.tsx");
     // The frame height is shared with the loading skeleton, so the two can't drift.
     const frame = source("src/lib/photoMotion.ts");
     assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(source("src/app/listing/[id]/loading.tsx"), /LISTING_GALLERY_FRAME_HEIGHT/);
-    assert.match(gallery, /className="h-full w-full object-contain"/);
-    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-12rem\),26rem/);
-    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
+    assert.match(gallery, /className="h-full w-full object-cover"/);
+    assert.match(frame, /aspect-\[4\/5\] h-auto/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),28rem/);
     assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.
@@ -382,9 +382,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(header, /max-w-\[1600px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
     assert.doesNotMatch(header, /max-w-\[820px\]/);
-    // Search grows to a 640px cap, the text nav follows it, and the tools
+    // Search grows to a 720px cap, the text nav follows it, and the tools
     // sit at the far right (motion prototype layout, 2026-10-30).
-    assert.match(header, /data-header-search-slot className="flex min-w-\[220px\] max-w-\[640px\] flex-1"/);
+    assert.match(header, /data-header-search-slot className="flex min-w-\[240px\] max-w-\[720px\] flex-1"/);
     assert.match(header, /data-header-actions className="ml-auto flex shrink-0 items-center gap-1"/);
   });
 
