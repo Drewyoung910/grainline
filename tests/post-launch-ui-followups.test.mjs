@@ -165,6 +165,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(gallery, /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(loading, /LISTING_GALLERY_FRAME_HEIGHT/);
     assert.match(loading, /min-h-\[100svh\]/);
+    assert.match(loading, /bg-\[#EFEAE0\] animate-pulse lg:bg-transparent lg:animate-none/);
     assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
     assert.match(gallery, /overflow-hidden rounded-lg/);
     assert.doesNotMatch(gallery, /overflow-hidden rounded-xl/);

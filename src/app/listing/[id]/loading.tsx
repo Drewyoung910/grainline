@@ -11,7 +11,7 @@ export default function ListingLoading() {
         <div className="min-w-0">
           <div
             {...{ [LISTING_PHOTO_TARGET_ATTRIBUTE]: "" }}
-            className={`${LISTING_GALLERY_FRAME_HEIGHT} w-full rounded-lg bg-[#EFEAE0] animate-pulse`}
+            className={`${LISTING_GALLERY_FRAME_HEIGHT} w-full rounded-lg bg-[#EFEAE0] animate-pulse lg:bg-transparent lg:animate-none`}
           />
         </div>
         <div className="space-y-4 rounded-lg border border-stone-200/60 p-6 shadow-sm">
