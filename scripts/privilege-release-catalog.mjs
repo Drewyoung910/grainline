@@ -99,10 +99,10 @@ export const PRIVILEGE_RELEASES = Object.freeze({
     preparationMigration: Object.freeze({
       name: "20261102050000_prepare_listing_domain_authorities",
       sha256:
-        "9d4f078861f365bb2494eecdb7f781deec6343160ef5eb89065bd7a8c6403a2f",
+        "9c91a7c6b260345aaf98a685b53c6f5130f03220bb3bedd85033d616248b706b",
     }),
     compatibleDeployment: Object.freeze({
-      minimumAppCommit: "8f7987a4f893c6c7870e37889a47d763c0d08674",
+      minimumAppCommit: "10f19c213493fea0da5aa22667168c47339528fe",
     }),
     rollback: Object.freeze({
       path: "docs/rls-drafts/listing-domain-activation-rollback.sql",

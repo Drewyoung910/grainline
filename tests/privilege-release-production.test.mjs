@@ -159,7 +159,7 @@ test("catalog byte-seals the reviewed Listing public-catalog activation", () => 
   );
   assert.equal(
     listing.compatibleDeployment.minimumAppCommit,
-    "8f7987a4f893c6c7870e37889a47d763c0d08674",
+    "10f19c213493fea0da5aa22667168c47339528fe",
   );
   assert.deepEqual(Object.keys(listing.tables).sort(), [
     "Listing",
