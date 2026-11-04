@@ -11,6 +11,9 @@ import {
 import { parseInputDraftProofConfig } from "./order-input-correction-drafts-postgres-proof.mjs";
 import { proofServerHostAccepted } from "./disposable-postgres-proof-host.mjs";
 
+const DEFAULT_LISTING_PREPARATION_MIGRATION_PATH =
+  "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql";
+
 export function parseStockProofConfig(env = process.env) {
   return parseInputDraftProofConfig({ ORDER_INPUT_CORRECTION_DRAFTS_PROOF_DATABASE_URL:
     env.LISTING_STOCK_MUTATION_PROOF_DATABASE_URL });
@@ -24,12 +27,18 @@ export function verifyStockProofIdentity(identity, githubActions = false) {
 }
 // Execute the exact stock authorities shipped by the Listing preparation
 // migration, rewritten only into this proof's disposable schema.
-export function loadStockAuthorityDefinitions(schema = "listing_stock_proof_fixture") {
+export function resolveStockAuthorityMigrationPath(env = process.env) {
+  return env.LISTING_DOMAIN_PREPARATION_MIGRATION_PATH?.trim()
+    || DEFAULT_LISTING_PREPARATION_MIGRATION_PATH;
+}
+export function loadStockAuthorityDefinitions(
+  schema = "listing_stock_proof_fixture",
+  migrationPath = DEFAULT_LISTING_PREPARATION_MIGRATION_PATH,
+) {
   assert.match(schema, /^listing_stock_proof_[a-z0-9_]+$/u);
-  const migration = readFileSync(
-    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    "utf8",
-  );
+  assert.equal(typeof migrationPath, "string");
+  assert.ok(migrationPath.trim());
+  const migration = readFileSync(migrationPath, "utf8");
   const names = ["lock", "apply"];
   return names.map((name) => {
     const marker = `grainline_listing_owner_stock_${name}`;
@@ -105,7 +114,10 @@ export async function runStockMutationPostgresProof(env = process.env, onPhase =
         "updatedAt" timestamp DEFAULT now());
       CREATE TABLE "SystemAuditLog" (id text PRIMARY KEY, "actorType" text, "actorId" text,
         action text, "targetType" text, "targetId" text, metadata jsonb)`);
-    await observer.query(loadStockAuthorityDefinitions(schema));
+    await observer.query(loadStockAuthorityDefinitions(
+      schema,
+      resolveStockAuthorityMigrationPath(env),
+    ));
     const scope = { listingId: "listing", sellerId: "seller", actorId: "owner" };
     const input = () => ({ mutationId: randomUUID(), issuedAt: Date.now() });
     const payload = { kind: "inventory", quantity: 10, expectedQuantity: 5 };
