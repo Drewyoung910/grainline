@@ -153,6 +153,7 @@ describe("public visibility follow-ups", () => {
   });
 
   it("resolves analytics ownership to local ids and fails closed for missing local users", () => {
+    const analyticsAccess = read("src/lib/listingAnalyticsAccess.ts");
     for (const routePath of [
       "src/app/api/listings/[id]/click/route.ts",
       "src/app/api/listings/[id]/view/route.ts",
@@ -160,10 +161,13 @@ describe("public visibility follow-ups", () => {
       const source = read(routePath);
       assert.match(source, /const viewer = userId \? await userIdByClerkId\(prisma, userId\) : null/);
       assert.match(source, /if \(userId && !viewer\) return telemetryJson\(\{ ok: true, skipped: true \}\)/);
-      assert.match(source, /sellerOwnerCore\(viewerUserId\)/);
-      assert.match(source, /sellerId: \{ not: viewerSellerProfileId \}/);
+      assert.match(source, /incrementPublicListingAnalytics\(\{[\s\S]*viewerUserId,/);
+      assert.doesNotMatch(source, /sellerOwnerCore\(/);
+      assert.doesNotMatch(source, /prisma\.listing\.(?:update|updateMany|findUnique)/);
       assert.doesNotMatch(source, /seller: \{ user: \{ clerkId:/);
     }
+    assert.match(analyticsAccess, /withDbUserContext\(input\.viewerUserId,/);
+    assert.match(analyticsAccess, /grainline_listing_public_analytics_increment/);
   });
 
   it("allows sellers to clear their workshop gallery explicitly", () => {
