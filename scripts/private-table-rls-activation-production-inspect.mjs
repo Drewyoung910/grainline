@@ -281,7 +281,7 @@ async function readFunctions(client, verified, tableOwner, active) {
                   'grainline_staff_read_runtime'
                 )
               ORDER BY privilege_role.rolname
-           ) AS unexpected_execute_roles
+           )::text[] AS unexpected_execute_roles
       FROM expected
       JOIN pg_catalog.pg_proc AS procedure
         ON procedure.oid = pg_catalog.to_regprocedure(expected.identity)
