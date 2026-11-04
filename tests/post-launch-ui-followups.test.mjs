@@ -556,6 +556,13 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(docs, /Blog comment form[\s\S]{0,160}focus:border-stone-500/);
   });
 
+  it("does not show inert blog discovery controls before the first story", () => {
+    const blog = source("src/app/blog/page.tsx");
+    assert.match(blog, /const showDiscoveryControls = Boolean\(isSearching \|\| total > 0\)/);
+    assert.match(blog, /\{showDiscoveryControls && \([\s\S]*?<BlogSearchBar/);
+    assert.match(blog, /\{showDiscoveryControls && <div className="flex flex-wrap items-center gap-2 mb-6">/);
+  });
+
   it("keeps the Fable newsletter and follow CTA placement honest", () => {
     const homepage = source("src/app/page.tsx");
     const blogPost = source("src/app/blog/[slug]/page.tsx");
