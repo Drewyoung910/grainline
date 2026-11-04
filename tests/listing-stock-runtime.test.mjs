@@ -6,6 +6,7 @@ import ts from "typescript";
 import { z } from "zod";
 import * as stock from "../src/lib/stockMutationState.ts";
 import * as receipts from "../src/lib/listingStockMutation.ts";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 let db;
 before(async () => {
@@ -147,10 +148,7 @@ test("legitimate delta preserves stock already consumed by checkout", async () =
 
 test("the actual edit writer preserves newer inventory on an unrelated content save", async () => {
   const editSource = readFileSync("src/app/dashboard/listings/[id]/edit/page.tsx", "utf8");
-  const authoritySql = readFileSync(
-    "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
-    "utf8",
-  );
+  const authoritySql = readFileSync(listingDomainPreparationMigrationPath(), "utf8");
   assert.match(editSource, /updateListingOwnerContent\(tx,/u);
   assert.doesNotMatch(editSource, /tx\.listing\.update\(/u);
   assert.match(

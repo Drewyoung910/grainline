@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { listingDomainPreparationMigrationPath } from "./helpers/listing-domain-preparation-migration-path.mjs";
 
 const { listingDeleteDisposition } = await import("../src/lib/listingDeleteState.ts");
 
@@ -99,7 +100,7 @@ describe("listing delete lifecycle", () => {
     assert.match(migration, /status = 'HIDDEN'[\s\S]*"isPrivate" = true/);
     assert.match(migration, /audit\.action = 'HOLD_LISTING'[\s\S]*NOT audit\.undone/);
     const listingOwnerMigration = readFileSync(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      listingDomainPreparationMigrationPath(),
       "utf8",
     );
     assert.match(
@@ -120,7 +121,7 @@ describe("listing delete lifecycle", () => {
     const listingPage = readFileSync("src/app/listing/[id]/page.tsx", "utf8");
     const listingDetailAccess = readFileSync("src/lib/listingDetailAccess.ts", "utf8");
     const listingOwnerMigration = readFileSync(
-      "prisma/migrations/20261102050000_prepare_listing_domain_authorities/migration.sql",
+      listingDomainPreparationMigrationPath(),
       "utf8",
     );
 
