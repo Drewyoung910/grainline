@@ -183,10 +183,21 @@ test("main CI proves and isolates the public SellerProfile candidate around hist
     ci.slice(applyForBuild, build),
     /dropdb[\s\S]*createdb[\s\S]*DATABASE_FULL_CHAIN_PROOF_DATABASE_URL="\$DIRECT_URL"[\s\S]*node tools\/database-full-chain\/apply-ci-chain\.mjs[\s\S]*npx prisma migrate status/u,
   );
-  assert.match(
-    ci,
-    /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=\$holding\/migrations\/\$migration\/migration\.sql/u,
-  );
+  if (ci.includes("LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=")) {
+    assert.match(
+      ci,
+      /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=\$holding\/migrations\/\$preparation\/migration\.sql/u,
+    );
+    assert.match(
+      ci,
+      /LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=\$holding\/migrations\/\$activation\/migration\.sql/u,
+    );
+  } else {
+    assert.match(
+      ci,
+      /LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=\$holding\/migrations\/\$migration\/migration\.sql/u,
+    );
+  }
   assert.match(ci, /SELLER_PROFILE_PUBLIC_CANDIDATE_ISOLATED=true/u);
   assert.match(
     ci,

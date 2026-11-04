@@ -10,6 +10,9 @@ import {
   privateTableRlsActivation,
   verifyPrivateTableRlsActivationSource,
 } from "./private-table-rls-activation-catalog.mjs";
+import {
+  privateTableFunctionExecuteRoles,
+} from "./private-table-preparation-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import {
   isReviewedSuccessfulMigration,
@@ -108,10 +111,20 @@ function assertReadyPosture(posture, release) {
   assert.equal(posture.nonOwnerColumnAclCount, 0, "column ACL drifted before activation");
 }
 
-function assertActivePosture(posture, release) {
+function releaseTables(release) {
+  return release.tables ?? [release.table];
+}
+
+function assertActivePosture(posture, release, tableName) {
   assert.equal(posture.rlsEnabled, true, "RLS is not enabled");
   assert.equal(posture.rlsForced, true, "RLS is not forced");
-  assert.equal(posture.policyCount, release.policies.length, "policy count drifted");
+  assert.equal(
+    posture.policyCount,
+    release.policies.filter(
+      (policy) => (policy.table ?? release.table) === tableName,
+    ).length,
+    "policy count drifted",
+  );
   assertRolePrivileges(posture, "runtime", release.activatedRuntimePrivileges);
   assertRolePrivileges(posture, "staff", release.activatedStaffPrivileges);
   assertRolePrivileges(posture, "public", release.activatedPublicPrivileges);
@@ -119,7 +132,7 @@ function assertActivePosture(posture, release) {
     posture.runtimeAnyColumn,
     release.activatedRuntimePrivileges.some((privilege) => (
       ["SELECT", "INSERT", "UPDATE", "REFERENCES"].includes(privilege)
-    )),
+    )) || (release.activatedRuntimeColumns?.[tableName]?.length ?? 0) > 0,
     "runtime column authority drifted",
   );
   assert.equal(posture.staffAnyColumn, false, "staff column authority remains");
@@ -131,11 +144,19 @@ function assertActivePosture(posture, release) {
       + release.activatedPublicPrivileges.length,
     "non-owner table ACL drifted",
   );
-  assert.equal(posture.nonOwnerColumnAclCount, 0, "non-owner column ACL remains");
+  assert.equal(
+    posture.nonOwnerColumnAclCount,
+    release.activatedRuntimeColumns?.[tableName]?.length ?? 0,
+    "non-owner column ACL count drifted",
+  );
 }
 
-function assertPolicies(rows, release, active) {
-  const expected = active ? release.policies : [];
+function assertPolicies(rows, release, active, tableName) {
+  const expected = active
+    ? release.policies.filter(
+      (policy) => (policy.table ?? release.table) === tableName,
+    )
+    : [];
   assert.equal(rows.length, expected.length, "policy row count drifted");
   const expectedByName = new Map(expected.map((policy) => [policy.name, policy]));
   for (const row of rows) {
@@ -164,12 +185,18 @@ function assertRestrictedRole(row, name) {
 }
 
 function expectedFunctions(verified, active) {
-  const entries = verified.preparation.release.functions.map((entry) => ({
-    name: entry.name,
-    arguments: entry.arguments,
-    executeRole: entry.executeRole ?? "runtime",
-    source: verified.preparation.functionSources.get(entry.name),
-  }));
+  const entries = verified.preparation.release.functions.map((entry) => {
+    const executeRoles = privateTableFunctionExecuteRoles(entry);
+    assert.ok(executeRoles.length <= 1, `${entry.name} has multiple execute roles`);
+    return {
+      name: entry.name,
+      arguments: entry.arguments,
+      executeRole: executeRoles[0] ?? "none",
+      securityDefiner: entry.securityDefiner ?? true,
+      volatility: entry.volatility,
+      source: verified.preparation.functionSources.get(entry.name),
+    };
+  });
   for (const retained of verified.release.functionChanges.retained) {
     entries.push({
       name: retained.name,
@@ -225,6 +252,7 @@ async function readFunctions(client, verified, tableOwner, active) {
            owner.rolname AS owner_name,
            owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
            procedure.prosecdef AS security_definer,
+           procedure.provolatile AS volatility,
            procedure.proconfig AS configuration,
            procedure.prosrc AS source,
            pg_catalog.has_function_privilege(
@@ -255,7 +283,14 @@ async function readFunctions(client, verified, tableOwner, active) {
     assert.ok(entry, `unexpected function overload ${identity}`);
     assert.equal(row.owner_name, tableOwner, `${identity} owner drifted`);
     assert.equal(row.owner_bypasses_rls, true, `${identity} owner cannot bypass RLS`);
-    assert.equal(row.security_definer, true, `${identity} is not SECURITY DEFINER`);
+    assert.equal(
+      row.security_definer,
+      entry.securityDefiner ?? true,
+      `${identity} security mode drifted`,
+    );
+    if (entry.volatility !== undefined) {
+      assert.equal(row.volatility, entry.volatility, `${identity} volatility drifted`);
+    }
     assert.deepEqual(row.configuration, ["search_path=pg_catalog"], `${identity} search_path drifted`);
     assert.equal(
       row.runtime_execute,
@@ -320,10 +355,12 @@ export async function inspectPrivateTableRlsActivationProduction(
   try {
     await client.connect();
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const row = (await client.query(`
+    const tables = releaseTables(release);
+    const rows = (await client.query(`
       SELECT pg_catalog.current_database() AS database_name,
              current_user AS current_user_name,
              session_user AS session_user_name,
+             target.relname AS table_name,
              owner.rolname AS table_owner_name,
              owner.rolsuper OR owner.rolbypassrls AS owner_bypasses_rls,
              target.relrowsecurity AS rls_enabled,
@@ -374,14 +411,26 @@ export async function inspectPrivateTableRlsActivationProduction(
                  AND NOT attribute.attisdropped
                  AND acl.grantee <> target.relowner) AS non_owner_column_acl_count
         FROM pg_catalog.pg_class AS target
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = target.relnamespace
         JOIN pg_catalog.pg_roles AS owner ON owner.oid = target.relowner
-       WHERE target.oid = $1::pg_catalog.regclass
+       WHERE namespace.nspname = 'public'
+         AND target.relname = ANY($1::text[])
          AND target.relkind = 'r'
-    `, [`public."${release.table}"`])).rows[0];
-    assert.ok(row, "reviewed table is absent");
-    assert.equal(row.current_user_name, row.session_user_name, "owner session is indirect");
-    assert.equal(row.current_user_name, row.table_owner_name, "session is not table owner");
-    assert.equal(row.owner_bypasses_rls, true, "table owner cannot bypass FORCE");
+       ORDER BY target.relname
+    `, [tables])).rows;
+    assert.equal(rows.length, tables.length, "reviewed table set is incomplete");
+    const rowByTable = new Map(
+      rows.map((row) => [row.table_name ?? release.table, row]),
+    );
+    for (const table of tables) {
+      const row = rowByTable.get(table);
+      assert.ok(row, `${table} is absent`);
+      assert.equal(row.current_user_name, row.session_user_name, "owner session is indirect");
+      assert.equal(row.current_user_name, row.table_owner_name, `${table} session is not table owner`);
+      assert.equal(row.owner_bypasses_rls, true, `${table} owner cannot bypass FORCE`);
+    }
+    const primaryRow = rowByTable.get(release.table);
 
     const roles = (await client.query(`
       SELECT rolname, rolsuper, rolinherit, rolcanlogin, rolcreatedb,
@@ -401,7 +450,8 @@ export async function inspectPrivateTableRlsActivationProduction(
     );
 
     const policies = (await client.query(`
-      SELECT policy.polname AS name,
+      SELECT target.relname AS table_name,
+             policy.polname AS name,
              policy.polcmd AS command,
              policy.polpermissive AS permissive,
              ARRAY(
@@ -415,9 +465,12 @@ export async function inspectPrivateTableRlsActivationProduction(
              pg_catalog.pg_get_expr(policy.polqual, policy.polrelid, false) AS "using",
              pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid, false) AS with_check
         FROM pg_catalog.pg_policy AS policy
-       WHERE policy.polrelid = $1::pg_catalog.regclass
-       ORDER BY policy.polname
-    `, [`public."${release.table}"`])).rows;
+        JOIN pg_catalog.pg_class AS target ON target.oid = policy.polrelid
+        JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = target.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND target.relname = ANY($1::text[])
+       ORDER BY target.relname, policy.polname
+    `, [tables])).rows;
 
     const ledger = (await client.query(`
       SELECT migration_name, checksum, finished_at, rolled_back_at,
@@ -432,16 +485,36 @@ export async function inspectPrivateTableRlsActivationProduction(
       "compatible preparation is not applied",
     );
     const recorded = successfulMigration(ledger, release);
-    const posture = postureFromRow(row);
+    const postures = Object.fromEntries(
+      tables.map((table) => [table, postureFromRow(rowByTable.get(table))]),
+    );
     let activeCatalog = false;
     try {
-      assertActivePosture(posture, release);
-      assertPolicies(policies, release, true);
+      for (const table of tables) {
+        assertActivePosture(postures[table], release, table);
+        assertPolicies(
+          policies.filter(
+            (policy) => (policy.table_name ?? release.table) === table,
+          ),
+          release,
+          true,
+          table,
+        );
+      }
       activeCatalog = true;
     } catch (activeError) {
       try {
-        assertReadyPosture(posture, release);
-        assertPolicies(policies, release, false);
+        for (const table of tables) {
+          assertReadyPosture(postures[table], release);
+          assertPolicies(
+            policies.filter(
+              (policy) => (policy.table_name ?? release.table) === table,
+            ),
+            release,
+            false,
+            table,
+          );
+        }
       } catch {
         throw activeError;
       }
@@ -457,7 +530,7 @@ export async function inspectPrivateTableRlsActivationProduction(
     const functions = await readFunctions(
       client,
       verified,
-      row.table_owner_name,
+      primaryRow.table_owner_name,
       activeCatalog,
     );
     await client.query("COMMIT");
@@ -470,11 +543,13 @@ export async function inspectPrivateTableRlsActivationProduction(
       activationMigration: release.migration,
       activationMigrationSha256: verified.migrationDigest,
       rollbackSha256: verified.rollbackDigest,
-      databaseName: row.database_name,
-      migrationRole: row.current_user_name,
+      databaseName: primaryRow.database_name,
+      migrationRole: primaryRow.current_user_name,
       table: release.table,
+      tables,
       roles: roles.map((entry) => Object.freeze({ ...entry })),
-      posture,
+      posture: postures[release.table],
+      postures,
       policies: policies.map((entry) => Object.freeze({ ...entry })),
       functions,
       productionChanged: false,

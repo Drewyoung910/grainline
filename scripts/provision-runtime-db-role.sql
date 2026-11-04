@@ -326,9 +326,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."Favorite",
   public."Follow",
   public."FoundingMakerGrant",
-  public."Listing",
-  public."ListingVariantGroup",
-  public."ListingVariantOption",
   public."ListingViewDaily",
   public."MakerVerification",
   public."Message",
@@ -339,7 +336,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."OrderItem",
   public."OrderPaymentEvent",
   public."OrderShippingRateQuote",
-  public."Photo",
   public."ResendWebhookEvent",
   public."Review",
   public."ReviewPhoto",
@@ -363,6 +359,153 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
   public."UserEmailAddress",
   public."UserReport"
 TO :"runtime_role";
+
+-- The public Listing family retains direct runtime reads only for pinned safe
+-- columns after its four-table activation. Before activation, preserve the
+-- predecessor CRUD surface so preparation remains deployment-compatible. A
+-- partial policy/RLS posture fails closed before any Listing grant changes.
+WITH expected(table_name, policy_name, policy_qual) AS (
+  VALUES
+    (
+      'Listing',
+      'listing_public_select',
+      '((status = ''ACTIVE''::"ListingStatus") AND ("isPrivate" = false) AND ("archivedAt" IS NULL) AND ("sellerPubliclyOrderable" = true))'
+    ),
+    (
+      'Photo',
+      'photo_public_select',
+      '(EXISTS ( SELECT 1 FROM "Listing" listing WHERE ((listing.id = "Photo"."listingId") AND (listing.status = ''ACTIVE''::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))'
+    ),
+    (
+      'ListingVariantGroup',
+      'listing_variant_group_public_select',
+      '(EXISTS ( SELECT 1 FROM "Listing" listing WHERE ((listing.id = "ListingVariantGroup"."listingId") AND (listing.status = ''ACTIVE''::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))'
+    ),
+    (
+      'ListingVariantOption',
+      'listing_variant_option_public_select',
+      '(EXISTS ( SELECT 1 FROM ("ListingVariantGroup" variant_group JOIN "Listing" listing ON ((listing.id = variant_group."listingId"))) WHERE ((variant_group.id = "ListingVariantOption"."groupId") AND (listing.status = ''ACTIVE''::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))'
+    )
+), state AS (
+  SELECT expected.table_name,
+         class.relrowsecurity,
+         class.relforcerowsecurity,
+         pg_catalog.count(policy.oid)::integer AS policy_count,
+         pg_catalog.bool_and(
+           policy.polname IS NULL OR (
+             policy.polname = expected.policy_name
+             AND policy.polcmd = 'r'
+             AND policy.polpermissive
+             AND policy.polroles = ARRAY[
+               (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = :'runtime_role')
+             ]::oid[]
+             AND policy.polwithcheck IS NULL
+             AND pg_catalog.regexp_replace(
+                   pg_catalog.pg_get_expr(policy.polqual, policy.polrelid),
+                   '[[:space:]]+', ' ', 'g'
+                 ) = expected.policy_qual
+           )
+         ) AS policy_shape_ok
+    FROM expected
+    LEFT JOIN pg_catalog.pg_class AS class
+      ON class.relname = expected.table_name
+     AND class.relkind = 'r'
+    LEFT JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+     AND namespace.nspname = 'public'
+    LEFT JOIN pg_catalog.pg_policy AS policy
+      ON policy.polrelid = class.oid
+   WHERE namespace.oid IS NOT NULL
+   GROUP BY expected.table_name, class.relrowsecurity,
+            class.relforcerowsecurity
+), posture AS (
+  SELECT
+    pg_catalog.count(*) = 4
+      AND pg_catalog.bool_and(
+        relrowsecurity AND relforcerowsecurity
+        AND policy_count = 1 AND policy_shape_ok
+      ) AS active,
+    pg_catalog.count(*) = 4
+      AND pg_catalog.bool_and(
+        NOT relrowsecurity AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM state
+), failure AS (
+  SELECT
+    'Listing domain RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS grainline_listing_domain_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_listing_domain_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_listing_domain_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :grainline_listing_domain_rls_active
+REVOKE ALL ON TABLE
+  public."Listing", public."Photo",
+  public."ListingVariantGroup", public."ListingVariantOption"
+FROM PUBLIC, :"runtime_role";
+
+SELECT pg_catalog.format(
+         'REVOKE ALL PRIVILEGES (%I) ON TABLE public.%I FROM %I',
+         attribute.attname,
+         relation.relname,
+         :'runtime_role'
+       )
+  FROM pg_catalog.pg_class AS relation
+  JOIN pg_catalog.pg_namespace AS namespace
+    ON namespace.oid = relation.relnamespace
+  JOIN pg_catalog.pg_attribute AS attribute
+    ON attribute.attrelid = relation.oid
+ WHERE namespace.nspname = 'public'
+   AND relation.relname IN (
+     'Listing', 'Photo', 'ListingVariantGroup', 'ListingVariantOption'
+   )
+   AND attribute.attnum > 0
+   AND NOT attribute.attisdropped
+ ORDER BY relation.relname, attribute.attnum;
+\gexec
+
+GRANT SELECT (
+  "id", "sellerId", "title", "description", "priceCents", "currency",
+  "status", "createdAt", "updatedAt", "archivedAt", "videoUrl", "tags",
+  "processingTimeMinDays", "processingTimeMaxDays", "listingType",
+  "stockQuantity", "shipsWithinDays", "category", "clickCount", "viewCount",
+  "isPrivate", "cityMetroId", "metroId", "qualityScore", "materials",
+  "metaDescription", "productHeightIn", "productLengthIn", "productWidthIn",
+  "sellerPubliclyOrderable", "sellerDisplayName",
+  "sellerDisplayNameNormalized", "sellerAverageRating", "sellerReviewCount",
+  "favoriteCount"
+) ON TABLE public."Listing" TO :"runtime_role";
+GRANT SELECT ("id", "listingId", "url", "altText", "sortOrder", "createdAt")
+  ON TABLE public."Photo" TO :"runtime_role";
+GRANT SELECT ("id", "listingId", "name", "sortOrder")
+  ON TABLE public."ListingVariantGroup" TO :"runtime_role";
+GRANT SELECT ("id", "groupId", "label", "priceAdjustCents", "sortOrder", "inStock")
+  ON TABLE public."ListingVariantOption" TO :"runtime_role";
+\else
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  public."Listing", public."Photo",
+  public."ListingVariantGroup", public."ListingVariantOption"
+TO :"runtime_role";
+\endif
+\unset grainline_listing_domain_rls_active
 
 -- Public SellerProfile keeps compatible predecessor CRUD only while RLS is
 -- cleanly off. Once the reviewed policyless ENABLE (or later FORCE) posture is

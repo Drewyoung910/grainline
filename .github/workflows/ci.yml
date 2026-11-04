@@ -353,15 +353,25 @@ jobs:
           tests/listing-stock-runtime.test.mjs
           tests/private-table-preparation-production.test.mjs
           tests/seller-profile-staff-listing-review-transition.test.mjs
-      - name: Isolate Listing preparation until historical release guards pass
+      - name: Verify Listing domain activation source package
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON
+          --experimental-strip-types --test --test-concurrency=1
+          tests/listing-domain-rls-activation.test.mjs
+          tests/private-table-rls-activation-catalog.test.mjs
+          tests/private-table-rls-activation-production.test.mjs
+          tests/private-table-rls-activation-workflow.test.mjs
+      - name: Isolate Listing releases until historical release guards pass
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/listing-domain-preparation"
-          migration=20261102050000_prepare_listing_domain_authorities
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
           predecessor=2c920bbba080bb2a332a36340ce7a08541fed772
           mkdir -p "$holding/migrations" "$holding/scripts"
-          mv "prisma/migrations/$migration" "$holding/migrations/$migration"
+          mv "prisma/migrations/$preparation" "$holding/migrations/$preparation"
+          mv "prisma/migrations/$activation" "$holding/migrations/$activation"
           mv scripts/provision-runtime-db-role.sql "$holding/scripts/provision-runtime-db-role.sql"
           mv scripts/provision-order-staff-read-role.sql "$holding/scripts/provision-order-staff-read-role.sql"
           mv scripts/audit-runtime-db-grants.mjs "$holding/scripts/audit-runtime-db-grants.mjs"
@@ -373,8 +383,9 @@ jobs:
           test "$(git hash-object scripts/provision-order-staff-read-role.sql)" = "1797e808088411e173936a85f25ad8a51dbdda85"
           git show "$predecessor:scripts/audit-runtime-db-grants.mjs" > scripts/audit-runtime-db-grants.mjs
           test "$(git hash-object scripts/audit-runtime-db-grants.mjs)" = "39c7dea3ba1801b0ad823eb51382b0eea267265f"
-          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
-          echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=$holding/migrations/$migration/migration.sql" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=$holding/migrations/$preparation/migration.sql" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=$holding/migrations/$activation/migration.sql" >> "$GITHUB_ENV"
           echo "LISTING_DOMAIN_PREPARATION_ISOLATED=true" >> "$GITHUB_ENV"
       - name: Isolate Favorite source packages until historical release guards pass
         shell: bash
@@ -7037,13 +7048,15 @@ jobs:
           echo "MAKER_VERIFICATION_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
-      - name: Restore Listing preparation after historical release guards
+      - name: Restore Listing releases after historical release guards
         shell: bash
         run: |
           set -euo pipefail
           holding="$RUNNER_TEMP/listing-domain-preparation"
-          migration=20261102050000_prepare_listing_domain_authorities
-          mv "$holding/migrations/$migration" "prisma/migrations/$migration"
+          preparation=20261102050000_prepare_listing_domain_authorities
+          activation=20261102060000_activate_listing_domain_rls
+          mv "$holding/migrations/$preparation" "prisma/migrations/$preparation"
+          mv "$holding/migrations/$activation" "prisma/migrations/$activation"
           rm scripts/provision-runtime-db-role.sql scripts/provision-order-staff-read-role.sql scripts/audit-runtime-db-grants.mjs
           mv "$holding/scripts/provision-runtime-db-role.sql" scripts/provision-runtime-db-role.sql
           mv "$holding/scripts/provision-order-staff-read-role.sql" scripts/provision-order-staff-read-role.sql
@@ -7051,6 +7064,7 @@ jobs:
           rmdir "$holding/migrations" "$holding/scripts" "$holding"
           echo "LISTING_DOMAIN_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "PRIVATE_TABLE_PREPARATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
+          echo "LISTING_DOMAIN_RLS_ACTIVATION_MIGRATION_PATH=" >> "$GITHUB_ENV"
           echo "LISTING_DOMAIN_PREPARATION_ISOLATED=" >> "$GITHUB_ENV"
       - name: Restore SupportRequest candidate after historical release guards
         shell: bash

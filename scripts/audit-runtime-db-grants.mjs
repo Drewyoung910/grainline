@@ -148,6 +148,40 @@ export const CART_ITEM_OWNER_COLUMN_PRIVILEGES = [
   "\"selectedVariantOptionIds\":UPDATE",
   "quantity:UPDATE",
 ];
+export const LISTING_DOMAIN_TABLES = Object.freeze([
+  "Listing",
+  "Photo",
+  "ListingVariantGroup",
+  "ListingVariantOption",
+]);
+export const LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES = Object.freeze({
+  Listing: Object.freeze([
+    "id:SELECT", "\"sellerId\":SELECT", "title:SELECT", "description:SELECT",
+    "\"priceCents\":SELECT", "currency:SELECT", "status:SELECT",
+    "\"createdAt\":SELECT", "\"updatedAt\":SELECT", "\"archivedAt\":SELECT",
+    "\"videoUrl\":SELECT", "tags:SELECT", "\"processingTimeMinDays\":SELECT",
+    "\"processingTimeMaxDays\":SELECT", "\"listingType\":SELECT",
+    "\"stockQuantity\":SELECT", "\"shipsWithinDays\":SELECT", "category:SELECT",
+    "\"clickCount\":SELECT", "\"viewCount\":SELECT", "\"isPrivate\":SELECT",
+    "\"cityMetroId\":SELECT", "\"metroId\":SELECT", "\"qualityScore\":SELECT",
+    "materials:SELECT", "\"metaDescription\":SELECT", "\"productHeightIn\":SELECT",
+    "\"productLengthIn\":SELECT", "\"productWidthIn\":SELECT",
+    "\"sellerPubliclyOrderable\":SELECT", "\"sellerDisplayName\":SELECT",
+    "\"sellerDisplayNameNormalized\":SELECT", "\"sellerAverageRating\":SELECT",
+    "\"sellerReviewCount\":SELECT", "\"favoriteCount\":SELECT",
+  ]),
+  Photo: Object.freeze([
+    "id:SELECT", "\"listingId\":SELECT", "url:SELECT", "\"altText\":SELECT",
+    "\"sortOrder\":SELECT", "\"createdAt\":SELECT",
+  ]),
+  ListingVariantGroup: Object.freeze([
+    "id:SELECT", "\"listingId\":SELECT", "name:SELECT", "\"sortOrder\":SELECT",
+  ]),
+  ListingVariantOption: Object.freeze([
+    "id:SELECT", "\"groupId\":SELECT", "label:SELECT",
+    "\"priceAdjustCents\":SELECT", "\"sortOrder\":SELECT", "\"inStock\":SELECT",
+  ]),
+});
 const SELLER_DEAUTHORIZATION_APPLICATION_MIGRATION =
   "20260905120000_prepare_order_seller_deauthorization_authority";
 const ORDER_STAFF_CAPABILITY_MIGRATION =
@@ -535,6 +569,41 @@ export const MESSAGE_RLS_POLICIES = Object.freeze({
     usingExpression:
       `((NULLIF(current_setting('app.user_id', true), '') = "senderId") OR (NULLIF(current_setting('app.user_id', true), '') = "recipientId")) OR grainline_conversation_staff_report_visible("conversationId")`,
     checkExpression: null,
+  }),
+});
+
+export const LISTING_DOMAIN_RLS_POLICIES = Object.freeze({
+  Listing: Object.freeze({
+    listing_public_select: Object.freeze({
+      command: "r",
+      usingExpression:
+        `((status = 'ACTIVE'::"ListingStatus") AND ("isPrivate" = false) AND ("archivedAt" IS NULL) AND ("sellerPubliclyOrderable" = true))`,
+      checkExpression: null,
+    }),
+  }),
+  Photo: Object.freeze({
+    photo_public_select: Object.freeze({
+      command: "r",
+      usingExpression:
+        `(EXISTS ( SELECT 1 FROM "Listing" listing WHERE ((listing.id = "Photo"."listingId") AND (listing.status = 'ACTIVE'::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))`,
+      checkExpression: null,
+    }),
+  }),
+  ListingVariantGroup: Object.freeze({
+    listing_variant_group_public_select: Object.freeze({
+      command: "r",
+      usingExpression:
+        `(EXISTS ( SELECT 1 FROM "Listing" listing WHERE ((listing.id = "ListingVariantGroup"."listingId") AND (listing.status = 'ACTIVE'::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))`,
+      checkExpression: null,
+    }),
+  }),
+  ListingVariantOption: Object.freeze({
+    listing_variant_option_public_select: Object.freeze({
+      command: "r",
+      usingExpression:
+        `(EXISTS ( SELECT 1 FROM ("ListingVariantGroup" variant_group JOIN "Listing" listing ON ((listing.id = variant_group."listingId"))) WHERE ((variant_group.id = "ListingVariantOption"."groupId") AND (listing.status = 'ACTIVE'::"ListingStatus") AND (listing."isPrivate" = false) AND (listing."archivedAt" IS NULL) AND (listing."sellerPubliclyOrderable" = true))))`,
+      checkExpression: null,
+    }),
   }),
 });
 
@@ -1561,6 +1630,20 @@ export function followRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(FOLLOW_TABLE);
 }
 
+export function listingDomainRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return LISTING_DOMAIN_TABLES.every(
+    (tableName) => enabled.has(tableName) && policies.has(tableName),
+  );
+}
+
+export function listingDomainRlsForceExpected(inventory) {
+  const forced = new Set(inventory?.rlsForceTables ?? []);
+  return listingDomainRlsActivationExpected(inventory)
+    && LISTING_DOMAIN_TABLES.every((tableName) => forced.has(tableName));
+}
+
 export function sellerProfileRlsActivationExpected(inventory) {
   if (typeof inventory?.sellerProfileRlsActivationApplied === "boolean") {
     return inventory.sellerProfileRlsActivationApplied;
@@ -2486,6 +2569,22 @@ export function collectMessagePolicyIssues(
   });
 }
 
+export function collectListingDomainPolicyIssues(
+  rows,
+  runtimeRole,
+  tableName,
+) {
+  const expectedPolicies = LISTING_DOMAIN_RLS_POLICIES[tableName];
+  if (!expectedPolicies) {
+    throw new Error(`unknown Listing-domain policy table: ${tableName}`);
+  }
+  return collectExactRlsPolicyIssues(rows, runtimeRole, {
+    tableName,
+    expectedPolicies,
+    expectedForce: true,
+  });
+}
+
 async function readExactRlsPolicyState(client, tableName) {
   const result = await client.query(
     `SELECT
@@ -3062,6 +3161,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === SELLER_PROFILE_TABLE
       && sellerProfileRlsActivationExpected(inventory)
     )
+    || (
+      LISTING_DOMAIN_TABLES.includes(tableName)
+      && listingDomainRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -3115,6 +3218,12 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
 
 export function requiredRuntimeColumnPrivileges(tableName, inventory) {
   const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
+  if (
+    LISTING_DOMAIN_TABLES.includes(tableName)
+    && listingDomainRlsActivationExpected(inventory)
+  ) {
+    return [...LISTING_DOMAIN_PUBLIC_COLUMN_PRIVILEGES[tableName]];
+  }
   if (tableName === "Notification" && rlsPolicyTables.includes("Notification")) {
     return NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES;
   }
@@ -4013,6 +4122,18 @@ export async function auditLiveDatabase({
         expectedRlsForceTables.has("Message"),
       ),
     );
+  }
+
+  if (listingDomainRlsActivationExpected(liveAuthorityInventory)) {
+    for (const tableName of LISTING_DOMAIN_TABLES) {
+      issues.push(
+        ...collectListingDomainPolicyIssues(
+          await readExactRlsPolicyState(client, tableName),
+          runtimeRole,
+          tableName,
+        ),
+      );
+    }
   }
 
   const untrackedTableResult = await client.query(

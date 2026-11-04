@@ -44,6 +44,7 @@ import { proveListingDomainDetailAuthorities } from "../tools/database-full-chai
 import { proveListingDomainPublicCatalog } from "../tools/database-full-chain/scenarios/listing-domain-public-catalog.mjs";
 import { proveListingDomainStaffReferences } from "../tools/database-full-chain/scenarios/listing-domain-staff-references.mjs";
 import { proveListingDomainReviewHistory } from "../tools/database-full-chain/scenarios/listing-domain-review-history.mjs";
+import { proveListingDomainRlsActivation } from "../tools/database-full-chain/scenarios/listing-domain-activation.mjs";
 import { proveSellerProfileActorReviewListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-actor-review-listing-target.mjs";
 import { proveSellerProfileReportResourceTarget } from "../tools/database-full-chain/scenarios/seller-profile-report-resource-target.mjs";
 import { proveSellerProfileParticipantConversationListingTarget } from "../tools/database-full-chain/scenarios/seller-profile-participant-conversation-listing-target.mjs";
@@ -156,6 +157,7 @@ const PRIVATE_TABLE_ACTIVATION_RELEASES = new Map([
   ["20261028060000_activate_follow_rls", "follow_v1"],
   ["20261028070000_activate_review_vote_rls", "review_vote_v1"],
   ["20261028080000_activate_maker_verification_rls", "maker_verification_v1"],
+  ["20261102060000_activate_listing_domain_rls", "listing_domain_v1"],
 ]);
 
 async function startEmailSuppressionAccountDeletionConcurrencyProof(connectionString) {
@@ -802,6 +804,13 @@ test(
       });
       await proveListingDomainReviewHistory({
         database: adapter,
+        seller: fixture,
+      });
+      await proveListingDomainRlsActivation({
+        connectionString: proofDatabaseUrl,
+        database: adapter,
+        ownerClient: client,
+        repositoryRoot,
         seller: fixture,
       });
       await proveSellerProfileActorReviewListingTarget({
