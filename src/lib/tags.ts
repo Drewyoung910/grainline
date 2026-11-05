@@ -14,6 +14,7 @@ export function normalizeTag(input: string | null | undefined): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, MAX_TAG_LENGTH)
+    .replace(/[\uD800-\uDBFF]$/, "")
     .replace(/-+$/g, "");
 }
 

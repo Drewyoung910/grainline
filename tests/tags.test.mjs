@@ -35,3 +35,9 @@ describe("tag normalization", () => {
     assert.doesNotMatch(source, /from "\.\/sanitize\.ts"/);
   });
 });
+
+it("normalizeTag does not cut an astral character in half at the length limit", () => {
+  const tag = normalizeTag(`a${"\u{2000B}".repeat(30)}`);
+  assert.equal(tag.isWellFormed(), true);
+  assert.doesNotThrow(() => encodeURIComponent(tag));
+});
