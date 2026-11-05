@@ -648,14 +648,11 @@ async function SellerPublicContent({
                   the user can filter from the dedicated shop page. */}
               {topTags.length >= 3 && (
                 <div className="hidden sm:flex flex-wrap items-center gap-2 mb-5">
-                  <span className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mr-1">
-                    Filter:
-                  </span>
                   {topTags.map((tag) => (
                     <Link
                       key={tag}
                       href={`${publicSellerShopPath(seller.id, seller.displayName)}?tag=${encodeURIComponent(tag)}`}
-                      className="rounded-full bg-stone-100 hover:bg-stone-200 text-neutral-700 px-3 py-1 text-xs transition-colors"
+                      className="rounded-full bg-[#EFEAE0] hover:bg-[#E3DCCB] text-neutral-700 px-3 py-1 text-xs transition-colors"
                     >
                       {tag.replace(/[-_]/g, " ")}
                     </Link>
