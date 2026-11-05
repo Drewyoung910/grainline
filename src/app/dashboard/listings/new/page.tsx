@@ -602,9 +602,6 @@ export default async function NewListingPage({
         <div>
           <label className="block text-sm mb-1">Photos</label>
           <PhotoManager max={10} />
-          <p className="mt-1 text-xs text-neutral-500">
-            Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
-          </p>
         </div>
 
         <div>
