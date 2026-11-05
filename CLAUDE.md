@@ -972,13 +972,13 @@ All optional email sends are wrapped with `shouldSendEmail`. Order/new-sale, shi
 
 ## Clerk User Sync Webhook (complete)
 
-`src/app/api/clerk/webhook/route.ts` — verifies svix signature, handles `user.created` and `user.updated` events, upserts `User` record via `ensureUserByClerkId`, sends `sendWelcomeBuyer` on `user.created`. Route added to public matcher in `src/middleware.ts`.
+`src/app/api/clerk/webhook/route.ts` — verifies svix signature, handles `user.created`, `user.updated` and `user.deleted` events, upserts `User` record via `ensureUserByClerkId`, and sends the welcome email on `user.created`. Route added to public matcher in `src/middleware.ts`.
 
 **`User.imageUrl` sync**: `imageUrl: image_url ?? null` is passed to `ensureUserByClerkId` before the event-type branch, so `User.imageUrl` stays in sync with Clerk's `image_url` for **both** `user.created` and `user.updated` events. No separate sync logic needed — this is already handled.
 
 **Deployment steps still required:**
 1. Add `CLERK_WEBHOOK_SECRET` to Vercel environment variables
-2. Clerk Dashboard → **Production** → Developers → Webhooks → Add Endpoint → `https://thegrainline.com/api/clerk/webhook` → events: `user.created`, `user.updated` → copy Signing Secret → paste as `CLERK_WEBHOOK_SECRET`
+2. Clerk Dashboard → **Production** → Developers → Webhooks → Add Endpoint → `https://thegrainline.com/api/clerk/webhook` → events: `user.created`, `user.updated`, `user.deleted` → copy Signing Secret → paste as `CLERK_WEBHOOK_SECRET`
 
 ## MobileFilterBar (complete — 2026-04-13)
 
@@ -3111,7 +3111,7 @@ first pass's rough edges. Behavior future agents must preserve:
 ### Immediate / deploy blockers
 
 1. **CSP enforcement** — ✅ **Complete (2026-04-02)** — enforced; `clerk.thegrainline.com` added to `script-src-elem`, header changed to `Content-Security-Policy`
-2. **Clerk webhook production setup** — add `CLERK_WEBHOOK_SECRET` to Vercel; register `https://thegrainline.com/api/clerk/webhook` in Clerk Dashboard → Production → Webhooks (events: `user.created`, `user.updated`)
+2. **Clerk webhook production setup** — add `CLERK_WEBHOOK_SECRET` to Vercel; register `https://thegrainline.com/api/clerk/webhook` in Clerk Dashboard → Production → Webhooks (events: `user.created`, `user.updated`, `user.deleted`)
 3. **Stripe live mode webhook** — register after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel with live mode signing secret
 
 ### QA / pre-launch
