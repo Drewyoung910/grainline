@@ -190,12 +190,12 @@ describe("post-launch UI follow-ups", () => {
     assert.match(wrapper, /onListingTypeChange=\{setType\}/);
     assert.match(variant, /listingType = "MADE_TO_ORDER"/);
     assert.match(variant, /!isMadeToOrder &&/);
-    assert.match(variant, /inStock: isMadeToOrder \? true : o\.inStock/);
+    assert.match(source("src/lib/variantEditorState.ts"), /inStock: isMadeToOrder \? true : option\.inStock/);
   });
 
   it("keeps variant price typing raw until blur", () => {
     const variant = source("src/components/VariantEditor.tsx");
-    assert.match(variant, /priceDrafts/);
+    assert.match(variant, /"priceDraft"/);
     assert.match(variant, /focusedPriceKey/);
     assert.match(variant, /onBlur=/);
     assert.doesNotMatch(variant, /value=\{opt\.priceAdjustCents === 0 \? "" : \(opt\.priceAdjustCents \/ 100\)\.toFixed\(2\)\}/);

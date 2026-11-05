@@ -2,19 +2,14 @@
 
 import { useState, useCallback, useId } from "react";
 import { parseMoneyInputToCents } from "@/lib/money";
+import {
+  optionPriceCents,
+  serializeVariantGroups,
+  type VariantGroupData,
+  type VariantOptionData,
+} from "@/lib/variantEditorState";
 
-export type VariantGroupData = {
-  id?: string;
-  name: string;
-  options: VariantOptionData[];
-};
-
-export type VariantOptionData = {
-  id?: string;
-  label: string;
-  priceAdjustCents: number;
-  inStock: boolean;
-};
+export type { VariantGroupData, VariantOptionData };
 
 const MAX_GROUPS = 3;
 const MAX_OPTIONS = 10;
@@ -27,7 +22,6 @@ export default function VariantEditor({
   listingType?: "MADE_TO_ORDER" | "IN_STOCK";
 }) {
   const [groups, setGroups] = useState<VariantGroupData[]>(initialGroups);
-  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [focusedPriceKey, setFocusedPriceKey] = useState<string | null>(null);
   const baseId = useId();
   const isMadeToOrder = listingType === "MADE_TO_ORDER";
@@ -87,19 +81,12 @@ export default function VariantEditor({
   );
 
   const priceKey = (gi: number, oi: number) => `${gi}:${oi}`;
-  const optionPriceCents = (gi: number, oi: number, opt: VariantOptionData) => {
-    const draft = priceDrafts[priceKey(gi, oi)];
-    if (draft === undefined) return opt.priceAdjustCents || 0;
-    if (draft.trim() === "") return 0;
-    return parseMoneyInputToCents(draft, { allowNegative: true }) ?? 0;
-  };
 
   function priceDisplayValue(gi: number, oi: number, opt: VariantOptionData) {
-    const key = priceKey(gi, oi);
-    const draft = priceDrafts[key];
-    if (focusedPriceKey === key) return draft ?? (opt.priceAdjustCents === 0 ? "" : String(opt.priceAdjustCents / 100));
+    const draft = opt.priceDraft;
+    if (focusedPriceKey === priceKey(gi, oi)) return draft ?? (opt.priceAdjustCents === 0 ? "" : String(opt.priceAdjustCents / 100));
     if (draft !== undefined && draft.trim() === "") return "";
-    const cents = optionPriceCents(gi, oi, opt);
+    const cents = optionPriceCents(opt);
     return cents === 0 ? "" : (cents / 100).toFixed(2);
   }
 
@@ -182,15 +169,12 @@ export default function VariantEditor({
                     pattern={"[+-]?(\\d+(\\.\\d{1,2})?|\\.\\d{1,2})"}
                     value={priceDisplayValue(gi, oi, opt)}
                     onFocus={() => setFocusedPriceKey(priceKey(gi, oi))}
-                    onChange={(e) => {
-                      setPriceDrafts((prev) => ({ ...prev, [priceKey(gi, oi)]: e.target.value }));
-                    }}
+                    onChange={(e) => updateOption(gi, oi, "priceDraft", e.target.value)}
                     onBlur={(e) => {
                       const key = priceKey(gi, oi);
                       const val = e.target.value;
                       const cents = parseMoneyInputToCents(val, { allowNegative: true });
                       updateOption(gi, oi, "priceAdjustCents", val === "" || cents === null ? 0 : cents);
-                      setPriceDrafts((prev) => ({ ...prev, [key]: val }));
                       setFocusedPriceKey((current) => current === key ? null : current);
                     }}
                     placeholder="+0.00"
@@ -239,20 +223,7 @@ export default function VariantEditor({
       <input
         type="hidden"
         name="variantGroupsJson"
-        value={JSON.stringify(
-          groups
-            .filter((g) => g.name.trim() && g.options.some((o) => o.label.trim()))
-            .map((g, gi) => ({
-              name: g.name.trim(),
-              options: g.options
-                .map((o, oi) => ({
-                  label: o.label.trim(),
-                  priceAdjustCents: optionPriceCents(gi, oi, o),
-                  inStock: isMadeToOrder ? true : o.inStock,
-                }))
-                .filter((o) => o.label),
-            }))
-        )}
+        value={JSON.stringify(serializeVariantGroups(groups, isMadeToOrder))}
       />
     </div>
   );
