@@ -862,37 +862,37 @@ async function SellerPublicContent({
             <div id="policies" data-scroll-anchor="" className="scroll-mt-14 space-y-10 outline-none" tabIndex={-1}>
               {/* Policies + FAQ two-column */}
               {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy || seller.faqs.length > 0) && (
-                <section className="smooth-details grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <section className="smooth-details grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
                   {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
-                    <div className="overflow-hidden rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm">
-                      <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-stone-200/60">Shop Policies</h2>
+                    <div className="min-w-0">
+                      <h2 className="text-xl sm:text-2xl font-display font-semibold mb-2">Shop Policies</h2>
                       {seller.returnPolicy && (
                         <details className="border-b border-stone-200/60 last:border-b-0">
-                          <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Return Policy</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{seller.returnPolicy}</p>
+                          <summary className="cursor-pointer py-3 font-medium text-sm text-neutral-800">Return Policy</summary>
+                          <p className="pb-4 text-sm leading-6 text-neutral-700 whitespace-pre-line break-words">{seller.returnPolicy}</p>
                         </details>
                       )}
                       {seller.customOrderPolicy && (
                         <details className="border-b border-stone-200/60 last:border-b-0">
-                          <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Custom Order Policy</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{seller.customOrderPolicy}</p>
+                          <summary className="cursor-pointer py-3 font-medium text-sm text-neutral-800">Custom Order Policy</summary>
+                          <p className="pb-4 text-sm leading-6 text-neutral-700 whitespace-pre-line break-words">{seller.customOrderPolicy}</p>
                         </details>
                       )}
                       {seller.shippingPolicy && (
                         <details className="border-b border-stone-200/60 last:border-b-0">
-                          <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Shipping Policy</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{seller.shippingPolicy}</p>
+                          <summary className="cursor-pointer py-3 font-medium text-sm text-neutral-800">Shipping Policy</summary>
+                          <p className="pb-4 text-sm leading-6 text-neutral-700 whitespace-pre-line break-words">{seller.shippingPolicy}</p>
                         </details>
                       )}
                     </div>
                   )}
                   {seller.faqs.length > 0 && (
-                    <div className="overflow-hidden rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm">
-                      <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-stone-200/60">FAQs</h2>
+                    <div className="min-w-0">
+                      <h2 className="text-xl sm:text-2xl font-display font-semibold mb-2">FAQs</h2>
                       {seller.faqs.map((faq) => (
                         <details key={faq.id} className="border-b border-stone-200/60 last:border-b-0">
-                          <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">{faq.question}</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{faq.answer}</p>
+                          <summary className="cursor-pointer py-3 font-medium text-sm text-neutral-800">{faq.question}</summary>
+                          <p className="pb-4 text-sm leading-6 text-neutral-700 whitespace-pre-line break-words">{faq.answer}</p>
                         </details>
                       ))}
                     </div>
