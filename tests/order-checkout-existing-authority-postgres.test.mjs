@@ -315,6 +315,57 @@ describe("Order checkout existing PostgreSQL authority", () => {
     }
   });
 
+  it("does not count a failed or canceled refund, or an unauthorized claim, as settled", async () => {
+    const witnessOnly = `
+      UPDATE public."Order"
+         SET "blockedCheckoutRefundRequiredAt" = CURRENT_TIMESTAMP,
+             "blockedCheckoutRefundRecordedAt" = NULL,
+             "sellerRefundId" = NULL,
+             "sellerRefundLockedAt" = NULL,
+             "refundClaimId" = NULL,
+             "refundClaimSource" = NULL,
+             "refundClaimSourceId" = NULL,
+             "refundClaimSourceGeneration" = NULL,
+             "refundClaimProviderAuthorizedAt" = NULL,
+             "paymentRefundBlocked" = false
+       WHERE id = 'order-1';
+    `;
+    for (const status of ["failed", "canceled", "cancelled", "FAILED"]) {
+      await db.exec("BEGIN");
+      try {
+        await db.exec(`${witnessOnly}
+          INSERT INTO public."OrderPaymentEvent" (id, "orderId", "eventType", status)
+            VALUES ('refund-${status}', 'order-1', 'REFUND', '${status}');
+        `);
+        await db.exec("SET LOCAL ROLE grainline_app_runtime");
+        // The buyer was charged and not refunded: retry, never complete.
+        assert.equal((await classify())[0].outcome, "retry", status);
+      } finally {
+        await db.exec("ROLLBACK").catch(() => {});
+      }
+    }
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`${witnessOnly}
+        UPDATE public."Order"
+           SET "sellerRefundId" = 'pending',
+               "sellerRefundLockedAt" = clock_timestamp() AT TIME ZONE 'UTC',
+               "refundClaimId" = 'claim-1',
+               "refundClaimSource" = 'BLOCKED_CHECKOUT',
+               "refundClaimSourceId" = 'evt-existing',
+               "refundClaimSourceGeneration" = 1,
+               "paymentRefundBlocked" = true
+         WHERE id = 'order-1';
+      `);
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      // Without provider authorization the claim must not be resumed.
+      assert.equal((await classify())[0].outcome, "processing");
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
+  });
+
   it("classifies UTC-stored legacy locks identically in every session timezone", async () => {
     const initialTimezone = (await db.query("SHOW TimeZone")).rows[0].TimeZone;
     try {
