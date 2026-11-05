@@ -16,7 +16,7 @@ import { MapPin } from "@/components/icons";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { firstSearchParams, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
 import { Suspense } from "react";
 import { CommissionRoomSkeleton } from "@/components/RouteSkeletons";
@@ -53,7 +53,7 @@ export default function CommissionPage(props: CommissionPageProps) {
 async function CommissionPageContent({
   searchParams,
 }: CommissionPageProps) {
-  const sp = await searchParams;
+  const sp = firstSearchParams(await searchParams);
   const requestedPage = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   let page = requestedPage;
   const categoryFilter = sp.category ?? "";

@@ -5,7 +5,7 @@ import AllSellersMap from "@/components/AllSellersMap";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
-import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { firstSearchParams, parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCityState } from "@/lib/locationDisplay";
 import {
   sellerPublicMapMetros,
@@ -41,7 +41,7 @@ export default async function AllSellersMapPage({
 }: {
   searchParams: Promise<{ near?: string; zoom?: string }>;
 }) {
-  const { near, zoom } = await searchParams;
+  const { near, zoom } = firstSearchParams(await searchParams);
 
   const { userId } = await auth();
   let meDbId: string | null = null;

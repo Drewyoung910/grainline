@@ -8,11 +8,12 @@ export function searchParamsContainNullByte(searchParams: URLSearchParams): bool
 }
 
 export function normalizeSearchQueryParameter(
-  value: string | null | undefined,
+  value: string | string[] | null | undefined,
   maxCharacters = Number.MAX_SAFE_INTEGER,
 ): string {
   const limit = Math.max(0, Math.floor(maxCharacters));
-  const normalized = (value ?? "")
+  // Next passes string[] when a query key repeats; the first value wins.
+  const normalized = ((Array.isArray(value) ? value[0] : value) ?? "")
     .normalize("NFKC")
     .replaceAll(NULL_BYTE, "")
     .trim();

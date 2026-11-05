@@ -19,7 +19,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { firstSearchParams, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { sellerPublicProfile } from "@/lib/sellerProfilePublicAccess";
 import { normalizeTag } from "@/lib/tags";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
@@ -77,7 +77,7 @@ export default async function SellerShopPage({
 }) {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const sp = await searchParams;
+  const sp = firstSearchParams(await searchParams);
 
   const sort = sp.sort && ["newest", "price_asc", "price_desc", "popular"].includes(sp.sort)
     ? sp.sort

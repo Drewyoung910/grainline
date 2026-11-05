@@ -11,7 +11,7 @@ describe("blog index query guardrails", () => {
     const page = source("src/app/blog/page.tsx");
 
     assert.match(page, /import \{ normalizeSearchQueryParameter \} from "@\/lib\/searchQueryState"/);
-    assert.match(page, /import \{ parseBoundedPositiveIntParam \} from "@\/lib\/queryParams"/);
+    assert.match(page, /import \{ firstSearchParams, parseBoundedPositiveIntParam \} from "@\/lib\/queryParams"/);
     assert.match(page, /const q = normalizeSearchQueryParameter\(sp\.bq, BLOG_SEARCH_QUERY_MAX_CHARS\)/);
     assert.match(page, /\.map\(\(tag\) => normalizeSearchQueryParameter\(tag, BLOG_TAG_MAX_CHARS\)\)/);
     assert.match(page, /\.slice\(0, BLOG_TAG_FILTER_MAX_COUNT\)/);

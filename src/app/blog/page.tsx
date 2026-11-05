@@ -15,7 +15,7 @@ import MediaImage from "@/components/MediaImage";
 import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { safeJsonLd } from "@/lib/json-ld";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { firstSearchParams, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { Suspense } from "react";
@@ -59,7 +59,7 @@ export default function BlogIndexPage(props: BlogIndexPageProps) {
 async function BlogIndexPageContent({
   searchParams,
 }: BlogIndexPageProps) {
-  const sp = await searchParams;
+  const sp = firstSearchParams(await searchParams);
   const q = normalizeSearchQueryParameter(sp.bq, BLOG_SEARCH_QUERY_MAX_CHARS);
   const typeFilter = sp.type ?? "";
   const tagsFilter = sp.tags
