@@ -1,6 +1,6 @@
 # Grainline Strategy and Roadmap
 
-Operational notes and strategic direction. AGENTS.md is the codebase contract (what is built, how it works, what must be preserved). This file is for what hasn't been built yet, why, and in what order. Update at the end of any session that produces strategic decisions.
+Operational notes and strategic direction. `CLAUDE.md` is the codebase contract (what is built, how it works, what must be preserved). This file is for what hasn't been built yet, why, and in what order. Update at the end of any session that produces strategic decisions.
 
 ## Immediate priorities
 
