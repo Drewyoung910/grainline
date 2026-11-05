@@ -42,7 +42,9 @@ export async function GET(
   const url = new URL(req.url);
   const sinceRaw = url.searchParams.get("since");
   const sinceIdRaw = url.searchParams.get("sinceId");
-  let cursor = parseMessageCursor(sinceRaw, sinceIdRaw);
+  // The list authority needs the id tie-breaker. Without one, every poll would fail
+  // and the stream would stay open delivering nothing.
+  let cursor = parseMessageCursor(sinceRaw, sinceIdRaw, { requireId: true });
   if ((sinceRaw !== null || sinceIdRaw !== null) && !cursor) {
     return privateJson({ error: "Invalid message cursor" }, { status: 400 });
   }
