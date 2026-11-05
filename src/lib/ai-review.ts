@@ -63,13 +63,14 @@ const AI_REVIEW_RESPONSE_FORMAT = {
     schema: {
       type: "object",
       additionalProperties: false,
-      required: ["approved", "flags", "confidence", "reason", "altTexts"],
+      required: ["approved", "flags", "confidence", "reason", "altTexts", "photoVerdicts"],
       properties: {
         approved: { type: "boolean" },
         flags: { type: "array", items: { type: "string" } },
         confidence: { type: "number" },
         reason: { type: "string" },
         altTexts: { type: "array", items: { type: "string" } },
+        photoVerdicts: { type: "array", items: { type: "string", enum: ["product", "not-product"] } },
       },
     },
   },
@@ -292,13 +293,17 @@ If you return any flag, approved must be false. Never return approved=true with 
 ALT TEXT GENERATION (REQUIRED):
 You MUST generate an "altTexts" array in your JSON response. For each image provided, write a brief SEO-friendly alt text (10-20 words) describing the item shown. Focus on materials, colors, wood species, and the type of woodworking piece. Example: "Hand-carved walnut cutting board with live edge and mineral oil finish". Always include exactly one alt text per image. If no images are provided, return "altTexts": [].
 
+PHOTO VERDICTS (REQUIRED):
+Return "photoVerdicts" with exactly one entry per image, in the order given. Judge each image on its own. Use "product" only when that image clearly shows the physical handmade item described. Use "not-product" for a screenshot, graphic, stock photo, or anything else, and then set approved=false. If no images are provided, return "photoVerdicts": [].
+
 Respond with ONLY valid JSON, no other text:
 {
   "approved": true or false,
   "flags": ["specific-issue-category-keys"],
   "confidence": 0.0 to 1.0,
   "reason": "one plain sentence the seller can read, without repeating any offensive word",
-  "altTexts": ["brief alt text for image 1", "brief alt text for image 2"]
+  "altTexts": ["brief alt text for image 1", "brief alt text for image 2"],
+  "photoVerdicts": ["product", "not-product"]
 }`
 
   const delimiterId = randomUUID();
@@ -334,7 +339,7 @@ USER_LISTING_DATA_${delimiterId}_END`
             { role: 'user', content: messageContent },
           ],
           response_format: AI_REVIEW_RESPONSE_FORMAT,
-          max_tokens: 700,
+          max_tokens: 900,
           temperature: 0.1,
         })
       }, 30_000)
@@ -363,7 +368,7 @@ USER_LISTING_DATA_${delimiterId}_END`
     const data = await response.json()
     const text = data.choices?.[0]?.message?.content ?? ''
     const clean = text.replace(/```json|```/g, '').trim()
-    const result = normalizeAIReviewResult(JSON.parse(clean), imagesToReview.length)
+    const result = normalizeAIReviewResult(JSON.parse(clean), listing.imageUrls?.length ?? 0)
     if (process.env.NODE_ENV !== "production") {
       console.debug(`[ai-review] approved=${result.approved}, flags=${result.flags?.length ?? 0}, altTexts=${result.altTexts?.length ?? 0}`)
     }

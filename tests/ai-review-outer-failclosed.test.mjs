@@ -212,10 +212,32 @@ describe("AI review outer fail-closed behavior", () => {
     }
   });
 
+  it("holds a listing when a photo could not be sent to the model", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+
+    const result = await reviewListingWithAI(listing(), {
+      findRecentListingTitles: async () => [],
+      fetchWithTimeout: async () =>
+        new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                approved: true, flags: [], confidence: 0.92, reason: "Looks good", altTexts: [], photoVerdicts: [],
+              }),
+            },
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } }),
+      sleep: async () => {},
+    });
+
+    assert.equal(result.approved, false);
+    assert.deepEqual(result.flags, ["photo-not-reviewed"]);
+  });
+
   it("does not count the listing currently under review as a prior duplicate", async () => {
     process.env.OPENAI_API_KEY = "test-key";
 
-    const result = await reviewListingWithAI({ ...listing(), listingId: "listing_current" }, {
+    const result = await reviewListingWithAI({ ...listing(), imageUrls: [], listingId: "listing_current" }, {
       findRecentListingTitles: async (_sellerId, excludeListingId) => {
         assert.equal(excludeListingId, "listing_current");
         return [

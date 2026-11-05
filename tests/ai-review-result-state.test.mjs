@@ -73,6 +73,43 @@ describe("AI review response normalization", () => {
     assert.deepEqual(result.flags, ["ai-review-held"]);
   });
 
+  it("passes only when every photo has a product verdict", () => {
+    const approved = (photoVerdicts, photos) => normalizeAIReviewResult(
+      { approved: true, flags: [], confidence: 0.9, reason: "Looks good", altTexts: [], photoVerdicts },
+      photos,
+    );
+
+    const passed = approved(["product", "product"], 2);
+    assert.equal(passed.approved, true);
+    assert.deepEqual(passed.flags, []);
+    assert.equal(passed.reason, "Looks good");
+
+    assert.equal(approved([], 0).approved, true);
+    assert.equal(approved(undefined, 0).approved, true);
+
+    for (const [verdicts, photos, flag] of [
+      [["product", "not-product"], 2, "non-product-photo"],
+      [["product"], 2, "photo-not-reviewed"],
+      [undefined, 2, "photo-not-reviewed"],
+      [["product", "maybe"], 2, "photo-not-reviewed"],
+      [["product", "product", "product"], 2, "photo-not-reviewed"],
+    ]) {
+      const held = approved(verdicts, photos);
+      assert.equal(held.approved, false);
+      assert.deepEqual(held.flags, [flag]);
+      assert.match(held.reason, /photos/);
+    }
+  });
+
+  it("keeps the model's own reason when it rejected the listing itself", () => {
+    const held = normalizeAIReviewResult(
+      { approved: false, flags: ["counterfeit"], confidence: 0.9, reason: "Looks counterfeit", altTexts: [], photoVerdicts: ["not-product"] },
+      1,
+    );
+    assert.deepEqual(held.flags, ["counterfeit", "non-product-photo"]);
+    assert.equal(held.reason, "Looks counterfeit");
+  });
+
   it("sanitizes generated bulk-review alt text before persistence", () => {
     const result = normalizeAIReviewResult(
       {

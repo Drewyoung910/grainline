@@ -18,8 +18,11 @@ function truncateText(value: string, maxLength: number) {
  * closed, free-form strings are bounded before persistence, confidence is
  * clamped to 0..1, and alt text is padded to the reviewed image count so photo
  * backfill code cannot drift by array index.
+ *
+ * `expectedPhotos` is every photo on the listing, so a photo the model skipped,
+ * or one that could not be sent to it, holds the listing instead of passing.
  */
-export function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number): AIReviewResult {
+export function normalizeAIReviewResult(raw: unknown, expectedPhotos: number): AIReviewResult {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   const flags = Array.isArray(value.flags)
     ? value.flags.filter((flag): flag is string => typeof flag === "string").map((flag) => truncateText(flag, 80)).slice(0, 20)
@@ -34,9 +37,9 @@ export function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number):
         .filter((alt): alt is string => typeof alt === "string")
         .map((alt) => sanitizeAIAltText(alt))
         .filter(Boolean)
-        .slice(0, expectedAltTexts)
+        .slice(0, expectedPhotos)
     : [];
-  while (altTexts.length < expectedAltTexts) {
+  while (altTexts.length < expectedPhotos) {
     altTexts.push("Handmade woodworking product photo");
   }
 
@@ -48,6 +51,20 @@ export function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number):
       flags.length = Math.min(flags.length, 20);
     }
   }
+  const verdicts: unknown[] = Array.isArray(value.photoVerdicts) ? value.photoVerdicts : [];
+  const everyPhotoJudged =
+    verdicts.length === expectedPhotos && verdicts.every((verdict) => verdict === "product" || verdict === "not-product");
+  const photoFlag = verdicts.includes("not-product")
+    ? "non-product-photo"
+    : normalizedApproved && !everyPhotoJudged
+      ? "photo-not-reviewed"
+      : null;
+  const heldOnlyForPhoto = normalizedApproved && photoFlag !== null;
+  if (photoFlag) {
+    normalizedApproved = false;
+    flags.push(photoFlag);
+    flags.length = Math.min(flags.length, 20);
+  }
   if (!normalizedApproved && flags.length === 0) {
     flags.push("ai-review-held");
   }
@@ -56,9 +73,11 @@ export function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number):
     approved: normalizedApproved,
     flags,
     confidence,
-    reason: typeof value.reason === "string" && value.reason.trim()
-      ? truncateText(value.reason.replace(/\s+/g, " ").trim(), 500)
-      : "AI review returned an invalid response",
+    reason: heldOnlyForPhoto
+      ? "One of the photos does not clearly show the product, or could not be checked."
+      : typeof value.reason === "string" && value.reason.trim()
+        ? truncateText(value.reason.replace(/\s+/g, " ").trim(), 500)
+        : "AI review returned an invalid response",
     altTexts,
   };
 }
