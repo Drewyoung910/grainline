@@ -626,14 +626,14 @@ async function BrowseContent({
 
     return (
       <div className="relative flex">
-        <div className="photo-save-surface relative shrink-0 w-36 sm:w-44 aspect-[4/5] overflow-hidden bg-neutral-100">
+        <div className="photo-save-surface relative shrink-0 w-28 sm:w-40 aspect-[4/5] overflow-hidden rounded-xl bg-neutral-100">
           <Link href={publicListingPath(l.id, l.title)} className="block h-full w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img alt={l.photos[0]?.altText ?? l.title} src={img} loading="lazy" width={176} height={220} className="h-full w-full object-cover" />
           </Link>
           <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
         </div>
-        <div className="flex-1 min-w-0 p-4 sm:pr-12">
+        <div className="flex-1 min-w-0 pl-4 pt-1">
           <div className="flex flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
             <Link href={publicListingPath(l.id, l.title)} className="min-w-0 break-words font-medium hover:underline leading-snug">
               {l.title}
@@ -642,7 +642,7 @@ async function BrowseContent({
           </div>
 
           <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-            <Link href={publicSellerPath(l.sellerId, l.seller.displayName)} className="text-xs text-neutral-500 hover:underline">
+            <Link href={publicSellerPath(l.sellerId, l.seller.displayName)} className="text-[13px] text-neutral-500 hover:underline">
               {sellerName}
             </Link>
             <GuildBadge level={l.seller.guildLevel} showLabel={false} size={22} />
@@ -661,7 +661,7 @@ async function BrowseContent({
             </div>
           )}
 
-          <div className="mt-1.5 text-xs text-neutral-500">
+          <div className="mt-1.5 text-[13px] text-neutral-500">
             {isInStock ? (
               outOfStock ? (
                 <span className="text-red-600">Out of Stock</span>
@@ -850,7 +850,7 @@ async function BrowseContent({
             {view === "grid"
               ? listings.map((l) => <GridCard key={l.id} l={l} />)
               : listings.map((l) => (
-                  <ClickTracker key={l.id} listingId={l.id} flipId={l.id} className="card-listing">
+                  <ClickTracker key={l.id} listingId={l.id} flipId={l.id} className="border-b border-stone-200/70 pb-4 last:border-b-0">
                     <ListCard l={l} />
                   </ClickTracker>
                 ))}
