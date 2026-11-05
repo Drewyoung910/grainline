@@ -265,12 +265,12 @@ export default async function SellerOrderDetailPage({
 
       {deauthorizedReviewHold ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE} Check the review note or contact support before changing fulfillment.
+          {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE} Contact support before changing fulfillment.
         </div>
       ) : order.reviewNeeded && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {status === "PENDING" || status === "READY_FOR_PICKUP"
-            ? "This order needs staff review before fulfillment. Check the review note or contact support before shipping."
+            ? "This order needs staff review before fulfillment. Contact support before shipping."
             : "This order needs staff review. Grainline staff will contact you if they need anything."}
         </div>
       )}
