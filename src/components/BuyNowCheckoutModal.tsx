@@ -305,7 +305,8 @@ export default function BuyNowCheckoutModal({
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-[#14100D]/45 modal-backdrop-in p-4 pt-12 overflow-y-auto overscroll-contain"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // Closing throws the payment session away, so at that step it takes the X.
+        if (e.target === e.currentTarget && step !== "payment") onClose();
       }}
     >
       <div
