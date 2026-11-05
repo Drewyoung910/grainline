@@ -24,12 +24,10 @@ export async function fanOutListingToFollowers({
   sellerProfileId,
   sellerDisplayName,
   listing,
-  emailDedupKey,
 }: {
   sellerProfileId: string;
   sellerDisplayName: string | null;
   listing: ListingForFanout;
-  emailDedupKey: (followerId: string) => string;
 }) {
   const publicListing = await sellerPublicFollowerListingTarget(
     listing.id,
@@ -84,7 +82,9 @@ export async function fanOutListingToFollowers({
       });
       await enqueueEmailOutbox({
         ...email,
-        dedupKey: emailDedupKey(recipient.userId),
+        // One key per follower and listing, so re-listing an old piece cannot email
+        // the same follower "just posted a new listing" again from another path.
+        dedupKey: `followed-listing:${publicListing.id}:${recipient.userId}`,
         templateName: "followed_maker_new_listing",
         userId: recipient.userId,
         preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",

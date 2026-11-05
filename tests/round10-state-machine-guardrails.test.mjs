@@ -257,7 +257,6 @@ describe("Round 10 state-machine guardrails", () => {
     assert.match(fulfillmentAuthority, /locked_order\."labelStatus"::text = 'PURCHASED'/);
     assert.match(fulfillmentAuthority, /'reason', 'label_purchased'/);
     assert.match(adminReview, /fanOutListingToFollowers/);
-    assert.match(adminReview, /admin-approved-listing:\$\{listing\.id\}:\$\{followerId\}/);
     assert.match(adminReview, /source: 'admin_listing_review_follower_fanout'/);
     assert.match(markResolved, /notifyCounterpartyOfResolutionMark/);
     assert.match(markResolved, /type: resolved \? "CASE_RESOLVED" : "CASE_MESSAGE"/);

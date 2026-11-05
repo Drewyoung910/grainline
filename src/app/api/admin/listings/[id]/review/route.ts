@@ -68,7 +68,6 @@ function queueAdminApprovedListingFollowerFanout(listing: {
         sellerProfileId: listing.sellerId,
         sellerDisplayName: listing.seller.displayName,
         listing,
-        emailDedupKey: (followerId) => `admin-approved-listing:${listing.id}:${followerId}`,
       })
     } catch (error) {
       Sentry.captureException(error, {

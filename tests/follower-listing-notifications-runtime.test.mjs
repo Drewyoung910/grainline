@@ -6,11 +6,14 @@ import ts from "typescript";
 
 const modulePath = "src/lib/followerListingNotifications.ts";
 
-function fixture({ target = undefined } = {}) {
+function fixture({ target = undefined, recipients = [], notificationFails = false, enqueueFails = false } = {}) {
   const state = {
     targetCalls: [],
     followerReads: 0,
     notifications: [],
+    enqueued: [],
+    rendered: [],
+    sentry: [],
   };
   const publicTarget = target === undefined ? {
     id: "listing",
@@ -29,27 +32,46 @@ function fixture({ target = undefined } = {}) {
         throw new Error("direct listing-to-SellerProfile fanout read reached");
       },
     },
+    photo: {
+      findFirst: async () => ({ url: "https://cdn.example.test/cover.jpg" }),
+    },
   };
   const dependencies = {
     "@/lib/db": { prisma },
-    "@/lib/email": { renderNewListingFromFollowedMakerEmail: () => ({}) },
-    "@/lib/emailOutbox": { enqueueEmailOutbox: async () => {} },
+    "@sentry/nextjs": {
+      captureException: (error, context) => { state.sentry.push({ error, context }); },
+    },
+    "@/lib/email": {
+      renderNewListingFromFollowedMakerEmail: (input) => {
+        state.rendered.push(input);
+        return {};
+      },
+    },
+    "@/lib/emailOutbox": {
+      enqueueEmailOutbox: async (job) => {
+        if (enqueueFails) throw new Error("outbox down");
+        state.enqueued.push(job);
+      },
+    },
     "@/lib/notifications": {
-      createNotification: async (input) => { state.notifications.push(input); },
+      createNotification: async (input) => {
+        if (notificationFails) throw new Error("notification down");
+        state.notifications.push(input);
+      },
     },
     "@/lib/notificationSources": {
       NOTIFICATION_SOURCE_TYPES: { FOLLOWED_MAKER_NEW_LISTING: "FOLLOWED_MAKER_NEW_LISTING" },
     },
     "@/lib/concurrency": {
       chunkArray: (items) => [items],
-      mapWithConcurrency: async (items, _limit, worker) => Promise.all(items.map(worker)),
+      mapWithConcurrency: async (items, _limit, worker) => Promise.allSettled(items.map(worker)),
     },
     "@/lib/publicPaths": {
       publicListingPath: (id, title) => `/listing/${id}-${title}`,
     },
     "@/lib/money": { formatCurrencyCents: () => "$125.00" },
     "@/lib/emailBaseUrl": { EMAIL_APP_URL: "https://example.test" },
-    "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipients: async () => [] },
+    "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipients: async () => recipients },
     "@/lib/userFollowerAccess": {
       userFollowerNotificationPage: async (_client, input) => {
         state.followerReads += 1;
@@ -76,6 +98,7 @@ function fixture({ target = undefined } = {}) {
   const exports = {};
   vm.runInNewContext(javascript, {
     exports,
+    Error,
     require(name) {
       assert.ok(Object.hasOwn(dependencies, name), `Unexpected dependency ${name}`);
       return dependencies[name];
@@ -90,7 +113,6 @@ test("listing follower fanout uses the bounded fresh public target", async () =>
     sellerProfileId: "seller",
     sellerDisplayName: "Stale workshop",
     listing: { id: "listing", title: "Stale title", priceCents: 1, currency: "cad" },
-    emailDedupKey: (followerId) => `listing:${followerId}`,
   });
   assert.equal(JSON.stringify(subject.state.targetCalls), JSON.stringify([
     { listingId: "listing", sellerProfileId: "seller" },
@@ -114,8 +136,36 @@ test("listing follower fanout stops before follower reads when the target is no 
     sellerProfileId: "seller",
     sellerDisplayName: null,
     listing: { id: "listing", title: "Listing", priceCents: 12500, currency: "usd" },
-    emailDedupKey: (followerId) => `listing:${followerId}`,
   });
   assert.equal(subject.state.followerReads, 0);
   assert.deepEqual(subject.state.notifications, []);
+});
+
+const fanOutInput = {
+  sellerProfileId: "seller",
+  sellerDisplayName: null,
+  listing: { id: "listing", title: "Listing", priceCents: 12500, currency: "usd" },
+};
+
+test("every path that announces a listing shares one email key per follower", async () => {
+  const subject = fixture({ recipients: [{ userId: "follower", email: "f@example.com" }] });
+  await subject.fanOutListingToFollowers(fanOutInput);
+  assert.equal(subject.state.enqueued[0].dedupKey, "followed-listing:listing:follower");
+});
+
+test("the email shows the listing's cover photo", async () => {
+  const subject = fixture({ recipients: [{ userId: "follower", email: "f@example.com" }] });
+  await subject.fanOutListingToFollowers(fanOutInput);
+  assert.equal(subject.state.rendered[0].listingImageUrl, "https://cdn.example.test/cover.jpg");
+});
+
+test("per-recipient failures are reported, not dropped", async () => {
+  const subject = fixture({
+    recipients: [{ userId: "follower", email: "f@example.com" }],
+    notificationFails: true,
+    enqueueFails: true,
+  });
+  await subject.fanOutListingToFollowers(fanOutInput);
+  assert.equal(subject.state.sentry.length, 1);
+  assert.equal(subject.state.sentry[0].context.extra.failedCount, 2);
 });

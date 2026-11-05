@@ -472,7 +472,6 @@ async function createListing(_prevState: unknown, formData: FormData) {
           sellerProfileId: seller.id,
           sellerDisplayName: seller.displayName,
           listing: { id: created.id, title: created.title, priceCents: created.priceCents, currency: created.currency },
-          emailDedupKey: (followerId) => `followed-listing:${created.id}:${followerId}`,
         });
       } catch (error) {
         logServerError(error, {

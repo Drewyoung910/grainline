@@ -928,6 +928,8 @@ Direct `send*` callers today: `sendCaseOpened`, `sendCaseMessage`, `sendCustomOr
 
 **Lifecycle:** welcome buyer and seller, first listing, first sale.
 
+All follower listing fanout paths (create, publish, unhide, admin approve) share one `followed-listing:{listingId}` dedup key, so a piece is announced once (EM-10).
+
 ### Email/audit behavior future agents must preserve
 
 - New-message email notifications must claim `Conversation.lastMessageEmailSentAt` with a null-or-older-than-5-min `updateMany` before calling `sendNewMessageEmail`. Do not replace this with a read-before-write `findFirst` throttle; concurrent message sends can race and duplicate emails.
