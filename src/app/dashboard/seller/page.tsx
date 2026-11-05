@@ -15,7 +15,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
-import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { isAlwaysOnInAppPreferenceKey, normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { sanitizeText } from "@/lib/sanitize";
 import { containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import {
@@ -598,7 +598,11 @@ export default async function SellerSettingsPage({
                 <p className="text-sm font-medium text-neutral-800">{r.label}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">{r.desc}</p>
               </div>
-              <NotificationToggle type={r.type} enabled={isEnabled(r.type)} />
+              {isAlwaysOnInAppPreferenceKey(r.type) && isEnabled(r.type) ? (
+                <span className="shrink-0 text-xs text-neutral-500">Always on</span>
+              ) : (
+                <NotificationToggle type={r.type} enabled={isEnabled(r.type)} label={r.label} />
+              )}
             </div>
           ))}
         </div>
@@ -616,11 +620,11 @@ export default async function SellerSettingsPage({
                 <p className="text-sm font-medium text-neutral-800">{r.label}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">{r.desc}</p>
               </div>
-              <NotificationToggle type={r.type} enabled={getEmailPref(r.type)} />
+              <NotificationToggle type={r.type} enabled={getEmailPref(r.type)} label={r.label} />
             </div>
           ))}
           <p className="pt-3 text-xs text-neutral-500">
-            New-order, case, and refund emails are always sent.
+            We always try to send new-order, case, and refund emails. You can&apos;t turn them off.
           </p>
         </div>
       </section>

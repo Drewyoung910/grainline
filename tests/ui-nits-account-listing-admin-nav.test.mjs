@@ -155,9 +155,9 @@ describe("account and notification copy shown once (#1263)", () => {
     assert.match(account, /<p className="[^"]*\bbreak-all\b[^"]*">\{me\.email\}<\/p>/);
   });
 
-  it("says once per settings page that required email is always sent", () => {
+  it("says once per settings page that required email is always attempted", () => {
     for (const path of ["src/app/account/settings/page.tsx", "src/app/dashboard/seller/page.tsx"]) {
-      assert.equal(source(path).match(/always sent/g)?.length ?? 0, 1, path);
+      assert.equal(source(path).match(/always try to send/g)?.length ?? 0, 1, path);
     }
   });
 

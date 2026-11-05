@@ -182,7 +182,7 @@ describe("account and privacy route observability guardrails", () => {
 
     assert.match(
       route,
-      /import \{ isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS \}/,
+      /isValidEmailPreferenceKey,\s*VALID_PREFERENCE_KEYS/,
     );
     assert.match(route, /updateUserOwnerNotificationPreference\(tx, \{/);
     assert.match(route, /clearOneClickEmailSuppression\(me\.email, tx\)/);
