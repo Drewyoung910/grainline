@@ -319,14 +319,24 @@ async function restoreLegacyUnorderedCheckoutStockOnce(input: {
   const { checkoutReservationId, buyerId, checkoutPayloadHash } = input.metadata;
   if (checkoutReservationId) {
     if (buyerId && checkoutPayloadHash) {
-      const aborted = await abortCheckoutStockReservation({
-        reservationId: checkoutReservationId,
-        buyerId,
-        payloadHash: checkoutPayloadHash,
-      });
-      if (aborted.stockVisibilityChanged > 0) {
-        revalidateListingSearchCaches();
-        revalidateFeaturedMakerCaches();
+      try {
+        const aborted = await abortCheckoutStockReservation({
+          reservationId: checkoutReservationId,
+          buyerId,
+          payloadHash: checkoutPayloadHash,
+        });
+        if (aborted.stockVisibilityChanged > 0) {
+          revalidateListingSearchCaches();
+          revalidateFeaturedMakerCaches();
+        }
+      } catch (error) {
+        // For example the buyer deleted their account, so the reservation no
+        // longer matches. Retrying cannot change that; the stale repair settles it.
+        Sentry.captureException(error, {
+          level: "warning",
+          tags: { source: "checkout_unbound_reservation_abort" },
+          extra: { checkoutReservationId, stripeSessionId: input.sessionId },
+        });
       }
     }
     await releaseCheckoutLock(input.metadata.checkoutLockKey, input.sessionId);
