@@ -26,8 +26,9 @@ export default function ShippingAndReturnsHelpPage() {
         <h2>When will my order ship?</h2>
         <p>
           Two things determine when a piece ships: <strong>processing time</strong> (how long the maker
-          takes to prepare or build it) and <strong>shipping time</strong> (carrier transit). Every
-          listing shows both up front so you know what to expect before you order.
+          takes to prepare or build it) and <strong>shipping time</strong> (carrier transit). The
+          listing shows the processing time, and checkout shows the shipping options and their
+          estimated transit time.
         </p>
         <ul>
           <li>
@@ -54,21 +55,22 @@ export default function ShippingAndReturnsHelpPage() {
 
         <h2>Shipping costs</h2>
         <p>
-          Shipping is calculated live at checkout based on the piece&apos;s size and weight and your
-          address. We use real carrier rates (USPS, UPS, FedEx, DHL) with no inflated markup. If the maker
-          accepts pickup, you can select pickup at no charge.
+          Makers either set a flat shipping price or use live carrier rates for your address, which are
+          calculated at checkout. You see the price before you pay. If the maker accepts pickup, you can
+          select pickup at no charge.
         </p>
 
         <h2>If something arrives damaged, late, or wrong</h2>
         <p>
-          Open a case from your order page. You&apos;ll find an &ldquo;Open a case&rdquo; button under{" "}
-          <Link href="/account/orders">My Account → Orders</Link> once enough time has passed for the
-          piece to have been delivered.
+          Open a case from your order page. Go to{" "}
+          <Link href="/account/orders">My Account → Orders</Link>, open the order, and look for the
+          &ldquo;Open a case&rdquo; button. It appears once enough time has passed for the piece to have
+          been delivered.
         </p>
         <p>
-          The maker has 48 hours to respond. Most cases are resolved directly between you and the maker:
-          full refund, partial refund, or a replacement. If you can&apos;t reach agreement, you can
-          escalate the case to Grainline staff for a final decision.
+          The maker has 48 hours to respond. Many cases are settled directly between you and the maker,
+          and the maker can issue a full refund. If you can&apos;t reach agreement, you can escalate the
+          case to Grainline staff, who can decide on a full refund, a partial refund, or no refund.
         </p>
 
         <h2>Refunds</h2>
@@ -94,8 +96,7 @@ export default function ShippingAndReturnsHelpPage() {
         <h2>Lost or stolen packages</h2>
         <p>
           If tracking shows the package was delivered but you didn&apos;t receive it, open a case. We
-          take buyer protection seriously and review these claims case by case. For high-value pieces,
-          we strongly recommend selecting a service with delivery confirmation or signature required.
+          take buyer protection seriously and review these claims case by case.
         </p>
 
         <h2>Still need help?</h2>
