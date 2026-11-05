@@ -2,9 +2,11 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { shrinkLargeImageForRouteUpload } from "@/hooks/useR2Upload";
 import {
   UPLOAD_MAX_COUNTS,
   validateUploadFile,
+  validateUploadSelection,
 } from "@/lib/uploadRules";
 
 const MAX_CASE_MESSAGE_ATTACHMENTS =
@@ -53,13 +55,19 @@ export default function CaseReplyBox({
       selected.map(async (file, index) => {
         const pendingItem = pending[index];
         try {
-          validateUploadFile(
+          validateUploadSelection(
             "caseEvidenceImage",
             file,
             evidence.length + index,
           );
+          const upload = await shrinkLargeImageForRouteUpload(file);
+          validateUploadFile(
+            "caseEvidenceImage",
+            upload,
+            evidence.length + index,
+          );
           const form = new FormData();
-          form.set("file", file);
+          form.set("file", upload);
           form.set("fileIndex", String(evidence.length + index));
           const response = await fetch(`/api/cases/${caseId}/attachments`, {
             method: "POST",

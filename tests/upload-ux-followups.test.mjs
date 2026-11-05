@@ -88,7 +88,9 @@ describe("upload UX follow-ups", () => {
 
     assert.match(blogForm, /endpoint="blogImage"/);
     assert.doesNotMatch(blogForm, /endpoint="galleryImage"/);
-    assert.match(markdownToolbar, /validateUploadFile\("blogImage", file, 0\)/);
+    assert.match(markdownToolbar, /validateUploadSelection\("blogImage", file, 0\)/);
+    assert.match(markdownToolbar, /shrinkLargeImageForRouteUpload\(file\)/);
+    assert.match(markdownToolbar, /validateUploadFile\("blogImage", upload, 0\)/);
     assert.match(markdownToolbar, /form\.set\("endpoint", "blogImage"\)/);
     assert.match(blogInput, /\["galleryImage", "blogImage"\]/);
     assert.match(deletion, /"blogImage"/);
