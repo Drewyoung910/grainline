@@ -375,7 +375,7 @@ async function BlogIndexPageContent({
       )}
 
       {allPosts.length === 0 ? (
-        <div className="card-section p-12 text-center">
+        <div className="py-12 text-center">
           <p className="text-neutral-500 mb-4">
             {q
               ? `No posts found for "${q}"`
