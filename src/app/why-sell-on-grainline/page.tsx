@@ -273,8 +273,8 @@ export default async function WhySellOnGrainlinePage() {
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No surprise rate changes</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                Fee changes are grandfathered. New fees apply only to orders placed after the change takes
-                effect. We&apos;ll never quietly raise rates on your existing orders or inventory.
+                New fees apply only to orders placed after the change takes effect, including orders for
+                pieces you have already listed. We&apos;ll never change the rate on an order you already have.
               </p>
             </div>
           </div>
