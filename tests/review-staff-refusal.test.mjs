@@ -27,7 +27,7 @@ function post(role) {
       privateResponse: (response) => response,
     },
     "@/lib/urlValidation": { isFirstPartyMediaUrl: () => true },
-    "@/lib/profanity": { containsProfanity: () => ({ flagged: false }) },
+    "@/lib/profanity": { containsProfanity: () => ({ flagged: false }), containsSlur: () => false },
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "account", role }) },
     "@/lib/sellerProfilePublicAccess": {
       sellerActorReviewListingTarget: async () => {
