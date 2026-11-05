@@ -178,13 +178,13 @@ function baseTemplate(title: string, body: string): string {
 </td></tr></table>
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 16px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-top:1px solid #E2E0DC;padding:20px 0 48px;">
-    <tr><td style="font-size:11px;color:#9D9C97;line-height:1.6;">
+    <tr><td style="font-size:11px;color:#6B6A66;line-height:1.6;">
       © ${year} Grainline LLC &nbsp;·&nbsp;
-      <a href="${APP_URL}" style="color:#9D9C97;text-decoration:none;">thegrainline.com</a>
+      <a href="${APP_URL}" style="color:#6B6A66;text-decoration:none;">thegrainline.com</a>
       &nbsp;·&nbsp;
-      <a href="${UNSUBSCRIBE_HREF_PLACEHOLDER}" style="color:#9D9C97;text-decoration:none;">${EMAIL_PREFERENCE_LINK_TEXT_PLACEHOLDER}</a>
+      <a href="${UNSUBSCRIBE_HREF_PLACEHOLDER}" style="color:#6B6A66;text-decoration:none;">${EMAIL_PREFERENCE_LINK_TEXT_PLACEHOLDER}</a>
       &nbsp;·&nbsp;
-      <a href="mailto:${SUPPORT_EMAIL}" style="color:#9D9C97;text-decoration:none;">${SUPPORT_EMAIL}</a>
+      <a href="mailto:${SUPPORT_EMAIL}" style="color:#6B6A66;text-decoration:none;">${SUPPORT_EMAIL}</a>
       <br/>
       <span style="font-size:10px;">5900 Balcones Drive STE 100, Austin, TX 78731</span>
     </td></tr>
@@ -206,9 +206,9 @@ function itemTable(items: { title: string; quantity: number; priceCents: number 
     .join("");
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
     <thead><tr>
-      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:left;color:#9D9C97;text-transform:uppercase;letter-spacing:0.05em;">Item</th>
-      <th style="padding:6px 12px 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:center;color:#9D9C97;text-transform:uppercase;letter-spacing:0.05em;">Qty</th>
-      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:right;color:#9D9C97;text-transform:uppercase;letter-spacing:0.05em;">Price</th>
+      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:left;color:#6B6A66;text-transform:uppercase;letter-spacing:0.05em;">Item</th>
+      <th style="padding:6px 12px 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:center;color:#6B6A66;text-transform:uppercase;letter-spacing:0.05em;">Qty</th>
+      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:right;color:#6B6A66;text-transform:uppercase;letter-spacing:0.05em;">Price</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
@@ -225,16 +225,16 @@ function totalsTable(order: {
   const giftWrappingPriceCents = order.giftWrappingPriceCents ?? 0;
   const total = orderTotalCents(order);
   const shippingRow = order.shippingAmountCents > 0
-    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>`
+    ? `<tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>`
     : "";
   const taxRow = order.taxAmountCents > 0
-    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Tax</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>`
+    ? `<tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Tax</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>`
     : "";
   const giftWrappingRow = order.giftWrapping || giftWrappingPriceCents > 0
-    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Gift wrapping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${giftWrappingPriceCents > 0 ? fmtCents(giftWrappingPriceCents, order.currency) : "Included"}</td></tr>`
+    ? `<tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Gift wrapping</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${giftWrappingPriceCents > 0 ? fmtCents(giftWrappingPriceCents, order.currency) : "Included"}</td></tr>`
     : "";
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
-    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.itemsSubtotalCents, order.currency)}</td></tr>
+    <tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${fmtCents(order.itemsSubtotalCents, order.currency)}</td></tr>
     ${shippingRow}
     ${taxRow}
     ${giftWrappingRow}
@@ -397,7 +397,7 @@ export function renderNewsletterConfirmationEmail(opts: { email: string; confirm
     "Confirm your Grainline newsletter subscription",
     `<p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Please confirm that you want to receive Grainline newsletter emails at ${esc(opts.email)}.</p>
     ${btn("Confirm subscription", opts.confirmationUrl)}
-    <p style="font-size:12px;line-height:1.6;color:#9D9C97;margin:18px 0 0;">If you did not request this, you can ignore this email and you will not be added to newsletter sends.</p>`,
+    <p style="font-size:12px;line-height:1.6;color:#6B6A66;margin:18px 0 0;">If you did not request this, you can ignore this email and you will not be added to newsletter sends.</p>`,
   );
   return {
     to: opts.email,
@@ -457,7 +457,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
       ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Local pickup:</strong> we'll email you when it's ready, and you can message ${esc(sellerName)} to arrange a time.</p>`
       : `${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
     ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}`}
-    ${opts.multiSellerCheckout ? `<p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>` : ""}
+    ${opts.multiSellerCheckout ? `<p style="font-size:12px;color:#6B6A66;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>` : ""}
     ${btn("View your order", orderUrl)}
   `;
 
@@ -608,7 +608,7 @@ export function renderCaseOpenedEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyerName)}</strong> has opened a case regarding order <strong>#${esc(shortId(orderId))}</strong>.</p>
     <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">The buyer's case details are available in Grainline so the thread stays attached to the order record.</p>
-    <p style="font-size:13px;color:#9D9C97;margin:0 0 16px;">You have 48 hours to respond before this is escalated to Grainline staff.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">You have 48 hours to respond before this is escalated to Grainline staff.</p>
     ${btn("Respond to case", orderUrl)}
   `;
 
@@ -1093,7 +1093,7 @@ export function renderNewListingFromFollowedMakerEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${esc(makerName)} just posted a new piece on Grainline.</p>
-    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline.</p>
+    <p style="font-size:12px;color:#6B6A66;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline.</p>
     ${imageSection}
     <p style="font-size:17px;font-weight:600;color:#1C1C1A;margin:0 0 4px;">${esc(listingTitle)}</p>
     <p style="font-size:15px;color:#6B6A66;margin:0 0 20px;">${esc(listingPrice)}</p>
@@ -1141,7 +1141,7 @@ export function renderSellerBroadcastEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${esc(makerName)} shared an update with their followers on Grainline.</p>
-    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline and opted into maker broadcast emails.</p>
+    <p style="font-size:12px;color:#6B6A66;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline and opted into maker broadcast emails.</p>
     ${imageSection}
     <p style="font-size:15px;line-height:1.6;color:#3D3D3A;margin:0 0 20px;">${messageHtml}</p>
     ${btn("View your feed", feedUrl)}
