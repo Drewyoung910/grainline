@@ -425,7 +425,9 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     giftWrappingPriceCents?: number | null;
     currency?: string | null;
     estimatedDeliveryDate?: Date | null;
+    shipToName?: string | null;
     shipToLine1?: string | null;
+    shipToLine2?: string | null;
     shipToCity?: string | null;
     shipToState?: string | null;
     shipToPostalCode?: string | null;
@@ -434,13 +436,15 @@ export function renderOrderConfirmedBuyerEmail(opts: {
   seller: { displayName?: string | null };
   items: { title: string; quantity: number; priceCents: number }[];
   multiSellerCheckout?: boolean;
+  isPickup?: boolean;
 }) {
   const { order, buyer, seller, items } = opts;
   const name = buyer.name || "there";
   const sellerName = seller.displayName || "your maker";
   const orderUrl = `${APP_URL}/dashboard/orders/${order.id}`;
 
-  const address = [order.shipToLine1, order.shipToCity, order.shipToState, order.shipToPostalCode]
+  const stateAndZip = [order.shipToState, order.shipToPostalCode].filter(Boolean).join(" ");
+  const address = [order.shipToName, order.shipToLine1, order.shipToLine2, order.shipToCity, stateAndZip]
     .filter(Boolean)
     .join(", ");
 
@@ -449,8 +453,10 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     ${itemTable(items, order.currency)}
     ${totalsTable(order)}
     <p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Order:</strong> #${esc(shortId(order.id))}</p>
-    ${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
-    ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}
+    ${opts.isPickup
+      ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Local pickup:</strong> we'll email you when it's ready, and you can message ${esc(sellerName)} to arrange a time.</p>`
+      : `${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
+    ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}`}
     ${opts.multiSellerCheckout ? `<p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>` : ""}
     ${btn("View your order", orderUrl)}
   `;
@@ -480,6 +486,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
   buyer: { name?: string | null };
   seller: { displayName?: string | null; email: string };
   items: { title: string; quantity: number; priceCents: number }[];
+  isPickup?: boolean;
 }) {
   const { order, buyer, seller, items } = opts;
   const buyerName = buyer.name || "A buyer";
@@ -491,7 +498,8 @@ export function renderOrderConfirmedSellerEmail(opts: {
     <p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Order:</strong> #${esc(shortId(order.id))}</p>
     ${itemTable(items, order.currency)}
     ${totalsTable(order)}
-    ${order.processingDeadline ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0 16px;"><strong>Ship by:</strong> ${fmtDate(order.processingDeadline)}</p>` : ""}
+    ${opts.isPickup ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0;"><strong>Local pickup:</strong> the buyer will collect this order.</p>` : ""}
+    ${order.processingDeadline ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0 16px;"><strong>${opts.isPickup ? "Ready by" : "Ship by"}:</strong> ${fmtDate(order.processingDeadline)}</p>` : ""}
     ${btn("View order details", orderUrl)}
   `;
 

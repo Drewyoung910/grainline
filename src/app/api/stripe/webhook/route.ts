@@ -33,6 +33,7 @@ import {
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
+import { isPickupRateObjectId } from "@/lib/shippingQuoteState";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
   restoreUnorderedCheckoutStockOnce,
@@ -335,7 +336,7 @@ if (!signature) {
 
   async function enqueueOrderPostPaymentSideEffects(
     sessionId: string,
-    opts: { multiSellerCheckout?: boolean } = {},
+    opts: { multiSellerCheckout?: boolean; sessionMetadata?: Record<string, string | undefined> } = {},
   ) {
     const result = await readCheckoutPostpaymentProjection({
       eventId: event.id,
@@ -426,7 +427,11 @@ if (!signature) {
       shipToCity: order.shipToCity,
       shipToState: order.shipToState,
       shipToPostalCode: order.shipToPostalCode,
+      // The fixed projection omits these. Checkout wrote them to the signed session.
+      shipToName: opts.sessionMetadata?.quotedToName ?? null,
+      shipToLine2: opts.sessionMetadata?.quotedToLine2 ?? null,
     };
+    const isPickup = isPickupRateObjectId(opts.sessionMetadata?.selectedRateObjectId);
 
     await sendOrderTransactionalEmailWithFallback({
       email: renderOrderConfirmedBuyerEmail({
@@ -435,6 +440,7 @@ if (!signature) {
         seller: { displayName: sellerName },
         items: emailItems,
         multiSellerCheckout: opts.multiSellerCheckout === true,
+        isPickup,
       }),
       dedupKey: `order-confirmed-buyer:${order.orderId}`,
       userId: order.buyerId,
@@ -449,6 +455,7 @@ if (!signature) {
           buyer: { name: buyerDisplayName },
           seller: { displayName: sellerName, email: order.sellerEmail },
           items: emailItems,
+          isPickup,
         }),
         dedupKey: `order-confirmed-seller:${order.orderId}`,
         userId: sellerUserId,
@@ -567,6 +574,7 @@ if (!signature) {
           await releaseCheckoutLock(checkoutLockKey, sessionId);
           await enqueueOrderPostPaymentSideEffects(sessionId, {
             multiSellerCheckout: initialMultiSellerCheckout,
+            sessionMetadata: initialSessionMeta,
           });
           return NextResponse.json({ ok: true });
         }
@@ -1004,7 +1012,7 @@ if (!signature) {
         return NextResponse.json({ ok: true });
       }
 
-      await enqueueOrderPostPaymentSideEffects(sessionId, { multiSellerCheckout });
+      await enqueueOrderPostPaymentSideEffects(sessionId, { multiSellerCheckout, sessionMetadata: sessionMeta });
       return NextResponse.json({ ok: true });
       }, async () => {
         await releaseCheckoutLock(checkoutLockKey, sessionId);
