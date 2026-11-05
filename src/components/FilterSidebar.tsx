@@ -502,7 +502,14 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <Link
           href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
           scroll={false}
-          onClick={scrollResultsToTop}
+          onClick={() => {
+            // These were never in the URL, so the page change alone won't clear them.
+            setMinInput("");
+            setMaxInput("");
+            setPriceError(null);
+            setGeo(null);
+            scrollResultsToTop();
+          }}
           className="inline-flex min-h-11 items-center text-sm text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
         >
           Reset filters
