@@ -538,6 +538,10 @@ async function updateListing(
           sellerName: sellerCore.displayName,
           listingCount: sellerReview.totalListingCount,
           imageUrls: photos.map((p) => p.url),
+          metaDescription,
+          materials,
+          variantLabels: variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+          photoAltTexts: photoManifest.photos.map((photo) => photo.altText),
         }).catch(() => ({
           approved: false,
           flags: ["AI review error"] as string[],

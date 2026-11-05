@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
 const { reviewListingWithAI } = await import("../src/lib/ai-review.ts");
+const { SLUR_WORDS } = await import("../src/lib/profanity.ts");
 
 const originalOpenAIKey = process.env.OPENAI_API_KEY;
 
@@ -50,6 +51,34 @@ describe("AI review outer fail-closed behavior", () => {
 
     assertFailClosed(result);
     assert.match(result.flags.join(" "), /missing API key/);
+  });
+
+  it("holds a slur-tier word in any listing field with no provider call, even without a key", async () => {
+    delete process.env.OPENAI_API_KEY;
+    const word = SLUR_WORDS[0];
+    const failIfCalled = {
+      findRecentListingTitles: async () => {
+        throw new Error("no database work is needed");
+      },
+      fetchWithTimeout: async () => {
+        throw new Error("no provider call is needed");
+      },
+    };
+
+    for (const field of [
+      { title: `Bench ${word}` },
+      { description: `Lovely bench. ${word}.` },
+      { tags: [word] },
+      { metaDescription: word },
+      { materials: ["oak", word] },
+      { variantLabels: ["Size", word] },
+      { photoAltTexts: [null, word] },
+    ]) {
+      const result = await reviewListingWithAI({ ...listing(), ...field }, failIfCalled);
+      assert.equal(result.approved, false);
+      assert.deepEqual(result.flags, ["hateful-language"]);
+      assert.deepEqual(result.altTexts, []);
+    }
   });
 
   it("fails closed when the provider returns malformed model content", async () => {
