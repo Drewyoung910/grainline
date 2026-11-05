@@ -81,7 +81,7 @@ test("an unavailable recipient gets nothing, and a failure never fails the Case 
   assert.equal(failing.state.sentry.length, 1);
 });
 
-test("opening a Case queues the maker's 48-hour notice", async () => {
+test("opening a Case queues the maker's 48-hour notice and acknowledges the buyer", async () => {
   const state = { queued: [], updates: [] };
   const exports = loadModule("src/app/api/cases/route.ts", {
     zod: require("zod"),
@@ -134,4 +134,6 @@ test("opening a Case queues the maker's 48-hour notice", async () => {
   assert.equal(response.status, 201);
   assert.equal(state.queued[0].dedupKey, "case-opened:case");
   assert.equal(state.queued[0].userId, "seller");
+  assert.equal(state.updates[0].userId, "buyer");
+  assert.equal(state.updates[0].side, "BUYER");
 });
