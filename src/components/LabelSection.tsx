@@ -56,6 +56,7 @@ export default function LabelSection({
             className="btn btn-success-solid btn-sm"
           >
             Download Label
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
           <span className="text-sm font-medium text-green-700">Label purchased</span>
         </div>
@@ -75,6 +76,7 @@ export default function LabelSection({
                 {url ? (
                   <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80">
                     {labelTrackingNumber}
+                    <span className="sr-only"> (opens in a new tab)</span>
                   </a>
                 ) : (
                   labelTrackingNumber

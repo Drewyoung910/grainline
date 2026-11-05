@@ -281,6 +281,7 @@ export default function OrderTimeline(props: Props) {
               <circle cx="18.5" cy="18.5" r="2.5" />
             </svg>
             Track package
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         </div>
       )}
