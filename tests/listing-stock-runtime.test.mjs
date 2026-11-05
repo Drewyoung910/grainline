@@ -40,12 +40,15 @@ async function reset(quantity = 5, status = "DRAFT") {
     ["listing", "seller", "Test piece", quantity, status]);
 }
 async function quantity() { return (await db.query('SELECT "stockQuantity" FROM "Listing"')).rows[0].stockQuantity; }
-function route({ failGuild = false, authenticated = true, owned = true, rejectReceipt = false, beforeTransaction } = {}) {
+function route({ failGuild = false, authenticated = true, owned = true, sellerProfileId = "seller", rejectReceipt = false, beforeTransaction } = {}) {
   const tx = port(db);
   const prisma = { ...tx,
-    listing: { findFirst: async () => {
-      const row = (await db.query('SELECT * FROM "Listing"')).rows[0];
-      return row && owned ? row : null;
+    // Evaluate the route's where clause; ignoring it would hide an ownership regression.
+    listing: { findFirst: async ({ where }) => {
+      const { id, sellerId, ...rest } = where;
+      assert.deepEqual(rest, {}, "extend this mock to evaluate the new filter");
+      const rows = (await db.query('SELECT * FROM "Listing" WHERE id=$1', [id])).rows;
+      return rows.find((row) => sellerId === undefined || row.sellerId === sellerId) ?? null;
     } },
     $transaction: async (run) => {
       if (beforeTransaction) await beforeTransaction();
@@ -69,7 +72,7 @@ function route({ failGuild = false, authenticated = true, owned = true, rejectRe
     "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipients: async () => [] },
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "owner" }) },
     "@/lib/sellerProfileOwnerAccess": { sellerOwnerCore: async () => (
-      owned ? { sellerProfileId: "seller", displayName: "Seller", createdAt: new Date(), chargesEnabled: true, vacationMode: false } : null
+      owned ? { sellerProfileId, displayName: "Seller", createdAt: new Date(), chargesEnabled: true, vacationMode: false } : null
     ) },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/concurrency": {}, "@/lib/stockMutationState": stock,
@@ -146,6 +149,12 @@ test("authentication, ownership, missing identity and payload drift cannot mutat
   await reset(); const input = attempt();
   assert.equal((await route({ authenticated: false })(input)).status, 401);
   assert.equal((await route({ owned: false })(input)).status, 404);
+  // Another maker's request finds nothing and changes nothing, and must not
+  // learn the listing's type (400 for made-to-order would reveal it exists).
+  assert.equal((await route({ sellerProfileId: "other-seller" })(input)).status, 404);
+  await db.exec('UPDATE "Listing" SET "listingType"=\'MADE_TO_ORDER\'');
+  assert.equal((await route({ sellerProfileId: "other-seller" })(input)).status, 404);
+  await db.exec('UPDATE "Listing" SET "listingType"=\'IN_STOCK\'');
   assert.equal((await route()({ quantity: 10, expectedQuantity: 5 })).status, 400);
   assert.equal(await quantity(), 5);
   assert.equal((await route()(input)).status, 200);
