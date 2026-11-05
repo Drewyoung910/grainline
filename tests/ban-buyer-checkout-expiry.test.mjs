@@ -109,3 +109,36 @@ test("banning an account sweeps its checkouts as a buyer, even with no shop", as
   assert.equal(swept.length, 1);
   assert.equal(swept[0].buyerId, "buyer");
 });
+
+test("hiding a listing finds its checkout even past the first page of line items", async () => {
+  const expired = [];
+  const lines = Array.from({ length: 30 }, (_, index) => ({
+    price: { product: { metadata: { listingId: `listing_${index}` } } },
+  }));
+  const exports = load("src/lib/checkoutSessionExpiry.ts", {
+    "@/lib/stripe": {
+      stripe: {
+        checkout: {
+          sessions: {
+            list: async () => ({ data: [{ id: "cs_cart", metadata: { cartId: "cart" } }], has_more: false }),
+            // What Stripe does: a retrieve expands only the first 10 lines.
+            retrieve: async () => ({ line_items: { data: lines.slice(0, 10) } }),
+            listLineItems: async () => ({ data: lines }),
+            expire: async (id) => expired.push(id),
+          },
+        },
+      },
+    },
+    "@/lib/checkoutSessionExpiryState": {
+      checkoutSessionMetadataReferencesListing: () => false,
+    },
+    "@/lib/checkoutStockRestore": { restoreSellerExpiredCheckoutStockOnce: async () => {} },
+  });
+  const result = await exports.expireOpenCheckoutSessionsForListing({
+    listingId: "listing_25",
+    sellerId: "seller",
+    source: "test",
+  });
+  assert.equal(result.expired, 1);
+  assert.deepEqual(expired, ["cs_cart"]);
+});

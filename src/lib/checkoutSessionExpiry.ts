@@ -84,13 +84,14 @@ async function checkoutSessionBelongsToListing(session: Stripe.Checkout.Session,
   if (checkoutSessionMetadataReferencesListing(session.metadata, listingId)) return true;
 
   try {
-    const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
-      expand: ["line_items.data.price.product"],
+    // A retrieve expands only the first 10 lines, and a cart can hold 50 pieces.
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+      limit: 100,
+      expand: ["data.price.product"],
     });
-    const lineItems = (fullSession as { line_items?: { data?: Array<{ price?: { product?: Stripe.Product | string | null } | null }> } }).line_items?.data ?? [];
-    return lineItems.some((lineItem) => {
+    return lineItems.data.some((lineItem) => {
       const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
-      return product?.metadata?.listingId === listingId;
+      return (product as Stripe.Product | null)?.metadata?.listingId === listingId;
     });
   } catch (error) {
     Sentry.captureException(error, {
