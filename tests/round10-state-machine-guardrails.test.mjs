@@ -74,6 +74,15 @@ describe("Round 10 state-machine guardrails", () => {
       null,
     );
 
+    // The database accepts only APPROVED and GUILD_MASTER_REJECTED. Anything else
+    // must not show a form it would then refuse.
+    for (const verificationStatus of [undefined, null, "PENDING", "REJECTED"]) {
+      assert.match(
+        guildMasterApplicationBlockReason({ guildLevel: "GUILD_MEMBER", verificationStatus, now }) ?? "",
+        /cannot start a Guild Master application/,
+      );
+    }
+
     const applyRoute = source("src/app/api/verification/apply/route.ts");
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const guildMetricsCron = source("src/app/api/cron/guild-metrics/route.ts");
