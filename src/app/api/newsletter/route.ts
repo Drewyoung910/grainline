@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     emailHash = hashEmailForTelemetry(email);
     const name = parsed.name ? sanitizeUserName(parsed.name, 200) || null : null;
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email || /[\x00-\x1F\x7F]/.test(email) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
     }
 

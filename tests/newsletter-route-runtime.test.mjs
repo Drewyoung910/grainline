@@ -82,6 +82,13 @@ function fixture({ addressLimitOk = true } = {}) {
   };
 }
 
+test("a control character in the address is a 400, not a database error", async () => {
+  const subject = fixture();
+  const response = await subject.post("victim\u0000@example.com");
+  assert.equal(response.status, 400);
+  assert.equal(subject.state.reads, 0);
+});
+
 test("the per-address daily cap stops the mail and keeps the same answer", async () => {
   const subject = fixture({ addressLimitOk: false });
   const response = await subject.post("victim+tag@example.com");
