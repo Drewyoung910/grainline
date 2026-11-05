@@ -62,7 +62,7 @@ describe("accessibility follow-ups", () => {
 
   it("keeps the image crop modal a real dialog with focus and scroll management", () => {
     const modal = source("src/components/ImageCropModal.tsx");
-    assert.match(modal, /useDialogFocus\(mounted, dialogRef, onCancel\)/);
+    assert.match(modal, /useDialogFocus\(mounted, dialogRef, \(\) => \{\s*if \(!processing\) onCancel\(\);\s*\}\)/);
     assert.match(modal, /useBodyScrollLock\(mounted\)/);
     assert.match(modal, /role="dialog"/);
     assert.match(modal, /aria-modal="true"/);
