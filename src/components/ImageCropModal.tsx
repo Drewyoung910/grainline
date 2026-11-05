@@ -27,7 +27,11 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
   const frameRef = React.useRef<HTMLDivElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const displayScale = getDisplayScale(frameRef.current, naturalSize, zoom);
-  useDialogFocus(mounted, dialogRef, onCancel);
+  // Cancel is disabled while the crop uploads, and Escape must not get around it:
+  // the upload would finish and apply a crop the person thought they cancelled.
+  useDialogFocus(mounted, dialogRef, () => {
+    if (!processing) onCancel();
+  });
   useBodyScrollLock(mounted);
 
   React.useEffect(() => {
