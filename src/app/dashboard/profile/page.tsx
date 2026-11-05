@@ -15,6 +15,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
+import ConfirmButton from "@/components/ConfirmButton";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { normalizeDisplayNameForLookup, sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import {
@@ -699,15 +700,12 @@ export default async function ProfilePage({
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{faq.question}</p>
-                  <p className="text-sm text-neutral-600 mt-1">{faq.answer}</p>
+                  <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line break-words">{faq.answer}</p>
                 </div>
                 <form action={deleteFaq.bind(null, faq.id)}>
-                  <button
-                    type="submit"
-                    className="btn btn-danger btn-sm shrink-0"
-                  >
+                  <ConfirmButton confirm="Delete this FAQ?" className="btn btn-danger btn-sm shrink-0">
                     Delete
-                  </button>
+                  </ConfirmButton>
                 </form>
               </li>
             ))}
