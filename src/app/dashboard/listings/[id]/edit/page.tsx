@@ -317,7 +317,8 @@ async function updateListing(
 
   const photoManifest = parsePhotoManifestField(formData.get("photoManifestJson"), listing.photos, userId);
   if (!photoManifest.ok) return { ok: false, error: photoManifest.error };
-  if (photoManifest.photos.length === 0) {
+  // Photos are optional on a private custom listing, as its create form says.
+  if (photoManifest.photos.length === 0 && !listing.isPrivate) {
     return { ok: false, error: "Add at least one listing photo before saving." };
   }
   const existingPhotoUrls = new Set(
