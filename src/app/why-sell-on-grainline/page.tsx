@@ -75,7 +75,7 @@ export default async function WhySellOnGrainlinePage() {
               <caption className="sr-only">Comparison of Grainline fees with other marketplace fee structures</caption>
               <thead>
                 <tr className="bg-amber-50 border-b border-stone-200">
-                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900 min-w-[160px]">Platform</th>
+                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900 min-w-[120px]">Platform</th>
                   <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Platform fee</th>
                   <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Listing fees</th>
                   <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Mandatory ads</th>
@@ -129,6 +129,9 @@ export default async function WhySellOnGrainlinePage() {
               </tbody>
             </table>
           </div>
+          <p className="px-4 pt-3 text-xs text-stone-500 sm:hidden">
+            Swipe the table sideways to see all five columns.
+          </p>
           <p className="text-xs text-stone-500 px-4 py-3 border-t border-stone-100">
             Stripe processing (~2.9% + $0.30) applies to card payments. Grainline currently absorbs it
             under our payout model; the numbers above compare platform fees. Competitor fees are as
