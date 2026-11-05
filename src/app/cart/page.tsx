@@ -469,6 +469,26 @@ function CartPage() {
     return () => window.removeEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, handleLocalAccountStateCleared);
   }, [clearCompletedCheckoutSessions]);
 
+  // Back and Forward change the URL without remounting, so the step follows it.
+  const urlStep = searchParams.get("step");
+  const lastUrlStepRef = React.useRef(urlStep);
+  React.useEffect(() => {
+    if (lastUrlStepRef.current === urlStep) return;
+    lastUrlStepRef.current = urlStep;
+    const stepFromUrl: CheckoutStep =
+      urlStep === "address" || urlStep === "shipping" || urlStep === "payment" ? urlStep : "review";
+    if (stepFromUrl === step) return;
+    if (step === "payment") {
+      // Leaving payment must release the hold, as "Back to shipping" does. Once a
+      // payment has gone through, that button refuses, so stay put.
+      if (completedSessionIds.size > 0) router.replace("/cart?step=payment", { scroll: false });
+      void handleReturnToShippingFromPayment();
+      return;
+    }
+    setStep(stepFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlStep]);
+
   // Safety guards
   React.useEffect(() => {
     if (step === "shipping" && !shippingAddress) {
@@ -1216,7 +1236,7 @@ function CartPage() {
                 // doesn't blink on every quantity press.
                 if (cartBusy) return;
                 setStep("address");
-                router.replace("/cart?step=address", { scroll: false });
+                router.push("/cart?step=address", { scroll: false });
               }}
               disabled={items.length === 0 || hasBlockingCartChange}
               aria-busy={cartBusy || undefined}
@@ -1238,7 +1258,7 @@ function CartPage() {
             isSignedIn={!needsSignIn}
             onBack={() => {
               setStep("review");
-              router.replace("/cart", { scroll: false });
+              router.push("/cart", { scroll: false });
             }}
             onConfirm={(address) => {
               setShippingAddress(address);
@@ -1248,7 +1268,7 @@ function CartPage() {
               setCurrentPaymentIndex(0);
               clearCompletedCheckoutSessions();
               setStep("shipping");
-              router.replace("/cart?step=shipping", { scroll: false });
+              router.push("/cart?step=shipping", { scroll: false });
             }}
           />
         </div>
@@ -1271,7 +1291,7 @@ function CartPage() {
                 setSelectedRates({});
                 clearCartSessionStorage();
                 setStep("address");
-                router.replace("/cart?step=address", { scroll: false });
+                router.push("/cart?step=address", { scroll: false });
               }}
               className="text-sm text-neutral-500 hover:text-neutral-700 whitespace-nowrap flex-shrink-0"
             >
@@ -1355,7 +1375,7 @@ function CartPage() {
                   setSelectedRates({});
                   clearCartSessionStorage();
                   setStep("address");
-                  router.replace("/cart?step=address", { scroll: false });
+                  router.push("/cart?step=address", { scroll: false });
                 }}
                 className="w-full text-sm text-neutral-500 hover:text-neutral-700"
               >
