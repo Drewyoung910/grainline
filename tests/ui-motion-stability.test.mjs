@@ -75,7 +75,7 @@ describe("motion stability guardrails", () => {
     const mapSection = source("src/components/MakersMapSection.tsx");
     assert.match(header, /inline-flex w-\[76px\] shrink-0 justify-center/);
     assert.match(header, /fallback=\{[\s\S]*isLoaded \? \(/);
-    assert.match(map, /cooperativeGestures: true/);
+    assert.match(map, /cooperativeGestures: embedded/);
     assert.match(mapSection, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(mapSection, /w-full min-w-0 flex-1/);
   });
