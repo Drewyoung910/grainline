@@ -3,7 +3,8 @@ import test from "node:test";
 import { checkoutRouteFixture as fixture } from "./helpers/checkout-route-fixture.mjs";
 import { stripeRefusedCheckoutSessionCreate } from "../src/lib/checkoutLockState.ts";
 
-const refused = (type) => Object.assign(new Error("refused"), { type });
+const refused = (type, statusCode = 400, headers = {}) =>
+  Object.assign(new Error("refused"), { type, statusCode, headers });
 
 for (const [label, path, maxDurationMs] of [
   ["Buy Now", "src/app/api/cart/checkout/single/route.ts", 60_000],
@@ -12,7 +13,7 @@ for (const [label, path, maxDurationMs] of [
   test(`${label}: when Stripe refuses the session, the stock and lock come back at once`, async () => {
     const subject = fixture(path, {
       createSession: async () => {
-        throw refused("StripeRateLimitError");
+        throw refused("StripeInvalidRequestError");
       },
     });
     const response = await subject.post();
@@ -60,19 +61,16 @@ for (const path of ["src/app/api/cart/checkout/single/route.ts", "src/app/api/ca
   });
 }
 
-test("only a refusal counts as creating nothing", () => {
-  for (const type of [
-    "StripeRateLimitError",
-    "StripeInvalidRequestError",
-    "StripeAuthenticationError",
-    "StripePermissionError",
-  ]) {
-    assert.equal(stripeRefusedCheckoutSessionCreate(refused(type)), true, type);
-  }
+test("only a 400 or 404 rejection counts as creating nothing", () => {
+  assert.equal(stripeRefusedCheckoutSessionCreate(refused("StripeInvalidRequestError", 400)), true);
+  assert.equal(stripeRefusedCheckoutSessionCreate(refused("StripeInvalidRequestError", 404)), true);
   for (const error of [
-    refused("StripeConnectionError"),
-    refused("StripeAPIError"),
-    refused("StripeIdempotencyError"),
+    refused("StripeInvalidRequestError", 400, { "stripe-should-retry": "true" }),
+    refused("StripeInvalidRequestError", 409),
+    refused("StripeRateLimitError", 429),
+    refused("StripeConnectionError", undefined),
+    refused("StripeAPIError", 500),
+    refused("StripeIdempotencyError", 400),
     new Error("no type"),
     null,
   ]) {

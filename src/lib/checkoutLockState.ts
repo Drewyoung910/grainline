@@ -1,3 +1,4 @@
+import { isDefinitiveStripeRefundRejection } from "./stripeRefundProviderErrors.ts";
 export const CHECKOUT_LOCK_TTL_SECONDS = 32 * 60;
 
 export type CheckoutLock = {
@@ -91,12 +92,9 @@ export function checkoutSessionCreateIdempotencyKey(ownerToken: string): string 
   return `grainline-checkout-session-v1:${ownerToken}`;
 }
 
-// Stripe answered and refused, so this request created no session. A dropped
-// connection, a timeout or a 5xx proves nothing either way and must not count.
+// Stripe rejected the request (400 or 404, without asking for a retry), so it
+// created no session. Anything else, including a 429, may follow an earlier SDK
+// attempt that did create one, so it keeps the hold. Same rule as refunds.
 export function stripeRefusedCheckoutSessionCreate(error: unknown) {
-  const type = (error as { type?: unknown } | null)?.type;
-  return type === "StripeRateLimitError"
-    || type === "StripeInvalidRequestError"
-    || type === "StripeAuthenticationError"
-    || type === "StripePermissionError";
+  return isDefinitiveStripeRefundRejection(error);
 }
