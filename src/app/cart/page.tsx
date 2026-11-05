@@ -310,12 +310,13 @@ function CartPage() {
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
-  // The step entrance plays when the step changes, not on a reload. The main
-  // element is keyed by step, so the entrance is part of that step's first
-  // paint and never restarts over content already on screen.
-  const [loadedStep] = React.useState(step);
+  // The step entrance plays once the cart has left its first step, including
+  // when a saved step is restored on reload. The step content is keyed by step,
+  // so the entrance is part of that step's first paint and never restarts over
+  // content already on screen. The progress underline sits outside the key and
+  // keeps its glide.
   const [stepChanged, setStepChanged] = React.useState(false);
-  if (step !== loadedStep && !stepChanged) setStepChanged(true);
+  if (step !== "review" && !stepChanged) setStepChanged(true);
   React.useEffect(() => {
     if (!stepChanged) return;
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -1038,7 +1039,7 @@ function CartPage() {
   const currentStepIndex = Math.max(0, checkoutSteps.findIndex((entry) => entry.key === step));
 
   return (
-    <main key={step} data-scroll-anchor data-cart-steps={stepChanged ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+    <main data-scroll-anchor data-cart-steps={stepChanged ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
       {/* A restrained underline moves between steps. It keeps the progress
@@ -1063,6 +1064,7 @@ function CartPage() {
         ))}
       </ol>
 
+      <div key={step} className="space-y-6">
       {error && (
         <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -1354,6 +1356,7 @@ function CartPage() {
           )}
         </>
       )}
+      </div>
     </main>
   );
 }
