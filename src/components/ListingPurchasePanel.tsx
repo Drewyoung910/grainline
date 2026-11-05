@@ -222,6 +222,7 @@ export default function ListingPurchasePanel({
               selectedVariantOptionIds={selectedOptionIds}
               variantSelectionComplete={variantSelectionComplete}
               autoOpen={shouldAutoOpenBuyNow}
+              resumeOnly={checkoutHeld}
               className="btn btn-primary w-full min-h-[50px] disabled:opacity-100"
             >
               {checkoutHeld ? "Finish your checkout" : "Buy now"}
