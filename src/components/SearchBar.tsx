@@ -431,13 +431,6 @@ export default function SearchBar({
     }
   }, []);
 
-  // Warm the small recommendation request after hydration. The first click
-  // should reveal one settled list, not wait for a click before starting the
-  // request or paint a temporary category set that is immediately replaced.
-  React.useEffect(() => {
-    void loadPopularTags();
-  }, [loadPopularTags]);
-
   // Mobile Safari does not reliably dispatch focus when an input is mounted
   // with autoFocus. Open the fallback recommendations independently so the
   // mobile search popup is useful even when the keyboard stays closed.
@@ -859,6 +852,9 @@ export default function SearchBar({
         </label>
         <div
           data-search-tone={tone}
+          // Warm the recommendations as the pointer arrives, so the first click
+          // shows one settled list. Page loads that never touch search pay nothing.
+          onPointerEnter={() => void loadPopularTags()}
           className={`flex min-h-[46px] items-stretch overflow-hidden rounded-full border transition-[background-color,border-color,box-shadow,color] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] focus-within:border-white focus-within:bg-white focus-within:text-neutral-900 focus-within:shadow-[0_14px_40px_-18px_rgba(0,0,0,0.45)] ${
             glass
               ? "border-white/35 bg-white/15 text-[#F5EFE6] backdrop-blur-md"
