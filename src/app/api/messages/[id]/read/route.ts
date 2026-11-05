@@ -33,7 +33,7 @@ export async function POST(
   }
 
   const { success, reset } = await safeRateLimit(markReadRatelimit, `message:${me.id}`);
-  if (!success) return privateResponse(rateLimitResponse(reset, "Too many read updates. Try again shortly."));
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many read updates."));
 
   // Staff report review is read-only; marking read remains participant-only.
   const conversation = await getActorConversation(me.id, id);

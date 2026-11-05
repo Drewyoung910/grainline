@@ -33,7 +33,7 @@ export async function POST(
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `interest:${userId}`);
   if (!attemptOk) {
-    return privateResponse(rateLimitResponse(attemptReset, "Too many attempts. Try again in a few minutes."));
+    return privateResponse(rateLimitResponse(attemptReset, "Too many attempts."));
   }
 
   const me = await userClerkCommissionContext(prisma, userId);

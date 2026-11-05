@@ -31,7 +31,7 @@ export async function POST(
   }
 
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
-  if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions. Try again shortly."));
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
 
   const { id } = await params;
   let body;

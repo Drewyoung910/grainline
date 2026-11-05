@@ -115,7 +115,7 @@ export async function POST(
     );
     if (!success)
       return privateResponse(
-        rateLimitResponse(reset, "Too many messages. Slow down and try again."),
+        rateLimitResponse(reset, "Too many messages."),
       );
 
     const me = await ensureUserByClerkId(userId);
