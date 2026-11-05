@@ -37,7 +37,7 @@ import {
 } from "@/lib/sellerProfilePublicAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { defaultOpenGraphImages } from "@/lib/siteMetadata";
-import { normalizeSearchQueryParameter } from "@/lib/searchQueryState";
+import { normalizeSearchQueryParameter, searchWordForms } from "@/lib/searchQueryState";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -142,13 +142,14 @@ function scoreListings(listings: ListingRow[], query?: string) {
 
       // Per-word scoring
       for (const term of searchTerms) {
+        const forms = searchWordForms(term);
         // Title matches (highest weight)
-        if (titleLower.includes(term)) textScore += 0.2;
+        if (forms.some((form) => titleLower.includes(form))) textScore += 0.2;
         // Tag matches (medium weight)
-        if (tagsLower.includes(term)) textScore += 0.25;
-        else if (tagsLower.some((t) => t.includes(term))) textScore += 0.1;
+        if (forms.some((form) => tagsLower.includes(form))) textScore += 0.25;
+        else if (tagsLower.some((t) => forms.some((form) => t.includes(form)))) textScore += 0.1;
         // Description matches (low weight)
-        if (descLower.includes(term)) textScore += 0.05;
+        if (forms.some((form) => descLower.includes(form))) textScore += 0.05;
       }
 
       // Normalize by term count so 3-word queries don't auto-score 3x
@@ -308,7 +309,7 @@ async function BrowseContent({
   if (q) {
     const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
     if (searchWords.length > 0) {
-      const lowerWords = searchWords.map((word) => word.toLowerCase());
+      const lowerWords = searchWords.flatMap((word) => searchWordForms(word));
       partialTagMatches = popularTags
         .filter((tag) => lowerWords.some((word) => tag.toLowerCase().includes(word)))
         .slice(0, 20);
@@ -324,14 +325,20 @@ async function BrowseContent({
     // Split query into individual words for broad matching.
     // "walnut dining table" matches listings with ANY of those words
     // in title, tags, description, or seller name — not just exact phrase.
-    const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+    // Each word also matches its likely other forms, so "tables" finds "table".
+    const searchWords = q
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 6)
+      .flatMap((word) => searchWordForms(word));
     const wordConditions: Prisma.ListingWhereInput[] = searchWords.flatMap((word) => [
       { title: { contains: word, mode: "insensitive" as const } },
       { description: { contains: word, mode: "insensitive" as const } },
     ]);
     // Tag matching: check each word against tags individually
     const tagWordConditions: Prisma.ListingWhereInput[] = searchWords.map((word) => ({
-      tags: { has: word.toLowerCase() },
+      tags: { has: word },
     }));
     const sellerNameCondition: Prisma.ListingWhereInput = {
       OR: normalizedDisplayNameQuery
