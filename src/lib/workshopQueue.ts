@@ -57,13 +57,13 @@ export function workshopShopStatus(input: Readonly<{
   chargesEnabled: boolean;
   onboardingComplete: boolean;
   acceptingNewOrders: boolean | null;
-  listingCount: number | null;
+  liveListingCount: number | null;
 }>): { label: string; open: boolean } {
   if (input.vacationMode) return { label: "On vacation", open: false };
   if (!input.chargesEnabled) return { label: "Not visible yet", open: false };
   if (!input.onboardingComplete) return { label: "Finish setup", open: false };
   if (input.acceptingNewOrders === false) return { label: "Not taking orders", open: false };
-  if (input.listingCount === 0) return { label: "No listings yet", open: false };
+  if (input.liveListingCount === 0) return { label: "No live listings", open: false };
   return { label: "Shop open", open: true };
 }
 
