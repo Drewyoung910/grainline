@@ -370,7 +370,7 @@ Five API routes handle the full case lifecycle:
 |---|---|---|
 | `POST /api/cases` | Buyer | Opens a case. Validates buyer owns order, delivery date is in the past, no existing case. Sets `sellerRespondBy` to 48h from now. Creates Case + initial CaseMessage. Duplicate-submit `P2002` races return `409` instead of a generic 500. |
 | `POST /api/cases/[id]/messages` | Buyer, seller, or staff | Adds a message to the thread. Blocks on RESOLVED/CLOSED cases. When seller posts first reply on OPEN case: sets `IN_DISCUSSION`, `discussionStartedAt`, `escalateUnlocksAt = now + 48h`. |
-| `POST /api/cases/[id]/escalate` | Buyer/seller (if `escalateUnlocksAt` past) or staff/CRON_SECRET | `id="all"` bulk-escalates OPEN cases past `sellerRespondBy` and IN_DISCUSSION cases past `escalateUnlocksAt` (staff/cron only). Single ID: buyer/seller may escalate after `escalateUnlocksAt`; sets `UNDER_REVIEW`. |
+| `POST /api/cases/[id]/escalate` | Buyer, seller or PIN-verified staff | Escalates one Case to `UNDER_REVIEW` through `grainline_case_escalate`. Participants wait for `escalateUnlocksAt` unless the counterparty is unavailable. Scheduled escalation belongs to `/api/cron/case-auto-close`. |
 | `POST /api/cases/[id]/mark-resolved` | Buyer or seller | Marks their side resolved. First call → `PENDING_CLOSE`; both calls → `RESOLVED` with `DISMISSED`. The route notifies the counterparty on both the pending-close and final-resolved transitions. |
 | `POST /api/cases/[id]/resolve` | EMPLOYEE or ADMIN | Accepts `resolution`, optional `refundAmountCents`, and bounded `restoreStock` for partial refunds only. Issues Stripe refund with `reason: "requested_by_customer"` for ordinary case resolutions; do not use Stripe's `fraudulent` refund reason unless a future explicit fraud-only resolution exists. Stamps `stripeRefundId`, sets case RESOLVED, flags order `reviewNeeded`. |
 
@@ -400,7 +400,7 @@ Five API routes handle the full case lifecycle:
 
 `OPEN` → (seller replies) → `IN_DISCUSSION` → (one party marks resolved) → `PENDING_CLOSE` → (other party confirms) → `RESOLVED`
 
-Either party may escalate to `UNDER_REVIEW` once `escalateUnlocksAt` (48h after discussion starts) has passed. Staff/cron may escalate at any time. `case-auto-close` escalates OPEN cases after the seller-response grace period and IN_DISCUSSION cases that have stalled for 30+ days; do not leave discussion cases without a terminal/escalation path.
+Either party may escalate to `UNDER_REVIEW` once `escalateUnlocksAt` (48h after discussion starts) has passed. PIN-verified staff may escalate at any time. `case-auto-close` escalates OPEN cases after the seller-response grace period and IN_DISCUSSION cases that have stalled for 30+ days; do not leave discussion cases without a terminal/escalation path.
 
 Listing type and availability is surfaced on listing pages: green "In Stock (N available)" badge for IN_STOCK with quantity > 0, red "Out of Stock" badge (buy buttons disabled) for IN_STOCK with quantity = 0 or status SOLD_OUT, "Made to order — ships in X–Y days" (or plain "Made to order") for MADE_TO_ORDER. Sellers set it via `ListingTypeFields` client component (`src/components/ListingTypeFields.tsx`) in the create/edit listing forms. `ProcessingTimeFields.tsx` has been replaced.
 
@@ -3340,7 +3340,7 @@ US only (Canada removed to align with Terms of Service Section 31). Implemented 
 - Non-US requests are redirected to `/not-available`
 - `/not-available` is in `isPublic` so the redirect doesn't loop through auth
 - Static assets (`/_next`, `/favicon`, `/logo`, `/icon`, `/manifest`, `/robots`, `/sitemap`) are allowed through without redirect
-- Only explicitly allowed API routes bypass geo-blocking: health/deep-health, CSP reports, cron routes, Clerk/Stripe/Resend webhooks, signed unsubscribe, support/data-request intake, and staff/cron case escalation. Do not reintroduce an all-`/api` bypass.
+- Only explicitly allowed API routes bypass geo-blocking: health/deep-health, CSP reports, cron routes, Clerk/Stripe/Resend webhooks, signed unsubscribe, support/data-request intake, and case escalation (the route still requires a signed-in user). Do not reintroduce an all-`/api` bypass.
 - **`src/app/not-available/page.tsx`** — branded page with logo, "Not available in your region" heading, brief explanation, VPN note; `robots: { index: false }` metadata
 
 ## Notification Preferences (complete — 2026-04-01)
