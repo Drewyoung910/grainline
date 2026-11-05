@@ -8,11 +8,9 @@ import { stripeRefusedCheckoutSessionCreate } from "../../src/lib/checkoutLockSt
 
 const require = createRequire(import.meta.url);
 
-// Runs the real checkout routes with isolated ports. The question is only
-// whether stock gets reserved once the buyer has used up their allowance.
-export function checkoutRouteFixture(path, { listingType = "IN_STOCK", capped = false, createSession } = {}) {
-  const state = { reservations: 0, capChecks: 0, aborts: 0, lockReleases: 0, createOptions: null };
-  const reservationLimiter = { name: "reservation" };
+// Runs the real checkout routes with the database, Redis and Stripe replaced.
+export function checkoutRouteFixture(path, { listingType = "IN_STOCK", createSession, existingLock = null, reserveError = null } = {}) {
+  const state = { reservations: 0, aborts: 0, lockReleases: 0, createOptions: null };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const seller = {
     id: "seller", userId: "maker", displayName: "Maker", chargesEnabled: true,
@@ -24,6 +22,7 @@ export function checkoutRouteFixture(path, { listingType = "IN_STOCK", capped = 
     priceVersion: 1, variantGroups: [], photos: [], seller,
   };
   const reserve = async () => {
+    if (reserveError) throw reserveError;
     state.reservations += 1;
     return { id: "reservation" };
   };
@@ -34,15 +33,11 @@ export function checkoutRouteFixture(path, { listingType = "IN_STOCK", capped = 
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "buyer", email: "b@example.test" }) },
     "@/lib/ratelimit": {
       checkoutRatelimit: { name: "attempts" },
-      checkoutReservationRatelimit: reservationLimiter,
-      safeRateLimit: async (limiter) => {
-        if (limiter !== reservationLimiter) return { success: true, reset: 0 };
-        state.capChecks += 1;
-        return { success: !capped, reset: Date.now() + 60_000 };
-      },
+      safeRateLimit: async () => ({ success: true, reset: 0 }),
       rateLimitResponse: (_reset, message) => Response.json({ error: message }, { status: 429 }),
     },
     "@/lib/requestOriginGuard": { getExplicitCrossOriginPostRejection: () => null },
+    "@/lib/prismaRawSqlError": { getPrismaRawSqlState: (error) => error?.sqlState ?? null },
     "@/lib/requestBody": {
       readBoundedJson: (request) => request.json(),
       isRequestBodyTooLargeError: () => false,
@@ -93,7 +88,7 @@ export function checkoutRouteFixture(path, { listingType = "IN_STOCK", capped = 
       cartCheckoutLockKey: () => "lock",
       checkoutPayloadHash: () => "hash",
       checkoutSessionCreateIdempotencyKey: () => "key",
-      getCheckoutLock: async () => null,
+      getCheckoutLock: async () => existingLock,
       acquireCheckoutLock: async () => "owner",
       markCheckoutLockReady: async () => true,
       releaseCheckoutLock: async () => true,
