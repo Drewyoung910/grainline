@@ -136,10 +136,10 @@ async function OrdersContent() {
                           <img
                             src={img}
                             alt=""
-                            className="h-16 w-16 shrink-0 rounded-lg border border-neutral-200 object-cover"
+                            className="h-16 w-16 shrink-0 rounded-lg object-cover"
                           />
                         ) : (
-                          <div className="h-16 w-16 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
+                          <div className="h-16 w-16 shrink-0 rounded-lg bg-neutral-100" />
                         )}
                         <div className="min-w-0 flex-1">
                           <Link

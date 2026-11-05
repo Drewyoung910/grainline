@@ -237,9 +237,9 @@ async function SalesContent({
                         <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                           {img ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
+                            <img src={img} alt="" className="h-16 w-16 rounded-lg object-cover" />
                           ) : (
-                            <div className="h-16 w-16 rounded border bg-neutral-100" />
+                            <div className="h-16 w-16 rounded-lg bg-neutral-100" />
                           )}
                           <div className="min-w-0 flex-1">
                             <Link

@@ -175,9 +175,9 @@ export default async function AccountOrdersPage({
                       <li key={item.id} className="flex items-center gap-3 px-4 py-3">
                         {thumb ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={thumb} alt="" className="h-12 w-12 shrink-0 rounded-lg border border-neutral-200 object-cover" />
+                          <img src={thumb} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
                         ) : (
-                          <div className="h-12 w-12 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
+                          <div className="h-12 w-12 shrink-0 rounded-lg bg-neutral-100" />
                         )}
                         <div className="flex-1 min-w-0">
                           <Link
