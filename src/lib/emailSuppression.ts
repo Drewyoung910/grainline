@@ -18,7 +18,7 @@ export { emailSuppressionAddressKeys, emailSuppressionLookupForEmails, normalize
 
 type EmailSuppressionLookup = ReturnType<typeof emailSuppressionLookupForEmails>;
 
-function emailSuppressionMatchWhereSql(
+export function emailSuppressionMatchWhereSql(
   lookup: EmailSuppressionLookup,
   emailColumn: Prisma.Sql = Prisma.sql`"email"`,
 ) {
@@ -50,10 +50,6 @@ async function emailSuppressionExists(
     LIMIT 1
   `);
   return !!row;
-}
-
-export async function isEmailSuppressed(email: string | null | undefined): Promise<boolean> {
-  return emailSuppressionExists(email);
 }
 
 export async function isEmailSuppressedForNewsletterSignup(email: string | null | undefined): Promise<boolean> {
