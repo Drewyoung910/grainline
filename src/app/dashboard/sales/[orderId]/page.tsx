@@ -314,7 +314,7 @@ export default async function SellerOrderDetailPage({
       {activeCase?.status === "PENDING_CLOSE" && (
         <div className="rounded-md border border-teal-300 bg-teal-50 px-4 py-3 text-sm text-teal-900">
           <div className="font-semibold">Resolution pending confirmation</div>
-          <div>Both parties must confirm to close the case.</div>
+          <div>Reply if this isn&apos;t settled. With no reply for 7 days, the case closes with no refund.</div>
         </div>
       )}
 
