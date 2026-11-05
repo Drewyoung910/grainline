@@ -31,6 +31,18 @@ export type EmailNotificationPreferenceKey = (typeof VALID_EMAIL_PREFERENCE_KEYS
 export type NotificationPreferenceKey = (typeof VALID_PREFERENCE_KEYS)[number];
 export type NotificationPreferences = Partial<Record<NotificationPreferenceKey, boolean>>;
 
+// Money, order, Case and account notices. The Terms and settings say these cannot
+// be disabled, and for a payout failure or dispute the bell is the only channel.
+const ALWAYS_ON_IN_APP_PREFERENCE_KEYS = new Set<string>([
+  "NEW_ORDER", "ORDER_SHIPPED", "ORDER_DELIVERED",
+  "CASE_OPENED", "CASE_MESSAGE", "CASE_RESOLVED", "REFUND_ISSUED",
+  "PAYMENT_DISPUTE", "PAYOUT_FAILED", "ACCOUNT_WARNING",
+] satisfies InAppNotificationPreferenceKey[]);
+
+export function isAlwaysOnInAppPreferenceKey(key: string): boolean {
+  return ALWAYS_ON_IN_APP_PREFERENCE_KEYS.has(key);
+}
+
 const VALID_PREFERENCE_KEY_SET = new Set<string>(VALID_PREFERENCE_KEYS);
 const VALID_EMAIL_PREFERENCE_KEY_SET = new Set<string>(VALID_EMAIL_PREFERENCE_KEYS);
 

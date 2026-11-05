@@ -4,7 +4,7 @@ import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
 import { AccountExportButton } from "@/components/AccountExportButton";
-import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { isAlwaysOnInAppPreferenceKey, normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import type { Metadata } from "next";
 import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
 
@@ -48,7 +48,11 @@ export default async function AccountSettingsPage() {
           <p className="text-sm font-medium text-neutral-800">{label}</p>
           <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
         </div>
-        <NotificationToggle type={type} enabled={isEnabled(type)} />
+        {isAlwaysOnInAppPreferenceKey(type) && isEnabled(type) ? (
+          <span className="shrink-0 text-xs text-neutral-500">Always on</span>
+        ) : (
+          <NotificationToggle type={type} enabled={isEnabled(type)} label={label} />
+        )}
       </div>
     );
   }
@@ -60,7 +64,7 @@ export default async function AccountSettingsPage() {
           <p className="text-sm font-medium text-neutral-800">{label}</p>
           <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
         </div>
-        <NotificationToggle type={type} enabled={getEmailPrefInitial(type)} />
+        <NotificationToggle type={type} enabled={getEmailPrefInitial(type)} label={label} />
       </div>
     );
   }
@@ -176,7 +180,7 @@ export default async function AccountSettingsPage() {
             description="Email when a piece you asked about is available again"
           />
           <p className="pt-3 text-xs text-neutral-500">
-            Order confirmations, shipping updates, case activity, and refund notices are always sent.
+            We always try to send order confirmations, shipping updates, case activity, and refund notices. You can&apos;t turn them off.
           </p>
         </section>
 
