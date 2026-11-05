@@ -56,6 +56,7 @@ test("staff see why an undo failed when they can act on it", async () => {
     "Seller profile changed before undo could be applied",
     "Listing changed before undo could be applied",
     "This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.",
+    "Clerk could not be reached, so nothing was changed. Try again.",
   ]) {
     const response = await undoFailingWith(message).run();
     assert.equal(response.status, 400);

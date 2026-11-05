@@ -317,8 +317,20 @@ export async function undoAdminAction({
         targetId: log.targetId,
       })
     : null
-  if (clerkUnbanTarget && !(await clerkUserExists(clerkUnbanTarget.clerkId))) {
-    throw new Error('This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.')
+  if (clerkUnbanTarget) {
+    let hasLogin: boolean
+    try {
+      hasLogin = await clerkUserExists(clerkUnbanTarget.clerkId)
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: 'admin_undo_clerk_lookup' },
+        extra: { logId, adminId },
+      })
+      throw new Error('Clerk could not be reached, so nothing was changed. Try again.')
+    }
+    if (!hasLogin) {
+      throw new Error('This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.')
+    }
   }
   const banReviewCapability = log.action === 'BAN_USER'
     ? await mintBanReviewCapability(
