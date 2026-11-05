@@ -24,9 +24,9 @@ function compile(source) {
   }).outputText;
 }
 
-function resumeRoute() {
+function resumeRoute({ retrieveFails = false } = {}) {
   const path = "src/app/api/cart/checkout/resume/route.ts";
-  const state = { limiters: [], completedLookups: 0, retrieved: [] };
+  const state = { limiters: [], completedLookups: 0, retrieved: [], retrieveOptions: null, logged: 0 };
   const checkoutLimiter = { name: "checkout" };
   const readLimiter = { name: "read" };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
@@ -41,8 +41,10 @@ function resumeRoute() {
       stripe: {
         checkout: {
           sessions: {
-            retrieve: async (id) => {
+            retrieve: async (id, _params, options) => {
               state.retrieved.push(id);
+              state.retrieveOptions = options;
+              if (retrieveFails) throw new Error("Stripe timed out");
               return {
                 id,
                 status: "open",
@@ -82,6 +84,11 @@ function resumeRoute() {
       },
     },
     "@/lib/blocks": { getBlockedUserIdsFor: async () => new Set() },
+    "@/lib/serverErrorLogger": {
+      logServerError: () => {
+        state.logged += 1;
+      },
+    },
   };
   const exports = {};
   vm.runInNewContext(compile(readFileSync(path, "utf8")), {
@@ -98,6 +105,16 @@ test("the cart's question on load spends no checkout attempts and looks up no fi
   assert.deepEqual(subject.state.limiters, ["read"]);
   assert.equal(subject.state.completedLookups, 0);
   assert.deepEqual(heldCheckoutFromResume(await response.json()), { sellerIds: ["seller"], sessionIds: ["cs_1"] });
+});
+
+test("a slow or failing Stripe leaves the cart without the banner, not stuck", async () => {
+  const subject = resumeRoute({ retrieveFails: true });
+  const response = await subject.get("?open=1");
+  assert.equal(response.status, 200);
+  assert.equal(heldCheckoutFromResume(await response.json()), null);
+  assert.equal(subject.state.logged, 1);
+  assert.ok(subject.state.retrieveOptions.timeout <= 5_000);
+  assert.equal(subject.state.retrieveOptions.maxNetworkRetries, 0);
 });
 
 test("resuming on the payment step keeps its checkout limit and the finished-session lookup", async () => {
