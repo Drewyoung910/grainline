@@ -102,9 +102,6 @@ export default async function NewConversationPage({
           Message {other.name || "this Grainline member"}
           {listingTitle ? ` about ${listingTitle}` : ""}.
         </p>
-        <p className="mt-2 text-sm text-neutral-500">
-          The private thread is created only when you continue—not when this page is previewed or prefetched.
-        </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <ActionForm action={startConversation}>
             <SubmitButton
