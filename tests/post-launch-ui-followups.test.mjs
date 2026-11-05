@@ -573,7 +573,7 @@ describe("post-launch UI follow-ups", () => {
 
   it("does not show inert blog discovery controls before the first story", () => {
     const blog = source("src/app/blog/page.tsx");
-    assert.match(blog, /const showDiscoveryControls = Boolean\(isSearching \|\| total > 0\)/);
+    assert.match(blog, /const showDiscoveryControls = Boolean\(isSearching \|\| typeFilter \|\| total > 0\)/);
     assert.match(blog, /\{showDiscoveryControls && \([\s\S]*?<BlogSearchBar/);
     assert.match(blog, /\{showDiscoveryControls && <div className="flex flex-wrap items-center gap-2 mb-6">/);
   });

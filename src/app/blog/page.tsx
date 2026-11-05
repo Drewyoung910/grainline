@@ -259,7 +259,7 @@ async function BlogIndexPageContent({
   }
 
   const isSearching = q || tagsFilter.length > 0 || authorFilter;
-  const showDiscoveryControls = Boolean(isSearching || total > 0);
+  const showDiscoveryControls = Boolean(isSearching || typeFilter || total > 0);
   const blogLd = {
     "@context": "https://schema.org",
     "@type": "Blog",
@@ -376,7 +376,11 @@ async function BlogIndexPageContent({
       {allPosts.length === 0 ? (
         <div className="card-section p-12 text-center">
           <p className="text-neutral-500 mb-4">
-            {q ? `No posts found for "${q}"` : "The first workshop stories are being made — check back soon."}
+            {q
+              ? `No posts found for "${q}"`
+              : typeFilter
+                ? "No posts of this type yet."
+                : "The first workshop stories are coming soon."}
           </p>
           {q && tagCloud.length > 0 && (
             <>
