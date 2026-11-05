@@ -115,7 +115,7 @@ export default function VariantEditor({
       {groups.map((group, gi) => (
         <div
           key={gi}
-          className="card-section p-4 space-y-3"
+          className="space-y-3 border-t border-neutral-100 pt-4"
         >
           <div className="flex items-center gap-3">
             <div className="flex-1">
