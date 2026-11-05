@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { href: "/admin/broadcasts",   label: "Broadcasts", Icon: Rss },
   { href: "/admin/review",       label: "Review",     Icon: Eye, badgeKey: "pendingReviewCount" as const },
   { href: "/admin/reviews",       label: "Reviews",    Icon: Star },
-  { href: "/admin/reports",      label: "Reports",    Icon: AlertTriangle },
+  { href: "/admin/reports",      label: "Reports",    Icon: AlertTriangle, badgeKey: "openReportCount" as const },
   { href: "/admin/support",      label: "Support",    Icon: File, badgeKey: "openSupportRequestCount" as const },
   { href: "/admin/users",        label: "Users",      Icon: User },
   { href: "/admin/audit",        label: "Audit",      Icon: Shield },
@@ -28,6 +28,7 @@ type Counts = {
   pendingCommentCount: number;
   pendingReviewCount: number;
   openSupportRequestCount: number;
+  openReportCount: number;
 };
 
 export default function AdminMobileNav(counts: Counts) {

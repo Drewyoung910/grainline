@@ -33,13 +33,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <AdminPinGate />;
   }
 
-  const [openCaseCountResult, reviewNeededOrders, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount] = await Promise.all([
+  const [openCaseCountResult, reviewNeededOrders, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount, openReportCount] = await Promise.all([
     getStaffActiveCaseCount(user.id),
     readStaffOrderPage(user.id, "REVIEW_NEEDED", 1, 1, getOrderStaffReadClient()),
     makerVerificationStaffPendingCount(getOrderStaffReadClient(), user.id),
     prisma.blogComment.count({ where: { approved: false } }),
     prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
     readSupportRequestStaffState(user.id, 1, 0, 0).then((state) => state.activeCount),
+    prisma.userReport.count({ where: { resolved: false } }),
   ]);
   if (openCaseCountResult === null || reviewNeededOrders === null) redirect("/");
   const openCaseCount = openCaseCountResult;
@@ -55,6 +56,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         pendingCommentCount={pendingCommentCount}
         pendingReviewCount={pendingReviewCount}
         openSupportRequestCount={openSupportRequestCount}
+        openReportCount={openReportCount}
       />
 
       {/* ── Desktop sidebar (md+) ── */}
@@ -158,10 +160,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </AdminSidebarLink>
           <AdminSidebarLink
             href="/admin/reports"
-            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm"
           >
-            <AlertTriangle size={16} className="shrink-0 text-neutral-500" />
-            Reports
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="shrink-0 text-neutral-500" />
+              Reports
+            </div>
+            {openReportCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                {openReportCount}
+              </span>
+            )}
           </AdminSidebarLink>
           <AdminSidebarLink
             href="/admin/support"
