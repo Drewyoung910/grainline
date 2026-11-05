@@ -277,6 +277,8 @@ export default async function BuyerOrderDetailPage({
       <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
         {suppressActiveFulfillment ? (
           "Fully refunded — no fulfillment is required."
+        ) : activeCase && activeCase.status !== "RESOLVED" && activeCase.status !== "CLOSED" ? (
+          `${fulfillmentStatusLabel(status)}. This order has an open case.`
         ) : (
           <>
             {status === "PENDING" && "Your maker is preparing your piece"}

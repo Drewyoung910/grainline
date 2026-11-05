@@ -198,7 +198,8 @@ export default function OrderTimeline(props: Props) {
           } else if (step.completed) {
             dotClass = "bg-green-500 border-green-500";
           } else if (step.current) {
-            dotClass = "bg-amber-400 border-amber-400";
+            // Up next, not done: hollow, so it can't be read as reached.
+            dotClass = "bg-white border-neutral-400";
           } else {
             dotClass = "bg-neutral-200 border-neutral-200";
           }
@@ -234,7 +235,7 @@ export default function OrderTimeline(props: Props) {
                       : step.completed
                       ? "text-neutral-900"
                       : step.current
-                      ? "text-amber-700"
+                      ? "text-neutral-800"
                       : "text-neutral-500"
                   }`}
                 >
