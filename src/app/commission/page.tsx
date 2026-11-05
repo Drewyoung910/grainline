@@ -361,7 +361,7 @@ async function CommissionPageContent({
 
       {/* Filters */}
       <div className="mb-7 flex flex-col gap-3 border-y border-stone-200/80 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <ScrollFadeRow className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <ScrollFadeRow className="min-w-0 overflow-x-auto">
           <div className="flex min-w-max gap-2 pr-1">
             <Link
               href={buildHref({ category: "", page: "" })}
