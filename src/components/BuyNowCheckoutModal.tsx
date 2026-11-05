@@ -39,6 +39,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   isSignedIn: boolean;
+  resumeOnly?: boolean;
 };
 
 function sessionIdFromClientSecret(secret: string) {
@@ -75,6 +76,7 @@ export default function BuyNowCheckoutModal({
   isOpen,
   onClose,
   isSignedIn,
+  resumeOnly = false,
 }: Props) {
   const router = useRouter();
 
@@ -97,6 +99,7 @@ export default function BuyNowCheckoutModal({
   const completedRef = useRef(false);
   const isOpenRef = useRef(isOpen);
   const onCloseRef = useRef(onClose);
+  const resumeOnlyRef = useRef(resumeOnly);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -104,7 +107,8 @@ export default function BuyNowCheckoutModal({
   // making the checkout-resume effect restart and refetch on every render.
   useEffect(() => {
     onCloseRef.current = onClose;
-  }, [onClose]);
+    resumeOnlyRef.current = resumeOnly;
+  }, [onClose, resumeOnly]);
 
   useDialogFocus(isOpen, dialogRef, onClose);
   useBodyScrollLock(isOpen);
@@ -202,6 +206,14 @@ export default function BuyNowCheckoutModal({
         setClientSecret(data.clientSecret);
         setSessionId(data.sessionId);
         setStep("payment");
+        return;
+      }
+
+      // The held checkout ended before this click, and the page skipped option
+      // selection for it. Start again from the refreshed page.
+      if (resumeOnlyRef.current) {
+        onCloseRef.current();
+        router.refresh();
       }
     }).catch((resumeError: unknown) => {
       if (controller.signal.aborted || !mountedRef.current || !isOpenRef.current

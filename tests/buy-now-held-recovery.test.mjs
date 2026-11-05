@@ -28,7 +28,11 @@ function renderPanel(props) {
     react: React,
     "next/navigation": { useSearchParams: () => new URLSearchParams() },
     "./VariantSelector": { default: () => null },
-    "./BuyNowButton": { default: ({ children }) => React.createElement("button", null, children) },
+    "./BuyNowButton": {
+      default: function BuyNow({ children, resumeOnly }) {
+        return React.createElement("button", { "data-resume-only": String(resumeOnly) }, children);
+      },
+    },
     "./AddToCartButton": { default: labelled("Add to cart") },
     "./NotifyMeButton": { default: labelled("Notify me") },
     "./RollingAmount": { default: () => "$50.00" },
@@ -63,6 +67,9 @@ test("a buyer holding the last unit is offered their checkout, not Out of Stock"
   assert.doesNotMatch(html, /Out of Stock/);
   assert.doesNotMatch(html, /Notify me/);
   assert.doesNotMatch(html, /Add to cart/);
+  // If the hold has ended by the click, the dialog refreshes instead of starting
+  // a checkout with no options chosen.
+  assert.match(html, /data-resume-only="true"/);
 });
 
 test("everyone else still sees Out of Stock and Notify me", () => {
