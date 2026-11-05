@@ -224,7 +224,7 @@ export default async function SellerOrderDetailPage({
         </div>
       </header>
 
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
+      <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-700 font-medium">
         {suppressActiveFulfillment ? (
           "Fully refunded — no fulfillment is required."
         ) : caseUnresolved ? (
@@ -700,7 +700,7 @@ export default async function SellerOrderDetailPage({
           <div className="font-medium">Fulfillment actions</div>
 
           {deauthorizedReviewHold ? (
-            <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+            <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
               {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE}
             </div>
           ) : (
@@ -716,7 +716,7 @@ export default async function SellerOrderDetailPage({
               )}
 
               {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
-                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
                   Waiting for the buyer to confirm pickup. This keeps the receipt date and case window buyer-controlled.
                 </div>
               )}
@@ -744,7 +744,7 @@ export default async function SellerOrderDetailPage({
               )}
 
               {method === "SHIPPING" && status === "SHIPPED" && (
-                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
                   Waiting for buyer delivery confirmation. If tracking shows a problem, contact the buyer or support.
                 </div>
               )}
