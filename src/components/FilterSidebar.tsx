@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { normalizeTags } from "@/lib/tags";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 import SegmentedControl from "@/components/SegmentedControl";
 import { ChevronDown } from "@/components/icons";
 import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
@@ -498,7 +499,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                     aria-current={active ? "true" : undefined}
                     className={chipClass(active)}
                   >
-                    #{tag}
+                    {humanizeSearchTag(tag)}
                   </Link>
                 );
               })}

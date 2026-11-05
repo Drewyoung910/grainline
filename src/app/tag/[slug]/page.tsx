@@ -13,6 +13,7 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { normalizeTag } from "@/lib/tags";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { publicTagPath } from "@/lib/publicPaths";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import {
@@ -215,7 +216,7 @@ export default async function TagLandingPage({
               Handmade {label}
             </h1>
             <p className="max-w-2xl text-sm text-neutral-600 sm:text-base">
-              {total} {total === 1 ? "piece" : "pieces"} tagged #{tag} from active Grainline makers.
+              {total} {total === 1 ? "piece" : "pieces"} tagged {label.toLowerCase()} from active Grainline makers.
             </p>
           </div>
           <Link
@@ -268,7 +269,7 @@ export default async function TagLandingPage({
                   href={publicTagPath(relatedTag)}
                   className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700 hover:bg-amber-50"
                 >
-                  #{relatedTag}
+                  {humanizeSearchTag(relatedTag)}
                 </Link>
               ))}
             </div>
