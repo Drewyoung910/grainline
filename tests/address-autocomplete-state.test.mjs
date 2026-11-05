@@ -51,7 +51,7 @@ describe("address autocomplete state behavior", () => {
   });
 
   it("keeps address autocomplete rate limited, private, and globally throttled before Nominatim", () => {
-    assert.match(route, /safeRateLimit\(addressAutocompleteRatelimit, `address-autocomplete:\$\{ip\}`\)/);
+    assert.match(route, /safeRateLimit\(searchRatelimit, `address-autocomplete:\$\{ip\}`\)/);
     assert.match(route, /privateJson\(\{ results: \[\] \}/);
     assert.match(route, /NOMINATIM_SHARED_THROTTLE_KEY = "reverse-geocode:nominatim:lock"/);
     assert.match(route, /redis\.set\(NOMINATIM_SHARED_THROTTLE_KEY, "1", \{ nx: true, px: 1100 \}\)/);
