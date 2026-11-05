@@ -170,7 +170,13 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
       tokenLength: token.length,
     });
     if (mode === "html") {
-      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST) };
+      return {
+        response: htmlDocument(
+          "This link is out of date",
+          `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">You changed your email choices after this message was sent, so this link no longer applies. You can turn emails off in <a href="/account/settings" style="color:#1c1c1a;">your settings</a>.</p>`,
+          HTTP_STATUS.BAD_REQUEST,
+        ),
+      };
     }
     return { response: privateJson({ ok: false, error: "Invalid unsubscribe link" }, { status: HTTP_STATUS.BAD_REQUEST }) };
   }
