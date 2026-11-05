@@ -159,7 +159,6 @@ export async function POST(request: Request) {
   `;
 
   const sanitizedSubject = safeSubject(body.subject);
-  const emailConfigured = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 
   try {
     await sendRenderedEmail({
@@ -217,5 +216,5 @@ export async function POST(request: Request) {
     });
   }
 
-  return privateJson({ ok: true, skipped: !emailConfigured });
+  return privateJson({ ok: true });
 }
