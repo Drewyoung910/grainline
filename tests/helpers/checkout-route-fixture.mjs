@@ -9,7 +9,7 @@ import { stripeRefusedCheckoutSessionCreate } from "../../src/lib/checkoutLockSt
 const require = createRequire(import.meta.url);
 
 // Runs the real checkout routes with the database, Redis and Stripe replaced.
-export function checkoutRouteFixture(path, { listingType = "IN_STOCK", createSession } = {}) {
+export function checkoutRouteFixture(path, { listingType = "IN_STOCK", createSession, existingLock = null, reserveError = null } = {}) {
   const state = { reservations: 0, aborts: 0, lockReleases: 0, createOptions: null };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const seller = {
@@ -22,6 +22,7 @@ export function checkoutRouteFixture(path, { listingType = "IN_STOCK", createSes
     priceVersion: 1, variantGroups: [], photos: [], seller,
   };
   const reserve = async () => {
+    if (reserveError) throw reserveError;
     state.reservations += 1;
     return { id: "reservation" };
   };
@@ -36,6 +37,7 @@ export function checkoutRouteFixture(path, { listingType = "IN_STOCK", createSes
       rateLimitResponse: (_reset, message) => Response.json({ error: message }, { status: 429 }),
     },
     "@/lib/requestOriginGuard": { getExplicitCrossOriginPostRejection: () => null },
+    "@/lib/prismaRawSqlError": { getPrismaRawSqlState: (error) => error?.sqlState ?? null },
     "@/lib/requestBody": {
       readBoundedJson: (request) => request.json(),
       isRequestBodyTooLargeError: () => false,
@@ -86,7 +88,7 @@ export function checkoutRouteFixture(path, { listingType = "IN_STOCK", createSes
       cartCheckoutLockKey: () => "lock",
       checkoutPayloadHash: () => "hash",
       checkoutSessionCreateIdempotencyKey: () => "key",
-      getCheckoutLock: async () => null,
+      getCheckoutLock: async () => existingLock,
       acquireCheckoutLock: async () => "owner",
       markCheckoutLockReady: async () => true,
       releaseCheckoutLock: async () => true,

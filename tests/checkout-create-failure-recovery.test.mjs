@@ -42,6 +42,24 @@ for (const [label, path, maxDurationMs] of [
   });
 }
 
+for (const path of ["src/app/api/cart/checkout/single/route.ts", "src/app/api/cart/checkout-seller/route.ts"]) {
+  test(`${path}: a lock with no session says the last checkout didn't start`, async () => {
+    const subject = fixture(path, {
+      existingLock: { state: "preparing", payloadHash: "other", ownerToken: "token", createdAt: 1 },
+    });
+    const response = await subject.post();
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, "Your last checkout didn't start. Try again in a few minutes.");
+  });
+
+  test(`${path}: a reservation still active after its lock expired is a 409, not a 500`, async () => {
+    const subject = fixture(path, { reserveError: Object.assign(new Error("duplicate"), { sqlState: "23505" }) });
+    const response = await subject.post();
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, "Your last checkout didn't start. Try again in a few minutes.");
+  });
+}
+
 test("only a refusal counts as creating nothing", () => {
   for (const type of [
     "StripeRateLimitError",
