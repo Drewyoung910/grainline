@@ -63,8 +63,8 @@ export default async function WhyGrainlinePage() {
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto">
             On most marketplaces today, the same search for a handmade cutting board returns factory products,
-            relisted Amazon imports, and AI-generated photos of pieces that don&apos;t exist. We built Grainline so
-            that doesn&apos;t happen here.
+            relisted Amazon imports, and AI-generated photos of pieces that don&apos;t exist. On Grainline these are
+            against the rules, and listings that break them are removed when we find them.
           </p>
         </div>
 
