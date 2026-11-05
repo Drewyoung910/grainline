@@ -115,8 +115,7 @@ export default async function MakersMetroPage({
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
-      { "@type": "ListItem", "position": 2, "name": stateLabel },
-      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `${BASE_URL}/makers/${metroSlug}` },
+      { "@type": "ListItem", "position": 2, "name": metro.name, "item": `${BASE_URL}/makers/${metroSlug}` },
     ],
   };
 

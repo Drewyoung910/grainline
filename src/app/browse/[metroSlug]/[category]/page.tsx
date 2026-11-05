@@ -16,7 +16,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
-import { displayUsState, formatCityState } from "@/lib/locationDisplay";
+import { formatCityState } from "@/lib/locationDisplay";
 import { sellerPublicListingCards } from "@/lib/sellerProfilePublicAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { defaultOpenGraphImages } from "@/lib/siteMetadata";
@@ -154,9 +154,8 @@ export default async function BrowseMetroCategoryPage({
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
       { "@type": "ListItem", "position": 2, "name": "Browse", "item": `${BASE_URL}/browse` },
-      { "@type": "ListItem", "position": 3, "name": displayUsState(metro.state) },
-      { "@type": "ListItem", "position": 4, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
-      { "@type": "ListItem", "position": 5, "name": categoryLabel, "item": `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
+      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
+      { "@type": "ListItem", "position": 4, "name": categoryLabel, "item": `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
     ],
   };
 

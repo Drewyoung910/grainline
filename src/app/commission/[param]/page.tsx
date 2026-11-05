@@ -210,8 +210,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://thegrainline.com" },
       { "@type": "ListItem", "position": 2, "name": "Commission Room", "item": "https://thegrainline.com/commission" },
-      { "@type": "ListItem", "position": 3, "name": stateLabel },
-      { "@type": "ListItem", "position": 4, "name": metro.name, "item": `https://thegrainline.com/commission/${metroSlug}` },
+      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `https://thegrainline.com/commission/${metroSlug}` },
     ],
   };
 

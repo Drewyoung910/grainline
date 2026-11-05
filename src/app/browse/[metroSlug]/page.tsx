@@ -213,8 +213,7 @@ async function BrowseMetroContent({
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
       { "@type": "ListItem", "position": 2, "name": "Browse", "item": `${BASE_URL}/browse` },
-      { "@type": "ListItem", "position": 3, "name": stateLabel },
-      { "@type": "ListItem", "position": 4, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
+      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
     ],
   };
 
