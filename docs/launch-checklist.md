@@ -289,6 +289,7 @@ Run these in test mode before switching to live money:
 - Seller order fulfillment: shipped and pickup paths.
 - Seller refund and staff case refund paths.
 - Private custom listing is visible only to the reserved buyer.
+- Test listings and development seller profiles removed or marked `robots: { index: false }` before Google indexes them.
 - Public listing visibility: draft, hidden, pending review, rejected, private, vacation, banned seller.
 - `/api/health` returns 200 when DB/Redis/R2 dependency checks are healthy and 503 on dependency failure; verbose dependency output works only with `Authorization: Bearer $HEALTH_CHECK_TOKEN`, not a query string token. Confirm deployed responses include `Cache-Control: private, no-store, max-age=0` and `Vary: Authorization, X-Health-Check-Token`.
 
@@ -320,6 +321,7 @@ Record links/screenshots/dates for:
   `npm run audit:sentry-crons` plus dashboard screenshots or exported
   notification-delivery evidence. DirectUpload activation evidence separately
   proves GitHub cleanup-workflow failure notification delivery.
+- OWASP ZAP scan of a current preview deployment, with the dated report retained.
 - Google Search Console ownership verification and sitemap index submission.
 - Launch evidence inventory artifact from `npm run audit:launch-evidence`, generated after the machine artifacts and manual evidence manifest have been assembled.
 
@@ -331,5 +333,7 @@ Record links/screenshots/dates for:
 - Money transmitter analysis documented.
 - INFORM Consumers Act scope documented.
 - Business insurance decision documented.
+- Trademark Class 035 clearance and filing decision documented (optional at launch).
+- Duplicate Feedback clause (Terms 11.6 and 33.11) resolved by the attorney.
 - Texas marketplace facilitator filing calendar set.
 - DMCA agent details verified.
