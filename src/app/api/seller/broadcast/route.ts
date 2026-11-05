@@ -146,7 +146,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Profanity check (log-only)
-  const { containsProfanity } = await import("@/lib/profanity");
+  const { containsProfanity, containsSlur, SHOP_TEXT_SLUR_MESSAGE } = await import("@/lib/profanity");
+  if (containsSlur(message)) {
+    return privateJson({ error: SHOP_TEXT_SLUR_MESSAGE }, { status: 400 });
+  }
   const profCheck = containsProfanity(message);
   if (profCheck.flagged) {
     captureProfanityFlag({

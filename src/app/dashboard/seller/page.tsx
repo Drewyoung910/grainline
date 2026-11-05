@@ -17,6 +17,7 @@ import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { sanitizeText } from "@/lib/sanitize";
+import { containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import {
   isE164Phone,
   sanitizeAddressField,
@@ -81,6 +82,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   const city = shortText(formData.get("city"), 100);
   const state = shortText(formData.get("state"), 50);
+  if (containsSlur(`${city}\n${state}`)) return { ok: false, error: SHOP_TEXT_SLUR_MESSAGE };
 
   // Location (for pickup map)
   const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";

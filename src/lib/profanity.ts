@@ -60,6 +60,9 @@ export function containsProfanity(text: string): { flagged: boolean; matches: st
   return { flagged: true, matches: unique };
 }
 
+export const SHOP_TEXT_SLUR_MESSAGE =
+  "This text contains language Grainline does not allow. Please change the wording and save again.";
+
 /** True when the text has a slur-tier word. Listing and shop saves use this. */
 export function containsSlur(text: string | null | undefined): boolean {
   if (!text) return false;
