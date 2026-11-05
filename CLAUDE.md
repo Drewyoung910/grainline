@@ -2941,8 +2941,9 @@ Ports the motion prototype's header and the effects Drew named, and fixes the
 first pass's rough edges. Behavior future agents must preserve:
 
 - **Header**: see the hero/header contract above. Sticky elements below it
-  use `--site-header-h` (`4rem`, `4.25rem` from `lg`), and `html` has a
-  matching `scroll-padding-top` so in-page anchors clear it.
+  use `--site-header-h` (`4rem`, `4.375rem` from `lg`). `html` has no
+  scroll-padding; anchors get their offset from `scroll-margin-top` on
+  `section[id], [data-scroll-anchor]`.
 - **Search suggestions**: the panel never closes and reopens while typing. On first empty focus it waits for one final popular-search set instead of painting fallback terms and then replacing them with live terms.
   The first letter narrows the recommended searches locally and offers a
   "Search for" row; while results load, that local panel stays up. The
@@ -2991,10 +2992,10 @@ first pass's rough edges. Behavior future agents must preserve:
   focus outlines for contrast. Maker banners render exactly as cropped (no
   drift). Scroll-linked effects need `overflow-clip` (not `overflow-hidden`)
   on their frames and page wrappers, or the timeline attaches to that box and
-  never runs. Section anchors rely on `html` scroll-padding for the header,
-  so page-level `scroll-mt-*` only adds the height of anything else pinned
-  (the maker tab bar uses `scroll-mt-14`); do not stack a header offset
-  again. `SectionTabs` moves focus into the chosen section and never writes
+  never runs. A `scroll-mt-*` utility replaces the base anchor offset, so it
+  must include `--site-header-offset` plus anything else pinned. The maker tab
+  sections' `scroll-mt-14` does not yet, so their headings hide under the bars;
+  see #1804. `SectionTabs` moves focus into the chosen section and never writes
   the URL hash (that re-syncs Next's router state). `btn` text may wrap
   (`text-wrap: balance`) and its hover styles apply only on hover devices.
   The popover pop-in/out classes are disabled under reduced motion. Listing
