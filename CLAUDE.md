@@ -2955,9 +2955,9 @@ first pass's rough edges. Behavior future agents must preserve:
   drift). Scroll-linked effects need `overflow-clip` (not `overflow-hidden`)
   on their frames and page wrappers, or the timeline attaches to that box and
   never runs. A `scroll-mt-*` utility replaces the base anchor offset, so it
-  must include `--site-header-offset` plus anything else pinned. The maker tab
-  sections' `scroll-mt-14` does not yet, so their headings hide under the bars;
-  see #1804. `SectionTabs` moves focus into the chosen section and never writes
+  must include `--site-header-offset` plus anything else pinned (the maker tab
+  bar sections use `scroll-mt-[calc(var(--site-header-offset)+3.75rem)]`).
+  `SectionTabs` moves focus into the chosen section and never writes
   the URL hash (that re-syncs Next's router state). `btn` text may wrap
   (`text-wrap: balance`) and its hover styles apply only on hover devices.
   The popover pop-in/out classes are disabled under reduced motion. Listing
