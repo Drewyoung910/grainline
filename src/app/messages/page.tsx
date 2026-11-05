@@ -149,11 +149,8 @@ async function MessagesInbox({
     <main className="mx-auto max-w-4xl p-4 sm:p-8 lg:grid lg:max-w-[1280px] lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-6">
       <section className="min-w-0 overflow-hidden rounded-3xl border border-[#2C1F1A]/10 bg-[#F2EEE6]/80 shadow-[0_12px_34px_-30px_rgba(44,31,26,0.75)]">
         <div className="border-b border-[#2C1F1A]/10 p-3">
-          <div className="mb-3 flex items-center justify-between px-1">
+          <div className="mb-3 px-1">
             <h1 className="font-display text-xl">Messages</h1>
-            <Link href="/browse" className="text-sm text-neutral-600 underline-offset-4 hover:underline">
-              Back to browse
-            </Link>
           </div>
           <MessageInboxControls
             tab={tab}
