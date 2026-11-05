@@ -34,7 +34,7 @@ export default async function AboutPage() {
             Built for people who make things with their hands.
           </h1>
           <p className="text-lg text-stone-500 leading-relaxed">
-            Grainline is a marketplace for handmade woodworking — furniture, kitchen pieces, decor, toys, and more — made by independent craftspeople across the country.
+            Grainline is a marketplace for handmade woodworking: furniture, kitchen pieces, decor, toys, and more, made by independent craftspeople across the country.
           </p>
         </div>
 
@@ -59,19 +59,19 @@ export default async function AboutPage() {
           <div>
             <h2 className="text-2xl font-display font-semibold text-neutral-900 mb-2">Why Grainline exists</h2>
             <p className="text-neutral-600 leading-relaxed">
-              Most online marketplaces treat woodworking like any other product category — lost between mass-produced furniture and factory goods. We built Grainline specifically for the woodworking community, with features that matter: local maker maps, made-to-order workflows, and a Guild verification program that recognizes real craftsmanship.
+              Most online marketplaces treat woodworking like any other product category, lost between mass-produced furniture and factory goods. We built Grainline specifically for the woodworking community, with features that matter: local maker maps, made-to-order workflows, and Guild badges for makers with a strong record on Grainline.
             </p>
           </div>
           <div>
             <h2 className="text-2xl font-display font-semibold text-neutral-900 mb-2">For makers</h2>
             <p className="text-neutral-600 leading-relaxed">
-              We charge a simple 5% fee on sales — no listing fees, no subscription required. You set your own policies, prices, and shipping. The Guild verification program gives your shop credibility and helps buyers find quality work.
+              We charge a simple 5% fee on sales, with no listing fees and no subscription. You set your own policies, prices, and shipping. Guild badges show buyers which shops have a complete profile and a good track record here.
             </p>
           </div>
           <div>
             <h2 className="text-2xl font-display font-semibold text-neutral-900 mb-2">For buyers</h2>
             <p className="text-neutral-600 leading-relaxed">
-              Browse by category, filter by location, or search for a specific piece. Contact a maker directly about custom work. Every purchase is protected — if something goes wrong, our case system connects you with the maker and our team.
+              Browse by category, filter by location, or search for a specific piece. Contact a maker directly about custom work. If something goes wrong with an eligible order, our case system connects you with the maker and our team.
             </p>
           </div>
         </div>
