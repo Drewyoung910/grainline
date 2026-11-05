@@ -32,10 +32,11 @@ export async function generateMetadata({
   const { metroSlug } = await params;
   const metro = await prisma.metro.findUnique({
     where: { slug: metroSlug },
-    select: { name: true, state: true, parentMetroId: true },
+    select: { id: true, name: true, state: true, parentMetroId: true },
   });
   if (!metro) notFound();
 
+  const makerCount = await sellerPublicMetroCount(null, metro.id, !metro.parentMetroId, true);
   const cityName = formatCityState(metro.name, metro.state);
   const title = `Woodworkers & Furniture Makers in ${cityName} | Grainline`;
   const description = `Meet local woodworkers and furniture makers in ${cityName}. Browse their handcrafted work, read reviews, and commission custom pieces directly.`;
@@ -43,6 +44,7 @@ export async function generateMetadata({
   return {
     title: { absolute: title },
     description,
+    robots: makerCount === 0 ? { index: false, follow: true } : undefined,
     alternates: { canonical: `${BASE_URL}/makers/${metroSlug}` },
     openGraph: { title, description, url: `${BASE_URL}/makers/${metroSlug}`, images: defaultOpenGraphImages() },
   };

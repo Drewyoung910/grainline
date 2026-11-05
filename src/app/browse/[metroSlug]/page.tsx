@@ -54,11 +54,11 @@ export async function generateMetadata({
     }),
     sellerPublicMetroCount(null, metro.id, isMajor, false),
   ]);
+  // The page itself 404s with no listings; say so here, before streaming starts.
+  if (listingCount === 0) notFound();
 
   const title = `Handmade Woodworking in ${cityName} | Grainline`;
-  const description = listingCount > 0
-    ? `Discover ${listingCount} handmade piece${listingCount !== 1 ? "s" : ""} from ${sellerCount} local maker${sellerCount !== 1 ? "s" : ""} in ${cityName}. Custom furniture, cutting boards, home decor and more from artisans near you.`
-    : `Custom woodworking in ${cityName} — browse handmade furniture, decor, and more from local artisans on Grainline.`;
+  const description = `Discover ${listingCount} handmade piece${listingCount !== 1 ? "s" : ""} from ${sellerCount} local maker${sellerCount !== 1 ? "s" : ""} in ${cityName}. Custom furniture, cutting boards, home decor and more from artisans near you.`;
 
   return {
     title: { absolute: title },
