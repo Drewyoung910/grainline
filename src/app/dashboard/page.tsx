@@ -17,10 +17,10 @@ import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { publicSellerShopPath } from "@/lib/publicPaths";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
-import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
+import { sellerOwnerPrivateState, sellerOwnerProfileEditorState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { readWorkshopListingAttention, readWorkshopOrderQueue } from "@/lib/workshopData";
-import { orderRefundedAway, workshopAttentionRows, type WorkshopAttentionRow } from "@/lib/workshopQueue";
+import { orderRefundedAway, workshopAttentionRows, workshopShopStatus, type WorkshopAttentionRow } from "@/lib/workshopQueue";
 import { logServerError } from "@/lib/serverErrorLogger";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -68,11 +68,12 @@ async function DashboardPageContent({
   const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
   const forceSetupBanner = params.setup === "required";
 
-  const [dashboardSeller, listingAttention, orderQueue, unreadMessages] = await Promise.all([
+  const [dashboardSeller, listingAttention, orderQueue, unreadMessages, shopEditorState] = await Promise.all([
     sellerOwnerDashboardState(me.id),
     readOptional("listing_attention", () => readWorkshopListingAttention(seller.id)),
     readOptional("order_queue", () => readWorkshopOrderQueue(me.id)),
     readOptional("unread_messages", () => countActorUnreadMessages(me.id)),
+    readOptional("shop_editor_state", () => sellerOwnerProfileEditorState(seller.id, seller.userId)),
   ]);
   if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
     throw new Error("Seller dashboard authority returned an unexpected owner");
@@ -95,13 +96,13 @@ async function DashboardPageContent({
   // Never claim there's nothing to do when part of the answer failed to load.
   const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null;
 
-  const shopStatus = vacationMode
-    ? { label: "On vacation", className: "bg-amber-100 text-amber-900" }
-    : !chargesEnabled
-      ? { label: "Not visible yet", className: "bg-amber-100 text-amber-900" }
-      : !onboardingComplete
-        ? { label: "Finish setup", className: "bg-amber-100 text-amber-900" }
-        : { label: "Shop open", className: "bg-green-100 text-green-800" };
+  const shopStatus = workshopShopStatus({
+    vacationMode,
+    chargesEnabled,
+    onboardingComplete,
+    acceptingNewOrders: shopEditorState?.acceptingNewOrders ?? null,
+    listingCount: listingAttention?.listingCount ?? null,
+  });
 
   return (
     <main className="mx-auto max-w-5xl space-y-7">
@@ -142,7 +143,7 @@ async function DashboardPageContent({
         <div className="min-w-0">
           <h1 className="font-display page-title">Workshop</h1>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-neutral-500">
-            <span className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-medium ${shopStatus.className}`}>{shopStatus.label}</span>
+            <span className={`rounded-full px-2.5 py-0.5 text-[12.5px] font-medium ${shopStatus.open ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>{shopStatus.label}</span>
             <span className="min-w-0 truncate">{seller.displayName}</span>
           </p>
         </div>
