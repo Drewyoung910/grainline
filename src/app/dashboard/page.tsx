@@ -203,7 +203,7 @@ async function DashboardPageContent({
         )}
         {attentionRows.length === 0 ? (
           attentionIncomplete ? null : (
-            <p className="text-sm text-neutral-600">No orders to ship, messages waiting or listings to fix right now.</p>
+            <p className="text-sm text-neutral-600">No orders to fulfill, messages waiting or listings to fix right now.</p>
           )
         ) : (
           <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
