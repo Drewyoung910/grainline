@@ -5,10 +5,13 @@ export function formatCommissionBudgetRange(
   maxCents: number | null | undefined,
   currency: string | null | undefined = DEFAULT_CURRENCY,
 ) {
-  if (minCents != null && maxCents != null) {
-    return `${formatCurrencyCents(minCents, currency)}\u2013${formatCurrencyCents(maxCents, currency)}`;
+  // Older rows can hold 0, which means no budget was given.
+  const min = minCents || null;
+  const max = maxCents || null;
+  if (min != null && max != null) {
+    return `${formatCurrencyCents(min, currency)}\u2013${formatCurrencyCents(max, currency)}`;
   }
-  if (minCents != null) return `From ${formatCurrencyCents(minCents, currency)}`;
-  if (maxCents != null) return `Up to ${formatCurrencyCents(maxCents, currency)}`;
+  if (min != null) return `From ${formatCurrencyCents(min, currency)}`;
+  if (max != null) return `Up to ${formatCurrencyCents(max, currency)}`;
   return null;
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
+import { formatCommissionBudgetRange } from "../src/lib/commissionBudget.ts";
 import * as money from "../src/lib/money.ts";
 import * as sanitize from "../src/lib/sanitize.ts";
 import { loadWithStubs } from "./helpers/load-with-stubs.mjs";
@@ -79,4 +80,18 @@ test("sanitizing cannot push commission text past its column", async () => {
   assert.ok(Array.from(created[0].timeline).length <= 200);
   assert.ok(Array.from(created[0].title).length <= 150);
   assert.ok(Array.from(created[0].description).length <= 5000);
+});
+
+test("a zero budget is stored as no budget", async () => {
+  const { route, created } = loadRoute();
+  await route.POST({ body: { ...valid, budgetMin: 0, budgetMax: "0.00" } });
+  assert.equal(created[0].budgetMinCents, null);
+  assert.equal(created[0].budgetMaxCents, null);
+});
+
+test("a zero budget already saved shows as no budget", () => {
+  assert.equal(formatCommissionBudgetRange(0, 0), null);
+  assert.equal(formatCommissionBudgetRange(0, 50_000), "Up to $500.00");
+  assert.equal(formatCommissionBudgetRange(10_000, 0), "From $100.00");
+  assert.equal(formatCommissionBudgetRange(10_000, 50_000), "$100.00\u2013$500.00");
 });
