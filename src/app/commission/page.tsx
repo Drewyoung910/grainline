@@ -395,7 +395,7 @@ async function CommissionPageContent({
                       src={r.referenceImageUrls[0]}
                       alt="Reference"
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-500 ease-out motion-reduce:transition-none group-hover:scale-[1.025]"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.025]"
                     />
                   </Link>
                 )}
