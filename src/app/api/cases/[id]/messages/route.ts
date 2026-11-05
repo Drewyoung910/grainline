@@ -6,7 +6,8 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { sendCaseMessage } from "@/lib/email";
+import { renderCaseMessageEmail } from "@/lib/email";
+import { queueCaseEmail } from "@/lib/caseEmail";
 import {
   caseMessageRatelimit,
   rateLimitResponse,
@@ -312,21 +313,39 @@ export async function POST(
           }),
         ]);
         if (committedCaseRecord.buyerId && buyer) {
-          await sendCaseMessage({
-            recipientName: buyer.name,
-            recipientEmail: buyer.email,
-            senderName: "Grainline Staff",
-            caseLink: `${appUrl}/dashboard/orders/${committedCaseRecord.orderId}`,
-            messageSnippet: messageBody,
+          await queueCaseEmail({
+            email: renderCaseMessageEmail({
+              recipientName: buyer.name,
+              recipientEmail: buyer.email,
+              senderName: "Grainline Staff",
+              caseLink: `${appUrl}/dashboard/orders/${committedCaseRecord.orderId}`,
+              messageSnippet: messageBody,
+              orderId: committedCaseRecord.orderId,
+              fromStaff: true,
+            }),
+            caseId: result.caseId,
+            dedupKey: `case-message:${message.id}:${committedCaseRecord.buyerId}`,
+            templateName: "case_message",
+            userId: committedCaseRecord.buyerId,
+            preferenceKey: "EMAIL_CASE_MESSAGE",
           });
         }
         if (seller) {
-          await sendCaseMessage({
-            recipientName: seller.name,
-            recipientEmail: seller.email,
-            senderName: "Grainline Staff",
-            caseLink: `${appUrl}/dashboard/sales/${committedCaseRecord.orderId}`,
-            messageSnippet: messageBody,
+          await queueCaseEmail({
+            email: renderCaseMessageEmail({
+              recipientName: seller.name,
+              recipientEmail: seller.email,
+              senderName: "Grainline Staff",
+              caseLink: `${appUrl}/dashboard/sales/${committedCaseRecord.orderId}`,
+              messageSnippet: messageBody,
+              orderId: committedCaseRecord.orderId,
+              fromStaff: true,
+            }),
+            caseId: result.caseId,
+            dedupKey: `case-message:${message.id}:${committedCaseRecord.sellerId}`,
+            templateName: "case_message",
+            userId: committedCaseRecord.sellerId,
+            preferenceKey: "EMAIL_CASE_MESSAGE",
           });
         }
       } catch (emailError) {
@@ -377,12 +396,20 @@ export async function POST(
             preferenceKey: "EMAIL_CASE_MESSAGE",
           });
           if (recipient) {
-            await sendCaseMessage({
-              recipientName: recipient.name,
-              recipientEmail: recipient.email,
-              senderName: me.name,
-              caseLink: `${appUrl}${caseLink}`,
-              messageSnippet: messageBody,
+            await queueCaseEmail({
+              email: renderCaseMessageEmail({
+                recipientName: recipient.name,
+                recipientEmail: recipient.email,
+                senderName,
+                caseLink: `${appUrl}${caseLink}`,
+                messageSnippet: messageBody,
+                orderId: committedCaseRecord.orderId,
+              }),
+              caseId: result.caseId,
+              dedupKey: `case-message:${message.id}:${recipientId}`,
+              templateName: "case_message",
+              userId: recipientId,
+              preferenceKey: "EMAIL_CASE_MESSAGE",
             });
           }
         } catch (emailError) {
