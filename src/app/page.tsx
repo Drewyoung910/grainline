@@ -563,7 +563,7 @@ export default async function HomePage() {
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+              <ul className="reveal-stagger flex gap-4 pb-0" style={{ width: "max-content" }}>
                 {topPicks.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
@@ -646,7 +646,7 @@ export default async function HomePage() {
             </div>
           ) : (
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+              <ul className="reveal-stagger flex gap-4 pb-0" style={{ width: "max-content" }}>
                 {newArrivals.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
@@ -698,7 +698,7 @@ export default async function HomePage() {
               </Link>
             </div>
             <ScrollFadeRow className="overflow-x-auto -mx-1 px-1">
-            <ul className="reveal-stagger flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
+            <ul className="reveal-stagger flex gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start">
