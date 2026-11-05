@@ -27,6 +27,7 @@ import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { heldCheckoutFromResume, type HeldCheckout } from "@/lib/cartCheckoutHold";
 import { ShoppingBag } from "@/components/icons";
 import RollingAmount from "@/components/RollingAmount";
 import RollingNumber from "@/components/RollingNumber";
@@ -285,6 +286,14 @@ function CartPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
 
+  // A checkout this buyer left open, which still holds their pieces. Looked up
+  // before the first paint so a held piece never flashes as out of stock.
+  const [heldCheckout, setHeldCheckout] = React.useState<HeldCheckout | null>(null);
+  const [checkingHeldCheckout, setCheckingHeldCheckout] = React.useState(
+    () => searchParams.get("step") !== "payment",
+  );
+  const [cancellingHeldCheckout, setCancellingHeldCheckout] = React.useState(false);
+
   // per-seller gift state
   const [giftBySeller, setGiftBySeller] = React.useState<Record<string, GiftForm>>({});
 
@@ -391,6 +400,38 @@ function CartPage() {
     }
   }
 
+  async function findHeldCheckout(signal: AbortSignal) {
+    try {
+      const res = await fetch("/api/cart/checkout/resume?open=1", { cache: "no-store", signal });
+      if (!res.ok) return;
+      const held = heldCheckoutFromResume(await res.json());
+      if (!held) return;
+      setHeldCheckout(held);
+      setStep("review");
+      router.replace("/cart", { scroll: false });
+    } catch {
+      // The cart still works without this; a second checkout is refused anyway.
+    } finally {
+      if (!signal.aborted) setCheckingHeldCheckout(false);
+    }
+  }
+
+  async function continueHeldCheckout() {
+    const resumed = await resumeOpenCartCheckout(new AbortController().signal);
+    setHeldCheckout(null);
+    if (!resumed) await load();
+  }
+
+  async function cancelHeldCheckout() {
+    if (!heldCheckout || cancellingHeldCheckout) return;
+    setCancellingHeldCheckout(true);
+    await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+    setHeldCheckout(null);
+    await load();
+    notifyCartUpdated();
+    setCancellingHeldCheckout(false);
+  }
+
   // Mount-time URL restoration
   React.useEffect(() => {
     const controller = new AbortController();
@@ -410,6 +451,7 @@ function CartPage() {
         }
       });
     }
+    if (urlStep !== "payment") void findHeldCheckout(controller.signal);
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -421,6 +463,7 @@ function CartPage() {
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
+      setHeldCheckout(null);
       setStep("review");
     }
 
@@ -526,6 +569,12 @@ function CartPage() {
 
     setPendingQuantities((current) => new Map(current).set(cartItemId, quantity));
     try {
+      // Changing the cart ends the checkout built from it. Release its hold
+      // first, or the update is judged against stock this buyer is holding.
+      if (heldCheckout) {
+        await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        setHeldCheckout(null);
+      }
       const res = await fetch("/api/cart/update", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -622,7 +671,7 @@ function CartPage() {
     }
   }
 
-  if (loading && !hasLoadedCart) return <CartLoadingSkeleton />;
+  if ((loading && !hasLoadedCart) || checkingHeldCheckout) return <CartLoadingSkeleton />;
 
   // While a reload, a quantity change or a removal is in flight, quantity
   // and Remove controls wait, so two updates (and their reloads) cannot race.
@@ -723,7 +772,8 @@ function CartPage() {
   );
   const hasPriceChanged = items.some((i) => i.priceChanged && !i.variantUnavailable);
   const hasVariantUnavailable = items.some((i) => i.variantUnavailable);
-  const hasStockExceeded = items.some((i) => i.stockExceeded);
+  const heldSellerIds = new Set(heldCheckout?.sellerIds ?? []);
+  const hasStockExceeded = items.some((i) => i.stockExceeded && !heldSellerIds.has(i.listing.sellerId));
   const hasMixedCurrencies = new Set(items.map((i) => (i.listing.currency || DEFAULT_CURRENCY).toLowerCase())).size > 1;
   const cartCurrency = items[0]?.listing.currency || DEFAULT_CURRENCY;
   const hasBlockingCartChange = hasUnavailable || hasPriceChanged || hasVariantUnavailable || hasStockExceeded || hasMixedCurrencies;
@@ -789,11 +839,15 @@ function CartPage() {
                     <div className="text-xs text-red-600 mt-0.5">Selected options are no longer available</div>
                   )}
                   {i.stockExceeded && !i.variantUnavailable && (
-                    <div className="text-xs text-red-600 mt-0.5">
-                      {i.listing.maxQuantity && i.listing.maxQuantity > 0
-                        ? `Only ${i.listing.maxQuantity} currently available`
-                        : "This item is currently out of stock"}
-                    </div>
+                    heldSellerIds.has(i.listing.sellerId) ? (
+                      <div className="text-xs text-neutral-600 mt-0.5">Held for you in your checkout</div>
+                    ) : (
+                      <div className="text-xs text-red-600 mt-0.5">
+                        {i.listing.maxQuantity && i.listing.maxQuantity > 0
+                          ? `Only ${i.listing.maxQuantity} currently available`
+                          : "This item is currently out of stock"}
+                      </div>
+                    )
                   )}
 
                     <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
@@ -1063,6 +1117,30 @@ function CartPage() {
       {/* Step 1: Review */}
       {step === "review" && (
         <>
+          {heldCheckout && (
+            <div className="flex flex-col gap-3 rounded-md bg-[#EFEAE0] p-4 text-sm text-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+              <span>You have a checkout in progress. Your pieces are held for you until it finishes or expires.</span>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void continueHeldCheckout()}
+                  disabled={resumingCheckout || cancellingHeldCheckout}
+                  className="btn btn-primary btn-sm"
+                >
+                  Continue to payment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void cancelHeldCheckout()}
+                  disabled={resumingCheckout || cancellingHeldCheckout}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {cancellingHeldCheckout ? "Cancelling..." : "Cancel checkout"}
+                </button>
+              </div>
+            </div>
+          )}
+
           {sellerSections}
 
           <div className="flex items-center justify-end gap-4">
@@ -1119,7 +1197,7 @@ function CartPage() {
             >
               Sign in to checkout →
             </Link>
-          ) : (
+          ) : heldCheckout ? null : (
             <button
               onClick={() => {
                 // Waits for a running save without dimming, so the button
