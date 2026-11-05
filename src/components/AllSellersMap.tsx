@@ -113,6 +113,13 @@ export default function AllSellersMap({
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
+      // Open on the makers, not on two oceans and one cluster dot.
+      if (!initialCenter && points.length > 0) {
+        const bounds = new maplibregl.LngLatBounds();
+        for (const point of points) bounds.extend([point.lng, point.lat]);
+        map.fitBounds(bounds, { padding: 60, maxZoom: 9, duration: 0 });
+      }
+
       map.addSource("sellers", {
         type: "geojson",
         data: {
