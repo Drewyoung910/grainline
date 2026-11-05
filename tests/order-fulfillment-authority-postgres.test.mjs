@@ -154,6 +154,13 @@ async function createDatabase() {
   `);
   await database.exec(migration);
   await database.exec(deauthorizationCorrection);
+  // Every test runs the live bodies: the partial-refund correction redefines
+  // both transitions, and the witness migration redefines the refund helper.
+  await database.exec(partialRefundFulfillmentCorrection);
+  await database.exec(functionSql(
+    blockedCheckoutRefundWitness,
+    "grainline_order_refund_blocks_fulfillment",
+  ));
   return database;
 }
 
@@ -170,11 +177,6 @@ describe("Order fulfillment fixed authority in PostgreSQL", () => {
   it("blocks fulfillment on the durable witness until provider recording completes", async () => {
     const database = await createDatabase();
     try {
-      await database.exec(partialRefundFulfillmentCorrection);
-      await database.exec(functionSql(
-        blockedCheckoutRefundWitness,
-        "grainline_order_refund_blocks_fulfillment",
-      ));
       assert.deepEqual((await database.query(`
         SELECT
           pg_catalog.has_function_privilege(
@@ -302,7 +304,6 @@ describe("Order fulfillment fixed authority in PostgreSQL", () => {
   it("continues fulfillment after an evidenced partial refund and blocks unsafe refund states", async () => {
     const database = await createDatabase();
     try {
-      await database.exec(partialRefundFulfillmentCorrection);
       await database.exec(`
         UPDATE public."Order"
            SET "sellerRefundId" = 're_partial',
