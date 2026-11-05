@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
-import { addressAutocompleteRatelimit, getIP, rateLimitResponse, safeRateLimit, redis } from "@/lib/ratelimit";
+import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit, redis } from "@/lib/ratelimit";
 import { normalizeAddressAutocompleteQuery, placeToAddress, type NominatimPlace } from "@/lib/addressAutocompleteState";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 
@@ -33,7 +33,7 @@ async function waitForNominatimThrottle() {
 
 export async function GET(req: NextRequest) {
   const ip = getIP(req);
-  const { success, reset } = await safeRateLimit(addressAutocompleteRatelimit, `address-autocomplete:${ip}`);
+  const { success, reset } = await safeRateLimit(searchRatelimit, `address-autocomplete:${ip}`);
   if (!success) {
     return privateResponse(rateLimitResponse(reset, "Too many address searches."));
   }
