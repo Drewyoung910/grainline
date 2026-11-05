@@ -260,6 +260,12 @@ export default async function HomePage() {
   );
   const fresh = hydrateHomeListingCards(freshRows, homeListingCardById);
   const topSaved = hydrateHomeListingCards(topSavedRows, homeListingCardById);
+  // A small catalogue puts the same pieces in both rows. Top Picks shows six,
+  // and New Arrivals skips those six unless nothing else is left.
+  const topPicks = topSaved.slice(0, 6);
+  const topPickIds = new Set(topPicks.map((l) => l.id));
+  const otherFresh = fresh.filter((l) => !topPickIds.has(l.id));
+  const newArrivals = otherFresh.length > 0 ? otherFresh : fresh;
 
   const featuredMakers = featuredMakerBlock;
 
@@ -549,16 +555,16 @@ export default async function HomePage() {
       <div className="max-w-[1600px] mx-auto px-4 pb-12 pt-4 sm:px-6 sm:pt-6 lg:px-8 space-y-10">
 
         {/* ── Top Picks ───────────────────────────────────────────── */}
-        {topSaved.length > 0 && (
+        {topPicks.length > 0 && (
           <ScrollSection>
             <div data-home-top-picks className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <h2 className="font-display text-2xl font-semibold sm:text-3xl">Top Picks</h2>
               <Link href="/browse?sort=popular" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
-                {topSaved.map((l) => {
+                {topPicks.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
@@ -601,7 +607,7 @@ export default async function HomePage() {
 
         {/* ── Shop by Category ─────────────────────────────────────────────── */}
         <ScrollSection>
-          <h2 data-home-categories className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
+          <h2 data-home-categories className="font-display text-2xl font-semibold sm:text-3xl mb-5">Shop by Category</h2>
           {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
           <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:overflow-visible sm:px-0">
             <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
@@ -629,18 +635,18 @@ export default async function HomePage() {
         {/* ── New Arrivals ───────────────────────────────────────── */}
         <ScrollSection>
           <div data-home-new-arrivals className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
+            <h2 className="font-display text-2xl font-semibold sm:text-3xl">New Arrivals</h2>
             <Link href="/browse?sort=newest" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">View more <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span></Link>
           </div>
 
-          {fresh.length === 0 ? (
+          {newArrivals.length === 0 ? (
             <div className="card-section p-6 text-neutral-600">
               Nothing listed yet — check back soon.
             </div>
           ) : (
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="reveal-stagger flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
-                {fresh.map((l) => {
+                {newArrivals.map((l) => {
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
@@ -685,7 +691,7 @@ export default async function HomePage() {
         {fromYourMakers.length > 0 && (
           <ScrollSection>
             <div data-home-followed-makers className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Makers You Follow</h2>
+              <h2 className="font-display text-2xl font-semibold sm:text-3xl">Makers You Follow</h2>
               <Link href="/account/feed" className="group text-sm text-neutral-600 hover:underline">
                 See full feed <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
@@ -761,7 +767,7 @@ export default async function HomePage() {
           return (
             <ScrollSection>
               <div data-home-workshop className="mb-5 space-y-0.5">
-                <h2 className="text-xl font-semibold font-display">In the Workshop</h2>
+                <h2 className="font-display text-2xl font-semibold sm:text-3xl">In the Workshop</h2>
                 <p className="text-sm text-neutral-500">
                   Maker of the Week · {weekStart} to {weekEnd}
                 </p>
@@ -982,7 +988,7 @@ export default async function HomePage() {
         {recentBlogPosts.length > 0 && (
           <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
             <div data-home-blog className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">From the Blog</h2>
+              <h2 className="font-display text-2xl font-semibold sm:text-3xl">From the Blog</h2>
               <Link href="/blog" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">
                 Read more stories <span aria-hidden="true" className="inline-block transition-transform duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-[3px]">→</span>
               </Link>
