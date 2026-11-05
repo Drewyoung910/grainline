@@ -76,7 +76,7 @@ describe("admin moderation hardening follow-ups", () => {
     const route = source("src/app/api/admin/reports/[id]/resolve/route.ts");
 
     assert.match(route, /adminActionRatelimit/);
-    assert.match(route, /safeRateLimit\(adminActionRatelimit, admin\.id\)/);
+    assert.match(route, /safeRateLimit\(adminActionRatelimit, userId\)/);
     assert.match(route, /userReport\.updateMany/);
     assert.match(route, /where: \{ id, resolved: false \}/);
   });
