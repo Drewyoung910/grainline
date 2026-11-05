@@ -110,7 +110,10 @@ export default function BroadcastComposer({
               placeholder="Share a shop update, new project, or announcement…"
               className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm resize-none"
             />
-            <p className="text-xs text-neutral-500 text-right mt-0.5">{message.length}/500</p>
+            <div className="mt-0.5 flex justify-between gap-3 text-xs text-neutral-500">
+              <span>You can send one update per week.</span>
+              <span>{message.length}/500</span>
+            </div>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-neutral-600">Send to:</span>
