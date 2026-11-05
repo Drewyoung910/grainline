@@ -21,14 +21,13 @@ type RecentListing = {
 export default function RecentlyViewed() {
   const { toast } = useToast();
   const [listings, setListings] = React.useState<RecentListing[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  // Starts false so the server and a first-time visitor render nothing.
+  const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
     const ids = getRecentlyViewed();
-    if (ids.length === 0) {
-      setLoading(false);
-      return;
-    }
+    if (ids.length === 0) return;
+    setLoading(true);
     const controller = new AbortController();
     let active = true;
     const params = new URLSearchParams({ ids: ids.join(",") });
@@ -65,7 +64,7 @@ export default function RecentlyViewed() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Recently Viewed</h2>
+      <h2 className="font-display text-xl font-semibold">Recently Viewed</h2>
 
       {loading ? (
         <div className="card-row-scroll flex gap-4 overflow-x-auto pb-0">
