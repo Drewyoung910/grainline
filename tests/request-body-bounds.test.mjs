@@ -21,6 +21,18 @@ function requestWithBody(body, headers = {}) {
 }
 
 describe("bounded request body helpers", () => {
+  it("never returns NUL, which PostgreSQL text cannot store", async () => {
+    assert.deepEqual(
+      await readBoundedJson(requestWithBody('{"id":"a\\u0000b","list":["ok","\\u0000"]}'), 1024),
+      { id: "ab", list: ["ok", ""] },
+    );
+    await assert.rejects(
+      () => readBoundedJson(requestWithBody('{"a\\u0000":1}'), 1024),
+      (error) => error instanceof InvalidJsonBodyError,
+    );
+    assert.deepEqual(await readBoundedJson(requestWithBody('{"id":"cuid_1"}'), 1024), { id: "cuid_1" });
+  });
+
   it("rejects oversized bodies from content-length before reading", async () => {
     const req = requestWithBody("{}", { "content-length": "999" });
 

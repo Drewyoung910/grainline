@@ -11,7 +11,9 @@ export function checkoutSuccessSessionIds(input: {
     input.sessionId ?? "",
   ]
     .map((id) => id.trim())
-    .filter((id) => id.startsWith("cs_") && id.length <= 255);
+    // Stripe session ids are cs_ plus letters, digits and underscores. Anything
+    // else (a NUL, for one) would reach the receipt query and fail as a 500.
+    .filter((id) => /^cs_[A-Za-z0-9_]{1,252}$/.test(id));
   const uniqueIds = [...new Set(orderedIds)];
   return {
     sessionIds: uniqueIds.slice(0, limit),
