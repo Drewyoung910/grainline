@@ -178,9 +178,6 @@ async function SalesContent({
               const myItems = o.items;
               const mySubtotalCents = o.itemsSubtotalCents;
               const currency = o.currency ?? DEFAULT_CURRENCY;
-              const shipping = o.shippingAmountCents ?? 0;
-              const tax = o.taxAmountCents ?? 0;
-              const giftWrapping = o.giftWrappingPriceCents ?? 0;
               // Orders are durably single-seller; use the complete checkout subtotal,
               // not the five item summaries rendered on this list card.
               const orderTotal = orderTotalCents(o, { itemsSubtotalCents: mySubtotalCents });
@@ -268,42 +265,14 @@ async function SalesContent({
                     )}
                   </ul>
 
-                  <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-600">Items subtotal (your items)</span>
-                      <span className="font-medium">{fmtMoney(mySubtotalCents, currency)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-600">
-                        Shipping{o.shippingTitle ? ` · ${o.shippingTitle}` : ""}
-                      </span>
-                      <span className="font-medium">{fmtMoney(shipping, currency)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-neutral-600">Tax</span>
-                      <span className="font-medium">{fmtMoney(tax, currency)}</span>
-                    </div>
-                    {giftWrapping > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-neutral-600">Gift wrapping</span>
-                        <span className="font-medium">{fmtMoney(giftWrapping, currency)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
-                      <span className="text-neutral-800">Order total</span>
-                      <span className="text-base font-semibold">
-                        {fmtMoney(orderTotal, currency)}
+                  {(refundAmountCents ?? 0) > 0 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100 text-sm">
+                      <span className="text-red-600">Refund issued</span>
+                      <span className="text-red-600">
+                        -{fmtMoney(refundAmountCents!, currency)}
                       </span>
                     </div>
-                    {(refundAmountCents ?? 0) > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-red-600">Refund issued</span>
-                        <span className="text-sm text-red-600">
-                          -{fmtMoney(refundAmountCents!, currency)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </li>
               );
             })}
