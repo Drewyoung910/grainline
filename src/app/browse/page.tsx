@@ -724,9 +724,9 @@ async function BrowseContent({
           </Link>
           <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
         </div>
-        <div className="flex-1 min-w-0 p-4 pr-12">
-          <div className="flex items-start justify-between gap-3">
-            <Link href={publicListingPath(l.id, l.title)} className="font-medium hover:underline leading-snug">
+        <div className="flex-1 min-w-0 p-4 sm:pr-12">
+          <div className="flex flex-col gap-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+            <Link href={publicListingPath(l.id, l.title)} className="min-w-0 break-words font-medium hover:underline leading-snug">
               {l.title}
             </Link>
             <div className="shrink-0 font-medium">{formatCurrencyCents(l.priceCents, l.currency)}</div>
