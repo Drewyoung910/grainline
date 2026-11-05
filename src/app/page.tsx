@@ -813,9 +813,6 @@ export default async function HomePage() {
 
                 {/* Story side */}
                 <div className="flex flex-col p-6 sm:p-8 lg:p-10">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700">
-                    Maker of the Week
-                  </p>
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     <h3 className="font-display text-2xl font-semibold text-neutral-900 sm:text-3xl">
                       {spotlight.displayName}
