@@ -184,8 +184,10 @@ export default async function BuyerOrderDetailPage({
     !deauthorizedPendingCaseAccess && isOrderCaseWindowClosed(order, now);
   const deliveryPassed =
     isTerminal || (order.estimatedDeliveryDate != null && order.estimatedDeliveryDate < now);
+  // The database opens a Case early when the maker can no longer act. The order
+  // detail reports no maker user id exactly when that account is banned or deleted.
   const canOpenCase =
-    (deliveryPassed || order.deauthorizedCaseAccess) &&
+    (deliveryPassed || order.deauthorizedCaseAccess || order.sellerUserId === null) &&
     !order.caseOpenLabelBlocked &&
     !caseWindowClosed &&
     !activeCase &&
