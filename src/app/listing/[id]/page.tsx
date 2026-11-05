@@ -61,6 +61,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
       priceCents: true,
       currency: true,
       status: true,
+      rejectionReason: true,
       isPrivate: true,
       archivedAt: true,
       reservedForUserId: true,
@@ -484,6 +485,9 @@ export default async function ListingPage({
         {listing.status === "PENDING_REVIEW"
           ? "Under review — your listing will go live once our team approves it. This is the buyer-facing preview."
           : "Preview mode — this is how your listing appears to buyers. It is not yet published."}
+        {listing.status === "PENDING_REVIEW" && listing.rejectionReason && (
+          <p className="mt-1">Why it was held: {listing.rejectionReason}</p>
+        )}
       </div>
     )}
     <main className="max-w-[1600px] mx-auto overflow-x-clip px-4 sm:px-6 lg:px-8 pb-16 pt-6">

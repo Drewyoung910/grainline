@@ -151,7 +151,7 @@ export async function reviewListingWithAI(listing: {
       approved: false,
       flags: ['AI review unavailable — missing API key'],
       confidence: 0,
-      reason: 'AI review unavailable — sending to admin review',
+      reason: 'AI review unavailable, sending to staff review',
       altTexts: [],
     }
   }
@@ -382,7 +382,7 @@ USER_LISTING_DATA_${delimiterId}_END`
       approved: false,
       flags: ['AI review unavailable — manual spot check recommended'],
       confidence: 0,
-      reason: 'AI review error — sending to admin review',
+      reason: 'AI review error, sending to staff review',
       altTexts: [],
     }
   }

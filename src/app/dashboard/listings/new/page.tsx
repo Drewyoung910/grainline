@@ -419,7 +419,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
         approved: false,
         flags: ["AI review error"],
         confidence: 0,
-        reason: "AI error — sending to admin review",
+        reason: "AI error, sending to staff review",
         altTexts: [],
       }));
 
@@ -430,6 +430,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
         approved: aiResult.approved,
         flags: aiResult.flags,
         confidence: aiResult.confidence,
+        reason: aiResult.reason,
       });
       if (transition.activated) {
         await prisma.$executeRaw`
@@ -462,6 +463,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
         approved: false,
         flags: ["AI review error"],
         confidence: 0,
+        reason: "AI error, sending to staff review",
       }).catch((updateError) => {
         logServerError(updateError, {
           source: "listing_create_ai_error_mark_failed",
