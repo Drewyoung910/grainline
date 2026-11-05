@@ -547,7 +547,7 @@ export default function Header() {
                   isLoaded ? (
                     <Link
                       href="/sign-in"
-                      className="inline-flex h-10 items-center rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
+                      className="inline-flex h-10 items-center whitespace-nowrap rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
                     >
                       Sign in
                     </Link>
