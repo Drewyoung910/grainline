@@ -25,6 +25,13 @@ const correction = migrationSource([
     : null,
 ], "blocked-pair checkout");
 
+// #702 lived in the reservation finalizer, so this test must run its live
+// body, not the fixture's trivial stand-in.
+const completion = migrationSource([
+  process.env.ORDER_BLOCKED_PAIR_COMPLETION_MIGRATION_PATH,
+  "prisma/migrations/20261016000000_correct_blocked_pair_paid_checkout_completion/migration.sql",
+], "blocked-pair checkout completion");
+
 function paidDefinition(sql) {
   const name = "grainline_stripe_checkout_order_create";
   const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -58,6 +65,15 @@ it("holds either reciprocal block as a durable review/refund Order", async () =>
     `);
     await db.exec(predecessor);
     await db.exec(paidDefinition(correction));
+    await db.exec(`
+      ALTER TABLE public."CheckoutStockReservation"
+        ADD COLUMN "repairClaimedAt" timestamp(3) without time zone,
+        ADD COLUMN "repairClaimKind" varchar(32),
+        ADD COLUMN "lastRepairError" varchar(1000),
+        ADD COLUMN "updatedAt" timestamp(3) without time zone;
+      DROP FUNCTION public.grainline_checkout_reservation_complete(text, bigint, text, text);
+    `);
+    await db.exec(functionDefinition(completion, "grainline_checkout_reservation_complete"));
 
     const paidAt = (await db.query(
       `SELECT (CURRENT_TIMESTAMP - interval '1 minute')::timestamp AS paid_at`,
@@ -91,6 +107,10 @@ it("holds either reciprocal block as a durable review/refund Order", async () =>
         `, [result.order_id])).rows[0];
         assert.equal(order.review_needed, true);
         assert.match(order.review_note, /could not transact at payment completion/u);
+        const reservation = (await db.query(
+          `SELECT status FROM public."CheckoutStockReservation" WHERE id = 'reservation-1'`,
+        )).rows[0];
+        assert.equal(reservation.status, "COMPLETED");
       } finally {
         await db.exec("ROLLBACK");
       }
