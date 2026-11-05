@@ -211,8 +211,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div
               key={t.id}
               role={t.type === "error" ? "alert" : "status"}
-              onMouseEnter={() => pauseDismiss(t.id, "hover")}
-              onMouseLeave={() => resumeDismiss(t.id, "hover")}
+              // Mouse only: a tap fires an emulated mouseenter with no
+              // mouseleave, which left the toast paused until the next tap.
+              onPointerEnter={(event) => {
+                if (event.pointerType === "mouse") pauseDismiss(t.id, "hover");
+              }}
+              onPointerLeave={(event) => {
+                if (event.pointerType === "mouse") resumeDismiss(t.id, "hover");
+              }}
               data-toast-id={t.id}
               onFocus={(event) => {
                 const from = event.relatedTarget as HTMLElement | null;

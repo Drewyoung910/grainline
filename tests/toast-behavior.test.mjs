@@ -270,9 +270,9 @@ test("timed toasts stay paused until both pointer and keyboard focus leave", () 
   assert.equal(toast.props.role, "status");
 
   fixture.clock.advance(4_000);
-  toast.props.onMouseEnter();
+  toast.props.onPointerEnter({ pointerType: "mouse" });
   toast.props.onFocus(focusEvent);
-  toast.props.onMouseLeave();
+  toast.props.onPointerLeave({ pointerType: "mouse" });
   fixture.clock.advance(30_000);
   assert.equal(notifications(fixture).length, 1, "focus keeps the timer paused after hover ends");
 
@@ -291,6 +291,20 @@ test("timed toasts stay paused until both pointer and keyboard focus leave", () 
   assert.equal(notifications(fixture).length, 1);
   fixture.clock.advance(1);
   assert.equal(notifications(fixture).length, 0);
+  fixture.unmount();
+});
+
+test("a tap on a timed toast does not pause it", () => {
+  const fixture = loadToastFixture();
+  fixture.toast("Added to your cart", "success");
+  const toast = notifications(fixture)[0];
+
+  // A tap sends a touch pointerenter, then the browser's emulated mouseenter
+  // with no mouseleave to follow.
+  toast.props.onPointerEnter?.({ pointerType: "touch" });
+  toast.props.onMouseEnter?.();
+  fixture.clock.advance(6_000);
+  assert.equal(notifications(fixture).length, 0, "the toast still leaves on time after a tap");
   fixture.unmount();
 });
 
