@@ -20,8 +20,10 @@ function broadcastErrorMessage(data: { error?: string; nextAvailableAt?: string 
 
 function broadcastSentMessage(data: { recipientCount?: unknown } | null) {
   const count = data?.recipientCount;
-  if (typeof count !== "number" || !Number.isInteger(count) || count < 0) return "Update sent.";
-  return `Update sent to ${count} follower${count === 1 ? "" : "s"}.`;
+  // Only followers with shop-update alerts on are counted, and sending happens
+  // after this response, so this is not the follower total or a delivery count.
+  if (typeof count !== "number" || !Number.isInteger(count) || count <= 0) return "Update posted.";
+  return `Update posted. Up to ${count} follower${count === 1 ? "" : "s"} will get a notification.`;
 }
 
 export default function BroadcastComposer({

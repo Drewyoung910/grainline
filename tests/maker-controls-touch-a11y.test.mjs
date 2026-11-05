@@ -27,7 +27,7 @@ describe("maker dashboard control sizing and state announcements (#1245, #1247, 
     assert.match(route, /return privateJson\(\{\s*broadcastId: broadcast\.id,\s*recipientCount: notificationFollowers\.length,/);
     assert.match(composer, /<p role="alert" className="text-sm text-red-600">\{error\}<\/p>/);
     assert.match(composer, /<p role="status"[^>]*>\{sentNotice\}<\/p>/);
-    assert.match(composer, /Update sent to \$\{count\} follower\$\{count === 1 \? "" : "s"\}\./);
+    assert.match(composer, /Update posted\. Up to \$\{count\} follower\$\{count === 1 \? "" : "s"\} will get a notification\./);
     assert.match(composer, /setSentNotice\(broadcastSentMessage\(data\)\)/);
   });
 
