@@ -164,7 +164,9 @@ export default function EditPhotoGrid({
       ) : (
         <>
           <p className="text-xs text-neutral-500">
-            Drag photos to reorder. First photo is the cover. Photo changes are staged until you press Save.
+            <span className="pointer-coarse:hidden">Drag photos to reorder.</span>
+            <span className="hidden pointer-coarse:inline">Use the arrows to reorder.</span>{" "}
+            First photo is the cover. Photo changes are staged until you press Save.
           </p>
           <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {photos.map((p, idx) => (

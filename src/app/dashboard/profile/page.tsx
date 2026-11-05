@@ -426,7 +426,7 @@ export default async function ProfilePage({
             <input
               name="displayName"
               required
-              autoComplete="name"
+              autoComplete="off"
               defaultValue={fullSeller.displayName}
               className={inputClass}
             />
