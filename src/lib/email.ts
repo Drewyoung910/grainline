@@ -619,36 +619,54 @@ export function renderCaseOpenedEmail(opts: {
   };
 }
 
-export async function sendCaseOpened(opts: Parameters<typeof renderCaseOpenedEmail>[0]) {
-  await sendRenderedEmail(renderCaseOpenedEmail(opts));
-}
-
 export function renderCaseMessageEmail(opts: {
   recipientName?: string | null;
   recipientEmail: string;
   senderName?: string | null;
   caseLink: string;
   messageSnippet: string;
+  orderId?: string;
+  fromStaff?: boolean;
 }): RenderedEmail {
-  const { recipientName, recipientEmail, senderName, caseLink } = opts;
+  const { recipientName, recipientEmail, senderName, caseLink, orderId, fromStaff } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent a message in your case.</p>
-    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read and reply in the case thread.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">${fromStaff ? "Open Grainline to read it in the case thread." : "Open Grainline to read and reply in the case thread."}</p>
     ${btn("View conversation", caseLink)}
   `;
 
   return {
     to: recipientEmail,
-    subject: `${safeSubject(sender)} sent a message in your case`,
+    subject: `${safeSubject(sender)} sent a message in your case${orderId ? orderSubjectSuffix(orderId) : ""}`,
     html: baseTemplate("New Case Message", body),
   };
 }
 
-export async function sendCaseMessage(opts: Parameters<typeof renderCaseMessageEmail>[0]) {
-  await sendRenderedEmail(renderCaseMessageEmail(opts));
+export function renderCaseUpdateEmail(opts: {
+  to: string;
+  recipientName?: string | null;
+  orderId: string;
+  side: "BUYER" | "SELLER";
+  heading: string;
+  message: string;
+}): RenderedEmail {
+  const { to, recipientName, orderId, side, heading, message } = opts;
+  const orderUrl = `${APP_URL}/dashboard/${side === "BUYER" ? "orders" : "sales"}/${orderId}`;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(recipientName || "there")}, this is about your case on order <strong>#${esc(shortId(orderId))}</strong>.</p>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(message)}</p>
+    ${btn("View case", orderUrl)}
+  `;
+
+  return {
+    to,
+    subject: `${heading}${orderSubjectSuffix(orderId)}`,
+    html: baseTemplate(heading, body),
+  };
 }
 
 export function renderCaseResolvedEmail(opts: {
