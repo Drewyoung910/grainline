@@ -37,7 +37,7 @@ export default function ConversationListItem({
             : "hover:bg-[#E3DCCB]/75"
         }`}
       >
-        <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-sm font-medium text-neutral-700 ring-1 ring-[#2C1F1A]/8">
+        <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-sm font-medium text-neutral-700">
           {avatarInitial(title)}
           {avatarUrl && (
             <MediaImage
