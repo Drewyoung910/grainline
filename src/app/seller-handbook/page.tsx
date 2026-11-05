@@ -215,14 +215,14 @@ export default function SellerHandbookPage() {
             ads, no shipping markup, no recurring listing fees.
           </p>
           <p>
-            Faire takes 15% on first orders from a new buyer (25% on direct-from-store). Amazon Handmade is 15% plus
+            Faire, a wholesale marketplace, takes 15% on marketplace orders. Amazon Handmade is 15% plus
             their own ad ecosystem. Grainline&apos;s 5% is a fraction of any of these, by design.
           </p>
 
           <h3>Payouts</h3>
           <p>
             Stripe deposits your earnings (sale price minus the 5% Grainline fee) into your
-            connected bank account on a rolling schedule, typically 2 business days after the order is paid. You can
+            connected bank account on a rolling schedule, typically 2 to 7 business days after the order is paid. You can
             view your balance and payout history in your Stripe dashboard, linked from{" "}
             <Link href="/dashboard/seller">Shop Settings</Link>.
           </p>
@@ -321,8 +321,10 @@ export default function SellerHandbookPage() {
         <section id="guild">
           <h2>8. Guild verification</h2>
           <p>
-            The Guild is a two-tier badge program signaling that a maker has been verified and consistently delivers
-            quality work. Buyers see the badge on listings, your shop page, and in search results. Guild Members get
+            The Guild is a two-tier badge program. A Guild Member badge shows a complete profile and good standing
+            on Grainline; a Guild Master badge reflects a record of strong ratings, on-time shipping and quick
+            replies. Neither badge is a guarantee of product quality. Buyers see the badge on listings, your shop
+            page, and in search results. Guild Members get
             priority placement in browse relevance ranking and in Featured Maker rotations.
           </p>
 
@@ -447,7 +449,7 @@ export default function SellerHandbookPage() {
       <section className="mt-16 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-8 text-center">
         <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-3">Ready to start selling?</h2>
         <p className="text-neutral-700 mb-5 max-w-md mx-auto">
-          5% fees, no listing fees, real maker tools. Set up your shop in under 10 minutes.
+          5% fees, no listing fees, real maker tools. Set up your shop today.
         </p>
         <Link
           href="/become-a-maker"
