@@ -237,9 +237,12 @@ describe("AI review outer fail-closed behavior", () => {
   it("does not count the listing currently under review as a prior duplicate", async () => {
     process.env.OPENAI_API_KEY = "test-key";
 
+    // Asserting inside the stub would be swallowed: the duplicate check is
+    // wrapped in a non-fatal try/catch. Record the argument and check after.
+    let excluded;
     const result = await reviewListingWithAI({ ...listing(), imageUrls: [], listingId: "listing_current" }, {
       findRecentListingTitles: async (_sellerId, excludeListingId) => {
-        assert.equal(excludeListingId, "listing_current");
+        excluded = excludeListingId;
         return [
           { id: "listing_prior", title: "Walnut entry bench" },
           { id: "listing_current", title: "Walnut entry bench" },
@@ -265,7 +268,26 @@ describe("AI review outer fail-closed behavior", () => {
       sleep: async () => {},
     });
 
+    assert.equal(excluded, "listing_current");
     assert.equal(result.approved, true);
     assert.deepEqual(result.flags, []);
+  });
+
+  it("rejects a third listing with the same title as two recent ones", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+
+    const result = await reviewListingWithAI({ ...listing(), imageUrls: [], listingId: "listing_current" }, {
+      findRecentListingTitles: async () => [
+        { title: "Walnut entry bench" },
+        { title: "walnut  entry bench!" },
+      ],
+      fetchWithTimeout: async () => {
+        throw new Error("a duplicate is decided before any provider call");
+      },
+      sleep: async () => {},
+    });
+
+    assert.equal(result.approved, false);
+    assert.deepEqual(result.flags, ["duplicate-listing", "possible-spam"]);
   });
 });
