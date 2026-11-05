@@ -412,7 +412,7 @@ export default function SellerHandbookPage() {
           <h3>The basics that compound</h3>
           <ul>
             <li><strong>Reply fast.</strong> Buyers often decide quickly, and your response rate counts toward Guild
-              Master. Set up email notifications in <Link href="/dashboard/seller">Shop Settings</Link>.</li>
+              Master. Turn on message emails in <Link href="/account/settings">account settings</Link>.</li>
             <li><strong>Ask for reviews.</strong> Send a polite follow-up message about a week after delivery. Your
               rating is one of the signals in our search ranking.</li>
             <li><strong>Write blog posts.</strong> Your maker page links to your blog. Each post is a Google-indexed
