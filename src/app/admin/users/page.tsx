@@ -50,7 +50,7 @@ export default async function AdminUsersPage({
 
   // If ?email= is present, look up user for standalone email form
   let emailTarget: { id: string; name: string | null; email: string } | null = null;
-  if (email) {
+  if (/^[^\s@]+@[^\s@]+$/.test(email)) {
     emailTarget = await userStaffExactEmailTarget(staffClient, {
       actorId: staff.id,
       email: email.toLowerCase(),
