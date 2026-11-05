@@ -6,12 +6,20 @@ import ts from "typescript";
 
 // The real restore functions, for a session whose reservation cannot be found by
 // session id. Before this, every such session added stock back from its metadata.
-function subject({ abortResult = { result: "restored", checkoutLockKey: "lock", stockVisibilityChanged: 0 } } = {}) {
+function subject({
+  abortResult = { result: "restored", checkoutLockKey: "lock", stockVisibilityChanged: 0 },
+  abortError = null,
+} = {}) {
   const path = "src/lib/checkoutStockRestore.ts";
   const calls = { aborts: [], legacyTransactions: 0, stockWrites: 0, lockReleases: 0 };
   const absent = async () => ({ result: "absent", checkoutLockKey: null, stockVisibilityChanged: 0 });
   const dependencies = {
-    "@sentry/nextjs": { captureMessage() {}, captureException() {} },
+    "@sentry/nextjs": {
+      captureMessage() {},
+      captureException: () => {
+        calls.reported = (calls.reported ?? 0) + 1;
+      },
+    },
     "@/lib/db": {
       prisma: {
         $transaction: async (callback) => {
@@ -40,6 +48,7 @@ function subject({ abortResult = { result: "restored", checkoutLockKey: "lock", 
     "@/lib/checkoutStockReservationAuthority": {
       abortCheckoutStockReservation: async (input) => {
         calls.aborts.push(input);
+        if (abortError) throw abortError;
         return abortResult;
       },
       restoreBuyerExpiredCheckoutStockReservation: absent,
@@ -105,4 +114,14 @@ test("a session from before reservations still restores from its metadata", asyn
   assert.equal(calls.aborts.length, 0);
   assert.equal(calls.legacyTransactions, 1);
   assert.equal(calls.stockWrites, 1);
+});
+
+test("an abort the database refuses is logged once and settled, so the webhook stops retrying", async () => {
+  const { calls, exports } = subject({ abortError: new Error("Checkout abort authority does not match reservation") });
+  await exports.restoreUnorderedCheckoutStockOnce({
+    eventId: "evt", claimGeneration: 1n, sessionId: "cs_orphan", metadata: tagged,
+  });
+  assert.equal(calls.reported, 1);
+  assert.equal(calls.stockWrites, 0);
+  assert.equal(calls.lockReleases, 1);
 });
