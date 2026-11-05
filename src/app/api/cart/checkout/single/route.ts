@@ -1,12 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import {
-  checkoutRatelimit,
-  checkoutReservationRatelimit,
-  rateLimitResponse,
-  safeRateLimit,
-} from "@/lib/ratelimit";
+import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isFallbackRate } from "@/types/checkout";
 import { shippingRateExpiresAtIsTooFarFuture, shippingRateSubjectHash, verifyRate } from "@/lib/shipping-token";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents } from "@/lib/listingVariants";
@@ -388,12 +383,6 @@ export async function POST(req: Request) {
       }
       if (body.quantity > available) {
         return privateJson({ error: `Only ${available} available.` }, { status: HTTP_STATUS.BAD_REQUEST });
-      }
-      const reservationLimit = await safeRateLimit(checkoutReservationRatelimit, me.id);
-      if (!reservationLimit.success) {
-        return privateResponse(
-          rateLimitResponse(reservationLimit.reset, "You have started too many checkouts recently."),
-        );
       }
     }
 

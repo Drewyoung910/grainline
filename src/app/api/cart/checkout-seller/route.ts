@@ -3,12 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippingRateExpiresAtIsTooFarFuture, shippingRateSubjectHash, verifyRate } from "@/lib/shipping-token";
-import {
-  checkoutRatelimit,
-  checkoutReservationRatelimit,
-  rateLimitResponse,
-  safeRateLimit,
-} from "@/lib/ratelimit";
+import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents, type SelectedVariantSnapshot } from "@/lib/listingVariants";
@@ -526,15 +521,6 @@ export async function POST(req: Request) {
         { error: "These pieces are held by a checkout you already started. Finish it, or try again in about 30 minutes." },
         { status: HTTP_STATUS.CONFLICT },
       );
-    }
-
-    if (resolvedSellerItems.some((item) => item.listing.listingType === "IN_STOCK")) {
-      const reservationLimit = await safeRateLimit(checkoutReservationRatelimit, me.id);
-      if (!reservationLimit.success) {
-        return privateResponse(
-          rateLimitResponse(reservationLimit.reset, "You have started too many checkouts recently."),
-        );
-      }
     }
 
     checkoutPayloadHashValue = payloadHash;

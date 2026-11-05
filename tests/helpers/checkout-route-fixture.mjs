@@ -8,11 +8,9 @@ import { stripeRefusedCheckoutSessionCreate } from "../../src/lib/checkoutLockSt
 
 const require = createRequire(import.meta.url);
 
-// Runs the real checkout routes with isolated ports. The question is only
-// whether stock gets reserved once the buyer has used up their allowance.
-export function checkoutRouteFixture(path, { listingType = "IN_STOCK", capped = false, createSession } = {}) {
-  const state = { reservations: 0, capChecks: 0, aborts: 0, lockReleases: 0, createOptions: null };
-  const reservationLimiter = { name: "reservation" };
+// Runs the real checkout routes with the database, Redis and Stripe replaced.
+export function checkoutRouteFixture(path, { listingType = "IN_STOCK", createSession } = {}) {
+  const state = { reservations: 0, aborts: 0, lockReleases: 0, createOptions: null };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const seller = {
     id: "seller", userId: "maker", displayName: "Maker", chargesEnabled: true,
@@ -34,12 +32,7 @@ export function checkoutRouteFixture(path, { listingType = "IN_STOCK", capped = 
     "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "buyer", email: "b@example.test" }) },
     "@/lib/ratelimit": {
       checkoutRatelimit: { name: "attempts" },
-      checkoutReservationRatelimit: reservationLimiter,
-      safeRateLimit: async (limiter) => {
-        if (limiter !== reservationLimiter) return { success: true, reset: 0 };
-        state.capChecks += 1;
-        return { success: !capped, reset: Date.now() + 60_000 };
-      },
+      safeRateLimit: async () => ({ success: true, reset: 0 }),
       rateLimitResponse: (_reset, message) => Response.json({ error: message }, { status: 429 }),
     },
     "@/lib/requestOriginGuard": { getExplicitCrossOriginPostRejection: () => null },
