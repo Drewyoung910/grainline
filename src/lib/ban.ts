@@ -2,7 +2,10 @@ import { prisma } from './db'
 import { stripe } from './stripe'
 import { buildBanAuditMetadata } from './banAuditMetadata'
 import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
-import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
+import {
+  expireOpenCheckoutSessionsForBuyer,
+  expireOpenCheckoutSessionsForSeller,
+} from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
@@ -432,6 +435,10 @@ export async function banUser({ userId, adminId, reason }: {
       })
     }
   }
+
+  // Best effort, and it reports its own failures. A session it misses expires
+  // within 31 minutes, and a payment on one is refunded automatically.
+  await expireOpenCheckoutSessionsForBuyer({ buyerId: userId, source: 'ban_user' })
 
   await notifyBuyersOfBannedSellerOrders(
     clerkSync.flaggedOpenOrders,
