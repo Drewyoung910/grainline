@@ -192,7 +192,7 @@ export default function BuyNowCheckoutModal({
       if (typeof data.completedSessionId === "string" && data.completedSessionId) {
         completedRef.current = true;
         onCloseRef.current();
-        router.push(`/checkout/success?session_id=${data.completedSessionId}`);
+        router.replace(`/checkout/success?session_id=${data.completedSessionId}`);
         return;
       }
 
@@ -520,7 +520,8 @@ export default function BuyNowCheckoutModal({
                 completedRef.current = true;
                 sessionIdRef.current = null;
                 onClose();
-                router.push(
+                // Replace, so Back cannot land on the listing as it was before the sale.
+                router.replace(
                   `/checkout/success?session_id=${sessionId}`,
                 );
               }}
