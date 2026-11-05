@@ -353,7 +353,7 @@ async function BrowseMetroContent({
       {/* Nearby areas */}
       {nearbyWithContent.length > 0 && (
         <section className="border-t border-neutral-100 pt-8 mb-8">
-          <h2 className="text-sm font-semibold text-neutral-700 mb-3">Also see makers in</h2>
+          <h2 className="text-sm font-semibold text-neutral-700 mb-3">Nearby</h2>
           <div className="flex flex-wrap gap-2">
             {nearbyWithContent.map((m) => (
               <Link
