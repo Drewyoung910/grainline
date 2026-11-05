@@ -10,6 +10,7 @@ import { renderCaseMessageEmail } from "@/lib/email";
 import { queueCaseEmail } from "@/lib/caseEmail";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import {
+  adminActionRatelimit,
   caseMessageRatelimit,
   rateLimitResponse,
   safeRateLimit,
@@ -107,16 +108,17 @@ export async function POST(
     const { userId, sessionId } = await auth();
     if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
+    const me = await ensureUserByClerkId(userId);
+
+    // A participant writes in one Case. Staff reply across the whole queue.
     const { success, reset } = await safeRateLimit(
-      caseMessageRatelimit,
+      me.role === "EMPLOYEE" || me.role === "ADMIN" ? adminActionRatelimit : caseMessageRatelimit,
       userId,
     );
     if (!success)
       return privateResponse(
         rateLimitResponse(reset, "Too many messages. Slow down and try again."),
       );
-
-    const me = await ensureUserByClerkId(userId);
 
     let parsed;
     try {

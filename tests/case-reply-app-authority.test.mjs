@@ -61,8 +61,8 @@ describe("Case-reply application authority", () => {
     assertOrdered(route, [
       ["origin guard", "getExplicitCrossOriginPostRejection(req)"],
       ["authentication", "await auth()"],
-      ["rate limit", "await safeRateLimit("],
       ["local actor", "await ensureUserByClerkId(userId)"],
+      ["rate limit by role", "await safeRateLimit("],
       ["bounded body", "await readBoundedJson(req, CASE_MESSAGE_BODY_MAX_BYTES)"],
       ["sanitization and stored bounds", "normalizeCaseMessageBody(parsed.body)"],
       ["preflight", "await getCaseMessagePreflight({"],
