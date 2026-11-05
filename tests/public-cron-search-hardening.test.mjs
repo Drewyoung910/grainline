@@ -78,7 +78,7 @@ describe("cron and public route hardening", () => {
     assert.match(route, /partialCronRunIssueCount/);
     assert.match(route, /cronRunPartialIssueSummary/);
     assert.match(route, /status:\s*"RUNNING"/);
-    assert.match(route, /status:\s*"COMPLETED"/);
+    assert.match(route, /recentCronRunsWithPartialIssues\(prisma, failedCronSince,/);
     assert.match(route, /startedAt:\s*\{\s*lt: staleCronRunningBefore\s*\}/);
     assert.match(route, /status:\s*response\.ok \? HTTP_STATUS\.OK : HTTP_STATUS\.SERVICE_UNAVAILABLE/);
   });
