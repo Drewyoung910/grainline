@@ -26,6 +26,16 @@ describe("checkout success session parsing", () => {
     assert.deepEqual(checkoutSuccessParams(null), { sessionId: undefined, sessionIds: undefined });
   });
 
+  it("drops session ids with characters Stripe never uses, such as NUL", () => {
+    assert.deepEqual(
+      checkoutSuccessSessionIds({
+        sessionId: "cs_test_a1B2",
+        sessionIds: "cs_\u0000,cs_bad id,cs_test_a1B2,cs_live_c3",
+      }),
+      { sessionIds: ["cs_test_a1B2", "cs_live_c3"], truncatedCount: 0 },
+    );
+  });
+
   it("dedupes comma-separated checkout session ids while preserving order", () => {
     assert.deepEqual(
       checkoutSuccessSessionIds({

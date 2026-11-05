@@ -124,7 +124,13 @@ export async function readBoundedWebhookText(request: Request, maxBytes: number)
 export async function readBoundedJson(request: Request, maxBytes: number): Promise<unknown> {
   const text = await readBoundedText(request, maxBytes);
   try {
-    return JSON.parse(text);
+    // PostgreSQL text cannot hold U+0000, so a value carrying one would only
+    // fail later as a 500. Drop it from values (the text sanitizer strips it
+    // anyway) and treat a key carrying one as an invalid body.
+    return JSON.parse(text, (key, value) => {
+      if (key.includes("\u0000")) throw new InvalidJsonBodyError();
+      return typeof value === "string" ? value.replaceAll("\u0000", "") : value;
+    });
   } catch {
     throw new InvalidJsonBodyError();
   }
