@@ -535,6 +535,15 @@ export async function unbanUser({ userId, adminId, reason }: {
     select: { metadata: true },
   })
   const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
+  if (seller && !seller.stripeAccountId) {
+    // No Stripe account to read, and the ban forced vacation on. Put back what the
+    // maker had, or they stay hidden with no sign of why.
+    sellerRestore = {
+      id: seller.id,
+      chargesEnabled: false,
+      vacationMode: capabilityBanMetadata.previousSellerProfile?.vacationMode ?? false,
+    }
+  }
   const userUnbanCapability = await mintUserStaffCapability(staffClient, {
     actorId: adminId,
     targetId: userId,

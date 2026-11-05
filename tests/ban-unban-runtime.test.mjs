@@ -132,3 +132,24 @@ test("a Clerk outage stops the unban before anything local changes", async () =>
   assert.equal(subject.state.transactions, 0);
 });
 
+test("a maker with no Stripe account does not stay stuck on vacation after an unban", async () => {
+  const subject = fixture({
+    banMetadata: {
+      previousSellerProfile: { id: "seller", chargesEnabled: false, vacationMode: false },
+    },
+  });
+  await subject.unban();
+  assert.equal(subject.state.transitions[0].next.chargesEnabled, false);
+  assert.equal(subject.state.transitions[0].next.vacationMode, false);
+});
+
+test("a maker who chose vacation before the ban stays on vacation", async () => {
+  const subject = fixture({
+    banMetadata: {
+      previousSellerProfile: { id: "seller", chargesEnabled: false, vacationMode: true },
+    },
+  });
+  await subject.unban();
+  assert.equal(subject.state.transitions[0].next.vacationMode, true);
+});
+
