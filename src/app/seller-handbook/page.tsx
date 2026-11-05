@@ -307,7 +307,7 @@ export default function SellerHandbookPage() {
 
           <h3>Gift wrapping</h3>
           <p>
-            Enable gift wrapping in Shop Settings to offer it as an upsell at checkout. Set your price (suggestion:
+            Enable gift wrapping on Shop Profile to offer it as an upsell at checkout. Set your price (suggestion:
             $5–$15 for a thoughtful wrap including a card). Buyers can add a gift note that prints on the packing slip.
           </p>
 

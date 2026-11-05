@@ -621,7 +621,7 @@ export default async function BuyerOrderDetailPage({
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
               {activeCase.buyerMarkedResolved && !activeCase.sellerMarkedResolved ? (
                 <p className="text-sm text-neutral-500">
-                  Waiting for seller to confirm resolution.
+                  Waiting for maker to confirm resolution.
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">

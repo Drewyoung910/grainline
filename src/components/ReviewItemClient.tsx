@@ -158,7 +158,7 @@ export function SellerReplyForm({
       onClick={() => setOpen(true)}
       className="inline-flex items-center rounded-full bg-[#EFEAE0] hover:bg-[#E3DCCB] px-3 py-1 text-xs font-medium text-neutral-800 transition-colors"
     >
-      Reply as seller
+      Reply as maker
     </button>
   );
 }
