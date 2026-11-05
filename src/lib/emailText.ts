@@ -59,6 +59,8 @@ export function htmlToText(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
+    // Source newlines between cells would otherwise split one row across lines.
+    .replace(/<\/(td|th)>\s+(?=<t[dh]\b)/gi, "</$1>")
     .replace(/<\/(td|th)>/gi, "\t")
     .replace(/<\/(p|div|h1|h2|h3|li|tr)>/gi, "\n")
     .replace(/<[^>]+>/g, "");

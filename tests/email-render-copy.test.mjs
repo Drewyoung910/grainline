@@ -162,3 +162,18 @@ describe("custom piece ready", () => {
   });
 });
 
+describe("plain text and narrow screens", () => {
+  it("keeps each table row on one line in the plain-text version", async () => {
+    const { htmlToText } = await import("../src/lib/emailText.ts");
+    const { html } = email.renderOrderConfirmedBuyerEmail({
+      order: { id: "order-1", ...orderTotals },
+      buyer: { email: "a@example.com" },
+      seller: { displayName: "Shop" },
+      items: [{ title: "Bench", quantity: 2, priceCents: 24000 }],
+    });
+    const text = htmlToText(html);
+    assert.match(text, /Bench \| ×2 \| \$480\.00/);
+    assert.match(text, /Total \| \$534\.34/);
+  });
+
+});
