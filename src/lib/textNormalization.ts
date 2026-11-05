@@ -1,5 +1,6 @@
 export const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
-export const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
+// Invisible characters, including the soft hyphen (U+00AD).
+export const ZERO_WIDTH_CHARS = /[\u00AD\u200B-\u200D\uFEFF]/g;
 const NULL_BYTES = /\u0000/g;
 const CYRILLIC_CONFUSABLES: Record<string, string> = {
   А: "A",
