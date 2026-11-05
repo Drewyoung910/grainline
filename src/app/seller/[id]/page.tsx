@@ -413,16 +413,8 @@ async function SellerPublicContent({
           </div>
         </div>
 
-        <div className="px-2 sm:px-4 pt-16 pb-2 space-y-4">
-          {/* Top row: name + badges (left), Back to Browse (right). */}
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
-            </div>
-            <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1">
-              ← Back to Browse
-            </Link>
-          </div>
+        <div className="pt-16 pb-2 space-y-4">
+          <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
 
           {(Boolean(seller.guildLevel && seller.guildLevel !== "NONE") || seller.isFoundingMaker) && (
             <div className="flex flex-wrap items-center gap-3" aria-label="Maker credentials">
@@ -479,9 +471,6 @@ async function SellerPublicContent({
               </>
             )}
             <span className="text-neutral-600">Member since {memberSinceYear}</span>
-            {seller.acceptsCustomOrders && (
-              <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 font-medium">Accepting custom orders</span>
-            )}
             {!seller.acceptingNewOrders && (
               <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 font-medium">Not currently taking new orders</span>
             )}
@@ -492,9 +481,8 @@ async function SellerPublicContent({
             <ExpandableText text={seller.bio} clampLines={3} className="max-w-3xl" />
           )}
 
-          {/* Action row — Following first (left-most), then Message Maker,
-              Custom Piece, View all listings. All dark cream for a unified
-              secondary-button look. */}
+          {/* Action row — Following first (left-most), then Message Maker and
+              Custom Piece. All dark cream for a unified secondary-button look. */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {meId !== sellerUserId && (
               <>
@@ -530,12 +518,6 @@ async function SellerPublicContent({
                     </Link>
                   )
                 )}
-                <Link
-                  href={publicSellerShopPath(seller.id, seller.displayName)}
-                  className="btn btn-sm btn-secondary"
-                >
-                  View all listings
-                </Link>
               </>
             )}
 
@@ -572,7 +554,7 @@ async function SellerPublicContent({
       </section>
 
       {/* ── Body: full-width rhythm ─────────────────────────────────────── */}
-      <div className="mt-6 pb-12 px-2 sm:px-4">
+      <div className="mt-6 pb-12">
         <div className="min-w-0 space-y-10">
 
           {/* Latest broadcast */}
@@ -607,7 +589,8 @@ async function SellerPublicContent({
                 featuredListings.length > 0
                   ? featuredListings
                   : listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).slice(0, 3);
-              if (fallbackFeatured.length === 0) return null;
+              // One or two cards would only repeat the start of All Listings.
+              if (fallbackFeatured.length < 3) return null;
               const sellerChip = {
                 id: seller.id,
                 displayName: seller.displayName ?? null,
