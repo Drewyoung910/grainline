@@ -41,7 +41,10 @@ function load(path, exportName) {
       get: (_target, key) => (key === "safeRateLimit" ? async () => ({ success: true }) : {}),
     }),
     "@/lib/ensureSeller": { ensureSeller: async () => ({ seller, me: { id: "user" } }) },
-    "@/lib/userIdentityAccess": { userAccountByClerkId: async () => ({ id: "user" }) },
+    "@/lib/userIdentityAccess": {
+      userAccountByClerkId: async () => ({ id: "user" }),
+      userClerkCommissionContext: async () => ({ id: "user", banned: false, deletedAt: null }),
+    },
     "@/lib/sellerOwnerPrivateAccess": new Proxy({}, {
       get: (_target, key) => (key === "sellerOwnerOnboardingMutationState" ? async () => seller : write),
     }),
@@ -112,6 +115,23 @@ describe("shop text saves refuse slur-tier words and keep mild words", () => {
     assert.deepEqual(calls.redirects, ["/dashboard/profile?warning=blocked-language"]);
     assert.equal(calls.writes, 0);
   });
+
+  for (const [name, path, exportName, body, params] of [
+    ["review create", "src/app/api/reviews/route.ts", "POST", (text) => ({ listingId: "listing", ratingX2: 10, comment: text })],
+    ["review edit", "src/app/api/reviews/[id]/route.ts", "PATCH", (text) => ({ ratingX2: 10, comment: text }), { params: Promise.resolve({ id: "review" }) }],
+    ["commission request", "src/app/api/commission/route.ts", "POST", (text) => ({ title: "Walnut desk", description: text })],
+  ]) {
+    it(`${name}: refused with a clear message, and nothing is written`, async () => {
+      const { action, calls } = load(path, exportName);
+      const response = await action(new Request("https://example.test/api", {
+        method: exportName,
+        body: JSON.stringify(body(`A long enough request. ${SLUR}.`)),
+      }), params);
+      assert.equal(response.status, 400);
+      assert.equal((await response.json()).error, SHOP_TEXT_SLUR_MESSAGE);
+      assert.equal(calls.writes, 0);
+    });
+  }
 
   it("vacation message: refused with a clear message, and nothing is written", async () => {
     const { action, calls } = load("src/app/api/seller/vacation/route.ts", "POST");

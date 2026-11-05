@@ -4,7 +4,7 @@ import { userClerkGate } from "@/lib/userIdentityAccess";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
-import { containsProfanity } from "@/lib/profanity";
+import { containsProfanity, containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
 import { syncReviewDirectUploadReferences } from "@/lib/directUploadLifecycle";
@@ -58,6 +58,9 @@ export async function PATCH(
   const { ratingX2, comment } = reviewPatchParsed;
   const photos = reviewPatchParsed.photos ?? reviewPatchParsed.photoUrls ?? [];
   const hasCommentUpdate = Object.prototype.hasOwnProperty.call(reviewPatchParsed, "comment");
+  if (containsSlur(comment)) {
+    return privateJson({ error: SHOP_TEXT_SLUR_MESSAGE }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
   if (typeof comment === "string" && comment.trim()) {
     const profanityResult = containsProfanity(comment);
     if (profanityResult.flagged) {

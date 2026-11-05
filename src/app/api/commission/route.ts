@@ -16,7 +16,7 @@ import {
   searchRatelimit,
 } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
-import { containsProfanity } from "@/lib/profanity";
+import { containsProfanity, containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicCommissionInterestCounts } from "@/lib/commissionInterestCount";
@@ -151,7 +151,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Profanity check (log-only — does not block submission)
+  if (containsSlur([title, description, timeline].join("\n"))) {
+    return privateJson({ error: SHOP_TEXT_SLUR_MESSAGE }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  // Mild words are log-only and do not block submission
   {
     const profanityResult = containsProfanity(`${title} ${description}`);
     if (profanityResult.flagged) {
