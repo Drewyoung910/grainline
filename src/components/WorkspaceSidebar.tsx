@@ -144,6 +144,24 @@ export default function WorkspaceSidebar({
         aria-label={navLabel}
         className="-mx-4 pt-4 sm:-mx-6 lg:hidden"
       >
+        {/* Space is reserved so the links stay still while the name loads. */}
+        <div className="flex min-h-[36px] items-center gap-2.5 px-4 pb-2 sm:px-6">
+          {identity?.avatarUrl ? (
+            <MediaImage
+              src={identity.avatarUrl}
+              alt=""
+              width={36}
+              height={36}
+              className="size-9 shrink-0 rounded-full object-cover"
+              fallbackClassName="size-9 shrink-0 rounded-full bg-[#EFEAE0]"
+            />
+          ) : displayName ? (
+            <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#2C1F1A] text-sm font-medium text-[#FBF8F3]">
+              {avatarInitial(displayName)}
+            </span>
+          ) : null}
+          {displayName && <p className="min-w-0 truncate text-sm font-medium text-neutral-900">{displayName}</p>}
+        </div>
         <div
           ref={phoneRowRef}
           className="relative flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden"
