@@ -111,7 +111,7 @@ export default async function WhySellOnGrainlinePage() {
                     <div className="font-display font-semibold text-neutral-900">Faire</div>
                     <div className="text-xs text-stone-500 mt-0.5">Wholesale</div>
                   </td>
-                  <td className="p-4 text-neutral-700">15% (25% on direct shops)</td>
+                  <td className="p-4 text-neutral-700">15% on marketplace orders</td>
                   <td className="p-4 text-neutral-700">None</td>
                   <td className="p-4 text-neutral-700">None</td>
                   <td className="p-4 text-neutral-700">Free shipping required</td>
@@ -135,7 +135,7 @@ export default async function WhySellOnGrainlinePage() {
           <p className="text-xs text-stone-500 px-4 py-3 border-t border-stone-100">
             Stripe processing (~2.9% + $0.30) applies to card payments. Grainline currently absorbs it
             under our payout model; the numbers above compare platform fees. Competitor fees are as
-            publicly published and may change — check each platform for current rates.
+            publicly published and may change, so check each platform for current rates.
           </p>
         </div>
       </section>
@@ -219,7 +219,7 @@ export default async function WhySellOnGrainlinePage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                  <span>Permanent. Never revoked. Never reassigned.</span>
+                  <span>Your number is permanent and never reassigned.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
@@ -309,7 +309,7 @@ export default async function WhySellOnGrainlinePage() {
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Direct Stripe payouts</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
               Connected directly to your bank account. Payouts arrive on Stripe&apos;s standard schedule, typically
-              2 business days after the order is paid.
+              2 to 7 business days after the order is paid.
             </p>
           </div>
           <div>
@@ -333,7 +333,7 @@ export default async function WhySellOnGrainlinePage() {
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Custom orders + commissions</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
               Buyers request custom pieces. You quote, build a private listing reserved for them, they check out
-              normally. The commission room also matches buyer briefs with available makers.
+              normally. Buyers also post requests in the Commission Room, and you can reply to the ones you can build.
             </p>
           </div>
           <div>
@@ -362,7 +362,7 @@ export default async function WhySellOnGrainlinePage() {
             offering a second one, not asking you to abandon what works.
           </p>
           <p className="text-stone-700 leading-relaxed">
-            If after 6 months you don&apos;t see value, close the shop. No fee, no penalty, no fight.
+            If after 6 months you don&apos;t see value, close the shop once your open orders are done. No fee, no penalty.
           </p>
         </div>
       </section>
@@ -371,7 +371,7 @@ export default async function WhySellOnGrainlinePage() {
       <section className="bg-[#2C1F1A] text-white py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4">
-            Open your shop in 10 minutes.
+            Open your shop today.
           </h2>
           <p className="text-white/80 mb-8">
             Stripe Connect is the only verification step. After that you can list, customize your profile, and
