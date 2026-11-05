@@ -90,3 +90,11 @@ test("the confirmation page still counts against the IP limit", async () => {
   assert.equal(response.status, 429);
 });
 
+test("a link replaced by a later opt-in sends the person to their settings", async () => {
+  const subject = fixture({ superseded: true });
+  const response = await subject.exports.GET(new Request(url()));
+  assert.equal(response.status, 400);
+  const html = await response.text();
+  assert.match(html, /href="\/account\/settings"/);
+  assert.doesNotMatch(html, /invalid or has expired/);
+});
