@@ -40,7 +40,7 @@ function fixture(options = {}) {
     "@/lib/db": { prisma },
     zod: require("zod"),
     "@/lib/sanitize": { truncateText: (text, length) => text.slice(0, length), sanitizeRichText: (text) => text },
-    "@/lib/profanity": { containsProfanity: () => ({ flagged: false }) },
+    "@/lib/profanity": { containsProfanity: () => ({ flagged: false }), containsSlur: () => false },
     "@/lib/profanityTelemetry": {},
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }) },
     "@/lib/requestBody": { readBoundedJson: async (req) => req.json() },
