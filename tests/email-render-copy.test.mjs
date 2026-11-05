@@ -114,3 +114,34 @@ describe("order confirmation address and pickup", () => {
     assert.match(maker, /Local pickup/);
   });
 });
+
+describe("first sale amount", () => {
+  it("shows what the piece sold for, not the buyer's total with tax and shipping", () => {
+    const { html } = email.renderFirstSaleCongratsEmail({
+      seller: { displayName: "Shop", email: "m@example.com" },
+      order: { id: "order-1", ...orderTotals },
+    });
+    assert.match(html, /\$480\.00/);
+    assert.doesNotMatch(html, /\$534\.34/);
+  });
+});
+
+describe("what buyers are asked to do next", () => {
+  it("asks a buyer to confirm delivery, which starts their Case window", () => {
+    const { html } = email.renderOrderShippedEmail({
+      order: { id: "order-1" },
+      buyer: { email: "a@example.com" },
+    });
+    assert.match(html, /confirm delivery on your order page/);
+  });
+
+  it("does not point a pickup buyer at details the order page does not have", () => {
+    const { html } = email.renderReadyForPickupEmail({
+      order: { id: "order-1" },
+      buyer: { email: "a@example.com" },
+      seller: { displayName: "Shop" },
+    });
+    assert.match(html, /Message Shop to arrange a time/);
+    assert.doesNotMatch(html, /pickup location/);
+  });
+});
