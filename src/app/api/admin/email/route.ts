@@ -23,6 +23,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { userStaffEmailRecipient } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 
 const APP_URL = EMAIL_APP_URL;
 const ADMIN_EMAIL_BODY_MAX_BYTES = 64 * 1024;
@@ -44,13 +45,16 @@ function safeSubject(subject: string) {
 }
 
 export async function POST(request: Request) {
-  const { userId: clerkId } = await auth();
+  const { userId: clerkId, sessionId } = await auth();
   if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await userClerkGate(prisma, clerkId);
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
     return privateJson({ error: "Forbidden — ADMIN only" }, { status: HTTP_STATUS.FORBIDDEN });
   }
+
+  const pinResponse = await requireStaffAdminPinForApi(request, clerkId, sessionId);
+  if (pinResponse) return pinResponse;
 
   const rl = await safeRateLimit(adminEmailRatelimit, admin.id);
   if (!rl.success) return privateResponse(rateLimitResponse(rl.reset, "Too many admin email attempts."));
