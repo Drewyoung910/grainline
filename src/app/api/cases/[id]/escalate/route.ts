@@ -3,6 +3,7 @@
 // separate database-selected case-auto-close batch and never target a
 // caller-supplied Case id through this route.
 import { auth } from "@clerk/nextjs/server";
+import { sendCaseUpdateEmail } from "@/lib/caseEmail";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -98,6 +99,25 @@ export async function POST(
         actorUserId: me.id,
         caseId: id,
       });
+      if (result.action === "updated") {
+        const participants = [
+          { userId: result.buyerUserId, side: "BUYER" as const },
+          { userId: result.sellerUserId, side: "SELLER" as const },
+        ];
+        for (const { userId: participantId, side } of participants) {
+          if (!participantId || participantId === result.actorUserId) continue;
+          await sendCaseUpdateEmail({
+            caseId: result.caseId,
+            orderId: result.orderId,
+            userId: participantId,
+            side,
+            dedupKey: `case-escalated:${result.auditLogId}:${participantId}`,
+            heading: "Grainline staff are reviewing your case",
+            message:
+              "This case was escalated, so Grainline staff will review it. We'll email you with the decision.",
+          });
+        }
+      }
       return privateJson({
         ok: true,
         escalated: 1,

@@ -930,6 +930,8 @@ Direct `send*` callers today: `sendCaseOpened`, `sendCaseMessage`, `sendCustomOr
 
 All follower listing fanout paths (create, publish, unhide, admin approve) share one `followed-listing:{listingId}:{followerId}` email key, so a piece is announced once (EM-10).
 
+Case email: Case opened (with a buyer acknowledgement) and Case messages go through the outbox via `caseEmail.ts`. Mark-resolved, escalation, auto-close and the maker's copy of a staff decision use `sendCaseUpdateEmail`. All are always on (C-1897).
+
 ### Email/audit behavior future agents must preserve
 
 - New-message email notifications must claim `Conversation.lastMessageEmailSentAt` with a null-or-older-than-5-min `updateMany` before calling `sendNewMessageEmail`. Do not replace this with a read-before-write `findFirst` throttle; concurrent message sends can race and duplicate emails.
