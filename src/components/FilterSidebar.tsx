@@ -7,6 +7,7 @@ import { normalizeTags } from "@/lib/tags";
 import SegmentedControl from "@/components/SegmentedControl";
 import { ChevronDown } from "@/components/icons";
 import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
+import { isPlainClick } from "@/lib/photoMotion";
 
 // A filter choice applies at once and glides the page back to the top of the
 // results (the motion study's floating filter column).
@@ -292,7 +293,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                       data-filter-changes={JSON.stringify({ category: value || null })}
                       onPointerUp={(event) => event.currentTarget.blur()}
                       onClick={(event) => {
-                        setPendingCategory(value);
+                        // A new-tab click leaves this page on its current category.
+                        if (isPlainClick(event)) setPendingCategory(value);
                         handleFilterLinkClick(event);
                         setCategoryClosing(false);
                         setCategoryOpen(false);
