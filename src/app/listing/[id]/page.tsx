@@ -308,7 +308,7 @@ export default async function ListingPage({
         title: true,
         priceCents: true,
         currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, originalUrl: true } },
+        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
     }),
     prisma.review.findMany({
@@ -897,7 +897,7 @@ export default async function ListingPage({
                       <span className="relative block h-full w-full">
                         <CardMediaImage
                           src={ml.photos[0].url}
-                          fallbackSrc={ml.photos[0].originalUrl}
+                          fallbackSrc={ml.photos[1]?.url}
                           alt={ml.title}
                           sizes="(max-width: 639px) 50vw, 25vw"
                           loading="lazy"
