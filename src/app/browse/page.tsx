@@ -822,7 +822,10 @@ async function BrowseContent({
                     { value: "list", label: "List", href: viewToggleHref("list") },
                   ]}
                 />
-                <Pager />
+                {/* Phones use the bottom pager, so the first products stay high on the screen. */}
+                <div className="hidden md:block">
+                  <Pager />
+                </div>
               </div>
             </div>
           </div>
