@@ -23,6 +23,10 @@ export default function ListingGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  // The photo already on the page, shown in the viewer at the size the original
+  // will take, so opening is instant and the grow can measure it. The original
+  // replaces it once it has downloaded.
+  const [lightboxPreview, setLightboxPreview] = useState<{ url: string; src: string; ratio: number } | null>(null);
   const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
   // Width over height for each photo once it has loaded. From lg the photo sits
   // in a box this shape, so its corners and controls follow the photo itself.
@@ -61,6 +65,20 @@ export default function ListingGallery({
   });
   useDialogFocus(lightboxOpen, dialogRef, closeViewer);
   useBodyScrollLock(lightboxOpen);
+
+  useEffect(() => {
+    if (!lightboxPreview) return;
+    let cancelled = false;
+    const original = new window.Image();
+    original.src = lightboxPreview.url;
+    // If the original fails, the preview stays rather than a broken image.
+    original.decode().then(() => {
+      if (!cancelled) setLightboxPreview(null);
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [lightboxPreview]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -131,9 +149,16 @@ export default function ListingGallery({
   const mainIndex = lightboxOpen ? lightboxIndex : activeIndex;
   const activeUrl = photos[mainIndex]?.url ?? "";
   const activeRatio = photoRatios[activeUrl];
+  const showPreview = lightboxPreview !== null && lightboxPreview.url === photos[lightboxIndex]?.url;
 
   function openLightbox(i: number) {
     lightboxSwapRef.current = false;
+    const shown = mainPhotoRef.current?.querySelector("img");
+    setLightboxPreview(
+      shown?.complete && shown.naturalWidth > 0
+        ? { url: photos[i].url, src: shown.currentSrc, ratio: shown.naturalWidth / shown.naturalHeight }
+        : null,
+    );
     setLightboxIndex(i);
     setLightboxOpen(true);
   }
@@ -415,9 +440,12 @@ export default function ListingGallery({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={lightboxPhotoRef}
-              src={photos[lightboxIndex]?.url}
+              src={showPreview ? lightboxPreview.src : photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85dvh] object-contain"
+              style={showPreview
+                ? { width: `min(56rem, 100vw - 2rem, 85dvh * ${lightboxPreview.ratio})`, aspectRatio: lightboxPreview.ratio }
+                : undefined}
               onLoad={(e) => {
                 if (!lightboxSwapRef.current) return;
                 lightboxSwapRef.current = false;
