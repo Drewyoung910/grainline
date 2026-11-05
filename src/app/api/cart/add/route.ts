@@ -57,9 +57,11 @@ class CartAddError extends Error {
 // Prisma codes that indicate a transient DB-side problem (connection pool
 // exhaustion, network blip, server-closed-connection). Worth one retry
 // rather than surfacing a 500 to the buyer.
+// Only errors from before the query ran. A timeout or dropped connection can follow
+// a commit, and retrying the increment then adds the piece twice.
 function isTransientPrismaError(err: unknown): boolean {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    return err.code === "P2024" || err.code === "P1001" || err.code === "P1008" || err.code === "P1017";
+    return err.code === "P2024" || err.code === "P1001";
   }
   if (err instanceof Prisma.PrismaClientInitializationError) return true;
   if (err instanceof Prisma.PrismaClientRustPanicError) return false;
