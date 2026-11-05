@@ -261,8 +261,9 @@ export default function SellerHandbookPage() {
 
           <h3>Local pickup</h3>
           <p>
-            For heavy or oversized pieces, enable local pickup. Buyers within your area see a $0 pickup option at
-            checkout. You coordinate the handoff via Messages once payment clears.
+            For heavy or oversized pieces, enable local pickup. Buyers see a $0 pickup option at checkout wherever
+            they live, so say where pickup happens in your shipping policy. You coordinate the handoff via Messages
+            once payment clears.
           </p>
 
           <h3>Packaging</h3>
