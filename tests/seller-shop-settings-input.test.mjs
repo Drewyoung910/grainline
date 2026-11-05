@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  parseOptionalMoneyField,
   parseSellerLocationInput,
   sellerLocationPoint,
   sellerShopSettingsDatabaseErrorMessage,
@@ -129,4 +130,20 @@ test("expected database denials return form errors while unknown failures remain
   }
   assert.equal(sellerShopSettingsDatabaseErrorMessage("XX000"), null);
   assert.equal(sellerShopSettingsDatabaseErrorMessage(null), null);
+});
+
+test("a shipping or gift-wrap amount is refused rather than saved as not set", () => {
+  const max = 500_000;
+  assert.deepEqual(parseOptionalMoneyField("", "Flat rate", max), { ok: true, value: null });
+  assert.deepEqual(parseOptionalMoneyField("  ", "Flat rate", max), { ok: true, value: null });
+  assert.deepEqual(parseOptionalMoneyField(null, "Flat rate", max), { ok: true, value: null });
+  assert.deepEqual(parseOptionalMoneyField("0", "Flat rate", max), { ok: true, value: 0 });
+  assert.deepEqual(parseOptionalMoneyField("5000", "Flat rate", max), { ok: true, value: 500_000 });
+
+  for (const bad of ["5000.01", "9999", "abc", "-1", "1.234"]) {
+    const result = parseOptionalMoneyField(bad, "Flat rate", max);
+    assert.equal(result.ok, false, bad);
+    assert.match(result.error, /Flat rate/);
+    assert.match(result.error, /\$5,000/);
+  }
 });
