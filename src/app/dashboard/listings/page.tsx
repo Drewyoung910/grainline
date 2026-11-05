@@ -249,6 +249,9 @@ export default async function WorkshopListingsPage({ searchParams }: ListingsPag
                           </InlineActionButton>
                         ) : l.status === "DRAFT" ? (
                           <ResubmitButton listingId={l.id} label="Publish" />
+                        ) : l.status === "SOLD" ? (
+                          // Same publish path as the shop page's Mark available.
+                          <ResubmitButton listingId={l.id} label="Mark available" />
                         ) : null}
                       </>
                     )}
