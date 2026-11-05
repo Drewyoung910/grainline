@@ -118,6 +118,10 @@ export default function CardMediaImage({
     // Legacy UploadThing media is outside the current optimizer allowlist.
     // eslint-disable-next-line @next/next/no-img-element
     <img
+      // An image that failed before hydration never fires onError.
+      ref={(img) => {
+        if (img?.complete && img.naturalWidth === 0) handleError();
+      }}
       src={currentSrc}
       alt={alt}
       loading={loading}
