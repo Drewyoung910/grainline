@@ -22,6 +22,8 @@ export default async function WhyGrainlinePage() {
   ]);
   const sellerCount = marketplaceCounts.activeSellerCount;
   const foundingCount = marketplaceCounts.foundingMakerCount;
+  // Same rule as the homepage: tiny pre-launch totals read as an empty shop.
+  const showStats = sellerCount >= 25 && listingCount >= 100;
 
   return (
     <div className="min-h-[100svh]">
@@ -249,26 +251,28 @@ export default async function WhyGrainlinePage() {
             Grainline is a Texas-registered marketplace focused on handmade woodworking. Maker profiles and
             reviewed listings help you understand who made a piece and how it was built.
           </p>
-          <div className="grid grid-cols-3 gap-4 max-w-xl mx-auto mb-8">
-            <div className="bg-white rounded-xl p-5">
-              <div className="text-2xl sm:text-3xl font-bold text-neutral-900">
-                {listingCount.toLocaleString("en-US")}
+          {showStats && (
+            <div className="grid grid-cols-3 gap-4 max-w-xl mx-auto mb-8">
+              <div>
+                <div className="text-2xl sm:text-3xl font-bold text-neutral-900">
+                  {listingCount.toLocaleString("en-US")}
+                </div>
+                <div className="text-xs text-stone-500 mt-1">pieces listed</div>
               </div>
-              <div className="text-xs text-stone-500 mt-1">pieces listed</div>
-            </div>
-            <div className="bg-white rounded-xl p-5">
-              <div className="text-2xl sm:text-3xl font-bold text-neutral-900">
-                {sellerCount.toLocaleString("en-US")}
+              <div>
+                <div className="text-2xl sm:text-3xl font-bold text-neutral-900">
+                  {sellerCount.toLocaleString("en-US")}
+                </div>
+                <div className="text-xs text-stone-500 mt-1">active makers</div>
               </div>
-              <div className="text-xs text-stone-500 mt-1">active makers</div>
-            </div>
-            <div className="bg-white rounded-xl p-5">
-              <div className="text-2xl sm:text-3xl font-bold text-neutral-900">
-                {foundingCount.toLocaleString("en-US")}
+              <div>
+                <div className="text-2xl sm:text-3xl font-bold text-neutral-900">
+                  {foundingCount.toLocaleString("en-US")}
+                </div>
+                <div className="text-xs text-stone-500 mt-1">founding makers</div>
               </div>
-              <div className="text-xs text-stone-500 mt-1">founding makers</div>
             </div>
-          </div>
+          )}
           <Link
             href="/map"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#2C1F1A] hover:underline"
