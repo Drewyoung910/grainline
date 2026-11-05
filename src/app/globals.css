@@ -363,6 +363,22 @@ html {
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+/* The same for rows of product cards, except that a wheel mouse can't scroll
+   sideways, so those visitors get a thin scrollbar to reach the rest. */
+@media (hover: none), (pointer: coarse) {
+  .card-row-scroll {
+    scrollbar-width: none;
+  }
+  .card-row-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .card-row-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(44 31 26 / 0.25) transparent;
+  }
+}
 @layer base {
   /* Offset actual in-page destinations instead of the root scroll container.
      Root scroll-padding made focusing a control inside the pinned header

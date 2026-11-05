@@ -68,7 +68,7 @@ export default function RecentlyViewed() {
       <h2 className="text-xl font-semibold">Recently Viewed</h2>
 
       {loading ? (
-        <div className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
+        <div className="card-row-scroll flex gap-4 overflow-x-auto pb-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="animate-pulse shrink-0 w-48">
               <div className="rounded-xl overflow-hidden aspect-[4/5] bg-[#EFEAE0]" />
@@ -80,7 +80,7 @@ export default function RecentlyViewed() {
           ))}
         </div>
       ) : (
-        <ul className="scrollbar-hidden flex gap-4 overflow-x-auto pb-0">
+        <ul className="card-row-scroll flex gap-4 overflow-x-auto pb-0">
           {listings.map((l) => (
             <li key={l.id} className="relative shrink-0 w-48">
               <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100">
