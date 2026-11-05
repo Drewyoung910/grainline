@@ -400,6 +400,11 @@ export default async function ProfilePage({
         </Link>
       </div>
 
+      <p className="text-sm text-neutral-600">
+        Photos and text below are kept when you press Save profile, at the end of the form. FAQs and featured
+        listings save right away.
+      </p>
+
       <ActionForm action={updateSellerProfile} preserveOnError className="space-y-6">
         {/* ── A. Shop Identity ─────────────────────────────────────────────── */}
         <section className="card-section space-y-4 p-6">
