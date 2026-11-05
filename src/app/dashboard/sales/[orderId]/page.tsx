@@ -227,6 +227,8 @@ export default async function SellerOrderDetailPage({
           "Fully refunded — no fulfillment is required."
         ) : caseUnresolved ? (
           `${fulfillmentStatusLabel(status)}. This order has an open case.`
+        ) : order.reviewNeeded ? (
+          `${fulfillmentStatusLabel(status)}.`
         ) : (
           <>
             {status === "PENDING" && "New order — time to get crafting!"}
@@ -265,7 +267,9 @@ export default async function SellerOrderDetailPage({
         </div>
       ) : order.reviewNeeded && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          This order needs staff review before fulfillment. Check the review note or contact support before shipping.
+          {status === "PENDING" || status === "READY_FOR_PICKUP"
+            ? "This order needs staff review before fulfillment. Check the review note or contact support before shipping."
+            : "This order needs staff review. Grainline staff will contact you if they need anything."}
         </div>
       )}
 
