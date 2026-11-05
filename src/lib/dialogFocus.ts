@@ -32,6 +32,7 @@ function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
     const scrollable = /(auto|scroll)/u.test(style.overflowY)
       && element.scrollHeight > element.clientHeight + 1;
     if (scrollable) {
+      if (deltaY === 0) return true;
       if (deltaY < 0 && element.scrollTop > 0) return true;
       if (deltaY > 0 && element.scrollTop + element.clientHeight < element.scrollHeight - 1) {
         return true;
@@ -60,12 +61,11 @@ export function installScrollGuards() {
       event.preventDefault();
       return;
     }
-    const deltaX = previousTouch.clientX - current.clientX;
     const deltaY = previousTouch.clientY - current.clientY;
     previousTouch = current;
-    // Only a mostly vertical move can scroll the page. A sideways one belongs
-    // to whatever is under the finger, such as a slider or a photo swipe.
-    if (Math.abs(deltaY) <= Math.abs(deltaX)) return;
+    // A slider needs its sideways drag. Anything else left uncancelled here lets
+    // the browser start scrolling the page behind the dialog.
+    if (event.target instanceof Element && event.target.closest('input[type="range"]')) return;
     if (!scrollableAncestorCanMove(event.target, deltaY)) event.preventDefault();
   };
   const onKeyDown = (event: KeyboardEvent) => {

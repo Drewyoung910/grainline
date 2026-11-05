@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 class FakeElement {
-  constructor({ parent = null, overflowY = "visible", scrollHeight = 0, clientHeight = 0, scrollTop = 0 } = {}) {
-    Object.assign(this, { parentElement: parent, overflowY, scrollHeight, clientHeight, scrollTop });
+  constructor({ parent = null, overflowY = "visible", scrollHeight = 0, clientHeight = 0, scrollTop = 0, range = false } = {}) {
+    Object.assign(this, { parentElement: parent, overflowY, scrollHeight, clientHeight, scrollTop, range });
+  }
+  closest(selector) {
+    if (selector === 'input[type="range"]' && this.range) return this;
+    return this.parentElement?.closest(selector) ?? null;
   }
 }
 class FakeHTMLElement extends FakeElement {}
@@ -37,9 +41,22 @@ test("a vertical drag with nothing to scroll is still held by the lock", () => {
   assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(100, 200)] }), true);
 });
 
-test("a sideways drag reaches the crop window's zoom slider", () => {
+test("a drag that starts sideways or at 45 degrees cannot scroll the page", () => {
   start(fixedPanel, 100, 300);
-  assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(180, 300)] }), false);
+  assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(180, 300)] }), true);
+  start(fixedPanel, 100, 300);
+  assert.equal(cancelled("touchmove", { target: fixedPanel, touches: [finger(140, 260)] }), true);
+});
+
+test("a sideways drag reaches the crop window's zoom slider", () => {
+  const slider = new FakeElement({ parent: fixedPanel, range: true });
+  start(slider, 100, 300);
+  assert.equal(cancelled("touchmove", { target: slider, touches: [finger(180, 300)] }), false);
+});
+
+test("a level first move inside a scrollable sheet scrolls the sheet", () => {
+  start(scrollable, 100, 300);
+  assert.equal(cancelled("touchmove", { target: scrollable, touches: [finger(160, 300)] }), false);
 });
 
 test("a pinch and a trackpad pinch can zoom an open photo", () => {
