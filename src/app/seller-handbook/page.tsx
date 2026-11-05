@@ -102,8 +102,8 @@ export default function SellerHandbookPage() {
             <li><strong>Care</strong>: how to maintain it (re-oil cutting boards every 3 months, dust with damp cloth, etc).</li>
           </ul>
           <p>
-            Aim for 200–500 words. Listings under 100 characters of description are flagged as low-quality and won&apos;t
-            rank well in search.
+            Aim for a few short paragraphs. The description holds up to 2,000 characters. Very short descriptions
+            rank lower in search and can be held for review.
           </p>
 
           <h3>Tags</h3>
@@ -141,8 +141,6 @@ export default function SellerHandbookPage() {
           <ul>
             <li>Shoot in daylight if you can. A north-facing window is ideal. Overhead workshop fluorescents make wood look orange.</li>
             <li>Aim for 2400px+ on the long edge. Higher resolution helps when buyers zoom on the listing page.</li>
-            <li>Use descriptive filenames (<code>walnut-cutting-board-mineral-oil.jpg</code> beats <code>IMG_4521.jpg</code>).
-              Google indexes them.</li>
             <li>Don&apos;t use stock photos, illustrations, or logos as listing photos. AI review rejects them.</li>
           </ul>
 
@@ -178,8 +176,7 @@ export default function SellerHandbookPage() {
           <h3>Variants</h3>
           <p>
             Use variants to surface upsells: wood species, finish options, hardware, size. Each option can carry its
-            own price adjustment. Buyers see the live total update as they pick. Done well, variants double your
-            average order value.
+            own price adjustment. Buyers see the live total update as they pick.
           </p>
         </section>
 
@@ -274,7 +271,7 @@ export default function SellerHandbookPage() {
             <li>Double-wall corrugated boxes for anything heavier than 5lb.</li>
             <li>Foam corners or air pillows on every edge. Don&apos;t cheap out on void fill.</li>
             <li>Wrap each piece in glassine or kraft paper before bubble wrap. It protects finished surfaces from sticking.</li>
-            <li>For furniture: blanket-wrap + cardboard corners + freight (not USPS). Use Shippo&apos;s LTL options.</li>
+            <li>For furniture: blanket-wrap + cardboard corners + freight (not USPS).</li>
             <li>Include a hand-written thank-you card. Drives repeat customers and reviews.</li>
           </ul>
 
@@ -308,15 +305,16 @@ export default function SellerHandbookPage() {
 
           <h3>Gift wrapping</h3>
           <p>
-            Enable gift wrapping in Shop Settings to offer it as an upsell at checkout. Set your price (suggestion:
-            $5–$15 for a thoughtful wrap including a card). Buyers can add a gift note that prints on the packing slip.
+            Enable gift wrapping in your <Link href="/dashboard/profile">Shop Profile</Link> to offer it as an upsell at
+            checkout. Set your price (suggestion: $5–$15 for a thoughtful wrap including a card). Buyers can add a gift
+            note, which shows on your order page.
           </p>
 
           <h3>Processing time</h3>
           <p>
-            Be honest. For made-to-order pieces, set min and max days in Shop Settings. Buyers see &quot;Ships in 14–21
-            days&quot; on every listing. Estimated delivery dates on order pages are calculated from this + shipping
-            transit time. Missing your stated time is the #1 reason cases get opened.
+            Be honest. For made-to-order pieces, set min and max days on each listing. Buyers see &quot;Ships in 14–21
+            days&quot; on that listing. Estimated delivery dates on order pages are calculated from this + shipping
+            transit time.
           </p>
         </section>
 
@@ -413,14 +411,15 @@ export default function SellerHandbookPage() {
 
           <h3>The basics that compound</h3>
           <ul>
-            <li><strong>Reply fast.</strong> Sub-2-hour message response rates drive higher conversion. Set up email
-              notifications in your profile.</li>
-            <li><strong>Ask for reviews.</strong> A polite follow-up message 1 week after delivery doubles review
-              rates. Reviews are the single biggest signal for our quality-score ranking.</li>
+            <li><strong>Reply fast.</strong> Buyers often decide quickly, and your response rate counts toward Guild
+              Master. Set up email notifications in <Link href="/dashboard/seller">Shop Settings</Link>.</li>
+            <li><strong>Ask for reviews.</strong> Send a polite follow-up message about a week after delivery. Your
+              rating is one of the signals in our search ranking.</li>
             <li><strong>Write blog posts.</strong> Your maker page links to your blog. Each post is a Google-indexed
               page that drives organic discovery. Even short build journals help.</li>
-            <li><strong>Maintain your shop.</strong> Refresh listings every 2–4 weeks. New listings get a temporary
-              ranking boost in browse.</li>
+            <li><strong>Maintain your shop.</strong> Add new pieces when you have them. New listings get a temporary
+              ranking boost in browse. Editing a live listing sends it back through review, so edit when something
+              has changed.</li>
           </ul>
 
           <h3>Cross-promotion</h3>

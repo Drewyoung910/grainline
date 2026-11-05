@@ -794,7 +794,7 @@ export async function sendVerificationRejected(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, we've reviewed your Guild Member application.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Unfortunately we weren't able to approve your application at this time. You're welcome to update your application and reapply whenever you're ready.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Unfortunately we weren't able to approve your application at this time. You can update your application and reapply after 30 days.</p>
     ${notesSection}
     ${btn("Reapply", applyUrl)}
   `;
