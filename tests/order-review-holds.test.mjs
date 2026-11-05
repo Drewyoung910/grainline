@@ -97,7 +97,7 @@ describe("order review holds", () => {
       "deauthorization hold branch must wrap label purchase controls",
     );
     assert.ok(
-      actionBlock.indexOf("deauthorizedReviewHold") < actionBlock.indexOf("Mark shipped"),
+      actionBlock.indexOf("deauthorizedReviewHold") < actionBlock.indexOf('action="shipped"'),
       "deauthorization hold branch must wrap manual fulfillment controls",
     );
     assert.match(DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE, /Staff must review payout/);
