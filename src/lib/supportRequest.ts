@@ -199,7 +199,7 @@ export function supportRequestHtml(
     ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Request ID</td><td style="padding:6px 0;">${esc(context.requestId)}</td></tr>`
     : "";
   const slaRow = context.slaDueAt
-    ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">SLA due</td><td style="padding:6px 0;">${esc(context.slaDueAt.toISOString())}</td></tr>`
+    ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Respond by</td><td style="padding:6px 0;">${esc(context.slaDueAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }))}</td></tr>`
     : "";
   return `<!DOCTYPE html>
 <html lang="en">
