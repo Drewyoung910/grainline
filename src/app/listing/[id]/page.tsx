@@ -804,19 +804,19 @@ export default async function ListingPage({
                 {listing.seller.returnPolicy && (
                   <details className="border-b border-stone-200/80 last:border-b-0">
                     <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Return policy</summary>
-                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.returnPolicy}</p>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line break-words">{listing.seller.returnPolicy}</p>
                   </details>
                 )}
                 {listing.seller.shippingPolicy && (
                   <details className="border-b border-stone-200/80 last:border-b-0">
                     <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Shipping policy</summary>
-                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.shippingPolicy}</p>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line break-words">{listing.seller.shippingPolicy}</p>
                   </details>
                 )}
                 {listing.seller.customOrderPolicy && (
                   <details className="border-b border-stone-200/80 last:border-b-0">
                     <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Custom order policy</summary>
-                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.customOrderPolicy}</p>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line break-words">{listing.seller.customOrderPolicy}</p>
                   </details>
                 )}
               </div>
