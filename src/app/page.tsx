@@ -628,7 +628,7 @@ export default async function HomePage() {
                 href="/browse"
                 className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
               >
-                <span className="text-2xl text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
+                <span aria-hidden="true" className="flex h-7 items-center text-2xl leading-none text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
               </Link>
             </div>
