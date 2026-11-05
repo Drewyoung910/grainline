@@ -524,8 +524,6 @@ export default async function ListingPage({
             </Link>
           </>
         )}
-        <span>›</span>
-        <span className="text-neutral-800 truncate max-w-[200px]">{listing.title}</span>
       </nav>
 
       {/* ── Two-column layout ─────────────────────────────────────────────── */}
