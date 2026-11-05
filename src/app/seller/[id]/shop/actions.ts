@@ -342,7 +342,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: listing.status,
           updatedAt: listing.updatedAt,
           ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+          OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
         },
         data: {
           status: "PENDING_REVIEW",
@@ -366,7 +366,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: listing.status,
           updatedAt: listing.updatedAt,
           ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+          OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
         },
         data: {
           status: "ACTIVE",
@@ -415,7 +415,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         sellerId: listing.sellerId,
         status: listing.status,
         updatedAt: listing.updatedAt,
-        OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+        OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
       },
       data: {
         status: "PENDING_REVIEW",
