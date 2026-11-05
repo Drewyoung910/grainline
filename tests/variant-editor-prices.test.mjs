@@ -32,3 +32,29 @@ test("a saved price survives when nothing was typed", () => {
   }], false);
   assert.deepEqual(group.options, [{ label: "Large", priceAdjustCents: 1250, inStock: false }]);
 });
+
+test("a price typed with a dollar sign or thousands comma keeps its value", () => {
+  const [group] = serializeVariantGroups([{
+    name: "Wood",
+    options: [option("Walnut", "1,250.00"), option("Cherry", "$50"), option("Pine", "-$5.50")],
+  }], true);
+  assert.deepEqual(group.options.map((o) => o.priceAdjustCents), [125000, 5000, -550]);
+});
+
+test("a price the parser cannot read is flagged instead of becoming zero", async () => {
+  const { isVariantPriceDraftInvalid } = await import("../src/lib/variantEditorState.ts");
+  for (const draft of ["12.345", "50 dollars", "12,50", "$-5"]) {
+    assert.equal(isVariantPriceDraftInvalid(option("Oak", draft)), true, draft);
+  }
+  for (const draft of ["", "50", "-5.50", "1,250.00", ".5"]) {
+    assert.equal(isVariantPriceDraftInvalid(option("Oak", draft)), false, draft);
+  }
+});
+
+test("the browser price check compiles under the v flag and agrees with the parser", async () => {
+  const { VARIANT_PRICE_INPUT_PATTERN, isVariantPriceDraftInvalid } = await import("../src/lib/variantEditorState.ts");
+  const browserCheck = new RegExp(`^(?:${VARIANT_PRICE_INPUT_PATTERN})$`, "v");
+  for (const draft of ["50", "+50", "-5.50", "$50", "-$50", "1,250.00", ".5", "12.", "12.345", "12,50", "1,2345", "+", "$", "$-5", "50 dollars"]) {
+    assert.equal(browserCheck.test(draft), !isVariantPriceDraftInvalid(option("Oak", draft)), draft);
+  }
+});

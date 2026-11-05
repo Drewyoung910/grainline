@@ -16,10 +16,33 @@ export type VariantGroupData = {
   options: VariantOptionData[];
 };
 
+// The browser check for the price box. It accepts what parseVariantPrice
+// reads: an optional sign, an optional "$", and "1,250.00" style commas.
+// The hyphen is escaped because Chrome compiles patterns with the v flag.
+export const VARIANT_PRICE_INPUT_PATTERN =
+  String.raw`[+\-]?\$?((\d{1,3}(,\d{3})+|\d+)(\.\d{0,2})?|\.\d{1,2})`;
+
+const THOUSANDS_GROUPED = /^\d{1,3}(,\d{3})+(\.\d*)?$/;
+
+function parseVariantPrice(text: string): number | null {
+  let value = text.trim();
+  const sign = value.startsWith("+") || value.startsWith("-") ? value[0] : "";
+  value = value.slice(sign.length);
+  if (value.startsWith("$")) value = value.slice(1);
+  if (value.startsWith("+") || value.startsWith("-")) return null;
+  if (THOUSANDS_GROUPED.test(value)) value = value.replaceAll(",", "");
+  return parseMoneyInputToCents(sign + value, { allowNegative: true });
+}
+
+export function isVariantPriceDraftInvalid(option: VariantOptionData): boolean {
+  const draft = option.priceDraft;
+  return draft !== undefined && draft.trim() !== "" && parseVariantPrice(draft) === null;
+}
+
 export function optionPriceCents(option: VariantOptionData): number {
   if (option.priceDraft === undefined) return option.priceAdjustCents || 0;
   if (option.priceDraft.trim() === "") return 0;
-  return parseMoneyInputToCents(option.priceDraft, { allowNegative: true }) ?? 0;
+  return parseVariantPrice(option.priceDraft) ?? 0;
 }
 
 export function serializeVariantGroups(groups: VariantGroupData[], isMadeToOrder: boolean) {
