@@ -255,7 +255,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     approved: false,
     flags: ["AI review error"],
     confidence: 0,
-    reason: "AI error — sending to admin review",
+    reason: "AI error, sending to staff review",
     altTexts: [],
   }));
   const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
@@ -269,6 +269,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
         status: ListingStatus.PENDING_REVIEW,
         aiReviewFlags: aiResult.flags,
         aiReviewScore: aiResult.confidence,
+        rejectionReason: aiResult.reason,
       },
     });
     if (held.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };

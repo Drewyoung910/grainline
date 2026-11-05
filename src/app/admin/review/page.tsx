@@ -34,6 +34,7 @@ export default async function AdminReviewPage() {
         createdAt: true,
         aiReviewFlags: true,
         aiReviewScore: true,
+        rejectionReason: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
     }),
@@ -140,6 +141,11 @@ export default async function AdminReviewPage() {
                           ))}
                         </ul>
                       </div>
+                    )}
+                    {listing.rejectionReason && (
+                      <p className="text-xs text-neutral-700 mt-2">
+                        <span className="font-medium">AI reason:</span> {listing.rejectionReason}
+                      </p>
                     )}
                     {listing.aiReviewScore !== null && (
                       <div className="text-xs text-neutral-500 mt-1">

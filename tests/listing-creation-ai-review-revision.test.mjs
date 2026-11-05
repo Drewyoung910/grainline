@@ -42,6 +42,7 @@ test("creation-time AI approval cannot publish a newer listing revision", async 
     approved: true,
     flags: [],
     confidence: 0.99,
+    reason: "Looks good",
   });
 
   assert.deepEqual(result, { applied: false, activated: false });
@@ -68,10 +69,40 @@ test("creation-time AI verdict applies to the exact reviewed revision", async ()
     approved: true,
     flags: [],
     confidence: 0.99,
+    reason: "Looks good",
   });
 
   assert.deepEqual(result, { applied: true, activated: true });
   assert.equal(state.status, "ACTIVE");
   assert.deepEqual(state.aiReviewFlags, []);
   assert.equal(state.aiReviewScore, 0.99);
+});
+
+test("a held listing keeps the AI's reason and an approved one clears it", async () => {
+  const updatedAt = new Date("2026-10-27T12:00:00.000Z");
+  const state = {
+    id: "listing_1",
+    sellerId: "seller_1",
+    status: "PENDING_REVIEW",
+    updatedAt,
+    rejectionReason: null,
+  };
+  const input = {
+    listingId: state.id,
+    sellerId: state.sellerId,
+    reviewedUpdatedAt: updatedAt,
+    reason: "One of the photos is a screenshot.",
+  };
+
+  await applyListingCreationAIReviewResult(listingClient(state), {
+    ...input, approved: false, flags: ["non-product-photo"], confidence: 0.9,
+  });
+  assert.equal(state.status, "PENDING_REVIEW");
+  assert.equal(state.rejectionReason, "One of the photos is a screenshot.");
+
+  await applyListingCreationAIReviewResult(listingClient(state), {
+    ...input, approved: true, flags: [], confidence: 0.9,
+  });
+  assert.equal(state.status, "ACTIVE");
+  assert.equal(state.rejectionReason, null);
 });

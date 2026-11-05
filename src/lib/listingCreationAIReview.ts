@@ -11,6 +11,7 @@ type ListingCreationAIReviewClient = {
         status: "PENDING_REVIEW" | "ACTIVE";
         aiReviewFlags: string[];
         aiReviewScore: number;
+        rejectionReason: string | null;
       };
     }): Promise<{ count: number }>;
   };
@@ -23,6 +24,7 @@ type ListingCreationAIReviewInput = {
   approved: boolean;
   flags: string[];
   confidence: number;
+  reason: string;
 };
 
 export async function applyListingCreationAIReviewResult(
@@ -45,6 +47,7 @@ export async function applyListingCreationAIReviewResult(
         : "ACTIVE",
       aiReviewFlags: input.flags,
       aiReviewScore: input.confidence,
+      rejectionReason: shouldHold ? input.reason : null,
     },
   });
 

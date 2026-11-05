@@ -324,7 +324,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         approved: false,
         flags: ["AI review error"],
         confidence: 0,
-        reason: "AI error — sending to admin review",
+        reason: "AI error, sending to staff review",
         altTexts: [] as string[],
       };
     });
@@ -349,7 +349,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: "PENDING_REVIEW",
           aiReviewFlags: aiResult.flags,
           aiReviewScore: aiResult.confidence,
-          rejectionReason: null,
+          rejectionReason: aiResult.reason,
         },
       });
       if (updateResult.count === 0) {
@@ -430,7 +430,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         status: "PENDING_REVIEW",
         aiReviewFlags: ["AI review error"],
         aiReviewScore: 0,
-        rejectionReason: null,
+        rejectionReason: "AI error, sending to staff review",
       },
     }).catch((updateError) => {
       logServerError(updateError, {
