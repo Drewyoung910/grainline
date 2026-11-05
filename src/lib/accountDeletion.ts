@@ -120,7 +120,8 @@ export type AccountDeletionBlocker = {
     | "seller_orders"
     | "open_cases"
     | "active_commissions"
-    | "email_delivery_pending";
+    | "email_delivery_pending"
+    | "admin_role";
   count: number;
   message: string;
 };
