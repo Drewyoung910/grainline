@@ -27,7 +27,12 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
 import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
-import { parseBoundedDecimalParam, parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import {
+  firstSearchParams,
+  normalizeSearchQueryParameter,
+  parseBoundedDecimalParam,
+  parseBoundedPositiveIntParam,
+} from "@/lib/queryParams";
 import { normalizeTags } from "@/lib/tags";
 import { BrowseIndexSkeleton } from "@/components/LocalDiscoverySkeletons";
 import {
@@ -169,12 +174,12 @@ export async function generateMetadata({
 }: {
   searchParams: Promise<Search>;
 }): Promise<Metadata> {
-  const sp = await searchParams;
-  const q = sp.q?.trim() ?? "";
+  const sp = firstSearchParams(await searchParams);
+  const q = normalizeSearchQueryParameter(sp.q, 200);
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
   const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
-  const hasTags = Array.isArray(sp.tag) ? sp.tag.length > 0 : Boolean(sp.tag);
+  const hasTags = Boolean(sp.tag);
   const hasIndexBlockingFilters = Boolean(
     q ||
     sp.min ||
@@ -238,7 +243,8 @@ async function BrowseContent({
 }: {
   searchParams: Promise<Search>;
 }) {
-  const sp = await searchParams;
+  const rawParams = await searchParams;
+  const sp = firstSearchParams(rawParams);
 
   // Resolve user early for block filtering
   const { userId } = await auth();
@@ -257,7 +263,7 @@ async function BrowseContent({
   const sort = sortRaw || (q ? "relevant" : "newest");
   const view = sp.view === "list" ? "list" : "grid";
 
-  const rawTag = sp.tag;
+  const rawTag = rawParams.tag;
   const selectedTags = normalizeTags(
     rawTag == null ? [] : Array.isArray(rawTag) ? rawTag : [rawTag],
     10,
