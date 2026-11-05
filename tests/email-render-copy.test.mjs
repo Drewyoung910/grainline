@@ -234,3 +234,27 @@ describe("Guild emails", () => {
     assert.match(html, /reinstated/);
   });
 });
+
+describe("refund after a checkout we could not complete", () => {
+  it("explains why, for an order the buyer was never told about", () => {
+    const { subject, html } = email.renderRefundIssuedEmail({
+      buyer: { email: "a@example.com" },
+      refundAmountCents: 6170,
+      currency: "usd",
+      orderId: "order-1",
+      checkoutNotCompleted: true,
+    });
+    assert.match(subject, /could not be completed/);
+    assert.match(html, /refunded you in full/);
+  });
+
+  it("leaves an ordinary refund alone", () => {
+    const { subject } = email.renderRefundIssuedEmail({
+      buyer: { email: "a@example.com" },
+      refundAmountCents: 6170,
+      currency: "usd",
+      orderId: "order-1",
+    });
+    assert.match(subject, /Your refund has been issued/);
+  });
+});
