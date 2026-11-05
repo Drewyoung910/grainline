@@ -47,6 +47,7 @@ export default function ListingPurchasePanel({
   sellerAcceptingNewOrders,
   isOwnListing,
   isOutOfStock,
+  checkoutHeld,
   canSubscribeForStockNotification,
   isNotified,
   listingType,
@@ -70,6 +71,8 @@ export default function ListingPurchasePanel({
   sellerAcceptingNewOrders: boolean;
   isOwnListing: boolean;
   isOutOfStock: boolean;
+  // This buyer's own open Buy Now is what holds the last unit.
+  checkoutHeld: boolean;
   canSubscribeForStockNotification: boolean;
   isNotified: boolean;
   listingType: string;
@@ -92,7 +95,8 @@ export default function ListingPurchasePanel({
   );
   const [totalPriceCents, setTotalPriceCents] = useState(initialPriceCents);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
-  const variantSelectionComplete = isListingVariantSelectionComplete(variantGroups, selectedOptionIds);
+  // An open checkout already has its options; the dialog resumes it as it stands.
+  const variantSelectionComplete = checkoutHeld || isListingVariantSelectionComplete(variantGroups, selectedOptionIds);
   const [blockedVariantAttempts, setBlockedVariantAttempts] = useState(0);
   const canPurchase = canBuy && sellerAcceptingNewOrders;
   const displayCurrency = currency ?? DEFAULT_CURRENCY;
@@ -158,7 +162,11 @@ export default function ListingPurchasePanel({
 
       {/* Stock status */}
       {listingType === "IN_STOCK" ? (
-        isOutOfStock ? (
+        checkoutHeld ? (
+          <div className="inline-flex items-center gap-1.5 bg-[#F7F5F0] border border-neutral-200 rounded-full px-3 py-1 text-sm font-medium text-neutral-700">
+            Held for you in your checkout
+          </div>
+        ) : isOutOfStock ? (
           <div className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-full px-3 py-1 text-sm font-medium text-red-700">
             Out of Stock
           </div>
@@ -178,7 +186,7 @@ export default function ListingPurchasePanel({
       )}
 
       {/* Notify when back in stock */}
-      {!isOwnListing && canSubscribeForStockNotification && (
+      {!isOwnListing && canSubscribeForStockNotification && !checkoutHeld && (
         <NotifyMeButton
           listingId={listingId}
           listingTitle={listingTitle}
@@ -216,7 +224,7 @@ export default function ListingPurchasePanel({
               autoOpen={shouldAutoOpenBuyNow}
               className="btn btn-primary w-full min-h-[50px] disabled:opacity-100"
             >
-              Buy now
+              {checkoutHeld ? "Finish your checkout" : "Buy now"}
             </BuyNowButton>
           ) : (
             <button
@@ -231,7 +239,7 @@ export default function ListingPurchasePanel({
               Sign up to buy
             </button>
           )}
-          <AddToCartButton
+          {!checkoutHeld && <AddToCartButton
             listingId={listingId}
             listingTitle={listingTitle}
             signedIn={!!userId}
@@ -251,7 +259,7 @@ export default function ListingPurchasePanel({
               giftWrappingPriceCents,
             }}
             className="btn btn-secondary w-full min-h-[50px]"
-          />
+          />}
         </div>
       )}
 
