@@ -454,6 +454,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         {!userId && request.status === "OPEN" && (
           <Link
             href={`/sign-in?redirect_url=/commission/${id}`}
+            rel="nofollow"
             className="btn btn-primary"
           >
             Sign in to Express Interest
