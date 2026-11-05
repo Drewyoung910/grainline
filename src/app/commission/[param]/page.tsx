@@ -280,13 +280,13 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       )}
 
       {count === 0 ? (
-        <div className="card-section p-8 text-center mb-10">
+        <div className="py-6 mb-6">
           <p className="text-neutral-500 mb-4">No open commission requests in {cityName} yet.</p>
           <Link
             href="/commission/new"
             className="btn btn-primary"
           >
-            Post a Commission Request
+            Post a request
           </Link>
         </div>
       ) : (
@@ -332,7 +332,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
             href="/commission/new"
             className="btn btn-primary"
           >
-            Post a Commission Request
+            Post a request
           </Link>
         </div>
       )}
