@@ -35,7 +35,7 @@ export default async function SellersMapPage() {
         <div>
           <h1 className="font-display text-2xl font-semibold">Find makers near you</h1>
           <p className="text-sm text-neutral-600 mt-1">
-            Makers choose an approximate pin or explicitly publish an exact one. Click a pin to preview a profile.
+            Click a pin to see the maker.
           </p>
         </div>
       </header>
