@@ -406,17 +406,28 @@ export default function ThreadMessages({
           // ── Commission interest card ────────────────────────────────────
           if (m.kind === "commission_interest_card") {
             const card = parseCommissionInterestMessageBody(body);
+            // The maker sends this card, so the maker is the one who can turn
+            // the agreed commission into the buyer's private listing.
+            const canCreateCustomListing = canCreateCustomListings && mine;
             return (
               <li key={m.id} className="min-w-0 max-w-[90%]">
                 <div className="min-w-0 space-y-3 overflow-hidden break-words rounded-xl border border-teal-200 bg-teal-50/70 p-4 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-semibold uppercase tracking-wide text-teal-800">Commission Interest</div>
-                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-teal-800 ring-1 ring-teal-200">
-                      New response
-                    </span>
+                    {!mine && (
+                      <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-teal-800 ring-1 ring-teal-200">
+                        New response
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-neutral-700">
-                    <strong>{card.sellerName ?? "A maker"}</strong> expressed interest in your commission request
+                    {mine ? (
+                      "You expressed interest in this commission request"
+                    ) : (
+                      <>
+                        <strong>{card.sellerName ?? "A maker"}</strong> expressed interest in your commission request
+                      </>
+                    )}
                   </p>
                   {card.commissionTitle && (
                     <p className="text-sm font-medium text-neutral-900">&ldquo;{card.commissionTitle}&rdquo;</p>
@@ -436,6 +447,14 @@ export default function ThreadMessages({
                       className="mt-1 inline-flex min-h-[32px] items-center gap-1 rounded-md border border-teal-200 bg-white px-3 py-1 text-xs font-medium text-teal-800 transition-colors hover:bg-teal-50"
                     >
                       View full request
+                    </Link>
+                  )}
+                  {canCreateCustomListing && (
+                    <Link
+                      href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.recipientId}`}
+                      className="btn btn-sm btn-primary mt-1 ml-2"
+                    >
+                      Create Custom Listing
                     </Link>
                   )}
                 </div>
