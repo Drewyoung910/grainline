@@ -636,7 +636,7 @@ async function SellerPublicContent({
                 {activePublicListingCount > 0 && (
                   <Link
                     href={publicSellerShopPath(seller.id, seller.displayName)}
-                    className="text-sm text-amber-700 hover:underline"
+                    className="text-sm font-semibold text-neutral-800 underline-offset-4 hover:underline"
                   >
                     See all {activePublicListingCount} {activePublicListingCount === 1 ? "piece" : "pieces"} →
                   </Link>
@@ -730,7 +730,7 @@ async function SellerPublicContent({
                 {hasMoreCustomerPhotos && (
                   <Link
                     href={`${publicSellerPath(seller.id, seller.displayName)}/customer-photos`}
-                    className="text-sm text-amber-700 hover:underline"
+                    className="text-sm font-semibold text-neutral-800 underline-offset-4 hover:underline"
                   >
                     View all customer photos →
                   </Link>
@@ -918,10 +918,10 @@ async function SellerPublicContent({
                   More from {formatCityState(candidate.name, candidate.state)}
                 </div>
                 <div className="flex flex-col gap-1 text-sm">
-                  <Link href={`/makers/${candidate.slug}`} className="text-amber-700 hover:underline">
+                  <Link href={`/makers/${candidate.slug}`} className="font-semibold text-neutral-800 underline-offset-4 hover:underline">
                     Other makers in {candidate.name} →
                   </Link>
-                  <Link href={`/browse/${candidate.slug}`} className="text-amber-700 hover:underline">
+                  <Link href={`/browse/${candidate.slug}`} className="font-semibold text-neutral-800 underline-offset-4 hover:underline">
                     Browse {candidate.name} listings →
                   </Link>
                 </div>
