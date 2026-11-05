@@ -46,6 +46,20 @@ describe("unicode sanitization", () => {
       assert.equal(sanitizeUserName(blank), "");
     }
     assert.equal(sanitizeUserName("Oak\u2800Works"), "Oak Works");
+    // Review RO-01: invisible line breaks, format characters, variation
+    // selectors and tag characters on their own are blank too.
+    for (const blank of [
+      "\u0085", "\u180E", "\u206A\u206F", "\uFE0F\uFE0F", "\uFE00",
+      "\u{E0041}\u{E007F}", "\u{E0100}", " \u0085\uFE0F ",
+    ]) {
+      assert.equal(sanitizeUserName(blank), "", JSON.stringify(blank));
+    }
+    assert.equal(sanitizeText("ad\u180Emin ad\u206Fmin"), "admin admin");
+    assert.equal(sanitizeRichText("line one\u0085line two"), "line one\nline two");
+    assert.equal(sanitizeUserName("Oak\u0085Works"), "Oak Works");
+    // An emoji keeps its presentation selector and its tag sequence.
+    const englandFlag = "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
+    assert.equal(sanitizeUserName(`Oak ❤\uFE0F ${englandFlag}`), `Oak ❤\uFE0F ${englandFlag}`);
     assert.equal(sanitizeText("a\u0007b\u001Bc\u007Fd\u009Fe"), "abcde");
     assert.equal(sanitizeRichText("line one\nline\ttwo\r\nthree"), "line one\nline\ttwo\r\nthree");
   });
