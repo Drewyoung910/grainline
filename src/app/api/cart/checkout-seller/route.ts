@@ -17,6 +17,7 @@ import {
   markCheckoutLockReady,
   releaseCheckoutLock,
   releasePreparingCheckoutLock,
+  stripeRefusedCheckoutSessionCreate,
 } from "@/lib/checkoutSessionLock";
 import {
   checkoutStockReservationMetadata,
@@ -94,6 +95,7 @@ const CheckoutSellerSchema = z.object({
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const CHECKOUT_BODY_MAX_BYTES = 64 * 1024;
+const CHECKOUT_SESSION_CREATE_TIMEOUT_MS = 20_000;
 
 export async function POST(req: Request) {
   let checkoutReservationId: string | null = null;
@@ -516,7 +518,7 @@ export async function POST(req: Request) {
         });
       }
       return privateJson(
-        { error: "A checkout session is already open for this seller. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
+        { error: "These pieces are held by a checkout you already started. Finish it, or try again in about 30 minutes." },
         { status: HTTP_STATUS.CONFLICT },
       );
     }
@@ -686,6 +688,13 @@ export async function POST(req: Request) {
       metadata: checkoutMetadata,
     }, {
       idempotencyKey: checkoutSessionCreateIdempotencyKey(checkoutLockOwnerTokenValue),
+      // Two attempts must fail inside maxDuration, or the catch below never runs.
+      timeout: CHECKOUT_SESSION_CREATE_TIMEOUT_MS,
+      maxNetworkRetries: 1,
+    }).catch((createError: unknown) => {
+      // A refusal created nothing, so the catch below can release the stock.
+      if (stripeRefusedCheckoutSessionCreate(createError)) checkoutSessionCreateAttempted = false;
+      throw createError;
     });
     createdCheckoutSessionId = session.id;
 
