@@ -113,6 +113,16 @@ export default function AllSellersMap({
     paintGrainlineMapColors(map);
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
+    // On a phone MapLibre opens the map credit as a wide pill over the
+    // bottom of the map until the first drag. OSM's attribution guideline
+    // lets it collapse after five seconds; the "i" button still opens it.
+    let collapseCredit: ReturnType<typeof setTimeout> | undefined;
+    map.once("load", () => {
+      collapseCredit = setTimeout(() => {
+        map.getContainer().querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
+      }, 5000);
+    });
+
     map.on("load", () => {
       // Open on the makers, not on two oceans and one cluster dot.
       if (!initialCenter && points.length > 0) {
@@ -296,6 +306,7 @@ export default function AllSellersMap({
       ro.disconnect();
       cancelAnimationFrame(raf);
       clearTimeout(settle);
+      clearTimeout(collapseCredit);
       markers.forEach((marker) => marker.remove());
       markers.clear();
       map.remove();
