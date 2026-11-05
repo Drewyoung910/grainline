@@ -549,8 +549,8 @@ export default async function ListingPage({
         </div>
 
         {/* Right: purchase panel */}
-        <div className="rounded-lg border border-stone-200/60 shadow-sm min-w-0 overflow-x-hidden bg-[#EFEAE0] p-6 space-y-4">
-          <h1 className="text-2xl font-bold text-neutral-900 leading-snug">{listing.title}</h1>
+        <div className="-mx-1 space-y-5 px-1 min-w-0 overflow-x-hidden">
+          <h1 className="font-display text-[clamp(1.75rem,2.6vw,2.2rem)] font-normal leading-tight text-neutral-900">{listing.title}</h1>
 
           {/* Private listing banners */}
           {reservedForMe && (
