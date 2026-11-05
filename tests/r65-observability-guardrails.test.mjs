@@ -57,21 +57,20 @@ describe("R65 observability guardrails", () => {
     assert.doesNotMatch(adminPin, /logSecurityEvent\("auth_challenge_failed",\s*\{[^}]*\bip,/s);
   });
 
-  it("keeps Stripe signature failures to one captured exception plus failure-spike accounting", () => {
+  it("reports nothing to Sentry or Redis for a failed Stripe signature (X-03)", () => {
     const text = source("src/app/api/stripe/webhook/route.ts");
     const signatureCatch = text.slice(
       text.indexOf("Stripe webhook signature verification failed:"),
       text.indexOf("return NextResponse.json({ error: \"Invalid signature\" }"),
     );
 
-    assert.match(signatureCatch, /Sentry\.captureException\(err, \{ tags: \{ source: "stripe_webhook_signature" \} \}\)/);
-    assert.match(signatureCatch, /recordWebhookFailureSpike\(\{ webhook: "stripe", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.doesNotMatch(signatureCatch, /Sentry\.capture|recordWebhookFailureSpike/);
     assert.match(signatureCatch, /sanitizeEmailOutboxError\(err\)/);
     assert.doesNotMatch(signatureCatch, /Sentry\.captureMessage\("Stripe webhook signature verification failed"/);
     assert.doesNotMatch(signatureCatch, /\(err as \{ message\?: string \}\)\?\.message/);
   });
 
-  it("feeds Resend webhook edge and handler failures into failure-spike accounting", () => {
+  it("feeds Resend config and handler failures, but not unverified junk, into failure-spike accounting", () => {
     const text = source("src/app/api/resend/webhook/route.ts");
 
     assert.match(text, /import \{ recordWebhookFailureSpike \} from "@\/lib\/webhookFailureSpike"/);
@@ -80,27 +79,11 @@ describe("R65 observability guardrails", () => {
     const configBlock = text.slice(text.indexOf("if (!config.ok)"), text.indexOf("const id = request.headers.get"));
     assert.match(configBlock, /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "config", status: HTTP_STATUS\.SERVICE_UNAVAILABLE \}\)/);
 
-    const missingSignatureBlock = text.slice(
+    const preVerification = text.slice(
       text.indexOf("if (!id || !timestamp || !signature)"),
-      text.indexOf("let event: WebhookEventPayload"),
+      text.indexOf('"Invalid webhook signature"'),
     );
-    assert.match(missingSignatureBlock, /Sentry\.captureMessage\("Resend webhook signature headers missing"/);
-    assert.match(
-      missingSignatureBlock,
-      /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/,
-    );
-
-    const payloadBlock = text.slice(
-      text.indexOf("Resend webhook payload is too large"),
-      text.indexOf("return NextResponse.json({ ok: false, error: \"Payload too large\" }"),
-    );
-    assert.match(payloadBlock, /status: HTTP_STATUS\.PAYLOAD_TOO_LARGE/);
-
-    const verifyCatch = text.slice(
-      text.indexOf("Sentry.captureException(err, { tags: { source: \"resend_webhook_verify\" } })"),
-      text.indexOf("return NextResponse.json({ ok: false, error: \"Invalid webhook signature\" }"),
-    );
-    assert.match(verifyCatch, /recordWebhookFailureSpike\(\{ webhook: "resend", kind: "signature", status: HTTP_STATUS\.BAD_REQUEST \}\)/);
+    assert.doesNotMatch(preVerification, /Sentry\.capture|recordWebhookFailureSpike/);
 
     const processCatch = text.slice(
       text.indexOf("Sentry.captureException(err, { tags: { source: \"resend_webhook_process\""),
