@@ -626,10 +626,9 @@ export default async function SellerOrderDetailPage({
               </div>
             );
           })()}
-          {!suppressActiveFulfillment && order.processingDeadline && (() => {
-            const overdue =
-              order.processingDeadline < now &&
-              !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status);
+          {!suppressActiveFulfillment && order.processingDeadline &&
+            !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status) && (() => {
+            const overdue = order.processingDeadline < now;
             return (
               <div className={`mt-2 font-medium ${overdue ? "text-red-700" : "text-amber-700"}`}>
                 {overdue ? "Overdue — should have shipped by " : "Ship by "}
