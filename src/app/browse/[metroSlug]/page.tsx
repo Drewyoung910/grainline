@@ -238,7 +238,7 @@ async function BrowseMetroContent({
       </h1>
 
       <p className="text-neutral-600 text-sm mb-6">
-        Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area. Every piece is crafted by hand in {stateLabel}.
+        Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area.
       </p>
 
       {/* Category filter tabs */}
