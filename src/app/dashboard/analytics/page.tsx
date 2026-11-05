@@ -35,6 +35,7 @@ type ChartBucket = {
 type TopListing = {
   id: string;
   title: string;
+  archived: boolean;
   imageUrl: string | null;
   totalRevenueCents: number;
   unitsSold: number;
@@ -873,12 +874,16 @@ export default function AnalyticsPage() {
                     <div className="h-20 w-20 bg-neutral-100 border border-neutral-200 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <Link
-                      href={publicListingPath(l.id, l.title)}
-                      className="text-sm font-medium hover:underline truncate block"
-                    >
-                      {l.title}
-                    </Link>
+                    {l.archived ? (
+                      <span className="text-sm font-medium truncate block">{l.title} (archived)</span>
+                    ) : (
+                      <Link
+                        href={publicListingPath(l.id, l.title)}
+                        className="text-sm font-medium hover:underline truncate block"
+                      >
+                        {l.title}
+                      </Link>
+                    )}
                     <p className="text-xs text-neutral-600 mt-0.5">
                       {fmtExact(l.totalRevenueCents)} total · {l.unitsSold} unit
                       {l.unitsSold !== 1 ? "s" : ""}
