@@ -176,12 +176,12 @@ export default function ListingPurchasePanel({
           </div>
         )
       ) : (
-        <div className="inline-flex items-center gap-1.5 bg-[#F7F5F0] border border-neutral-200 rounded-full px-3 py-1 text-sm font-medium text-neutral-700">
-          Made to order
-        </div>
+        <p className="text-sm text-neutral-700">
+          Made to order{processingLabel ? ` · ${processingLabel}` : ""}
+        </p>
       )}
 
-      {processingLabel && (
+      {listingType === "IN_STOCK" && processingLabel && (
         <p className="text-sm text-neutral-600">{processingLabel}</p>
       )}
 

@@ -50,6 +50,7 @@ import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 import { formatCityState } from "@/lib/locationDisplay";
 import { getCheckoutLock, singleCheckoutLockKey } from "@/lib/checkoutSessionLock";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -603,13 +604,12 @@ export default async function ListingPage({
           {/* Custom order */}
           {!isOwnListing && !reservedForOther && listing.seller.acceptsCustomOrders && (
             <div className="border-t border-stone-200/60 pt-4 space-y-2">
-              <div className="text-sm font-medium">Want something custom?</div>
-              <p className="text-xs text-neutral-500">
-                Want this in a different size, wood, or finish? Ask the maker. Or{" "}
-                <Link href="/commission" className="underline hover:text-neutral-700">
-                  post a request in the Commission Room
-                </Link>{" "}
-                to reach all makers at once.
+              <p className="text-sm text-neutral-600">
+                Want it in a different size, wood or finish? Ask the maker, or{" "}
+                <Link href="/commission" className="underline hover:text-neutral-800">
+                  post a request
+                </Link>
+                .
               </p>
               {meId ? (
                 <CustomOrderRequestForm
@@ -644,7 +644,7 @@ export default async function ListingPage({
                     alt={sellerName}
                     width={56}
                     height={56}
-                    className="h-14 w-14 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
+                    className="h-14 w-14 rounded-full object-cover"
                   />
                 ) : (
                   <div className="h-14 w-14 rounded-full bg-neutral-200 flex items-center justify-center">
@@ -666,7 +666,7 @@ export default async function ListingPage({
                   )}
                 </div>
                 {listing.seller.tagline && (
-                  <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>
+                  <p className="text-[13px] text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>
                 )}
                 {sellerStars && sellerReviewCount > 0 && (
                   <div className="flex items-center gap-1.5 mt-1">
@@ -677,7 +677,7 @@ export default async function ListingPage({
                   </div>
                 )}
                 {cityState && (
-                  <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1">
+                  <p className="text-[13px] text-neutral-500 mt-0.5 flex items-center gap-1">
                     <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -736,20 +736,6 @@ export default async function ListingPage({
             </div>
           </div>
 
-          {/* Tags */}
-          {listing.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {listing.tags.map((t) => (
-                <Link
-                  key={t}
-                  href={publicTagPath(t.toLowerCase())}
-                  className="rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-[11px] text-neutral-600 hover:bg-white transition-colors"
-                >
-                  #{t}
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -820,6 +806,22 @@ export default async function ListingPage({
                     <>
                       <dt className="text-neutral-500">Ships from</dt>
                       <dd className="text-neutral-800">{cityState}</dd>
+                    </>
+                  )}
+                  {listing.tags.length > 0 && (
+                    <>
+                      <dt className="text-neutral-500">Tags</dt>
+                      <dd className="flex flex-wrap gap-x-3 gap-y-1">
+                        {listing.tags.map((t) => (
+                          <Link
+                            key={t}
+                            href={publicTagPath(t.toLowerCase())}
+                            className="text-neutral-800 underline decoration-stone-300 underline-offset-4 transition-colors hover:decoration-neutral-700"
+                          >
+                            {humanizeSearchTag(t)}
+                          </Link>
+                        ))}
+                      </dd>
                     </>
                   )}
                 </dl>
