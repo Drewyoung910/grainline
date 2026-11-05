@@ -1116,16 +1116,7 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 
 ### Security posture
 
-| Layer | Status |
-|---|---|
-| Authentication | ✅ Clerk on all sensitive routes; 401 before any data access |
-| Authorization / ownership | ✅ All user-scoped mutations verify DB `userId` match; IDOR not possible |
-| SQL injection | ✅ Prisma ORM — parameterized queries throughout; raw SQL only for analytics aggregations (read-only, no user input in table names) |
-| Webhook integrity | ✅ Stripe HMAC signature verification; Clerk Svix signature verification |
-| Role-based access | ✅ `EMPLOYEE | ADMIN` required for case resolution and admin panel; checked against DB role, not cookie |
-| HTTPS | ✅ Enforced by Vercel / Cloudflare |
-| Dev-only routes | ✅ No runtime route may fabricate paid Orders; the former `/api/dev/make-order` fixture was retired before Order RLS because it had no provider-backed payment authority |
-| File uploads | ✅ R2 upload endpoints require auth in-route, validate endpoint/type/size, rate limit presigns, and strip EXIF for JPEG/PNG/WebP processed uploads |
+Launch status lives only in `docs/launch-checklist.md` and `docs/deferred-launch-backlog.md`. A control counts as done only with a dated retained artifact.
 
 ### Remaining security improvements (not urgent)
 
@@ -3090,45 +3081,9 @@ first pass's rough edges. Behavior future agents must preserve:
 
 **TypeScript: zero `tsc --noEmit` errors** (maintained as of 2026-04-01)
 
-### Immediate / deploy blockers
+### Launch status
 
-1. **CSP enforcement** — ✅ **Complete (2026-04-02)** — enforced; `clerk.thegrainline.com` added to `script-src-elem`, header changed to `Content-Security-Policy`
-2. **Clerk webhook production setup** — add `CLERK_WEBHOOK_SECRET` to Vercel; register `https://thegrainline.com/api/clerk/webhook` in Clerk Dashboard → Production → Webhooks (events: `user.created`, `user.updated`, `user.deleted`)
-3. **Stripe live mode webhook** — register after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel with live mode signing secret
-
-### QA / pre-launch
-
-4. **OWASP ZAP scan** — run against preview deployment before go-live
-5. **End-to-end checkout testing** — 10 purchases in Stripe test mode covering: single item, multi-item cart, gift wrapping, made-to-order, pickup, custom order flow
-6. **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars if not already rotated after exposure
-7. **Add noindex to dev data** — add `robots: { index: false }` to test listings / seller profiles before Google indexes fake data
-
-### Platform features
-
-8. **Wax seal stamp** (Guild Master exclusive, post-launch) — `guildStampStyle String?` on `SellerProfile`; 4 styles (serif/block/script/ornate); monogram + `logo-mark.svg` — defer until post-launch
-
-### Legal / business
-
-- **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars if not already rotated after exposure **(LAUNCH BLOCKER until confirmed current)**
-- **Attorney review** of Terms / Privacy — budget $1,500–$3,000; bring 5-page pre-launch checklist + 196-item attorney discussion list **(LAUNCH BLOCKER)**
-- **EIN** ✅ obtained
-- **Business bank account** ✅ opened
-- **Business address** ✅ — Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731
-- **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
-- **Texas marketplace facilitator registration** ✅ completed 2026-04-18; first quarterly return due 2026-07-20 and must be filed even with zero sales
-- **Operating agreement** ✅ template sufficient for solo launch; not a launch blocker for single-member Texas LLC
-- **Clickwrap implementation** ✅ server-side middleware gate uses durable `User` Terms/age fields; attorney still reviews wording/enforceability
-- **Trademark Class 035** filing — ~$350; clearance search first (conflict risk with "Grainline Studio")
-- **Business insurance** — general liability ($30–60/mo) + cyber liability + marketplace product liability
-- Fix Terms 6.3 redundant sentence — delete "Payout timing is governed by Stripe's standard payout schedule." *(fixed in c7bde34)*
-- Fix Privacy Section 10 duplicate paragraph — delete "By using the Platform, you consent..." paragraph *(fixed in c7bde34)*
-- Clean up both TOCs — remove inline subsection references, show main section titles only *(fixed in c7bde34)*
-- Resolve duplicate Feedback clause — 11.6 vs 33.11; attorney decides which to keep
-
-### SEO
-
-17. **Google Search Console** — set `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` in production for the root metadata verification tag, verify domain ownership, and submit `https://thegrainline.com/sitemap_index.xml`
-18. **`metadataBase`** ✅ corrected to `https://thegrainline.com` in `layout.tsx`
+Launch status lives only in `docs/launch-checklist.md` and `docs/deferred-launch-backlog.md`. A control counts as done only with a dated retained artifact.
 
 ### Process
 
@@ -3812,25 +3767,9 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 - Fix `getSellerRatingMap` N+1 on homepage (single JOIN like browse page)
 - Parallelize featured maker + seller ratings + logged-in user data queries
 
-## Remaining Security Gaps
+## Security Status
 
-| Gap | Status |
-|---|---|
-| CSP enforcement | ✅ Enforced (2026-04-02) — `clerk.thegrainline.com` added to `script-src-elem`, header switched to `Content-Security-Policy` |
-| Stripe `account.updated` / `deauthorized` | ✅ Complete — handlers added to webhook |
-| Geo-blocking | ✅ Complete — US only via Vercel edge geo |
-| Notification preferences | ✅ Complete — `/account/settings` with toggles |
-| Zod input validation | ✅ Complete — all request-body API routes |
-| CSRF audit | ✅ Complete — documented in `src/lib/security.ts` |
-| Redis rate limit failover | ✅ Complete — `safeRateLimit` / `safeRateLimitOpen` wrappers |
-| Cloudflare WAF free tier active (DDoS protection) | Pro WAF ($20/mo) deferred until revenue justifies |
-| `X-Powered-By` header removal | ✅ Complete (2026-04-03) — `poweredByHeader: false` in `next.config.ts` |
-| OWASP ZAP scan | ✅ Complete (2026-04-03) — 0 high, 0 medium findings; 2 low (missing `Permissions-Policy` on API routes — headers already set globally) |
-| Neon database password rotation | ✅ Complete (2026-04-18) — rotated in Neon dashboard, `DATABASE_URL` + `DIRECT_URL` updated in Vercel (all environments) and local `.env` |
-| `.env.save` / `.env.production` cleanup | ✅ Deleted (2026-04-18) — contained live secrets. Both were gitignored but sitting unencrypted on disk. |
-| `SHIPPING_RATE_SECRET` in Preview | ✅ Complete (2026-04-18) — added via Vercel dashboard. Preview deploys can now run checkout flows. |
-| Apple Pay domain registration | ✅ Complete (2026-04-18) — `thegrainline.com` added to Stripe Payment method domains |
-| `www` redirect | ✅ Complete (2026-04-18) — 308 permanent redirect `www.thegrainline.com` → `thegrainline.com` in Vercel. SSL provisioned. |
+Launch status lives only in `docs/launch-checklist.md` and `docs/deferred-launch-backlog.md`. A control counts as done only with a dated retained artifact.
 
 ### Security Maintenance Rules
 
