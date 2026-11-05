@@ -436,7 +436,7 @@ async function CommissionPageContent({
                       </span>
                     )}
                     {r.isNational && (
-                      <span className="rounded-full border border-stone-200 bg-[#FAF8F4] px-3 py-1 text-xs text-neutral-700">Ships nationwide</span>
+                      <span className="rounded-full border border-stone-200 bg-[#FAF8F4] px-3 py-1 text-xs text-neutral-700">Open to all makers</span>
                     )}
                   </div>
 
