@@ -764,7 +764,7 @@ async function SellerPublicContent({
                   )}
                   {seller.workshopImageUrl && (
                     <figure className="lg:order-last">
-                      <div className="aspect-[3/2] overflow-hidden rounded-2xl ring-1 ring-neutral-200 shadow-sm">
+                      <div className="aspect-[3/2] overflow-hidden rounded-2xl">
                         <CoverLightbox
                           src={seller.workshopImageUrl}
                           alt={`${seller.displayName} workshop`}
@@ -804,14 +804,14 @@ async function SellerPublicContent({
                         : `Exact public pin${cityState ? ` in ${cityState}` : ""}, shared by this maker.`}
                     </p>
                   </div>
-                  <div className="rounded-2xl overflow-hidden ring-1 ring-stone-300/70 shadow-sm">
+                  <div className="rounded-2xl overflow-hidden">
                     <DynamicMapCard
                       displayLat={pickupMapPoint.publicLat}
                       displayLng={pickupMapPoint.publicLng}
                       label={cityState || seller.displayName || "Pickup area"}
                       radiusMeters={pickupMapPoint.displayRadiusMeters}
                       showPinWithRadius={false}
-                      className="h-72 sm:h-96 w-full"
+                      className="h-56 sm:h-72 w-full"
                     />
                   </div>
                 </section>
