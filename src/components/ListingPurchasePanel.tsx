@@ -237,7 +237,7 @@ export default function ListingPurchasePanel({
               }}
               className="btn btn-primary w-full min-h-[50px]"
             >
-              Sign up to buy
+              Buy now
             </button>
           )}
           {!checkoutHeld && <AddToCartButton
