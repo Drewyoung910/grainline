@@ -20,6 +20,7 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
+import { closedCommissionLabel } from "@/lib/commissionState";
 import {
   publicCommissionInterestCards,
   publicCommissionInterestCounts,
@@ -87,7 +88,9 @@ export async function generateMetadata({
       buyerSellerState: true,
     },
   });
-  if (!req) notFound();
+  // The page decides who may see a request that is no longer open, so this
+  // must not 404 for them. It reveals nothing and stays out of search.
+  if (!req) return { title: "Commission request", robots: { index: false, follow: false } };
 
   const location = req.isNational
     ? "Ships Anywhere"
@@ -357,37 +360,53 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
   const { blockedUserIds } = await getBlockedIdsFor(meId);
 
-  const request = await prisma.commissionRequest.findFirst({
+  const select = {
+    id: true,
+    title: true,
+    description: true,
+    category: true,
+    budgetMinCents: true,
+    budgetMaxCents: true,
+    timeline: true,
+    referenceImageUrls: true,
+    status: true,
+    isNational: true,
+    expiresAt: true,
+    createdAt: true,
+    buyerId: true,
+    metroId: true,
+    cityMetroId: true,
+    metro: { select: { slug: true, name: true, state: true } },
+    cityMetro: { select: { slug: true, name: true, state: true } },
+    buyerName: true,
+    buyerImageUrl: true,
+    buyerSellerCity: true,
+    buyerSellerState: true,
+  } as const;
+  const openRequest = await prisma.commissionRequest.findFirst({
     where: openCommissionWhere({
       id,
       ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
     }),
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      timeline: true,
-      referenceImageUrls: true,
-      status: true,
-      isNational: true,
-      expiresAt: true,
-      createdAt: true,
-      buyerId: true,
-      metroId: true,
-      cityMetroId: true,
-      metro: { select: { slug: true, name: true, state: true } },
-      cityMetro: { select: { slug: true, name: true, state: true } },
-      buyerName: true,
-      buyerImageUrl: true,
-      buyerSellerCity: true,
-      buyerSellerState: true,
-    },
+    select,
   });
+  // Fulfilled, closed and expired notices link here, so the buyer who posted
+  // the request and the makers who said they were interested can still read
+  // it. Everyone else gets a 404.
+  const request = openRequest ?? (meId
+    ? await prisma.commissionRequest.findFirst({
+        where: {
+          id,
+          // No seller profile: "" matches no interest row.
+          OR: [{ buyerId: meId }, { interests: { some: { sellerProfileId: sellerProfileId ?? "" } } }],
+          ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+        },
+        select,
+      })
+    : null);
 
   if (!request) return notFound();
+  const readOnly = !openRequest;
   const [interestCounts, interests] = await Promise.all([
     publicCommissionInterestCounts([request.id], meId),
     publicCommissionInterestCards(request.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT),
@@ -430,28 +449,30 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
+      {!readOnly && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
+      )}
       <div className="mb-5 text-sm text-neutral-500">
         <Link href="/commission" className="hover:underline">Commission Room</Link>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{request.title}</span>
       </div>
 
-      {request.status !== "OPEN" && (
+      {readOnly && (
         <div className="mb-5 bg-neutral-100 border border-neutral-200 text-neutral-600 text-sm px-4 py-3">
-          This request is <strong>{request.status.toLowerCase().replace("_", " ")}</strong> and no longer accepting interest.
+          This request is <strong>{closedCommissionLabel(request)}</strong> and no longer accepting interest.
         </div>
       )}
 
       <div className="flex items-start justify-between gap-4 mb-6">
         <h1 className="font-display text-2xl font-semibold text-neutral-900 flex-1">{request.title}</h1>
-        {sellerProfileId && !isOwner && request.status === "OPEN" && (
+        {sellerProfileId && !isOwner && !readOnly && (
           <CommissionInterestButton
             requestId={request.id}
             initialInterested={alreadyInterested}
           />
         )}
-        {!userId && request.status === "OPEN" && (
+        {!userId && !readOnly && (
           <Link
             href={`/sign-in?redirect_url=/commission/${id}`}
             rel="nofollow"
@@ -550,7 +571,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         </section>
       )}
 
-      {isOwner && request.status === "OPEN" && (
+      {isOwner && !readOnly && (
         <div className="flex gap-3 pt-4 border-t border-neutral-100">
           <MarkStatusButtons requestId={request.id} />
         </div>

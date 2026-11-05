@@ -21,3 +21,10 @@ export function openCommissionMutationWhere(
     ],
   };
 }
+
+// Why a request is no longer open. An OPEN row reaches this only when it has
+// expired or its buyer's account is no longer active.
+export function closedCommissionLabel(request: { status: CommissionStatus; expiresAt: Date | null }) {
+  if (request.status !== CommissionStatus.OPEN) return request.status.toLowerCase().replace("_", " ");
+  return request.expiresAt != null && request.expiresAt <= new Date() ? "expired" : "closed";
+}
