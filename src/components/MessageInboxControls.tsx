@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import type { ChangeEvent } from "react";
 import SegmentedControl from "@/components/SegmentedControl";
