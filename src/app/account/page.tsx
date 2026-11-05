@@ -245,9 +245,9 @@ async function AccountPageContent() {
                   >
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={thumb} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-neutral-200 object-cover" />
+                      <img src={thumb} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
                     ) : (
-                      <div className="h-14 w-14 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
+                      <div className="h-14 w-14 shrink-0 rounded-lg bg-neutral-100" />
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
