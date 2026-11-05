@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
+  commissionAttemptRatelimit,
   commissionInterestRatelimit,
   rateLimitResponse,
   safeRateLimit,
@@ -30,6 +31,10 @@ export async function POST(
   const { id } = await params;
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `interest:${userId}`);
+  if (!attemptOk) {
+    return privateResponse(rateLimitResponse(attemptReset, "Too many attempts. Try again in a few minutes."));
+  }
 
   const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: 401 });

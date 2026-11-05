@@ -17,6 +17,7 @@ function loadRoute(sellerProfile = null) {
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk-1" }) },
     "@/lib/db": { prisma: { $transaction: (fn) => fn(tx) } },
     "@/lib/ratelimit": {
+      commissionAttemptRatelimit: "attempt",
       commissionCreateRatelimit: "daily-quota",
       commissionReferenceImageIpRatelimit: "image-ip",
       searchRatelimit: "search",
@@ -40,6 +41,7 @@ function loadRoute(sellerProfile = null) {
     "@/lib/profanity": { containsProfanity: () => ({ flagged: false, matches: [] }), containsSlur: () => false },
     "@/lib/httpStatus": { HTTP_STATUS: { BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403, PAYLOAD_TOO_LARGE: 413 } },
     "@/lib/categories": { CATEGORY_VALUES: [] },
+    "@/lib/urlValidation": { isFirstPartyMediaUrl: () => true },
   });
   return { route, limiterCalls, created };
 }
@@ -59,15 +61,30 @@ test("a rejected commission post does not spend the daily quota", async () => {
     const { route, limiterCalls } = loadRoute();
     const response = await route.POST({ body });
     assert.equal(response.status, 400, JSON.stringify(body));
-    assert.deepEqual(limiterCalls, [], JSON.stringify(body));
+    assert.deepEqual(limiterCalls, ["attempt"], JSON.stringify(body));
   }
+});
+
+test("every refused commission post still passes the short attempt limiter", async () => {
+  const { route, limiterCalls } = loadRoute();
+  for (let i = 0; i < 200; i += 1) {
+    await route.POST({ body: { ...valid, budgetMin: 500, budgetMax: 100 } });
+  }
+  assert.equal(limiterCalls.filter((limiter) => limiter === "attempt").length, 200);
+  assert.equal(limiterCalls.includes("daily-quota"), false);
+});
+
+test("the daily quota is checked before the shared network image limit", async () => {
+  const { route, limiterCalls } = loadRoute();
+  await route.POST({ body: { ...valid, referenceImageUrls: ["https://cdn.thegrainline.com/a.jpg"] } });
+  assert.deepEqual(limiterCalls, ["attempt", "daily-quota", "image-ip"]);
 });
 
 test("a valid commission post spends one quota token", async () => {
   const { route, limiterCalls, created } = loadRoute();
   const response = await route.POST({ body: valid });
   assert.equal(response.status, 200);
-  assert.deepEqual(limiterCalls, ["daily-quota"]);
+  assert.deepEqual(limiterCalls, ["attempt", "daily-quota"]);
   assert.equal(created.length, 1);
 });
 

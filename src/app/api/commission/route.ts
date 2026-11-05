@@ -8,6 +8,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import {
+  commissionAttemptRatelimit,
   commissionCreateRatelimit,
   commissionReferenceImageIpRatelimit,
   getIP,
@@ -117,6 +118,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
+  const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `post:${userId}`);
+  if (!attemptOk) return privateResponse(rateLimitResponse(attemptReset, "Too many attempts. Try again in a few minutes."));
 
   const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });
@@ -204,7 +207,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Spend the daily quota only once the request is known to be acceptable, so
-  // rejected attempts cannot lock a buyer out for a day.
+  // rejected attempts cannot lock a buyer out for a day. Check it before the
+  // shared network image limit, so a user over quota cannot use that up.
+  const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
   if ((referenceImageUrls?.length ?? 0) > 0) {
     const { success: imageIpOk, reset: imageIpReset } = await safeRateLimit(
       commissionReferenceImageIpRatelimit,
@@ -214,8 +220,6 @@ export async function POST(req: NextRequest) {
       return privateResponse(rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network."));
     }
   }
-  const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
-  if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
 
   const images = await filterVerifiedFirstPartyMediaUrlsForUser({
     urls: referenceImageUrls ?? [],

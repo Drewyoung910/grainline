@@ -274,6 +274,16 @@ export const profileViewRatelimit = new Ratelimit({
   prefix: "rl:profile_view",
 });
 
+// Commission posts, commission interest and custom-order requests: a short
+// attempt limiter checked first, so refused attempts are bounded even though
+// each route spends its daily quota only after validation.
+export const commissionAttemptRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "10 m"),
+  analytics: true,
+  prefix: "rl:commission_attempt",
+});
+
 // Broadcast — short attempt limiter before parse; weekly send limiter after validation/DB cooldown.
 export const broadcastAttemptRatelimit = new Ratelimit({
   redis,
