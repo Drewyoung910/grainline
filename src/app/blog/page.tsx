@@ -406,7 +406,7 @@ async function BlogIndexPageContent({
                   <MediaImage
                     src={featured.coverImageUrl}
                     alt={featured.title}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                     fallbackClassName="w-full h-full bg-gradient-to-br from-amber-100 to-stone-200"
                   />
                 </Link>

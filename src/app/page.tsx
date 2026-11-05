@@ -890,7 +890,7 @@ export default async function HomePage() {
                               src={fl.photos[0]?.url ?? null}
                               alt={fl.photos[0]?.altText ?? fl.title}
                               loading="lazy"
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:scale-[1.035]"
                               fallbackClassName="h-full w-full bg-stone-100"
                             />
                           </div>

@@ -68,7 +68,7 @@ export default async function SimilarMakers({
                       src={cover}
                       alt=""
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                       fallbackClassName="h-full w-full bg-[#E3DCCB]/60"
                     />
                   )}
