@@ -393,9 +393,9 @@ export default async function SellerSettingsPage({
           </p>
         </div>
 
-        {/* Shipping & Tax Settings */}
+        {/* Shipping Settings */}
         <div className="border-t border-neutral-100 pt-4 space-y-4">
-          <h2 className="text-lg font-semibold font-display">Shipping & Tax</h2>
+          <h2 className="text-lg font-semibold font-display">Shipping</h2>
 
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Flat shipping rate ($)</label>

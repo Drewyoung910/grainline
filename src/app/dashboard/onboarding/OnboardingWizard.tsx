@@ -284,7 +284,7 @@ export default function OnboardingWizard({
                   id="displayName"
                   name="displayName"
                   type="text"
-                  autoComplete="name"
+                  autoComplete="off"
                   defaultValue={displayName}
                   maxLength={100}
                   className={inputClass}
