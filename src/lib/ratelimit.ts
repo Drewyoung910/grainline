@@ -424,6 +424,13 @@ export const newsletterRatelimit = new Ratelimit({
   prefix: "rl:newsletter",
 });
 
+export const newsletterAddressRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "24 h"),
+  analytics: true,
+  prefix: "rl:newsletter-address",
+});
+
 export const supportRequestRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(5, "60 m"),
