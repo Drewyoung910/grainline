@@ -317,7 +317,7 @@ Fulfillment enums: `FulfillmentMethod` (PICKUP | SHIPPING), `FulfillmentStatus` 
 
 `estimatedDeliveryDate` and `processingDeadline` are calculated in `grainline_stripe_checkout_order_create` when an order is created:
 
-- `processingDeadline` = payment time (`p_paid_at`) + `maxProcessingDays` days (max of all items' `processingTimeMaxDays`, default 3)
+- `processingDeadline` = payment time (`p_paid_at`) + the largest `processingTimeMaxDays` across the order's items (default 3)
 - `estimatedDeliveryDate` = `processingDeadline` + bounded `estDays` (from `shipping_rate_data.metadata.estDays` stored at checkout, default 7 when missing or out-of-range) + 3 grace days
 
 `estDays` is stored in `shipping_rate_data.metadata` by both checkout routes alongside `objectId`. Checkout request validation only accepts positive shipping transit days up to `SHIPPING_ESTIMATED_DAYS_MAX` (60), and the Stripe webhook re-bounds the metadata before computing `estimatedDeliveryDate`; do not use unbounded Stripe metadata for delivery-date math.
