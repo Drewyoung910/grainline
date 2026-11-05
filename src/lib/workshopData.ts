@@ -27,8 +27,12 @@ export const readWorkshopOrderQueue = cache(async (actorUserId: string) => {
 });
 
 export async function readWorkshopListingAttention(sellerProfileId: string) {
-  const [listingCount, underReview, underReviewFirst, rejected, lowStock] = await Promise.all([
+  const [listingCount, liveListingCount, underReview, underReviewFirst, rejected, lowStock] = await Promise.all([
     prisma.listing.count({ where: { sellerId: sellerProfileId, archivedAt: null } }),
+    // What buyers can order now, for the Workshop's open or closed pill.
+    prisma.listing.count({
+      where: { sellerId: sellerProfileId, archivedAt: null, status: "ACTIVE", isPrivate: false },
+    }),
     prisma.listing.count({
       where: { sellerId: sellerProfileId, archivedAt: null, status: "PENDING_REVIEW" },
     }),
@@ -53,6 +57,7 @@ export async function readWorkshopListingAttention(sellerProfileId: string) {
   ]);
   return {
     listingCount,
+    liveListingCount,
     underReview,
     underReviewTitle: underReviewFirst?.title ?? null,
     rejected,

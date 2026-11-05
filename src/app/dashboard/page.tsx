@@ -101,7 +101,7 @@ async function DashboardPageContent({
     chargesEnabled,
     onboardingComplete,
     acceptingNewOrders: shopEditorState?.acceptingNewOrders ?? null,
-    listingCount: listingAttention?.listingCount ?? null,
+    liveListingCount: listingAttention?.liveListingCount ?? null,
   });
 
   return (
