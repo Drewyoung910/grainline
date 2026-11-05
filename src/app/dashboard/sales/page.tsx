@@ -89,7 +89,10 @@ async function SalesContent({
   const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.sellerProfileId);
   if (!sellerPrivate) redirect("/dashboard/seller");
 
-  if (!sellerPrivate.onboardingComplete) {
+  // A maker can have a real order before finishing setup, because publishing only
+  // needs Stripe. Show the setup panel only when there is nothing to fulfil.
+  const total = await countSellerOrders(me.id);
+  if (!sellerPrivate.onboardingComplete && total === 0) {
     return (
       <main className="mx-auto max-w-4xl p-8 space-y-6">
         <header>
@@ -127,15 +130,12 @@ async function SalesContent({
   const { cursor: rawCursor } = await searchParams;
   const historyCursor = parseOrderHistoryCursor(rawCursor);
   const page = historyCursor?.page ?? 1;
-  const [total, orderPage] = await Promise.all([
-    countSellerOrders(me.id),
-    readSellerOrderSummaryPage({
-      actorUserId: me.id,
-      limit: PAGE_SIZE,
-      cursor: historyCursor?.boundary ?? null,
-      direction: historyCursor?.direction ?? "older",
-    }),
-  ]);
+  const orderPage = await readSellerOrderSummaryPage({
+    actorUserId: me.id,
+    limit: PAGE_SIZE,
+    cursor: historyCursor?.boundary ?? null,
+    direction: historyCursor?.direction ?? "older",
+  });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const orders = orderPage.rows;
   if (historyCursor && (page > totalPages || (total > 0 && orders.length === 0))) {
