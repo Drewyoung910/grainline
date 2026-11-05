@@ -578,7 +578,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(homepage, /followStates\.filter\(\(state\) => state\.following\)\.map\(\(state\) => state\.sellerProfileId\)/);
     assert.match(homepage, /getCachedPublicSellerStats\(featuredMakers\[0\]\.maker\.id\)/);
     assert.match(homepage, /<h2 className="font-display text-2xl font-semibold sm:text-3xl">In the Workshop<\/h2>/);
-    assert.match(homepage, /href=\{publicSellerPath\(spotlight\.id, spotlight\.displayName\)\}[\s\S]*absolute bottom-4 left-4/);
+    assert.match(homepage, /href=\{publicSellerPath\(spotlight\.id, spotlight\.displayName\)\}[\s\S]*Visit the Workshop →/);
     assert.match(homepage, /hover:underline[\s\S]*Visit the Workshop →/);
     assert.match(homepage, /meDbId !== spotlight\.userId && \(/);
     assert.match(homepage, /initialFollowing=\{featuredFollowing\.has\(spotlight\.id\)\}/);
