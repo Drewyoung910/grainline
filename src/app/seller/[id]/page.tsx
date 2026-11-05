@@ -637,7 +637,7 @@ async function SellerPublicContent({
                     <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:max-w-5xl sm:grid-cols-2 sm:gap-5 sm:pb-0 lg:grid-cols-3">
                       {fallbackFeatured.slice(0, 3).map((listing) => (
                         <ClickTracker key={listing.id} listingId={listing.id} className="w-[220px] flex-none snap-start sm:w-auto">
-                          <ListingCard listing={wrap(listing)} initialSaved={savedSet.has(listing.id)} variant="grid" />
+                          <ListingCard listing={wrap(listing)} initialSaved={savedSet.has(listing.id)} variant="grid" hideMaker />
                         </ClickTracker>
                       ))}
                     </ul>
@@ -683,39 +683,38 @@ async function SellerPublicContent({
               {listings.length === 0 ? (
                 <div className="card-section p-6 text-neutral-600 bg-white">No listings yet.</div>
               ) : (
-                <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
-                  <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:pb-0 md:grid-cols-3 lg:grid-cols-4 sm:gap-5">
-                    {listings.map((l) => (
-                      <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto">
-                        <ListingCard
-                          listing={{
-                            id: l.id,
-                            title: l.title,
-                            priceCents: l.priceCents,
-                            currency: l.currency,
-                            status: l.status,
-                            listingType: l.listingType,
-                            stockQuantity: l.stockQuantity ?? null,
-                            photoUrl: l.photos[0]?.url ?? null,
-                            photoAltText: l.photos[0]?.altText ?? null,
-                            seller: {
-                              id: seller.id,
-                              displayName: seller.displayName ?? null,
-                              avatarImageUrl: seller.avatarImageUrl ?? seller.ownerImageUrl ?? null,
-                              guildLevel: seller.guildLevel ?? null,
-                              city: seller.city ?? null,
-                              state: seller.state ?? null,
-                              acceptingNewOrders: seller.acceptingNewOrders ?? null,
-                            },
-                            rating: null,
-                          }}
-                          initialSaved={savedSet.has(l.id)}
-                          variant="grid"
-                        />
-                      </ClickTracker>
-                    ))}
-                  </ul>
-                </ScrollFadeRow>
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-6 md:grid-cols-3 lg:grid-cols-4">
+                  {listings.map((l) => (
+                    <ClickTracker key={l.id} listingId={l.id}>
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
+                          seller: {
+                            id: seller.id,
+                            displayName: seller.displayName ?? null,
+                            avatarImageUrl: seller.avatarImageUrl ?? seller.ownerImageUrl ?? null,
+                            guildLevel: seller.guildLevel ?? null,
+                            city: seller.city ?? null,
+                            state: seller.state ?? null,
+                            acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                          },
+                          rating: null,
+                        }}
+                        initialSaved={savedSet.has(l.id)}
+                        variant="grid"
+                        hideMaker
+                      />
+                    </ClickTracker>
+                  ))}
+                </ul>
               )}
               {activePublicListingCount > SELLER_PROFILE_LISTING_PREVIEW_SIZE ? (
                 <div className="mt-5 text-center">
