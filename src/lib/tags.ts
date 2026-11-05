@@ -4,7 +4,8 @@ export const MAX_TAG_LENGTH = 24;
 export const DEFAULT_MAX_TAGS = 10;
 
 export function normalizeTag(input: string | null | undefined): string {
-  return stripBidiControls(normalizeUserText(input ?? "").normalize("NFKD"))
+  // Joiners are display shaping only; as tag text they would become hyphens.
+  return stripBidiControls(normalizeUserText(input ?? "").replace(/[\u200C\u200D]/g, "").normalize("NFKD"))
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()

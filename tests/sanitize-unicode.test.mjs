@@ -80,6 +80,12 @@ describe("unicode sanitization", () => {
   it("uses the user-name sanitizer as the seller display-name lookup key", () => {
     assert.equal(normalizeDisplayNameForLookup("\u0410cm\u0435 Woodworks"), "Acme Woodworks");
     assert.equal(normalizeDisplayNameForLookup("  Maker\u200B   Shop  "), "Maker Shop");
+    // Review RO-04: names keep their joiners, but the lookup key drops them so
+    // two names that look the same still collide in the duplicate warning.
+    assert.equal(sanitizeUserName("ب\u200Dب"), "ب\u200Dب");
+    assert.equal(normalizeDisplayNameForLookup("ب\u200Dب"), "بب");
+    assert.equal(normalizeDisplayNameForLookup("😀\u200D😀"), "😀😀");
+    assert.equal(normalizeDisplayNameForLookup("می\u200Cخواهم"), "میخواهم");
   });
 
   it("does not split surrogate-pair characters while truncating text", () => {
