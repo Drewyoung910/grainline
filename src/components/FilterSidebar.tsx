@@ -406,7 +406,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               placeholder="$ Min"
               aria-invalid={pendingMin === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
+              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm"
             />
             <span className="shrink-0 text-neutral-400" aria-hidden="true">–</span>
             <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
@@ -421,7 +421,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               placeholder="$ Max"
               aria-invalid={pendingMax === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
+              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm"
             />
             <button type="submit" aria-label="Apply price" className="btn btn-sm btn-secondary shrink-0">Go</button>
           </form>

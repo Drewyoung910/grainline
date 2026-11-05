@@ -3038,8 +3038,7 @@ first pass's rough edges. Behavior future agents must preserve:
     keeps an always-visible floating column (recommended to Drew over a
     full-width grid with a slide-in panel; his call is pending). The
     desktop price fields are controlled and never re-keyed, apply on Enter
-    or when focus leaves both fields (moving Min to Max does not navigate),
-    accept "$1,250"-style input with an inline error otherwise, and every
+    or the Go button (never on blur, which took the next click), accept "$1,250"-style input with an inline error otherwise, and every
     other filter link carries a typed price along. Full-width
     `SegmentedControl` tracks size options to their labels and let a long
     label wrap rather than overflow; `labelledBy` names the group from a
