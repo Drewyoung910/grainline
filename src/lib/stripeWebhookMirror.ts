@@ -95,7 +95,12 @@ export async function mirrorStripeChargesEnabled({
       try {
         const recipient = await userEmailDeliveryRecipient(prisma, { userId: seller.userId });
         if (recipient) {
-          await sendRenderedEmail(renderShopPausedEmail({ to: recipient.email, name: recipient.name }));
+          // The change check is not locked, so two webhooks can both see it. Resend
+          // drops the second send with the same key. A Resend outage still loses it.
+          await sendRenderedEmail(
+            renderShopPausedEmail({ to: recipient.email, name: recipient.name }),
+            { idempotencyKey: `shop-paused:${seller.id}:${new Date().toISOString().slice(0, 10)}` },
+          );
         }
       } catch (error) {
         Sentry.captureException(error, {
