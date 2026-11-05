@@ -15,7 +15,7 @@ import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
-import { listingEditBlockReason } from "@/lib/listingEditState";
+import { approvedListingStatus, listingEditBlockReason } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { listingPriceMaxError } from "@/lib/listingPrice";
@@ -368,12 +368,6 @@ async function updateListing(
   const needsPublicContentReview =
     listing.status === ListingStatus.ACTIVE ||
     listing.status === ListingStatus.SOLD_OUT;
-  let approvedPublicStatus =
-    listing.status === ListingStatus.ACTIVE &&
-    listingType === "IN_STOCK" &&
-    (stockQuantity ?? 0) <= 0
-      ? ListingStatus.SOLD_OUT
-      : listing.status;
 
   let updatedListing: { title: string; updatedAt: Date };
   try {
@@ -394,9 +388,6 @@ async function updateListing(
       }
       const lockedBlockReason = listingEditBlockReason({ ...locked, status: locked.status as ListingStatus });
       if (lockedBlockReason) throw new StockMutationConflict(lockedBlockReason);
-      const nextStock = listingType === stockContext.listingType ? locked.stockQuantity : stockQuantity;
-      approvedPublicStatus = locked.status === ListingStatus.ACTIVE && listingType === "IN_STOCK" && (nextStock ?? 0) <= 0
-        ? ListingStatus.SOLD_OUT : listing.status;
       const updated = await tx.listing.update({
         where: { id: listingId },
         data: {
@@ -575,11 +566,23 @@ async function updateListing(
             );
           }
         } else {
-          // Stays in the current public status; refresh AI metadata for this pass.
+          // Return to a public status based on stock now, since a reservation
+          // restore can change it during the AI call. If stock moves again
+          // before this write, the listing stays in review rather than guess.
+          const current = await prisma.listing.findUniqueOrThrow({
+            where: { id: listingId },
+            select: { listingType: true, stockQuantity: true, isPrivate: true },
+          });
           await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
+            where: {
+              id: listingId,
+              sellerId: listing.sellerId,
+              status: ListingStatus.PENDING_REVIEW,
+              updatedAt: updatedListing.updatedAt,
+              stockQuantity: current.stockQuantity,
+            },
             data: {
-              status: approvedPublicStatus,
+              status: approvedListingStatus(listing.status, current),
               aiReviewFlags: aiResult.flags,
               aiReviewScore: aiResult.confidence,
               rejectionReason: null,

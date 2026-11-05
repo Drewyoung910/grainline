@@ -118,7 +118,7 @@ describe("stock mutation state", () => {
     );
     assert.match(
       editListing,
-      /data: \{[\s\S]*status: approvedPublicStatus,[\s\S]*aiReviewFlags: aiResult\.flags/,
+      /data: \{[\s\S]*status: approvedListingStatus\(listing\.status, current\),[\s\S]*aiReviewFlags: aiResult\.flags/,
     );
     assert.doesNotMatch(editListing, /const wasActive = listing\.status === ListingStatus\.ACTIVE/);
   });
