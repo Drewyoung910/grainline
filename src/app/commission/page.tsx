@@ -209,7 +209,7 @@ async function CommissionPageContent({
     })());
 
     const interestCounts = rawResults.length > 0
-      ? await publicCommissionInterestCounts(rawResults.map(({ id }) => id), null)
+      ? await publicCommissionInterestCounts(rawResults.map(({ id }) => id), meId)
       : new Map<string, number>();
     requests = rawResults.map((r) => ({
       id: r.id,
@@ -250,7 +250,7 @@ async function CommissionPageContent({
       },
     });
     const interestCounts = found.length > 0
-      ? await publicCommissionInterestCounts(found.map(({ id }) => id), null)
+      ? await publicCommissionInterestCounts(found.map(({ id }) => id), meId)
       : new Map<string, number>();
     requests = found.map(({ buyerName, buyerImageUrl, ...request }) => ({
       ...request,
