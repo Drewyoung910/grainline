@@ -7,7 +7,7 @@ export type RateLimitResult = {
 };
 
 export type RateLimitLike = {
-  limit(key: string): Promise<RateLimitResult>;
+  limit(key: string): Promise<RateLimitResult & { reason?: string }>;
 };
 
 export function providerRateLimitKey(key: string): string {
@@ -22,6 +22,9 @@ export async function limitWithFailurePolicy(
 ): Promise<RateLimitResult> {
   try {
     const result = await limiter.limit(providerRateLimitKey(key));
+    // Upstash answers success when its own timeout wins the race. That is a Redis
+    // failure, not an allowed request, so it follows the same policy as an error.
+    if (result.reason === "timeout") throw new Error("Rate limiter timed out");
     return { success: result.success, reset: result.reset };
   } catch (error) {
     logServerError(error, {

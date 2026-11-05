@@ -9,6 +9,11 @@ import { HTTP_STATUS } from "./httpStatus.ts";
 export const redis = new Redis({
   url: requiredProductionEnv("UPSTASH_REDIS_REST_URL"),
   token: requiredProductionEnv("UPSTASH_REDIS_REST_TOKEN"),
+  // Middleware reads Redis on every signed-in request, so a stalled Redis must fail
+  // quickly: the account-state read falls back to the database, and limiters follow
+  // their fail-open or fail-closed policy.
+  signal: () => AbortSignal.timeout(1500),
+  retry: { retries: 1, backoff: () => 100 },
 });
 
 // For public endpoints — limit by IP
