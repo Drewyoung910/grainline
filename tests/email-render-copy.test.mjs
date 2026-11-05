@@ -176,4 +176,12 @@ describe("plain text and narrow screens", () => {
     assert.match(text, /Total \| \$534\.34/);
   });
 
+  it("lets a long unbroken link wrap instead of widening the page", () => {
+    const { html } = email.renderSellerBroadcastEmail({
+      to: "a@example.com",
+      makerName: "Shop",
+      message: `https://example.com/${"x".repeat(200)}`,
+    });
+    assert.match(html, /overflow-wrap:anywhere/);
+  });
 });

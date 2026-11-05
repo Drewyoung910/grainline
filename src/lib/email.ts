@@ -170,7 +170,7 @@ function baseTemplate(title: string, body: string): string {
 </table>
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 16px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;padding:36px 0 24px;">
-    <tr><td>
+    <tr><td style="overflow-wrap:anywhere;">
       <h1 style="margin:0 0 20px;font-size:20px;font-weight:700;color:#1C1C1A;">${esc(title)}</h1>
       ${body}
     </td></tr>
@@ -719,18 +719,20 @@ export function renderCustomOrderReadyEmail(opts: {
   listingTitle: string;
   priceCents: number;
   currency?: string | null;
-  listingId: string;
-}) {
-  const { buyer, sellerName, listingTitle, priceCents, currency, listingId } = opts;
+  conversationId: string;
+}): RenderedEmail {
+  const { buyer, sellerName, listingTitle, priceCents, currency, conversationId } = opts;
   const name = buyer.name || "there";
   const seller = sellerName || "Your maker";
-  const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
+  // The private listing is a 404 for a signed-out visitor, and most people open
+  // email signed out on a phone. The thread sends them to sign in, then has the card.
+  const threadUrl = `${APP_URL}/messages/${conversationId}`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(seller)}</strong> has created your custom piece!</p>
     <p style="font-size:16px;font-weight:700;margin:0 0 4px;">${esc(listingTitle)}</p>
     <p style="font-size:18px;font-weight:700;color:#1C1C1A;margin:0 0 20px;">${fmtCents(priceCents, currency)}</p>
-    ${btn("Purchase your piece", listingUrl)}
+    ${btn("Purchase your piece", threadUrl)}
   `;
 
   return {
