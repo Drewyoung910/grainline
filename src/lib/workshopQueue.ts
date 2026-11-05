@@ -85,6 +85,9 @@ export type WorkshopAttentionInput = Readonly<{
   // Unresolved Cases on this maker's orders (open, in discussion, pending close,
   // or with staff, which includes Cases a bank chargeback opened).
   openCases?: number | null;
+  // Shop state. Undefined or null means unknown, which adds no row.
+  chargesEnabled?: boolean | null;
+  liveListingCount?: number | null;
 }>;
 
 export type WorkshopAttentionRow = Readonly<{
@@ -163,6 +166,29 @@ export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAt
       title: "Running low",
       detail: input.lowStock.map((item) => `${item.title}: ${item.stockQuantity} left`).join(" · "),
       href: "/dashboard/listings?status=stock",
+    });
+  }
+  if (input.chargesEnabled === false) {
+    rows.push({
+      key: "payouts",
+      icon: "alert",
+      title: "Connect payouts to go live",
+      detail: "Buyers can't see or buy your pieces until Stripe payouts are set up",
+      href: "/dashboard/seller",
+    });
+  }
+  if (
+    input.liveListingCount === 0
+    && (input.listingCount ?? 0) > 0
+    && input.underReview === 0
+    && input.rejected === 0
+  ) {
+    rows.push({
+      key: "nothing-live",
+      icon: "tag",
+      title: "Nothing is live",
+      detail: "Publish a draft or unhide a listing so buyers can order",
+      href: "/dashboard/listings",
     });
   }
   if (input.listingCount === 0) {
