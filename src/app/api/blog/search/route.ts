@@ -69,7 +69,7 @@ function publicBlogSearchResult(row: PostRow) {
           avatarImageUrl: sellerAuthor.imageUrl,
         }
       : null,
-    author: { name: authorName, imageUrl: authorImageUrl },
+    author: { name: sellerAuthor.name, imageUrl: sellerAuthor.imageUrl },
   };
 }
 
