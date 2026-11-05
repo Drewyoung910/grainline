@@ -445,7 +445,6 @@ async function CommissionDetailPage({ id }: { id: string }) {
         {sellerProfileId && !isOwner && request.status === "OPEN" && (
           <CommissionInterestButton
             requestId={request.id}
-            sellerProfileId={sellerProfileId}
             initialInterested={alreadyInterested}
           />
         )}

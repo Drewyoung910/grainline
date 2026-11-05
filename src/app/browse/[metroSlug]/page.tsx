@@ -238,15 +238,9 @@ async function BrowseMetroContent({
         Handmade Woodworking in {cityName}
       </h1>
 
-      {listingCount > 0 ? (
-        <p className="text-neutral-600 text-sm mb-6">
-          Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area. Every piece is crafted by hand in {stateLabel}.
-        </p>
-      ) : (
-        <p className="text-neutral-600 text-sm mb-6">
-          Custom woodworking in {cityName} — makers coming soon. Post a commission request to attract local woodworkers, or sign up to be notified when makers join in your area.
-        </p>
-      )}
+      <p className="text-neutral-600 text-sm mb-6">
+        Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area. Every piece is crafted by hand in {stateLabel}.
+      </p>
 
       {/* Category filter tabs */}
       {categoryCounts.length > 0 && (
@@ -272,50 +266,38 @@ async function BrowseMetroContent({
         </div>
       )}
 
-      {/* Listings grid or empty state */}
-      {listingCount === 0 ? (
-        <div className="card-section p-8 text-center mb-10">
-          <p className="text-neutral-500 mb-4">No listings in {cityName} yet.</p>
-          <Link href="/commission/new" className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors mr-3">
-            Post a Commission Request
-          </Link>
-          <Link href="/browse" className="inline-block rounded-md border border-neutral-200 text-sm px-6 py-2.5 hover:bg-neutral-50 transition-colors">
-            Browse All
-          </Link>
-        </div>
-      ) : (
-        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
-          {listings.map((listing) => (
-            <ClickTracker key={listing.id} listingId={listing.id}>
-              <ListingCard
-                listing={{
-                  id: listing.id,
-                  title: listing.title,
-                  priceCents: listing.priceCents,
-                  currency: listing.currency,
-                  status: listing.status,
-                  listingType: listing.listingType,
-                  stockQuantity: listing.stockQuantity ?? null,
-                  photoUrl: listing.photos[0]?.url ?? null,
-                  photoAltText: listing.photos[0]?.altText ?? null,
-                  seller: {
-                    id: listing.seller.sellerProfileId,
-                    displayName: listing.seller.displayName ?? null,
-                    avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null,
-                    guildLevel: listing.seller.guildLevel ?? null,
-                    city: listing.seller.city ?? null,
-                    state: listing.seller.state ?? null,
-                    acceptingNewOrders: listing.seller.acceptingNewOrders ?? null,
-                  },
-                  rating: null,
-                }}
-                initialSaved={savedSet.has(listing.id)}
-                variant="grid"
-              />
-            </ClickTracker>
-          ))}
-        </ul>
-      )}
+      {/* Listings grid */}
+      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
+        {listings.map((listing) => (
+          <ClickTracker key={listing.id} listingId={listing.id}>
+            <ListingCard
+              listing={{
+                id: listing.id,
+                title: listing.title,
+                priceCents: listing.priceCents,
+                currency: listing.currency,
+                status: listing.status,
+                listingType: listing.listingType,
+                stockQuantity: listing.stockQuantity ?? null,
+                photoUrl: listing.photos[0]?.url ?? null,
+                photoAltText: listing.photos[0]?.altText ?? null,
+                seller: {
+                  id: listing.seller.sellerProfileId,
+                  displayName: listing.seller.displayName ?? null,
+                  avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null,
+                  guildLevel: listing.seller.guildLevel ?? null,
+                  city: listing.seller.city ?? null,
+                  state: listing.seller.state ?? null,
+                  acceptingNewOrders: listing.seller.acceptingNewOrders ?? null,
+                },
+                rating: null,
+              }}
+              initialSaved={savedSet.has(listing.id)}
+              variant="grid"
+            />
+          </ClickTracker>
+        ))}
+      </ul>
 
       {listingCount > 24 && (
         <div className="text-center mb-10">

@@ -221,7 +221,7 @@ export function BlogIndexSkeleton() {
 
 export function FeedSkeleton() {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8" aria-busy="true" aria-label="Loading feed">
+    <div className="max-w-2xl pb-8" aria-busy="true" aria-label="Loading feed">
       <Pulse className="mb-4 h-4 w-24" />
       <div className="mb-6 flex items-center justify-between gap-4">
         <Pulse className="h-8 w-32" />
