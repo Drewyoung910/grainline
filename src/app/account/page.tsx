@@ -212,7 +212,7 @@ async function AccountPageContent() {
         </div>
 
         {recentOrders.length === 0 ? (
-          <div className="card-section p-6 text-neutral-600 text-sm space-y-2">
+          <div className="py-1 text-neutral-600 text-sm space-y-2">
             <p>No orders yet.</p>
             <Link href="/browse" className="underline hover:text-neutral-900">
               Start browsing →
@@ -288,7 +288,7 @@ async function AccountPageContent() {
         </div>
 
         {savedItems.length === 0 ? (
-          <div className="card-section p-6 text-neutral-600 text-sm">
+          <div className="py-1 text-neutral-600 text-sm">
             No saved items yet. Heart pieces while browsing to save them here.
           </div>
         ) : (
@@ -337,7 +337,7 @@ async function AccountPageContent() {
           </Link>
         </div>
         {savedSearches.length === 0 ? (
-          <div className="card-section p-6 text-sm text-neutral-600">
+          <div className="py-1 text-sm text-neutral-600">
             No saved searches yet. Save useful filters from Browse to come back to them quickly.
           </div>
         ) : (
@@ -373,7 +373,7 @@ async function AccountPageContent() {
             <ChevronRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
           </Link>
         </div>
-        <div className="card-section flex items-center justify-between p-5">
+        <div className="flex items-center justify-between py-1">
           <p className="text-sm text-neutral-600">
             <span className="mr-1.5 text-2xl font-medium tabular-nums text-neutral-900">{followCount}</span>
             maker{followCount !== 1 ? "s" : ""} followed
