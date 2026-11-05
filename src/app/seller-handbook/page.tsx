@@ -78,7 +78,7 @@ export default function SellerHandbookPage() {
           <h2>2. Creating a great listing</h2>
           <p>
             Every listing on Grainline goes through AI moderation before going live (it&apos;s usually instant; flagged
-            listings go to staff review within 24 hours). The AI is checking for: clear product photos, an honest
+            listings wait for a person, usually within a few business days). The AI is checking for: clear product photos, an honest
             description, materials and dimensions, and that the piece is actually handmade woodworking.
           </p>
 
