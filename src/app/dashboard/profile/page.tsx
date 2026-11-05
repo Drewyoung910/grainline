@@ -697,11 +697,11 @@ export default async function ProfilePage({
         {fullSeller.faqs.length === 0 ? (
           <p className="text-sm text-neutral-500">No FAQs yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul>
             {fullSeller.faqs.map((faq) => (
               <li
                 key={faq.id}
-                className="card-section p-4 flex items-start justify-between gap-4"
+                className="flex items-start justify-between gap-4 border-b border-neutral-100 py-3 last:border-b-0"
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{faq.question}</p>
