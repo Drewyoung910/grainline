@@ -67,6 +67,18 @@ describe("blog markdown sanitization", () => {
     assert.match(html, /safe link text/);
   });
 
+  it("drops javascript: links that marked really renders as anchors", () => {
+    // Each link is its own paragraph; directly after raw HTML lines marked
+    // would keep them as text, and the check above could never fail.
+    const html = renderBlogMarkdown(
+      "[safe](https://example.com/x)\n\n[bad link](javascript:alert(1))\n\n[entity link](j&#x61;vascript:alert(1))\n",
+    );
+
+    assert.match(html, /<a href="https:\/\/example\.com\/x">safe<\/a>/);
+    assert.match(html, /bad link/);
+    assert.doesNotMatch(html, /href=["']?\s*(?:javascript|j&#x61;vascript)/i);
+  });
+
   it("keeps only first-party markdown images and drops remote tracking pixels", () => {
     const html = renderBlogMarkdown(`
 ![first party](https://cdn.thegrainline.com/blog/user/photo.jpg)
