@@ -47,7 +47,7 @@ export async function POST(req: Request) {
       return privateResponse(
         rateLimitResponse(
           rl.reset,
-          "Too many requests. Please try again in a moment.",
+          "Too many requests.",
         ),
       );
     }

@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     return privateResponse(
       rateLimitResponse(
         attemptReset,
-        "Too many broadcast attempts. Please try again soon.",
+        "Too many broadcast attempts.",
       ),
     );
 
