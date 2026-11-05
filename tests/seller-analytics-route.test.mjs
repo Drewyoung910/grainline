@@ -3,7 +3,7 @@ import test from "node:test";
 import { Prisma } from "@prisma/client";
 import { loadWithStubs } from "./helpers/load-with-stubs.mjs";
 
-async function getAnalytics(range, { topListings = [], archivedIds = [] } = {}) {
+async function getAnalytics(range, { topListings = [], archivedIds = [], viewGroups = [] } = {}) {
   const emptyAggregate = async () => ({ _sum: {} });
   const route = loadWithStubs("src/app/api/seller/analytics/route.ts", {
     "@prisma/client": { Prisma },
@@ -15,7 +15,13 @@ async function getAnalytics(range, { topListings = [], archivedIds = [] } = {}) 
           count: async () => 0,
           findMany: async () => archivedIds.map((id) => ({ id })),
         },
-        listingViewDaily: { aggregate: emptyAggregate, findMany: async () => [] },
+        listingViewDaily: {
+          aggregate: emptyAggregate,
+          groupBy: async () => viewGroups,
+          findMany: async () => {
+            throw new Error("the chart must not load one row per listing per day");
+          },
+        },
         sellerProfileViewDaily: { aggregate: emptyAggregate },
         sellerMetrics: { findUnique: async () => null },
       },
@@ -66,4 +72,14 @@ test("top listings say which ones are archived, because those pages 404 even for
     archivedIds: ["gone"],
   });
   assert.deepEqual(topListings.map(({ id, archived }) => [id, archived]), [["live", false], ["gone", true]]);
+});
+
+test("the views chart sums views per day in the database, not one row per listing", async () => {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const { chartData } = await getAnalytics("last30", {
+    viewGroups: [{ date: today, _sum: { views: 7, clicks: 3 } }],
+  });
+  const totals = chartData.reduce((sum, bucket) => [sum[0] + bucket.views, sum[1] + bucket.clicks], [0, 0]);
+  assert.deepEqual(totals, [7, 3]);
 });

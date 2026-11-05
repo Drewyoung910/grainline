@@ -227,9 +227,12 @@ export async function GET(req: Request) {
       endDate,
       endExclusive,
     );
-    const dailyViewDataPromise = prisma.listingViewDaily.findMany({
+    // One row per day, summed in the database: the table has one row per
+    // listing per day, which is too many to load for a long range.
+    const dailyViewDataPromise = prisma.listingViewDaily.groupBy({
+      by: ["date"],
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
-      select: { date: true, views: true, clicks: true },
+      _sum: { views: true, clicks: true },
     });
     const chartOrderRowsPromise = readSellerOrderAnalyticsBuckets({
       actorUserId: me.id,
@@ -327,7 +330,10 @@ export async function GET(req: Request) {
     for (const dv of dailyViewData) {
       const key = new Date(dv.date).toISOString().slice(0, 10);
       const existing = dailyMap.get(key) ?? { views: 0, clicks: 0 };
-      dailyMap.set(key, { views: existing.views + dv.views, clicks: existing.clicks + dv.clicks });
+      dailyMap.set(key, {
+        views: existing.views + (dv._sum.views ?? 0),
+        clicks: existing.clicks + (dv._sum.clicks ?? 0),
+      });
     }
 
     let chartData: Array<{
