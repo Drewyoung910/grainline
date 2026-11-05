@@ -126,16 +126,22 @@ async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParam
 }
 
 async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html") {
-  const rate = await safeRateLimit(unsubscribeRatelimit, getIP(req));
-  if (!rate.success) {
-    if (mode === "html") {
-      return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", HTTP_STATUS.TOO_MANY_REQUESTS) };
+  const { email, token, issuedAt } = await readUnsubscribeParams(req);
+  const tokenValid = !!email && !!token && !!issuedAt && verifyUnsubscribeToken(email, token, issuedAt);
+
+  // Gmail and Yahoo send one-click POSTs from shared IPs. A correctly signed POST
+  // is limited per address in handlePost, so it must not spend the IP budget.
+  if (!tokenValid || req.method !== "POST") {
+    const rate = await safeRateLimit(unsubscribeRatelimit, getIP(req));
+    if (!rate.success) {
+      if (mode === "html") {
+        return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", HTTP_STATUS.TOO_MANY_REQUESTS) };
+      }
+      return { response: privateResponse(rateLimitResponse(rate.reset, "Too many unsubscribe attempts.")) };
     }
-    return { response: privateResponse(rateLimitResponse(rate.reset, "Too many unsubscribe attempts.")) };
   }
 
-  const { email, token, issuedAt } = await readUnsubscribeParams(req);
-  if (!email || !token || !issuedAt || !verifyUnsubscribeToken(email, token, issuedAt)) {
+  if (!tokenValid) {
     logSecurityEvent("token_rejected", {
       ip: getIP(req),
       route: "/api/email/unsubscribe",
