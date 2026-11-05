@@ -204,8 +204,8 @@ export default async function SellerOrderDetailPage({
         <ArrowLeft size={14} /> Back to Orders
       </Link>
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">
-          Order <span className="font-mono">#{order.id.slice(-8)}</span>
+        <h1 className="font-display page-title">
+          Order <span className="text-neutral-500">#{order.id.slice(-8)}</span>
         </h1>
         <div className="flex items-center gap-2 text-sm text-neutral-600">
           <span>
