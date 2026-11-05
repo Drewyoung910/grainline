@@ -16,6 +16,7 @@ import {
   sendVerificationRejected,
 } from "@/lib/email";
 import {
+  calculateSellerMetrics,
   GUILD_MASTER_REQUIREMENTS,
   meetsGuildMasterRequirements,
   metricsPeriodStart,
@@ -497,17 +498,12 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
   }
 
-  if (
-    !verification.sellerProfile.sellerMetrics ||
-    !isSellerMetricsFresh(verification.sellerProfile.sellerMetrics)
-  ) {
-    return {
-      ok: false,
-      error: "Cached Guild metrics are missing or stale. Ask the seller to refresh the verification page, or run the metrics cron, before approval.",
-    };
-  }
-
-  const metrics = cachedMetricsToResult(verification.sellerProfileId, verification.sellerProfile.sellerMetrics);
+  // Numbers older than the freshness window are recalculated here, so a review
+  // queue that slips past a week does not stall on the monthly cron.
+  const cachedMetrics = verification.sellerProfile.sellerMetrics;
+  const metrics = cachedMetrics && isSellerMetricsFresh(cachedMetrics)
+    ? cachedMetricsToResult(verification.sellerProfileId, cachedMetrics)
+    : await calculateSellerMetrics(verification.sellerProfileId);
   const criteria = meetsGuildMasterRequirements(metrics);
   if (!criteria.allMet) {
     await logAdminAction({
@@ -1060,27 +1056,17 @@ export default async function AdminVerificationPage({
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                    Cached Guild metrics are missing or stale. Approval is blocked until the seller refreshes their verification page or the metrics cron updates this profile.
+                    These numbers are out of date. Approving recalculates them first and refuses if they no longer qualify.
                   </div>
                 )}
 
                 <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
-                  {m && mc ? (
-                    <ActionForm action={approveGuildMaster}>
-                      <input type="hidden" name="verificationId" value={v.id} />
-                      <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed">
-                        Approve Guild Master
-                      </SubmitButton>
-                    </ActionForm>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="btn btn-secondary btn-sm disabled:cursor-not-allowed"
-                    >
-                      Approval unavailable
-                    </button>
-                  )}
+                  <ActionForm action={approveGuildMaster}>
+                    <input type="hidden" name="verificationId" value={v.id} />
+                    <SubmitButton className="btn btn-success-solid btn-sm disabled:cursor-not-allowed">
+                      Approve Guild Master
+                    </SubmitButton>
+                  </ActionForm>
                   <form action={rejectGuildMaster} className="flex items-start gap-2 flex-wrap">
                     <input type="hidden" name="verificationId" value={v.id} />
                     <input
