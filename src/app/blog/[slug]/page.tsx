@@ -402,12 +402,12 @@ export default async function BlogPostPage({
       {/* Featured listings */}
       {featuredListings.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-lg font-semibold mb-4">Featured in this post</h2>
+          <h2 className="font-display text-2xl font-semibold mb-4">Featured in this post</h2>
           <ul className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {featuredListings.map((l) => (
-              <li key={l.id} className="card-listing">
+              <li key={l.id}>
                 <Link href={publicListingPath(l.id, l.title)} className="block">
-                  <div className="h-36 bg-neutral-100 overflow-hidden">
+                  <div className="aspect-[4/5] overflow-hidden rounded-xl bg-neutral-100">
                     {l.photos[0]?.url ? (
                       <MediaImage
                         src={l.photos[0].url}
@@ -419,7 +419,7 @@ export default async function BlogPostPage({
                       <div className="w-full h-full bg-neutral-200" />
                     )}
                   </div>
-                  <div className="p-3">
+                  <div className="pt-2">
                     <div className="font-medium text-sm line-clamp-1">{l.title}</div>
                     <div className="text-xs text-neutral-500">
                       {formatCurrencyCents(l.priceCents, l.currency)}
@@ -470,7 +470,7 @@ export default async function BlogPostPage({
 
       {/* Comments */}
       <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-1">
+        <h2 className="font-display text-2xl font-semibold mb-1">
           {post.comments.length} comment{post.comments.length !== 1 ? "s" : ""}
         </h2>
         <p className="text-xs text-neutral-500 mb-5">Comments are moderated before appearing.</p>
@@ -533,15 +533,15 @@ export default async function BlogPostPage({
       {/* Related posts */}
       {related.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold mb-4">More from the Workshop</h2>
+          <h2 className="font-display text-2xl font-semibold mb-4">More from the Workshop</h2>
           <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {related.map((r) => {
               const { name: rName, imageUrl: rAvatar } =
                 publicBlogAuthorPresentation(r, "Former author");
               return (
-                <li key={r.slug} className="card-listing">
+                <li key={r.slug}>
                   <Link href={`/blog/${r.slug}`} className="block">
-                    <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
+                    <div className="aspect-[4/3] overflow-hidden rounded-xl bg-neutral-100">
                       {r.coverImageUrl ? (
                         <MediaImage
                           src={r.coverImageUrl}
@@ -553,7 +553,7 @@ export default async function BlogPostPage({
                         <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                       )}
                     </div>
-                    <div className="p-3 space-y-1">
+                    <div className="pt-2 space-y-1">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[r.type]}`}>
                         {BLOG_TYPE_LABELS[r.type]}
                       </span>

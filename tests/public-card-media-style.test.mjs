@@ -34,7 +34,7 @@ describe("public card media styling", () => {
     const publicSkeletons = source("src/components/PublicRouteSkeletons.tsx");
 
     assert.match(blogIndex, /className="[^"]*aspect-\[16\/9\][^"]*md:w-1\/2/);
-    assert.match(blogIndex, /className="photo-save-surface relative overflow-hidden bg-neutral-100"/);
+    assert.match(blogIndex, /className="photo-save-surface group\/photo relative overflow-hidden rounded-xl bg-neutral-100"/);
     assert.match(blogIndex, /className="block aspect-\[4\/3\]"/);
     assert.doesNotMatch(blogAuthor, /aspect-\[16\/9\]/);
     assert.match(blogAuthor, /className="photo-save-surface relative overflow-hidden bg-neutral-100"/);
@@ -44,7 +44,7 @@ describe("public card media styling", () => {
 
     const relatedStart = blogDetail.indexOf("{/* Related posts */}");
     const related = blogDetail.slice(relatedStart);
-    assert.match(related, /<div className="aspect-\[4\/3\] bg-neutral-100 overflow-hidden">/);
+    assert.match(related, /<div className="aspect-\[4\/3\] overflow-hidden rounded-xl bg-neutral-100">/);
     assert.doesNotMatch(related, /<div className="h-32 bg-neutral-100 overflow-hidden">/);
 
     const authorSkeletonStart = publicSkeletons.indexOf("export function BlogAuthorSkeleton");
