@@ -98,6 +98,11 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
+  // Buyers read these as independent. Staff and admin accounts run the site.
+  if (me.role !== "USER") {
+    return privateJson({ error: "Staff accounts cannot leave reviews." }, { status: 403 });
+  }
+
   // Prevent reviewing own listing
   const listingForOwnerCheck = await sellerActorReviewListingTarget(me.id, listingId);
   if (listingForOwnerCheck?.seller?.userId === me.id) {
