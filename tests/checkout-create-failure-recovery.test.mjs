@@ -1,0 +1,63 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { checkoutRouteFixture as fixture } from "./helpers/checkout-route-fixture.mjs";
+import { stripeRefusedCheckoutSessionCreate } from "../src/lib/checkoutLockState.ts";
+
+const refused = (type) => Object.assign(new Error("refused"), { type });
+
+for (const [label, path, maxDurationMs] of [
+  ["Buy Now", "src/app/api/cart/checkout/single/route.ts", 60_000],
+  ["cart", "src/app/api/cart/checkout-seller/route.ts", 60_000],
+]) {
+  test(`${label}: when Stripe refuses the session, the stock and lock come back at once`, async () => {
+    const subject = fixture(path, {
+      createSession: async () => {
+        throw refused("StripeRateLimitError");
+      },
+    });
+    const response = await subject.post();
+    assert.equal(response.status, 500);
+    assert.equal(subject.state.aborts, 1);
+    assert.equal(subject.state.lockReleases, 1);
+  });
+
+  test(`${label}: when Stripe's answer is lost, a session may exist, so the hold stays`, async () => {
+    const subject = fixture(path, {
+      createSession: async () => {
+        throw Object.assign(new Error("socket hang up"), { type: "StripeConnectionError" });
+      },
+    });
+    const response = await subject.post();
+    assert.equal(response.status, 500);
+    assert.equal(subject.state.aborts, 0);
+    assert.equal(subject.state.lockReleases, 0);
+  });
+
+  test(`${label}: a hung Stripe call fails inside the route's time limit`, async () => {
+    const subject = fixture(path);
+    assert.equal((await subject.post()).status, 200);
+    const { timeout, maxNetworkRetries, idempotencyKey } = subject.state.createOptions;
+    assert.ok(timeout * (maxNetworkRetries + 1) < maxDurationMs);
+    assert.ok(idempotencyKey);
+  });
+}
+
+test("only a refusal counts as creating nothing", () => {
+  for (const type of [
+    "StripeRateLimitError",
+    "StripeInvalidRequestError",
+    "StripeAuthenticationError",
+    "StripePermissionError",
+  ]) {
+    assert.equal(stripeRefusedCheckoutSessionCreate(refused(type)), true, type);
+  }
+  for (const error of [
+    refused("StripeConnectionError"),
+    refused("StripeAPIError"),
+    refused("StripeIdempotencyError"),
+    new Error("no type"),
+    null,
+  ]) {
+    assert.equal(stripeRefusedCheckoutSessionCreate(error), false);
+  }
+});

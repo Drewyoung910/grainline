@@ -90,3 +90,13 @@ export function checkoutSessionCreateIdempotencyKey(ownerToken: string): string 
   }
   return `grainline-checkout-session-v1:${ownerToken}`;
 }
+
+// Stripe answered and refused, so this request created no session. A dropped
+// connection, a timeout or a 5xx proves nothing either way and must not count.
+export function stripeRefusedCheckoutSessionCreate(error: unknown) {
+  const type = (error as { type?: unknown } | null)?.type;
+  return type === "StripeRateLimitError"
+    || type === "StripeInvalidRequestError"
+    || type === "StripeAuthenticationError"
+    || type === "StripePermissionError";
+}
