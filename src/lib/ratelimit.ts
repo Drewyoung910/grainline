@@ -1,7 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
-import { limitWithFailurePolicy } from "@/lib/ratelimitPolicy";
+import { limitWithFailurePolicy, type RateLimitResult } from "@/lib/ratelimitPolicy";
 import { requiredProductionEnv } from "@/lib/env";
 import * as Sentry from "@sentry/nextjs";
 import { HTTP_STATUS } from "./httpStatus.ts";
@@ -560,7 +560,7 @@ export const clickDedupRatelimit = new Ratelimit({
 export async function safeRateLimit(
   limiter: Ratelimit,
   key: string
-): Promise<{ success: boolean; reset: number }> {
+): Promise<RateLimitResult> {
   return limitWithFailurePolicy(limiter, key, false, "Rate limit Redis error (fail closed):");
 }
 
@@ -573,7 +573,7 @@ export async function safeRateLimit(
 export async function safeRateLimitOpen(
   limiter: Ratelimit,
   key: string
-): Promise<{ success: boolean; reset: number }> {
+): Promise<RateLimitResult> {
   return limitWithFailurePolicy(limiter, key, true, "Rate limit Redis error (fail open):");
 }
 

@@ -4,6 +4,8 @@ import { logServerError } from "./serverErrorLogger.ts";
 export type RateLimitResult = {
   success: boolean;
   reset: number;
+  /** The limiter could not be reached, so this answer says nothing about the caller. */
+  unavailable?: true;
 };
 
 export type RateLimitLike = {
@@ -35,6 +37,6 @@ export async function limitWithFailurePolicy(
       },
       extra: { keyLength: key.length, message: logMessage },
     });
-    return { success: failOpen, reset: Date.now() + 60000 };
+    return { success: failOpen, reset: Date.now() + 60000, unavailable: true };
   }
 }
