@@ -24,6 +24,7 @@ import { commissionDistanceBucket } from "@/lib/locationPrivacy";
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker",
   description: "Post a custom woodworking commission request and get matched with skilled local and national makers. Describe your vision, set your budget, and let makers come to you.",
+  alternates: { canonical: "https://thegrainline.com/commission" },
 };
 
 function timeAgo(dateStr: Date | string): string {

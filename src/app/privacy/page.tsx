@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "Grainline Privacy Policy — how we collect, use, and protect your personal information on the Grainline handmade woodworking marketplace.",
   robots: { index: true, follow: true },
+  alternates: { canonical: "https://thegrainline.com/privacy" },
 };
 
 export const revalidate = 86400;

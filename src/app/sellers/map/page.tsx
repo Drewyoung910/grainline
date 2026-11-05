@@ -1,9 +1,15 @@
 // src/app/sellers/map/page.tsx
+import type { Metadata } from "next";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import SellersMap from "@/components/SellersMap";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
+
+export const metadata: Metadata = {
+  title: "Find Makers Near You",
+  alternates: { canonical: "https://thegrainline.com/map" },
+};
 
 export const dynamic = "force-dynamic";
 
