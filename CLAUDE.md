@@ -478,7 +478,7 @@ Global search blog suggestions must filter both blocked author user ids and bloc
 - **LocalBusiness JSON-LD** on seller pages: name, description, url, `knowsAbout: "Handmade Woodworking"`, PostalAddress (city/state), GeoCoordinates (only when lat/lng set)
 - **Sitemap** (`src/app/sitemap.ts`): homepage `priority: 1.0` daily, browse `0.9` daily, active listings `0.8` weekly with `updatedAt`, seller profiles `0.6` monthly with `updatedAt`; private routes excluded; non-listing chunk `0` defensively caps the combined static/seller/blog/commission/metro/tag/author route set at 50,000 entries. Tag and blog-author landing routes in chunk `0` are intentionally capped (`TAG_LANDING_SITEMAP_LIMIT`, `BLOG_AUTHOR_LANDING_SITEMAP_LIMIT`) instead of being unbounded dynamic sources. Next 16 supplies a generated sitemap id as a promised URL segment; resolve and validate that segment before selecting a chunk, or every dynamic request silently falls back to chunk `0`.
 - **robots.txt** (`src/app/robots.txt/route.ts`): allows all crawlers with `Crawl-delay: 10`; disallows `/dashboard`, `/admin`, `/cart`, `/checkout`, `/api`; blocks AI training bots (GPTBot, ClaudeBot, CCBot, Google-Extended, anthropic-ai, MJ12bot, SemrushBot); rate-limits AhrefsBot (`Crawl-delay: 60`); `Sitemap: https://thegrainline.com/sitemap_index.xml`
-- **Photo filename tip** in new and edit listing forms (below uploader/photos section)
+- **No photo filename tip**: uploads are stored under generated keys, so original filenames never reach search engines. Do not reintroduce a filename tip.
 
 ## Seller Profile Personalization (complete)
 
@@ -642,7 +642,7 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 - **Guild Member** — `LaurelWreathIcon`: earthy green wreath (`#5B7553 → #3F5D3A → #1F3A1E`, pine/oak tones) + bronze star polygon overlay (`#E8B86D → #B8860B → #8B6914`). Label text color `#14532d` (green-900).
 - **Guild Master** — `StarWreathIcon` (replaces `HammerChiselIcon`): gold wreath (`#FFD700 → #D4AF37 → #B8960C`) + diamond star polygon overlay — cut-gemstone palette (`#FAFBFF → #D8DCE8 → #A0A8BC`). Both polygons same position/size, different gradients. Label text color `#B8960C`.
 - Popup descriptions: original legally-reviewed language (profile standing disclaimer for Member; historical performance disclaimer for Master). Popup icon size 48px.
-- **Popup**: `createPortal`-based — renders at `document.body` to avoid `overflow:hidden` clipping; positioned below the badge button using `getBoundingClientRect()` + scroll offsets, clamped to viewport width; closes on outside click or Escape; "Learn more about Guild Verification →" link to `/terms#guild-verification-program`. Opacity gating: popup starts at `opacity:0`, transitions to `opacity:1` after position calculated via `getBoundingClientRect` — eliminates top-left flash on open.
+- **Popup**: `createPortal`-based — renders at `document.body` to avoid `overflow:hidden` clipping; positioned below the badge button using `getBoundingClientRect()` + scroll offsets, clamped to viewport width; closes on outside click or Escape; "Learn more about Guild Verification →" link to `/terms#guild`. Opacity gating: popup starts at `opacity:0`, transitions to `opacity:1` after position calculated via `getBoundingClientRect` — eliminates top-left flash on open.
 - `showLabel={false}` → icon only (used on listing cards); `showLabel={true}` → icon + label text (used on profile/detail pages)
 - `GuildLevelValue` type exported from the file
 
@@ -3433,7 +3433,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 ### Low fixes
 - **Review edit/reply sanitization** — PATCH review and seller reply were missing `sanitizeRichText()` (POST had it). Added to both.
 - **Profile text field sanitization** — `dashboard/profile/page.tsx` `updateSellerProfile` was missing `sanitizeText`/`sanitizeRichText` on tagline, bio, storyBody, policies (the `dashboard/seller` version had them). Added.
-- **Gift wrap price bounds** — No min/max validation. Clamped to `[0, $100]` (10000 cents).
+- **Gift wrap price bounds** — `parseOptionalMoneyField()` refuses a price that is not a dollar amount up to $100 (10000 cents) with a field error. It is not clamped. Shop Settings flat-rate and free-shipping amounts use the same helper with a $5,000 cap.
 - **Seller/listing page user over-fetch** — `seller/[id]/page.tsx` narrowed from `user: true` (13 fields) to 5 fields. `listing/[id]/page.tsx` narrowed from `user: true` to 5 fields.
 - **Follow re-notification** — `NEW_FOLLOWER` notification fired on every follow POST (including re-follows via upsert update branch). Added `findUnique` check; notification only sent on new follows.
 - **Admin email try/catch** — `resend.emails.send()` was called without try/catch. Wrapped.
