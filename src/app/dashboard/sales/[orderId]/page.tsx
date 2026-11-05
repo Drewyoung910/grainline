@@ -185,6 +185,9 @@ export default async function SellerOrderDetailPage({
     paymentState,
     status,
   );
+  // A Case (including one opened by a bank chargeback) is not a happy ending.
+  const caseUnresolved = activeCase != null
+    && activeCase.status !== "RESOLVED" && activeCase.status !== "CLOSED";
   const buyerId = order.buyerId ?? "";
   const meId = me.id;
   const caseReplyUnavailableReason =
@@ -222,6 +225,8 @@ export default async function SellerOrderDetailPage({
       <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
         {suppressActiveFulfillment ? (
           "Fully refunded — no fulfillment is required."
+        ) : caseUnresolved ? (
+          `${fulfillmentStatusLabel(status)}. This order has an open case.`
         ) : (
           <>
             {status === "PENDING" && "New order — time to get crafting!"}
