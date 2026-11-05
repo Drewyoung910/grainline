@@ -129,7 +129,7 @@ export async function POST(req: Request) {
     }
     throw error;
   }
-  const bodyObject = body as { pin?: unknown };
+  const bodyObject = (body ?? {}) as { pin?: unknown };
   const pin = typeof bodyObject.pin === "string" ? bodyObject.pin : "";
   const adminPinResolution = resolveAdminPinDigestForUser({
     clerkUserId: userId,
