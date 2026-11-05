@@ -6,14 +6,8 @@
 import { normalizeUserText } from "./sanitize.ts";
 
 export const SLUR_WORDS = [
-  // Homophobic slurs
-  "fag", "faggot",
-  // Ableist slurs
-  "retard", "retarded",
-  // Racial slurs
-  "nigger", "nigga", "chink", "spic", "kike", "wetback", "gook",
-  // Telling someone to harm themselves
-  "kill yourself",
+  // Racial slurs with no other meaning
+  "nigger", "nigga", "wetback",
 ];
 
 export const MILD_WORDS = [
@@ -23,15 +17,15 @@ export const MILD_WORDS = [
   "porn", "pornography", "xxx",
   // Abbreviation that can also be a shop's initials
   "kys",
+  // Hateful in some uses, but also ordinary English, a trade term, a name or a brand.
+  // A whole-word match cannot tell which, so these never refuse a save. On a
+  // listing, the AI's hateful-language rule judges them in context.
+  "fag", "faggot", "retard", "retarded", "chink", "spic", "kike", "gook", "kill yourself",
 ];
 
-// Plurals follow English rules on purpose: a blanket optional "es" would turn a
-// word ending in "c" into a hit on an ordinary kitchen word.
 function wordPattern(word: string) {
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (word.includes(" ")) return escaped;
-  if (/[^aeiou]y$/.test(word)) return `${escaped.slice(0, -1)}(?:y|ies)`;
-  return /(?:s|x|z|ch|sh)$/.test(word) ? `${escaped}(?:es)?` : `${escaped}s?`;
+  return word.includes(" ") ? escaped : `${escaped}s?`;
 }
 
 function wordRegex(words: string[]) {
@@ -61,7 +55,7 @@ export function containsProfanity(text: string): { flagged: boolean; matches: st
 }
 
 export const SHOP_TEXT_SLUR_MESSAGE =
-  "This text contains language Grainline does not allow. Please change the wording and save again.";
+  "This text contains language Grainline does not allow. Please change the wording and save again. If you think this is a mistake, contact support@thegrainline.com.";
 
 /** True when the text has a slur-tier word. Listing and shop saves use this. */
 export function containsSlur(text: string | null | undefined): boolean {
