@@ -632,7 +632,7 @@ async function BrowseContent({
             {featured.length > 0 && (
               <div>
                 <div className="font-medium mb-3">Featured listings</div>
-                <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-8">
+                <ul className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
                   {featured.map((listing) => (
                     <GridCard key={listing.id} l={listing} />
                   ))}
