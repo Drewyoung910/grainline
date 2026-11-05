@@ -863,10 +863,10 @@ function CartPage() {
                   {!listingIsActive && (
                     <div className="text-xs text-red-600 mt-0.5">This item is no longer available</div>
                   )}
-                  {i.listing.sellerVacationMode && (
+                  {listingIsActive && i.listing.sellerVacationMode && (
                     <div className="text-xs text-amber-700 mt-0.5">Maker is on vacation</div>
                   )}
-                  {i.listing.sellerUnavailable && !i.listing.sellerVacationMode && (
+                  {listingIsActive && i.listing.sellerUnavailable && !i.listing.sellerVacationMode && (
                     <div className="text-xs text-red-600 mt-0.5">This maker is not currently accepting orders</div>
                   )}
                   {i.variantUnavailable && (
