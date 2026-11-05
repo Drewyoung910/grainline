@@ -302,7 +302,7 @@ export function BuyerOrdersSkeleton() {
 
 export function MakerMapSkeleton() {
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-6" aria-busy="true" aria-label="Loading makers map">
+    <main className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-6 lg:px-8" aria-busy="true" aria-label="Loading makers map">
       <header className="space-y-2">
         <Pulse className="h-7 w-40" />
         <Pulse className="h-4 w-80 max-w-full" />

@@ -280,7 +280,7 @@ async function BlogIndexPageContent({
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(blogLd) }} />
       {/* Hero */}
       <section className="py-12 sm:py-16 text-center mb-8">

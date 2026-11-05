@@ -287,7 +287,7 @@ async function CommissionPageContent({
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-8">
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4 max-[359px]:flex-wrap sm:items-end">
         <div className="min-w-0">
