@@ -13,6 +13,7 @@ import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
 import SellerNotesForm from "@/components/SellerNotesForm";
+import FulfillmentActionForm from "@/components/FulfillmentActionForm";
 import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
@@ -694,13 +695,14 @@ export default async function SellerOrderDetailPage({
             </div>
           ) : (
             <>
-              {method === "PICKUP" && status === "PENDING" && (
-                <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
-                  <input type="hidden" name="action" value="ready_for_pickup" />
-                  <button className="btn btn-secondary btn-sm">
-                    Mark ready for pickup
-                  </button>
-                </form>
+              {caseUnresolved && status === "PENDING" && (
+                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                  Shipping, labels and pickup are paused while the case on this order is open.
+                </div>
+              )}
+
+              {method === "PICKUP" && status === "PENDING" && !caseUnresolved && (
+                <FulfillmentActionForm orderId={order.id} action="ready_for_pickup" />
               )}
 
               {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
@@ -709,7 +711,7 @@ export default async function SellerOrderDetailPage({
                 </div>
               )}
 
-              {method === "SHIPPING" && (status === "PENDING" || order.labelStatus === "PURCHASED") && (
+              {method === "SHIPPING" && ((status === "PENDING" && !caseUnresolved) || order.labelStatus === "PURCHASED") && (
                 <div className="space-y-4">
                   <LabelSection
                     orderId={order.id}
@@ -722,41 +724,11 @@ export default async function SellerOrderDetailPage({
                     currency={currency}
                   />
 
-                  {status === "PENDING" && <div className="border-t border-neutral-100 pt-3 space-y-2">
+                  {status === "PENDING" && !caseUnresolved && <div className="border-t border-neutral-100 pt-3 space-y-2">
                     <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
                       Already shipped? Enter tracking manually
                     </div>
-                    <form
-                      method="post"
-                      action={`/api/orders/${order.id}/fulfillment`}
-                      className="space-y-2"
-                    >
-                      <input type="hidden" name="action" value="shipped" />
-                      <div className="flex flex-wrap gap-2">
-                        <select
-                          name="trackingCarrier"
-                          required
-                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                          defaultValue=""
-                        >
-                          <option value="" disabled>Carrier</option>
-                          <option value="UPS">UPS</option>
-                          <option value="USPS">USPS</option>
-                          <option value="FedEx">FedEx</option>
-                          <option value="DHL">DHL</option>
-                          <option value="Other">Other</option>
-                        </select>
-                        <input
-                          name="trackingNumber"
-                          placeholder="Tracking number"
-                          required
-                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                        />
-                        <button className="btn btn-secondary btn-sm">
-                          Mark shipped
-                        </button>
-                      </div>
-                    </form>
+                    <FulfillmentActionForm orderId={order.id} action="shipped" />
                   </div>}
                 </div>
               )}
