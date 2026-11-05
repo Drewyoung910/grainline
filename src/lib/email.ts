@@ -469,10 +469,6 @@ export function renderOrderConfirmedBuyerEmail(opts: {
   };
 }
 
-export async function sendOrderConfirmedBuyer(opts: Parameters<typeof renderOrderConfirmedBuyerEmail>[0]) {
-  await sendRenderedEmail(renderOrderConfirmedBuyerEmail(opts));
-}
-
 export function renderOrderConfirmedSellerEmail(opts: {
   order: {
     id: string;
@@ -511,10 +507,6 @@ export function renderOrderConfirmedSellerEmail(opts: {
   };
 }
 
-export async function sendOrderConfirmedSeller(opts: Parameters<typeof renderOrderConfirmedSellerEmail>[0]) {
-  await sendRenderedEmail(renderOrderConfirmedSellerEmail(opts));
-}
-
 export function renderOrderShippedEmail(opts: {
   order: { id: string; estimatedDeliveryDate?: Date | null };
   buyer: { name?: string | null; email: string };
@@ -547,10 +539,6 @@ export function renderOrderShippedEmail(opts: {
   };
 }
 
-export async function sendOrderShipped(opts: Parameters<typeof renderOrderShippedEmail>[0]) {
-  await sendRenderedEmail(renderOrderShippedEmail(opts));
-}
-
 export function renderReadyForPickupEmail(opts: {
   order: { id: string };
   buyer: { name?: string | null; email: string };
@@ -572,27 +560,6 @@ export function renderReadyForPickupEmail(opts: {
     subject: `Your order is ready for pickup${orderSubjectSuffix(order.id)}`,
     html: baseTemplate("Ready for Pickup", body),
   };
-}
-
-export async function sendReadyForPickup(opts: Parameters<typeof renderReadyForPickupEmail>[0]) {
-  await sendRenderedEmail(renderReadyForPickupEmail(opts));
-}
-
-export async function sendOrderDelivered(opts: {
-  order: { id: string };
-  buyer: { name?: string | null; email: string };
-}) {
-  const { order, buyer } = opts;
-  const name = buyer.name || "there";
-  const orderUrl = `${APP_URL}/dashboard/orders/${order.id}`;
-
-  const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order has been delivered!</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">We hope you love your new piece. If you have a moment, leaving a review helps support the maker and other buyers.</p>
-    ${btn("View order & leave a review", orderUrl)}
-  `;
-
-  await send(buyer.email, `Your piece has been delivered${orderSubjectSuffix(order.id)}`, baseTemplate("Order Delivered", body));
 }
 
 export function renderCaseOpenedEmail(opts: {
@@ -701,12 +668,6 @@ export function renderCaseResolvedEmail(opts: {
   };
 }
 
-export async function sendCaseResolved(
-  opts: Parameters<typeof renderCaseResolvedEmail>[0],
-) {
-  await sendRenderedEmail(renderCaseResolvedEmail(opts));
-}
-
 export async function sendCustomOrderRequest(opts: {
   seller: { displayName?: string | null; email: string };
   buyerName?: string | null;
@@ -785,15 +746,6 @@ export function renderBackInStockEmail(opts: {
     subject: `${truncateSubjectText(listingTitle, 50)} is back in stock!`,
     html: baseTemplate("Back in Stock", body),
   };
-}
-
-export async function sendBackInStock(opts: {
-  buyer: { name?: string | null; email: string };
-  listingTitle: string;
-  listingId: string;
-}) {
-  const rendered = renderBackInStockEmail(opts);
-  await sendRenderedEmail(rendered, { preferenceKey: "EMAIL_BACK_IN_STOCK" });
 }
 
 type GuildBadgeLevel = "GUILD_MEMBER" | "GUILD_MASTER";
@@ -892,11 +844,6 @@ export function renderRefundIssuedEmail(opts: {
   };
 }
 
-export async function sendRefundIssued(opts: Parameters<typeof renderRefundIssuedEmail>[0]) {
-  const rendered = renderRefundIssuedEmail(opts);
-  await send(rendered.to, rendered.subject, rendered.html);
-}
-
 // ─── Lifecycle emails ─────────────────────────────────────────────────────────
 
 export function renderWelcomeBuyerEmail(opts: {
@@ -925,10 +872,6 @@ export function renderWelcomeBuyerEmail(opts: {
   };
 }
 
-export async function sendWelcomeBuyer(opts: Parameters<typeof renderWelcomeBuyerEmail>[0]) {
-  await sendRenderedEmail(renderWelcomeBuyerEmail(opts));
-}
-
 export function renderWelcomeSellerEmail(opts: {
   seller: { displayName?: string | null; email: string };
 }): RenderedEmail {
@@ -954,8 +897,21 @@ export function renderWelcomeSellerEmail(opts: {
   };
 }
 
-export async function sendWelcomeSeller(opts: Parameters<typeof renderWelcomeSellerEmail>[0]) {
-  await sendRenderedEmail(renderWelcomeSellerEmail(opts));
+export function renderListingRemovedEmail(opts: {
+  to: string;
+  listingTitle: string;
+  reason: string;
+}): RenderedEmail {
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Grainline staff removed your listing <strong>${esc(opts.listingTitle)}</strong>.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Reason: ${esc(opts.reason)}</p>
+    <p style="font-size:15px;line-height:1.6;margin:0;">If you think this is a mistake, contact ${esc(SUPPORT_EMAIL)}.</p>
+  `;
+  return {
+    to: opts.to,
+    subject: "Your Grainline listing was removed",
+    html: baseTemplate("Your listing was removed", body),
+  };
 }
 
 export function renderFirstListingCongratsEmail(opts: {
@@ -986,10 +942,6 @@ export function renderFirstListingCongratsEmail(opts: {
   };
 }
 
-export async function sendFirstListingCongrats(opts: Parameters<typeof renderFirstListingCongratsEmail>[0]) {
-  await sendRenderedEmail(renderFirstListingCongratsEmail(opts));
-}
-
 export function renderFirstSaleCongratsEmail(opts: {
   seller: { displayName?: string | null; email: string };
   order: {
@@ -1018,10 +970,6 @@ export function renderFirstSaleCongratsEmail(opts: {
     subject: "You made your first sale!",
     html: baseTemplate("First Sale!", body),
   };
-}
-
-export async function sendFirstSaleCongrats(opts: Parameters<typeof renderFirstSaleCongratsEmail>[0]) {
-  await sendRenderedEmail(renderFirstSaleCongratsEmail(opts));
 }
 
 // ─── Guild verification emails ────────────────────────────────────────────────
@@ -1136,20 +1084,6 @@ export function renderNewListingFromFollowedMakerEmail(opts: {
     subject: `${safeSubject(makerName)} just posted a new listing on Grainline`,
     html: baseTemplate("New Listing", body),
   };
-}
-
-export async function sendNewListingFromFollowedMakerEmail(opts: {
-  to: string;
-  makerName: string;
-  listingTitle: string;
-  listingPrice: string;
-  listingUrl: string;
-  listingImageUrl?: string;
-}) {
-  const rendered = renderNewListingFromFollowedMakerEmail(opts);
-  await sendRenderedEmail(rendered, {
-    preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-  });
 }
 
 export function sellerBroadcastEmailSubject(makerName: string) {
