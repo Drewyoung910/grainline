@@ -114,7 +114,7 @@ export default function MessageInboxControls({
               : { defaultValue: query })}
             maxLength={200}
             placeholder="Search messages"
-            className="min-w-0 flex-1 bg-transparent py-2 pr-2 text-sm outline-none"
+            className="min-w-0 flex-1 bg-transparent py-2 pr-2 text-sm outline-none focus-visible:shadow-none focus-visible:outline-none"
           />
           {query && controlled ? (
             <button
