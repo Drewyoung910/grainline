@@ -698,7 +698,8 @@ export default function Header() {
                 Menu
               </span>
               <button
-                onClick={() => closeDrawer()}
+                // detail is 0 for a keyboard press: return focus to the hamburger.
+                onClick={(event) => closeDrawer(event.detail === 0)}
                 aria-label="Close menu"
                 className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-600 hover:bg-black/10"
               >
