@@ -409,7 +409,6 @@ export async function banUser({ userId, adminId, reason }: {
 
   await invalidateAccountStateCache(clerkSync.clerkId, 'ban_user_account_state_cache_invalidate')
   revalidateAccountStateSearchCaches('ban_user_search_cache_revalidate', userId)
-  await refreshRatingSummariesForReviewer(userId)
 
   if (clerkSync.sellerCheckoutExpiry) {
     try {
@@ -470,6 +469,8 @@ export async function banUser({ userId, adminId, reason }: {
     })
     throw new BanUserExternalSyncError("User was banned locally, but active Clerk sessions could not be revoked. Try the ban action again or contact support.")
   }
+
+  await refreshRatingSummariesForReviewer(userId)
 }
 
 export async function unbanUser({ userId, adminId, reason }: {
@@ -600,7 +601,6 @@ export async function unbanUser({ userId, adminId, reason }: {
 
   await invalidateAccountStateCache(clerkSync.clerkId, 'unban_user_account_state_cache_invalidate')
   revalidateAccountStateSearchCaches('unban_user_search_cache_revalidate', userId)
-  await refreshRatingSummariesForReviewer(userId)
 
   try {
     await unbanClerkUser(clerkSync.clerkId)
@@ -628,6 +628,8 @@ export async function unbanUser({ userId, adminId, reason }: {
     })
     throw new BanUserExternalSyncError("User was unbanned locally, but Clerk still could not be updated. Try the unban action again or contact support.")
   }
+
+  await refreshRatingSummariesForReviewer(userId)
 
   return {
     sellerRestoreWarning: clerkSync.sellerRestoreWarning,

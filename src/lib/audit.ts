@@ -435,7 +435,6 @@ export async function undoAdminAction({
   }
 
   if (log.action === 'BAN_USER' && clerkUnbanTarget?.clerkId) {
-    await refreshRatingSummariesForReviewer(log.targetId)
     await invalidateAccountStateCache(clerkUnbanTarget.clerkId, 'admin_undo_ban_account_state_cache_invalidate')
     try {
       await unbanClerkUser(clerkUnbanTarget.clerkId)
@@ -464,5 +463,6 @@ export async function undoAdminAction({
       })
       throw new Error('Database undo succeeded, but Clerk could not be unbanned. Retry the undo or contact support.')
     }
+    await refreshRatingSummariesForReviewer(log.targetId)
   }
 }
