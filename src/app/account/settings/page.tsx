@@ -4,6 +4,7 @@ import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
 import { AccountExportButton } from "@/components/AccountExportButton";
+import { isEmailDeliverySuppressed } from "@/lib/emailSuppression";
 import { isAlwaysOnInAppPreferenceKey, normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import type { Metadata } from "next";
 import { sellerOwnerAccountSummary } from "@/lib/sellerProfileOwnerAccess";
@@ -22,6 +23,7 @@ export default async function AccountSettingsPage() {
 
   const prefs = normalizeNotificationPreferences(me.notificationPreferences);
   const hasSeller = !!sellerProfile;
+  const emailBlocked = await isEmailDeliverySuppressed(me.email);
 
   // Matches delivery: an in-app notice is sent unless it was explicitly turned off.
   function isEnabled(type: NotificationPreferenceKey) {
@@ -74,6 +76,13 @@ export default async function AccountSettingsPage() {
           Choose which notifications you receive from Grainline.
         </p>
       </header>
+
+      {emailBlocked && (
+        <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          We can&apos;t reach {me.email}. A past email bounced or was marked as spam, so order, case and refund
+          emails are not arriving. Contact <a className="underline" href="mailto:support@thegrainline.com">support@thegrainline.com</a> to fix this.
+        </p>
+      )}
 
       {/* ── Your notifications (all users) ───────────────────── */}
       <div>
