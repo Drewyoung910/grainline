@@ -10,8 +10,9 @@ const require = createRequire(import.meta.url);
 
 // Which limiter a request is counted against. Everything past it is stubbed away:
 // a closed limiter ends the request there.
-async function limiterUsed(path, role) {
+async function limiterUsed(path, role, failOn = null) {
   const used = [];
+  let lookups = 0;
   const stub = () => new Proxy(function () {}, {
     get: (_target, key) => (key === "then" ? undefined : stub()),
     apply: () => undefined,
@@ -19,7 +20,12 @@ async function limiterUsed(path, role) {
   const dependencies = {
     zod: require("zod"),
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk", sessionId: "session" }) },
-    "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "user", role }) },
+    "@/lib/ensureUser": {
+      ensureUserByClerkId: async () => {
+        lookups += 1;
+        return { id: "user", role };
+      },
+    },
     "@/lib/requestOriginGuard": { getExplicitCrossOriginPostRejection: () => null },
     "@/lib/ratelimit": {
       adminActionRatelimit: { name: "staff" },
@@ -27,7 +33,7 @@ async function limiterUsed(path, role) {
       refundRatelimit: { name: "refund" },
       safeRateLimit: async (limiter) => {
         used.push(limiter.name);
-        return { success: false, reset: 0 };
+        return { success: failOn !== null && limiter.name !== failOn, reset: 0 };
       },
       rateLimitResponse: () => Response.json({}, { status: 429 }),
     },
@@ -50,16 +56,28 @@ async function limiterUsed(path, role) {
     new Request("https://example.test/case", { method: "POST", body: "{}" }),
     { params: Promise.resolve({ id: "case_1" }) },
   );
-  assert.equal(response.status, 429);
-  return used;
+  return { used, status: response.status, lookups };
 }
 
 test("resolving Cases counts as staff work, not against the maker refund limit", async () => {
-  assert.deepEqual(await limiterUsed("src/app/api/cases/[id]/resolve/route.ts", "EMPLOYEE"), ["staff"]);
+  const result = await limiterUsed("src/app/api/cases/[id]/resolve/route.ts", "EMPLOYEE");
+  assert.deepEqual(result.used, ["staff"]);
+  assert.equal(result.status, 429);
 });
 
-test("staff replies use the staff limit, and participants keep theirs", async () => {
+test("Case replies hit the staff-sized limit before any lookup", async () => {
+  const result = await limiterUsed("src/app/api/cases/[id]/messages/route.ts", "USER");
+  assert.deepEqual(result.used, ["staff"]);
+  assert.equal(result.lookups, 0);
+  assert.equal(result.status, 429);
+});
+
+test("participants then get their own limit; staff do not", async () => {
   const route = "src/app/api/cases/[id]/messages/route.ts";
-  assert.deepEqual(await limiterUsed(route, "ADMIN"), ["staff"]);
-  assert.deepEqual(await limiterUsed(route, "USER"), ["participant"]);
+  const participant = await limiterUsed(route, "USER", "participant");
+  assert.deepEqual(participant.used, ["staff", "participant"]);
+  assert.equal(participant.status, 429);
+  const staff = await limiterUsed(route, "ADMIN", "participant");
+  assert.deepEqual(staff.used, ["staff"]);
+  assert.notEqual(staff.status, 429);
 });

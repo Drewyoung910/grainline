@@ -108,17 +108,27 @@ export async function POST(
     const { userId, sessionId } = await auth();
     if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-    const me = await ensureUserByClerkId(userId);
-
-    // A participant writes in one Case. Staff reply across the whole queue.
+    // Staff reply across the whole queue, so the first limit is staff-sized and
+    // runs before any lookup. A participant writes in one Case and gets the
+    // smaller limit once we know who they are.
     const { success, reset } = await safeRateLimit(
-      me.role === "EMPLOYEE" || me.role === "ADMIN" ? adminActionRatelimit : caseMessageRatelimit,
-      userId,
+      adminActionRatelimit,
+      `case-message:${userId}`,
     );
     if (!success)
       return privateResponse(
         rateLimitResponse(reset, "Too many messages. Slow down and try again."),
       );
+
+    const me = await ensureUserByClerkId(userId);
+
+    if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") {
+      const participantLimit = await safeRateLimit(caseMessageRatelimit, userId);
+      if (!participantLimit.success)
+        return privateResponse(
+          rateLimitResponse(participantLimit.reset, "Too many messages. Slow down and try again."),
+        );
+    }
 
     let parsed;
     try {
