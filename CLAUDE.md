@@ -2054,21 +2054,21 @@ npm run seed:metros
 ### `src/lib/geo-metro.ts`
 - **`findNearestMetro(lat, lng)`** — checks child metros first (more specific), then majors; returns `{ cityMetro, majorMetro }` within radius
 - **`mapToMetros(lat, lng)`** — **legacy function**, do not use in new code; kept for reference only. Use `findOrCreateMetro` instead.
-- **`findOrCreateMetro(lat, lng)`** — **primary mapping function** for all new code: calls `findNearestMetro` first; if no metro found within radius, calls `reverseGeocode` (Nominatim, ≥1.1s throttle, US-only) to get city/state, then `prisma.metro.upsert` to auto-create a new metro at that location with slug format `city-name-xx`. Logs only `[geo-metro] Auto-created metro` without slug/city/state locality detail so onboarding timing cannot be correlated with a specific seller geography in logs. Returns `{ metroId, cityMetroId }` — always non-throwing (wrapped in try/catch at every call site).
+- **`findOrCreateMetro(lat, lng, publicLocality?)`** — **primary mapping function** for all new code: matches nearby metros locally through `findNearestMetro`. It creates a metro only from an explicit public city and state through `geocodePublicLocality`, then `prisma.metro.upsert` with slug format `city-name-xx`. Exact coordinates never go to Nominatim. Logs only `[geo-metro] Auto-created metro` without slug/city/state locality detail so onboarding timing cannot be correlated with a specific seller geography in logs. Returns `{ metroId, cityMetroId }` — always non-throwing (wrapped in try/catch at every call site).
 - **`isMetroSlug(slug)`** — returns `true` if slug matches `/^[a-z][a-z0-9-]+-[a-z]{2}$/`; used in dynamic routes to distinguish metro slugs from CUIDs
 
 ### `src/lib/reverse-geocode.ts`
-- **`reverseGeocode(lat, lng)`** — calls Nominatim (OpenStreetMap) reverse geocoding API; `User-Agent: Grainline/1.0 (thegrainline.com)`; enforces ≥1.1s between requests (Nominatim policy); extracts city from `address.city|town|village|hamlet`; returns `{ city, state, stateCode }` or `null` on failure/non-US result
+- **`geocodePublicLocality(city, state)`** — forward-geocodes an explicit public US city and state through Nominatim; `User-Agent: Grainline/1.0 (thegrainline.com)`; returns `{ city, state, stateCode, latitude, longitude }` with rounded coordinates, or `null` on failure. There is no reverse geocoding in `src`.
 - **Throttle**: `throttledFetch` must acquire the shared Redis lock `reverse-geocode:nominatim:lock` before calling Nominatim. `waitForNominatimSharedThrottle()` in `src/lib/nominatimThrottleState.ts` owns the 1.1s TTL, bounded retry count, and fail-closed behavior. If Redis is unavailable or the shared lock stays contended after bounded retries, fail closed by returning `null` and logging to Sentry; do not fall back to per-instance local throttling because Vercel has multiple instances and Nominatim's policy is global to Grainline.
-- All 50 US state names → two-letter codes in `STATE_CODES` map; returns `null` for non-US results
+- State names normalize through `normalizeUsState()` in `usStates.ts`; unknown states return `null`
 
 ### Auto-mapping on create
-- **Listings** (`dashboard/listings/new/page.tsx`) — after `prisma.listing.create`, fetches seller's lat/lng, calls `findOrCreateMetro`, updates listing. Non-fatal try/catch.
-- **Commission requests** (`api/commission/route.ts`) — after create, if `lat`/`lng` set (local scope requests), calls `findOrCreateMetro`. Non-fatal try/catch.
-- **Seller profile settings** (`dashboard/seller/page.tsx`) — after `prisma.sellerProfile.update`, if lat/lng is set, calls `findOrCreateMetro` and updates `metroId`/`cityMetroId`. Non-fatal try/catch.
+- **Listings** (`dashboard/listings/new/page.tsx`) — after create, reads the seller's coordinates through `sellerOwnerListingMetroSource()`, calls `findOrCreateMetro` with no public locality, so it only matches existing metros, and updates the listing. Non-fatal try/catch.
+- **Commission requests** (`api/commission/route.ts`) — after create, if `lat`/`lng` set (local scope requests), calls `findOrCreateMetro` with no public locality, so it only matches existing metros and never creates one. Non-fatal try/catch.
+- **Seller profile settings** (`dashboard/seller/page.tsx`) — after the save, if lat/lng is set, calls `findOrCreateMetro` with the seller's public city and state, and updates `metroId`/`cityMetroId` through `updateSellerOwnerMetroAssignment()`. This is the only caller that can create a metro. Non-fatal try/catch.
 
 ### Backfill script (`scripts/backfill-metros.ts`)
-One-time script — finds all existing listings, commissions, and seller profiles with coordinates but no `metroId`. For each coordinate, uses inline `resolveMetros` first; if nothing found, calls Nominatim and auto-creates the metro. Run with:
+One-time script — finds all existing listings, commissions, and seller profiles with coordinates but no `metroId`. For each coordinate, uses inline `resolveMetros` first; if nothing found, its `nominatimReverse` sends the exact coordinates to public Nominatim, which breaks the rule above. Do not run it until that is removed or converted. Old command:
 ```
 npx dotenv-cli -e .env -- npx ts-node --transpile-only scripts/backfill-metros.ts
 ```
@@ -3907,7 +3907,7 @@ All maps use Maplibre GL JS v5 with OpenFreeMap tiles (free, no API key, OpenStr
 - `AllSellersMap.tsx` — full map with built-in GeoJSON clustering (no plugin needed)
 - `MakersMapSection.tsx` — wrapper with geolocation button; wraps `AllSellersMap`
 - `MapCard.tsx` — single pin or radius circle; privacy jitter via seeded PRNG preserved verbatim; accepts `className` prop
-- `LocationPicker.tsx` — interactive draggable marker + address search via Nominatim
+- `LocationPicker.tsx` — interactive draggable marker + locality search (city and state, or ZIP only; see **Address and seller-location search behavior**)
 
 ### Tile Provider
 OpenFreeMap: `https://tiles.openfreemap.org/styles/liberty`
