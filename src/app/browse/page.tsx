@@ -866,7 +866,7 @@ async function BrowseContent({
       </div>
 
       {/* Recently Viewed */}
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="py-10">
         <Suspense>
           <RecentlyViewed />
         </Suspense>
@@ -898,7 +898,7 @@ async function BrowseByCity() {
   const children = metros.filter((m) => m.parentMetroId);
 
   return (
-    <section className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-100">
+    <section className="border-t border-stone-200/70 pt-8">
       <h2 className="text-base font-semibold text-neutral-800 mb-4">Browse by city</h2>
       <div className="space-y-4">
         {majors.map((major) => {

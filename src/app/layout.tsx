@@ -101,7 +101,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div id="main-content" className="flex-1 bg-[#F7F5F0]">
           {children}
           </div>
-          <footer className="bg-[#EFEAE0] border-t border-stone-200/60 text-neutral-700 pt-14 pb-8 px-6 text-sm">
+          <footer className="bg-[#EFEAE0] border-t border-stone-200/60 text-neutral-700 pt-14 pb-8 px-4 sm:px-6 lg:px-8 text-sm">
             <div className="max-w-[1600px] mx-auto">
               {/* Top row: logo + 4-column nav. Stacks on mobile, grid on md+. */}
               <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-5 gap-8 mb-10">
