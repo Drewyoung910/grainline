@@ -108,7 +108,6 @@ export default async function SellerOrderDetailPage({
   if (!seller) redirect("/dashboard/seller");
   const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.sellerProfileId);
   if (!sellerPrivate) redirect("/dashboard/seller");
-  if (!sellerPrivate.onboardingComplete) redirect("/dashboard?setup=required");
 
   const order = await readSellerOrderDetail(me.id, orderId);
 
