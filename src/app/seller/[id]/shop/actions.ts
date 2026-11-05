@@ -31,8 +31,6 @@ import {
   sellerOwnerListingPublishReview,
 } from "@/lib/sellerProfileOwnerAccess";
 
-const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
-
 async function findOwnedListing(
   listingId: string,
   ownerId: string,
@@ -92,18 +90,14 @@ function queueCheckoutSessionExpiryForListing(listingId: string, sellerId: strin
   );
 }
 
-function shouldNotifyFollowersOnActivation(listing: { status: ListingStatus; updatedAt: Date }) {
-  if (
+// Only a live listing can be hidden, so a HIDDEN one was already announced. Unhiding
+// it is not news, however long it was away.
+function shouldNotifyFollowersOnActivation(listing: { status: ListingStatus }) {
+  return (
     listing.status === ListingStatus.DRAFT ||
     listing.status === ListingStatus.PENDING_REVIEW ||
     listing.status === ListingStatus.REJECTED
-  ) {
-    return true;
-  }
-  if (listing.status === ListingStatus.HIDDEN) {
-    return Date.now() - listing.updatedAt.getTime() >= REPUBLISH_NOTIFY_AFTER_MS;
-  }
-  return false;
+  );
 }
 
 function queueFollowerFanoutForActiveListing(listing: {
