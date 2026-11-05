@@ -12,29 +12,26 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.doesNotMatch(header, /sign-in\?redirect_url=\/messages/);
   });
 
-  it("keeps a 44px favorite target around a centered frosted circle", () => {
+  it("keeps a 44px favorite target around a centered solid white circle", () => {
     const favorite = source("src/components/FavoriteButton.tsx");
     assert.match(favorite, /h-11 w-11/);
-    // A translucent dark circle, subtle outline and shadow keep the heart
-    // legible on both pale and dark photos without looking oversized.
-    assert.match(favorite, /absolute h-\[34px\] w-\[34px\] rounded-full bg-\[#2C1F1A\]\/62/);
-    assert.match(favorite, /backdrop-blur-md/);
-    assert.match(favorite, /group-hover\/fav:scale-\[1\.06\]/);
+    // Solid white circle so the heart reads on any photo (Drew, 2026-10-30).
+    assert.match(favorite, /absolute h-9 w-9 rounded-full bg-white\/95/);
+    assert.doesNotMatch(favorite, /bg-black\/10|rgba\(0,0,0,0\.25\)/);
     // Pending saves ignore clicks without the disabled attribute, which
     // restyled the button mid-tap.
     assert.match(favorite, /if \(isPending\) return;/);
     assert.doesNotMatch(favorite, /disabled=\{isPending\}/);
-    assert.match(favorite, /saved \? "fill-red-500 stroke-red-400" : "fill-transparent stroke-\[#FBF8F3\]"/);
+    assert.match(favorite, /saved \? "fill-red-500 stroke-red-500" : "fill-transparent stroke-neutral-900"/);
     assert.match(favorite, /toast\(next \? "Saved to favorites\." : "Removed from favorites\.", "success"\)/);
     assert.doesNotMatch(favorite, /-translate-y-px/);
-    assert.match(favorite, /0_0_0_1px_rgba\(255,255,255,0\.3\)/);
+    assert.match(favorite, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
   });
 
   it("confirms saved blog changes with the same durable toast system", () => {
     const savedPost = source("src/components/SaveBlogButton.tsx");
     assert.match(savedPost, /toast\(data\.saved \? "Post saved\." : "Removed from saved posts\.", "success"\)/);
-    assert.match(savedPost, /0_0_0_1px_rgba\(255,255,255,0\.3\)/);
-    assert.match(savedPost, /backdrop-blur-md/);
+    assert.match(savedPost, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
     assert.match(savedPost, /const next = !saved;[\s\S]*setSaved\(next\)/);
     assert.match(savedPost, /aria-pressed=\{saved\}/);
   });

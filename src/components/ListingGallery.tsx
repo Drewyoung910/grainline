@@ -286,7 +286,7 @@ export default function ListingGallery({
           className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
           aria-hidden="true"
         >
-          <span className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#2C1F1A]/62 text-[#FBF8F3] shadow-[0_6px_18px_-8px_rgba(20,13,10,0.9),0_0_0_1px_rgba(255,255,255,0.3)] backdrop-blur-md">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
             </svg>
