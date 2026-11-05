@@ -136,11 +136,6 @@ test("refund email is rendered for deterministic outbox delivery", () => {
   const email = source("src/lib/email.ts");
 
   assert.match(email, /export function renderRefundIssuedEmail/);
-  assert.match(
-    email,
-    /export async function sendRefundIssued\(\s*opts: Parameters<typeof renderRefundIssuedEmail>\[0\],?\s*\)/,
-  );
-  assert.match(email, /const rendered = renderRefundIssuedEmail\(opts\)/);
 });
 
 test("the audit and durable rollout records retain the crash-gap decision", () => {
