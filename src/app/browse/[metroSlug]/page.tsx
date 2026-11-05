@@ -319,7 +319,7 @@ async function BrowseMetroContent({
 
       {listingCount > 24 && (
         <div className="text-center mb-10">
-          <Link href={`/browse?lat=${metro.latitude}&lng=${metro.longitude}&radius=50`} className="text-sm text-neutral-500 hover:underline">
+          <Link href={`/browse?lat=${metro.latitude.toFixed(2)}&lng=${metro.longitude.toFixed(2)}&radius=50`} className="text-sm text-neutral-500 hover:underline">
             Showing 24 of {listingCount} pieces — use filters on the main browse page for more
           </Link>
         </div>

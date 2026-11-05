@@ -234,7 +234,7 @@ export default async function MakersMetroPage({
         </Link>
         {metro.latitude != null && metro.longitude != null && (
           <Link
-            href={`/map?near=${metro.latitude},${metro.longitude}&zoom=10`}
+            href={`/map?near=${metro.latitude.toFixed(2)},${metro.longitude.toFixed(2)}&zoom=10`}
             className="text-sm text-neutral-600 hover:underline"
           >
             View makers on map →
