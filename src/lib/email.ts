@@ -713,7 +713,7 @@ export async function sendCustomOrderRequest(opts: {
   );
 }
 
-export async function sendCustomOrderReady(opts: {
+export function renderCustomOrderReadyEmail(opts: {
   buyer: { name?: string | null; email: string };
   sellerName?: string | null;
   listingTitle: string;
@@ -733,12 +733,15 @@ export async function sendCustomOrderReady(opts: {
     ${btn("Purchase your piece", listingUrl)}
   `;
 
-  await send(
-    buyer.email,
-    `Your custom piece is ready: ${truncateSubjectText(listingTitle, 40)}`,
-    baseTemplate("Your Custom Piece is Ready", body),
-    { preferenceKey: "EMAIL_CUSTOM_ORDER" },
-  );
+  return {
+    to: buyer.email,
+    subject: `Your custom piece is ready: ${truncateSubjectText(listingTitle, 40)}`,
+    html: baseTemplate("Your Custom Piece is Ready", body),
+  };
+}
+
+export async function sendCustomOrderReady(opts: Parameters<typeof renderCustomOrderReadyEmail>[0]) {
+  await sendRenderedEmail(renderCustomOrderReadyEmail(opts), { preferenceKey: "EMAIL_CUSTOM_ORDER" });
 }
 
 export function renderBackInStockEmail(opts: {

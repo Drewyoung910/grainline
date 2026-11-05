@@ -145,3 +145,20 @@ describe("what buyers are asked to do next", () => {
     assert.doesNotMatch(html, /pickup location/);
   });
 });
+
+describe("custom piece ready", () => {
+  it("links to the signed-in thread, because the private listing is a 404 when signed out", () => {
+    const { html, subject } = email.renderCustomOrderReadyEmail({
+      buyer: { email: "a@example.com" },
+      sellerName: "Shop",
+      listingTitle: "Walnut Desk",
+      priceCents: 90000,
+      currency: "usd",
+      conversationId: "conversation-1",
+    });
+    assert.match(html, /href="[^"]*\/messages\/conversation-1"/);
+    assert.doesNotMatch(html, /\/listing\//);
+    assert.match(subject, /Walnut Desk/);
+  });
+});
+

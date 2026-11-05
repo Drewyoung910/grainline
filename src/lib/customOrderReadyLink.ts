@@ -83,7 +83,7 @@ export async function sendCustomOrderReadyLink({
           listingTitle: source.listingTitle,
           priceCents: source.priceCents,
           currency: source.currency,
-          listingId: source.listingId,
+          conversationId: source.conversationId,
         });
       }
     } catch (error) {
