@@ -135,6 +135,10 @@ function generateMonthBuckets(startDate: Date, endDate: Date): { label: string; 
     buckets.push({ label, timestamp: cur.toISOString() });
     cur.setUTCMonth(cur.getUTCMonth() + 1);
   }
+  // Thirteen months repeat one month name, so the older one carries its year.
+  if (buckets.length > 12) {
+    buckets[0].label += ` '${String(startDate.getUTCFullYear()).slice(-2)}`;
+  }
   return buckets;
 }
 
