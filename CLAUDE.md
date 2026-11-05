@@ -928,7 +928,7 @@ Direct `send*` callers today: `sendCaseOpened`, `sendCaseMessage`, `sendCustomOr
 
 **Lifecycle:** welcome buyer and seller, first listing, first sale.
 
-All follower listing fanout paths (create, publish, unhide, admin approve) share one `followed-listing:{listingId}` dedup key, so a piece is announced once (EM-10).
+All follower listing fanout paths (create, publish, unhide, admin approve) share one `followed-listing:{listingId}:{followerId}` email key, so a piece is announced once (EM-10).
 
 ### Email/audit behavior future agents must preserve
 
