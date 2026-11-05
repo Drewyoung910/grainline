@@ -156,6 +156,12 @@ function removeFlyer(flyer: HTMLElement): void {
   if (activeFlyer === flyer) activeFlyer = null;
 }
 
+// The card's hover zoom is the CSS scale property, not transform.
+function visibleZoom(element: Element): string {
+  const { scale, transform } = getComputedStyle(element);
+  return scale && scale !== "none" ? `scale(${scale})` : transform;
+}
+
 function flyerImage(source: HTMLImageElement, transform: string): HTMLImageElement {
   const image = document.createElement("img");
   image.src = source.currentSrc || source.src;
@@ -214,7 +220,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     transformOrigin: "center",
     willChange: "transform",
   });
-  const zoom = getComputedStyle(photo).transform;
+  const zoom = visibleZoom(photo);
   const image = flyerImage(photo, zoom);
   flyer.appendChild(image);
   // A hover photo showing on top dissolves back to the listing's first photo
@@ -224,7 +230,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     && candidate.complete
     && candidate.naturalWidth > 0
     && Number(getComputedStyle(candidate).opacity) > 0.5);
-  const hoverImage = hoverSource ? flyerImage(hoverSource, getComputedStyle(hoverSource).transform) : null;
+  const hoverImage = hoverSource ? flyerImage(hoverSource, visibleZoom(hoverSource)) : null;
   if (hoverImage) flyer.appendChild(hoverImage);
   document.body.appendChild(flyer);
   activeFlyer = flyer;
@@ -388,7 +394,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
       return;
     }
     // The route has arrived with no target, or waited too long.
-    if ((onListingPage() && !target) || performance.now() - startedAt > TARGET_WAIT_MS) {
+    if ((onListingPage() && !target && document.querySelector("main")) || performance.now() - startedAt > TARGET_WAIT_MS) {
       removeFlyer(flyer);
       return;
     }
