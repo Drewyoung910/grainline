@@ -19,6 +19,8 @@ import {
   rollbackEmailOutboxRecipientDailySendAllowance,
 } from "@/lib/emailOutboxQuota";
 import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { isOptionalEmailPreferenceKey } from "@/lib/emailPreferencePolicy";
+import { buildUnsubscribeUrl } from "@/lib/unsubscribeToken";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import {
   beginEmailOutboxProviderAttempt,
@@ -209,7 +211,11 @@ export async function enqueueEmailOutbox(
 
 async function processEmailOutboxClaim(claim: ClaimedEmailOutboxJob) {
   return processClaimedEmailOutboxJob(claim, {
-    providerConfigured: isEmailProviderConfigured(),
+    // send() refuses optional mail with no unsubscribe link. Find that out here,
+    // so the row waits instead of starting the provider-attempt clock for nothing.
+    providerConfigured: isEmailProviderConfigured()
+      && (!isOptionalEmailPreferenceKey(claim.preferenceKey)
+        || buildUnsubscribeUrl(claim.recipientEmail, claim.createdAt.getTime()) !== null),
     reserveRecipient: reserveRecipientDailySendAllowance,
     reserveGlobal: reserveDailySendAllowance,
     rollbackRecipient: rollbackRecipientDailySendAllowance,

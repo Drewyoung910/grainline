@@ -58,3 +58,18 @@ test("a database failure after commit does not look like a failed refund or labe
   assert.equal(subject.state.sentry.length, 1);
 });
 
+test("optional mail waits, before any provider work, when no unsubscribe link can be built", async () => {
+  const subject = fixture({
+    unsubscribeUrl: null,
+    claim: async () => ({ preferenceKey: "EMAIL_NEW_MESSAGE", recipientEmail: "a@example.com", createdAt: new Date(1) }),
+  });
+  await subject.exports.processEmailOutboxJobById("job");
+  assert.equal(subject.state.workerDeps.providerConfigured, false);
+});
+
+test("transactional mail does not need an unsubscribe link", async () => {
+  const subject = fixture({ unsubscribeUrl: null });
+  await subject.exports.processEmailOutboxJobById("job");
+  assert.equal(subject.state.workerDeps.providerConfigured, true);
+});
+
