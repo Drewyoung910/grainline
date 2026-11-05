@@ -25,6 +25,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { parseListingMaterials } from "@/lib/listingEditState";
 import { listingPriceMaxError } from "@/lib/listingPrice";
 import {
   normalizeVariantPriceAdjustCents,
@@ -138,10 +139,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
-  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
-  const materials = materialsRaw
-    ? materialsRaw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20)
-    : [];
+  const materials = parseListingMaterials(formData.get("materials"));
 
   // Product dimensions (inches — stored directly, separate from packaged dims)
   const productLengthIn = Number(String(formData.get("productLengthIn") ?? "").trim()) || null;
