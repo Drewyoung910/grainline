@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import type { MessageCursor } from "@/lib/messageCursor";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
 import { messageSearchQueryIsWithinBounds } from "@/lib/messageInputState";
+import { commissionInterestCreatedIdsMatch } from "@/lib/commissionInterestRowState";
 
 export type ConversationMessageAuthorityClient = Pick<
   Prisma.TransactionClient,
@@ -1002,14 +1003,10 @@ export async function createActorCommissionInterest(
     || typeof row.commissionTitle !== "string"
     || typeof row.sellerDisplayName !== "string"
     || typeof row.created !== "boolean"
-    || (
-      row.created
-      && (
-        row.conversationId !== proposedConversationId
-        || row.messageId !== proposedMessageId
-        || row.commissionInterestId !== proposedInterestId
-      )
-    )
+    || !commissionInterestCreatedIdsMatch(row, {
+      messageId: proposedMessageId,
+      commissionInterestId: proposedInterestId,
+    })
   ) {
     throw new TypeError("commission-interest write RPC returned an invalid row");
   }
