@@ -1,4 +1,5 @@
 // src/app/page.tsx
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/db";
@@ -66,6 +67,10 @@ function StarsInline({ value }: { value: number }) {
 }
 
 type FeaturedMaker = SellerPublicFeaturedMaker;
+
+export const metadata: Metadata = {
+  alternates: { canonical: "https://thegrainline.com/" },
+};
 
 const getFeaturedMakers = unstable_cache(
   async (): Promise<FeaturedMaker[]> => [...await sellerPublicFeaturedMakers()],
