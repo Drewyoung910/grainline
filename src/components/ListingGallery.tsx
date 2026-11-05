@@ -28,9 +28,9 @@ export default function ListingGallery({
   // replaces it once it has downloaded.
   const [lightboxPreview, setLightboxPreview] = useState<{ url: string; src: string; ratio: number } | null>(null);
   const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
-  // Width over height for each photo once it has loaded. From lg the photo sits
-  // in a box this shape, so its corners and controls follow the photo itself.
-  const [photoRatios, setPhotoRatios] = useState<Readonly<Record<string, number>>>({});
+  // Width over height of the photo on screen. From lg the photo sits in a box
+  // this shape. It keeps the last shape while the next photo loads.
+  const [activeRatio, setActiveRatio] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
   const thumbnailListRef = useRef<HTMLDivElement>(null);
@@ -148,7 +148,6 @@ export default function ListingGallery({
   // has already loaded instead of swapping in afterwards.
   const mainIndex = lightboxOpen ? lightboxIndex : activeIndex;
   const activeUrl = photos[mainIndex]?.url ?? "";
-  const activeRatio = photoRatios[activeUrl];
   const showPreview = lightboxPreview !== null && lightboxPreview.url === photos[lightboxIndex]?.url;
 
   function openLightbox(i: number) {
@@ -263,7 +262,7 @@ export default function ListingGallery({
           onLoad={(e) => {
             const { naturalWidth, naturalHeight } = e.currentTarget;
             if (naturalWidth > 0 && naturalHeight > 0) {
-              setPhotoRatios((current) => ({ ...current, [activeUrl]: naturalWidth / naturalHeight }));
+              setActiveRatio(naturalWidth / naturalHeight);
             }
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
@@ -289,6 +288,20 @@ export default function ListingGallery({
             {activeIndex + 1} / {photos.length}
           </div>
         )}
+        {/* Expand and favorite use the same 44px corner cell and 36px visible
+            circle, so the gallery controls are optically symmetrical. */}
+        <div
+          className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
+          aria-hidden="true"
+        >
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </span>
+        </div>
+        </div>
+        </div>
         {photos.length > 1 && (
           <>
             <button
@@ -331,20 +344,6 @@ export default function ListingGallery({
             </button>
           </>
         )}
-        {/* Expand and favorite use the same 44px corner cell and 36px visible
-            circle, so the gallery controls are optically symmetrical. */}
-        <div
-          className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
-          aria-hidden="true"
-        >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-            </svg>
-          </span>
-        </div>
-        </div>
-        </div>
       </div>
 
       {/* Thumbnails */}
