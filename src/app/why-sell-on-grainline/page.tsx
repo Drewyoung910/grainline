@@ -244,8 +244,8 @@ export default async function WhySellOnGrainlinePage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
-            <div className="card-section p-6 bg-white">
+          <div className="grid sm:grid-cols-2 gap-8">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No mandatory ads</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
@@ -253,7 +253,7 @@ export default async function WhySellOnGrainlinePage() {
                 additional percentage of your sales for ads you didn&apos;t opt into.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No listing fees</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
@@ -261,7 +261,7 @@ export default async function WhySellOnGrainlinePage() {
                 pay when something sells.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No shipping skim</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
@@ -269,7 +269,7 @@ export default async function WhySellOnGrainlinePage() {
                 carrier rate, you pay the carrier, we don&apos;t take a cut.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No surprise rate changes</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
@@ -292,8 +292,8 @@ export default async function WhySellOnGrainlinePage() {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          <div className="card-section p-6 bg-white">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div>
             <Truck size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Live carrier rates</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -301,7 +301,7 @@ export default async function WhySellOnGrainlinePage() {
               dashboard, deducted from your payout automatically.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Sparkles size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Direct Stripe payouts</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -309,7 +309,7 @@ export default async function WhySellOnGrainlinePage() {
               2 business days after the order is paid.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Shield size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">AI listing review</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -317,7 +317,7 @@ export default async function WhySellOnGrainlinePage() {
               flagged goes to staff review so your work isn&apos;t buried next to imports.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <BarChart size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Real analytics</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -325,7 +325,7 @@ export default async function WhySellOnGrainlinePage() {
               you need to actually understand your shop.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Hammer size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Custom orders + commissions</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -333,7 +333,7 @@ export default async function WhySellOnGrainlinePage() {
               normally. The commission room also matches buyer briefs with available makers.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Edit size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">A blog that features makers</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">

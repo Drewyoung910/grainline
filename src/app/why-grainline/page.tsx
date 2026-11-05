@@ -123,8 +123,8 @@ export default async function WhyGrainlinePage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
-            <div className="card-section p-6 bg-white">
+          <div className="grid sm:grid-cols-2 gap-8">
+            <div>
               <Shield size={28} className="text-amber-700 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">
                 Payment account setup
@@ -134,7 +134,7 @@ export default async function WhyGrainlinePage() {
                 Stripe handles the information needed to move money to the maker.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <Eye size={28} className="text-amber-700 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">
                 AI moderation on every listing
@@ -144,7 +144,7 @@ export default async function WhyGrainlinePage() {
                 photos, and prohibited categories. Anything flagged goes to staff review before buyers see it.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <Hammer size={28} className="text-amber-700 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">
                 Guild badges, earned not paid
@@ -155,7 +155,7 @@ export default async function WhyGrainlinePage() {
                 earned and maintained.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <MessageCircle size={28} className="text-amber-700 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">
                 A real dispute system
