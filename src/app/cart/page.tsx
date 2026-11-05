@@ -679,6 +679,11 @@ function CartPage() {
     if (changedItems.length === 0) return;
     setError(null);
     try {
+      // The open checkout has the old price, and it holds the stock this is judged against.
+      if (heldCheckout) {
+        await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        setHeldCheckout(null);
+      }
       for (const item of changedItems) {
         const res = await fetch("/api/cart/update", {
           method: "POST",

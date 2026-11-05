@@ -190,3 +190,33 @@ test("a finished checkout replaces the payment step, so Back can leave the recei
     ["replace", "/checkout/success?session_id=cs_done&session_ids=cs_done"],
   ]);
 });
+
+test("accepting new prices ends a checkout built on the old ones, before the update", async () => {
+  const calls = [];
+  const scope = {
+    items: [{ id: "line", quantity: 1, priceChanged: true, variantUnavailable: false }],
+    heldCheckout: { sellerIds: ["seller"], sessionIds: ["cs_1"] },
+    setError() {},
+    setHeldCheckout: (value) => calls.push(["setHeld", value]),
+    rollbackCheckoutSessions: async (ids) => calls.push(["rollback", ids]),
+    fetch: async (url) => {
+      calls.push(["update", url]);
+      return { ok: true, json: async () => ({}) };
+    },
+    load: async () => {},
+    notifyCartUpdated() {},
+    clearCartSessionStorage() {},
+    setSelectedRates() {},
+    setClientSecrets() {},
+    setCurrentPaymentIndex() {},
+    clearCompletedCheckoutSessions() {},
+  };
+  const names = Object.keys(scope);
+  const refresh = new Function(
+    ...names,
+    `${compile(cartPageFunction("refreshChangedPrices"))}; return refreshChangedPrices;`,
+  )(...names.map((name) => scope[name]));
+  await refresh();
+  assert.deepEqual(calls[0], ["rollback", ["cs_1"]]);
+  assert.deepEqual(calls[2], ["update", "/api/cart/update"]);
+});
