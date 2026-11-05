@@ -8,11 +8,10 @@ import {
 
 type CaseReadClient = Pick<typeof prisma, "$queryRaw">;
 
-function requireBoundedId(value: string, label: string) {
-  if (!/^[A-Za-z0-9._:-]{1,191}$/.test(value)) {
-    throw new TypeError(`Case read ${label} is invalid`);
-  }
-  return value;
+// An id that cannot exist belongs to no Case. It comes from the URL, so it is a
+// 404 for the page, not a server error.
+function isBoundedId(value: string) {
+  return /^[A-Za-z0-9._:-]{1,191}$/.test(value);
 }
 
 async function normalizeSingleCaseRead(
@@ -35,7 +34,8 @@ export async function getVisibleCaseById(
   db: CaseReadClient = prisma,
 ): Promise<CaseReadRow | null> {
   const actorUserId = normalizeDbUserContextUserId(input.actorUserId);
-  const caseId = requireBoundedId(input.caseId, "Case id");
+  const caseId = input.caseId;
+  if (!isBoundedId(caseId)) return null;
   const rows = await db.$queryRaw<unknown[]>`
     SELECT *
       FROM public.grainline_case_get(
@@ -54,7 +54,8 @@ export async function getVisibleCaseByOrderId(
   db: CaseReadClient = prisma,
 ): Promise<CaseReadRow | null> {
   const actorUserId = normalizeDbUserContextUserId(input.actorUserId);
-  const orderId = requireBoundedId(input.orderId, "Order id");
+  const orderId = input.orderId;
+  if (!isBoundedId(orderId)) return null;
   const rows = await db.$queryRaw<unknown[]>`
     SELECT *
       FROM public.grainline_case_get_by_order(
