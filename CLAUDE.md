@@ -660,7 +660,7 @@ LaurelWreathIcon and HammerChiselIcon default sizes both bumped to 32.
 | Makers metro directory | `false` | `22` |
 | Listing detail seller section | `true` | `32` |
 | Homepage Meet a Maker | `true` | `32` |
-| Seller profile header | `true` | `36` |
+| Seller profile header | `true` | `28` |
 | Seller shop header | `true` | `36` |
 | Dashboard verification page (section headers) | `true` | `28` |
 
@@ -691,7 +691,7 @@ Updated to remove "identity verification" language; now lists: completed profile
 - Otherwise → "Apply for Guild Badge"
 
 ### Build fix
-`package.json` build script updated to `"prisma generate && next build"` so Vercel always regenerates the Prisma client before compiling TypeScript.
+`package.json` build script is `"prisma generate && node scripts/prepare-maplibre-assets.mjs && next build"`, so Vercel always regenerates the Prisma client and prepares the MapLibre worker assets before compiling.
 
 ### Phase 1 — complete (badge icon images still pending)
 - Badge icons are functional SVGs (laurel wreath for Guild Member, hammer+chisel for Guild Master) — user may provide custom image replacements later
@@ -716,14 +716,14 @@ Migration: `20260330201226_guild_phase3_revoke_tracking`
 
 **Schema additions** on `SellerProfile`: `consecutiveMetricFailures Int @default(0)`, `lastMetricCheckAt DateTime?`, `metricWarningSentAt DateTime?`, `listingsBelowThresholdSince DateTime?`
 
-**`vercel.json`** — two crons registered:
+**`vercel.json`** is the only inventory of crons (17, including `order-dispute-recovery` and `order-pii-prune`). The two Guild crons:
 - `GET /api/cron/guild-metrics` — `40 15 1 * *` (monthly, 1st at 15:40 UTC)
 - `GET /api/cron/guild-member-check` — `10 14 * * *` (daily, 14:10 UTC)
 
 Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 **`src/app/api/cron/guild-metrics/route.ts`** — monthly Guild Master revocation:
-- Fetches all `GUILD_MEMBER` + `GUILD_MASTER` sellers
+- Fetches `GUILD_MEMBER` + `GUILD_MASTER` sellers not on vacation (`vacationMode = false`)
 - Processes in pages of 50 with concurrency 3
 - Guild Master pass: resets `consecutiveMetricFailures = 0`, clears `metricWarningSentAt`
 - Guild Master fail (1st time): increments `consecutiveMetricFailures = 1`, sets `metricWarningSentAt`, sends `VERIFICATION_REJECTED` notification + `sendGuildMasterWarningEmail` listing which criteria failed
@@ -732,14 +732,14 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - Returns `{ processed, warned, revokedMaster, errors[] }`
 
 **`src/app/api/cron/guild-member-check/route.ts`** — daily Guild Member revocation:
-- Two checks per seller: (1) case `OPEN | IN_DISCUSSION | PENDING_CLOSE` with `createdAt < 90 days ago`; (2) `listingsBelowThresholdSince < 30 days ago`
+- Two checks per seller, through `grainline_seller_guild_member_revoke`: (1) case `OPEN | IN_DISCUSSION | PENDING_CLOSE | UNDER_REVIEW` with `createdAt < 90 days ago`; (2) `listingsBelowThresholdSince < 30 days ago`
 - On revocation: sets `guildLevel = NONE`, `isVerifiedMaker = false`, stamps `MakerVerification.status = REJECTED` + `reviewedAt` for the reapplication cooldown, sends notification + `sendGuildMemberRevokedEmail` with reason
 - Returns `{ revokedMember, errors[] }`
 
 **`listingsBelowThresholdSince` tracking** — set/cleared in four places:
 - `api/listings/[id]/stock/route.ts` — after quantity update (via `syncGuildMemberListingThreshold()`)
-- `dashboard/page.tsx` `setStatus()` — after hide/unhide
-- `dashboard/page.tsx` `deleteListing()` — after delete
+- `dashboard/listings/actions.ts` `setStatus()` — after hide/unhide
+- `dashboard/listings/actions.ts` `deleteListing()` — after delete
 - `seller/[id]/shop/actions.ts` listing status actions — after publish/hide/delete
 
 **Email functions** added to `src/lib/email.ts`: `sendGuildMasterWarningEmail` (lists failed criteria), `sendGuildMasterRevokedEmail`, `sendGuildMemberRevokedEmail` (includes reason string)
@@ -776,7 +776,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ### Utilities (`src/lib/blog.ts`)
 - `generateSlug(title)` — lowercase, spaces→hyphens, strips special chars; non-ASCII readable slugs append a stable FNV-64 base36 suffix, and fully non-Latin titles fall back to `post-<hash>`
 - `calculateReadingTime(body)` — word count ÷ 200, minimum 1
-- `BLOG_TYPE_LABELS` — human-readable labels per `BlogPostType`; `WOOD_EDUCATION` label is "Workshop Tips" (updated 2026-04-01)
+- `BLOG_TYPE_LABELS` — human-readable labels per `BlogPostType`; `WOOD_EDUCATION` label is "Education"
 - `BLOG_TYPE_COLORS` — Tailwind badge color classes per type
 
 ### APIs
@@ -791,7 +791,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ### `BlogComment` self-relation (migration `20260413191812_add_blog_comment_replies`)
 - `parentId String?`, `parent BlogComment? @relation("CommentReplies", ..., onDelete: SetNull)`, `replies BlogComment[] @relation("CommentReplies")`; `@@index([parentId])`
 - **3-level threading** (updated 2026-04-13): depth enforced server-side only — no additional migration needed. Level 1 (root) → Level 2 (reply) → Level 3 (reply to reply). Attempts to reply at level 4+ flatten to level 3 (POST attaches to the level-2 parent instead). GET returns root comments with 2 levels of nested approved replies via `replies: { include: { replies: { ... } } }`.
-- **Avatar priority in comments** (2026-04-13): `AUTHOR_SELECT` const in `api/blog/[slug]/comments/route.ts` includes `sellerProfile: { select: { avatarImageUrl: true } }` at all 3 nesting levels; GET response mapped to add `avatarUrl = sellerProfile?.avatarImageUrl ?? imageUrl` per comment/reply/level-3-reply; `blog/[slug]/page.tsx` and `BlogReplyToggle.tsx` interfaces updated to include `sellerProfile?` on author and use `avatarUrl` for rendering
+- **Avatar priority in comments** (2026-04-13): `api/blog/[slug]/comments/route.ts` maps `avatarUrl = authorSellerAvatarUrl ?? authorImageUrl` per comment/reply/level-3-reply, and `blog/[slug]/page.tsx` and `BlogReplyToggle.tsx` apply the same priority when rendering
 
 ### Components
 - **`NewsletterSignup`** — client component; email + optional name; success state asks the user to check email for confirmation; client-side email format validation
@@ -1592,7 +1592,7 @@ Post-deployment bug fixes and gap fills:
 ### Homepage "From Your Makers" position
 - Moved from before "Stories from the Workshop" to the TOP of the main content section (first item after the map, before Shop by Category)
 
-### Follower notifications on status change (`dashboard/page.tsx`)
+### Follower notifications on status change (now `dashboard/listings/actions.ts`)
 - `setStatus` now notifies followers via `FOLLOWED_MAKER_NEW_LISTING` when a listing transitions from non-ACTIVE → ACTIVE (fire-and-forget)
 - `createNotification` import added
 
@@ -1924,7 +1924,7 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 - **Seller sees**: red "Rejected" badge on dashboard + shop page; rejection reason banner on edit page; "Resubmit for Review" button (triggers full AI review again) + Edit + Delete. No Unhide button.
 - **`unhideListingAction`** (shop): blocks `REJECTED` status (returns early).
 - **`markAvailableAction`** (shop): blocks `REJECTED` status (returns early).
-- **`setStatus`** (dashboard/page.tsx): blocks `REJECTED` → `ACTIVE` and `REJECTED` → `HIDDEN` transitions (returns early). REJECTED listings show Edit, Preview, Resubmit, Delete on My Listings — no Hide/Unhide/Mark sold.
+- **`setStatus`** (`dashboard/listings/actions.ts`): blocks `REJECTED` → `ACTIVE` and `REJECTED` → `HIDDEN` transitions (returns early). REJECTED listings show Edit, Preview, Resubmit, Delete on My Listings — no Hide/Unhide/Mark sold.
 - **`ResubmitButton`** (`src/components/ResubmitButton.tsx`): "use client" component; calls `publishListingAction` with `useTransition`; shows inline toast. Used on dashboard My Listings for REJECTED status.
 - **`publishListingAction`**: clears `rejectionReason` on re-publish; runs full AI review flow.
 - **Admin approve** (`/api/admin/listings/[id]/review`): Zod schema fixed — `reason` changed from `.optional()` to `.nullish()` (accepts `null` from `JSON.stringify`). Clears `rejectionReason: null` when approving. Handles PENDING_REVIEW and REJECTED → ACTIVE.
