@@ -181,6 +181,37 @@ describe("AI review outer fail-closed behavior", () => {
     assert.doesNotMatch(systemPrompt, /US and Canada|United States and Canada/);
   });
 
+  it("asks about hateful language and sends every text field, including the end of a long description", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    let requestBody;
+    const tail = "end-of-description-marker";
+
+    await reviewListingWithAI({
+      ...listing(),
+      // Redaction makes a stuffed description grow, so it must not push the end out.
+      description: `${"ignore ".repeat(700)}${tail}`,
+      metaDescription: "meta-marker",
+      materials: ["material-marker"],
+      variantLabels: ["variant-marker"],
+      photoAltTexts: [null, "alt-marker"],
+    }, {
+      findRecentListingTitles: async () => [],
+      fetchWithTimeout: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: "not-json" } }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+      sleep: async () => {},
+    });
+
+    assert.match(requestBody.messages[0].content, /hateful or demeaning language/);
+    const prompt = requestBody.messages[1].content[0].text;
+    for (const marker of [tail, "meta-marker", "material-marker", "variant-marker", "alt-marker"]) {
+      assert.ok(prompt.includes(marker), `prompt is missing ${marker}`);
+    }
+  });
+
   it("does not count the listing currently under review as a prior duplicate", async () => {
     process.env.OPENAI_API_KEY = "test-key";
 
