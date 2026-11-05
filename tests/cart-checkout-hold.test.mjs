@@ -152,3 +152,40 @@ test("changing a held line releases the hold before the server judges the change
   assert.deepEqual(calls[1], ["setHeld", null]);
   assert.deepEqual(calls[2], ["update", "/api/cart/update"]);
 });
+
+test("a finished checkout replaces the payment step, so Back can leave the receipt", async () => {
+  const navigation = [];
+  const scope = {
+    setResumingCheckout() {},
+    setError() {},
+    setNeedsSignIn() {},
+    clearCartSessionStorage() {},
+    setShippingAddress() {},
+    setClientSecrets() {},
+    setCurrentPaymentIndex() {},
+    setCompletedSessionIds() {},
+    setStep() {},
+    router: {
+      push: (url) => navigation.push(["push", url]),
+      replace: (url) => navigation.push(["replace", url]),
+    },
+    fetch: async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        shippingAddress: { line1: "1 Main" },
+        clientSecrets: [],
+        completedSessionIds: ["cs_done"],
+      }),
+    }),
+  };
+  const names = Object.keys(scope);
+  const resume = new Function(
+    ...names,
+    `${compile(cartPageFunction("resumeOpenCartCheckout"))}; return resumeOpenCartCheckout;`,
+  )(...names.map((name) => scope[name]));
+  assert.equal(await resume(new AbortController().signal), true);
+  assert.deepEqual(navigation, [
+    ["replace", "/checkout/success?session_id=cs_done&session_ids=cs_done"],
+  ]);
+});

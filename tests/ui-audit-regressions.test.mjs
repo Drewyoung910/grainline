@@ -174,8 +174,8 @@ describe("guards behind the browser checks", () => {
 
   it("closes dialogs before Buy Now success navigation", () => {
     const checkout = source("src/components/BuyNowCheckoutModal.tsx");
-    assert.match(checkout, /completedRef\.current = true;\s*onCloseRef\.current\(\);\s*router\.push/);
-    assert.match(checkout, /sessionIdRef\.current = null;\s*onClose\(\);\s*router\.push/);
+    assert.match(checkout, /completedRef\.current = true;\s*onCloseRef\.current\(\);\s*router\.replace/);
+    assert.match(checkout, /sessionIdRef\.current = null;\s*onClose\(\);\s*\/\/[^\n]*\s*router\.replace/);
   });
 
   it("keeps small-screen controls stable while async work runs", () => {

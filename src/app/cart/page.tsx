@@ -377,7 +377,8 @@ function CartPage() {
           session_id: resumedCompletedIds[resumedCompletedIds.length - 1],
           session_ids: resumedCompletedIds.join(","),
         });
-        router.push(`/checkout/success?${params.toString()}`);
+        // Replace, or Back from the receipt lands here and bounces straight back.
+        router.replace(`/checkout/success?${params.toString()}`);
         return true;
       }
       if (!data.shippingAddress || resumedSecrets.length === 0) return false;
@@ -1409,7 +1410,7 @@ function CartPage() {
                     session_id: sessionIds[sessionIds.length - 1],
                     session_ids: sessionIds.join(","),
                   });
-                  router.push(`/checkout/success?${params.toString()}`);
+                  router.replace(`/checkout/success?${params.toString()}`);
                 }
               }}
             />
