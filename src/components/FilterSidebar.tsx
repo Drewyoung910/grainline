@@ -249,7 +249,14 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         {/* Category */}
         <div>
           <div id={`${baseId}-category`} className={legendClass}>Category</div>
-          <div ref={categoryMenuRef} className="relative">
+          <div
+            ref={categoryMenuRef}
+            className="relative"
+            onBlur={(event) => {
+              // relatedTarget is null when an option blurs itself on press.
+              if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) closeCategoryMenu();
+            }}
+          >
             <button
               ref={categoryButtonRef}
               type="button"
