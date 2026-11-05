@@ -45,6 +45,31 @@ function loadRoute(sellerProfile = null) {
 
 
 
+const valid = { title: "Walnut desk", description: "A desk" };
+
+test("a rejected commission post does not spend the daily quota", async () => {
+  const rejected = [
+    { ...valid, budgetMin: 500, budgetMax: 100 },
+    { ...valid, budgetMin: "not a number" },
+    { ...valid, isNational: false },
+    { title: "" },
+  ];
+  for (const body of rejected) {
+    const { route, limiterCalls } = loadRoute();
+    const response = await route.POST({ body });
+    assert.equal(response.status, 400, JSON.stringify(body));
+    assert.deepEqual(limiterCalls, [], JSON.stringify(body));
+  }
+});
+
+test("a valid commission post spends one quota token", async () => {
+  const { route, limiterCalls, created } = loadRoute();
+  const response = await route.POST({ body: valid });
+  assert.equal(response.status, 200);
+  assert.deepEqual(limiterCalls, ["daily-quota"]);
+  assert.equal(created.length, 1);
+});
+
 test("sanitizing cannot push commission text past its column", async () => {
   const { route, created } = loadRoute();
   const response = await route.POST({

@@ -118,9 +118,6 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-  const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
-  if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
-
   const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: HTTP_STATUS.FORBIDDEN });
@@ -141,15 +138,6 @@ export async function POST(req: NextRequest) {
     throw e;
   }
   const { title, description, category, budgetMin, budgetMax, timeline, referenceImageUrls, isNational } = parsed;
-  if ((referenceImageUrls?.length ?? 0) > 0) {
-    const { success: imageIpOk, reset: imageIpReset } = await safeRateLimit(
-      commissionReferenceImageIpRatelimit,
-      getIP(req),
-    );
-    if (!imageIpOk) {
-      return privateResponse(rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network."));
-    }
-  }
 
   // Profanity check (log-only — does not block submission)
   {
@@ -166,13 +154,6 @@ export async function POST(req: NextRequest) {
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
   const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
-  const images = await filterVerifiedFirstPartyMediaUrlsForUser({
-    urls: referenceImageUrls ?? [],
-    max: 3,
-    clerkUserId: userId,
-    accountUserId: me.id,
-    allowedEndpoints: ["messageImage"],
-  });
 
   if (budgetMin != null && budgetMinCents === null) return privateJson({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMax != null && budgetMaxCents === null) return privateJson({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
@@ -218,6 +199,28 @@ export async function POST(req: NextRequest) {
     reqLng = publicPoint.lng;
     reqIsNational = false;
   }
+
+  // Spend the daily quota only once the request is known to be acceptable, so
+  // rejected attempts cannot lock a buyer out for a day.
+  if ((referenceImageUrls?.length ?? 0) > 0) {
+    const { success: imageIpOk, reset: imageIpReset } = await safeRateLimit(
+      commissionReferenceImageIpRatelimit,
+      getIP(req),
+    );
+    if (!imageIpOk) {
+      return privateResponse(rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network."));
+    }
+  }
+  const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
+  if (!rlOk) return privateResponse(rateLimitResponse(reset, "You can post up to 5 commission requests per day."));
+
+  const images = await filterVerifiedFirstPartyMediaUrlsForUser({
+    urls: referenceImageUrls ?? [],
+    max: 3,
+    clerkUserId: userId,
+    accountUserId: me.id,
+    allowedEndpoints: ["messageImage"],
+  });
 
   const request = await prisma.$transaction(async (tx) => {
     const created = await tx.commissionRequest.create({
