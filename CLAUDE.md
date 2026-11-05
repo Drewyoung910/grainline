@@ -3572,7 +3572,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **`$queryRawUnsafe` security comment** — Added rationale comment to `src/app/commission/page.tsx` explaining why `$queryRawUnsafe` is used and confirming all user input is bound via positional parameters.
 
 ### Deployment rule
-**Always run `prisma migrate deploy` BEFORE `vercel --prod`** for migrations that add columns or constraints. Index-only migrations are safe to apply after deploy (queries are slower but correct). Through the sealed SavedSearch Phase-B artifact, the production Vercel build still runs the phase-specific guarded migration. The staged successor in `docs/runtime-db-credential-separation.md` removes all owner migrations from Vercel, disables automatic `main` deployment, and requires the manual, protected `Production Migrations` workflow against the exact clean `main` commit before an explicit runtime-only Vercel promotion. Never run naked production Prisma migrations or re-add an owner/admin database variable to Vercel.
+**Apply database changes before the deployment that needs them.** Migrations run only through the protected GitHub workflow for that release, from the exact clean `main` commit, never from a workstation or the Vercel build. Then deploy that same commit as a runtime-only Vercel release (see **Deployment** under CI/CD and `docs/runtime-db-credential-separation.md`). Index-only migrations are safe to apply after deploy (queries are slower but correct). Never run naked production Prisma migrations or re-add an owner/admin database variable to Vercel.
 
 ### Infrastructure improvements (2026-04-18)
 - **`.github/dependabot.yml`** — weekly npm security updates; minor/patch grouped into one PR and major version bumps grouped into a separate manual-review PR; 10 open PR limit. Would have caught the Clerk 7.0.7 auth bypass CVE automatically.
@@ -4175,7 +4175,7 @@ export const prisma = new PrismaClient({ adapter, log: [...] })
 
 **Dependabot** (`.github/dependabot.yml`): weekly PRs every Monday for npm updates. Minor/patch updates are grouped into a single PR; major version bumps are grouped separately for manual review instead of being ignored. Limit: 10 open PRs.
 
-**Deployment**: `npx vercel --prod` from the CLI. For schema migrations, deploy them before `vercel --prod`. While the temporary SavedSearch rollout guard is present, export the explicitly approved `SAVED_SEARCH_RLS_DEPLOY_PHASE` and run `npx dotenv-cli -e .env -- npm run migrate:deploy:guarded`; do not bypass it with a naked Prisma migration command.
+**Deployment**: merging to `main` does not deploy (`git.deploymentEnabled: false`). Apply database changes first through the protected GitHub workflow for that release, from the exact clean `main` commit. Then deploy that same commit with `vercel deploy --prod --skip-domain`, inspect its aliases, smoke test, and run `vercel promote`. Vercel must never hold `DIRECT_URL`, `MIGRATION_DB_ROLE` or any owner URL; the build guard fails if it does.
 
 ## Commands
 
