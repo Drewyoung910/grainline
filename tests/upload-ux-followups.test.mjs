@@ -196,10 +196,11 @@ describe("upload UX follow-ups", () => {
     const hook = source("src/hooks/useR2Upload.ts");
     const button = source("src/components/R2UploadButton.tsx");
 
-    assert.match(hook, /validateUploadFile\(endpoint, originalFile, i\)/);
+    assert.match(hook, /validateUploadSelection\(endpoint, originalFile, i\)/);
+    assert.match(hook, /validateUploadFile\(endpoint, file, i\)/);
     assert.match(hook, /xhr\.upload\.onprogress/);
     assert.match(hook, /shrinkLargeImageForRouteUpload/);
-    assert.match(button, /validateUploadFile\(endpoint, file, index\)/);
+    assert.match(button, /validateUploadSelection\(endpoint, file, index\)/);
     assert.match(button, /Uploading \$\{progress > 0 \? `\$\{progress\}%` : "…"\}/);
     assert.match(button, /animate-spin/);
   });
