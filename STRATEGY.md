@@ -6,19 +6,19 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ### Owner/social RLS compatible sequence (updated 2026-10-30)
 
-Favorite, Follow, ReviewVote and MakerVerification compatible preparations are
-merged as one immutable ordered batch. The protected preparation release applies
-the four independent transactions before the converted application deploys;
-it does not enable/force RLS or revoke predecessor grants. ReviewVote's
+Favorite, Follow, ReviewVote and MakerVerification compatible preparations were
+merged as one immutable ordered batch. The protected preparation release applied
+the four independent transactions before the converted application deployed;
+it did not enable/force RLS or revoke predecessor grants. ReviewVote's
 failing-first PostgreSQL 17 proof exposed two parent-delete lock inversions in
 the merged candidate, so the batch must use corrected migration bytes. Fixed
 callers standardize `User -> Review -> ReviewVote`; a predecessor delete that
 already holds the child fails fast with `55P03` rather than waiting into a
 parent-delete cycle during the short deployment-skew window.
-After the corrected exact-main CI and required proof workflows pass, release the
-preparation batch once, then deploy its compatible app. The later four-table
-activation remains a distinct approval and must not be inferred from preparation
-success.
+Done: the preparation batch and its compatible app shipped, and the four-table
+activation ran on 2026-10-30 (run `41078151160`, exact main `12a4dfc49`). StockNotification
+activated earlier that day (run `41006298149`, exact main `a327ddd6c`). The next
+table starts from a fresh approval, not from this sequence.
 
 ### Marketplace operating decisions (Drew, 2026-10-19)
 
