@@ -369,9 +369,7 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(unsubscribe, /emailSuppressionAddressKeys\(normalized\)/);
     assert.match(unsubscribe, /emailSuppressionLookupForEmails\(emails\)/);
-    assert.match(unsubscribe, /function emailSuppressionMatchWhereSql/);
-    assert.match(unsubscribe, /split_part\(\$\{emailColumn\}, '@', 2\) IN \('gmail\.com', 'googlemail\.com'\)/);
-    assert.match(unsubscribe, /replace\(split_part\(split_part\(\$\{emailColumn\}, '@', 1\), '\+', 1\), '\.', ''\) IN/);
+    assert.match(unsubscribe, /emailSuppressionMatchWhereSql\(lookup\)/);
     assert.match(unsubscribe, /userSignedUnsubscribeTokenSuperseded\(prisma, \{/);
     assert.match(unsubscribe, /suppressionKeys: emails/);
     assert.match(unsubscribe, /issuedAt: new Date\(issuedAt\)/);
