@@ -890,19 +890,19 @@ async function SellerPublicContent({
                       {seller.returnPolicy && (
                         <details className="border-b border-stone-200/60 last:border-b-0">
                           <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Return Policy</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.returnPolicy}</p>
+                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{seller.returnPolicy}</p>
                         </details>
                       )}
                       {seller.customOrderPolicy && (
                         <details className="border-b border-stone-200/60 last:border-b-0">
                           <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Custom Order Policy</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.customOrderPolicy}</p>
+                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{seller.customOrderPolicy}</p>
                         </details>
                       )}
                       {seller.shippingPolicy && (
                         <details className="border-b border-stone-200/60 last:border-b-0">
                           <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Shipping Policy</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.shippingPolicy}</p>
+                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{seller.shippingPolicy}</p>
                         </details>
                       )}
                     </div>
@@ -913,7 +913,7 @@ async function SellerPublicContent({
                       {seller.faqs.map((faq) => (
                         <details key={faq.id} className="border-b border-stone-200/60 last:border-b-0">
                           <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">{faq.question}</summary>
-                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{faq.answer}</p>
+                          <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line break-words">{faq.answer}</p>
                         </details>
                       ))}
                     </div>
