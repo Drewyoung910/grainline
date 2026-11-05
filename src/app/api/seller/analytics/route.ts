@@ -21,6 +21,7 @@ import {
 import type { SellerOrderAnalyticsBucket } from "@/lib/orderSellerAnalyticsState";
 import { sellerOwnerPrivateState } from "@/lib/sellerOwnerPrivateAccess";
 import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
+import { countSellerOrders } from "@/lib/orderParticipantReadAuthority";
 import { sellerStockNotificationRangeCount } from "@/lib/stockNotificationAccess";
 import { sellerFavoriteRangeCount } from "@/lib/favoriteAccess";
 
@@ -170,7 +171,13 @@ export async function GET(req: Request) {
       sellerProfile.sellerProfileId,
     );
     if (!sellerPrivate) return privateJson({ error: "Seller profile not found" }, { status: 404 });
-    if (!sellerPrivate.onboardingComplete) {
+    // The wizard is optional once Stripe can take payments, so follow real
+    // state: payouts on, or orders already taken.
+    if (
+      !sellerPrivate.onboardingComplete
+      && !sellerProfile.chargesEnabled
+      && (await countSellerOrders(me.id)) === 0
+    ) {
       return privateJson(
         {
           error: sellerProfile.chargesEnabled

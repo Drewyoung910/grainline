@@ -89,9 +89,10 @@ async function SalesContent({
   if (!sellerPrivate) redirect("/dashboard/seller");
 
   // A maker can have a real order before finishing setup, because publishing only
-  // needs Stripe. Show the setup panel only when there is nothing to fulfil.
+  // needs Stripe. Show the setup panel only when Stripe is off and there is
+  // nothing to fulfil.
   const total = await countSellerOrders(me.id);
-  if (!sellerPrivate.onboardingComplete && total === 0) {
+  if (!sellerPrivate.onboardingComplete && !seller.chargesEnabled && total === 0) {
     return (
       <main className="mx-auto max-w-4xl p-8 space-y-6">
         <header>
@@ -100,7 +101,7 @@ async function SalesContent({
         </header>
         <section className="card-section p-8">
           <p className="text-base font-semibold text-neutral-900">
-            {seller.chargesEnabled ? "Finish setup to start accepting orders" : "Connect Stripe to start accepting orders"}
+            Connect Stripe to start accepting orders
           </p>
           <p className="mt-2 text-sm text-neutral-600">
             Your sales dashboard will unlock after your shop setup is complete and buyers can pay you.
@@ -112,14 +113,12 @@ async function SalesContent({
             >
               Continue setup →
             </Link>
-            {!seller.chargesEnabled && (
-              <Link
-                href="/dashboard/seller"
-                className="btn btn-secondary btn-sm"
-              >
-                Connect Stripe Payouts →
-              </Link>
-            )}
+            <Link
+              href="/dashboard/seller"
+              className="btn btn-secondary btn-sm"
+            >
+              Connect Stripe Payouts →
+            </Link>
           </div>
         </section>
       </main>

@@ -144,7 +144,7 @@ describe("Workshop overview", () => {
     assert.match(page, /readOptional\("listing_attention"/);
     assert.match(page, /readOptional\("unread_messages"/);
     assert.match(page, /attentionIncomplete \? "Your shop" : "All caught up"/);
-    assert.match(page, /\{onboardingComplete && <WorkshopStats \/>\}/);
+    assert.match(page, /\(onboardingComplete \|\| chargesEnabled \|\| \(orderQueue\?\.recent\.length \?\? 0\) > 0\) && <WorkshopStats \/>/);
   });
 });
 
