@@ -25,6 +25,10 @@ test("the commission board counts interest for the signed-in viewer, so blocked 
       },
     },
     "@/lib/categories": { CATEGORY_VALUES: [], CATEGORY_LABELS: {} },
+    "@/lib/queryParams": {
+      firstSearchParams: (params) => params ?? {},
+      parseBoundedPositiveIntParam: (_value, fallback) => fallback,
+    },
   });
   const content = page.default({ searchParams: Promise.resolve({}) }).props.children;
   await content.type(content.props);
