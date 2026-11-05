@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { cartCheckoutLockKey, getCheckoutLock } from "@/lib/checkoutSessionLock";
 import { stripe } from "@/lib/stripe";
-import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { cartReadRatelimit, checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -40,12 +40,15 @@ function shippingAddressFromMetadata(metadata: Record<string, string>): ResumedS
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return privateJson({ error: "Sign in required" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
-    const { success, reset } = await safeRateLimit(checkoutRatelimit, userId);
+    // The cart asks this on every load, so it must not spend checkout attempts
+    // or look up finished sessions at Stripe.
+    const openOnly = new URL(req.url).searchParams.get("open") === "1";
+    const { success, reset } = await safeRateLimit(openOnly ? cartReadRatelimit : checkoutRatelimit, userId);
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many checkout attempts."));
 
     const me = await ensureUserByClerkId(userId);
@@ -116,6 +119,8 @@ export async function GET() {
         sessionId: session.id,
       });
     }
+
+    if (openOnly) return privateJson({ clientSecrets, completedSessionIds, shippingAddress });
 
     const recentCompletedReservationRows = await resumeCheckoutStockReservations({
       buyerId: me.id,
