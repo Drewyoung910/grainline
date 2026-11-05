@@ -494,7 +494,7 @@ async function BlogIndexPageContent({
                             <span className="text-xs text-neutral-500">{post.readingTimeMinutes} min</span>
                           )}
                         </div>
-                        <h3 className="font-semibold text-neutral-900 line-clamp-2">{post.title}</h3>
+                        <h2 className="font-semibold text-neutral-900 line-clamp-2">{post.title}</h2>
                         {excerpt && <p className="text-sm text-neutral-500 line-clamp-2">{excerpt}</p>}
                         <div className="flex items-center gap-1.5 pt-1">
                           {avatar ? (

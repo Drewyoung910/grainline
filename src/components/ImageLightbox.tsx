@@ -65,7 +65,7 @@ export function ImageLightbox({ images, thumbnailSize = 96 }: { images: string[]
             aria-label={`View reference image ${i + 1}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={`Reference ${i + 1}`} className="w-full h-full object-cover" />
+            <img src={url} alt="" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-black opacity-0 hover:opacity-10 transition-opacity" />
           </button>
         ))}

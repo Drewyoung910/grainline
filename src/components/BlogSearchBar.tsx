@@ -255,7 +255,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <form onSubmit={handleSubmit} role="search">
+      <form onSubmit={handleSubmit} role="search" aria-label="Search the blog">
         <label htmlFor={`${blogSearchListboxId}-input`} className="sr-only">
           Search blog posts
         </label>
