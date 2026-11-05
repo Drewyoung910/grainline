@@ -526,7 +526,7 @@ export function renderOrderShippedEmail(opts: {
 
   const trackingSection =
     trackingNumber
-      ? `<p style="font-size:14px;margin:16px 0 8px;"><strong>Carrier:</strong> ${esc(carrier || "—")}</p>
+      ? `<p style="font-size:14px;margin:16px 0 8px;"><strong>Carrier:</strong> ${esc(carrier || "Not listed")}</p>
          <p style="font-size:14px;margin:0 0 8px;"><strong>Tracking number:</strong> ${esc(trackingNumber)}</p>
          ${btn("Track your package", trackingUrl(carrier, trackingNumber))}`
       : "";
@@ -891,11 +891,11 @@ export function renderWelcomeSellerEmail(opts: {
   const profileUrl = `${APP_URL}/dashboard/profile`;
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, welcome to Grainline — let's get your shop set up!</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, welcome to Grainline! Let's get your shop set up.</p>
     <p style="font-size:14px;font-weight:600;margin:0 0 8px;">Your quick-start checklist:</p>
     <ol style="font-size:14px;line-height:1.8;color:#6B6A66;margin:0 0 20px;padding-left:20px;">
       <li>Add a banner photo to your profile</li>
-      <li>Write your story — buyers love knowing who made their piece</li>
+      <li>Write your story. Buyers love knowing who made their piece.</li>
       <li>List your first piece and start selling</li>
     </ol>
     ${btn("Complete your profile", profileUrl)}
@@ -958,7 +958,6 @@ export function renderFirstSaleCongratsEmail(opts: {
   const { seller, order } = opts;
   const name = seller.displayName || "there";
   const orderUrl = `${APP_URL}/dashboard/sales/${order.id}`;
-  const total = orderTotalCents(order);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, you made your first sale! 🎉</p>
@@ -1018,7 +1017,7 @@ export async function sendGuildMasterRevokedEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Master badge has been revoked.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong> — you can reapply for Guild Master once your metrics are back above the required thresholds and the reapplication window reopens.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong>, and you can reapply for Guild Master once your metrics are back above the required thresholds and the reapplication window reopens.</p>
     ${btn("View your verification status", dashUrl)}
   `;
 
@@ -1175,7 +1174,7 @@ export async function sendNewReviewEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(buyer)}</strong> left a review on <strong>${esc(listingTitle)}</strong>.</p>
     <p style="font-size:18px;font-weight:600;margin:0 0 8px;">${esc(ratingDisplay)} out of 5 stars</p>
-    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read the full review and reply from your dashboard.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read the full review and reply on the listing page.</p>
     ${btn("View Review", reviewUrl)}
   `;
 
