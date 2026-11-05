@@ -8,6 +8,7 @@ import ts from "typescript";
 const require = createRequire(import.meta.url);
 const profanity = await import("../src/lib/profanity.ts");
 const sanitize = await import("../src/lib/sanitize.ts");
+const sellerShopSettingsInput = await import("../src/lib/sellerShopSettingsInput.ts");
 const { SHOP_TEXT_SLUR_MESSAGE, SLUR_WORDS, MILD_WORDS } = profanity;
 const SLUR = SLUR_WORDS[0];
 
@@ -32,6 +33,7 @@ function load(path, exportName) {
     zod: require("zod"),
     "@/lib/profanity": profanity,
     "@/lib/sanitize": sanitize,
+    "@/lib/sellerShopSettingsInput": sellerShopSettingsInput,
     "@/lib/sellerProfileText": {
       SELLER_PROFILE_TEXT_LIMITS: {},
       cleanSellerProfileRichText: (value) => (value ? String(value) : null),
