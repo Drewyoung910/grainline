@@ -525,7 +525,7 @@ export default async function BlogPostPage({
           <BlogCommentForm slug={slug} />
         ) : (
           <p className="text-sm text-neutral-600">
-            <Link href={`/sign-in?redirect_url=/blog/${slug}`} className="underline">Sign in</Link> to leave a comment.
+            <Link href={`/sign-in?redirect_url=/blog/${slug}`} rel="nofollow" className="underline">Sign in</Link> to leave a comment.
           </p>
         )}
       </section>
