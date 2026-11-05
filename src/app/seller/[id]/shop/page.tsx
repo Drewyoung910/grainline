@@ -244,7 +244,7 @@ export default async function SellerShopPage({
           <img
             src={avatarSrc}
             alt={seller.displayName ?? ""}
-            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
+            className="h-10 w-10 shrink-0 rounded-full object-cover"
           />
         ) : (
           <div className="h-10 w-10 rounded-full bg-neutral-200 shrink-0" />
@@ -252,10 +252,10 @@ export default async function SellerShopPage({
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-xl font-semibold">
+            <h1 className="font-display text-3xl font-semibold">
               {seller.displayName ? `${seller.displayName}'s Shop` : "Shop"}
             </h1>
-            <GuildBadge level={seller.guildLevel} showLabel={true} size={36} />
+            <GuildBadge level={seller.guildLevel} showLabel={true} size={28} />
             {seller.isFoundingMaker && (
               <FoundingMakerBadge
                 number={seller.foundingMakerNumber}
@@ -264,24 +264,24 @@ export default async function SellerShopPage({
               />
             )}
           </div>
-          {!isOwner && (
-            <div className="mt-1">
-              <FollowButton
-                sellerProfileId={seller.id}
-                initialFollowing={isFollowing}
-                initialCount={followerCount}
-                size="sm"
-              />
-            </div>
-          )}
         </div>
 
-        <Link
-          href={publicSellerPath(seller.id, seller.displayName)}
-          className="text-sm text-neutral-600 underline shrink-0"
-        >
-          ← Back to profile
-        </Link>
+        <div className="flex shrink-0 items-center gap-3">
+          {!isOwner && (
+            <FollowButton
+              sellerProfileId={seller.id}
+              initialFollowing={isFollowing}
+              initialCount={followerCount}
+              size="sm"
+            />
+          )}
+          <Link
+            href={publicSellerPath(seller.id, seller.displayName)}
+            className="text-sm text-neutral-600 underline"
+          >
+            ← Back to profile
+          </Link>
+        </div>
       </div>
 
       {/* ── Category tabs + sort ────────────────────────────────────── */}
