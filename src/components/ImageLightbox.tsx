@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 
-export function ImageLightbox({ images }: { images: string[] }) {
+export function ImageLightbox({ images, thumbnailSize = 96 }: { images: string[]; thumbnailSize?: number }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -61,7 +61,7 @@ export function ImageLightbox({ images }: { images: string[] }) {
             }}
             onClick={() => { setActiveIndex(i); setOpen(true); }}
             className="relative overflow-hidden border border-neutral-200 hover:border-neutral-400 transition-colors"
-            style={{ width: 96, height: 96 }}
+            style={{ width: thumbnailSize, height: thumbnailSize }}
             aria-label={`View reference image ${i + 1}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -500,20 +500,20 @@ async function CommissionDetailPage({ id }: { id: string }) {
         <span>{interestedCount} maker{interestedCount !== 1 ? "s" : ""} interested</span>
       </div>
 
-      <section className="mb-6">
-        <h2 className="font-semibold text-neutral-800 mb-2">Request Details</h2>
-        <p className="text-sm text-neutral-700 whitespace-pre-wrap">{request.description}</p>
-      </section>
-
       {request.referenceImageUrls.length > 0 && (
         <section className="mb-6">
-          <h2 className="font-semibold text-neutral-800 mb-3">Reference Images</h2>
-          <ImageLightbox images={request.referenceImageUrls} />
+          <h2 className="font-display text-xl text-neutral-900 mb-3">Reference Images</h2>
+          <ImageLightbox images={request.referenceImageUrls} thumbnailSize={160} />
         </section>
       )}
 
+      <section className="mb-6">
+        <h2 className="font-display text-xl text-neutral-900 mb-2">Request Details</h2>
+        <p className="text-sm text-neutral-700 whitespace-pre-wrap">{request.description}</p>
+      </section>
+
       <section className="mb-6 pb-6 border-b border-neutral-100">
-        <h2 className="font-semibold text-neutral-800 mb-2">Posted by</h2>
+        <h2 className="font-display text-xl text-neutral-900 mb-2">Posted by</h2>
         <div className="flex items-center gap-2">
           {request.buyerImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -537,7 +537,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
       {interests.length > 0 && (
         <section className="mb-6">
-          <h2 className="font-semibold text-neutral-800 mb-3">
+          <h2 className="font-display text-xl text-neutral-900 mb-3">
             Interested Maker{interests.length !== 1 ? "s" : ""}
           </h2>
           <div className="flex flex-wrap gap-3">
