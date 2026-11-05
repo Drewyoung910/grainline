@@ -9,6 +9,7 @@ import {
 } from "./aiReviewSafety.ts";
 import { normalizeAIReviewResult, type AIReviewResult } from "./aiReviewResultState.ts";
 import { formatCurrencyCents } from "./money.ts";
+import { containsSlur } from "./profanity.ts";
 import { logServerError } from "./serverErrorLogger.ts";
 import { isR2PublicUrl } from "./urlValidation.ts";
 
@@ -107,10 +108,35 @@ export async function reviewListingWithAI(listing: {
   sellerName: string
   listingCount: number
   imageUrls?: string[]
+  metaDescription?: string | null
+  materials?: string[]
+  variantLabels?: string[]
+  photoAltTexts?: Array<string | null>
 }, deps: AIReviewDependencies = {}): Promise<AIReviewResult> {
   const findRecentListingTitles = deps.findRecentListingTitles ?? defaultFindRecentListingTitles;
   const requestWithTimeout = deps.fetchWithTimeout ?? defaultFetchWithTimeout;
   const wait = deps.sleep ?? sleep;
+
+  // Every path that can make a listing public comes through here, so this one
+  // check covers them all. It needs no provider, so it runs before everything.
+  const listingText = [
+    listing.title,
+    listing.description,
+    listing.metaDescription,
+    ...listing.tags,
+    ...(listing.materials ?? []),
+    ...(listing.variantLabels ?? []),
+    ...(listing.photoAltTexts ?? []),
+  ].join("\n");
+  if (containsSlur(listingText)) {
+    return {
+      approved: false,
+      flags: ['hateful-language'],
+      confidence: 1,
+      reason: 'This listing contains language Grainline does not allow. Staff will review it, or you can withdraw it and change the wording.',
+      altTexts: [],
+    }
+  }
 
   if (!process.env.OPENAI_API_KEY) {
     if (!missingOpenAIKeyReported) {

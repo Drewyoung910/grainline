@@ -250,6 +250,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
     listingCount: sellerInfo?.totalListingCount ?? 0,
     imageUrls,
+    photoAltTexts: imageAltTexts,
   }).catch((): AIReviewResult => ({
     approved: false,
     flags: ["AI review error"],

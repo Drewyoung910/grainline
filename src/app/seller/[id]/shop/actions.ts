@@ -289,9 +289,13 @@ export async function publishListingAction(listingId: string): Promise<{ status:
 
     const photos = await prisma.photo.findMany({
       where: { listingId: listing.id },
-      select: { url: true },
+      select: { url: true, altText: true },
       orderBy: { sortOrder: "asc" },
       take: 10,
+    });
+    const variantGroups = await prisma.listingVariantGroup.findMany({
+      where: { listingId: listing.id },
+      select: { name: true, options: { select: { label: true } } },
     });
 
     const aiResult = await reviewListingWithAI({
@@ -306,6 +310,10 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       sellerName: sellerReview.displayName,
       listingCount,
       imageUrls: photos.map((p) => p.url),
+      metaDescription: listing.metaDescription,
+      materials: listing.materials,
+      variantLabels: variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+      photoAltTexts: photos.map((p) => p.altText),
     }).catch((error) => {
       logServerError(error, {
         source: "listing_publish_ai_review",

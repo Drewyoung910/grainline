@@ -375,8 +375,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
           currency: true,
           category: true,
           tags: true,
+          metaDescription: true,
+          materials: true,
+          variantGroups: { select: { name: true, options: { select: { label: true } } } },
           photos: {
-            select: { url: true },
+            select: { url: true, altText: true },
             orderBy: { sortOrder: "asc" },
             take: 10,
           },
@@ -408,6 +411,10 @@ async function createListing(_prevState: unknown, formData: FormData) {
         sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
         listingCount,
         imageUrls: reviewTarget.photos.map((photo) => photo.url),
+        metaDescription: reviewTarget.metaDescription,
+        materials: reviewTarget.materials,
+        variantLabels: reviewTarget.variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+        photoAltTexts: reviewTarget.photos.map((photo) => photo.altText),
       }).catch((): AIReviewResult => ({
         approved: false,
         flags: ["AI review error"],
