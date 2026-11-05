@@ -119,7 +119,7 @@ export default async function WhyGrainlinePage() {
               How we keep it real.
             </h2>
             <p className="text-stone-600 max-w-2xl mx-auto">
-              Four mechanisms working together so you can buy with confidence.
+              What we check, and what happens if something goes wrong.
             </p>
           </div>
 
