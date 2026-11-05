@@ -37,7 +37,11 @@ import {
 } from "@/lib/sellerProfilePublicAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { defaultOpenGraphImages } from "@/lib/siteMetadata";
-import { normalizeSearchQueryParameter, searchWordForms } from "@/lib/searchQueryState";
+import {
+  listingSearchWordConditions,
+  normalizeSearchQueryParameter,
+  searchWordForms,
+} from "@/lib/searchQueryState";
 
 const PAGE_SIZE = 24;
 const MAX_SHIPS_WITHIN_DAYS = 365;
@@ -148,8 +152,8 @@ function scoreListings(listings: ListingRow[], query?: string) {
         // Tag matches (medium weight)
         if (forms.some((form) => tagsLower.includes(form))) textScore += 0.25;
         else if (tagsLower.some((t) => forms.some((form) => t.includes(form)))) textScore += 0.1;
-        // Description matches (low weight)
-        if (forms.some((form) => descLower.includes(form))) textScore += 0.05;
+        // Description matches (low weight); the typed word only, as in the query
+        if (descLower.includes(term)) textScore += 0.05;
       }
 
       // Normalize by term count so 3-word queries don't auto-score 3x
@@ -332,21 +336,10 @@ async function BrowseContent({
     // Split query into individual words for broad matching.
     // "walnut dining table" matches listings with ANY of those words
     // in title, tags, description, or seller name — not just exact phrase.
-    // Each word also matches its likely other forms, so "tables" finds "table".
-    const searchWords = q
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 6)
-      .flatMap((word) => searchWordForms(word));
-    const wordConditions: Prisma.ListingWhereInput[] = searchWords.flatMap((word) => [
-      { title: { contains: word, mode: "insensitive" as const } },
-      { description: { contains: word, mode: "insensitive" as const } },
-    ]);
-    // Tag matching: check each word against tags individually
-    const tagWordConditions: Prisma.ListingWhereInput[] = searchWords.map((word) => ({
-      tags: { has: word },
-    }));
+    // Each word also matches its likely singular in titles and tags, so "tables"
+    // finds "table".
+    const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+    const wordConditions: Prisma.ListingWhereInput[] = listingSearchWordConditions(searchWords);
     const sellerNameCondition: Prisma.ListingWhereInput = {
       OR: normalizedDisplayNameQuery
         ? [
@@ -364,10 +357,8 @@ async function BrowseContent({
     where.OR = [
       // Full phrase match (highest relevance, scored in JS)
       { title: { contains: q, mode: "insensitive" as const } },
-      // Individual word matches in title and description
+      // Individual word matches in title, description and tags
       ...wordConditions,
-      // Individual word matches in tags
-      ...tagWordConditions,
       // Partial tag matches (existing logic)
       ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
       // Seller name match
