@@ -129,7 +129,7 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /deleteOwnerCartItem\(me\.id, lockedItem\.cartId, lockedItem\.id, tx\)/);
     assert.match(text, /quantity > \(listing\.stockQuantity \?\? 0\)/);
     assert.match(text, /Only \$\{available\} available/);
-    assert.match(text, /This piece is out of stock right now/);
+    assert.match(text, /This piece is held in a checkout right now/);
     assert.match(text, /logServerError\(err, \{[\s\S]*source: "cart_update_route"/);
     assert.doesNotMatch(text, /console\.error\("POST \/api\/cart\/update error:", err\)/);
   });

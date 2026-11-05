@@ -151,7 +151,7 @@ export async function POST(req: Request) {
           {
             error: available > 0
               ? `Only ${available} available.`
-              : "This piece is out of stock right now. It may come back if another buyer's checkout doesn't finish.",
+              : "This piece is held in a checkout right now. It may come back if that checkout doesn't finish.",
           },
           { status: HTTP_STATUS.BAD_REQUEST },
         );
