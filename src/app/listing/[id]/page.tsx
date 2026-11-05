@@ -606,6 +606,7 @@ export default async function ListingPage({
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
+                  rel="nofollow"
                   className="btn btn-sm btn-secondary"
                 >
                   <Wrench size={15} />
@@ -694,6 +695,7 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
+                  rel="nofollow"
                   className="btn btn-sm btn-secondary"
                 >
                   Message maker

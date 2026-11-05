@@ -506,6 +506,7 @@ async function SellerPublicContent({
                 />
                 <Link
                   href={meId ? `/messages/new?to=${sellerUserId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                  rel="nofollow"
                   className="btn btn-sm btn-secondary"
                 >
                   Message Maker
@@ -521,6 +522,7 @@ async function SellerPublicContent({
                   ) : (
                     <Link
                       href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                      rel="nofollow"
                       className="btn btn-sm btn-secondary"
                     >
                       <Wrench size={15} />
