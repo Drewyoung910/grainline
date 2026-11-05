@@ -6,18 +6,21 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await userClerkGate(prisma, userId);
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
     return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
+  const pinResponse = await requireStaffAdminPinForApi(request, userId, sessionId);
+  if (pinResponse) return pinResponse;
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
 
