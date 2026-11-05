@@ -41,6 +41,15 @@ describe("unicode sanitization", () => {
     assert.equal(sanitizeText("🤷\u200Dx"), "🤷x");
   });
 
+  it("empties text made only of blank characters and drops control characters", () => {
+    for (const blank of ["\u2800", "\u3164\u3164", "\u115F\u1160", "\uFFA0", " \u2800 "]) {
+      assert.equal(sanitizeUserName(blank), "");
+    }
+    assert.equal(sanitizeUserName("Oak\u2800Works"), "Oak Works");
+    assert.equal(sanitizeText("a\u0007b\u001Bc\u007Fd\u009Fe"), "abcde");
+    assert.equal(sanitizeRichText("line one\nline\ttwo\r\nthree"), "line one\nline\ttwo\r\nthree");
+  });
+
   it("strips nested or malformed HTML from plain text", () => {
     assert.equal(sanitizeText("<<script>alert(1)</script>Chair"), "Chair");
     assert.equal(sanitizeText("hello <b onclick=alert(1)>world</b>"), "hello world");

@@ -11,7 +11,12 @@ const JOINING_SCRIPT_BEFORE = new RegExp(`[${JOINING_SCRIPT}]$`, "u");
 const JOINING_SCRIPT_AFTER = new RegExp(`^[${JOINING_SCRIPT}]`, "u");
 const EMOJI_BEFORE_JOINER = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\uFE0F]$/u;
 const EMOJI_AFTER_JOINER = /^\p{Extended_Pictographic}/u;
-const NULL_BYTES = /\u0000/g;
+// Control characters, keeping tab, line breaks and NEL (U+0085), which the
+// address fields turn into spaces.
+const CONTROL_CHARS = /[\u0000-\u0008\u000E-\u001F\u007F-\u0084\u0086-\u009F]/g;
+// Characters that draw nothing but are not whitespace (Braille blank, Hangul
+// fillers). As spaces they get trimmed, so a name made of them is empty.
+const BLANK_CHARS = /[\u115F\u1160\u2800\u3164\uFFA0]/g;
 const CYRILLIC_CONFUSABLES: Record<string, string> = {
   А: "A",
   а: "a",
@@ -66,6 +71,7 @@ export function stripInvisibleChars(input: string): string {
 export function normalizeUserText(input: string): string {
   return foldCyrillicConfusables(
     stripInvisibleChars(stripBidiControls(input.normalize("NFKC")))
-      .replace(NULL_BYTES, ""),
+      .replace(CONTROL_CHARS, "")
+      .replace(BLANK_CHARS, " "),
   );
 }
