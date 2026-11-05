@@ -291,7 +291,6 @@ async function CommissionPageContent({
       {/* Header */}
       <div className="mb-8 flex items-start justify-between gap-4 max-[359px]:flex-wrap sm:items-end">
         <div className="min-w-0">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Made together</p>
           <h1 className="font-display text-[clamp(2.25rem,5vw,4.5rem)] font-normal leading-[0.95] tracking-[-0.025em] text-neutral-900">
             Commission Room
           </h1>
@@ -306,13 +305,13 @@ async function CommissionPageContent({
       </div>
 
       {/* How it works explainer */}
-      <ol className="mb-8 grid list-none gap-3 p-0 sm:grid-cols-3" aria-label="How the Commission Room works">
+      <ol className="mb-8 grid list-none gap-4 p-0 sm:grid-cols-3 sm:gap-6" aria-label="How the Commission Room works">
         {[
           ["1", "Post what you want", "Share the size, material, budget, timing, and a reference photo if you have one."],
           ["2", "Makers reach out", "Interested makers introduce themselves through Grainline Messages."],
           ["3", "Buy securely", "Choose a maker, agree on the details, and pay through a private Grainline listing."],
         ].map(([number, title, description]) => (
-          <li key={number} className="flex gap-3 rounded-lg border border-stone-200/80 bg-white p-4 shadow-[0_12px_30px_-28px_rgba(44,31,26,0.6)]">
+          <li key={number} className="flex gap-3">
             <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#2C1F1A] text-xs font-semibold text-[#FBF8F3]">{number}</span>
             <span className="min-w-0 text-sm leading-5 text-neutral-600">
               <strong className="mb-0.5 block font-medium text-neutral-900">{title}</strong>
