@@ -19,6 +19,16 @@ export const searchRatelimit = new Ratelimit({
   prefix: "rl:search",
 });
 
+// Address autocomplete shares one global Nominatim lock (about one request per
+// 1.1 s). Twelve a minute covers a person typing an address, and keeps one IP
+// to about a fifth of that lock so it cannot starve everyone else.
+export const addressAutocompleteRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(12, "60 s"),
+  analytics: true,
+  prefix: "rl:address_autocomplete",
+});
+
 export const viewRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(10, "60 s"),
