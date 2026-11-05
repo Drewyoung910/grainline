@@ -15,7 +15,7 @@ import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
-import { approvedListingStatus, listingEditBlockReason } from "@/lib/listingEditState";
+import { approvedListingStatus, listingEditBlockReason, parseListingMaterials } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { listingPriceMaxError } from "@/lib/listingPrice";
@@ -251,10 +251,7 @@ async function updateListing(
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
-  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
-  const materials = materialsRaw
-    ? materialsRaw.split(",").map((s: string) => s.trim()).filter(Boolean).slice(0, 20)
-    : [];
+  const materials = parseListingMaterials(formData.get("materials"));
 
   // Product dimensions (inches)
   const productLengthIn = toFloat(formData.get("productLengthIn"));

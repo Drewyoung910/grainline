@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ListingStatus } from "@prisma/client";
 
-const { listingEditBlockReason } = await import("../src/lib/listingEditState.ts");
+const { listingEditBlockReason, parseListingMaterials } = await import("../src/lib/listingEditState.ts");
 
 function listing(overrides = {}) {
   return {
@@ -44,4 +44,13 @@ describe("listing edit state", () => {
       /removed by Grainline staff/,
     );
   });
+});
+
+it("listing materials are bounded per item and in number", () => {
+  assert.deepEqual(parseListingMaterials(" walnut, maple ,, brass hardware "), ["walnut", "maple", "brass hardware"]);
+  assert.deepEqual(parseListingMaterials(null), []);
+  assert.deepEqual(parseListingMaterials(""), []);
+  const [long] = parseListingMaterials("x".repeat(100_000));
+  assert.equal(long.length, 100);
+  assert.equal(parseListingMaterials(Array(50).fill("oak").join(",")).length, 20);
 });

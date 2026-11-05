@@ -1,4 +1,5 @@
 import { ListingStatus } from "@prisma/client";
+import { sanitizeText, truncateText } from "./sanitize.ts";
 
 const STAFF_REMOVAL_REJECTION_REASON = "Removed by Grainline staff.";
 
@@ -43,4 +44,14 @@ export function approvedListingStatus(
   if (previousStatus === ListingStatus.ACTIVE && stock <= 0) return ListingStatus.SOLD_OUT;
   if (previousStatus === ListingStatus.SOLD_OUT && stock > 0 && !current.isPrivate) return ListingStatus.ACTIVE;
   return previousStatus;
+}
+
+// Comma-separated form text to a bounded list. Every listing view renders it,
+// and neither the app nor the database otherwise limits an entry's length.
+export function parseListingMaterials(input: FormDataEntryValue | null): string[] {
+  return sanitizeText(String(input ?? ""))
+    .split(",")
+    .map((item) => truncateText(item.trim(), 100))
+    .filter(Boolean)
+    .slice(0, 20);
 }
