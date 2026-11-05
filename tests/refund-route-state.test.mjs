@@ -138,7 +138,7 @@ describe("refund route state", () => {
       }),
       {
         status: 409,
-        error: "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+        error: "This order has a shipping label, so it can't be refunded from here. Contact support and we'll sort out the label and the refund.",
       },
     );
     assert.deepEqual(
@@ -150,7 +150,7 @@ describe("refund route state", () => {
       }),
       {
         status: 409,
-        error: "Cannot refund while a shipping label purchase is active or completed. Void or resolve the label first.",
+        error: "This order has a shipping label, so it can't be refunded from here. Contact support and we'll sort out the label and the refund.",
       },
     );
     assert.deepEqual(refundLockAcquisitionConflictResponse(null), {

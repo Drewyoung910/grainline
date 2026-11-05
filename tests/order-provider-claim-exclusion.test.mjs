@@ -58,7 +58,7 @@ describe("Order provider-claim exclusion", () => {
     assert.match(refundPreflight, /locked_order\."labelClaimStatus" IN/);
     assert.match(
       refundState,
-      /Cannot refund while a shipping label purchase is active or completed/,
+      /This order has a shipping label, so it can.t be refunded from here/,
     );
     assert.match(
       refundRoute,

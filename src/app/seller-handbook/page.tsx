@@ -382,8 +382,9 @@ export default function SellerHandbookPage() {
 
           <h3>What you control</h3>
           <p>
-            From your sales dashboard you can issue a full or partial refund at any time before staff resolution. Doing
-            this proactively (within 48 hours of a case) tends to keep buyer reviews positive.
+            From your sales dashboard you can issue a full refund until you buy a shipping label. For a partial refund,
+            or once a label is bought, contact support. Doing this proactively (within 48 hours of a case) tends to keep
+            buyer reviews positive.
           </p>
 
           <h3>Chargebacks</h3>
