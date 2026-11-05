@@ -39,7 +39,7 @@ const Schema = z.object({
 function safeSubject(subject: string) {
   return stripBidiControls(subject.normalize("NFKC"))
     .replace(/[\r\n]+/g, " ")
-    .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
+    .replace(/[\x00-\x1F\x7F<>]/g, "")
     .trim();
 }
 

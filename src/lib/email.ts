@@ -37,8 +37,14 @@ if (!process.env.RESEND_API_KEY) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// sanitizeText stores "&" as "&amp;", and a re-save can double it. Undo that once
+// here so email never shows the entity, in the body or the subject.
+function decodeStoredAmpersands(s: string) {
+  return s.replace(/&(?:amp;)+/g, "&");
+}
+
 function esc(s: string) {
-  return normalizeUserText(s)
+  return decodeStoredAmpersands(normalizeUserText(s))
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -46,11 +52,11 @@ function esc(s: string) {
     .replaceAll("'", "&#039;");
 }
 
-/** Strip HTML-like characters from user content in email subjects */
+/** Subjects are plain text: strip only line breaks, controls and angle brackets. */
 function safeSubject(s: string) {
-  return normalizeUserText(s)
+  return decodeStoredAmpersands(normalizeUserText(s))
     .replace(/[\r\n]+/g, " ")
-    .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
+    .replace(/[\x00-\x1F\x7F<>]/g, "")
     .trim();
 }
 
