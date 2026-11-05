@@ -60,6 +60,11 @@ export async function POST(
       'Already undone (concurrent request)',
       'Undo window expired (24 hours)',
       'Admins cannot undo their own actions',
+      'Cannot automatically undo this ban because its audit metadata is incomplete. Use the manual unban workflow.',
+      'User ban state changed before undo could be applied',
+      'Seller profile changed before undo could be applied',
+      'Listing changed before undo could be applied',
+      'This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.',
     ])
     const safeMessage = safeMessages.has(message) || message.endsWith('cannot be undone')
       ? message
