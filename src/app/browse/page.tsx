@@ -201,14 +201,14 @@ export async function generateMetadata({
   if (q) {
     const title = `${q} — Handmade Woodworking | Grainline`;
     const description = `Find handmade woodworking items matching "${q}" on Grainline`;
-    return { title, description, robots, openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() }, alternates: { canonical } };
+    return { title: { absolute: title }, description, robots, openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() }, alternates: { canonical } };
   }
   if (categoryFilter) {
     const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
     const pageSuffix = !hasIndexBlockingFilters && page > 1 ? ` - Page ${page}` : "";
     const title = `Handmade ${label}${pageSuffix} | Grainline`;
     const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
-    return { title, description, robots, openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() }, alternates: { canonical } };
+    return { title: { absolute: title }, description, robots, openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() }, alternates: { canonical } };
   }
   const pageSuffix = !hasIndexBlockingFilters && page > 1 ? ` - Page ${page}` : "";
   return {
