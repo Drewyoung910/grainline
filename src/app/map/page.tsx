@@ -89,7 +89,7 @@ export default async function AllSellersMapPage({
     }));
 
   return (
-    <main className="max-w-7xl mx-auto p-6 space-y-6">
+    <main className="max-w-[1600px] mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold font-display">Makers near you</h1>
