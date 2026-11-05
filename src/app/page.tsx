@@ -608,14 +608,15 @@ export default async function HomePage() {
         {/* ── Shop by Category ─────────────────────────────────────────────── */}
         <ScrollSection>
           <h2 data-home-categories className="font-display text-2xl font-semibold sm:text-3xl mb-5">Shop by Category</h2>
-          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
-          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:overflow-visible sm:px-0">
-            <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
+          {/* Phones and tablets: horizontal scroll with fade. From lg the nine
+              tiles are wide enough for one row (no fade). */}
+          <ScrollFadeRow hideAtBreakpoint="lg" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 lg:overflow-visible">
+            <div className="flex lg:grid lg:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
               {CATEGORIES.map((c) => (
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                  className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 lg:px-2 lg:py-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 lg:w-auto"
                 >
                   <c.Icon size={28} className="text-[#2C1F1A] will-change-transform transition-transform duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:-rotate-6 motion-safe:group-hover:scale-[1.08]" />
                   <span className="text-xs font-medium text-neutral-900">{c.label}</span>
@@ -623,7 +624,7 @@ export default async function HomePage() {
               ))}
               <Link
                 href="/browse"
-                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 sm:p-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 sm:w-auto"
+                className="group flex flex-col items-center justify-center gap-2 rounded-xl bg-[#EFEAE0] p-4 lg:px-2 lg:py-5 text-center transition-[background-color,box-shadow,scale] duration-300 ease-[cubic-bezier(0.2,0.7,0.2,1)] hover:bg-[#E9E2D4] hover:shadow-[0_16px_34px_-22px_rgba(44,31,26,0.55)] motion-safe:active:scale-[0.97] flex-none w-28 lg:w-auto"
               >
                 <span aria-hidden="true" className="flex h-7 items-center text-2xl leading-none text-neutral-900 transition-transform duration-300 ease-out motion-safe:group-hover:translate-x-1">→</span>
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
