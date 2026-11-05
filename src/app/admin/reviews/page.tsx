@@ -44,7 +44,7 @@ export default async function AdminReviewsPage({
   const reviewerLabelById = new Map(reviewerLabels.map((label) => [label.id, label]));
 
   return (
-    <main className="p-6 max-w-7xl mx-auto">
+    <main className="md:p-6 max-w-7xl mx-auto">
       <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <h1 className="text-2xl font-semibold font-display">All Reviews</h1>
         <p className="text-sm text-neutral-500">

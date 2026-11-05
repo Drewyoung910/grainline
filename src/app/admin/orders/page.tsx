@@ -125,10 +125,10 @@ export default async function AllOrdersPage({
                           {fulfillmentStatusLabel(order.fulfillmentStatus)}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="sticky right-0 bg-white px-4 py-3 md:static">
                         <Link
                           href={`/admin/orders/${order.id}`}
-                          className="text-blue-600 hover:underline text-xs whitespace-nowrap"
+                          className="inline-block py-1.5 text-blue-600 hover:underline text-xs whitespace-nowrap"
                         >
                           View →
                         </Link>

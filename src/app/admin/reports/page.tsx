@@ -137,7 +137,7 @@ export default async function AdminReportsPage() {
   const reporterMap = new Map(reporterUsers.map((u) => [u.id, u]));
 
   return (
-    <main className="p-6 max-w-7xl mx-auto">
+    <main className="md:p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-semibold font-display mb-6">User Reports ({reports.length} open)</h1>
 
       {/* Top reporters — abuse detection */}
