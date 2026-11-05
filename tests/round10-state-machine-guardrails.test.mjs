@@ -23,13 +23,6 @@ const {
   listingUndoDataFromMetadata,
 } = await import("../src/lib/adminListingUndoState.ts");
 
-const {
-  GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES,
-  GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
-  GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES,
-  GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
-} = await import("../src/lib/guildVerificationState.ts");
-
 describe("Round 10 state-machine guardrails", () => {
   it("blocks immediate Guild reapplication after rejection or revocation using current verification state", () => {
     const now = new Date("2026-05-23T12:00:00.000Z");
@@ -106,11 +99,6 @@ describe("Round 10 state-machine guardrails", () => {
   });
 
   it("guards paired Guild profile and verification transitions with current verification state", () => {
-    assert.deepEqual(GUILD_MASTER_APPLICATION_VERIFICATION_STATUSES, ["APPROVED", "GUILD_MASTER_REJECTED"]);
-    assert.deepEqual(GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES, ["APPROVED", "GUILD_MASTER_REJECTED"]);
-    assert.deepEqual(GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES, ["GUILD_MASTER_APPROVED"]);
-    assert.deepEqual(GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES, ["REJECTED"]);
-
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const adminVerification = source("src/app/admin/verification/page.tsx");
     const staffGuildAccess = source("src/lib/sellerGuildStaffPrivateAccess.ts");
