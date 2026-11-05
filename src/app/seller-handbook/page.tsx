@@ -350,8 +350,8 @@ export default function SellerHandbookPage() {
             demotion.
           </p>
           <p>
-            Guild Master listings get featured rotation on the homepage, an additional ranking boost in browse,
-            and access to the Maker of the Week spotlight.
+            Guild Master listings get an additional ranking boost in browse. Guild Members and Guild Masters
+            share the same Maker of the Week rotation, described below.
           </p>
 
           <h3>How the homepage spotlight is chosen</h3>
