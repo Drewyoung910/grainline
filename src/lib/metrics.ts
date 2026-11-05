@@ -194,7 +194,7 @@ async function calculateSellerMetricsWithoutLock(
   const [reviewAgg, orderFacts, activeCaseCount, responseRows] =
     await Promise.all([
       db.review.aggregate({
-        where: { listing: { sellerId: sellerProfileId } },
+        where: { listing: { sellerId: sellerProfileId }, reviewerAccountActive: true },
         _avg: { ratingX2: true },
         _count: { _all: true },
       }),

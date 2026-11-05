@@ -30,6 +30,7 @@ import {
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
 import * as Sentry from '@sentry/nextjs'
+import { refreshRatingSummariesForReviewer } from '@/lib/sellerRatingSummary'
 
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
 
@@ -408,6 +409,7 @@ export async function banUser({ userId, adminId, reason }: {
 
   await invalidateAccountStateCache(clerkSync.clerkId, 'ban_user_account_state_cache_invalidate')
   revalidateAccountStateSearchCaches('ban_user_search_cache_revalidate', userId)
+  await refreshRatingSummariesForReviewer(userId)
 
   if (clerkSync.sellerCheckoutExpiry) {
     try {
@@ -598,6 +600,7 @@ export async function unbanUser({ userId, adminId, reason }: {
 
   await invalidateAccountStateCache(clerkSync.clerkId, 'unban_user_account_state_cache_invalidate')
   revalidateAccountStateSearchCaches('unban_user_search_cache_revalidate', userId)
+  await refreshRatingSummariesForReviewer(userId)
 
   try {
     await unbanClerkUser(clerkSync.clerkId)
