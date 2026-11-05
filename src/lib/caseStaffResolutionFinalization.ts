@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { renderCaseResolvedEmail } from "@/lib/email";
+import { sendCaseUpdateEmail } from "@/lib/caseEmail";
 import {
   enqueueEmailOutboxOnce,
   processEmailOutboxJobById,
@@ -104,6 +105,22 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
       committed.emailOutboxId,
     );
   }
+  // The maker needs the decision by email too, since money may have left their
+  // balance. It runs after commit so a mail problem can never undo a recorded refund.
+  await sendCaseUpdateEmail({
+    caseId: committed.result.caseId,
+    orderId: committed.result.orderId,
+    userId: committed.result.sellerUserId,
+    side: "SELLER",
+    dedupKey: `case-resolution-seller:${committed.result.claimId}`,
+    templateName: "case_resolved",
+    heading: "Grainline decided your case",
+    message: caseResolutionSellerMessage(
+      committed.result.resolution,
+      committed.result.refundAmountCents,
+      committed.result.currency,
+    ),
+  });
 
   return committed.result;
 }
