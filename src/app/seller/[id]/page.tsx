@@ -823,9 +823,9 @@ async function SellerPublicContent({
                   <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Stories from the Workshop</h2>
                   <ul className="scrollbar-hidden flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
                     {sellerBlogPosts.map((p) => (
-                      <li key={p.slug} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
+                      <li key={p.slug} className="min-w-[220px] flex-none snap-start sm:min-w-0">
                         <Link href={`/blog/${p.slug}`} className="block">
-                          <div className="aspect-[16/9] bg-neutral-100 overflow-hidden">
+                          <div className="aspect-[16/9] overflow-hidden rounded-xl bg-neutral-100">
                             {p.coverImageUrl ? (
                               <MediaImage
                                 src={p.coverImageUrl}
@@ -837,7 +837,7 @@ async function SellerPublicContent({
                               <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                             )}
                           </div>
-                          <div className="p-3 space-y-1">
+                          <div className="pt-2 space-y-1">
                             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
                               {BLOG_TYPE_LABELS[p.type]}
                             </span>

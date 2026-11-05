@@ -391,7 +391,7 @@ async function BlogIndexPageContent({
                   <Link
                     key={t.tag}
                     href={buildHref({ tags: t.tag, bq: "", page: "" })}
-                    className="border rounded-full px-3 py-1 text-xs text-neutral-600 hover:bg-neutral-50"
+                    className="rounded-full bg-[#EFEAE0] px-3 py-1 text-xs text-neutral-700 hover:bg-[#E3DCCB]"
                   >
                     {humanizeSearchTag(t.tag)}
                   </Link>
@@ -404,8 +404,8 @@ async function BlogIndexPageContent({
         <>
           {/* Featured post (only on first page, no search, no tag filter) */}
           {featured && (
-            <div className="card-listing mb-10 overflow-hidden transition-shadow hover:shadow-md md:flex">
-              <div className="photo-save-surface group/photo relative aspect-[16/9] overflow-hidden bg-neutral-100 md:w-1/2">
+            <div className="mb-10 md:flex md:items-center md:gap-8">
+              <div className="photo-save-surface group/photo relative aspect-[16/9] overflow-hidden rounded-xl bg-neutral-100 md:w-1/2">
                 <Link href={`/blog/${featured.slug}`} className="block h-full w-full">
                   <MediaImage
                     src={featured.coverImageUrl}
@@ -418,7 +418,7 @@ async function BlogIndexPageContent({
                   <SaveBlogButton slug={featured.slug} initialSaved={savedSet.has(featured.id)} />
                 </div>
               </div>
-              <Link href={`/blog/${featured.slug}`} className="group flex flex-col justify-center space-y-3 p-6 sm:p-8 md:w-1/2">
+              <Link href={`/blog/${featured.slug}`} className="group flex flex-col justify-center space-y-3 pt-4 md:w-1/2 md:pt-0">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-semibold">
                       Featured
@@ -470,8 +470,8 @@ async function BlogIndexPageContent({
                 const { imageUrl: avatar, name } = publicBlogAuthorPresentation(post, "Staff");
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
-                  <li key={post.id} className="card-listing">
-                    <div className="photo-save-surface group/photo relative overflow-hidden bg-neutral-100">
+                  <li key={post.id}>
+                    <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100">
                       <Link href={`/blog/${post.slug}`} className="block aspect-[4/3]">
                         <MediaImage
                           src={post.coverImageUrl}
@@ -485,7 +485,7 @@ async function BlogIndexPageContent({
                       </div>
                     </div>
                     <Link href={`/blog/${post.slug}`} className="block">
-                      <div className="p-4 space-y-2">
+                      <div className="pt-3 space-y-2">
                         <div className="flex items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[post.type]}`}>
                             {BLOG_TYPE_LABELS[post.type]}
@@ -556,7 +556,7 @@ async function BlogIndexPageContent({
               <Link
                 key={t.tag}
                 href={buildHref({ tags: t.tag, page: "" })}
-                className={`border border-neutral-200 rounded-full px-3 py-1 hover:bg-neutral-50 transition-colors ${tagSizeClass(t.count)}`}
+                className={`rounded-full bg-[#EFEAE0] px-3 py-1 text-neutral-700 hover:bg-[#E3DCCB] transition-colors ${tagSizeClass(t.count)}`}
               >
                 {humanizeSearchTag(t.tag)}
               </Link>
