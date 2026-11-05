@@ -38,3 +38,15 @@ describe("commission mutation state", () => {
     assert.equal(where.AND[2].buyerId, "buyer_1");
   });
 });
+
+describe("commission notices for requests that are no longer open", () => {
+  it("names why a request is closed in plain words", async () => {
+    const { closedCommissionLabel } = await import("../src/lib/commissionState.ts");
+    const past = new Date(Date.now() - 1000);
+    assert.equal(closedCommissionLabel({ status: "FULFILLED", expiresAt: null }), "fulfilled");
+    assert.equal(closedCommissionLabel({ status: "EXPIRED", expiresAt: past }), "expired");
+    assert.equal(closedCommissionLabel({ status: "IN_PROGRESS", expiresAt: null }), "in progress");
+    assert.equal(closedCommissionLabel({ status: "OPEN", expiresAt: past }), "expired");
+    assert.equal(closedCommissionLabel({ status: "OPEN", expiresAt: null }), "closed");
+  });
+});
