@@ -56,3 +56,61 @@ describe("names with an ampersand or apostrophe", () => {
     assert.doesNotMatch(html, /&amp;amp;/);
   });
 });
+
+const orderTotals = {
+  itemsSubtotalCents: 48000,
+  shippingAmountCents: 1500,
+  taxAmountCents: 3934,
+  giftWrapping: false,
+  giftWrappingPriceCents: 0,
+  currency: "usd",
+};
+
+describe("order confirmation address and pickup", () => {
+  const order = {
+    id: "order-abc123",
+    ...orderTotals,
+    estimatedDeliveryDate: new Date("2026-12-01T12:00:00Z"),
+    shipToName: "Bea Buyer",
+    shipToLine1: "1 Main St",
+    shipToLine2: "Apt 4B",
+    shipToCity: "Round Rock",
+    shipToState: "TX",
+    shipToPostalCode: "78664",
+  };
+  const items = [{ title: "Bench", quantity: 1, priceCents: 48000 }];
+
+  it("shows the recipient and apartment, with no comma before the ZIP", () => {
+    const { html } = email.renderOrderConfirmedBuyerEmail({
+      order,
+      buyer: { email: "a@example.com" },
+      seller: { displayName: "Shop" },
+      items,
+    });
+    assert.match(html, /Bea Buyer, 1 Main St, Apt 4B, Round Rock, TX 78664/);
+  });
+
+  it("does not describe a pickup order as shipping, to the buyer or the maker", () => {
+    const buyer = email.renderOrderConfirmedBuyerEmail({
+      order,
+      buyer: { email: "a@example.com" },
+      seller: { displayName: "Shop" },
+      items,
+      isPickup: true,
+    }).html;
+    assert.doesNotMatch(buyer, /Shipping to/);
+    assert.doesNotMatch(buyer, /Estimated delivery/);
+    assert.match(buyer, /Local pickup/);
+
+    const maker = email.renderOrderConfirmedSellerEmail({
+      order: { ...order, processingDeadline: new Date("2026-12-01T12:00:00Z") },
+      buyer: { name: "Bea" },
+      seller: { displayName: "Shop", email: "m@example.com" },
+      items,
+      isPickup: true,
+    }).html;
+    assert.doesNotMatch(maker, /Ship by/);
+    assert.match(maker, /Ready by/);
+    assert.match(maker, /Local pickup/);
+  });
+});
