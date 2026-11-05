@@ -164,7 +164,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
             on wider cards it shares the row, and the grid gives the name its
             full width before the location gets any. */}
         <div className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug text-stone-600 @max-[15rem]:grid-cols-1">
-          <span className="flex min-w-0 max-w-full items-center gap-1.5">
+          <span className="flex min-h-5 min-w-0 max-w-full items-center gap-1.5">
             <Link
               href={publicSellerPath(l.seller.id, sellerName)}
               className="min-w-0 truncate font-medium text-stone-700 transition-colors hover:text-neutral-900 hover:underline"
