@@ -213,16 +213,16 @@ async function DashboardPageContent({
             <p className="text-sm text-neutral-600">No orders to fulfill, messages waiting or listings to fix right now.</p>
           )
         ) : (
-          <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
+          <ul className="divide-y divide-neutral-100">
             {attentionRows.map((row) => {
               const Icon = ATTENTION_ICONS[row.icon];
               return (
                 <li key={row.key}>
                   <Link
                     href={row.href}
-                    className="group flex items-center gap-3.5 rounded-2xl bg-[#F7F5F0] px-3.5 py-3 transition-colors duration-150 hover:bg-[#EFEAE0]"
+                    className="group flex items-center gap-3.5 py-3"
                   >
-                    <span className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-white text-[#2C1F1A] ring-1 ring-stone-200/70">
+                    <span className="flex size-[38px] shrink-0 items-center justify-center rounded-full bg-[#EFEAE0] text-[#2C1F1A]">
                       <Icon size={18} />
                     </span>
                     <span className="min-w-0 flex-1">
