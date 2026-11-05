@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ListingStatus } from "@prisma/client";
 
-const { listingEditBlockReason, parseListingMaterials } = await import("../src/lib/listingEditState.ts");
+const { approvedListingStatus, listingEditBlockReason, parseListingMaterials } = await import("../src/lib/listingEditState.ts");
 
 function listing(overrides = {}) {
   return {
@@ -53,4 +53,14 @@ it("listing materials are bounded per item and in number", () => {
   const [long] = parseListingMaterials("x".repeat(100_000));
   assert.equal(long.length, 100);
   assert.equal(parseListingMaterials(Array(50).fill("oak").join(",")).length, 20);
+});
+
+it("a sold-out piece switched to made to order comes back for sale after approval", () => {
+  const madeToOrder = { listingType: "MADE_TO_ORDER", stockQuantity: null, isPrivate: false };
+  assert.equal(approvedListingStatus(ListingStatus.SOLD_OUT, madeToOrder), ListingStatus.ACTIVE);
+  assert.equal(approvedListingStatus(ListingStatus.ACTIVE, madeToOrder), ListingStatus.ACTIVE);
+  assert.equal(
+    approvedListingStatus(ListingStatus.SOLD_OUT, { ...madeToOrder, isPrivate: true }),
+    ListingStatus.SOLD_OUT,
+  );
 });
