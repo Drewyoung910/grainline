@@ -470,11 +470,10 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                 type="button"
                 onPointerUp={(event) => event.currentTarget.blur()}
                 onClick={() => { setPendingRating(stars); navigateWith({ rating: stars }); }}
-                aria-label={`${stars} stars and up`}
                 aria-pressed={pendingRating === stars}
                 className={chipClass(pendingRating === stars)}
               >
-                {stars}★ and up
+                <span>{stars}<span aria-hidden="true">★</span><span className="sr-only"> stars</span> and up</span>
               </button>
             ))}
           </div>

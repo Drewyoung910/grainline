@@ -27,7 +27,7 @@ export default async function WhySellOnGrainlinePage() {
   const foundingRemaining = Math.max(0, 250 - foundingCount);
 
   return (
-    <div className="min-h-[100svh]">
+    <main className="min-h-[100svh]">
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-12 text-center">
         <p className="text-xs uppercase tracking-wider text-amber-700 mb-4 font-semibold">
@@ -393,6 +393,6 @@ export default async function WhySellOnGrainlinePage() {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

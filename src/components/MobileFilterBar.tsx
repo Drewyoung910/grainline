@@ -307,8 +307,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             Any
           </button>
           {RATING_OPTIONS.map((stars) => (
-            <button key={stars} type="button" aria-label={`${stars} stars and up`} aria-pressed={draftRating === stars} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating(stars)} className={choicePillClass(draftRating === stars)}>
-              {stars}★ and up
+            <button key={stars} type="button" aria-pressed={draftRating === stars} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating(stars)} className={choicePillClass(draftRating === stars)}>
+              <span>{stars}<span aria-hidden="true">★</span><span className="sr-only"> stars</span> and up</span>
             </button>
           ))}
         </div>
