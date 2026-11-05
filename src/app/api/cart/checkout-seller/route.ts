@@ -3,7 +3,12 @@ import { auth } from "@clerk/nextjs/server";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippingRateExpiresAtIsTooFarFuture, shippingRateSubjectHash, verifyRate } from "@/lib/shipping-token";
-import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  checkoutRatelimit,
+  checkoutReservationRatelimit,
+  rateLimitResponse,
+  safeRateLimit,
+} from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import { resolveListingVariantSelection, validateVariantUnitPriceCents, type SelectedVariantSnapshot } from "@/lib/listingVariants";
@@ -519,6 +524,15 @@ export async function POST(req: Request) {
         { error: "A checkout session is already open for this seller. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
         { status: HTTP_STATUS.CONFLICT },
       );
+    }
+
+    if (resolvedSellerItems.some((item) => item.listing.listingType === "IN_STOCK")) {
+      const reservationLimit = await safeRateLimit(checkoutReservationRatelimit, me.id);
+      if (!reservationLimit.success) {
+        return privateResponse(
+          rateLimitResponse(reservationLimit.reset, "You have started too many checkouts recently."),
+        );
+      }
     }
 
     checkoutPayloadHashValue = payloadHash;

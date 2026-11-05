@@ -57,6 +57,15 @@ export const checkoutRatelimit = new Ratelimit({
   prefix: "rl:checkout",
 });
 
+// A checkout holds in-stock pieces for up to 31 minutes (the Stripe session
+// expiry), so this also caps how many one account can keep out of stock at once.
+export const checkoutReservationRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "31 m"),
+  analytics: true,
+  prefix: "rl:checkout_reservation",
+});
+
 export const cartMutationRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(60, "10 m"),
