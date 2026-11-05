@@ -1,7 +1,7 @@
 // src/components/ListingGallery.tsx
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import Image from "next/image";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
@@ -14,14 +14,19 @@ type Photo = { id: string; url: string; altText?: string | null };
 export default function ListingGallery({
   photos,
   title,
+  saveControl,
 }: {
   photos: Photo[];
   title: string;
+  saveControl?: ReactNode;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
+  // Width over height for each photo once it has loaded. From lg the photo sits
+  // in a box this shape, so its corners and controls follow the photo itself.
+  const [photoRatios, setPhotoRatios] = useState<Readonly<Record<string, number>>>({});
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
   const thumbnailListRef = useRef<HTMLDivElement>(null);
@@ -119,12 +124,13 @@ export default function ListingGallery({
     return cleanup;
   }, [lightboxOpen, photos.length]);
 
-  if (photos.length === 0) return null;
+  if (photos.length === 0) return saveControl ?? null;
 
   // Behind the viewer the page follows along, so the photo it shrinks back into
   // has already loaded instead of swapping in afterwards.
   const mainIndex = lightboxOpen ? lightboxIndex : activeIndex;
   const activeUrl = photos[mainIndex]?.url ?? "";
+  const activeRatio = photoRatios[activeUrl];
 
   function openLightbox(i: number) {
     lightboxSwapRef.current = false;
@@ -200,7 +206,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:bg-transparent`}
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y rounded-xl bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:flex lg:items-center lg:justify-center lg:bg-transparent lg:[container-type:size]`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -214,6 +220,10 @@ export default function ListingGallery({
           }
         }}
       >
+        <div
+          className={`relative h-full w-full overflow-hidden rounded-xl${activeRatio ? " lg:h-auto lg:w-[min(100cqw,calc(100cqh*var(--photo-ratio)))] lg:[aspect-ratio:var(--photo-ratio)]" : ""}`}
+          style={activeRatio ? ({ "--photo-ratio": activeRatio } as CSSProperties) : undefined}
+        >
         <Image
           src={activeUrl}
           alt={photos[mainIndex]?.altText ?? title}
@@ -224,6 +234,10 @@ export default function ListingGallery({
           data-fly-to-cart-source=""
           className="h-full w-full object-cover lg:object-contain"
           onLoad={(e) => {
+            const { naturalWidth, naturalHeight } = e.currentTarget;
+            if (naturalWidth > 0 && naturalHeight > 0) {
+              setPhotoRatios((current) => ({ ...current, [activeUrl]: naturalWidth / naturalHeight }));
+            }
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
             playPhotoSwap(e.currentTarget);
@@ -233,6 +247,16 @@ export default function ListingGallery({
             setOptimizerFailures((current) => new Set(current).add(activeUrl));
           }}
         />
+        {/* Until the photo's shape is known the box fills the frame, so hide the
+            controls on desktop rather than have them jump onto the photo. */}
+        <div className={`transition-opacity duration-150${activeRatio ? "" : " lg:opacity-0"}`}>
+        {/* Keep the save control's press from also opening the viewer. */}
+        <div
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          {saveControl}
+        </div>
         {photos.length > 1 && (
           <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
             {activeIndex + 1} / {photos.length}
@@ -291,6 +315,8 @@ export default function ListingGallery({
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
             </svg>
           </span>
+        </div>
+        </div>
         </div>
       </div>
 

@@ -167,10 +167,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(loading, /min-h-\[100svh\]/);
     assert.match(loading, /bg-\[#EFEAE0\] animate-pulse lg:bg-transparent lg:animate-none/);
     assert.match(gallery, /className="h-full w-full object-cover lg:object-contain"/);
-    assert.match(gallery, /overflow-hidden rounded-lg/);
-    assert.doesNotMatch(gallery, /overflow-hidden rounded-xl/);
+    assert.match(gallery, /overflow-hidden rounded-xl/);
     assert.match(frame, /aspect-\[4\/5\] h-auto/);
-    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),28rem/);
+    assert.match(frame, /calc\(100svh-var\(--site-header-offset\)-14rem\),32rem/);
     assert.doesNotMatch(gallery, /aspect-\[4\/5\]|h-\[350px\]|h-\[400px\]|h-\[500px\]/);
     // Upload-time crop is intentionally NOT forced on listing photos so the
     // lightbox can show the original aspect. Cards crop via CSS object-cover.

@@ -531,9 +531,11 @@ export default async function ListingPage({
       <div className="grid min-w-0 gap-8 mb-10 lg:grid-cols-2">
         {/* Left: gallery */}
         <div className="relative min-w-0">
-          {/* Favorite button overlaid */}
-          <FavoriteButton listingId={listingId} initialSaved={isFavorited} />
-          <ListingGallery photos={listing.photos} title={listing.title} />
+          <ListingGallery
+            photos={listing.photos}
+            title={listing.title}
+            saveControl={<FavoriteButton listingId={listingId} initialSaved={isFavorited} />}
+          />
         </div>
 
         {/* Right: purchase panel */}

@@ -130,7 +130,7 @@ export const LISTING_PHOTO_TARGET_ATTRIBUTE = "data-listing-photo-target";
 // the page doesn't move when it arrives and a traveling photo lands in the
 // right place.
 export const LISTING_GALLERY_FRAME_HEIGHT =
-  "aspect-[4/5] h-auto lg:aspect-auto lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),28rem)]";
+  "aspect-[4/5] h-auto lg:aspect-auto lg:h-[clamp(22rem,calc(100svh-var(--site-header-offset)-14rem),32rem)]";
 const TRAVEL_MS = 420;
 const TARGET_WAIT_MS = 4000;
 const LANDED_HOLD_MS = 5000;
@@ -242,13 +242,13 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
 
   const land = (target: Element) => {
     const to = target.getBoundingClientRect();
-    const sourceRatio = from.width / from.height;
-    const targetRatio = to.width / to.height;
     const timing = { duration: TRAVEL_MS, easing: EASE, fill: "forwards" as const };
-    const shapeMismatch = Math.abs(sourceRatio - targetRatio) / sourceRatio > 0.14;
+    const targetRadius = getComputedStyle(target).borderTopLeftRadius;
     let animation: Animation;
 
-    if (shapeMismatch) {
+    // From lg the gallery shows the whole photo, so the crop opens on the way.
+    // Below lg it is the same 4:5 crop as the card.
+    if (window.matchMedia("(min-width: 1024px)").matches) {
       const imageRatio = photo.naturalWidth / photo.naturalHeight;
       const sourcePhoto = fittedPhotoRect(
         { left: 0, top: 0, width: from.width, height: from.height },
@@ -310,7 +310,7 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
             top: `${targetPhoto.top}px`,
             width: `${targetPhoto.width}px`,
             height: `${targetPhoto.height}px`,
-            borderRadius: "8px",
+            borderRadius: targetRadius,
           },
         ],
         timing,
@@ -326,7 +326,16 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
         [{ opacity: 1 }, { opacity: 0 }],
         { duration: 150, easing: "ease-out", fill: "forwards" },
       );
-      animation = flyer.animate([{ transform: "none" }, { transform }], timing);
+      // The radius scales with the transform, so land on the inverse of the
+      // scale. Otherwise the corner visibly changes when the flyer is removed.
+      const scale = Math.min(to.width / from.width, to.height / from.height);
+      animation = flyer.animate(
+        [
+          { transform: "none", borderRadius: sourceRadius },
+          { transform, borderRadius: `${parseFloat(targetRadius) / scale}px` },
+        ],
+        timing,
+      );
     }
 
     animation.onfinish = () => {
