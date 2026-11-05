@@ -294,7 +294,7 @@ ALT TEXT GENERATION (REQUIRED):
 You MUST generate an "altTexts" array in your JSON response. For each image provided, write a brief SEO-friendly alt text (10-20 words) describing the item shown. Focus on materials, colors, wood species, and the type of woodworking piece. Example: "Hand-carved walnut cutting board with live edge and mineral oil finish". Always include exactly one alt text per image. If no images are provided, return "altTexts": [].
 
 PHOTO VERDICTS (REQUIRED):
-Return "photoVerdicts" with exactly one entry per image, in the order given. Judge each image on its own. Use "product" only when that image clearly shows the physical handmade item described. Use "not-product" for a screenshot, graphic, stock photo, or anything else, and then set approved=false. If no images are provided, return "photoVerdicts": [].
+Return "photoVerdicts" with exactly one entry per image, in the order given. Judge each image on its own. Use "not-product" only for a screenshot, graphic, logo, stock photo, meme, or an image unrelated to this item, and then set approved=false. Process, detail, in-use and workshop photos of this item count as "product". If no images are provided, return "photoVerdicts": [].
 
 Respond with ONLY valid JSON, no other text:
 {
