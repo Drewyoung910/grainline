@@ -40,6 +40,11 @@ export async function fanOutListingToFollowers({
   const listingUrl = `${EMAIL_APP_URL}${listingPath}`;
   const listingPrice = formatCurrencyCents(publicListing.priceCents, publicListing.currency);
   let cursor: string | undefined;
+  const coverPhoto = await prisma.photo.findFirst({
+    where: { listingId: publicListing.id },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    select: { url: true },
+  });
 
   while (true) {
     const followers = await userFollowerNotificationPage(prisma, {
@@ -80,6 +85,7 @@ export async function fanOutListingToFollowers({
         listingPrice,
         listingUrl,
       });
+        listingImageUrl: coverPhoto?.url,
       await enqueueEmailOutbox({
         ...email,
         // One key per follower and listing, so re-listing an old piece cannot email
