@@ -64,9 +64,6 @@ export async function sellerServiceQualityScoreBatch(
       || !nonnegativeBigInt(row.photoCount)
       || typeof row.hasAltText !== "boolean"
       || !nonnegativeInteger(row.descLength)
-      || !Array.isArray(row.aiReviewFlags)
-      || row.aiReviewFlags.length > 100
-      || row.aiReviewFlags.some((flag) => typeof flag !== "string" || flag.length > 1000)
       || !(row.createdAt instanceof Date)
       || Number.isNaN(row.createdAt.getTime())
       || !(row.sellerCreatedAt instanceof Date)
@@ -83,6 +80,8 @@ export async function sellerServiceQualityScoreBatch(
   ) {
     throw new Error("Seller quality-score batch authority returned an invalid result");
   }
+  // aiReviewFlags is not checked here: qualityPenaltyForListing normalizes it, so one
+  // malformed row cannot stop scoring for the whole batch.
   return rows as ListingQualityScoreRow[];
 }
 
