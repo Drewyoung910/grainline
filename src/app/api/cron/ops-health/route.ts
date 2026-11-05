@@ -12,7 +12,7 @@ import {
 } from "@/lib/accountDeletionSideEffects";
 import { getAccountDeletionSideEffectClient } from "@/lib/accountDeletionSideEffectDb";
 import { HTTP_STATUS } from "@/lib/httpStatus";
-import { cronRunPartialIssueSummary } from "@/lib/cronRunPartialIssues";
+import { cronRunPartialIssueSummary, recentCronRunsWithPartialIssues } from "@/lib/cronRunPartialIssues";
 import { inspectOwnerSavedSearchCanary } from "@/lib/savedSearchOwnerAccess";
 import { runSavedSearchRlsCanary } from "@/lib/savedSearchRlsCanary";
 import { orderOpsHealthSummary } from "@/lib/orderOpsHealth";
@@ -80,16 +80,7 @@ export async function GET(request: Request) {
           take: 25,
           select: { id: true, jobName: true, bucket: true, startedAt: true },
         }),
-        prisma.cronRun.findMany({
-          where: {
-            status: "COMPLETED",
-            startedAt: { gte: failedCronSince },
-            jobName: { not: "ops-health" },
-          },
-          orderBy: { startedAt: "desc" },
-          take: RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT,
-          select: { id: true, jobName: true, bucket: true, startedAt: true, result: true },
-        }),
+        recentCronRunsWithPartialIssues(prisma, failedCronSince, RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT),
         prisma.emailOutbox.count({
           where: {
             status: { in: ["PENDING", "PROCESSING"] },
