@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
@@ -389,8 +390,9 @@ export default function ListingGallery({
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightboxOpen && (
+      {/* Lightbox. On body, so the sticky gallery column cannot trap it
+          under the site header. */}
+      {lightboxOpen && createPortal(
         <div
           ref={dialogRef}
           role="dialog"
@@ -457,7 +459,8 @@ export default function ListingGallery({
               </p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
