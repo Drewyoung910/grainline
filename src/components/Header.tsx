@@ -561,8 +561,16 @@ export default function Header() {
           </div>
         </div>
 
-        {/* ── Mobile/tablet right: search | bell | cart | menu (< lg) ───── */}
+        {/* ── Mobile/tablet right: bell | search | cart | menu (< lg) ───── */}
         <div className="ml-auto flex items-center gap-0.5 lg:hidden">
+          {/* The bell appears when Clerk loads. Leftmost in a right-aligned row,
+              it arrives without moving anything else. */}
+          <Show when="signed-in">
+            <span className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
+              <NotificationBell initialUnreadCount={unreadNotifCount} />
+            </span>
+          </Show>
+
           {/* Search toggle */}
           <button
             onClick={() => {
@@ -577,13 +585,6 @@ export default function Header() {
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
-
-          {/* Notification bell */}
-          <Show when="signed-in">
-            <span className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
-              <NotificationBell initialUnreadCount={unreadNotifCount} />
-            </span>
-          </Show>
 
           {/* Cart — always visible. Two-layer structure mirrors
               NotificationBell + MessageIconLink: outer Link is the 44×44
