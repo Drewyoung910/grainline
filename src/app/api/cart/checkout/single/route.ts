@@ -333,7 +333,7 @@ export async function POST(req: Request) {
     // Block orders where the effective payout is under $1.
     if (checkoutAmounts.belowMinimumSellerTransfer) {
       return privateJson(
-        { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
+        { error: "This order is too small to process. Add another piece to continue." },
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
