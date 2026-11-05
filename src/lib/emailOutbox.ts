@@ -282,12 +282,23 @@ async function processEmailOutboxClaim(claim: ClaimedEmailOutboxJob) {
 
 /**
  * Attempts one exact durable job immediately. A process exit before this call
- * or a retryable send failure leaves the same row for the scheduled batch.
+ * or any failure in it leaves the same row for the scheduled batch. Callers run
+ * this after their transaction commits, so it must not throw: an error here would
+ * present a committed refund or label as failed and invite a second one.
  */
 export async function processEmailOutboxJobById(id: string) {
-  const claim = await claimEmailOutboxJob(id);
-  if (!claim) return "unclaimed" as const;
-  return processEmailOutboxClaim(claim);
+  try {
+    const claim = await claimEmailOutboxJob(id);
+    if (!claim) return "unclaimed" as const;
+    return await processEmailOutboxClaim(claim);
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "email_outbox", status: "immediate_attempt_failed" },
+      extra: { emailOutboxId: id },
+    });
+    return "failed" as const;
+  }
 }
 
 export async function processEmailOutboxBatch({
