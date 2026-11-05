@@ -13,14 +13,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const DEFAULT_OFF: NotificationPreferenceKey[] = [
-  "SELLER_BROADCAST",
-  "NEW_FAVORITE",
-  "NEW_BLOG_COMMENT",
-  "BLOG_COMMENT_REPLY",
-  "EMAIL_SELLER_BROADCAST",
-];
-
 const DEFAULT_OFF_EMAIL: NotificationPreferenceKey[] = ["EMAIL_SELLER_BROADCAST"];
 
 export default async function AccountSettingsPage() {
@@ -31,8 +23,8 @@ export default async function AccountSettingsPage() {
   const prefs = normalizeNotificationPreferences(me.notificationPreferences);
   const hasSeller = !!sellerProfile;
 
+  // Matches delivery: an in-app notice is sent unless it was explicitly turned off.
   function isEnabled(type: NotificationPreferenceKey) {
-    if (DEFAULT_OFF.includes(type)) return prefs[type] === true;
     return prefs[type] !== false;
   }
 
@@ -105,7 +97,7 @@ export default async function AccountSettingsPage() {
           <Row
             type="SELLER_BROADCAST"
             label="Shop updates"
-            description="Broadcasts and announcements from makers you follow (off by default)"
+            description="Broadcasts and announcements from makers you follow"
           />
         </section>
 
