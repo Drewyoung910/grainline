@@ -9,7 +9,7 @@ import {
   restoreBannedSellerOrderReviews,
 } from './orderBanReviewAuthority'
 import { getOrderStaffReadClient } from './orderStaffReadDb'
-import { unbanClerkUser } from './clerkUserLifecycle'
+import { clerkUserExists, unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
@@ -317,6 +317,9 @@ export async function undoAdminAction({
         targetId: log.targetId,
       })
     : null
+  if (clerkUnbanTarget && !(await clerkUserExists(clerkUnbanTarget.clerkId))) {
+    throw new Error('This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.')
+  }
   const banReviewCapability = log.action === 'BAN_USER'
     ? await mintBanReviewCapability(
         adminId,
