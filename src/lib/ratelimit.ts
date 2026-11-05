@@ -371,6 +371,14 @@ export const refundRatelimit = new Ratelimit({
   prefix: "rl:refund",
 });
 
+// Each download makes one or two billable Shippo calls.
+export const labelDownloadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "60 m"),
+  analytics: true,
+  prefix: "rl:label_download",
+});
+
 export const labelPurchaseRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(10, "60 m"),

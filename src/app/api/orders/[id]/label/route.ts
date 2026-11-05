@@ -20,6 +20,7 @@ import {
 } from "@/lib/orderLabelAuthority";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import {
+  labelDownloadRatelimit,
   labelPurchaseRatelimit,
   rateLimitResponse,
   safeRateLimit,
@@ -395,6 +396,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (isAccountAccessError(actor)) {
       return privateJson({ error: actor.message, code: actor.code }, { status: actor.status });
     }
+    const { success, reset } = await safeRateLimit(labelDownloadRatelimit, actor.id);
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many label downloads."));
+
     const { id: orderId } = await params;
     const proof = await sellerLabelDownload({ actorUserId: actor.id, orderId });
     if (proof.outcome === "unauthorized") return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
