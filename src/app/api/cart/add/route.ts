@@ -185,7 +185,12 @@ export async function POST(req: Request) {
           throw new CartAddError("Cart quantity cannot exceed 99.");
         }
         if (listingForCart.listingType === "IN_STOCK" && projectedItemQuantity > (listingForCart.stockQuantity ?? 0)) {
-          throw new CartAddError(`Only ${listingForCart.stockQuantity ?? 0} available.`);
+          const available = listingForCart.stockQuantity ?? 0;
+          throw new CartAddError(
+            available > 0
+              ? `Only ${available} available.`
+              : "This piece is out of stock right now. It may come back if another buyer's checkout doesn't finish.",
+          );
         }
         const projectedDistinctItems = cartStats._count.id + (existingCartItem ? 0 : 1);
         if (projectedDistinctItems > MAX_CART_DISTINCT_ITEMS) {
