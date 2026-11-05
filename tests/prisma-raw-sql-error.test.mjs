@@ -63,6 +63,21 @@ describe("Prisma raw SQL error classification", () => {
     );
   });
 
+  it("reads the real code from errors the adapter renames (X-05)", () => {
+    for (const [kind, code] of [
+      ["ForeignKeyConstraintViolation", "23503"],
+      ["UniqueConstraintViolation", "23505"],
+      ["TransactionWriteConflict", "40001"],
+    ]) {
+      assert.equal(getPrismaRawSqlState({
+        name: "PrismaClientKnownRequestError",
+        code: "P2010",
+        clientVersion: "7.9.0",
+        meta: { driverAdapterError: { name: "DriverAdapterError", cause: { kind, originalCode: code } } },
+      }), code);
+    }
+  });
+
   it("recognizes the exact Prisma PostgreSQL driver-adapter P2010 shape", () => {
     const adapterError = Object.freeze({
       name: "DriverAdapterError",
