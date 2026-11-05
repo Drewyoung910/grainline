@@ -310,28 +310,17 @@ function CartPage() {
   const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
   const [resumingCheckout, setResumingCheckout] = React.useState(false);
   const clientSecretsRef = React.useRef<ClientSecretEntry[]>([]);
-  // The step entrance plays briefly when the step changes, not whenever the
-  // cart re-renders after a reload.
-  const [animateStep, setAnimateStep] = React.useState(false);
-  const previousStepRef = React.useRef(step);
+  // The step entrance plays when the step changes, not on a reload. The main
+  // element is keyed by step, so the entrance is part of that step's first
+  // paint and never restarts over content already on screen.
+  const [loadedStep] = React.useState(step);
+  const [stepChanged, setStepChanged] = React.useState(false);
+  if (step !== loadedStep && !stepChanged) setStepChanged(true);
   React.useEffect(() => {
-    if (previousStepRef.current === step) return;
-    previousStepRef.current = step;
-    setAnimateStep(false);
-    const frame = window.requestAnimationFrame(() => setAnimateStep(true));
-    return () => window.cancelAnimationFrame(frame);
-  }, [step]);
-  React.useEffect(() => {
-    if (!animateStep) return;
-    const main = document.querySelector<HTMLElement>("main[data-cart-steps]");
-    if (main) {
-      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      const top = Math.max(0, main.getBoundingClientRect().top + window.scrollY - 12);
-      window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
-    }
-    const timer = window.setTimeout(() => setAnimateStep(false), 700);
-    return () => window.clearTimeout(timer);
-  }, [animateStep]);
+    if (!stepChanged) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    document.querySelector("main[data-cart-steps]")?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+  }, [stepChanged, step]);
 
   React.useEffect(() => {
     clientSecretsRef.current = clientSecrets;
@@ -1049,7 +1038,7 @@ function CartPage() {
   const currentStepIndex = Math.max(0, checkoutSteps.findIndex((entry) => entry.key === step));
 
   return (
-    <main data-cart-steps={animateStep ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+    <main key={step} data-scroll-anchor data-cart-steps={stepChanged ? "" : undefined} className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
       {/* A restrained underline moves between steps. It keeps the progress
