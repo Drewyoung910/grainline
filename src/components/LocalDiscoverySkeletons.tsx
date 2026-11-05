@@ -78,7 +78,7 @@ export function BrowseIndexSkeleton() {
 export function BrowseCitySkeleton() {
   return (
     <main
-      className="mx-auto max-w-[1600px] px-4 pb-16 pt-8 sm:px-6 lg:px-8"
+      className="mx-auto min-h-[100svh] max-w-[1600px] px-4 pb-16 pt-8 sm:px-6 lg:px-8"
       aria-busy="true"
       aria-label="Loading local listings"
     >
@@ -116,7 +116,7 @@ export function BrowseCitySkeleton() {
 export function MakersCitySkeleton() {
   return (
     <main
-      className="mx-auto max-w-[1600px] px-4 pb-16 pt-8 sm:px-6 lg:px-8"
+      className="mx-auto min-h-[100svh] max-w-[1600px] px-4 pb-16 pt-8 sm:px-6 lg:px-8"
       aria-busy="true"
       aria-label="Loading local makers"
     >

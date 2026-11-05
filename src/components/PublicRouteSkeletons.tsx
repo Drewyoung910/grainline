@@ -46,7 +46,7 @@ export function TagLandingSkeleton() {
 export function BlogAuthorSkeleton() {
   return (
     <main
-      className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6"
+      className="mx-auto min-h-[100svh] max-w-7xl px-4 pb-16 pt-8 sm:px-6"
       aria-busy="true"
       aria-label="Loading author stories"
     >
@@ -90,7 +90,7 @@ export function CustomerPhotosSkeleton() {
   const heights = ["h-52", "h-72", "h-60", "h-80", "h-64", "h-48", "h-72", "h-56"];
   return (
     <main
-      className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8"
+      className="mx-auto min-h-[100svh] max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8"
       aria-busy="true"
       aria-label="Loading customer photos"
     >
