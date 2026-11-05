@@ -14,6 +14,10 @@ describe("tag normalization", () => {
     assert.equal(normalizeTag("木工 机"), "木工-机");
   });
 
+  it("drops joiners instead of splitting a Persian tag with a hyphen", () => {
+    assert.equal(normalizeTag("می\u200Cخواهم"), "میخواهم");
+  });
+
   it("strips bidirectional controls and caps tag length", () => {
     assert.equal(normalizeTag("refund\u202Egpj.exe"), "refundgpj-exe");
     assert.equal(normalizeTag("oak\u061C-maple"), "oak-maple");

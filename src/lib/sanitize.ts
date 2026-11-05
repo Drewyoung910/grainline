@@ -37,8 +37,10 @@ export function sanitizeUserName(input: string, maxLength = 100): string {
   return VISIBLE_CHARACTER.test(name) ? name : "";
 }
 
+// A lookup key, not display text: drop the joiners that names keep, so two
+// names that look the same share a key (and match keys stored before).
 export function normalizeDisplayNameForLookup(input: string): string {
-  return sanitizeUserName(input);
+  return sanitizeUserName(input).replace(/[\u200C\u200D]/g, "");
 }
 
 export function truncateText(input: string, maxLength: number): string {
