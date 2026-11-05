@@ -16,6 +16,14 @@ export function providerRateLimitKey(key: string): string {
   return `sha256:${createHash("sha256").update(key).digest("hex")}`;
 }
 
+// Gives back what a limiter spent for this key (same hashing as the limit call).
+export async function resetRateLimitTokens(
+  limiter: { resetUsedTokens(key: string): Promise<void> },
+  key: string,
+): Promise<void> {
+  await limiter.resetUsedTokens(providerRateLimitKey(key));
+}
+
 export async function limitWithFailurePolicy(
   limiter: RateLimitLike,
   key: string,

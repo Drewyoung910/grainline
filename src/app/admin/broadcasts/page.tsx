@@ -9,7 +9,9 @@ import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
-import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { adminActionRatelimit, broadcastRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { resetRateLimitTokens } from "@/lib/ratelimitPolicy";
+import { logServerError } from "@/lib/serverErrorLogger";
 import { truncateText } from "@/lib/sanitize";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import AdminPinGate from "@/components/AdminPinGate";
@@ -33,7 +35,7 @@ async function deleteBroadcast(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   if (id) {
-    await withDbUserContext(user.id, async (tx) => {
+    const deletedSellerProfileId = await withDbUserContext(user.id, async (tx) => {
       const broadcast = await tx.sellerBroadcast.findUnique({
         where: { id },
         select: {
@@ -42,9 +44,9 @@ async function deleteBroadcast(formData: FormData) {
           recipientCount: true,
         },
       });
-      if (!broadcast) return;
+      if (!broadcast) return null;
       const deleted = await tx.sellerBroadcast.deleteMany({ where: { id } });
-      if (deleted.count !== 1) return;
+      if (deleted.count !== 1) return null;
       await deleteSellerBroadcastNotificationServiceRows(tx, broadcast.id);
       await tx.emailOutbox.deleteMany({
         where: sellerBroadcastOutboxCancellationWhere(broadcast.id),
@@ -60,7 +62,17 @@ async function deleteBroadcast(formData: FormData) {
           recipientCount: broadcast.recipientCount,
         },
       });
+      return broadcast.sellerProfileId;
     });
+    // A removed broadcast should not cost the maker their weekly send. The
+    // database 7-day check on their latest remaining broadcast still applies.
+    if (deletedSellerProfileId) {
+      await resetRateLimitTokens(broadcastRatelimit, deletedSellerProfileId).catch((error) =>
+        logServerError(error, {
+          source: "admin_broadcast_delete_token_refund",
+          extra: { sellerProfileId: deletedSellerProfileId },
+        }));
+    }
   }
   revalidatePath("/admin/broadcasts");
 }
