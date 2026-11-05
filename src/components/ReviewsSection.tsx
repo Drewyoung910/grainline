@@ -77,7 +77,7 @@ function SellerReplyCard({
 }) {
   return (
     <div
-      className={`rounded-lg p-3 text-sm ${tone === "white" ? "bg-white/80 ring-1 ring-stone-200/60" : "bg-[#EFEAE0]"}`}
+      className={`text-sm ${tone === "white" ? "rounded-lg bg-white/80 p-3 ring-1 ring-stone-200/60" : "border-l-2 border-stone-200 pl-3"}`}
     >
       <div className="mb-1.5 flex items-center gap-2">
         <div
@@ -291,9 +291,7 @@ export default async function ReviewsSection({
                 </div>
               </div>
             </div>
-          ) : (
-            <p className="mt-2 text-sm text-neutral-500">No ratings yet</p>
-          )}
+          ) : null}
 
           {agg._count._all > 0 && (
             <dl aria-label="Rating breakdown" className="mt-6 grid gap-2">
@@ -465,9 +463,7 @@ export default async function ReviewsSection({
           {/* Others */}
           {others.length === 0 ? (
             mine ? null : (
-              <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">
-                No reviews yet. Be the first to share your experience.
-              </div>
+              <p className="text-sm text-neutral-600">No reviews yet.</p>
             )
           ) : (
             <ul className="space-y-4">
@@ -482,7 +478,7 @@ export default async function ReviewsSection({
                 const showPhoto = viewerIsSeller && !reviewerUnavailable(r) && !!r.reviewerImageUrl;
 
                 return (
-                  <li key={r.id} className="card-section px-4 py-3">
+                  <li key={r.id} className="border-b border-stone-200/70 pb-4 last:border-b-0">
                     <div className="flex items-start gap-3">
                       <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
                         {showPhoto && r.reviewerImageUrl ? (
