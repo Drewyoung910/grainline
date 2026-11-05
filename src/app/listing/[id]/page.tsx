@@ -529,8 +529,8 @@ export default async function ListingPage({
 
       {/* ── Two-column layout ─────────────────────────────────────────────── */}
       <div className="grid min-w-0 gap-8 mb-10 lg:grid-cols-2">
-        {/* Left: gallery */}
-        <div className="relative min-w-0">
+        {/* Left: gallery. Stays on screen while a tall buying column scrolls. */}
+        <div className="relative min-w-0 lg:sticky lg:top-[calc(var(--site-header-offset)+1.5rem)] lg:self-start">
           {/* Favorite button overlaid */}
           <FavoriteButton listingId={listingId} initialSaved={isFavorited} size={22} />
           <ListingGallery photos={listing.photos} title={listing.title} />
