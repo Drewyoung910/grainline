@@ -58,3 +58,12 @@ test("a calendar-year chart keeps plain month labels", async () => {
   const { chartData } = await getAnalytics("year");
   for (const bucket of chartData) assert.match(bucket.label, /^[A-Z][a-z]{2}$/);
 });
+
+test("top listings say which ones are archived, because those pages 404 even for the owner", async () => {
+  const row = (id) => ({ id, title: id, createdAt: new Date("2026-01-01T00:00:00Z"), totalRevenueCents: 0 });
+  const { topListings } = await getAnalytics("last30", {
+    topListings: [row("live"), row("gone")],
+    archivedIds: ["gone"],
+  });
+  assert.deepEqual(topListings.map(({ id, archived }) => [id, archived]), [["live", false], ["gone", true]]);
+});

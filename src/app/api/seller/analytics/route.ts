@@ -420,6 +420,14 @@ export async function GET(req: Request) {
       });
     }
 
+    // Archived listing pages 404 even for their owner, so the UI must not link them.
+    const archivedTopListings = topListingRows.length > 0
+      ? await prisma.listing.findMany({
+          where: { id: { in: topListingRows.map((r) => r.id) }, sellerId, archivedAt: { not: null } },
+          select: { id: true },
+        })
+      : [];
+    const archivedTopListingIds = new Set(archivedTopListings.map((l) => l.id));
     const topListings = topListingRows.map((r) => {
       const activeStartMs = Math.max(startDate.getTime(), r.createdAt.getTime());
       const activeDaysInRange = Math.max(
@@ -429,6 +437,7 @@ export async function GET(req: Request) {
       return {
         id: r.id,
         title: r.title,
+        archived: archivedTopListingIds.has(r.id),
         imageUrl: r.imageUrl,
         totalRevenueCents: r.totalRevenueCents,
         unitsSold: r.unitsSold,
