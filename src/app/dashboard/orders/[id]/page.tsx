@@ -274,7 +274,7 @@ export default async function BuyerOrderDetailPage({
         </div>
       </header>
 
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
+      <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-700 font-medium">
         {suppressActiveFulfillment ? (
           "Fully refunded — no fulfillment is required."
         ) : activeCase && activeCase.status !== "RESOLVED" && activeCase.status !== "CLOSED" ? (
@@ -655,13 +655,13 @@ export default async function BuyerOrderDetailPage({
           <OpenCaseForm orderId={order.id} allowNotReceived={!isTerminal} />
         </section>
       ) : caseWindowClosed ? (
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+        <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
           {caseWindowClosedMessage(caseWindowClosedAt)}
         </div>
       ) : !isTerminal ? (
         // Any refund blocks a new case, so don't promise one after delivery.
         deliveryInFuture && !hasRefund ? (
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
             You can open a case if there&apos;s an issue with your order after the estimated
             delivery date of{" "}
             <span className="font-medium">
@@ -670,7 +670,7 @@ export default async function BuyerOrderDetailPage({
             .
           </div>
         ) : messageHref ? (
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
             If you have an issue with your order, please{" "}
             <Link href={messageHref} className="underline hover:text-neutral-900">
               contact the maker directly via messages
@@ -678,7 +678,7 @@ export default async function BuyerOrderDetailPage({
             .
           </div>
         ) : (
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
             The maker&apos;s account is not available for messages. Please{" "}
             <Link href="/support" className="underline hover:text-neutral-900">
               contact Grainline support
