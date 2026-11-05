@@ -1,5 +1,5 @@
-const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
-const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
+import { stripBidiControls, stripInvisibleChars } from "./textNormalization.ts";
+
 const NULL_BYTES = /\u0000/g;
 
 const ENTITY_MAP: Record<string, string> = {
@@ -47,9 +47,7 @@ function safeCodePoint(fallback: string, codePoint: number): string {
 }
 
 function normalizeDecodedEmailText(text: string): string {
-  return text.normalize("NFKC")
-    .replace(BIDI_CONTROL_CHARS, "")
-    .replace(ZERO_WIDTH_CHARS, "")
+  return stripInvisibleChars(stripBidiControls(text.normalize("NFKC")))
     .replace(NULL_BYTES, "");
 }
 

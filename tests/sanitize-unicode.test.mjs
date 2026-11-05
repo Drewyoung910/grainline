@@ -24,6 +24,23 @@ describe("unicode sanitization", () => {
     assert.equal(sanitizeText("f\u200bu\u200dc\uFEFFk\u0000"), "fuck");
   });
 
+  it("keeps the joiners that shape emoji and Persian or Indic text", () => {
+    for (const text of [
+      "🤷\u200D♀\uFE0F",
+      "👨\u200D👩\u200D👧",
+      "👩🏽\u200D💻",
+      "🏳\uFE0F\u200D🌈",
+      "می\u200Cخواهم",
+      "क्\u200Dष",
+      "क्\u200Cष",
+    ]) {
+      assert.equal(sanitizeText(text), text);
+    }
+    // Between Latin letters a joiner only hides characters.
+    assert.equal(sanitizeText("ad\u200Dmin a\u200Cb ad\u2060min"), "admin ab admin");
+    assert.equal(sanitizeText("🤷\u200Dx"), "🤷x");
+  });
+
   it("strips nested or malformed HTML from plain text", () => {
     assert.equal(sanitizeText("<<script>alert(1)</script>Chair"), "Chair");
     assert.equal(sanitizeText("hello <b onclick=alert(1)>world</b>"), "hello world");
