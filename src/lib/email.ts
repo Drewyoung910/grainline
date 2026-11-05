@@ -256,6 +256,7 @@ type EmailSendOptions = {
   idempotencyKey?: string;
   preferenceKey?: EmailNotificationPreferenceKey;
   unsubscribeIssuedAt?: Date;
+  replyTo?: string;
   // Internal outbox-only capability: the generation-fenced database authority
   // rechecked recipient eligibility while locking this exact job immediately
   // before the provider boundary.
@@ -353,7 +354,7 @@ async function send(
             from: EMAIL_FROM,
             to: recipient,
             subject: sanitizedSubject,
-            replyTo: EMAIL_REPLY_TO,
+            replyTo: opts.replyTo ?? EMAIL_REPLY_TO,
             html: htmlForRecipient,
             text: htmlToText(htmlForRecipient),
             headers: unsubscribeUrl
@@ -869,8 +870,8 @@ export function renderRefundIssuedEmail(opts: {
   refundAmountCents: number;
   currency?: string | null;
   orderId: string;
-}): RenderedEmail {
   checkoutNotCompleted?: boolean;
+}): RenderedEmail {
   const { buyer, refundAmountCents, currency, orderId, checkoutNotCompleted } = opts;
   const name = buyer.name || "there";
   const orderUrl = `${APP_URL}/dashboard/orders/${orderId}`;
