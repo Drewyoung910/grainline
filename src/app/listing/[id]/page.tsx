@@ -45,6 +45,7 @@ import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 import { formatCityState } from "@/lib/locationDisplay";
+import { getCheckoutLock, singleCheckoutLockKey } from "@/lib/checkoutSessionLock";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -378,10 +379,20 @@ export default async function ListingPage({
   const reservedForMe = isPrivate && !!meId && listing.reservedForUserId === meId;
   const reservedForOther = isPrivate && (!meId || listing.reservedForUserId !== meId);
 
+  // A Buy Now this buyer left open can be what holds the last unit. Its dialog
+  // resumes that session, so they need the button rather than "Out of Stock".
+  const checkoutHeldForViewer =
+    isActive &&
+    listing.listingType === "IN_STOCK" &&
+    isOutOfStock &&
+    !!meId &&
+    !isOwnListing &&
+    (await getCheckoutLock(singleCheckoutLockKey(meId, listingId)).catch(() => null))?.state === "ready";
+
   const canBuy =
     isActive &&
     !isOwnListing &&
-    !isOutOfStock &&
+    (!isOutOfStock || checkoutHeldForViewer) &&
     !reservedForOther &&
     listing.seller.chargesEnabled &&
     listing.seller.stripeAccountSupported &&
@@ -566,6 +577,7 @@ export default async function ListingPage({
             sellerAcceptingNewOrders={listing.seller.acceptingNewOrders !== false}
             isOwnListing={isOwnListing}
             isOutOfStock={isOutOfStock}
+            checkoutHeld={checkoutHeldForViewer}
             canSubscribeForStockNotification={canSubscribeForStockNotification}
             isNotified={isNotified}
             listingType={listing.listingType}
