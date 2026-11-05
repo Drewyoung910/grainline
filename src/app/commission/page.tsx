@@ -289,7 +289,7 @@ async function CommissionPageContent({
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
       {/* Header */}
-      <div className="mb-8 flex items-start justify-between gap-4 sm:items-end">
+      <div className="mb-8 flex items-start justify-between gap-4 max-[359px]:flex-wrap sm:items-end">
         <div className="min-w-0">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Made together</p>
           <h1 className="font-display text-[clamp(2.25rem,5vw,4.5rem)] font-normal leading-[0.95] tracking-[-0.025em] text-neutral-900">
