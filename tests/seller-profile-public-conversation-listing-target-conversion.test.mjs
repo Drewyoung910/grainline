@@ -13,7 +13,7 @@ test("new-message listing context uses actor-bound participant authority", () =>
   assert.doesNotMatch(page, /canAttachConversationContextListing/u);
   assert.match(
     page,
-    /sellerParticipantConversationListingTarget\(\s*me\.id,\s*other\.id,\s*listing,?\s*\)/u,
+    /sellerParticipantConversationListingTarget\(\s*me\.id,\s*other\.id,\s*requestedListingId,?\s*\)/u,
   );
   assert.match(page, /validListingId = contextListing\.id/u);
   assert.match(page, /listingTitle = contextListing\.title/u);
