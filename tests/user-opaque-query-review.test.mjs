@@ -42,13 +42,16 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // UI workspace/search work adds two publicListingWhere reads and one
   // owner-scoped Workshop listing helper. No SellerProfile relation or raw
   // table authority is added.
-  assert.equal(report.opaqueShapes.length, 149);
-  assert.equal(reviewedFactories.length, 113);
+  // C-1882 removed generateStaticParams from the metro browse, metro
+  // category and commission metro pages, deleting seven reviewed
+  // publicListingWhere/openCommissionWhere build-time reads. Nothing added.
+  assert.equal(report.opaqueShapes.length, 142);
+  assert.equal(reviewedFactories.length, 106);
   assert.equal(reviewedResidual.length, 36);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 92,
-    sha256: "ef5a6638bbb144508b48c75b9783499ae36bb46576177ee63834a50fabf6c4a0",
+    unique: 85,
+    sha256: "ce206a712398722e670449a12a6b59f84adc5382aa04d9d4ba11b6a738663699",
   });
   assert.deepEqual(digest(reviewedResidual), {
     unique: 30,
