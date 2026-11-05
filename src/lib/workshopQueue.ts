@@ -51,6 +51,22 @@ export function orderRefundedAway(order: QueueOrder, refundOutcome: RefundOutcom
   return suppressActiveFulfillmentForPaymentState(paymentState, status);
 }
 
+// The Workshop header pill. Null means that read failed, which must not change it.
+export function workshopShopStatus(input: Readonly<{
+  vacationMode: boolean;
+  chargesEnabled: boolean;
+  onboardingComplete: boolean;
+  acceptingNewOrders: boolean | null;
+  listingCount: number | null;
+}>): { label: string; open: boolean } {
+  if (input.vacationMode) return { label: "On vacation", open: false };
+  if (!input.chargesEnabled) return { label: "Not visible yet", open: false };
+  if (!input.onboardingComplete) return { label: "Finish setup", open: false };
+  if (input.acceptingNewOrders === false) return { label: "Not taking orders", open: false };
+  if (input.listingCount === 0) return { label: "No listings yet", open: false };
+  return { label: "Shop open", open: true };
+}
+
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }
