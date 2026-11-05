@@ -7,7 +7,8 @@ import TipTapLink from "@tiptap/extension-link";
 import TipTapImage from "@tiptap/extension-image";
 import { Markdown } from "tiptap-markdown";
 import { useToast } from "@/components/Toast";
-import { validateUploadFile } from "@/lib/uploadRules";
+import { validateUploadFile, validateUploadSelection } from "@/lib/uploadRules";
+import { shrinkLargeImageForRouteUpload } from "@/hooks/useR2Upload";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 
 type Props = {
@@ -274,10 +275,12 @@ export default function MarkdownToolbar({
               const file = input.files?.[0];
               if (!file) return;
               try {
-                validateUploadFile("blogImage", file, 0);
+                validateUploadSelection("blogImage", file, 0);
+                const upload = await shrinkLargeImageForRouteUpload(file);
+                validateUploadFile("blogImage", upload, 0);
 
                 const form = new FormData();
-                form.set("file", file);
+                form.set("file", upload);
                 form.set("endpoint", "blogImage");
                 form.set("fileIndex", "0");
                 const uploadRes = await fetch("/api/upload/image", {
