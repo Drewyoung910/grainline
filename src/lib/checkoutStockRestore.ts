@@ -13,6 +13,7 @@ import {
   completeCheckoutStockReservation,
   finalizeCheckoutStockReservationRepair,
   pruneCheckoutStockReservationBatch,
+  abortCheckoutStockReservation,
   restoreBuyerExpiredCheckoutStockReservation,
   restoreCheckoutStockReservationFromWebhook,
   restoreSellerExpiredCheckoutStockReservation,
@@ -311,6 +312,27 @@ async function restoreLegacyUnorderedCheckoutStockOnce(input: {
   metadata: Record<string, string | undefined>;
   lineItems?: CheckoutStockRestoreLineItem[];
 }) {
+  // A session made for a reservation settles through that reservation, which
+  // restores at most once. Reaching here means it was never bound to this
+  // session, already settled, or long since pruned. Adding stock from the
+  // metadata would restore it again.
+  const { checkoutReservationId, buyerId, checkoutPayloadHash } = input.metadata;
+  if (checkoutReservationId) {
+    if (buyerId && checkoutPayloadHash) {
+      const aborted = await abortCheckoutStockReservation({
+        reservationId: checkoutReservationId,
+        buyerId,
+        payloadHash: checkoutPayloadHash,
+      });
+      if (aborted.stockVisibilityChanged > 0) {
+        revalidateListingSearchCaches();
+        revalidateFeaturedMakerCaches();
+      }
+    }
+    await releaseCheckoutLock(input.metadata.checkoutLockKey, input.sessionId);
+    return;
+  }
+
   const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
     await lockCheckoutSessionMutation(tx, input.sessionId);
 
