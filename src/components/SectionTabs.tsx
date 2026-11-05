@@ -133,7 +133,7 @@ export default function SectionTabs({
     >
       <div
         ref={listRef}
-        className="relative mx-auto flex max-w-[1600px] gap-1 overflow-x-auto border-b border-stone-200/70 px-4 [scrollbar-width:none] sm:gap-2 sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden"
+        className="relative mx-auto flex max-w-[1600px] gap-1 overflow-x-auto border-b border-stone-200/70 [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden"
       >
         {sections.map((section) => (
           <a
