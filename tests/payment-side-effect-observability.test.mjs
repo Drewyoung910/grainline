@@ -418,7 +418,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(sellerRoute, /freshDecision !== "LABEL_BLOCKED"/);
     assert.match(
       source("src/lib/refundRouteState.ts"),
-      /Cannot refund while a shipping label purchase is active or completed/,
+      /This order has a shipping label, so it can.t be refunded from here/,
     );
     assert.match(
       sellerAuthority,
