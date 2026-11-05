@@ -152,11 +152,14 @@ export async function POST(req: NextRequest) {
   }
 
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
-  const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
-  const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
+  const parsedBudgetMin = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
+  const parsedBudgetMax = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
+  // A zero budget says nothing, so it is the same as leaving the field blank.
+  const budgetMinCents = parsedBudgetMin === 0 ? null : parsedBudgetMin;
+  const budgetMaxCents = parsedBudgetMax === 0 ? null : parsedBudgetMax;
 
-  if (budgetMin != null && budgetMinCents === null) return privateJson({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
-  if (budgetMax != null && budgetMaxCents === null) return privateJson({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMin != null && parsedBudgetMin === null) return privateJson({ error: "Minimum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
+  if (budgetMax != null && parsedBudgetMax === null) return privateJson({ error: "Maximum budget must be a valid dollar amount." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMinCents !== null && budgetMinCents > 10_000_000) return privateJson({ error: "Minimum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMaxCents !== null && budgetMaxCents > 10_000_000) return privateJson({ error: "Maximum budget cannot exceed $100,000." }, { status: HTTP_STATUS.BAD_REQUEST });
   if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return privateJson({ error: "Maximum budget must be greater than minimum." }, { status: HTTP_STATUS.BAD_REQUEST });

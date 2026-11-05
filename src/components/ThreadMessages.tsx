@@ -432,7 +432,7 @@ export default function ThreadMessages({
                   {card.commissionTitle && (
                     <p className="text-sm font-medium text-neutral-900">&ldquo;{card.commissionTitle}&rdquo;</p>
                   )}
-                  {(card.budgetMinCents || card.budgetMaxCents) && (
+                  {formatCommissionBudgetRange(card.budgetMinCents, card.budgetMaxCents) && (
                     <p className="text-xs text-neutral-500">
                       Budget:{" "}
                       {formatCommissionBudgetRange(card.budgetMinCents, card.budgetMaxCents)}

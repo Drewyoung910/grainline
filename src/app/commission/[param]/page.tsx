@@ -497,7 +497,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
             {CATEGORY_LABELS[request.category]}
           </span>
         )}
-        {(request.budgetMinCents || request.budgetMaxCents) && (
+        {formatCommissionBudgetRange(request.budgetMinCents, request.budgetMaxCents) && (
           <span>
             Budget:{" "}
             {formatCommissionBudgetRange(request.budgetMinCents, request.budgetMaxCents)}
