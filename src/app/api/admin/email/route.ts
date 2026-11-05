@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { z } from "zod";
 import { adminEmailRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { isEmailDeliverySuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/sanitize";
@@ -118,8 +118,10 @@ export async function POST(request: Request) {
   if (!normalizedRecipientEmail) {
     return privateJson({ error: "Invalid recipient email" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
-  if (await isEmailSuppressed(normalizedRecipientEmail)) {
-    return privateJson({ error: "Recipient email is suppressed or unsubscribed" }, { status: HTTP_STATUS.CONFLICT });
+  // An unsubscribe covers optional mail. A message from staff about the account is
+  // not optional, so only a bounce, complaint or deletion stops it.
+  if (await isEmailDeliverySuppressed(normalizedRecipientEmail)) {
+    return privateJson({ error: "This address bounced or marked our mail as spam, so email cannot reach it." }, { status: HTTP_STATUS.CONFLICT });
   }
 
   const recipientAccount = await userStaffEmailRecipient(staffClient, {

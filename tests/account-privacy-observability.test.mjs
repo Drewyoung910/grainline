@@ -241,15 +241,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(suppression, /"reason"::text = \$\{EmailSuppressionReason\.MANUAL\} AND "source" <> 'one_click_unsubscribe'/);
     assert.match(
       adminEmailRoute,
-      /isEmailSuppressed\(normalizedRecipientEmail\)/,
-    );
-    assert.match(
-      adminEmailRoute,
-      /Recipient email is suppressed or unsubscribed/,
-    );
-    assert.doesNotMatch(
-      adminEmailRoute,
-      /Recipient email is suppressed after a bounce or complaint/,
+      /isEmailDeliverySuppressed\(normalizedRecipientEmail\)/,
     );
   });
 
