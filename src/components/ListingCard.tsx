@@ -39,11 +39,13 @@ type Props = {
   initialSaved?: boolean;
   variant?: "grid" | "scroll";
   href?: string | null;
+  // On the maker's own pages every card is theirs, so the maker row repeats.
+  hideMaker?: boolean;
 };
 
 type PhotoState = "idle" | "pending" | "revealed";
 
-export default function ListingCard({ listing: l, initialSaved = false, href }: Props) {
+export default function ListingCard({ listing: l, initialSaved = false, href, hideMaker = false }: Props) {
   const photoRef = useRef<HTMLDivElement>(null);
   const photoPendingRef = useRef(false);
   const [photoState, setPhotoState] = useState<PhotoState>("idle");
@@ -167,25 +169,27 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
             the location moves under the maker so the name stays readable;
             on wider cards it shares the row, and the grid gives the name its
             full width before the location gets any. */}
-        <div className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug text-stone-600 @max-[15rem]:grid-cols-1">
-          <span className="flex min-h-5 min-w-0 max-w-full items-center gap-1.5">
-            <Link
-              href={publicSellerPath(l.seller.id, sellerName)}
-              className="min-w-0 truncate font-medium text-stone-700 transition-colors hover:text-neutral-900 hover:underline"
-            >
-              {sellerName}
-            </Link>
-            {hasGuildBadge && (
-              // Invisible 36 px tap area around the 20 px badge; layout unchanged.
-              <span className="inline-flex flex-none [&>button]:relative [&>button]:before:absolute [&>button]:before:-inset-2">
-                <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={20} />
-              </span>
+        {!hideMaker && (
+          <div className="grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)] items-center gap-x-1.5 gap-y-0.5 text-[13px] leading-snug text-stone-600 @max-[15rem]:grid-cols-1">
+            <span className="flex min-h-5 min-w-0 max-w-full items-center gap-1.5">
+              <Link
+                href={publicSellerPath(l.seller.id, sellerName)}
+                className="min-w-0 truncate font-medium text-stone-700 transition-colors hover:text-neutral-900 hover:underline"
+              >
+                {sellerName}
+              </Link>
+              {hasGuildBadge && (
+                // Invisible 36 px tap area around the 20 px badge; layout unchanged.
+                <span className="inline-flex flex-none [&>button]:relative [&>button]:before:absolute [&>button]:before:-inset-2">
+                  <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={20} />
+                </span>
+              )}
+            </span>
+            {location && (
+              <MetaSeparatorText>{location}</MetaSeparatorText>
             )}
-          </span>
-          {location && (
-            <MetaSeparatorText>{location}</MetaSeparatorText>
-          )}
-        </div>
+          </div>
+        )}
 
         {l.seller.acceptingNewOrders === false && (
           <span className="mt-0.5 inline-block rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">

@@ -420,6 +420,7 @@ export default async function SellerShopPage({
                     }}
                     initialSaved={savedSet.has(l.id)}
                     variant="grid"
+                    hideMaker
                     href={
                       isOwner && l.status === "DRAFT"
                         ? `${publicListingPath(l.id, l.title)}?preview=1`
