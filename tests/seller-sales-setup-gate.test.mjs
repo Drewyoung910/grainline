@@ -20,9 +20,12 @@ const common = {
   },
 };
 
-async function renderSalesList(total) {
+async function renderSalesList(total, chargesEnabled = false) {
   const page = loadWithStubs("src/app/dashboard/sales/page.tsx", {
     ...common,
+    "@/lib/sellerProfileOwnerAccess": {
+      sellerOwnerCore: async () => ({ sellerProfileId: "seller-1", chargesEnabled }),
+    },
     "@/lib/orderParticipantReadAuthority": {
       countSellerOrders: async () => total,
       readSellerOrderSummaryPage: async () => ({ rows: [] }),
@@ -35,11 +38,15 @@ async function renderSalesList(total) {
 }
 
 test("a maker still in setup with no orders sees the setup panel", async () => {
-  assert.match(await renderSalesList(0), /Finish setup to start accepting orders/);
+  assert.match(await renderSalesList(0), /Connect Stripe to start accepting orders/);
 });
 
 test("a maker still in setup who has an order sees their orders, not the setup panel", async () => {
-  assert.doesNotMatch(await renderSalesList(1), /Finish setup to start accepting orders/);
+  assert.doesNotMatch(await renderSalesList(1), /Connect Stripe to start accepting orders/);
+});
+
+test("a maker who can take payments is not in setup, wizard or not", async () => {
+  assert.doesNotMatch(await renderSalesList(0, true), /to start accepting orders/);
 });
 
 test("the order page does not send a maker in setup away from a real order", async () => {

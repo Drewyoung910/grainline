@@ -111,7 +111,9 @@ async function DashboardPageContent({
 
   return (
     <main className="mx-auto max-w-5xl space-y-7">
-      {!onboardingComplete && (
+      {/* Publishing only needs Stripe, so once charges are on the wizard is
+          optional and this banner would be false ("can't go live"). */}
+      {!onboardingComplete && !chargesEnabled && (
         <DismissibleBanner
           className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 pr-10 text-sm text-amber-950"
           rejectedIds={forceSetupBanner ? [] : [`dashboard-onboarding:${seller.id}:${chargesEnabled ? "setup" : "stripe"}`]}
@@ -237,8 +239,9 @@ async function DashboardPageContent({
       </section>
 
       {/* Shops still in setup have nothing to report, and the numbers would
-          only show placeholders and vanish. */}
-      {onboardingComplete && <WorkshopStats />}
+          only show placeholders and vanish. A shop that can take payments or
+          already has orders is not in setup, wizard or not. */}
+      {(onboardingComplete || chargesEnabled || (orderQueue?.recent.length ?? 0) > 0) && <WorkshopStats />}
 
       <section aria-labelledby="workshop-recent-title" className="card-section p-5 sm:p-[22px]">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
