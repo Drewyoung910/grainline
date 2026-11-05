@@ -365,6 +365,7 @@ export default async function ListingPage({
   const initials = avatarInitials(sellerName, "S");
 
   const cityState = formatCityState(listing.seller.city, listing.seller.state);
+  const shipsFromMetro = listing.cityMetro ?? listing.metro;
   const showPickupMap = listing.seller.allowLocalPickup && pickupMapPoint != null;
 
   const signedInMessageHref =
@@ -792,7 +793,18 @@ export default async function ListingPage({
                   {cityState && (
                     <>
                       <dt className="text-neutral-500">Ships from</dt>
-                      <dd className="text-neutral-800">{cityState}</dd>
+                      <dd className="text-neutral-800">
+                        {shipsFromMetro ? (
+                          <Link
+                            href={`/browse/${shipsFromMetro.slug}`}
+                            className="text-neutral-800 underline decoration-stone-300 underline-offset-4 transition-colors hover:decoration-neutral-700"
+                          >
+                            {cityState}
+                          </Link>
+                        ) : (
+                          cityState
+                        )}
+                      </dd>
                     </>
                   )}
                   {listing.tags.length > 0 && (
@@ -854,20 +866,21 @@ export default async function ListingPage({
         </section>
       )}
 
-      {/* ── More in this city ─────────────────────────────────────────────── */}
-      {(listing.cityMetro ?? listing.metro) && (() => {
-        const m = listing.cityMetro ?? listing.metro!;
-        return (
-          <div className="mb-8">
-            <Link
-              href={`/browse/${m.slug}`}
-              className="text-sm text-neutral-600 hover:underline"
-            >
-              More handmade pieces in {formatCityState(m.name, m.state)} →
-            </Link>
-          </div>
-        );
-      })()}
+      {/* Reviews are purchase evidence, not a recommendation rail. Keep them
+          with the listing's core information so they are not buried below
+          three unrelated discovery sections. */}
+      <ReviewsSection
+        listingId={listingId}
+        listingTitle={listing.title}
+        meId={meId}
+        sellerName={sellerName}
+        sellerAvatarUrl={sellerAvatar}
+        viewerIsSeller={viewerIsSeller}
+        initialSort={sortKey}
+        edit={editingMine}
+        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+        staffPreview={staffPreview}
+      />
 
       {/* ── More from this maker ────────────────────────────────────────── */}
       {moreFromSeller.length > 0 && (
@@ -919,18 +932,6 @@ export default async function ListingPage({
         viewerUserId={meId}
       />
 
-      {/* ── Reviews ───────────────────────────────────────────────────────── */}
-      <ReviewsSection
-        listingId={listingId}
-        listingTitle={listing.title}
-        meId={meId}
-        sellerName={sellerName}
-        sellerAvatarUrl={sellerAvatar}
-        viewerIsSeller={viewerIsSeller}
-        initialSort={sortKey}
-        edit={editingMine}
-        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
-      />
     </main>
     </div>
   );
