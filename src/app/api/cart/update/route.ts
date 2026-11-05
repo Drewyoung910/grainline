@@ -146,8 +146,13 @@ export async function POST(req: Request) {
         );
       }
       if (listing.listingType === "IN_STOCK" && quantity > (listing.stockQuantity ?? 0)) {
+        const available = listing.stockQuantity ?? 0;
         return privateJson(
-          { error: `Only ${listing.stockQuantity ?? 0} available.` },
+          {
+            error: available > 0
+              ? `Only ${available} available.`
+              : "This piece is out of stock right now. It may come back if another buyer's checkout doesn't finish.",
+          },
           { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
