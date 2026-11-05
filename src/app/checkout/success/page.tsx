@@ -5,7 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { stripe } from "@/lib/stripe";
 import LocalDate from "@/components/LocalDate";
 import { ensureUserForPage } from "@/lib/pageAuth";
-import { checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
+import { checkoutSuccessParams, checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderTotalCents as calculateOrderTotalCents } from "@/lib/orderTotals";
@@ -112,14 +112,13 @@ function ReceiptLines({
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string; session_ids?: string }>;
+  searchParams: Promise<{ session_id?: string | string[]; session_ids?: string | string[] }>;
 }) {
-  const sp = await searchParams;
-  const sessionId = sp?.session_id;
+  const { sessionId, sessionIds: rawSessionIds } = checkoutSuccessParams(await searchParams);
   if (!sessionId) redirect("/cart");
   const { sessionIds, truncatedCount } = checkoutSuccessSessionIds({
     sessionId,
-    sessionIds: sp.session_ids,
+    sessionIds: rawSessionIds,
   });
 
   const me = await ensureUserForPage(`/checkout/success?session_id=${encodeURIComponent(sessionId)}`);
