@@ -82,6 +82,9 @@ export type WorkshopAttentionInput = Readonly<{
   lowStock: ReadonlyArray<Readonly<{ title: string; stockQuantity: number }>>;
   // Null when unknown, so a failed read isn't taken for an empty shop.
   listingCount?: number | null;
+  // Unresolved Cases on this maker's orders (open, in discussion, pending close,
+  // or with staff, which includes Cases a bank chargeback opened).
+  openCases?: number | null;
 }>;
 
 export type WorkshopAttentionRow = Readonly<{
@@ -95,6 +98,15 @@ export type WorkshopAttentionRow = Readonly<{
 // Most urgent first: money already paid, then people waiting, then shop state.
 export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAttentionRow[] {
   const rows: WorkshopAttentionRow[] = [];
+  if (input.openCases && input.openCases > 0) {
+    rows.push({
+      key: "cases",
+      icon: "alert",
+      title: plural(input.openCases, "open case"),
+      detail: "Open the order to see the case and any reply deadline",
+      href: "/dashboard/sales",
+    });
+  }
   if (input.ordersToShip > 0) {
     const count = input.ordersToShipCapped ? `${input.ordersToShip}+ orders` : plural(input.ordersToShip, "order");
     rows.push({

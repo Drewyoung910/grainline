@@ -22,6 +22,7 @@ import { sellerOwnerDashboardState } from "@/lib/sellerProfileOwnerAccess";
 import { readWorkshopListingAttention, readWorkshopOrderQueue } from "@/lib/workshopData";
 import { orderRefundedAway, workshopAttentionRows, workshopShopStatus, type WorkshopAttentionRow } from "@/lib/workshopQueue";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -68,12 +69,13 @@ async function DashboardPageContent({
   const onboardingComplete = sellerPrivate?.onboardingComplete ?? false;
   const forceSetupBanner = params.setup === "required";
 
-  const [dashboardSeller, listingAttention, orderQueue, unreadMessages, shopEditorState] = await Promise.all([
+  const [dashboardSeller, listingAttention, orderQueue, unreadMessages, shopEditorState, openCases] = await Promise.all([
     sellerOwnerDashboardState(me.id),
     readOptional("listing_attention", () => readWorkshopListingAttention(seller.id)),
     readOptional("order_queue", () => readWorkshopOrderQueue(me.id)),
     readOptional("unread_messages", () => countActorUnreadMessages(me.id)),
     readOptional("shop_editor_state", () => sellerOwnerProfileEditorState(seller.id, seller.userId)),
+    readOptional("open_cases", () => getCaseSellerActiveCount(seller.id)),
   ]);
   if (!dashboardSeller || dashboardSeller.sellerProfileId !== seller.id) {
     throw new Error("Seller dashboard authority returned an unexpected owner");
@@ -92,9 +94,10 @@ async function DashboardPageContent({
     rejected: listingAttention?.rejected ?? 0,
     lowStock: listingAttention?.lowStock ?? [],
     listingCount: listingAttention?.listingCount ?? null,
+    openCases,
   });
   // Never claim there's nothing to do when part of the answer failed to load.
-  const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null;
+  const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null || openCases === null;
 
   const shopStatus = workshopShopStatus({
     vacationMode,
