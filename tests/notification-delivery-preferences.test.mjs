@@ -25,7 +25,7 @@ describe("notification delivery preferences", () => {
     const route = readFileSync("src/app/api/notifications/read-all/route.ts", "utf8");
     const ownerAccess = readFileSync("src/lib/notificationOwnerAccess.ts", "utf8");
 
-    assert.match(route, /const rawIds = Array\.isArray\(bodyObject\.ids\)/);
+    assert.match(route, /const rawIds = parsed\.data\.ids \?\? \[\]/);
     assert.match(route, /const ids = Array\.from\(new Set\(rawIds\)\)\.slice\(0, 100\)/);
     assert.match(route, /const updated = await markOwnerNotificationsRead\(me\.id, ids\)/);
     assert.match(ownerAccess, /export async function markOwnerNotificationsRead/);
