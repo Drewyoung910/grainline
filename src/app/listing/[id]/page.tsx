@@ -188,7 +188,7 @@ export default async function ListingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ rsort?: string; redit?: string; preview?: string }>;
+  searchParams: Promise<{ rsort?: string; redit?: string; preview?: string; saved?: string }>;
 }) {
   const { id } = await params;
   const listingId = extractRouteId(id);
@@ -479,6 +479,11 @@ export default async function ListingPage({
         {listing.status === "PENDING_REVIEW"
           ? "Under review — your listing will go live once our team approves it. This is the buyer-facing preview."
           : "Preview mode — this is how your listing appears to buyers. It is not yet published."}
+      </div>
+    )}
+    {sp.saved === "1" && viewerIsSeller && (
+      <div role="status" className="border-b border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-800">
+        Changes saved.
       </div>
     )}
     <main className="max-w-[1600px] mx-auto overflow-x-clip px-4 sm:px-6 lg:px-8 pb-16 pt-6">

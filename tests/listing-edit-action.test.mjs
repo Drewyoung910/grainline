@@ -169,3 +169,11 @@ test("an edit page left open too long says to reload, not to check the device cl
   assert.doesNotMatch(result.error, /clock/);
   assert.match(result.error, /[Rr]eload/);
 });
+
+test("saving a live listing lands on its page with a saved confirmation", async () => {
+  const { action } = await loadEditAction({
+    listing: { ...soldOutInStock, status: ListingStatus.ACTIVE, stockQuantity: 2 },
+    currentStock: 2,
+  });
+  await assert.rejects(action(null, formWith(inStockForm)), /redirect:\/listing\/listing-1\?saved=1/);
+});

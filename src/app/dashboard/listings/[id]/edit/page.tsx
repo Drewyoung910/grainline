@@ -674,7 +674,7 @@ async function updateListing(
     finalStatus === ListingStatus.SOLD ||
     finalStatus === ListingStatus.SOLD_OUT
   ) {
-    redirect(publicListingPath(listingId, finalTitle));
+    redirect(`${publicListingPath(listingId, finalTitle)}?saved=1`);
   }
 
   // PENDING_REVIEW: redirect to the preview URL so the seller sees how their
