@@ -58,6 +58,9 @@ function isBotStripeLoadFailure(event: ErrorEvent, text: string) {
   return isKnownBot(`${requestHeaders} ${tagText}`);
 }
 
+// An address encoded once or more, anywhere in a message or path: name%40host.tld or name%2540host.tld.
+const ENCODED_EMAIL_PATTERN = /[A-Z0-9._%+-]+%(?:25)*40[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+
 function containsEmailAfterBoundedDecode(value: string) {
   let candidate = value;
   for (let pass = 0; pass < 3; pass += 1) {
@@ -89,6 +92,7 @@ function scrubEncodedEmailQueryValues(value: string) {
 function scrubString(value: string, opts: { redactUrls?: boolean } = {}) {
   let scrubbed = scrubEncodedEmailQueryValues(value)
     .replace(EMAIL_QUERY_PATTERN, "$1$2[redacted-email]")
+    .replace(ENCODED_EMAIL_PATTERN, "[redacted-email]")
     .replace(EMAIL_PATTERN, "[redacted-email]")
     .replace(TOKEN_QUERY_PATTERN, "$1$2[redacted]");
   if (opts.redactUrls) scrubbed = scrubbed.replace(URL_PATTERN, "[redacted-url]");

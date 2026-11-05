@@ -62,6 +62,15 @@ describe("Sentry beforeSend filtering", () => {
     assert.deepEqual(event.user, { id: "user_123" });
   });
 
+  it("redacts percent-encoded emails outside query values", () => {
+    const event = {
+      message: "Failed for jane.doe%40gmail.com and buyer%252Btag%2540example.com",
+      transaction: "/admin/users/jane.doe%40gmail.com/edit",
+    };
+    const scrubbed = beforeSend(event);
+    assert.doesNotMatch(JSON.stringify(scrubbed), /jane\.doe|gmail|example\.com/u);
+  });
+
   it("redacts percent-encoded email query values", () => {
     const event = beforeSend({
       message: "Request failed for /legal/data-request?email=buyer%2Btag%40example.com",
