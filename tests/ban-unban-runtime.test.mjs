@@ -153,3 +153,16 @@ test("a maker who chose vacation before the ban stays on vacation", async () => 
   assert.equal(subject.state.transitions[0].next.vacationMode, true);
 });
 
+test("a manual unban reopens the commission requests the ban closed", async () => {
+  const subject = fixture({
+    banMetadata: {
+      previousCommissionRequests: [{ id: "commission", status: "OPEN" }],
+    },
+  });
+  await subject.unban();
+  assert.equal(subject.state.commissionUpdates.length, 1);
+  const update = subject.state.commissionUpdates[0];
+  assert.equal(update.where.id, "commission");
+  assert.equal(update.where.status, "CLOSED");
+  assert.equal(update.data.status, "OPEN");
+});
