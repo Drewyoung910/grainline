@@ -903,7 +903,7 @@ export default async function ListingPage({
       {/* ── More from this maker ────────────────────────────────────────── */}
       {moreFromSeller.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-xl font-semibold font-display mb-4">
+          <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-4">
             More from {sellerName}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -943,7 +943,7 @@ export default async function ListingPage({
 
       {/* ── Similar items ─────────────────────────────────────────────────── */}
       <section className="mb-10">
-        <h2 className="font-semibold font-display text-neutral-900 mb-4">You might also like</h2>
+        <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-4">You might also like</h2>
         <SimilarItems listingId={listingId} />
       </section>
 
