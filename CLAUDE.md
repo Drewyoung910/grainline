@@ -204,8 +204,8 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 - **Contained cards**: `rounded-lg` (8px) via `.card-listing` / `.card-section`
 - **Product listing photos**: `rounded-2xl` (16px) in the shared floating `ListingCard`; this is a deliberate exception, not a general card radius
-- **Buttons (2026-10-30, motion prototype)**: shopper-facing actions use the shared pill utilities in `globals.css`: `btn` + `btn-primary` (espresso, deepens with a soft shadow on hover) or `btn-secondary` (white, thin espresso-tinted border), plus `btn-sm` for the compact size and `w-full` for full width. Converted so far: listing purchase panel and maker card, shop page, homepage map section, browse, cart and checkout, commission, account, makers, messages, review composer, newsletter, support form, Follow. Seller dashboard and admin forms still use the older `rounded-md` buttons; convert them with the same utilities rather than new ad hoc classes.
-- **Inputs**: `rounded-md` (6px). The `button { border-radius: 0.375rem }` base rule still applies to buttons without a radius class.
+- **Buttons (2026-10-30, motion prototype)**: shopper-facing actions use the shared pill utilities in `globals.css`: `btn` + `btn-primary` (espresso, deepens with a soft shadow on hover) or `btn-secondary` (white, neutral stone edge), plus `btn-sm` for the compact size and `w-full` for full width. Converted so far: listing purchase panel and maker card, shop page, homepage map section, browse, cart and checkout, commission, account, makers, messages, review composer, newsletter, support form, Follow. Seller dashboard and admin forms still use the older `rounded-md` buttons; convert them with the same utilities rather than new ad hoc classes.
+- **Inputs**: `rounded-xl` on public discovery surfaces, `rounded-md` (6px) elsewhere until converted. The `button { border-radius: 0.375rem }` base rule still applies to buttons without a radius class.
 - **Pills & tags**: `rounded-full` — tags, chips, and the `btn` buttons above; never on cards
 
 ### Typography
@@ -230,7 +230,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 ### Icons
 
 - SVG icon components from `src/components/icons/` for all structural/navigational UI
-- Category tiles: SVG icons at `size=28`, `bg-stone-100` tile, `text-stone-600` icon
+- Category tiles: SVG icons at `size=28`, `bg-[#EFEAE0]` tile, `text-[#2C1F1A]` icon
 - Section headings: clean `.font-display` serif text only — no inline icons (icons were removed from "Fresh from the Workshop" and "Buyer Favorites" headings for cleaner appearance)
 - No emoji in headings or navigation
 
@@ -2864,7 +2864,7 @@ Legacy-styling cleanup + chrome green removal. Behavior contracts to preserve:
 - **Blog post loading skeleton**: `src/app/blog/[slug]/loading.tsx` mirrors the article layout (breadcrumb, badge/meta, title, author card, cover, body lines). Without it, post navigation fell back to the blog-index grid skeleton — keep a per-segment skeleton whenever a child route's layout differs from its parent's.
 - **OrderTimeline connectors**: rows are `flex` with a `self-stretch` dot column and a `flex-1 min-h-4` connector line so lines always reach the next dot regardless of step content height. Do not restore fixed-height connector lines.
 - **GiftNoteSection**: checkboxes use the espresso accent `accent-[#2C1F1A]` (never browser-default blue); textarea uses the design-system input style, has a programmatic label (`htmlFor`/`id`), `maxLength={200}`, and connects its live counter with `aria-describedby` + `aria-live="polite"`.
-- **Mobile drawer** (`Header.tsx`): `w-64 max-w-[80vw]`, white popover card (`rounded-[18px] popover-shadow`), hairline header row with compact "Menu" label, grouped nav ("Explore" / "Your account") with uppercase section labels, icon-led rows with `rounded-md hover:bg-[#EFEAE0]`, espresso rounded-full Sign in CTA for signed-out, white account footer. The current header menu is a non-modal popover: the hamburger exposes `aria-expanded`/`aria-controls`, focus moves to the panel itself on open, and blur outside closes it. Preserve the detailed "Mobile menu popover behavior" rule below.
+- **Mobile drawer** (`Header.tsx`): `w-64 max-w-[80vw]`, white popover card (`rounded-2xl popover-shadow`), hairline header row with compact "Menu" label, grouped nav ("Explore" / "Your account") with uppercase section labels, icon-led rows with `rounded-md hover:bg-[#EFEAE0]`, espresso rounded-full Sign in CTA for signed-out, white account footer. The current header menu is a non-modal popover: the hamburger exposes `aria-expanded`/`aria-controls`, focus moves to the panel itself on open, and blur outside closes it. Preserve the detailed "Mobile menu popover behavior" rule below.
 - **Avatar rings**: the header avatar TRIGGER BUTTON is the only place that uses a hairline (`ring-1 ring-black/10 hover:ring-black/20`) — it doubles as the button's hover affordance. Content avatars (maker map card, similar-makers cards, spotlight strips, overlap avatars) use NO hairline: thick borders match their card background (cream cutout look, e.g. `border-[3px] border-[#F7F5F0]` on a cream card, `ring-4 ring-[#F7F5F0] shadow-sm` on the page bg). Drew explicitly rejected hairlines on content avatars — do not re-add them for "visibility"; fix blend-in with card background color instead.
 - **Chrome green removed**: no `#3F5D3A` / `#D9E2D5` / `#C7D4C2` / `#345030` outside GuildBadge artwork. Footer is `#EFEAE0`; former green buttons (StripeConnectButton, BroadcastComposer send) are espresso. Guarded by `tests/chrome-color-guardrails.test.mjs`.
 - **Metro/city SEO pages modernized**: `/browse/[metroSlug]`, `/browse/[metroSlug]/[category]`, and `/makers/[metroSlug]` use `max-w-[1600px]` containers, while the metro branch of `/commission/[param]` intentionally stays `max-w-4xl` because it is a single-column request list. These pages use `font-display text-3xl` h1s, rounded-full cream category/nearby pills (active espresso), `card-section`/`card-listing` surfaces, and espresso CTAs. Do not reintroduce square bordered tabs/chips or `bg-amber-500` buttons on these pages.
@@ -3043,8 +3043,8 @@ first pass's rough edges. Behavior future agents must preserve:
     Buy now dialog, and the inline option reminder replaces the old
     "select all options" error toasts.
   - **Popups**: menus, the notification list, badge explanations and the
-    report menu are white cards (`rounded-[18px]`/`[14px]`, `popover-shadow`,
-    items `rounded-[10px] hover:bg-[#F7F5F0]`); dialogs use `modal-card`
+    report menu are white cards (`rounded-2xl`, `popover-shadow`,
+    items `rounded-xl hover:bg-[#F7F5F0]`); dialogs use `modal-card`
     with a warm scrim (`bg-[#14100D]/45`) and spring in
     (`.modal-backdrop-in`, `.modal-card-in`).
   - **Sliding toggles** (`SegmentedControl`): cream track, white thumb that
