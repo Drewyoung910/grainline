@@ -112,3 +112,44 @@ test("a public listing still needs a photo", async () => {
   assert.equal(result.ok, false);
   assert.match(result.error, /photo/);
 });
+
+const soldOutInStock = {
+  ...baseListing,
+  status: ListingStatus.SOLD_OUT,
+  listingType: "IN_STOCK",
+  stockQuantity: 0,
+  photos: [{ id: "photo-1", url: "https://cdn.example/a.jpg", originalUrl: null, altText: null }],
+};
+const inStockForm = { ...validForm, listingType: "IN_STOCK", stockQuantity: "0" };
+
+test("stock restored while the AI reviews an edit brings the listing back to ACTIVE", async () => {
+  const { action, statusWrites } = await loadEditAction({ listing: soldOutInStock, currentStock: 1 });
+  await assert.rejects(action(null, formWith(inStockForm)), /redirect:/);
+  assert.equal(statusWrites.length, 1);
+  assert.equal(statusWrites[0].data.status, ListingStatus.ACTIVE);
+  assert.equal(statusWrites[0].where.stockQuantity, 1);
+});
+
+test("an approved edit keeps a listing with no stock sold out", async () => {
+  const { action, statusWrites } = await loadEditAction({ listing: soldOutInStock, currentStock: 0 });
+  await assert.rejects(action(null, formWith(inStockForm)), /redirect:/);
+  assert.equal(statusWrites[0].data.status, ListingStatus.SOLD_OUT);
+});
+
+test("an active listing whose stock ran out during review comes back sold out", async () => {
+  const { action, statusWrites } = await loadEditAction({
+    listing: { ...soldOutInStock, status: ListingStatus.ACTIVE, stockQuantity: 1 },
+    currentStock: 0,
+  });
+  await assert.rejects(action(null, formWith(inStockForm)), /redirect:/);
+  assert.equal(statusWrites[0].data.status, ListingStatus.SOLD_OUT);
+});
+
+test("a sold-out private custom listing is not reopened by restored stock", async () => {
+  const { action, statusWrites } = await loadEditAction({
+    listing: { ...soldOutInStock, isPrivate: true },
+    currentStock: 1,
+  });
+  await assert.rejects(action(null, formWith(inStockForm)), /redirect:/);
+  assert.equal(statusWrites[0].data.status, ListingStatus.SOLD_OUT);
+});

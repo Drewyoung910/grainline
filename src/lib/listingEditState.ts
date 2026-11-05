@@ -31,3 +31,16 @@ export function listingEditBlockReason(listing: EditableListingState): string | 
 
   return null;
 }
+
+// The public status a listing returns to once AI approves an edit, from the
+// row as it stands then. Mirrors the manual stock route's status rule.
+export function approvedListingStatus(
+  previousStatus: ListingStatus,
+  current: { listingType: string; stockQuantity: number | null; isPrivate: boolean },
+): ListingStatus {
+  if (current.listingType !== "IN_STOCK") return previousStatus;
+  const stock = current.stockQuantity ?? 0;
+  if (previousStatus === ListingStatus.ACTIVE && stock <= 0) return ListingStatus.SOLD_OUT;
+  if (previousStatus === ListingStatus.SOLD_OUT && stock > 0 && !current.isPrivate) return ListingStatus.ACTIVE;
+  return previousStatus;
+}
