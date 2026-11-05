@@ -14,21 +14,12 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import {
   sellerPublicMetroCount,
   sellerPublicMetroMakers,
-  sellerPublicMetroStaticSlugs,
   sellerPublicNearbyMetros,
 } from "@/lib/sellerProfilePublicAccess";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
-
-// ---------------------------------------------------------------------------
-// generateStaticParams — only metros with at least one active seller
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const metros = await sellerPublicMetroStaticSlugs();
-  return metros.map(({ slug }) => ({ metroSlug: slug }));
-}
 
 // ---------------------------------------------------------------------------
 // generateMetadata

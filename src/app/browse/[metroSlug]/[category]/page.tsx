@@ -24,52 +24,6 @@ import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 const BASE_URL = "https://thegrainline.com";
 
 // ---------------------------------------------------------------------------
-// generateStaticParams — metro × category combos that have listings
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const [metros, majorGroups, cityGroups] = await Promise.all([
-    prisma.metro.findMany({
-      where: { isActive: true },
-      select: { id: true, slug: true },
-    }),
-    prisma.listing.groupBy({
-      by: ["metroId", "category"],
-      where: publicListingWhere({ metroId: { not: null }, category: { not: null } }),
-      _count: { _all: true },
-    }),
-    prisma.listing.groupBy({
-      by: ["cityMetroId", "category"],
-      where: publicListingWhere({ cityMetroId: { not: null }, category: { not: null } }),
-      _count: { _all: true },
-    }),
-  ]);
-
-  const metroById = new Map(metros.map((metro) => [metro.id, metro]));
-  const results: { metroSlug: string; category: string }[] = [];
-  const seen = new Set<string>();
-  for (const group of majorGroups) {
-    if (!group.metroId || !group.category || group._count._all <= 0) continue;
-    const metro = metroById.get(group.metroId);
-    if (!metro) continue;
-    const key = `${metro.slug}/${group.category}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({ metroSlug: metro.slug, category: group.category.toLowerCase() });
-  }
-  for (const group of cityGroups) {
-    if (!group.cityMetroId || !group.category || group._count._all <= 0) continue;
-    const metro = metroById.get(group.cityMetroId);
-    if (!metro) continue;
-    const key = `${metro.slug}/${group.category}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({ metroSlug: metro.slug, category: group.category.toLowerCase() });
-  }
-
-  return results;
-}
-
-// ---------------------------------------------------------------------------
 // generateMetadata
 // ---------------------------------------------------------------------------
 export async function generateMetadata({
