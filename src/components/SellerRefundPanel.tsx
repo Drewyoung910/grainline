@@ -11,6 +11,8 @@ type Props = {
   orderTotalCents: number;
   refundState: SellerRefundDisplayState;
   alreadyRefundedCents: number | null;
+  // This order's own refund attempt, which asking again can finish.
+  canCheckAgain?: boolean;
 };
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
@@ -23,6 +25,7 @@ export default function SellerRefundPanel({
   orderTotalCents,
   refundState,
   alreadyRefundedCents,
+  canCheckAgain = false,
 }: Props) {
   const [confirming, setConfirming] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -38,8 +41,21 @@ export default function SellerRefundPanel({
         <div className="mt-1">
           {refundAmbiguous
             ? "Stripe refund status is unclear. Staff must reconcile this order before another refund is attempted."
-            : "Stripe is processing this refund. Refresh in a few minutes before trying again."}
+            : canCheckAgain
+              ? "Stripe has not confirmed this refund yet. Check again to finish it. The buyer will not be refunded twice."
+              : "Stripe is processing this refund. Refresh in a few minutes before trying again."}
         </div>
+        {!refundAmbiguous && canCheckAgain && (
+          <button
+            type="button"
+            onClick={() => void submitFullRefund()}
+            disabled={loading}
+            className="btn btn-secondary btn-sm mt-3"
+          >
+            {loading ? "Checking..." : "Check refund"}
+          </button>
+        )}
+        {error && <div role="alert" className="mt-2 text-red-700">{error}</div>}
       </div>
     );
   }
