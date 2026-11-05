@@ -166,27 +166,8 @@ describe("homepage hero and header contracts", () => {
     assert.doesNotMatch(globals, /@keyframes hero-parallax|\.hero-parallax/);
     assert.doesNotMatch(home, /hero-photo-settle/);
     assert.doesNotMatch(globals, /@keyframes hero-photo-settle|\.hero-photo-settle/);
-    assert.doesNotMatch(home, /hero-rise|hero-lines|hero-stats-rise|HomeMotionGate/);
-    assert.doesNotMatch(globals, /@keyframes hero-rise|@keyframes hero-stats-rise|home-hero-motion/);
-  });
-
-  it("animates fresh-visit hero copy once without moving the photo or header", () => {
-    const home = source("src/app/page.tsx");
-    const intro = source("src/components/HomeHeroIntro.tsx");
-    const globals = source("src/app/globals.css");
-
-    assert.match(home, /<HomeHeroIntro>/);
-    assert.match(home, /data-hero-intro-heading/);
-    assert.match(home, /data-hero-intro-copy/);
-    assert.match(home, /data-hero-intro-actions/);
-    assert.match(intro, /let introPlayed = false/);
-    assert.match(intro, /const \[animate, setAnimate\] = React\.useState\(false\)/);
-    assert.match(intro, /React\.useLayoutEffect\(\(\) => \{/);
-    assert.match(intro, /if \(introPlayed\) return/);
-    assert.match(intro, /introPlayed = true;\s*setAnimate\(true\)/);
-    assert.match(globals, /@keyframes home-hero-copy-in/);
-    assert.match(globals, /\.home-hero-intro \[data-hero-intro-heading\]/);
-    assert.doesNotMatch(home, /home-hero-intro[^\n]*(?:Image|data-home-hero)/);
+    assert.doesNotMatch(home, /hero-rise|hero-lines|hero-stats-rise|HomeMotionGate|HomeHeroIntro/);
+    assert.doesNotMatch(globals, /@keyframes hero-rise|@keyframes hero-stats-rise|home-hero-motion|home-hero-copy-in/);
   });
 
   it("hides tiny pre-launch marketplace totals without deleting the feature", () => {
