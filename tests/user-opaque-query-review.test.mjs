@@ -44,18 +44,20 @@ test("the manually reviewed opaque User-query frontier is immutable", () => {
   // table authority is added.
   // C-1882 removed generateStaticParams from the metro browse, metro
   // category and commission metro pages, deleting seven reviewed
-  // publicListingWhere/openCommissionWhere build-time reads. Nothing added.
-  assert.equal(report.opaqueShapes.length, 142);
-  assert.equal(reviewedFactories.length, 106);
-  assert.equal(reviewedResidual.length, 36);
+  // publicListingWhere/openCommissionWhere build-time reads. C-261 then added
+  // three reviewed factory reads to metadata (empty metro and category pages
+  // return 404 or noindex), and C-1890 removed the tag-word spread residual.
+  assert.equal(report.opaqueShapes.length, 144);
+  assert.equal(reviewedFactories.length, 109);
+  assert.equal(reviewedResidual.length, 35);
   assert.equal(report.opaqueFactoryShapes.length, 11);
   assert.deepEqual(digest(reviewedFactories), {
-    unique: 85,
-    sha256: "ce206a712398722e670449a12a6b59f84adc5382aa04d9d4ba11b6a738663699",
+    unique: 88,
+    sha256: "e6abaf116291b81e72307c7efddca1e37d93cf305dc099865df9e8cab3a05afa",
   });
   assert.deepEqual(digest(reviewedResidual), {
-    unique: 30,
-    sha256: "2005c3bae3264b8456de248ba1ed56709772fe2ab8eafa43e57cbf12ffade9ff",
+    unique: 29,
+    sha256: "32e0d139683910269f168d9f1dbcdc5158e621dd54a179b46a658c30a5341f84",
   });
   assert.deepEqual(digest(report.opaqueFactoryShapes), {
     unique: 11,
