@@ -56,13 +56,6 @@ function participantResolutionFailureResponse(error: unknown) {
   return null;
 }
 
-const PENDING_CLOSE_DAYS = 7;
-
-function pendingCloseDeadlineLabel() {
-  return new Date(Date.now() + PENDING_CLOSE_DAYS * 24 * 60 * 60 * 1000)
-    .toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
-}
-
 async function notifyCounterpartyOfResolutionMark({
   caseId,
   orderId,
@@ -119,7 +112,7 @@ async function notifyCounterpartyOfResolutionMark({
     heading: resolved ? "Your case is closed" : "Your case will close soon",
     message: resolved
       ? "You both marked this case resolved, so it is now closed."
-      : `The other party marked this case resolved. If you still need help, reply in the case by ${pendingCloseDeadlineLabel()}. Otherwise it will close automatically.`,
+      : "The other party marked this case resolved. If you still need help, reply in the case within 7 days. Otherwise it will close automatically.",
   });
 }
 
