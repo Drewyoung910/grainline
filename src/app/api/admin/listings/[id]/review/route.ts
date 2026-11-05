@@ -8,6 +8,9 @@ import { NOTIFICATION_SOURCE_TYPES } from '@/lib/notificationSources'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
 import { requireStaffAdminPinForApi } from '@/lib/adminPinApi'
+import { renderListingDecisionEmail, sendRenderedEmail } from '@/lib/email'
+import { EMAIL_APP_URL } from '@/lib/emailBaseUrl'
+import { userEmailDeliveryRecipient } from '@/lib/userEmailDeliveryAccess'
 import { syncGuildMemberListingThreshold } from '@/lib/guildListingThreshold'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
@@ -78,6 +81,32 @@ function queueAdminApprovedListingFollowerFanout(listing: {
       })
     }
   })
+}
+
+async function emailListingDecision(
+  listing: { id: string; title: string; seller: { userId: string } },
+  approved: boolean,
+  reason: string | null,
+) {
+  try {
+    const recipient = await userEmailDeliveryRecipient(prisma, { userId: listing.seller.userId })
+    if (!recipient) return
+    const path = approved ? publicListingPath(listing.id, listing.title) : `/dashboard/listings/${listing.id}/edit`
+    await sendRenderedEmail(renderListingDecisionEmail({
+      to: recipient.email,
+      name: recipient.name,
+      listingTitle: listing.title,
+      approved,
+      reason,
+      listingUrl: `${EMAIL_APP_URL}${path}`,
+    }))
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: 'warning',
+      tags: { source: 'admin_listing_review_email' },
+      extra: { listingId: listing.id, approved },
+    })
+  }
 }
 
 export async function PATCH(
@@ -194,6 +223,7 @@ export async function PATCH(
         extra: { listingId: id, sellerUserId: listing.seller.userId, action },
       })
     })
+    await emailListingDecision(listing, true, null)
   } else if (action === 'reject') {
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
@@ -213,6 +243,7 @@ export async function PATCH(
         extra: { listingId: id, sellerUserId: listing.seller.userId, action },
       })
     })
+    await emailListingDecision(listing, false, sanitizedReason)
   } else {
     return privateJson({ error: 'Invalid action' }, { status: HTTP_STATUS.BAD_REQUEST })
   }
