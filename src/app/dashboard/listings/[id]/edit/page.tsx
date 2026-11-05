@@ -889,7 +889,7 @@ export default async function EditListingPage(props: {
           </div>
           <p className="text-xs text-neutral-500 mt-1">
             These should be the finished, ready-to-ship package size/weight per unit.
-            If left blank, your shop's default package will be used.
+            If left blank, your shop&apos;s default package will be used.
           </p>
         </div>
 

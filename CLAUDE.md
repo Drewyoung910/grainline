@@ -2919,14 +2919,10 @@ first pass's rough edges. Behavior future agents must preserve:
 - **Listing card photos**: a shimmer (`.card-shimmer`) holds the space while
   a late photo loads; the photo then fades and sharpens in. The hover second
   photo swaps with a 150ms fade (the zoom keeps its slower 600ms ease).
-- **Product rows**: `ScrollFadeRow arrows` shows previous/next buttons on
-  hover-capable devices that glide the row about one screen of cards; they
-  hide at either end and never appear on touch.
-- **Page changes**: `src/app/template.tsx` fades and lifts page content in
-  on client-side navigation only; the first page load is never animated.
-  The header lives in the root layout, outside the template, so it stays put.
-- **Parallax**: the homepage hero photo (`.hero-parallax` wrapper) and the
-  maker spotlight photo (`.photo-drift`, drawn 112% tall inside an
+- **Product rows**: `.card-row-scroll` gives fine pointers a thin scrollbar so a
+  wheel mouse can reach the rest of a row; touch shows none. There are no arrows.
+- **Page changes**: there is no page-change animation and no root template.
+- **Parallax**: the maker spotlight photo (`.photo-drift`, drawn 112% tall inside an
   `overflow-clip` frame) drift with CSS scroll-driven animations only.
 - **Popovers** (menu card, search panel) open with a gentle spring.
 - **Batch two**: buttons press in slightly (`scale: 0.97` from the base
