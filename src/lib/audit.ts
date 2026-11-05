@@ -14,6 +14,7 @@ import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { withDbUserContext } from './dbUserContext'
+import { refreshRatingSummariesForReviewer } from './sellerRatingSummary'
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -434,6 +435,7 @@ export async function undoAdminAction({
   }
 
   if (log.action === 'BAN_USER' && clerkUnbanTarget?.clerkId) {
+    await refreshRatingSummariesForReviewer(log.targetId)
     await invalidateAccountStateCache(clerkUnbanTarget.clerkId, 'admin_undo_ban_account_state_cache_invalidate')
     try {
       await unbanClerkUser(clerkUnbanTarget.clerkId)
