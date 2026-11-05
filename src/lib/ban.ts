@@ -592,6 +592,12 @@ export async function unbanUser({ userId, adminId, reason }: {
     } catch (error) {
       throwSellerOrderabilityPolicyError(error)
     }
+    for (const request of capabilityBanMetadata.previousCommissionRequests) {
+      await tx.commissionRequest.updateMany({
+        where: { id: request.id, buyerId: userId, status: 'CLOSED' },
+        data: { status: request.status },
+      })
+    }
     const unbanAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,
