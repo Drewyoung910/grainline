@@ -152,6 +152,8 @@ function restoreFormValues(form: HTMLFormElement, entries: Array<[string, FormDa
   const fields = form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
     "input[name], textarea[name], select[name]",
   );
+  // Repeated names, such as the gallery's hidden fields, restore by position.
+  const positionByName = new Map<string, number>();
   fields.forEach((field) => {
     const values = valuesByName.get(field.name);
     if (field instanceof HTMLInputElement && (field.type === "checkbox" || field.type === "radio")) {
@@ -169,6 +171,8 @@ function restoreFormValues(form: HTMLFormElement, entries: Array<[string, FormDa
       });
       return;
     }
-    field.value = String(values[values.length - 1] ?? "");
+    const position = positionByName.get(field.name) ?? 0;
+    positionByName.set(field.name, position + 1);
+    field.value = String(values[Math.min(position, values.length - 1)] ?? "");
   });
 }

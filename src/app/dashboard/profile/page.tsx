@@ -24,7 +24,7 @@ import {
 import { syncSellerProfileDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { publicSellerPath } from "@/lib/publicPaths";
-import { parseMoneyInputToCents } from "@/lib/money";
+import { parseOptionalMoneyField } from "@/lib/sellerShopSettingsInput";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
@@ -47,6 +47,7 @@ const primaryButtonClass =
   "rounded-md bg-[#2C1F1A] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50";
 const SELLER_FAQ_LIMIT = 20;
 const SELLER_FEATURED_LISTING_LIMIT = 6;
+const MAX_GIFT_WRAPPING_PRICE_CENTS = 10_000; // $100
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -174,11 +175,13 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const customOrderTurnaroundDays = toInt(formData.get("customOrderTurnaroundDays"));
 
   const offersGiftWrapping = toBool(formData.get("offersGiftWrapping"));
-  const giftWrappingPriceCentsRaw = parseMoneyInputToCents(formData.get("giftWrappingPriceCents"));
-  const giftWrappingPriceCents =
-    giftWrappingPriceCentsRaw !== null
-      ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
-      : null;
+  const giftWrappingPriceResult = parseOptionalMoneyField(
+    formData.get("giftWrappingPriceCents"),
+    "Gift wrapping price",
+    MAX_GIFT_WRAPPING_PRICE_CENTS,
+  );
+  if (!giftWrappingPriceResult.ok) return giftWrappingPriceResult;
+  const giftWrappingPriceCents = giftWrappingPriceResult.value;
 
   let duplicateDisplayName = false;
   await withDbUserContext(seller.userId, async (tx) => {
@@ -381,7 +384,7 @@ export default async function ProfilePage({
         </Link>
       </div>
 
-      <ActionForm action={updateSellerProfile} className="space-y-6">
+      <ActionForm action={updateSellerProfile} preserveOnError className="space-y-6">
         {/* ── A. Shop Identity ─────────────────────────────────────────────── */}
         <section className="card-section space-y-4 p-6">
           <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Shop Identity</h2>

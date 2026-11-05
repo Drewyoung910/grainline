@@ -26,7 +26,6 @@ import {
 } from "@/lib/addressFields";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { publicSellerShopPath } from "@/lib/publicPaths";
-import { parseMoneyInputToCents } from "@/lib/money";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -39,6 +38,7 @@ import {
   updateSellerOwnerShopSettings,
 } from "@/lib/sellerOwnerPrivateAccess";
 import {
+  parseOptionalMoneyField,
   parseSellerLocationInput,
   sellerShopSettingsDatabaseErrorMessage,
   validateSellerShippingInput,
@@ -100,12 +100,20 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const location = locationResult.value;
 
   // Shipping/tax in dollars
-  const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"), {
-    maxCents: MAX_SELLER_SHIPPING_MONEY_CENTS,
-  });
-  const freeShippingOverCents = parseMoneyInputToCents(formData.get("freeShippingOver"), {
-    maxCents: MAX_SELLER_SHIPPING_MONEY_CENTS,
-  });
+  const flatRateResult = parseOptionalMoneyField(
+    formData.get("shippingFlatRate"),
+    "Flat shipping rate",
+    MAX_SELLER_SHIPPING_MONEY_CENTS,
+  );
+  if (!flatRateResult.ok) return flatRateResult;
+  const shippingFlatRateCents = flatRateResult.value;
+  const freeShippingResult = parseOptionalMoneyField(
+    formData.get("freeShippingOver"),
+    "Free shipping over",
+    MAX_SELLER_SHIPPING_MONEY_CENTS,
+  );
+  if (!freeShippingResult.ok) return freeShippingResult;
+  const freeShippingOverCents = freeShippingResult.value;
   const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
   const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on";
 
