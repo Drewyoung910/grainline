@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { isListingVariantSelectionComplete } = await import(
+const { hasSoldOutRequiredOption, isListingVariantSelectionComplete } = await import(
   "../src/lib/listingVariantSelection.ts"
 );
 
@@ -35,5 +35,19 @@ describe("listing variant selection gate", () => {
 
   it("allows listings without variant groups", () => {
     assert.equal(isListingVariantSelectionComplete([], []), true);
+  });
+});
+
+describe("sold-out required option", () => {
+  it("is true only when every option in some group is out of stock", () => {
+    assert.equal(hasSoldOutRequiredOption(groups), false);
+    assert.equal(hasSoldOutRequiredOption([]), false);
+    assert.equal(
+      hasSoldOutRequiredOption([
+        ...groups,
+        { id: "finish", options: [{ id: "matte", inStock: false }, { id: "gloss", inStock: false }] },
+      ]),
+      true,
+    );
   });
 });

@@ -40,6 +40,7 @@ import {
 } from "@/lib/sellerProfileListingDetailAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { stockNotificationAvailable } from "@/lib/stockNotificationState";
+import { hasSoldOutRequiredOption } from "@/lib/listingVariantSelection";
 import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
@@ -267,7 +268,8 @@ export default async function ListingPage({
 
   const isOutOfStock =
     listing.status === "SOLD_OUT" ||
-    (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
+    (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0) ||
+    hasSoldOutRequiredOption(listing.variantGroups);
   const canSubscribeForStockNotification = stockNotificationAvailable({
     ...listing,
     publicListingDetail: isPublicListingDetail(listing),
