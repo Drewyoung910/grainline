@@ -34,7 +34,7 @@ export async function generateMetadata({
     where: { slug: metroSlug },
     select: { name: true, state: true, parentMetroId: true },
   });
-  if (!metro) return {};
+  if (!metro) notFound();
 
   const cityName = formatCityState(metro.name, metro.state);
   const title = `Woodworkers & Furniture Makers in ${cityName} | Grainline`;
@@ -143,7 +143,7 @@ export default async function MakersMetroPage({
         </p>
       ) : (
         <p className="text-neutral-600 text-sm mb-8">
-          Custom woodworking in {cityName} — makers coming soon. Post a commission request to attract local woodworkers, or sign up to be notified when makers join in your area.
+          Looking for custom woodworking in {cityName}? Post a commission request and woodworkers can reach out.
         </p>
       )}
 

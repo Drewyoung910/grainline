@@ -56,7 +56,7 @@ export async function generateMetadata({
       coverImageUrl: true,
     },
   });
-  if (!post) return {};
+  if (!post) notFound();
 
   const description = post.metaDescription ?? post.excerpt ?? "";
   const ogImages = post.coverImageUrl

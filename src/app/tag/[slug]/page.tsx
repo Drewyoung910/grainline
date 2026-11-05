@@ -78,9 +78,13 @@ export async function generateMetadata({
   const total = await prisma.listing.count({
     where: publicListingWhere({ tags: { has: tag } }),
   });
-  if (total === 0) return { robots: { index: false, follow: true } };
+  if (total === 0) notFound();
 
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
+  // A page past the end shows the last page, so it must not claim its own URL.
+  const page = Math.min(
+    parseBoundedPositiveIntParam(sp.page, 1, 500),
+    Math.max(1, Math.ceil(total / TAG_PAGE_SIZE)),
+  );
   const label = tagLabel(tag);
   const pageSuffix = page > 1 ? ` - Page ${page}` : "";
   const title = `Handmade ${label}${pageSuffix} | Grainline`;
