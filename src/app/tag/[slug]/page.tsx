@@ -227,7 +227,7 @@ export default async function TagLandingPage({
           </Link>
         </div>
 
-        <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-8 lg:grid-cols-3 xl:grid-cols-4">
+        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
           {listings.map((listing) => (
             <GridCard key={listing.id} listing={listing} />
           ))}

@@ -309,7 +309,7 @@ async function BrowseMetroContent({
           </Link>
         </div>
       ) : (
-        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
+        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8 mb-10">
           {listings.map((listing) => (
             <ClickTracker key={listing.id} listingId={listing.id}>
               <ListingCard
