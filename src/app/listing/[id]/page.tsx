@@ -125,7 +125,10 @@ export async function generateMetadata(
     };
   }
   const sellerName = listing.seller.displayName ?? "Maker";
-  const title = `${listing.title} by ${sellerName}`;
+  // Many titles already name the shop; do not repeat it in search results.
+  const title = listing.title.toLowerCase().includes(sellerName.toLowerCase())
+    ? listing.title
+    : `${listing.title} by ${sellerName}`;
   const desc = listing.metaDescription || truncateText(listing.description ?? "", 160);
   const img = listing.photos[0]?.url;
   const price = formatCurrencyMinorUnitAmount(listing.priceCents, listing.currency);
