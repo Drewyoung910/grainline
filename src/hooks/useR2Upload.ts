@@ -5,6 +5,7 @@ import {
   IMAGE_UPLOAD_TYPES,
   type UploadEndpoint,
   validateUploadFile,
+  validateUploadSelection,
 } from "@/lib/uploadRules";
 
 type Endpoint = UploadEndpoint;
@@ -157,7 +158,7 @@ export function useR2Upload({
     try {
       for (let i = 0; i < files.length; i++) {
         const originalFile = files[i];
-        validateUploadFile(endpoint, originalFile, i);
+        validateUploadSelection(endpoint, originalFile, i);
         onUploadBegin?.(originalFile.name);
         let file = originalFile;
         if (PROCESSED_IMAGE_TYPES.has(file.type) && IMAGE_ENDPOINTS.has(endpoint)) {
