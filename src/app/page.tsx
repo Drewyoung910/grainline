@@ -978,7 +978,7 @@ export default async function HomePage() {
 
         {/* ── From the Blog ────────────────────────────────────────────────── */}
         {recentBlogPosts.length > 0 && (
-          <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
+          <ScrollSection>
             <div data-home-blog className="mb-5 flex items-center justify-between">
               <h2 className="font-display text-2xl font-semibold sm:text-3xl">From the Blog</h2>
               <Link href="/blog" className="group text-sm font-semibold text-neutral-800 underline-offset-4 transition-colors hover:text-amber-800 hover:underline">
@@ -990,8 +990,8 @@ export default async function HomePage() {
                 const { name: authorName, imageUrl: authorAvatar } =
                   publicBlogAuthorPresentation(p, "Former author");
                 return (
-                  <li key={p.slug} className="card-listing">
-                    <div className="photo-save-surface relative overflow-hidden bg-stone-100">
+                  <li key={p.slug}>
+                    <div className="photo-save-surface relative overflow-hidden rounded-xl bg-stone-100">
                       <Link href={`/blog/${p.slug}`} className="block aspect-[4/3]">
                         <MediaImage
                           src={p.coverImageUrl}
@@ -1006,7 +1006,7 @@ export default async function HomePage() {
                       </div>
                     </div>
                     <Link href={`/blog/${p.slug}`} className="block">
-                      <div className="p-4 space-y-2 bg-[#EFEAE0]">
+                      <div className="pt-3 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
                             {BLOG_TYPE_LABELS[p.type]}
