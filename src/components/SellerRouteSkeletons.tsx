@@ -339,7 +339,7 @@ export function SellersMapSkeleton() {
 
 export function SellerShopSkeleton() {
   return (
-    <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8" aria-busy="true" aria-label="Loading maker shop">
+    <main className="mx-auto min-h-[100svh] max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8" aria-busy="true" aria-label="Loading maker shop">
       <header className="mb-6 flex flex-wrap items-center gap-3">
         <Pulse className="h-10 w-10 shrink-0 rounded-full" />
         <div className="min-w-0 flex-1 space-y-2">
