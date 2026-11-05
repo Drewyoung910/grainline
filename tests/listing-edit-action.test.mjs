@@ -72,6 +72,7 @@ async function loadEditAction({ listing, currentStock = listing.stockQuantity, a
     "@/lib/categories": { CATEGORY_VALUES: [] },
     "@/lib/stockMutationState": { MAX_MANUAL_STOCK_QUANTITY: 9999 },
     "@/lib/photoAltTextBackfill": { backfillEmptyAltTexts: async () => {} },
+    "@/lib/publicPaths": { publicListingPath: (id) => `/listing/${id}` },
     "@/lib/ai-review": {
       reviewListingWithAI: async () => ({ approved: aiApproved, flags: [], confidence: 0.99, reason: "", altTexts: [] }),
     },
@@ -152,4 +153,19 @@ test("a sold-out private custom listing is not reopened by restored stock", asyn
   });
   await assert.rejects(action(null, formWith(inStockForm)), /redirect:/);
   assert.equal(statusWrites[0].data.status, ListingStatus.SOLD_OUT);
+});
+
+test("an edit page left open too long says to reload, not to check the device clock", async () => {
+  const { action } = await loadEditAction({
+    listing: { ...baseListing, photos: soldOutInStock.photos },
+    stock: {
+      prepareListingStockMutation: async () => {
+        throw new stockMutation.StockMutationExpired("mutation-1", 0);
+      },
+    },
+  });
+  const result = await action(null, formWith({ ...validForm, listingType: "IN_STOCK", stockQuantity: "3" }));
+  assert.equal(result.ok, false);
+  assert.doesNotMatch(result.error, /clock/);
+  assert.match(result.error, /[Rr]eload/);
 });

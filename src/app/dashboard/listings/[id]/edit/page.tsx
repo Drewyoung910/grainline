@@ -34,7 +34,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
 import { randomUUID } from "node:crypto";
 import InventoryQuantityControl from "@/components/InventoryQuantityControl";
-import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict } from "@/lib/listingStockMutation";
+import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired } from "@/lib/listingStockMutation";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
@@ -487,6 +487,11 @@ async function updateListing(
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_pending_review");
     }
   } catch (error) {
+    // The token behind a listing-type change is issued by the server when this
+    // page loads, so the shared "check your device clock" text would be wrong.
+    if (error instanceof StockMutationExpired) {
+      return { ok: false, error: "This page has been open for more than a day. Reload it, then change the listing type again." };
+    }
     if (error instanceof ListingPhotoConflictError || error instanceof StockMutationConflict) {
       // The transaction left new uploads unreferenced. The fenced lifecycle
       // worker removes them without racing a valid public reuse.
