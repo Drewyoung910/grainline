@@ -43,9 +43,6 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
-  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests. Try again later."));
-
   const me = await userClerkActor(prisma, userId);
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
   if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
@@ -131,6 +128,11 @@ export async function POST(req: Request) {
     return privateJson({ error: "Budget cannot exceed $100,000." }, { status: 400 });
   }
   const timelineStr = timeline ?? null;
+
+  // Spend the daily quota only once the request is known to be acceptable.
+  const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests. Try again later."));
+
   const requestMessage = await createCustomOrderRequestMessage({
     buyerUserId: me.id,
     sellerUserId,

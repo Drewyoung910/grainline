@@ -31,15 +31,6 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await safeRateLimit(
-    commissionInterestRatelimit,
-    userId,
-  );
-  if (!rlOk)
-    return privateResponse(
-      rateLimitResponse(reset, "Too many interest expressions today."),
-    );
-
   const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: 401 });
   if (me.banned || me.deletedAt)
@@ -116,6 +107,16 @@ export async function POST(
       { status: 403 },
     );
   }
+
+  // Spend the daily quota only once the interest can actually be recorded.
+  const { success: rlOk, reset } = await safeRateLimit(
+    commissionInterestRatelimit,
+    userId,
+  );
+  if (!rlOk)
+    return privateResponse(
+      rateLimitResponse(reset, "Too many interest expressions today."),
+    );
 
   const result = await createCommissionInterestMessage({
     commissionRequestId: id,
