@@ -109,10 +109,10 @@ export default async function FlaggedOrdersPage({
                       <td className="px-4 py-3 text-neutral-600 max-w-xs">
                         <span className="line-clamp-2">{order.reviewNote ?? "—"}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="sticky right-0 bg-white px-4 py-3 md:static">
                         <Link
                           href={`/admin/orders/${order.id}`}
-                          className="text-blue-600 hover:underline text-xs whitespace-nowrap"
+                          className="inline-block py-1.5 text-blue-600 hover:underline text-xs whitespace-nowrap"
                         >
                           View →
                         </Link>

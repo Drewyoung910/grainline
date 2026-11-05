@@ -148,7 +148,7 @@ export default async function AdminReviewPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <ReviewListingButtons listingId={listing.id} />
                   <DeleteListingButton listingId={listing.id} />
                   <Link
