@@ -10,10 +10,13 @@ const path = "src/lib/emailOutbox.ts";
 
 // The real outbox module with its ports stubbed.
 function fixture({ claim = async () => ({ preferenceKey: null, recipientEmail: "a@example.com", createdAt: new Date(1) }), unsubscribeUrl = "https://example.test/u" } = {}) {
-  const state = { sentry: [], workerDeps: null, enqueued: null };
+  const state = { sentry: [], messages: [], workerDeps: null, enqueued: null };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const dependencies = {
-    "@sentry/nextjs": { captureException: (error, context) => state.sentry.push({ error, context }) },
+    "@sentry/nextjs": {
+      captureException: (error, context) => state.sentry.push({ error, context }),
+      captureMessage: (message, context) => state.messages.push({ message, context }),
+    },
     "@/lib/emailOutboxAccess": {
       claimEmailOutboxJob: claim,
       enqueueLegacyEmailOutbox: async (row) => {
@@ -83,4 +86,14 @@ test("a long subject is not cut through the middle of an emoji", async () => {
     templateName: "order_shipped",
   });
   assert.equal(subject.state.enqueued.subject.at(-1), "\uDE00");
+});
+
+test("a missing unsubscribe secret raises an alarm, not a silent wait", async () => {
+  const subject = fixture({
+    unsubscribeUrl: null,
+    claim: async () => ({ jobId: "job", preferenceKey: "EMAIL_NEW_MESSAGE", recipientEmail: "a@example.com", createdAt: new Date(1) }),
+  });
+  await subject.exports.processEmailOutboxJobById("job");
+  assert.equal(subject.state.messages.length, 1);
+  assert.equal(subject.state.messages[0].context.level, "error");
 });
