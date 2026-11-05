@@ -287,7 +287,7 @@ prisma/
 - **SavedSearch** — per-user saved browse filters (query, category, minPrice, maxPrice, tags array); shown in dashboard; created via `POST /api/search/saved`
 - **MakerVerification** — `id`, `sellerProfileId` (unique), `craftDescription`, `yearsExperience`, `portfolioUrl?`, `status VerificationStatus @default(PENDING)`, `reviewedById?`, `reviewNotes?`, `appliedAt`, `reviewedAt?`; back-relations on `SellerProfile` (optional 1:1) and `User` (`verificationReviews @relation("VerificationReviews")`). `VerificationStatus` enum: `PENDING | APPROVED | REJECTED`. Migration: `20260327212938_add_maker_verification`
 - **BlogPost / BlogComment / NewsletterSubscriber** — see Blog System section below. Blog dashboard post removal archives posts instead of hard-deleting them; comment/post/author retention FKs restrict direct hard-deletes, and comment parent deletion uses `onDelete: SetNull` so replies are not cascaded away. Migrations: `20260327215946_add_blog_system`, `20260523235500_retention_fk_and_schema_drift`
-- **Notification** — `id`, `userId` → `User`, `type NotificationType`, `title`, `body`, `link String?`, `read Boolean @default(false)`, `createdAt`; `@@index([userId, read])`; back-relation `notifications Notification[]` on `User`. Migration: `20260328_add_notifications` (planned; enum + model added). `createNotification(userId, type, title, body, link?)` helper in `src/lib/notifications.ts` wired in 14 places across the app.
+- **Notification** — `id`, `userId` → `User`, `type NotificationType`, `title`, `body`, `link String?`, `read Boolean @default(false)`, `createdAt`; `@@index([userId, read])`; back-relation `notifications Notification[]` on `User`. Migration: `20260328013218_add_notifications`. `createNotification(input, client?)` helper in `src/lib/notifications.ts` takes one object.
 - **SiteConfig** — singleton (id=1) storing `fallbackShippingCents` used when Shippo returns no rates; migration `20260521161000_seed_site_config_and_fallback_cap` ensures row id=1 exists, and `safeFallbackShippingCents()` clamps values to the configured $5-$50 range before buyer-facing use
 - **Case** — buyer dispute tied 1:1 to an Order; tracks `reason`, `status`, `resolution`, Stripe refund ID, `sellerRespondBy` deadline, `discussionStartedAt`, `escalateUnlocksAt`, `buyerMarkedResolved`, `sellerMarkedResolved`
 - **CaseMessage** — threaded messages on a Case (buyer, seller, or staff)
@@ -859,7 +859,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - **`Notification`** model — `id`, `userId` → `User`, `type`, `title`, `body`, `link String?`, `read Boolean @default(false)`, `createdAt`; `@@index([userId, read])`
 
 ### Helper
-`src/lib/notifications.ts` — `createNotification(userId, type, title, body, link?)` inserts a Notification row. All calls must be `await`ed (un-awaited calls may be killed before completion in serverless). Called in 19 places:
+`src/lib/notifications.ts` — `createNotification(input, client?)` takes one object and inserts a Notification row; `createNotificationOrThrow` is the variant for callers that retry. All calls must be `await`ed (un-awaited calls may be killed before completion in serverless). The main senders:
 - Stripe webhook: `NEW_ORDER` (buyer + seller on order created, both cart and single/buy-now paths), `ORDER_SHIPPED` (buyer on manual mark-shipped), `LOW_STOCK` (seller when purchase drops IN_STOCK qty to 1 or 2 — both cart and single paths)
 - Fulfillment API: `ORDER_SHIPPED` (buyer on manual mark-shipped/readiness); buyer receipt confirmation sets shipping orders to `DELIVERED` and ready pickup orders to `PICKED_UP`
 - Cases API: `CASE_OPENED` (seller), `CASE_MESSAGE` (other party), `CASE_RESOLVED` (buyer)
@@ -876,13 +876,13 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 **Auto-mark-as-read**: `messages/[id]/page.tsx` server-side load marks any unread `NEW_MESSAGE` notifications whose `link` contains `/messages/[id]` as read, clearing the bell badge when the conversation is opened.
 
-**Notification copy uses real names** (updated 2026-03-28): All notification titles/bodies use `name ?? email.split('@')[0] ?? 'Someone'` fallback chain. Fixed in 8 files: `api/favorites/route.ts`, `actions/toggleFavorite.ts`, `api/cases/route.ts` (CASE_OPENED), `api/cases/[id]/messages/route.ts` (CASE_MESSAGE), `api/messages/custom-order-request/route.ts` (CUSTOM_ORDER_REQUEST), `api/reviews/route.ts` (NEW_REVIEW), `api/blog/[slug]/comments/route.ts` (NEW_BLOG_COMMENT), `messages/[id]/page.tsx` (NEW_MESSAGE). Two files also had their `me` select expanded to include `name` and `email`: `custom-order-request` and `blog/[slug]/comments`.
+**Notification copy uses real names** (history from 2026-03-28; do not derive display names from email local-parts, see **Cross-user display-name behavior**): All notification titles/bodies used a name fallback chain. Fixed in 8 files: `api/favorites/route.ts`, `actions/toggleFavorite.ts`, `api/cases/route.ts` (CASE_OPENED), `api/cases/[id]/messages/route.ts` (CASE_MESSAGE), `api/messages/custom-order-request/route.ts` (CUSTOM_ORDER_REQUEST), `api/reviews/route.ts` (NEW_REVIEW), `api/blog/[slug]/comments/route.ts` (NEW_BLOG_COMMENT), `messages/[id]/page.tsx` (NEW_MESSAGE). Two files also had their `me` select expanded to include `name` and `email`: `custom-order-request` and `blog/[slug]/comments`.
 
 **`ensureUser` P2002 fix** (2026-03-28): `src/lib/ensureUser.ts` now catches Prisma `P2002` unique constraint on email update and retries without the email field — fixes favorites (and any other `ensureUser` call) for accounts sharing an email with another DB row (e.g. admin accounts).
 
 ### API routes
 - `GET /api/notifications` — auth required; returns up to 20 unread + 10 recent read notifications for the signed-in user
-- `POST /api/notifications/mark-read` — auth required; body `{ ids?: string[] }` (omit to mark all read); updates `read = true`
+- `POST /api/notifications/read-all` and `POST /api/notifications/[id]/read` — auth required; update `read = true`
 
 ### Components & pages
 - **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; uses adaptive 60s/5min/15min/stop polling as documented in the Scalability Optimizations section; shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint). **Mobile positioning**: `fixed inset-x-4 top-14` on mobile (spans full width with 16px margins); `md:absolute md:right-0 md:top-8` on desktop
@@ -910,38 +910,20 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 ## Email System (complete)
 
-`src/lib/email.ts` — 18 email functions with a sharp-edged HTML template (off-white `#FAFAF8` background, no `border-radius` anywhere, dark `#1C1C1A` header bar with Grainline wordmark, warm gray `#3D3D3A` body text, footer with an unsubscribe link for optional mail or an email-preferences link for always-on mail). `RESEND_API_KEY` guard: logs a warning and skips send if env var is missing — never crashes the app.
+`src/lib/email.ts` — `render*Email` templates and `send*` helpers with a sharp-edged HTML template (off-white `#FAFAF8` background, no `border-radius` anywhere, dark `#1C1C1A` header bar with Grainline wordmark, warm gray `#3D3D3A` body text, footer with an unsubscribe link for optional mail or an email-preferences link for always-on mail). `RESEND_API_KEY` guard: logs a warning and skips send if env var is missing — never crashes the app.
 Live email link generation must have an explicit `NEXT_PUBLIC_APP_URL`. `resolveEmailAppUrl()` only falls back to `http://localhost:3000` for non-production, non-sending local renders; if `RESEND_API_KEY` and `EMAIL_FROM` are configured or production is running, missing `NEXT_PUBLIC_APP_URL` is an error. External absolute links for checkout, Stripe Connect, admin email, case email, private-message email, review email, unsubscribe flows, and same-app post-mutation redirects must use `APP_BASE_URL` or `EMAIL_APP_URL`; do not reintroduce `https://thegrainline.com` as a hard-coded fallback or request-origin fallback in render or redirect paths.
 
-### Email functions
+### Email delivery
 
-**Always-on transactional:** `sendOrderConfirmedBuyer`, `sendOrderConfirmedSeller`, `sendOrderShipped`, `sendReadyForPickup`, `sendCaseOpened`, `sendCaseMessage`, `sendCaseResolved`, `sendRefundIssued`
+Order, first-sale, first-listing, fulfillment, refund, case-resolution, restock, follower-listing and seller-broadcast mail is rendered with `render*Email` and queued through `EmailOutbox`. Welcome mail sends directly with an outbox fallback. Do not call the unused `send*` wrappers (`sendOrderConfirmedBuyer`, `sendOrderConfirmedSeller`, `sendFirstSaleCongrats`, `sendFirstListingCongrats`, `sendOrderShipped`, `sendReadyForPickup`, `sendOrderDelivered`, `sendCaseResolved`, `sendBackInStock`, `sendRefundIssued`, `sendWelcomeBuyer`, `sendWelcomeSeller`, `sendNewListingFromFollowedMakerEmail`) from routes; a direct call bypasses outbox dedup, retry and quota.
 
-**Optional notification/community:** `sendCustomOrderRequest`, `sendCustomOrderReady`, `sendBackInStock`, `sendVerificationApproved`, `sendVerificationRejected`, followed-maker listing and seller-broadcast sends
+Direct `send*` callers today: `sendCaseOpened`, `sendCaseMessage`, `sendCustomOrderRequest`, `sendCustomOrderReady`, `sendNewMessageEmail` (5-minute atomic per-conversation throttle), `sendNewReviewEmail`, `sendNewsletterConfirmationEmail`, `sendVerificationApproved`, `sendVerificationRejected`, and the Guild warning and revocation mails.
 
-**Notification:** `sendNewMessageEmail` — fires on new message with a 5-minute per-conversation atomic throttle (`Conversation.lastMessageEmailSentAt` claimed via `updateMany` before send); respects `EMAIL_NEW_MESSAGE` preference. `sendNewReviewEmail` — fires on new review with rating display; respects `EMAIL_NEW_REVIEW` preference.
+**Always-on transactional:** order confirmation, shipped, ready for pickup, case opened, case message, case resolved, refund.
 
-**Lifecycle:** `sendWelcomeBuyer`, `sendWelcomeSeller`, `sendFirstListingCongrats`, `sendFirstSaleCongrats`
+**Optional notification/community:** custom order request and ready, back in stock, verification, followed-maker listing, seller broadcast, new message, new review.
 
-### Wiring (16 locations, all wrapped in `try/catch`)
-
-| File | Email(s) |
-|---|---|
-| `api/stripe/webhook/route.ts` | `sendOrderConfirmedBuyer` and `sendOrderConfirmedSeller` (always); `sendFirstSaleCongrats` (always, if count = 1) |
-| `api/orders/[id]/fulfillment/route.ts` | `sendOrderShipped` (action=shipped), `sendReadyForPickup` (action=ready_for_pickup) — always |
-| `api/cases/route.ts` | `sendCaseOpened` (always) |
-| `api/cases/[id]/messages/route.ts` | `sendCaseMessage` (always) |
-| `api/cases/[id]/resolve/route.ts` | `sendCaseResolved` (always) |
-| `api/messages/custom-order-request/route.ts` | `sendCustomOrderRequest` (respects `EMAIL_CUSTOM_ORDER`) |
-| `dashboard/listings/custom/page.tsx` | `sendCustomOrderReady` (respects `EMAIL_CUSTOM_ORDER`) |
-| `api/listings/[id]/stock/route.ts` | `sendBackInStock` per subscriber — respects `EMAIL_BACK_IN_STOCK` |
-| `admin/verification/page.tsx` | `sendVerificationApproved` / `sendVerificationRejected` — respect their verification preferences |
-| `api/orders/[id]/refund/route.ts` | `sendRefundIssued` — always |
-| `api/clerk/webhook/route.ts` | `sendWelcomeBuyer` (user.created) — always |
-| `dashboard/listings/new/page.tsx` | `sendFirstListingCongrats` (always, if count=1); `sendNewListingFromFollowedMakerEmail` per follower (respects `EMAIL_FOLLOWED_MAKER_NEW_LISTING`) |
-| `api/admin/listings/[id]/review/route.ts` | admin approve → `fanOutListingToFollowers` after the listing is actually moved from PENDING_REVIEW to ACTIVE; keep the non-blocking Sentry-captured fanout and stable `admin-approved-listing:*` dedup keys |
-| `messages/[id]/page.tsx` | `sendNewMessageEmail` (respects `EMAIL_NEW_MESSAGE`, 5-min atomic per-conversation throttle) |
-| `api/reviews/route.ts` | `sendNewReviewEmail` (respects `EMAIL_NEW_REVIEW`) |
+**Lifecycle:** welcome buyer and seller, first listing, first sale.
 
 ### Email/audit behavior future agents must preserve
 
