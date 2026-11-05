@@ -101,6 +101,25 @@ describe("Workshop overview", () => {
     assert.deepEqual(workshopAttentionRows({ ...quiet, openCases: null }), []);
   });
 
+  it("tells a maker without payouts or live listings what to do next", () => {
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, chargesEnabled: false }).map((row) => row.key),
+      ["payouts"],
+    );
+    assert.equal(workshopAttentionRows({ ...quiet, chargesEnabled: false })[0].href, "/dashboard/seller");
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, liveListingCount: 0 }).map((row) => row.key),
+      ["nothing-live"],
+    );
+    // Listings waiting on review or sent back already have their own rows.
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, liveListingCount: 0, underReview: 1 }).map((row) => row.key),
+      ["review"],
+    );
+    assert.deepEqual(workshopAttentionRows({ ...quiet, chargesEnabled: true, liveListingCount: 2 }), []);
+    assert.deepEqual(workshopAttentionRows({ ...quiet, liveListingCount: null }), []);
+  });
+
   it("points an empty shop at its first listing, but not when the count is unknown", () => {
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: 0 }).map((row) => row.key), ["first-listing"]);
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: null }), []);
