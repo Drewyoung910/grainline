@@ -25,9 +25,9 @@ function fixture({ wasEnabled = true, ownerActive = true, sendFails = false } = 
     },
     "@/lib/email": {
       renderShopPausedEmail: (input) => ({ to: input.to, subject: "Paused", html: "<p>Paused</p>" }),
-      sendRenderedEmail: async (email) => {
+      sendRenderedEmail: async (email, options) => {
         if (sendFails) throw new Error("down");
-        state.sent.push(email);
+        state.sent.push({ email, options });
       },
     },
   };
@@ -46,6 +46,8 @@ test("the maker is told when Stripe pauses their shop", async () => {
   const subject = fixture();
   await subject.mirror(false);
   assert.equal(subject.state.sent.length, 1);
+  // Two webhooks racing on the same change must not send it twice.
+  assert.match(subject.state.sent[0].options.idempotencyKey, /^shop-paused:seller:\d{4}-\d{2}-\d{2}$/);
 });
 
 test("no second email when nothing changed, or when the account is banned", async () => {
