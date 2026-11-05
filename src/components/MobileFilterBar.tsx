@@ -284,7 +284,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         <legend className={filterLegendClass}>Ships within</legend>
         <input type="hidden" name="ships" value={draftShips} />
         <div className="flex flex-wrap gap-2" role="group" aria-label="Ships within">
-          <button type="button" aria-pressed={!draftShips} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftShips("")} className={choicePillClass(!draftShips)}>
+          <button type="button" aria-pressed={!draftShips} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftShips("")} className={choicePillClass(false)}>
             Any time
           </button>
           {SHIPS_WITHIN_OPTIONS.map((days) => (
@@ -303,7 +303,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         <legend className={filterLegendClass}>Shop rating</legend>
         <input type="hidden" name="rating" value={draftRating} />
         <div className="flex flex-wrap gap-2" role="group" aria-label="Minimum shop rating">
-          <button type="button" aria-pressed={!draftRating} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating("")} className={choicePillClass(!draftRating)}>
+          <button type="button" aria-pressed={!draftRating} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating("")} className={choicePillClass(false)}>
             Any
           </button>
           {RATING_OPTIONS.map((stars) => (

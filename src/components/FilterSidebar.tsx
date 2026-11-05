@@ -436,7 +436,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Ships within</legend>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onPointerUp={(event) => event.currentTarget.blur()} onClick={() => { setPendingShips(""); navigateWith({ ships: null }); }} aria-pressed={!pendingShips} className={chipClass(!pendingShips)}>
+            <button type="button" onPointerUp={(event) => event.currentTarget.blur()} onClick={() => { setPendingShips(""); navigateWith({ ships: null }); }} aria-pressed={!pendingShips} className={chipClass(false)}>
               Any time
             </button>
             {SHIPS_WITHIN_OPTIONS.map((days) => (
@@ -461,7 +461,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Shop rating</legend>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onPointerUp={(event) => event.currentTarget.blur()} onClick={() => { setPendingRating(""); navigateWith({ rating: null }); }} aria-pressed={!pendingRating} className={chipClass(!pendingRating)}>
+            <button type="button" onPointerUp={(event) => event.currentTarget.blur()} onClick={() => { setPendingRating(""); navigateWith({ rating: null }); }} aria-pressed={!pendingRating} className={chipClass(false)}>
               Any
             </button>
             {RATING_OPTIONS.map((stars) => (
