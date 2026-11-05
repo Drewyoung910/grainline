@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
             avatarImageUrl: sellerAuthor.imageUrl,
           }
         : null,
-      author: authorId ? { id: authorId, name: authorName, imageUrl: authorImageUrl } : null,
+      author: authorId ? { name: sellerAuthor.name, imageUrl: sellerAuthor.imageUrl } : null,
     };
   });
 

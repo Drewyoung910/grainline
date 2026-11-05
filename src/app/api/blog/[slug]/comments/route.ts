@@ -119,7 +119,6 @@ export async function GET(
     authorSellerAvatarUrl: string | null;
   }) {
     return {
-      id: row.authorId,
       name: row.authorName,
       imageUrl: row.authorImageUrl,
       sellerProfile: row.authorSellerProfilePresent
