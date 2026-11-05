@@ -777,54 +777,73 @@ export async function sendBackInStock(opts: {
   await sendRenderedEmail(rendered, { preferenceKey: "EMAIL_BACK_IN_STOCK" });
 }
 
-export async function sendVerificationApproved(opts: {
+type GuildBadgeLevel = "GUILD_MEMBER" | "GUILD_MASTER";
+
+function guildBadgeLabel(level: GuildBadgeLevel) {
+  return level === "GUILD_MASTER" ? "Guild Master" : "Guild Member";
+}
+
+export function renderVerificationApprovedEmail(opts: {
   seller: { displayName?: string | null; email: string };
   profileId: string;
-}) {
-  const { seller, profileId } = opts;
+  level?: GuildBadgeLevel;
+  reinstated?: boolean;
+}): RenderedEmail {
+  const { seller, profileId, level = "GUILD_MEMBER", reinstated = false } = opts;
   const name = seller.displayName || "there";
   const profileUrl = `${APP_URL}${publicSellerPath(profileId, name)}`;
+  const badge = guildBadgeLabel(level);
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Congratulations, ${esc(name)}! You are now a <strong>Guild Member</strong> on Grainline.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the Guild Member badge, which shows buyers your shop profile is complete and in good standing.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${reinstated
+      ? `Hi ${esc(name)}, your <strong>${badge}</strong> badge has been reinstated.`
+      : `Congratulations, ${esc(name)}! You are now a <strong>${badge}</strong> on Grainline.`}</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the ${badge} badge, which shows buyers your shop profile is complete and in good standing.</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">Keep your listings active and your orders on time to keep it.</p>
     ${btn("View your profile", profileUrl)}
   `;
 
-  await send(
-    seller.email,
-    "You are now a Guild Member!",
-    baseTemplate("You're a Guild Member!", body),
-    { preferenceKey: "EMAIL_VERIFICATION_APPROVED" },
-  );
+  return {
+    to: seller.email,
+    subject: reinstated ? `Your ${badge} badge has been reinstated` : `You are now a ${badge}!`,
+    html: baseTemplate(reinstated ? `${badge} Badge Reinstated` : `You're a ${badge}!`, body),
+  };
 }
 
-export async function sendVerificationRejected(opts: {
+export async function sendVerificationApproved(opts: Parameters<typeof renderVerificationApprovedEmail>[0]) {
+  await sendRenderedEmail(renderVerificationApprovedEmail(opts), { preferenceKey: "EMAIL_VERIFICATION_APPROVED" });
+}
+
+export function renderVerificationRejectedEmail(opts: {
   seller: { displayName?: string | null; email: string };
   notes?: string | null;
-}) {
-  const { seller, notes } = opts;
+  level?: GuildBadgeLevel;
+}): RenderedEmail {
+  const { seller, notes, level = "GUILD_MEMBER" } = opts;
   const name = seller.displayName || "there";
   const applyUrl = `${APP_URL}/dashboard/verification`;
+  const badge = guildBadgeLabel(level);
 
   const notesSection = notes
     ? `<p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;"><strong>Reviewer notes:</strong> ${esc(notes)}</p>`
     : "";
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, we've reviewed your Guild Member application.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, we've reviewed your ${badge} application.</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Unfortunately we weren't able to approve your application at this time. You're welcome to update your application and reapply whenever you're ready.</p>
     ${notesSection}
     ${btn("Reapply", applyUrl)}
   `;
 
-  await send(
-    seller.email,
-    "Update on your Guild Member application",
-    baseTemplate("Verification Update", body),
-    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
-  );
+  return {
+    to: seller.email,
+    subject: `Update on your ${badge} application`,
+    html: baseTemplate("Verification Update", body),
+  };
+}
+
+export async function sendVerificationRejected(opts: Parameters<typeof renderVerificationRejectedEmail>[0]) {
+  await sendRenderedEmail(renderVerificationRejectedEmail(opts), { preferenceKey: "EMAIL_VERIFICATION_REJECTED" });
 }
 
 export function renderRefundIssuedEmail(opts: {
@@ -1013,25 +1032,32 @@ export async function sendGuildMasterWarningEmail(opts: {
   );
 }
 
-export async function sendGuildMasterRevokedEmail(opts: {
+export function renderGuildMasterRevokedEmail(opts: {
   seller: { displayName?: string | null; email: string };
-}) {
-  const { seller } = opts;
+  byStaff?: boolean;
+}): RenderedEmail {
+  const { seller, byStaff = false } = opts;
   const name = seller.displayName || "there";
   const dashUrl = `${APP_URL}/dashboard/verification`;
+  const why = byStaff
+    ? `Grainline staff removed this badge after reviewing your shop. Your <strong>Guild Member badge remains active</strong>, and you can reapply for Guild Master once the reapplication window reopens. If you have questions, contact ${esc(SUPPORT_EMAIL)}.`
+    : `Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong>, and you can reapply for Guild Master once your metrics are back above the required thresholds and the reapplication window reopens.`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Master badge has been revoked.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong>, and you can reapply for Guild Master once your metrics are back above the required thresholds and the reapplication window reopens.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">${why}</p>
     ${btn("View your verification status", dashUrl)}
   `;
 
-  await send(
-    seller.email,
-    "Guild Master badge update - Grainline",
-    baseTemplate("Guild Master Badge Revoked", body),
-    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
-  );
+  return {
+    to: seller.email,
+    subject: "Guild Master badge update - Grainline",
+    html: baseTemplate("Guild Master Badge Revoked", body),
+  };
+}
+
+export async function sendGuildMasterRevokedEmail(opts: Parameters<typeof renderGuildMasterRevokedEmail>[0]) {
+  await sendRenderedEmail(renderGuildMasterRevokedEmail(opts), { preferenceKey: "EMAIL_VERIFICATION_REJECTED" });
 }
 
 export async function sendGuildMemberRevokedEmail(opts: {

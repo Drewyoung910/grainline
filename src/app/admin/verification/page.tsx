@@ -465,7 +465,7 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
     try {
       await sendGuildMemberRevokedEmail({
         seller: { displayName: revocation.sellerDisplayName, email: emailRecipient.email },
-        reason: "Your Guild Member badge was revoked by Grainline staff.",
+        reason: "Grainline staff removed this badge after reviewing your shop. If you have questions, contact support@thegrainline.com.",
       });
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {
@@ -556,6 +556,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
           email: emailRecipient.email,
         },
         profileId: verification.sellerProfile.id,
+        level: "GUILD_MASTER",
       });
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {
@@ -600,6 +601,25 @@ async function rejectGuildMaster(formData: FormData) {
     sourceId: rejection.auditId,
   });
 
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: rejection.sellerUserId,
+    preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+  });
+  if (emailRecipient) {
+    try {
+      await sendVerificationRejected({
+        seller: { displayName: rejection.sellerDisplayName, email: emailRecipient.email },
+        notes: reviewNotes,
+        level: "GUILD_MASTER",
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: rejection.sellerProfileId,
+      });
+    }
+  }
+
   revalidatePath("/admin/verification");
 }
 
@@ -640,6 +660,7 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
     try {
       await sendGuildMasterRevokedEmail({
         seller: { displayName: revocation.sellerDisplayName, email: emailRecipient.email },
+        byStaff: true,
       });
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {
@@ -686,6 +707,26 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
     sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
     sourceId: reinstatement.auditId,
   });
+
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: reinstatement.sellerUserId,
+    preferenceKey: "EMAIL_VERIFICATION_APPROVED",
+  });
+  if (emailRecipient) {
+    try {
+      await sendVerificationApproved({
+        seller: { displayName: reinstatement.sellerDisplayName, email: emailRecipient.email },
+        profileId: sellerProfileId,
+        level: "GUILD_MEMBER",
+        reinstated: true,
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        sellerProfileId,
+        verificationId: null,
+      });
+    }
+  }
 
   revalidatePath("/admin/verification");
   return { ok: true };

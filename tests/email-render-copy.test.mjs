@@ -185,3 +185,52 @@ describe("plain text and narrow screens", () => {
     assert.match(html, /overflow-wrap:anywhere/);
   });
 });
+
+describe("Guild emails", () => {
+  it("names the right badge when a Guild Master is approved", () => {
+    const { subject, html } = email.renderVerificationApprovedEmail({
+      seller: { displayName: "Shop", email: "m@example.com" },
+      profileId: "seller-1",
+      level: "GUILD_MASTER",
+    });
+    assert.equal(subject, "You are now a Guild Master!");
+    assert.match(html, /Guild Master/);
+    assert.doesNotMatch(html, /Guild Member/);
+  });
+
+  it("does not blame metrics when staff removed a Guild Master badge", () => {
+    const { html } = email.renderGuildMasterRevokedEmail({
+      seller: { displayName: "Shop", email: "m@example.com" },
+      byStaff: true,
+    });
+    assert.doesNotMatch(html, /two consecutive monthly reviews/);
+    assert.match(html, /Grainline staff/);
+  });
+
+  it("still explains metrics when the monthly review removed it", () => {
+    const { html } = email.renderGuildMasterRevokedEmail({
+      seller: { displayName: "Shop", email: "m@example.com" },
+    });
+    assert.match(html, /two consecutive monthly reviews/);
+  });
+
+  it("names the application that was declined", () => {
+    const { subject, html } = email.renderVerificationRejectedEmail({
+      seller: { displayName: "Shop", email: "m@example.com" },
+      level: "GUILD_MASTER",
+    });
+    assert.match(subject, /Guild Master/);
+    assert.match(html, /Guild Master application/);
+  });
+
+  it("tells a reinstated member their badge is back", () => {
+    const { subject, html } = email.renderVerificationApprovedEmail({
+      seller: { displayName: "Shop", email: "m@example.com" },
+      profileId: "seller-1",
+      level: "GUILD_MEMBER",
+      reinstated: true,
+    });
+    assert.match(subject, /reinstated/);
+    assert.match(html, /reinstated/);
+  });
+});
