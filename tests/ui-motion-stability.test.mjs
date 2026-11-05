@@ -254,7 +254,7 @@ describe("motion stability guardrails", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
     const composition = listing.slice(
       listing.indexOf("{/* ── Story and details"),
-      listing.indexOf("{/* ── Pickup area map"),
+      listing.indexOf("<ReviewsSection"),
     );
 
     assert.match(

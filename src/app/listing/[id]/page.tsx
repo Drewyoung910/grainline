@@ -729,7 +729,7 @@ export default async function ListingPage({
       {/* ── Story and details ─────────────────────────────────────────────── */}
       {(listing.description || listing.category || cityState || processingLabel || listing.listingType
         || listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
-        <section className="mb-12 grid min-w-0 gap-9 border-y border-stone-200/80 py-9 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] lg:gap-14 lg:py-12">
+        <section className="mb-12 grid min-w-0 gap-9 border-t border-stone-200/80 pt-9 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] lg:gap-14 lg:pt-12">
           {listing.description && (
             <div className="min-w-0">
               <h2 className="mb-4 font-display text-[clamp(1.75rem,2.6vw,2.2rem)] font-normal leading-tight text-neutral-900">
@@ -838,20 +838,18 @@ export default async function ListingPage({
                 )}
               </div>
             )}
-          </div>
-        </section>
-      )}
 
-      {/* ── Pickup area map ───────────────────────────────────────────────── */}
-      {showPickupMap && pickupMapPoint && (
-        <section className="mb-10 max-w-2xl">
-          <div style={{ position: "relative", zIndex: 0 }}>
-            <DynamicMapCard
-              displayLat={pickupMapPoint.publicLat}
-              displayLng={pickupMapPoint.publicLng}
-              radiusMeters={pickupMapPoint.displayRadiusMeters}
-              label={cityState || sellerName}
-            />
+            {/* Pickup area map */}
+            {showPickupMap && pickupMapPoint && (
+              <div className="mt-8" style={{ position: "relative", zIndex: 0 }}>
+                <DynamicMapCard
+                  displayLat={pickupMapPoint.publicLat}
+                  displayLng={pickupMapPoint.publicLng}
+                  radiusMeters={pickupMapPoint.displayRadiusMeters}
+                  label={cityState || sellerName}
+                />
+              </div>
+            )}
           </div>
         </section>
       )}
