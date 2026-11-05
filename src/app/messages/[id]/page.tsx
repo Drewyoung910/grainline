@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 import { sendNewMessageEmail } from "@/lib/email";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import MarkReadClient from "@/components/MarkReadClient";
 import ThreadMessages from "@/components/ThreadMessages";
@@ -349,10 +350,13 @@ export default async function ThreadPage({
             committedNotificationMessageId,
           );
           if (emailClaim) {
+            // The thread shows a maker's shop name, so the email should not expose
+            // their personal one.
+            const senderShop = await sellerOwnerCore(me.id);
             await sendNewMessageEmail({
               recipientEmail: recipientUser.email,
               recipientName: recipientUser.name ?? "there",
-              senderName: me.name ?? "Someone",
+              senderName: senderShop?.displayName ?? me.name ?? "Someone",
               messagePreview: body ? truncateText(body, 200) : "Sent an attachment",
               conversationUrl: new URL(`/messages/${id}`, EMAIL_APP_URL).toString(),
             });
