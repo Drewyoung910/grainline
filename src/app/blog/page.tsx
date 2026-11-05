@@ -406,7 +406,7 @@ async function BlogIndexPageContent({
           {featured && (
             <div className="mb-10 md:flex md:items-center md:gap-8">
               <div className="photo-save-surface group/photo relative aspect-[16/9] overflow-hidden rounded-xl bg-neutral-100 md:w-1/2">
-                <Link href={`/blog/${featured.slug}`} className="block h-full w-full">
+                <Link href={`/blog/${featured.slug}`} aria-label={featured.title} className="block h-full w-full">
                   <MediaImage
                     src={featured.coverImageUrl}
                     alt={featured.title}
@@ -472,7 +472,7 @@ async function BlogIndexPageContent({
                 return (
                   <li key={post.id}>
                     <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100">
-                      <Link href={`/blog/${post.slug}`} className="block aspect-[4/3]">
+                      <Link href={`/blog/${post.slug}`} aria-label={post.title} className="block aspect-[4/3]">
                         <MediaImage
                           src={post.coverImageUrl}
                           alt={post.title}

@@ -989,7 +989,7 @@ export default async function HomePage() {
                 return (
                   <li key={p.slug}>
                     <div className="photo-save-surface relative overflow-hidden rounded-xl bg-stone-100">
-                      <Link href={`/blog/${p.slug}`} className="block aspect-[4/3]">
+                      <Link href={`/blog/${p.slug}`} aria-label={p.title} className="block aspect-[4/3]">
                         <MediaImage
                           src={p.coverImageUrl}
                           alt={p.title}
