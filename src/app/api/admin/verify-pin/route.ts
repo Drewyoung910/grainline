@@ -88,6 +88,13 @@ export async function POST(req: Request) {
     safeRateLimit(pinUserRatelimit, userId),
     safeRateLimit(pinIpRatelimit, ip),
   ]);
+  if (userLimit.unavailable || ipLimit.unavailable) {
+    // An Upstash outage is not an attack, and staff should not read it as a lockout.
+    return privateJson(
+      { error: "The PIN check is temporarily unavailable. Try again in a minute." },
+      { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
+    );
+  }
   if (!userLimit.success || !ipLimit.success) {
     await logAdminPinAttempt({
       adminId: user.id,

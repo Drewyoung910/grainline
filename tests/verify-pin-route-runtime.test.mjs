@@ -56,3 +56,17 @@ test("a JSON null body is a wrong PIN, not a 500", async () => {
   assert.equal((await subject.post()).status, 401);
 });
 
+test("a limiter outage is not reported as a brute-force attack", async () => {
+  const subject = fixture({ limit: { success: false, reset: 0, unavailable: true } });
+  const response = await subject.post();
+  assert.equal(response.status, 503);
+  assert.doesNotMatch((await response.json()).error, /Too many/);
+  assert.deepEqual(subject.state.messages, []);
+  assert.deepEqual(subject.state.audits, []);
+});
+
+test("a real limit still is", async () => {
+  const subject = fixture({ limit: { success: false, reset: 0 } });
+  assert.equal((await subject.post()).status, 429);
+  assert.deepEqual(subject.state.messages, ["ADMIN_PIN_BRUTEFORCE"]);
+});
