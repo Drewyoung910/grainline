@@ -143,7 +143,12 @@ export async function POST(
         }
         throw error;
       }
-      const form = await req.formData();
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        return privateJson({ error: "Unsupported content type." }, { status: 415 });
+      }
       rawPayload = Object.fromEntries(form.entries()) as Record<string, unknown>;
     }
 
@@ -186,6 +191,8 @@ export async function POST(
         if (!TRACKING_NUMBER_RE.test(trackingNumber)) {
           return privateJson({ error: "Invalid tracking number." }, { status: 400 });
         }
+      } else if (trackingCarrier || trackingNumber) {
+        return privateJson({ error: "Tracking only applies to shipped orders." }, { status: 400 });
       }
       const result = await finalizeSellerOrderFulfillment({
         actorUserId: me.id,
