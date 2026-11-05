@@ -191,7 +191,7 @@ export async function enqueueEmailOutboxOnce(
     templateVersion: normalizeTemplateVersion(email.templateVersion),
     sourceType: email.sourceType ? truncateText(email.sourceType, 80) : null,
     sourceId: email.sourceId ? truncateText(email.sourceId, 191) : null,
-    subject: email.subject.slice(0, 300),
+    subject: truncateText(email.subject, 300),
     html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
     dedupKey,
   }, client);

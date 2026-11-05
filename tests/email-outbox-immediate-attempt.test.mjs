@@ -73,3 +73,14 @@ test("transactional mail does not need an unsubscribe link", async () => {
   assert.equal(subject.state.workerDeps.providerConfigured, true);
 });
 
+test("a long subject is not cut through the middle of an emoji", async () => {
+  const subject = fixture();
+  await subject.exports.enqueueEmailOutboxOnce({
+    to: "a@example.com",
+    subject: `${"x".repeat(299)}😀`,
+    html: "<p>Hi</p>",
+    dedupKey: "key",
+    templateName: "order_shipped",
+  });
+  assert.equal(subject.state.enqueued.subject.at(-1), "\uDE00");
+});
