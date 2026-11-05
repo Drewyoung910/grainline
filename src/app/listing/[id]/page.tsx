@@ -26,6 +26,8 @@ import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Wrench } from "@/components/icons";
+import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
+import { STAFF_REMOVAL_REJECTION_REASON } from "@/lib/listingActionState";
 import { canViewListingDetail, isPublicListingDetail, publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicTagPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
@@ -487,6 +489,9 @@ export default async function ListingPage({
           : "Preview mode — this is how your listing appears to buyers. It is not yet published."}
         {listing.status === "PENDING_REVIEW" && listing.rejectionReason && (
           <p className="mt-1">Why it was held: {listing.rejectionReason}</p>
+        )}
+        {staffPreview && me?.role === "ADMIN" && listing.rejectionReason !== STAFF_REMOVAL_REJECTION_REASON && (
+          <div className="mt-2"><DeleteListingButton listingId={listing.id} /></div>
         )}
       </div>
     )}
