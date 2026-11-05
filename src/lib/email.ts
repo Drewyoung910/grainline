@@ -1053,6 +1053,44 @@ export async function sendGuildMemberRevokedEmail(opts: {
   );
 }
 
+// ─── Shop and listing notices ─────────────────────────────────────────────────
+
+export function renderShopPausedEmail(opts: { to: string; name?: string | null }): RenderedEmail {
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(opts.name || "there")}, Stripe has paused payments for your shop.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your listings are hidden from buyers until this is fixed. Open Shop Settings to see what Stripe needs from you. Open orders are not affected.</p>
+    ${btn("Open Shop Settings", `${APP_URL}/dashboard/seller`)}
+  `;
+  return {
+    to: opts.to,
+    subject: "Your Grainline shop is paused",
+    html: baseTemplate("Your Shop Is Paused", body),
+  };
+}
+
+export function renderListingDecisionEmail(opts: {
+  to: string;
+  name?: string | null;
+  listingTitle: string;
+  approved: boolean;
+  reason?: string | null;
+  listingUrl: string;
+}): RenderedEmail {
+  const { to, name, listingTitle, approved, reason, listingUrl } = opts;
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name || "there")}, ${approved
+      ? `your listing <strong>${esc(listingTitle)}</strong> was approved.`
+      : `your listing <strong>${esc(listingTitle)}</strong> needs changes before it can go live.`}</p>
+    ${!approved && reason ? `<p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;"><strong>Reason:</strong> ${esc(reason)}</p>` : ""}
+    ${btn(approved ? "View your listing" : "Edit your listing", listingUrl)}
+  `;
+  return {
+    to,
+    subject: approved ? "Your listing was approved" : "Your listing needs changes",
+    html: baseTemplate(approved ? "Listing Approved" : "Listing Needs Changes", body),
+  };
+}
+
 // ─── Following ────────────────────────────────────────────────────────────────
 
 export function renderNewListingFromFollowedMakerEmail(opts: {
