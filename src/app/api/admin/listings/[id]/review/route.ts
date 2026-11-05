@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notifications'
 import { NOTIFICATION_SOURCE_TYPES } from '@/lib/notificationSources'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
+import { sendFirstListingCongratsIfFirst } from '@/lib/firstListingEmail'
 import { syncGuildMemberListingThreshold } from '@/lib/guildListingThreshold'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
@@ -166,6 +167,14 @@ export async function PATCH(
         })
       }
       queueAdminApprovedListingFollowerFanout(listing)
+      if (!listing.reservedForUserId) {
+        await sendFirstListingCongratsIfFirst({
+          sellerProfileId: listing.sellerId,
+          sellerUserId: listing.seller.userId,
+          sellerDisplayName: listing.seller.displayName,
+          listing,
+        })
+      }
       if (listing.customOrderConversationId && listing.reservedForUserId) {
         await sendCustomOrderReadyLink({
           listingId: listing.id,
