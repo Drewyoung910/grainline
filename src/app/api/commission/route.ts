@@ -15,7 +15,7 @@ import {
   safeRateLimit,
   searchRatelimit,
 } from "@/lib/ratelimit";
-import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
@@ -223,12 +223,12 @@ export async function POST(req: NextRequest) {
     const created = await tx.commissionRequest.create({
       data: {
         buyerId: me.id,
-        title: sanitizeText(title.trim()),
-        description: sanitizeRichText(description.trim()),
+        title: truncateText(sanitizeText(title.trim()), 150),
+        description: truncateText(sanitizeRichText(description.trim()), 5000),
         category: categoryValid ? (category as Category) : null,
         budgetMinCents,
         budgetMaxCents,
-        timeline: timeline ? sanitizeText(timeline.trim()) || null : null,
+        timeline: timeline ? truncateText(sanitizeText(timeline.trim()), 200) || null : null,
         referenceImageUrls: images,
         expiresAt: commissionExpiresAt(),
         isNational: reqIsNational,
