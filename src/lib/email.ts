@@ -870,12 +870,15 @@ export function renderRefundIssuedEmail(opts: {
   currency?: string | null;
   orderId: string;
 }): RenderedEmail {
-  const { buyer, refundAmountCents, currency, orderId } = opts;
+  checkoutNotCompleted?: boolean;
+  const { buyer, refundAmountCents, currency, orderId, checkoutNotCompleted } = opts;
   const name = buyer.name || "there";
   const orderUrl = `${APP_URL}/dashboard/orders/${orderId}`;
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, a refund has been issued for your order.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, ${checkoutNotCompleted
+      ? "we couldn't complete your order and have refunded you in full. You weren't charged for anything else."
+      : "a refund has been issued for your order."}</p>
     <p style="font-size:28px;font-weight:700;color:#1C1C1A;margin:0 0 8px;">${fmtCents(refundAmountCents, currency)}</p>
     <p style="font-size:13px;color:#6B6A66;margin:0 0 20px;">Refunds typically appear within 5–10 business days depending on your bank.</p>
     ${btn("View order", orderUrl)}
@@ -883,7 +886,7 @@ export function renderRefundIssuedEmail(opts: {
 
   return {
     to: buyer.email,
-    subject: `Your refund has been issued${orderSubjectSuffix(orderId)}`,
+    subject: `${checkoutNotCompleted ? "Your order could not be completed" : "Your refund has been issued"}${orderSubjectSuffix(orderId)}`,
     html: baseTemplate("Refund Issued", body),
   };
 }
