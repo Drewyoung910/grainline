@@ -11,6 +11,7 @@ const common = (limiterCalls) => ({
   "@/lib/sanitize": sanitize,
   "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk-1" }) },
   "@/lib/ratelimit": {
+    commissionAttemptRatelimit: "attempt",
     commissionInterestRatelimit: "interest-quota",
     customOrderRequestRatelimit: "custom-order-quota",
     rateLimitResponse: () => ({ status: 429 }),
@@ -61,14 +62,21 @@ test("a refused commission interest does not spend the daily quota", async () =>
     const { limiterCalls, post } = loadInterestRoute(options);
     const response = await post();
     assert.ok(response.status >= 400, JSON.stringify(options));
-    assert.deepEqual(limiterCalls, [], JSON.stringify(options));
+    assert.deepEqual(limiterCalls, ["attempt"], JSON.stringify(options));
   }
+});
+
+test("200 refused interest attempts on your own request each pass the attempt limiter", async () => {
+  const { limiterCalls, post } = loadInterestRoute({ buyerId: "maker-1" });
+  for (let i = 0; i < 200; i += 1) await post();
+  assert.equal(limiterCalls.length, 200);
+  assert.ok(limiterCalls.every((limiter) => limiter === "attempt"));
 });
 
 test("an accepted commission interest spends one quota token", async () => {
   const { limiterCalls, post } = loadInterestRoute();
   assert.equal((await post()).status, 200);
-  assert.deepEqual(limiterCalls, ["interest-quota"]);
+  assert.deepEqual(limiterCalls, ["attempt", "interest-quota"]);
 });
 
 function loadCustomOrderRoute({ acceptsCustomOrders = true } = {}) {
@@ -110,13 +118,36 @@ test("a refused custom-order request does not spend the daily quota", async () =
     const { limiterCalls, route } = loadCustomOrderRoute(options);
     const response = await route.POST({ body });
     assert.equal(response.status, 400, JSON.stringify(body));
-    assert.deepEqual(limiterCalls, [], JSON.stringify(body));
+    assert.deepEqual(limiterCalls, ["attempt"], JSON.stringify(body));
   }
+});
+
+test("200 refused custom-order requests each pass the attempt limiter", async () => {
+  const { limiterCalls, route } = loadCustomOrderRoute({ acceptsCustomOrders: false });
+  for (let i = 0; i < 200; i += 1) await route.POST({ body: validRequest });
+  assert.equal(limiterCalls.length, 200);
+  assert.ok(limiterCalls.every((limiter) => limiter === "attempt"));
+});
+
+test("an over-limit attempt is refused before any account or seller lookup", async () => {
+  let lookups = 0;
+  const route = loadWithStubs("src/app/api/messages/custom-order-request/route.ts", {
+    ...common([]),
+    "@/lib/ratelimit": {
+      commissionAttemptRatelimit: "attempt",
+      customOrderRequestRatelimit: "custom-order-quota",
+      rateLimitResponse: () => ({ status: 429 }),
+      safeRateLimit: async () => ({ success: false, reset: 0 }),
+    },
+    "@/lib/userIdentityAccess": { userClerkActor: async () => { lookups += 1; return null; } },
+  });
+  assert.equal((await route.POST({ body: validRequest })).status, 429);
+  assert.equal(lookups, 0);
 });
 
 test("an accepted custom-order request spends one quota token", async () => {
   const { limiterCalls, route } = loadCustomOrderRoute();
   const response = await route.POST({ body: validRequest });
   assert.equal(response.status, 200);
-  assert.deepEqual(limiterCalls, ["custom-order-quota"]);
+  assert.deepEqual(limiterCalls, ["attempt", "custom-order-quota"]);
 });

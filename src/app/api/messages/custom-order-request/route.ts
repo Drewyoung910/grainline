@@ -4,7 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { sendCustomOrderRequest } from "@/lib/email";
-import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { commissionAttemptRatelimit, customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -42,6 +42,10 @@ export async function POST(req: Request) {
 
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `custom-order:${userId}`);
+  if (!attemptOk) {
+    return privateResponse(rateLimitResponse(attemptReset, "Too many attempts. Try again in a few minutes."));
+  }
 
   const me = await userClerkActor(prisma, userId);
   if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
