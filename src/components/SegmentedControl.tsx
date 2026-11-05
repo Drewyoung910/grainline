@@ -134,7 +134,7 @@ export default function SegmentedControl({
           aria-hidden="true"
           className={`pointer-events-none absolute bottom-1 left-0 top-1 rounded-full bg-white shadow-[0_2px_8px_-3px_rgba(0,0,0,0.25)] ${
             thumb.animate
-              ? "transition-[translate,width] duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
+              ? "transition-[translate,width] duration-[420ms] ease-[cubic-bezier(0.34,1.2,0.64,1)] motion-reduce:transition-none"
               : ""
           }`}
           style={{ width: thumb.width, translate: `${thumb.left}px 0` }}
