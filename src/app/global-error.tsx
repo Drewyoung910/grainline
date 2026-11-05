@@ -98,6 +98,11 @@ export default function GlobalError({
               Go home
             </a>
           </div>
+          {error.digest ? (
+            <p style={{ color: "#737373", fontSize: "0.75rem", margin: "1.5rem 0 0" }}>
+              Reference: {error.digest}
+            </p>
+          ) : null}
         </main>
       </body>
     </html>

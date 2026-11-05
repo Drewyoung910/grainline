@@ -64,6 +64,9 @@ export default function Error({
           Go Home
         </Link>
       </div>
+      {error.digest ? (
+        <p className="text-xs text-neutral-500">Reference: {error.digest}</p>
+      ) : null}
     </main>
   );
 }
