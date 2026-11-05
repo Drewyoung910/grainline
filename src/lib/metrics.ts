@@ -38,6 +38,7 @@ export type CachedSellerMetrics = Prisma.SellerMetricsGetPayload<{
 }>;
 
 export {
+  floorMetric,
   GUILD_MASTER_REQUIREMENTS,
   LISTING_VIEW_DAILY_RETENTION_DAYS,
   METRICS_PERIOD_DAYS_PER_MONTH,
