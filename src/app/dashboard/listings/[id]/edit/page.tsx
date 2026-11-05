@@ -904,9 +904,6 @@ export default async function EditListingPage(props: {
             explicit Save boundary. */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Photos</h2>
-          <p className="text-xs text-neutral-500">
-            Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
-          </p>
 
           <EditPhotoGrid
             photos={listing.photos.map((p) => ({ id: p.id, url: p.url, originalUrl: p.originalUrl, altText: p.altText }))}
