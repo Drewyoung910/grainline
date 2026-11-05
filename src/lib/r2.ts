@@ -1,4 +1,5 @@
-import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { requiredProductionEnv } from "./env.ts";
 
 const R2_ACCOUNT_ID = requiredProductionEnv("CLOUDFLARE_R2_ACCOUNT_ID");
@@ -8,6 +9,14 @@ const R2_SECRET_ACCESS_KEY = requiredProductionEnv("CLOUDFLARE_R2_SECRET_ACCESS_
 export const r2 = new S3Client({
   region: "auto",
   endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  // The browser PUTs to the presigned URL, and the Content-Security-Policy allows
+  // only the exact account host. Bucket-in-host URLs would be refused before the
+  // request left the page, so direct uploads must use the path form.
+  forcePathStyle: true,
+  // A presigned URL has no body to checksum. The default would sign the checksum
+  // of an empty body into the URL.
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY,
@@ -99,4 +108,24 @@ export async function deleteR2ObjectByUrl(url: string) {
   if (!key) return false;
   await deleteR2ObjectByKey(key);
   return true;
+}
+
+// Signs Content-Type as well as size, so a client cannot store a file under a
+// different type than the one the route validated (for example text/html on the
+// public CDN).
+export function presignDirectUploadUrl(input: {
+  bucket: string;
+  key: string;
+  contentType: string;
+  size: number;
+  cacheControl: string;
+}) {
+  const command = new PutObjectCommand({
+    Bucket: input.bucket,
+    Key: input.key,
+    ContentType: input.contentType,
+    ContentLength: input.size,
+    CacheControl: input.cacheControl,
+  });
+  return getSignedUrl(r2, command, { expiresIn: 300, signableHeaders: new Set(["content-type"]) });
 }

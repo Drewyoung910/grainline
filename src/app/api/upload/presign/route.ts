@@ -2,9 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { randomBytes } from "crypto";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
+import { presignDirectUploadUrl, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -132,19 +130,16 @@ export async function POST(req: NextRequest) {
 
   const key = `${endpoint}/${uploadKeyUserSegment(userId)}/${Date.now()}-${randomBytes(12).toString("hex")}.${ext}`;
 
-  const command = new PutObjectCommand({
-    Bucket: R2_BUCKET,
-    Key: key,
-    ContentType: contentType,
-    ContentLength: size,
-    // Keys include timestamp+random — content is immutable once uploaded.
-    // Long cache + immutable prevents re-fetches from R2 origin.
-    CacheControl: "public, max-age=31536000, immutable",
-  });
-
   let presignedUrl: string;
   try {
-    presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
+    presignedUrl = await presignDirectUploadUrl({
+      bucket: R2_BUCKET,
+      key,
+      contentType,
+      size,
+      // Keys include timestamp+random, so content is immutable once uploaded.
+      cacheControl: "public, max-age=31536000, immutable",
+    });
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "upload_presign_get_signed_url", endpoint },
