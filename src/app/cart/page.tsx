@@ -820,9 +820,13 @@ function CartPage() {
             <span className="text-neutral-500">Maker:</span>{" "}
             <span className="font-medium">{g.sellerName}</span>
           </div>
-          <div className="text-sm">
-            Subtotal: <RollingAmount cents={g.subtotalCents} currency={g.currency} className="font-semibold" />
-          </div>
+          {/* With one maker this is the order subtotal below, so show it only
+              when the cart is split across makers. */}
+          {groups.length > 1 && (
+            <div className="text-sm">
+              Subtotal: <RollingAmount cents={g.subtotalCents} currency={g.currency} className="font-semibold" />
+            </div>
+          )}
         </header>
 
         <ul className="divide-y divide-neutral-200/60">
@@ -956,7 +960,7 @@ function CartPage() {
 
                     <button
                       type="button"
-                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50 disabled:opacity-50"
+                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-neutral-500 underline underline-offset-2 hover:bg-[#EFEAE0] hover:text-neutral-800 disabled:opacity-50"
                       disabled={cartBusy}
                       onClick={() => removeItem(i.id)}
                     >
@@ -1232,18 +1236,12 @@ function CartPage() {
             </div>
           )}
 
-          {needsSignIn && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Sign in to keep these items and checkout.
-            </div>
-          )}
-
           {needsSignIn ? (
             <Link
               href={signInPathForRedirect("/cart")}
               className="btn btn-primary w-full sm:w-auto"
             >
-              Sign in to checkout →
+              Sign in to check out
             </Link>
           ) : heldCheckout ? null : (
             <button
