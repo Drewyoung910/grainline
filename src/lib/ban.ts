@@ -1,7 +1,7 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
 import { buildBanAuditMetadata } from './banAuditMetadata'
-import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
+import { banClerkUserAndRevokeSessions, clerkUserExists, unbanClerkUser } from './clerkUserLifecycle'
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
@@ -484,6 +484,24 @@ export async function unbanUser({ userId, adminId, reason }: {
       clerkId: target.clerkId,
     })
     return { sellerRestoreWarning: null }
+  }
+  // A person who deleted their Clerk account while orders were open stays banned
+  // here until cleanup. Unbanning would reopen a buyable shop nobody can sign in to.
+  let hasLogin: boolean
+  try {
+    hasLogin = await clerkUserExists(target.clerkId)
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: 'unban_user_clerk_lookup' },
+      extra: { userId, adminId },
+    })
+    throw new BanUserExternalSyncError("Clerk could not be reached, so nothing was changed. Try again.")
+  }
+  if (!hasLogin) {
+    throw new BanUserPolicyError(
+      'This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.',
+      409,
+    )
   }
   const staffClient = getOrderStaffReadClient()
   const seller = await sellerStaffOrderabilityState(staffClient, {
