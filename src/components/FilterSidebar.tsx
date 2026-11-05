@@ -404,7 +404,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               onBlur={onPriceBlur}
               aria-invalid={pendingMin === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
             />
             <span className="shrink-0 text-neutral-400" aria-hidden="true">–</span>
             <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
@@ -420,7 +420,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               onBlur={onPriceBlur}
               aria-invalid={pendingMax === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
             />
             {/* Lets Enter submit from either field; not a Tab stop. */}
             <button type="submit" tabIndex={-1} className="sr-only">Apply price</button>
