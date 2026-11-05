@@ -162,8 +162,19 @@ export async function POST(req: Request) {
             },
           },
         );
-        await markClerkWebhookProcessed(svixId, claimGeneration);
-        return NextResponse.json({ ok: true });
+        // Keep the signed event retryable. Clerk's read can lag its delete, and
+        // finishing the event here would leave a deleted person's data in place.
+        const retryError = new Error("Clerk user.deleted contradicted by current provider state");
+        await markClerkWebhookFailed(svixId, claimGeneration, retryError).catch((markError) => {
+          Sentry.captureException(markError, {
+            tags: { source: "clerk_webhook_mark_failed" },
+            extra: { svixId, eventType: event.type },
+          });
+        });
+        return NextResponse.json(
+          { ok: false, status: "provider_user_still_present" },
+          { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(CLERK_WEBHOOK_RETRY_AFTER_SECONDS) } },
+        );
       }
       const anonymized = await anonymizeUserAccountByClerkId(clerkId);
       if ("inProgress" in anonymized && anonymized.inProgress) {

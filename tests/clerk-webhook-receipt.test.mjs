@@ -155,14 +155,14 @@ test("ordinary signed deletion keeps its original response shape", async () => {
   const f = route({ ordinary: true }), result = await f.run(JSON.stringify(event));
   assert.equal(result.status, 200); assert.deepEqual(result.body, { ok: true }); assert.equal(f.counts.anonymize, 1);
 });
-test("a signed deletion cannot anonymize an account that still exists in Clerk", async () => {
+test("a signed deletion stays retryable while Clerk still reports the account", async () => {
   const f = route({ clerkUserExists: true });
   const result = await f.run();
-  assert.equal(result.status, 200);
-  assert.deepEqual(result.body, { ok: true });
+  assert.equal(result.status, 503);
+  assert.deepEqual(result.body, { ok: false, status: "provider_user_still_present" });
   assert.equal(f.counts.anonymize, 0);
-  assert.equal(f.counts.mark, 1);
-  assert.equal(f.failedEvents.length, 0);
+  assert.equal(f.counts.mark, 0, "the event must not be finished, or a read that lags the delete loses the deletion");
+  assert.equal(f.failedEvents.length, 1);
   assert.equal(f.securityMessages.length, 1);
   assert.equal(f.securityMessages[0].message, "Clerk user.deleted contradicted by current provider state");
   assert.match(f.securityMessages[0].context.extra.clerkUserIdHash, /^sha256:[0-9a-f]{24}$/u);
