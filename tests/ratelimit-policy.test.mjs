@@ -81,3 +81,16 @@ describe("rate-limit failure policy", () => {
     }
   });
 });
+
+it("refunding a token clears the same hashed key the limiter spent", async () => {
+  const { resetRateLimitTokens } = await import("../src/lib/ratelimitPolicy.ts");
+  const keys = { limited: null, reset: null };
+  const limiter = {
+    limit: async (key) => { keys.limited = key; return { success: true, reset: 0 }; },
+    resetUsedTokens: async (key) => { keys.reset = key; },
+  };
+  await limitWithFailurePolicy(limiter, "seller-profile-1", false, "test");
+  await resetRateLimitTokens(limiter, "seller-profile-1");
+  assert.ok(keys.limited);
+  assert.equal(keys.reset, keys.limited);
+});
