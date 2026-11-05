@@ -347,7 +347,11 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
       const hold = () => {
         if (flyer !== activeFlyer) return;
         const shown = document.querySelector<HTMLImageElement>(`${selector} img`);
-        const gone = !onListingPage() || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX;
+        // A not-found page or a listing with no photo replaces the skeleton, and
+        // the target goes with it. There is nothing left to wait for.
+        const gone = !onListingPage()
+          || !document.querySelector(selector)
+          || Math.abs(window.scrollY - landedScrollY) > SCROLL_TOLERANCE_PX;
         if (gone || performance.now() - holdStart > LANDED_HOLD_MS) {
           removeFlyer(flyer);
           return;
@@ -383,7 +387,8 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
       land(target);
       return;
     }
-    if (performance.now() - startedAt > TARGET_WAIT_MS) {
+    // The route has arrived with no target, or waited too long.
+    if ((onListingPage() && !target) || performance.now() - startedAt > TARGET_WAIT_MS) {
       removeFlyer(flyer);
       return;
     }
