@@ -161,7 +161,6 @@ export default async function sitemap(
     { url: `${BASE_URL}/why-sell-on-grainline`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/help/shipping-and-returns`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/help/trust-and-safety`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${BASE_URL}/become-a-maker`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.6 },
     { url: `${BASE_URL}/terms`, lastModified: TERMS_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/privacy`, lastModified: PRIVACY_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/map`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.5 },
