@@ -56,6 +56,7 @@ export default async function AdminOrderDetailPage({
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
   const { id } = await params;
+  if (!/^[A-Za-z0-9._:-]{1,191}$/.test(id)) notFound();
 
   const order = await readStaffOrderDetail(
     staff.id,
