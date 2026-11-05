@@ -906,8 +906,8 @@ export default async function HomePage() {
                 const alsoRating = sellerRatings.get(also.id) ?? null;
                 const alsoAvatar = also.avatarImageUrl ?? also.ownerImageUrl ?? null;
                 return (
-                  <div className="mt-4 card-section !bg-[#EFEAE0] flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
-                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-stone-200/70 pt-4">
+                    <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                       Also featured
                     </span>
                     {alsoAvatar ? (
@@ -918,7 +918,7 @@ export default async function HomePage() {
                         loading="lazy"
                         width={40}
                         height={40}
-                        className="h-10 w-10 rounded-full object-cover ring-1 ring-neutral-200"
+                        className="h-10 w-10 rounded-full object-cover"
                       />
                     ) : (
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">

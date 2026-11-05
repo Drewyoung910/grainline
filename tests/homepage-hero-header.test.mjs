@@ -285,7 +285,7 @@ describe("homepage hero and header contracts", () => {
     assert.notEqual(alsoFeaturedIndex, -1, "expected the Also featured strip");
     assert.match(
       home.slice(alsoFeaturedIndex, alsoFeaturedIndex + 1_000),
-      /className="[^"]*card-section !bg-\[#EFEAE0\][^"]*"/,
+      /className="[^"]*border-t border-stone-200\/70 pt-4[^"]*"/,
     );
     assert.match(
       home.slice(alsoFeaturedIndex),
