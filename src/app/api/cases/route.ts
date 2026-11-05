@@ -86,7 +86,7 @@ export async function POST(req: Request) {
     const { success, reset } = await safeRateLimit(caseCreateRatelimit, userId);
     if (!success)
       return privateResponse(
-        rateLimitResponse(reset, "Too many case submissions. Try again later."),
+        rateLimitResponse(reset, "Too many case submissions."),
       );
 
     const me = await ensureUserByClerkId(userId);

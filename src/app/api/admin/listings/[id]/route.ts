@@ -44,7 +44,7 @@ export async function DELETE(
   if (pinResponse) return pinResponse;
 
   const { success, reset } = await safeRateLimit(adminActionRatelimit, userId);
-  if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions. Try again shortly."));
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
 
   let reason: string;
   try {

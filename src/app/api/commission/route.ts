@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
   const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `post:${userId}`);
-  if (!attemptOk) return privateResponse(rateLimitResponse(attemptReset, "Too many attempts. Try again in a few minutes."));
+  if (!attemptOk) return privateResponse(rateLimitResponse(attemptReset, "Too many attempts."));
 
   const me = await userClerkCommissionContext(prisma, userId);
   if (!me) return privateJson({ error: "User not found" }, { status: HTTP_STATUS.UNAUTHORIZED });

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   const { success: attemptOk, reset: attemptReset } = await safeRateLimit(commissionAttemptRatelimit, `custom-order:${userId}`);
   if (!attemptOk) {
-    return privateResponse(rateLimitResponse(attemptReset, "Too many attempts. Try again in a few minutes."));
+    return privateResponse(rateLimitResponse(attemptReset, "Too many attempts."));
   }
 
   const me = await userClerkActor(prisma, userId);
@@ -135,7 +135,7 @@ export async function POST(req: Request) {
 
   // Spend the daily quota only once the request is known to be acceptable.
   const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
-  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests. Try again later."));
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many custom order requests."));
 
   const requestMessage = await createCustomOrderRequestMessage({
     buyerUserId: me.id,

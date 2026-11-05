@@ -649,6 +649,7 @@ export function rateLimitResponse(reset: number, customMessage?: string): Respon
   const diffMs = Math.max(0, reset - Date.now());
   const diffMins = Math.ceil(diffMs / 60000);
   const diffHours = Math.ceil(diffMs / 3600000);
+  const diffDays = Math.ceil(diffMs / 86400000);
   const resetDate = new Date(reset);
   const retryAfterSeconds = Math.max(1, Math.ceil(diffMs / 1000));
 
@@ -656,7 +657,8 @@ export function rateLimitResponse(reset: number, customMessage?: string): Respon
   if (diffMins < 2) timeStr = "a moment";
   else if (diffMins < 60) timeStr = `${diffMins} minutes`;
   else if (diffHours < 24) timeStr = `${diffHours} hour${diffHours === 1 ? "" : "s"}`;
-  else timeStr = `tomorrow at ${resetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  // Days, not a clock time: the server formats in UTC and the window can be a week.
+  else timeStr = `${diffDays} day${diffDays === 1 ? "" : "s"}`;
 
   return NextResponse.json(
     {
