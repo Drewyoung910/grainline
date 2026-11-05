@@ -620,7 +620,7 @@ async function SellerPublicContent({
                 <section>
                   <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
                   <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
-                    <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:max-w-5xl sm:grid-cols-2 sm:gap-5 sm:pb-0 lg:grid-cols-3">
+                    <ul className="flex gap-4 pb-4 sm:grid sm:max-w-5xl sm:grid-cols-2 sm:gap-5 sm:pb-0 lg:grid-cols-3">
                       {fallbackFeatured.slice(0, 3).map((listing) => (
                         <ClickTracker key={listing.id} listingId={listing.id} className="w-[220px] flex-none snap-start sm:w-auto">
                           <ListingCard listing={wrap(listing)} initialSaved={savedSet.has(listing.id)} variant="grid" hideMaker />
