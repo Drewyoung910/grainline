@@ -2267,7 +2267,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - MessageComposer: Enter sends, Shift+Enter newline, auto-grow up to 160px max-height, resets to single row after send
 - ThreadMessages: text-left inside bubbles, break-words, desktop-only card styling (mobile full-bleed), pb-8 on scroll container
 - ThreadMessages: break-all (was break-words) to break mid-word on long strings; scroll-after-send uses 200ms setTimeout to wait for DOM render
-- Map page: initialZoom = 3, AllSellersMap default center [-96, 38] zoom 3 (full US view)
+- Map page: AllSellersMap fits the maker pins on load (padding 60, max zoom 9). With no pins it opens at center [-96, 38] zoom 3; a `?near=` link keeps its own center and zoom
 
 ## Listing Page + UX Polish (2026-04-10)
 
@@ -4318,7 +4318,7 @@ Added `robots: { index: false, follow: false }` to all server component pages un
 ### Structured data additions
 - **Homepage**: Organization JSON-LD (name, url, logo, description) + WebSite JSON-LD with SearchAction targeting `/browse?q={search_term_string}`. Enables Google sitelinks search box and brand knowledge panel.
 - **Blog posts**: Article JSON-LD with headline, description, image, datePublished, dateModified, author (Person), publisher (Organization with logo). Enables rich snippets, Google Discover, and news carousel.
-- **Listing detail**: Product availability now mapped dynamically — `InStock` (active + stock > 0), `OutOfStock` (sold out), `PreOrder` (made to order). Was hardcoded to "InStock" regardless of status.
+- **Listing detail**: Product availability now mapped dynamically — `InStock` (active + stock > 0, and made to order), `OutOfStock` (sold out). Not `PreOrder` (means not yet released) or `MadeToOrder` (not a value Google accepts). Was hardcoded to "InStock" regardless of status.
 - **Seller profile**: `aggregateRating` (ratingValue + reviewCount) added to LocalBusiness JSON-LD when reviews exist. `sameAs` array of social URLs (Instagram, Facebook, Pinterest, TikTok, website) added.
 
 ### Sitemap additions
@@ -4389,12 +4389,8 @@ Quality-score engagement inputs intentionally ignore unsafe or disputed signals:
 - **No search query + relevance sort**: `ORDER BY qualityScore DESC` with standard Prisma pagination. Eliminates the 200-listing JS scoring limit. Every listing is ranked.
 - **Search query + relevance sort**: fetch 200 candidates by qualityScore, then apply text-match bonuses (exact title +0.5, starts-with +0.3, contains +0.15, exact tag +0.2) in JS.
 
-### Listing JSON-LD rating fallback
-```
-if (listing has reviews) → use listing rating
-else if (seller has reviews) → use seller rating  
-else → omit aggregateRating
-```
+### Listing JSON-LD rating
+`aggregateRating` comes only from the listing's own reviews and is omitted when it has none. Never fall back to the seller's rating: Google requires the rating to be about the item and visible on the page.
 Seller field in offers uses `Organization` type with profile URL.
 
 ### Scaling path
@@ -4456,8 +4452,8 @@ New `PhotoManager` component (`src/components/PhotoManager.tsx`) replaces `Image
 ### Review JSON-LD (SEO)
 Top 5 reviews added to Product JSON-LD on listing detail pages. Each review includes `Review` type with author, datePublished, reviewRating, and reviewBody (truncated to 200 chars). Enables Google's review carousel in search results.
 
-### FAQ schema on commission pages (SEO)
-`FAQPage` JSON-LD on `/commission` with 3 Q&As: how commissions work, pricing, timelines. Enables Google's FAQ rich snippets (expandable Q&A in search results).
+### FAQ schema on commission pages (removed)
+`/commission` has no `FAQPage` JSON-LD. Its questions were not visible on the page, which Google forbids. Add FAQ markup only for an FAQ the page renders.
 
 ### Blog search by maker
 Clicking a maker name in blog search suggestions now navigates to `?author=sellerProfileId` (was text search by name only). Blog page filters by `sellerProfileId` when the `author` URL param is present. Suggestions API returns `sellerProfileId` for author-type suggestions.
