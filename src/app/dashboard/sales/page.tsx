@@ -6,7 +6,6 @@ import { prisma } from "@/lib/db";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
-import { publicListingPath } from "@/lib/publicPaths";
 import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import {
@@ -247,12 +246,12 @@ async function SalesContent({
                             <div className="h-16 w-16 rounded border bg-neutral-100" />
                           )}
                           <div className="min-w-0 flex-1">
-                            <a
-                              href={publicListingPath(it.listingId, it.title)}
+                            <Link
+                              href={`/dashboard/sales/${o.id}`}
                               className="block truncate text-sm font-medium hover:underline"
                             >
                               {it.title}
-                            </a>
+                            </Link>
                             <div className="mt-1 text-sm text-neutral-700">
                               {fmtMoney(it.priceCents, currency)} × {it.quantity}
                             </div>
