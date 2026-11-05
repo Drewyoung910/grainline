@@ -413,28 +413,18 @@ export default async function ListingPage({
       priceCurrency: (listing.currency || DEFAULT_CURRENCY).toUpperCase(),
       price: formatCurrencyMinorUnitAmount(listing.priceCents, listing.currency),
       priceValidUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      availability: isOutOfStock
-        ? "https://schema.org/OutOfStock"
-        : listing.listingType === "MADE_TO_ORDER"
-        ? "https://schema.org/PreOrder"
-        : "https://schema.org/InStock",
+      // Made to order is orderable now, so it is InStock. PreOrder means not yet released.
+      availability: isOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
       url: siteUrl(publicListingPath(listing.id, listing.title)),
       seller: { "@type": "Organization", name: sellerName, url: `https://thegrainline.com${sellerHref}` },
     },
   };
+  // Only this listing's own reviews: Google requires the rating to be about the item.
   if (countReviews > 0 && avgStarsRaw != null) {
-    // Listing-specific rating
     productLd.aggregateRating = {
       "@type": "AggregateRating",
       ratingValue: (Math.round(avgStarsRaw * 10) / 10).toFixed(1),
       reviewCount: countReviews,
-    };
-  } else if (sellerAvgRaw != null && sellerReviewCount > 0) {
-    // Fallback to seller rating
-    productLd.aggregateRating = {
-      "@type": "AggregateRating",
-      ratingValue: sellerAvgRaw.toFixed(1),
-      reviewCount: sellerReviewCount,
     };
   }
   if (topReviews.length > 0) {
