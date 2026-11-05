@@ -2,8 +2,9 @@
 // The newest conversations for the desktop list beside an open thread.
 import { auth } from "@clerk/nextjs/server";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
+import { countActorUnreadMessages, listActorConversationInbox } from "@/lib/conversationMessageAuthority";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { messageSearchQuery } from "@/lib/messageInputState";
 import { formatSnippet } from "@/lib/messageSnippet";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { messageInboxRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -34,14 +35,17 @@ export async function GET(request: Request) {
   const tab = rawTab === "unread" || rawTab === "sent" || rawTab === "archived"
     ? rawTab
     : "inbox";
-  const query = truncateText((url.searchParams.get("q") ?? "").trim(), 200);
+  const query = messageSearchQuery(url.searchParams.get("q"));
   const archived = tab === "archived";
-  const conversations = await listActorConversationInbox(me.id, {
-    archived,
-    query,
-    cursor: null,
-    limit: RAIL_CONVERSATIONS + 1,
-  });
+  const [conversations, unreadTotal] = await Promise.all([
+    listActorConversationInbox(me.id, {
+      archived,
+      query,
+      cursor: null,
+      limit: RAIL_CONVERSATIONS + 1,
+    }),
+    countActorUnreadMessages(me.id),
+  ]);
   const tabConversations = tab === "unread"
     ? conversations.filter((conversation) => conversation.unreadCount > 0)
     : tab === "sent"
@@ -69,13 +73,12 @@ export async function GET(request: Request) {
     // truncated. A tab may have no matches among the first page even though
     // older matching conversations exist.
     hasMore: conversations.length > RAIL_CONVERSATIONS,
-    unreadTotal: summaryConversations.reduce(
-      (total, conversation) => total + conversation.unreadCount,
-      0,
-    ),
+    unreadTotal,
     awaitingReplyTotal: summaryConversations.filter(
       (conversation) => conversation.latestMessage?.senderId === me.id,
     ).length,
+    // This count only sees the newest page, so say so when more exist.
+    awaitingReplyMore: summaryConversations.length > RAIL_CONVERSATIONS,
     conversations: visibleConversations.map((conversation) => {
       const other = conversation.userAId === me.id ? conversation.userB : conversation.userA;
       const seller = sellerByUserId.get(other.id) ?? null;

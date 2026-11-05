@@ -15,14 +15,14 @@ function messageInboxHref(tab: MessageInboxTab, query: string): string {
   return suffix ? `/messages?${suffix}` : "/messages";
 }
 
-function CountBadge({ children, tone }: { children: number; tone: "alert" | "neutral" }) {
+function CountBadge({ children, tone, more = false }: { children: number; tone: "alert" | "neutral"; more?: boolean }) {
   return (
     <span
       className={`ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] tabular-nums text-white ${
         tone === "alert" ? "bg-red-600" : "bg-[#2C1F1A]"
       }`}
     >
-      {children > 99 ? "99+" : children}
+      {children > 99 ? "99+" : more ? `${children}+` : children}
     </span>
   );
 }
@@ -32,6 +32,7 @@ export default function MessageInboxControls({
   query,
   unreadTotal,
   awaitingReplyTotal,
+  awaitingReplyMore = false,
   compact = false,
   onTabChange,
   onQueryChange,
@@ -40,6 +41,7 @@ export default function MessageInboxControls({
   query: string;
   unreadTotal: number;
   awaitingReplyTotal: number;
+  awaitingReplyMore?: boolean;
   compact?: boolean;
   onTabChange?: (tab: MessageInboxTab) => void;
   onQueryChange?: (query: string) => void;
@@ -70,11 +72,11 @@ export default function MessageInboxControls({
           {
             value: "sent",
             href: optionHref("sent"),
-            ariaLabel: awaitingReplyTotal > 0 ? `Awaiting reply, ${awaitingReplyTotal}` : "Awaiting reply",
+            ariaLabel: awaitingReplyTotal > 0 ? `Awaiting reply, ${awaitingReplyTotal}${awaitingReplyMore ? " or more" : ""}` : "Awaiting reply",
             label: (
               <span className="inline-flex items-center">
                 Awaiting reply
-                {awaitingReplyTotal > 0 && <CountBadge tone="neutral">{awaitingReplyTotal}</CountBadge>}
+                {awaitingReplyTotal > 0 && <CountBadge tone="neutral" more={awaitingReplyMore}>{awaitingReplyTotal}</CountBadge>}
               </span>
             ),
           },

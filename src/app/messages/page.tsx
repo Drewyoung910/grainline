@@ -9,7 +9,7 @@ import { MessageCircle } from "@/components/icons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { parseMessageCursor } from "@/lib/messageCursor";
-import { listActorConversationInbox } from "@/lib/conversationMessageAuthority";
+import { countActorUnreadMessages, listActorConversationInbox } from "@/lib/conversationMessageAuthority";
 import { sellerConversationParticipantCards } from "@/lib/sellerProfileParticipantAccess";
 import MessageInboxControls, { type MessageInboxTab } from "@/components/MessageInboxControls";
 import { messageSearchQuery } from "@/lib/messageInputState";
@@ -87,13 +87,17 @@ async function MessagesInbox({
     cursor: pageCursor,
     limit: 51,
   });
-  // Tabs describe the active inbox even while someone is viewing archived or
-  // searched results. Reuse the current read whenever it already represents
-  // that inbox; only issue the second bounded read when needed.
-  const summaryRowsPromise = isArchivedTab || q
+  // Tabs describe the active inbox even while someone is viewing archived,
+  // searched or older results. Reuse the current read whenever it already
+  // represents the newest page of that inbox.
+  const summaryRowsPromise = isArchivedTab || q || pageCursor
     ? listActorConversationInbox(me.id, { archived: false, query: "", cursor: null, limit: 51 })
     : currentRowsPromise;
-  const [conversationRows, summaryRows] = await Promise.all([currentRowsPromise, summaryRowsPromise]);
+  const [conversationRows, summaryRows, unreadTotal] = await Promise.all([
+    currentRowsPromise,
+    summaryRowsPromise,
+    countActorUnreadMessages(me.id),
+  ]);
   const hasMoreConversations = conversationRows.length > 50;
   const convos = conversationRows.slice(0, 50);
 
@@ -124,7 +128,6 @@ async function MessagesInbox({
   const unreadList = isArchivedTab ? [] : enrich.filter((x) => x.unreadCount > 0);
   const sentList = isArchivedTab ? [] : enrich.filter((x) => x.latestFromMe);
 
-  const unreadTotal = summaryRows.reduce((total, conversation) => total + conversation.unreadCount, 0);
   const sentTotal = summaryRows.filter((conversation) => conversation.latestMessage?.senderId === me.id).length;
 
   const list =
@@ -157,6 +160,7 @@ async function MessagesInbox({
             query={q}
             unreadTotal={unreadTotal}
             awaitingReplyTotal={sentTotal}
+            awaitingReplyMore={summaryRows.length > 50}
           />
         </div>
 
@@ -167,14 +171,16 @@ async function MessagesInbox({
                 <>
                   No results for “<span className="font-medium">{q}</span>”.
                 </>
+              ) : tab === "archived" ? (
+                <>No archived conversations.</>
+              ) : hasMoreConversations ? (
+                <>None among these conversations. Older ones are below.</>
               ) : tab === "unread" ? (
                 <>No unread messages.</>
               ) : tab === "sent" ? (
-                <>No conversations yet — reach out to a maker about their work.</>
-              ) : tab === "archived" ? (
-                <>No archived conversations.</>
+                <>No conversations are awaiting a reply.</>
               ) : (
-                <>No conversations yet — reach out to a maker about their work.</>
+                <>No conversations yet. Reach out to a maker about their work.</>
               )}
             </div>
           ) : (

@@ -48,6 +48,7 @@ export default function ConversationRail() {
   const [query, setQuery] = React.useState("");
   const [unreadTotal, setUnreadTotal] = React.useState(0);
   const [awaitingReplyTotal, setAwaitingReplyTotal] = React.useState(0);
+  const [awaitingReplyMore, setAwaitingReplyMore] = React.useState(false);
   const controllerRef = React.useRef<AbortController | null>(null);
 
   const load = React.useCallback(async () => {
@@ -67,12 +68,14 @@ export default function ConversationRail() {
         hasMore?: unknown;
         unreadTotal?: unknown;
         awaitingReplyTotal?: unknown;
+        awaitingReplyMore?: unknown;
       } = await res.json();
       if (controller.signal.aborted) return;
       setConversations(parseConversations(data.conversations));
       setHasMore(data.hasMore === true);
       setUnreadTotal(typeof data.unreadTotal === "number" ? data.unreadTotal : 0);
       setAwaitingReplyTotal(typeof data.awaitingReplyTotal === "number" ? data.awaitingReplyTotal : 0);
+      setAwaitingReplyMore(data.awaitingReplyMore === true);
       setFailed(false);
     } catch {
       // Keep whatever is already on screen; the thread itself still works.
@@ -123,6 +126,7 @@ export default function ConversationRail() {
           query={query}
           unreadTotal={unreadTotal}
           awaitingReplyTotal={awaitingReplyTotal}
+          awaitingReplyMore={awaitingReplyMore}
           compact
           onTabChange={setTab}
           onQueryChange={setQuery}
@@ -153,11 +157,13 @@ export default function ConversationRail() {
             ? "No conversations match that search."
             : tab === "archived"
               ? "No archived conversations."
-              : tab === "unread"
-                ? "You’re all caught up."
-                : tab === "sent"
-                  ? "No conversations are awaiting a reply."
-                  : "No conversations yet."}
+              : hasMore
+                ? "None among your newest conversations."
+                : tab === "unread"
+                  ? "You’re all caught up."
+                  : tab === "sent"
+                    ? "No conversations are awaiting a reply."
+                    : "No conversations yet."}
         </div>
       )}
       {conversations !== null && (
