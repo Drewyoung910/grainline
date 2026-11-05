@@ -84,6 +84,11 @@ export default function Header() {
   // Bumps the cart badge when a cart change raises the count. Page loads and
   // signing in or out reload the count without a bump.
   const [cartBumpCount, setCartBumpCount] = React.useState(0);
+  // The badge is visual only, so the link name carries the count.
+  const cartLabel =
+    cartCount != null && cartCount > 0
+      ? `Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`
+      : "Cart";
   const cartCountRef = React.useRef<number | null>(null);
   const cartCountBeforeChangeRef = React.useRef<number | null>(null);
   React.useEffect(() => {
@@ -522,7 +527,7 @@ export default function Header() {
             </span>
 
             {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
-            <Link href="/cart" className={iconButtonClass} aria-label="Cart" data-cart-target="" onPointerUp={(event) => event.currentTarget.blur()}>
+            <Link href="/cart" className={iconButtonClass} aria-label={cartLabel} data-cart-target="" onPointerUp={(event) => event.currentTarget.blur()}>
               <ShoppingBag size={22} />
               <IconHoverTip label="Cart" />
               {cartCount != null && cartCount > 0 && (
@@ -595,7 +600,7 @@ export default function Header() {
           <Link
             href="/cart"
             className="group/cart inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full focus:outline-none"
-            aria-label="Cart"
+            aria-label={cartLabel}
             data-cart-target=""
             onPointerUp={(event) => event.currentTarget.blur()}
           >

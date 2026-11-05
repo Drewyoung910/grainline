@@ -708,7 +708,9 @@ describe("post-launch UI follow-ups", () => {
     // The cart remains public, while the messages control is rendered only
     // through the signed-in MessageIconLink.
     // Native title tooltips were replaced by the styled IconHoverTip labels
-    assert.match(header, /aria-label="Cart"/);
+    // The cart link name carries the badge count for screen readers.
+    assert.match(header, /aria-label=\{cartLabel\}/);
+    assert.match(header, /`Cart, \$\{cartCount\} \$\{cartCount === 1 \? "item" : "items"\}`/);
     assert.doesNotMatch(header, /title="Cart"/);
     assert.match(header, /<IconHoverTip label="Cart" \/>/);
     assert.match(header, /<Show when="signed-in">\s*<MessageIconLink \/>\s*<\/Show>/);
