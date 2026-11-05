@@ -134,7 +134,7 @@ export default function LabelSection({
       <div className="space-y-3">
         <div className="text-sm font-medium text-neutral-800">Select a shipping rate</div>
         <p className="text-xs text-neutral-500">
-          Your original rate expired. Select a current rate to purchase the label.
+          Choose a current rate to purchase the label.
         </p>
         {error && (
           <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -200,7 +200,7 @@ export default function LabelSection({
         disabled={loading}
         className="rounded-full bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50"
       >
-        {loading ? "Purchasing…" : "Purchase Label"}
+        {loading ? "Getting rates…" : "Purchase Label"}
       </button>
       {shippingAmountCents > 0 && (
         <p className="text-xs text-neutral-500">
