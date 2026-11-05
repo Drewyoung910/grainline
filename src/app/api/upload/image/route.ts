@@ -150,7 +150,13 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-  } catch {
+  } catch (error) {
+    logServerError(error, {
+      source: "upload_image_processing",
+      level: "warning",
+      tags: { endpoint },
+      extra: { contentType: file.type, size: file.size },
+    });
     return privateJson({ error: "Image processing failed" }, { status: 400 });
   }
 
