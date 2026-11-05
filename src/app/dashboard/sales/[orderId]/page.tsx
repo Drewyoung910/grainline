@@ -14,6 +14,7 @@ import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
 import SellerNotesForm from "@/components/SellerNotesForm";
 import FulfillmentActionForm from "@/components/FulfillmentActionForm";
+import { sellerRefundPreflightConflictResponse } from "@/lib/refundRouteState";
 import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
@@ -656,7 +657,16 @@ export default async function SellerOrderDetailPage({
       ) : null}
 
       {/* Refund panel — shown when order is paid and not already fully refunded (by seller or admin) */}
-      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund && (
+      {/* A purchased label always makes the seller refund refuse (LABEL_BLOCKED
+          in grainline_seller_refund_preflight), so say so instead of a button. */}
+      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund
+        && order.labelStatus === "PURCHASED" && (
+        <div className="card-section px-4 py-3 text-sm text-neutral-600">
+          {sellerRefundPreflightConflictResponse("LABEL_BLOCKED")?.error}
+        </div>
+      )}
+      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund
+        && order.labelStatus !== "PURCHASED" && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
