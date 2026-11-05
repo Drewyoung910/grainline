@@ -83,7 +83,22 @@ export async function GET(req: Request) {
       const lock = await getCheckoutLock(checkoutLockKey);
       if (lock?.state !== "ready" || !lock.sessionId || !lock.clientSecret) continue;
 
-      const session = await stripe.checkout.sessions.retrieve(lock.sessionId);
+      let session: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
+      try {
+        // The cart waits for this on every load, so a slow Stripe must not stall it.
+        session = await stripe.checkout.sessions.retrieve(lock.sessionId, {}, {
+          timeout: 5_000,
+          maxNetworkRetries: 0,
+        });
+      } catch (error) {
+        if (!openOnly) throw error;
+        logServerError(error, {
+          source: "cart_checkout_resume_open_retrieve",
+          level: "warning",
+          extra: { stripeSessionId: lock.sessionId },
+        });
+        continue;
+      }
       const metadata = session.metadata ?? {};
       if (
         metadata.buyerId !== me.id ||
