@@ -92,6 +92,15 @@ describe("Workshop overview", () => {
     assert.equal(rows[0].href, "/dashboard/sales");
   });
 
+  it("never says all caught up while a case is open on the maker's orders", () => {
+    const rows = workshopAttentionRows({ ...quiet, ordersToShip: 1, orderNames: ["Maya"], openCases: 2 });
+    assert.deepEqual(rows.map((row) => row.key), ["cases", "orders"]);
+    assert.equal(rows[0].title, "2 open cases");
+    assert.equal(rows[0].href, "/dashboard/sales");
+    assert.deepEqual(workshopAttentionRows({ ...quiet, openCases: 0 }), []);
+    assert.deepEqual(workshopAttentionRows({ ...quiet, openCases: null }), []);
+  });
+
   it("points an empty shop at its first listing, but not when the count is unknown", () => {
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: 0 }).map((row) => row.key), ["first-listing"]);
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: null }), []);
