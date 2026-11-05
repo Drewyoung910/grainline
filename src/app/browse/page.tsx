@@ -25,6 +25,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import {
@@ -531,7 +532,7 @@ async function BrowseContent({
                       href={`/browse?q=${encodeURIComponent(t)}`}
                       className="rounded-full bg-[#EFEAE0] px-3 py-1 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                     >
-                      #{t}
+                      {humanizeSearchTag(t)}
                     </Link>
                   ))}
                 </div>

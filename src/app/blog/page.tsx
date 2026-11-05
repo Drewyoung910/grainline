@@ -24,6 +24,7 @@ import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { Suspense } from "react";
 import { BlogIndexSkeleton } from "@/components/RouteSkeletons";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Spotlights, gift guides, build stories, and woodworking education from the Grainline community.";
@@ -340,7 +341,7 @@ async function BlogIndexPageContent({
         <div className="flex flex-wrap gap-2 mb-5">
           {tagsFilter.map((tag) => (
             <span key={tag} className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full">
-              #{tag}
+              {humanizeSearchTag(tag)}
               <Link
                 href={buildHref({ tags: tagsFilter.filter((t) => t !== tag).join(","), page: "" })}
                 className="hover:text-amber-900 ml-0.5"
@@ -369,7 +370,7 @@ async function BlogIndexPageContent({
             </span>
           )}
           {!q && tagsFilter.length > 0 && (
-            <span>{total} post{total !== 1 ? "s" : ""} tagged {tagsFilter.map((t) => `#${t}`).join(", ")}</span>
+            <span>{total} post{total !== 1 ? "s" : ""} tagged {tagsFilter.map((t) => humanizeSearchTag(t)).join(", ")}</span>
           )}
         </div>
       )}
@@ -389,7 +390,7 @@ async function BlogIndexPageContent({
                     href={buildHref({ tags: t.tag, bq: "", page: "" })}
                     className="border rounded-full px-3 py-1 text-xs text-neutral-600 hover:bg-neutral-50"
                   >
-                    #{t.tag}
+                    {humanizeSearchTag(t.tag)}
                   </Link>
                 ))}
               </div>
@@ -554,7 +555,7 @@ async function BlogIndexPageContent({
                 href={buildHref({ tags: t.tag, page: "" })}
                 className={`border border-neutral-200 rounded-full px-3 py-1 hover:bg-neutral-50 transition-colors ${tagSizeClass(t.count)}`}
               >
-                #{t.tag}
+                {humanizeSearchTag(t.tag)}
               </Link>
             ))}
           </div>
