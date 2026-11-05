@@ -785,35 +785,26 @@ export default async function HomePage() {
                     className="photo-drift absolute inset-x-0 -top-[6%] h-[112%] w-full object-cover"
                     fallbackClassName="absolute inset-0 h-full w-full bg-gradient-to-br from-neutral-800 to-neutral-600"
                   />
-                  {/* Identity chip over the photo */}
-                  <Link
-                    href={publicSellerPath(spotlight.id, spotlight.displayName)}
-                    className="absolute bottom-4 left-4 flex items-center gap-2.5 rounded-full bg-white/90 py-1.5 pl-1.5 pr-4 shadow-sm backdrop-blur-sm transition-colors hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-                  >
+                </div>
+
+                {/* Story side */}
+                <div className="flex flex-col p-6 sm:p-8 lg:p-10">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
                     {spotlightAvatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={spotlightAvatar}
                         alt=""
                         loading="lazy"
-                        width={36}
-                        height={36}
-                        className="h-9 w-9 rounded-full object-cover"
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-800">
                         {avatarInitial(spotlight.displayName, "M")}
                       </div>
                     )}
-                    <span className="text-sm font-semibold text-neutral-900">
-                      {spotlight.displayName}
-                    </span>
-                  </Link>
-                </div>
-
-                {/* Story side */}
-                <div className="flex flex-col p-6 sm:p-8 lg:p-10">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
                     <h3 className="font-display text-2xl font-semibold text-neutral-900 sm:text-3xl">
                       {spotlight.displayName}
                     </h3>
