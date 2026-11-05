@@ -1,19 +1,30 @@
 // Search matches by substring, so "table" already finds "tables" but "tables"
-// does not find "table". Add the likely other forms of a word: a small stand-in
-// for real word stemming.
+// does not find "table". Add the likely singular of a plural: a small stand-in
+// for real word stemming. Forms are at least 3 letters ("ties" never gives "ty").
 export function searchWordForms(word: string): string[] {
   const lower = word.toLowerCase();
   const forms = new Set([lower]);
-  if (lower.endsWith("f")) forms.add(`${lower.slice(0, -1)}ves`);
-  if (lower.endsWith("fe")) forms.add(`${lower.slice(0, -2)}ves`);
   if (lower.length < 4 || !lower.endsWith("s") || /(ss|us|is)$/.test(lower)) return [...forms];
 
   forms.add(lower.slice(0, -1));
   if (/(ch|sh|x|z|ss)es$/.test(lower)) forms.add(lower.slice(0, -2));
-  if (lower.endsWith("ies")) forms.add(`${lower.slice(0, -3)}y`);
+  if (lower.length >= 5 && lower.endsWith("ies")) forms.add(`${lower.slice(0, -3)}y`);
   if (lower.endsWith("ves")) {
     forms.add(`${lower.slice(0, -3)}f`);
     forms.add(`${lower.slice(0, -3)}fe`);
   }
-  return [...forms];
+  return [...forms].filter((form) => form.length >= 3);
+}
+
+// Derived forms match titles and tags. Descriptions only match the typed word:
+// they are long, so a short form like "sign" would match "design" there.
+export function listingSearchWordConditions(words: string[]) {
+  return words.flatMap((word) => {
+    const forms = searchWordForms(word);
+    return [
+      ...forms.map((form) => ({ title: { contains: form, mode: "insensitive" as const } })),
+      { description: { contains: word, mode: "insensitive" as const } },
+      ...forms.map((form) => ({ tags: { has: form } })),
+    ];
+  });
 }
