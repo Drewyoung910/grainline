@@ -535,6 +535,7 @@ export function renderOrderShippedEmail(opts: {
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order has been shipped!</p>
     ${trackingSection}
     ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:16px 0 8px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}
+    <p style="font-size:13px;color:#6B6A66;margin:16px 0 8px;">When it arrives, please confirm delivery on your order page.</p>
     ${btn("View order", orderUrl)}
   `;
 
@@ -561,7 +562,7 @@ export function renderReadyForPickupEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order from <strong>${esc(sellerName)}</strong> is ready to be picked up!</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Check the order details for pickup location and coordination.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Message ${esc(sellerName)} to arrange a time. You can start from your order page.</p>
     ${btn("View order details", orderUrl)}
   `;
 
