@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const {
   CHECKOUT_SUCCESS_SESSION_LIMIT,
+  checkoutSuccessParams,
   checkoutSuccessSessionIds,
 } = await import("../src/lib/checkoutSuccessState.ts");
 
@@ -13,6 +14,18 @@ const checkoutSuccessSource = fs.readFileSync(
 );
 
 describe("checkout success session parsing", () => {
+  it("survives a repeated session parameter instead of returning a 500", () => {
+    assert.deepEqual(
+      checkoutSuccessSessionIds(checkoutSuccessParams({
+        session_id: ["cs_first", "cs_second"],
+        session_ids: ["cs_first,cs_third", "cs_fourth"],
+      })),
+      { sessionIds: ["cs_first", "cs_third", "cs_fourth"], truncatedCount: 0 },
+    );
+    assert.deepEqual(checkoutSuccessParams({ session_id: "cs_one" }), { sessionId: "cs_one", sessionIds: undefined });
+    assert.deepEqual(checkoutSuccessParams(null), { sessionId: undefined, sessionIds: undefined });
+  });
+
   it("dedupes comma-separated checkout session ids while preserving order", () => {
     assert.deepEqual(
       checkoutSuccessSessionIds({

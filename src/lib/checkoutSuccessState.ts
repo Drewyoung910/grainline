@@ -18,3 +18,16 @@ export function checkoutSuccessSessionIds(input: {
     truncatedCount: Math.max(0, uniqueIds.length - limit),
   };
 }
+
+// A repeated query parameter reaches the page as an array.
+export function checkoutSuccessParams(params: {
+  session_id?: string | string[];
+  session_ids?: string | string[];
+} | null | undefined) {
+  const rawSessionId = params?.session_id;
+  const rawSessionIds = params?.session_ids;
+  return {
+    sessionId: Array.isArray(rawSessionId) ? rawSessionId[0] : rawSessionId,
+    sessionIds: Array.isArray(rawSessionIds) ? rawSessionIds.join(",") : rawSessionIds,
+  };
+}
