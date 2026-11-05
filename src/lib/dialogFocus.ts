@@ -19,8 +19,14 @@ const FOCUSABLE_SELECTOR = [
 let scrollLockCount = 0;
 let removeScrollGuards: (() => void) | null = null;
 
+// True while the visitor has pinched the page in. They need to pan around it.
+export function isPageZoomed() {
+  return (window.visualViewport?.scale ?? 1) > 1.01;
+}
+
 function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
-  let element = target instanceof HTMLElement ? target : null;
+  // Element, not HTMLElement: a gesture can start on an SVG icon.
+  let element = target instanceof Element ? target : null;
   while (element && element !== document.body && element !== document.documentElement) {
     const style = window.getComputedStyle(element);
     const scrollable = /(auto|scroll)/u.test(style.overflowY)
@@ -36,22 +42,30 @@ function scrollableAncestorCanMove(target: EventTarget | null, deltaY: number) {
   return false;
 }
 
-function installScrollGuards() {
-  let previousTouchY: number | null = null;
+export function installScrollGuards() {
+  let previousTouch: { clientX: number; clientY: number } | null = null;
   const onWheel = (event: WheelEvent) => {
+    // ctrlKey is a trackpad pinch or browser zoom, never a scroll.
+    if (event.ctrlKey || isPageZoomed()) return;
     if (!scrollableAncestorCanMove(event.target, event.deltaY)) event.preventDefault();
   };
   const onTouchStart = (event: TouchEvent) => {
-    previousTouchY = event.touches[0]?.clientY ?? null;
+    previousTouch = event.touches[0] ?? null;
   };
   const onTouchMove = (event: TouchEvent) => {
-    const currentY = event.touches[0]?.clientY;
-    if (currentY == null || previousTouchY == null) {
+    // A pinch zooms, and a zoomed page needs to pan.
+    if (event.touches.length > 1 || isPageZoomed()) return;
+    const current = event.touches[0];
+    if (!current || !previousTouch) {
       event.preventDefault();
       return;
     }
-    const deltaY = previousTouchY - currentY;
-    previousTouchY = currentY;
+    const deltaX = previousTouch.clientX - current.clientX;
+    const deltaY = previousTouch.clientY - current.clientY;
+    previousTouch = current;
+    // Only a mostly vertical move can scroll the page. A sideways one belongs
+    // to whatever is under the finger, such as a slider or a photo swipe.
+    if (Math.abs(deltaY) <= Math.abs(deltaX)) return;
     if (!scrollableAncestorCanMove(event.target, deltaY)) event.preventDefault();
   };
   const onKeyDown = (event: KeyboardEvent) => {
