@@ -2,8 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendNewsletterConfirmationEmail } from "@/lib/email";
-import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { isEmailSuppressedForNewsletterSignup, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { getIP, newsletterAddressRatelimit, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  isEmailSuppressedForNewsletterSignup,
+  normalizeEmailAddress,
+  normalizeEmailSuppressionAddress,
+} from "@/lib/emailSuppression";
 import {
   buildNewsletterConfirmationUrl,
   canSendNewsletterConfirmation,
@@ -94,6 +98,16 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing?.active || !canSendNewsletterConfirmation(existing?.confirmationSentAt)) {
+      return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
+    }
+
+    // Rotating IPs can name any address, so cap the mail per address as well. The
+    // answer stays the same so this cannot be used to probe an address.
+    const addressLimit = await safeRateLimit(
+      newsletterAddressRatelimit,
+      normalizeEmailSuppressionAddress(email) ?? email,
+    );
+    if (!addressLimit.success) {
       return NextResponse.json(NEWSLETTER_CONFIRMATION_RESPONSE);
     }
 
