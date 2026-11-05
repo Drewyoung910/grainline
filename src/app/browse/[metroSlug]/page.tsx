@@ -68,7 +68,7 @@ export async function generateMetadata({
     where: { slug: metroSlug },
     select: { id: true, name: true, state: true, parentMetroId: true },
   });
-  if (!metro) return {};
+  if (!metro) notFound();
 
   const isMajor = !metro.parentMetroId;
   const cityName = formatCityState(metro.name, metro.state);

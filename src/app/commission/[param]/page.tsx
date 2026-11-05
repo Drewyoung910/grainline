@@ -79,15 +79,19 @@ export async function generateMetadata({
   if (isMetroSlug(param)) {
     const metro = await prisma.metro.findUnique({
       where: { slug: param },
-      select: { name: true, state: true },
+      select: { id: true, name: true, state: true, parentMetroId: true },
     });
     if (!metro) notFound();
     const cityName = formatCityState(metro.name, metro.state);
+    const openCount = await prisma.commissionRequest.count({
+      where: openCommissionWhere(metro.parentMetroId ? { cityMetroId: metro.id } : { metroId: metro.id }),
+    });
     const title = `Custom Woodworking Commissions in ${cityName} | Grainline`;
     const description = `Browse open custom woodworking commission requests in ${cityName}. Connect with local buyers looking for handmade furniture, decor, and more.`;
     return {
       title: { absolute: title },
       description,
+      robots: openCount === 0 ? { index: false, follow: true } : undefined,
       alternates: { canonical: `https://thegrainline.com/commission/${param}` },
       openGraph: {
         title,
@@ -268,7 +272,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
         </p>
       ) : (
         <p className="text-neutral-600 text-sm mb-8">
-          Custom woodworking in {cityName} — makers coming soon. Post a commission request to attract local woodworkers, or sign up to be notified when makers join in your area.
+          Looking for custom woodworking in {cityName}? Post a commission request and woodworkers can reach out.
         </p>
       )}
 

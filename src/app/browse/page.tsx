@@ -25,7 +25,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { normalizeDisplayNameForLookup, truncateText } from "@/lib/sanitize";
+import { normalizeDisplayNameForLookup } from "@/lib/sanitize";
 import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 import {
   firstSearchParams,
@@ -180,7 +180,7 @@ export async function generateMetadata({
   const q = normalizeSearchQueryParameter(sp.q, 200);
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
+  let page = parseBoundedPositiveIntParam(sp.page, 1, 500);
   const hasTags = Boolean(sp.tag);
   const hasIndexBlockingFilters = Boolean(
     q ||
@@ -196,6 +196,13 @@ export async function generateMetadata({
     (sp.view && sp.view !== "grid") ||
     hasTags,
   );
+  if (!hasIndexBlockingFilters && page > 1) {
+    // A page past the end shows the last page, so it must not claim its own URL.
+    const total = await prisma.listing.count({
+      where: publicListingWhere(categoryFilter ? { category: categoryFilter as Category } : {}),
+    });
+    page = Math.min(page, Math.max(1, Math.ceil(total / PAGE_SIZE)));
+  }
   const canonicalParams = new URLSearchParams();
   if (categoryFilter) canonicalParams.set("category", categoryFilter.toLowerCase());
   if (!hasIndexBlockingFilters && page > 1) canonicalParams.set("page", String(page));

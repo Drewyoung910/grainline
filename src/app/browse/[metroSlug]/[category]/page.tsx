@@ -80,13 +80,21 @@ export async function generateMetadata({
   const { metroSlug, category } = await params;
 
   const categoryKey = category.toUpperCase();
-  if (!CATEGORY_VALUES.includes(categoryKey)) return {};
+  if (!CATEGORY_VALUES.includes(categoryKey)) notFound();
 
   const metro = await prisma.metro.findUnique({
     where: { slug: metroSlug },
-    select: { name: true, state: true },
+    select: { id: true, name: true, state: true, parentMetroId: true },
   });
-  if (!metro) return {};
+  if (!metro) notFound();
+
+  // Nothing to show: keep the page usable but out of the search index.
+  const listingCount = await prisma.listing.count({
+    where: publicListingWhere({
+      category: categoryKey as Category,
+      ...(metro.parentMetroId ? { cityMetroId: metro.id } : { metroId: metro.id }),
+    }),
+  });
 
   const label = CATEGORY_LABELS[categoryKey] ?? categoryKey;
   const cityName = formatCityState(metro.name, metro.state);
@@ -96,6 +104,7 @@ export async function generateMetadata({
   return {
     title: { absolute: title },
     description,
+    robots: listingCount === 0 ? { index: false, follow: true } : undefined,
     alternates: { canonical: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
     openGraph: {
       title,
