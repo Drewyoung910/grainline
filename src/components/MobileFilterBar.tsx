@@ -570,7 +570,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   return (
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
-      {/* top-[2px] + pt-3 pulls bar 2px below viewport top so button outlines aren't clipped */}
+      {/* Sticks just under the site header while the listings scroll */}
       <div className="md:hidden sticky top-[var(--site-header-offset)] z-30 -mx-4 -mt-4 flex items-center gap-3 border-b border-neutral-200 bg-[#F7F5F0] px-4 py-3 sm:-mx-6 sm:-mt-6 sm:px-6">
           <button
             onPointerUp={(event) => event.currentTarget.blur()}
