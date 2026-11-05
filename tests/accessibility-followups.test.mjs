@@ -300,10 +300,10 @@ describe("accessibility follow-ups", () => {
     assert.match(thread, /aria-label=\{`Open \$\{file\.name \?\? "file attachment"\} in a new tab`\}/);
     assert.doesNotMatch(thread, /⬇️/);
     assert.match(favorite, /h-11 w-11/);
-    assert.match(favorite, /h-\[34px\] w-\[34px\] rounded-full/);
+    assert.match(favorite, /h-9 w-9 rounded-full/);
     assert.match(saveBlog, /h-11 w-11/);
-    assert.match(saveBlog, /h-\[34px\] w-\[34px\] rounded-full/);
-    assert.match(saveBlog, /0_0_0_1px_rgba\(255,255,255,0\.3\)/);
+    assert.match(saveBlog, /h-9 w-9 rounded-full/);
+    assert.match(saveBlog, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.doesNotMatch(home, /<span aria-hidden="true">★<\/span>/);
