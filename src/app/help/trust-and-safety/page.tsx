@@ -81,8 +81,8 @@ export default function TrustAndSafetyHelpPage() {
         <h2>Blocking another user</h2>
         <p>
           Don&apos;t want to interact with a particular buyer or maker? Use the &ldquo;Block&rdquo;
-          option on their profile or message thread. Blocked users can&apos;t message you, follow you,
-          favorite your listings, or see your content anywhere on Grainline. You can manage your
+          option on their profile or message thread. Blocked users can&apos;t message you, follow you, or
+          favorite your listings, and won&apos;t see your content while signed in. You can manage your
           blocked list under{" "}
           <Link href="/account/blocked">My Account → Blocked users</Link>.
         </p>
