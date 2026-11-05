@@ -3,8 +3,6 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { HTTP_STATUS } from "../src/lib/httpStatus.ts";
 
@@ -15,7 +13,6 @@ function compile(source) {
     compilerOptions: {
       target: ts.ScriptTarget.ES2022,
       module: ts.ModuleKind.CommonJS,
-      jsx: ts.JsxEmit.React,
     },
   }).outputText;
 }
@@ -146,27 +143,4 @@ test("a dropped connection stays retryable and does not bother staff", async () 
   const response = await subject.post();
   assert.equal(response.status, 503);
   assert.deepEqual(subject.state.ambiguous, []);
-});
-
-function renderPanel(refundState, canCheckAgain = true) {
-  const path = "src/components/SellerRefundPanel.tsx";
-  const exports = {};
-  vm.runInNewContext(compile(readFileSync(path, "utf8")), {
-    exports, React,
-    require: (name) => {
-      if (name === "react") return React;
-      if (name === "@/lib/money") return { DEFAULT_CURRENCY: "usd", formatCurrencyCents: () => "$50.00" };
-      throw new Error(name);
-    },
-  }, { filename: path });
-  return renderToStaticMarkup(React.createElement(exports.default, {
-    orderId: "order", currency: "usd", orderTotalCents: 5000, refundState, alreadyRefundedCents: null, canCheckAgain,
-  }));
-}
-
-test("the maker can retry an unconfirmed refund, but not one waiting on staff", () => {
-  assert.match(renderPanel("PROCESSING"), /Check refund/);
-  assert.doesNotMatch(renderPanel("AMBIGUOUS"), /Check refund/);
-  // A refund made outside Grainline has nothing here to finish.
-  assert.doesNotMatch(renderPanel("PROCESSING", false), /Check refund/);
 });

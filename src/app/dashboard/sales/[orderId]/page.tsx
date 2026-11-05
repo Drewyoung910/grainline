@@ -663,7 +663,6 @@ export default async function SellerOrderDetailPage({
           orderTotalCents={orderTotal}
           refundState={sellerRefundState}
           alreadyRefundedCents={order.sellerRefundAmountCents ?? null}
-          canCheckAgain
         />
       )}
       {sellerRefundState === "NONE" && externalRefund && (
