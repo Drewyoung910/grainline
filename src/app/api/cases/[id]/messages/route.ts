@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { renderCaseMessageEmail } from "@/lib/email";
 import { queueCaseEmail } from "@/lib/caseEmail";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import {
   caseMessageRatelimit,
   rateLimitResponse,
@@ -245,12 +246,17 @@ export async function POST(
     const committedActsAsStaff = result.actsAsStaff;
 
     // Notify the appropriate party/parties
+    // A maker appears under their shop name, as they do in the thread.
+    const senderShop = result.authorUserId === committedCaseRecord.sellerId
+      ? await sellerOwnerCore(result.authorUserId).catch(() => null)
+      : null;
     const senderName =
+      senderShop?.displayName ??
       me.name ??
       (result.authorUserId === committedCaseRecord.buyerId
         ? "A buyer"
         : result.authorUserId === committedCaseRecord.sellerId
-          ? "The seller"
+          ? "The maker"
           : "Someone");
     const appUrl = EMAIL_APP_URL;
 
