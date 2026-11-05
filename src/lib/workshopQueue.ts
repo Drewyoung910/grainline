@@ -100,7 +100,7 @@ export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAt
     rows.push({
       key: "orders",
       icon: "truck",
-      title: `${count} to ship`,
+      title: `${count} to fulfill`,
       detail: input.orderNames.slice(0, 3).join(" · ") || "Paid and waiting on you",
       href: "/dashboard/sales",
     });

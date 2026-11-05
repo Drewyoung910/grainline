@@ -342,7 +342,7 @@ describe("workshop queue", async () => {
       lowStock: [{ title: "Bowl", stockQuantity: 1 }],
     });
     assert.deepEqual(rows.map((row) => row.key), ["orders", "messages", "rejected", "review", "low-stock"]);
-    assert.equal(rows[0].title, "2 orders to ship");
+    assert.equal(rows[0].title, "2 orders to fulfill");
     assert.equal(rows[0].detail, "Maya · Jordan · Ben");
     assert.equal(rows[1].title, "1 unread message");
     assert.equal(rows[2].title, "2 listings sent back");
@@ -351,7 +351,7 @@ describe("workshop queue", async () => {
   });
 
   it("does not claim an exact count when the window is full", () => {
-    assert.equal(workshopAttentionRows({ ...empty, ordersToShip: 50, ordersToShipCapped: true })[0].title, "50+ orders to ship");
+    assert.equal(workshopAttentionRows({ ...empty, ordersToShip: 50, ordersToShipCapped: true })[0].title, "50+ orders to fulfill");
   });
 
   it("falls back to all for an unknown filter", () => {
