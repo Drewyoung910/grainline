@@ -12,6 +12,7 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 
 ### Source of truth
 
+- 2026-11-04 to Codex's return: Drew directed Claude to fix bugs on branch `claude/fixes-20261104` for Codex to review; see `docs/fix-log-20261104.md`.
 - Work from `/Users/drewyoung/grainline` on `main` unless Drew explicitly says otherwise.
 - Treat Claude/other-agent findings as allegations, not facts. Verify each one against current `main` before fixing or closing it.
 - Before every RLS production inspection, ENABLE, or FORCE dispatch, reconcile
