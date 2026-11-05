@@ -104,7 +104,9 @@ export default function AdminPinGate({
         setNow(Date.now());
         setError(`Too many attempts. Try again in ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} minutes.`);
       } else if (res.status === 503) {
-        setError("Admin PIN is not configured.");
+        // 503 is either missing configuration or a limiter outage; the route says which.
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(data?.error || "Admin PIN is not configured.");
       } else {
         setAttempts((a) => a + 1);
         setError("Incorrect PIN");
