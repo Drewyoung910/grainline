@@ -751,7 +751,7 @@ export function renderBackInStockEmail(opts: {
   const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, good news — a piece you saved is back in stock!</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, good news: a piece you asked us to watch is back in stock!</p>
     <p style="font-size:16px;font-weight:700;margin:0 0 20px;">${esc(listingTitle)}</p>
     ${btn("Shop now", listingUrl)}
   `;
@@ -782,8 +782,8 @@ export async function sendVerificationApproved(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Congratulations, ${esc(name)}! You are now a <strong>Guild Member</strong> on Grainline.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the Guild Member badge, letting buyers know your craft is authentic and recognized by our team.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">This badge builds trust with buyers and helps your work stand out in search results.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the Guild Member badge, which shows buyers your shop profile is complete and in good standing.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">Keep your listings active and your orders on time to keep it.</p>
     ${btn("View your profile", profileUrl)}
   `;
 
@@ -926,7 +926,7 @@ export function renderFirstListingCongratsEmail(opts: {
     <p style="font-size:16px;color:#1C1C1A;margin:0 0 20px;">${fmtCents(listing.priceCents, listing.currency)}</p>
     <p style="font-size:14px;font-weight:600;margin:0 0 8px;">Tips for your first sale:</p>
     <ul style="font-size:14px;line-height:1.8;color:#6B6A66;margin:0 0 20px;padding-left:20px;">
-      <li>Add more photos — listings with 4+ photos get more views</li>
+      <li>Add more photos so buyers can see the details</li>
       <li>Share it on social media to drive your first traffic</li>
       <li>Enable custom orders to open another sales channel</li>
     </ul>
@@ -963,7 +963,8 @@ export function renderFirstSaleCongratsEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, you made your first sale! 🎉</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">This is just the beginning. Every great shop starts with one happy customer.</p>
-    <p style="font-size:26px;font-weight:700;color:#1C1C1A;margin:16px 0 20px;">${fmtCents(total, order.currency)}</p>
+    <p style="font-size:26px;font-weight:700;color:#1C1C1A;margin:16px 0 4px;">${fmtCents(order.itemsSubtotalCents, order.currency)}</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 20px;">Item total, before shipping and tax.</p>
     ${btn("View order details", orderUrl)}
   `;
 
