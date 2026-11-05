@@ -285,7 +285,6 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     const listingCount = sellerReview.publishReviewListingCount;
 
     const { reviewListingWithAI } = await import("@/lib/ai-review");
-    const { logAdminAction } = await import("@/lib/audit");
 
     const photos = await prisma.photo.findMany({
       where: { listingId: listing.id },
@@ -355,14 +354,6 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       if (updateResult.count === 0) {
         return { error: "Listing state changed; refresh and try again." };
       }
-      await logAdminAction({
-        adminId: listing.seller.userId,
-        action: "AI_HOLD_LISTING",
-        targetType: "LISTING",
-        targetId: listingId,
-        reason: aiResult.reason,
-        metadata: { flags: aiResult.flags, confidence: aiResult.confidence },
-      });
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_ai_hold");
       revalidateListingSurfaces(listingId, listing.sellerId);
       return { status: "PENDING_REVIEW" };
