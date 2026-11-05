@@ -101,7 +101,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
         <p className="text-sm text-neutral-500 max-w-sm mx-auto mb-6">
-          Pieces you save will appear here.
+          Pieces you add to your cart will appear here.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {children}
