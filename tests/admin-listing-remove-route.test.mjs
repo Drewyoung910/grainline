@@ -5,33 +5,74 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { HTTP_STATUS } from "../src/lib/httpStatus.ts";
+import { listingEditBlockReason } from "../src/lib/listingEditState.ts";
+import { publishListingBlockReason } from "../src/lib/listingActionState.ts";
+import * as sanitize from "../src/lib/sanitize.ts";
 
 const require = createRequire(import.meta.url);
-const path = "src/app/api/admin/listings/[id]/route.ts";
+const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
 
-// Actual route with isolated ports. Database behavior is not exercised here.
-function fixture({ role = "ADMIN", notificationFails = false } = {}) {
-  const state = { updates: [], audits: [], notifications: [] };
-  const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
-  const dependencies = {
+function load(path, dependencies, globals = {}) {
+  const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const exports = {};
+  vm.runInNewContext(javascript, {
+    exports,
+    Date,
+    Response,
+    require: (name) => dependencies[name] ?? stub(),
+    ...globals,
+  }, { filename: path });
+  return exports;
+}
+
+// The real email module, with the provider as the only thing replaced, so the test
+// reads what would really be sent. The route is real too. Database calls are ports.
+function realEmail(sent, { providerFails = false } = {}) {
+  return load("src/lib/email.ts", {
+    "@/lib/sanitize": sanitize,
+    "@/lib/env": { requiredProductionEnv: () => "from@grainline.test" },
+    "@/lib/emailBaseUrl": { EMAIL_APP_URL: "https://grainline.test" },
+    "@/lib/emailSuppression": {
+      normalizeEmailAddress: (email) => email,
+      isEmailDeliverySuppressed: async () => false,
+    },
+    "@/lib/userEmailDeliveryAccess": { userEmailAccountStateByEmail: async () => null },
+    "@/lib/emailText": { htmlToText: (html) => html },
+    "@/lib/emailOutboxSanitize": { sanitizeEmailOutboxError: () => "failed" },
+    "@/lib/emailRetry": {
+      sendEmailProviderRequestWithRetry: async (request) => {
+        if (providerFails) throw new Error("provider down");
+        return request("key").then(() => ({ id: "sent" }));
+      },
+    },
+    resend: {
+      Resend: class {
+        emails = { send: async (email) => { sent.push(email); return { data: { id: "sent" } }; } };
+      },
+    },
+  }, { process: { env: { RESEND_API_KEY: "test" } }, console, URL });
+}
+
+function fixture({ role = "ADMIN", providerFails = false, recipient = { email: "maker@example.test" } } = {}) {
+  const state = { updates: [], audits: [], sent: [], captured: [] };
+  const email = realEmail(state.sent, { providerFails });
+  const exports = load("src/app/api/admin/listings/[id]/route.ts", {
     zod: require("zod"),
+    "@sentry/nextjs": { captureException: (error) => state.captured.push(error) },
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk" }) },
     "@/lib/db": {
       prisma: {
         listing: {
           findUnique: async () => ({
-            id: "listing", title: "Bench", sellerId: "seller", status: "ACTIVE", isPrivate: false, rejectionReason: null,
+            id: "listing", title: "Walnut bench", sellerId: "seller", status: "ACTIVE", isPrivate: false, rejectionReason: null,
           }),
         },
       },
     },
     "@/lib/userIdentityAccess": { userClerkGate: async () => ({ id: "admin", role, banned: false, deletedAt: null }) },
-    "@/lib/audit": {
-      logAdminActionOrThrow: async (entry) => {
-        state.audits.push(entry);
-        return "audit";
-      },
-    },
+    "@/lib/audit": { logAdminActionOrThrow: async (entry) => { state.audits.push(entry); return "audit"; } },
     "@/lib/ratelimit": { safeRateLimit: async () => ({ success: true }), adminActionRatelimit: {} },
     "@/lib/dbUserContext": {
       withDbUserContext: (_id, callback) => callback({
@@ -49,24 +90,12 @@ function fixture({ role = "ADMIN", notificationFails = false } = {}) {
       isRequestBodyTooLargeError: () => false,
       isInvalidJsonBodyError: (error) => error instanceof SyntaxError,
     },
-    "@/lib/sanitize": { sanitizeText: (text) => text, truncateText: (text) => text },
-    "@/lib/notifications": {
-      createNotification: async (input) => {
-        if (notificationFails) throw new Error("down");
-        state.notifications.push(input);
-      },
-    },
-    "@/lib/notificationSources": { NOTIFICATION_SOURCE_TYPES: { LISTING_ADMIN_REVIEW: "source" } },
+    "@/lib/sanitize": sanitize,
+    "@/lib/email": email,
+    "@/lib/listingActionState": { STAFF_REMOVAL_REJECTION_REASON: "Removed by Grainline staff." },
+    "@/lib/userEmailDeliveryAccess": { userEmailDeliveryRecipient: async () => recipient },
     "@/lib/sellerProfileListingDetailAccess": { sellerStaffListingDetailProfile: async () => ({ userId: "maker" }) },
-  };
-  const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-  }).outputText;
-  const exports = {};
-  vm.runInNewContext(javascript, {
-    exports, Response, SyntaxError,
-    require: (name) => dependencies[name] ?? stub(),
-  }, { filename: path });
+  }, { SyntaxError });
   return {
     state,
     remove: (body) => exports.DELETE(
@@ -79,32 +108,52 @@ function fixture({ role = "ADMIN", notificationFails = false } = {}) {
   };
 }
 
+const REASON = "Hateful language in the description";
+
 test("removing a listing requires a reason and changes nothing without one", async () => {
   for (const body of [undefined, {}, { reason: "" }, { reason: "   " }]) {
     const subject = fixture();
     assert.equal((await subject.remove(body)).status, 400);
     assert.equal(subject.state.updates.length, 0);
     assert.equal(subject.state.audits.length, 0);
+    assert.equal(subject.state.sent.length, 0);
   }
 });
 
-test("removing a listing audits the reason and tells the maker why", async () => {
+test("the maker sees the reason on the edit page, and the listing stays locked", async () => {
   const subject = fixture();
-  assert.equal((await subject.remove({ reason: "Hateful language in the description" })).status, 200);
-  assert.equal(subject.state.updates[0].data.status, "REJECTED");
-  assert.equal(subject.state.audits[0].reason, "Hateful language in the description");
-  assert.equal(subject.state.notifications[0].userId, "maker");
-  assert.match(subject.state.notifications[0].body, /Hateful language in the description/);
+  assert.equal((await subject.remove({ reason: REASON })).status, 200);
+  const { data } = subject.state.updates[0];
+  assert.equal(data.status, "REJECTED");
+  assert.equal(subject.state.audits[0].reason, REASON);
+
+  const saved = { ...data, listingType: "MADE_TO_ORDER" };
+  assert.match(listingEditBlockReason(saved), /removed by Grainline staff/);
+  assert.ok(listingEditBlockReason(saved).includes(REASON));
+  assert.match(publishListingBlockReason(saved), /cannot be resubmitted/);
 });
 
-test("a failed maker notice does not undo the removal", async () => {
-  const subject = fixture({ notificationFails: true });
-  assert.equal((await subject.remove({ reason: "Reason" })).status, 200);
-  assert.equal(subject.state.updates.length, 1);
+test("the maker is emailed the reason", async () => {
+  const subject = fixture();
+  await subject.remove({ reason: REASON });
+  assert.deepEqual(subject.state.captured, []);
+  assert.equal(subject.state.sent.length, 1);
+  assert.equal(subject.state.sent[0].to, "maker@example.test");
+  assert.ok(subject.state.sent[0].html.includes(REASON));
+  assert.ok(subject.state.sent[0].html.includes("Walnut bench"));
+});
+
+test("a failed email or an unavailable maker does not undo the removal", async () => {
+  for (const options of [{ providerFails: true }, { recipient: null }]) {
+    const subject = fixture(options);
+    assert.equal((await subject.remove({ reason: REASON })).status, 200);
+    assert.equal(subject.state.updates.length, 1);
+    assert.equal(subject.state.sent.length, 0);
+  }
 });
 
 test("an employee still cannot remove a listing, because the cleanup functions require ADMIN", async () => {
   const subject = fixture({ role: "EMPLOYEE" });
-  assert.equal((await subject.remove({ reason: "Reason" })).status, 403);
+  assert.equal((await subject.remove({ reason: REASON })).status, 403);
   assert.equal(subject.state.updates.length, 0);
 });

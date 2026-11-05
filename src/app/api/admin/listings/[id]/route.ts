@@ -15,8 +15,9 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteCartItemsForAdminListing } from "@/lib/cartServiceAccess";
 import { deleteStockNotificationsForAdminListing } from "@/lib/stockNotificationAccess";
 import { deleteFavoritesForAdminListing } from "@/lib/favoriteAccess";
-import { createNotification } from "@/lib/notifications";
-import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { renderListingRemovedEmail, sendRenderedEmail } from "@/lib/email";
+import { STAFF_REMOVAL_REJECTION_REASON } from "@/lib/listingActionState";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { sellerStaffListingDetailProfile } from "@/lib/sellerProfileListingDetailAccess";
 import { isInvalidJsonBodyError, isRequestBodyTooLargeError, readBoundedJson } from "@/lib/requestBody";
@@ -66,19 +67,19 @@ export async function DELETE(
   // Staff removal should not be reversible by the seller. Use REJECTED rather
   // than HIDDEN, and clear buyer-facing references that would otherwise point
   // at a removed listing.
-  const auditId = await withDbUserContext(admin.id, async (tx) => {
+  await withDbUserContext(admin.id, async (tx) => {
     await tx.listing.update({
       where: { id },
       data: {
         status: "REJECTED",
         isPrivate: true,
-        rejectionReason: "Removed by Grainline staff.",
+        rejectionReason: `${STAFF_REMOVAL_REJECTION_REASON} Reason: ${reason}`,
       },
     });
     await deleteFavoritesForAdminListing(tx, id);
     await deleteStockNotificationsForAdminListing(tx, id);
     await deleteCartItemsForAdminListing(tx, id);
-    return logAdminActionOrThrow({
+    await logAdminActionOrThrow({
       client: tx,
       adminId: admin.id,
       action: "REMOVE_LISTING",
@@ -118,24 +119,21 @@ export async function DELETE(
     });
   });
 
-  // The maker cannot edit a removed listing, so this is how they learn why.
+  // The edit page shows the stored reason. The email tells the maker to look.
   try {
     const seller = await sellerStaffListingDetailProfile(getOrderStaffReadClient(), admin.id, id);
-    if (seller) {
-      await createNotification({
-        userId: seller.userId,
-        type: "LISTING_REJECTED",
-        title: "Listing removed",
-        body: `Grainline staff removed your listing "${listing.title}". Reason: ${reason}. Contact support@thegrainline.com if you think this is a mistake.`,
-        link: "/dashboard",
-        sourceType: NOTIFICATION_SOURCE_TYPES.LISTING_ADMIN_REVIEW,
-        sourceId: auditId,
-      });
+    const recipient = seller && await userEmailDeliveryRecipient(prisma, { userId: seller.userId });
+    if (recipient) {
+      await sendRenderedEmail(renderListingRemovedEmail({
+        to: recipient.email,
+        listingTitle: listing.title,
+        reason,
+      }));
     }
   } catch (error) {
     Sentry.captureException(error, {
       level: "warning",
-      tags: { source: "admin_listing_remove_notification" },
+      tags: { source: "admin_listing_remove_email" },
       extra: { listingId: id, sellerId: listing.sellerId },
     });
   }

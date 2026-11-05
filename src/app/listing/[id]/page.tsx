@@ -490,7 +490,7 @@ export default async function ListingPage({
         {listing.status === "PENDING_REVIEW" && listing.rejectionReason && (
           <p className="mt-1">Why it was held: {listing.rejectionReason}</p>
         )}
-        {staffPreview && me?.role === "ADMIN" && listing.rejectionReason !== STAFF_REMOVAL_REJECTION_REASON && (
+        {staffPreview && me?.role === "ADMIN" && !listing.rejectionReason?.startsWith(STAFF_REMOVAL_REJECTION_REASON) && (
           <div className="mt-2"><DeleteListingButton listingId={listing.id} /></div>
         )}
       </div>

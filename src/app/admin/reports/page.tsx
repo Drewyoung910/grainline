@@ -96,7 +96,7 @@ export default async function AdminReportsPage() {
     });
     for (const listing of listings) {
       listingPathMap.set(listing.id, publicListingPath(listing.id, listing.title));
-      if (listing.rejectionReason !== STAFF_REMOVAL_REJECTION_REASON) removableListingIds.add(listing.id);
+      if (!listing.rejectionReason?.startsWith(STAFF_REMOVAL_REJECTION_REASON)) removableListingIds.add(listing.id);
     }
   }
 
