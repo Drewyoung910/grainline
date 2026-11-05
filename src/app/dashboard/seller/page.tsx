@@ -268,9 +268,8 @@ export default async function SellerSettingsPage({
   }
 
   const prefs = normalizeNotificationPreferences(userRow);
-  const SELLER_DEFAULT_OFF: NotificationPreferenceKey[] = ["NEW_FAVORITE", "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY"];
+  // Matches delivery: an in-app notice is sent unless it was explicitly turned off.
   function isEnabled(type: NotificationPreferenceKey) {
-    if (SELLER_DEFAULT_OFF.includes(type)) return prefs[type] === true;
     return prefs[type] !== false;
   }
   function getEmailPref(key: NotificationPreferenceKey): boolean {
@@ -576,12 +575,12 @@ export default async function SellerSettingsPage({
             { type: "NEW_REVIEW", label: "New reviews", desc: "When a buyer leaves a review" },
             { type: "NEW_FOLLOWER", label: "New followers", desc: "When someone follows your shop" },
             { type: "CUSTOM_ORDER_REQUEST", label: "Custom order requests", desc: "When a buyer requests a custom piece" },
-            { type: "NEW_FAVORITE", label: "Someone saves your listing", desc: "When a buyer hearts one of your pieces (off by default)" },
+            { type: "NEW_FAVORITE", label: "Someone saves your listing", desc: "When a buyer hearts one of your pieces" },
             { type: "CASE_OPENED", label: "Cases opened", desc: "When a buyer opens a case on one of your orders" },
             { type: "REFUND_ISSUED", label: "Refunds issued", desc: "When a refund is issued on an order" },
             { type: "PAYMENT_DISPUTE", label: "Payment disputes", desc: "When Stripe opens or updates a dispute" },
-            { type: "NEW_BLOG_COMMENT", label: "Blog comments", desc: "When someone comments on your blog post (off by default)" },
-            { type: "BLOG_COMMENT_REPLY", label: "Blog replies", desc: "When someone replies to your comment (off by default)" },
+            { type: "NEW_BLOG_COMMENT", label: "Blog comments", desc: "When someone comments on your blog post" },
+            { type: "BLOG_COMMENT_REPLY", label: "Blog replies", desc: "When someone replies to your comment" },
             { type: "LISTING_APPROVED", label: "Listing approved", desc: "When a listing passes review and goes live" },
             { type: "LISTING_REJECTED", label: "Listing rejected", desc: "When a listing needs changes before it can go live" },
             { type: "VERIFICATION_APPROVED", label: "Verification approved", desc: "When a Guild application is approved" },
