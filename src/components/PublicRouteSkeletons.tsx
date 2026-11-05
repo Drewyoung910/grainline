@@ -6,7 +6,7 @@ function WarmSurfacePulse({ className, media = false }: { className: string; med
 
 function ListingGridSkeleton({ count = 8 }: { count?: number }) {
   return (
-    <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-8 lg:grid-cols-3 xl:grid-cols-4" aria-hidden="true">
+    <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8" aria-hidden="true">
       {Array.from({ length: count }).map((_, index) => (
         <li key={index}>
           <Pulse className="aspect-[4/5] w-full rounded-xl" />

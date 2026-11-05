@@ -631,7 +631,7 @@ async function BrowseContent({
             {featured.length > 0 && (
               <div>
                 <div className="font-medium mb-3">Featured listings</div>
-                <ul className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
+                <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
                   {featured.map((listing) => (
                     <GridCard key={listing.id} l={listing} />
                   ))}
@@ -847,7 +847,7 @@ async function BrowseContent({
           {/* Listings */}
           <FlipList
             className={view === "grid"
-              ? "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8"
+              ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8"
               : "space-y-4"}
             itemKey={`${view}:${listings.map((l) => l.id).join(",")}`}
           >
