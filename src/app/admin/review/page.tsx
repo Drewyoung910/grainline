@@ -156,7 +156,7 @@ export default async function AdminReviewPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <ReviewListingButtons listingId={listing.id} />
-                  <DeleteListingButton listingId={listing.id} />
+                  {staff.role === "ADMIN" && <DeleteListingButton listingId={listing.id} />}
                   <Link
                     href={`${publicListingPath(listing.id, listing.title)}?preview=admin`}
                     target="_blank"
