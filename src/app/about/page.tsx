@@ -24,7 +24,7 @@ export default async function AboutPage() {
   const sellerCount = marketplaceCounts.activeSellerCount;
 
   return (
-    <div className="bg-gradient-to-b from-amber-50/30 via-white to-white min-h-[100svh]">
+    <div className="min-h-[100svh]">
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
 
         <div className="mb-12">
