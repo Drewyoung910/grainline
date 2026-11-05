@@ -9,6 +9,7 @@ const {
 const {
   CART_ADDRESS_KEY,
   CART_CHECKOUTS_KEY,
+  CART_GIFTS_KEY,
   CART_RATES_KEY,
   clearCartCheckoutSecrets,
   clearCartSessionStorage,
@@ -55,6 +56,21 @@ describe("local account state cleanup", () => {
     assert.equal(storage.getItem(CART_ADDRESS_KEY), null);
     assert.equal(storage.getItem(CART_CHECKOUTS_KEY), null);
     assert.equal(storage.getItem(CART_RATES_KEY), null);
+  });
+
+  it("keeps a gift note through cart cleanup, and clears it at sign-out", () => {
+    const storage = memoryStorage();
+    const note = { seller_1: { giftNote: "Happy birthday", giftWrapping: true } };
+    writeCartSessionJson(CART_GIFTS_KEY, note, storage);
+
+    clearCartSessionStorage({ includeAddress: true, storage });
+    assert.deepEqual(readCartSessionJson(CART_GIFTS_KEY, {}, storage), note);
+
+    clearSignedOutLocalAccountState({
+      anonymousCartStorage: memoryStorage(),
+      cartSessionStorage: storage,
+    });
+    assert.equal(storage.getItem(CART_GIFTS_KEY), null);
   });
 
   it("clears anonymous cart and all cart session PII on sign-out cleanup", () => {

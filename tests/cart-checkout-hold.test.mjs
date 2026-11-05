@@ -163,6 +163,7 @@ test("a finished checkout replaces the payment step, so Back can leave the recei
     setShippingAddress() {},
     setClientSecrets() {},
     setCurrentPaymentIndex() {},
+    clearCartGiftNotes() {},
     setCompletedSessionIds() {},
     setStep() {},
     router: {

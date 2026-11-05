@@ -19,7 +19,11 @@ import {
   type AnonymousCartItem,
 } from "@/lib/anonymousCart";
 import {
+  CART_GIFTS_KEY,
+  clearCartGiftNotes,
   clearCartSessionStorage,
+  readCartSessionJson,
+  writeCartSessionJson,
 } from "@/lib/cartSessionStorage";
 import { LOCAL_ACCOUNT_STATE_CLEARED_EVENT } from "@/lib/localAccountState";
 import { mergeAnonymousCartItemsToAccount } from "@/lib/anonymousCartMerge";
@@ -302,7 +306,12 @@ function CartPage() {
   const [cancellingHeldCheckout, setCancellingHeldCheckout] = React.useState(false);
 
   // per-seller gift state
-  const [giftBySeller, setGiftBySeller] = React.useState<Record<string, CartGiftSelection>>({});
+  const [giftBySeller, setGiftBySeller] = React.useState<Record<string, CartGiftSelection>>(
+    () => readCartSessionJson(CART_GIFTS_KEY, {}),
+  );
+  React.useEffect(() => {
+    writeCartSessionJson(CART_GIFTS_KEY, giftBySeller);
+  }, [giftBySeller]);
 
   // Checkout step state
   const [step, setStep] = React.useState<CheckoutStep>("review");
@@ -373,6 +382,7 @@ function CartPage() {
       const resumedCompletedIds = Array.isArray(data.completedSessionIds) ? data.completedSessionIds : [];
       if (data.shippingAddress && resumedSecrets.length === 0 && resumedCompletedIds.length > 0) {
         clearCartSessionStorage({ includeAddress: true });
+        clearCartGiftNotes();
         const params = new URLSearchParams({
           session_id: resumedCompletedIds[resumedCompletedIds.length - 1],
           session_ids: resumedCompletedIds.join(","),
@@ -462,6 +472,7 @@ function CartPage() {
       setCurrentPaymentIndex(0);
       clearCompletedCheckoutSessions();
       setHeldCheckout(null);
+      setGiftBySeller({});
       setStep("review");
     }
 
@@ -1422,6 +1433,7 @@ function CartPage() {
                 } else {
                   // All payments complete — clean up and redirect
                   clearCartSessionStorage({ includeAddress: true });
+                  clearCartGiftNotes();
                   const sessionIds = [
                     ...Array.from(completedSessionIds),
                     ...clientSecrets.map((entry) => entry.sessionId),
