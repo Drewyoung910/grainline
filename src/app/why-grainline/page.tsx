@@ -24,7 +24,7 @@ export default async function WhyGrainlinePage() {
   const foundingCount = marketplaceCounts.foundingMakerCount;
 
   return (
-    <div className="bg-gradient-to-b from-amber-50/40 via-white to-white min-h-[100svh]">
+    <div className="min-h-[100svh]">
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-12 text-center">
         <p className="text-xs uppercase tracking-wider text-amber-700 mb-4 font-semibold">
