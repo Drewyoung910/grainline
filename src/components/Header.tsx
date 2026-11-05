@@ -535,14 +535,14 @@ export default function Header() {
             {/* Keep one stable auth slot while Clerk resolves. Without the
                 reserved width, the late Sign in pill shifted the cart and
                 search after first paint on every signed-out desktop load. */}
-            <span className="inline-flex w-[76px] shrink-0 justify-center">
+            <span className="inline-flex w-[84px] shrink-0 justify-end">
               <Show
                 when="signed-in"
                 fallback={
                   isLoaded ? (
                     <Link
                       href="/sign-in"
-                      className="inline-flex h-10 items-center rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
+                      className="inline-flex h-10 items-center whitespace-nowrap rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
                     >
                       Sign in
                     </Link>
