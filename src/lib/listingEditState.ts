@@ -39,7 +39,13 @@ export function approvedListingStatus(
   previousStatus: ListingStatus,
   current: { listingType: string; stockQuantity: number | null; isPrivate: boolean },
 ): ListingStatus {
-  if (current.listingType !== "IN_STOCK") return previousStatus;
+  if (current.listingType !== "IN_STOCK") {
+    // Made to order has no stock to run out of, so a sold-out piece switched
+    // to it is for sale again. Private pieces keep the stock route's rule.
+    return previousStatus === ListingStatus.SOLD_OUT && !current.isPrivate
+      ? ListingStatus.ACTIVE
+      : previousStatus;
+  }
   const stock = current.stockQuantity ?? 0;
   if (previousStatus === ListingStatus.ACTIVE && stock <= 0) return ListingStatus.SOLD_OUT;
   if (previousStatus === ListingStatus.SOLD_OUT && stock > 0 && !current.isPrivate) return ListingStatus.ACTIVE;
