@@ -14,9 +14,7 @@ function exists(path) {
 
 describe("local discovery and niche route loading boundaries", () => {
   it("keeps the root template motion-free so navigation cannot replay an entrance", () => {
-    const template = source("src/app/template.tsx");
-    assert.match(template, /return children;/);
-    assert.doesNotMatch(template, /usePathname|key=\{pathname\}|PageEntrance|page-enter/);
+    assert.equal(exists("src/app/template.tsx"), false);
     assert.doesNotMatch(source("src/app/globals.css"), /@keyframes page-enter|\.page-enter/);
   });
 

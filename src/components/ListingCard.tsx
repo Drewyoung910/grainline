@@ -115,7 +115,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
   );
 
   return (
-    <div className="card-rise">
+    <div>
       {/* Photo */}
       <div
         ref={photoRef}

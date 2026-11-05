@@ -75,6 +75,7 @@ export default function ConversationListItem({
             {unread && (
               <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-[#2C1F1A] px-1 text-[11px] tabular-nums text-[#FBF8F3]">
                 {unreadCount > 99 ? "99+" : unreadCount}
+                <span className="sr-only"> unread</span>
               </span>
             )}
           </span>

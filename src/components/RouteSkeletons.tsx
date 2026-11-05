@@ -6,7 +6,6 @@ export function AccountOverviewSkeleton() {
   return (
     <main className="mx-auto max-w-5xl space-y-7" aria-busy="true" aria-label="Loading account">
       <header className="flex items-center gap-4">
-        <Pulse className="h-14 w-14 rounded-full" />
         <div className="space-y-2">
           <Pulse className="h-8 w-44" />
           <Pulse className="h-4 w-64 max-w-full" />
