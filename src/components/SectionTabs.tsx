@@ -34,7 +34,11 @@ export default function SectionTabs({
     let frame = 0;
     const update = () => {
       frame = 0;
-      if (Date.now() < spyPausedUntilRef.current) return;
+      if (Date.now() < spyPausedUntilRef.current) {
+        // A long glide outlasts the initial pause, so hold until scrolling stops.
+        spyPausedUntilRef.current = Math.max(spyPausedUntilRef.current, Date.now() + 150);
+        return;
+      }
       // Only a page that actually scrolled to its end lights the last tab;
       // a page too short to scroll keeps the first.
       const atBottom =
@@ -151,7 +155,7 @@ export default function SectionTabs({
         {indicator && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 left-0 h-[2px] rounded-full bg-[#2C1F1A] transition-[translate,width] duration-[420ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
+            className="pointer-events-none absolute bottom-0 left-0 h-[2px] rounded-full bg-[#2C1F1A] transition-[translate,width] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             style={{ width: indicator.width, translate: `${indicator.left}px 0` }}
           />
         )}
