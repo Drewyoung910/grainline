@@ -210,12 +210,20 @@ export async function enqueueEmailOutbox(
 }
 
 async function processEmailOutboxClaim(claim: ClaimedEmailOutboxJob) {
+  // send() refuses optional mail with no unsubscribe link. Find that out here, so
+  // the row waits instead of starting the provider-attempt clock for nothing.
+  const missingUnsubscribeLink = isOptionalEmailPreferenceKey(claim.preferenceKey)
+    && buildUnsubscribeUrl(claim.recipientEmail, claim.createdAt.getTime()) === null;
+  if (missingUnsubscribeLink) {
+    // Each deferral pushes the row forward, so ops-health never sees it go stale.
+    Sentry.captureMessage("Optional email held: no unsubscribe link could be built", {
+      level: "error",
+      tags: { source: "email_outbox", reason: "missing_one_click_unsubscribe" },
+      extra: { emailOutboxId: claim.jobId },
+    });
+  }
   return processClaimedEmailOutboxJob(claim, {
-    // send() refuses optional mail with no unsubscribe link. Find that out here,
-    // so the row waits instead of starting the provider-attempt clock for nothing.
-    providerConfigured: isEmailProviderConfigured()
-      && (!isOptionalEmailPreferenceKey(claim.preferenceKey)
-        || buildUnsubscribeUrl(claim.recipientEmail, claim.createdAt.getTime()) !== null),
+    providerConfigured: isEmailProviderConfigured() && !missingUnsubscribeLink,
     reserveRecipient: reserveRecipientDailySendAllowance,
     reserveGlobal: reserveDailySendAllowance,
     rollbackRecipient: rollbackRecipientDailySendAllowance,
