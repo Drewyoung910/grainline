@@ -678,7 +678,7 @@ export default async function ListingPage({
             )}
 
             <div className="flex items-center gap-2 flex-wrap">
-              {!isOwnListing && sellerUserId && (
+              {!isOwnListing && !staffPreview && sellerUserId && (
                 <FollowButton
                   sellerProfileId={listing.sellerId}
                   initialFollowing={isFollowingSeller}
@@ -919,6 +919,7 @@ export default async function ListingPage({
         initialSort={sortKey}
         edit={editingMine}
         blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+        staffPreview={staffPreview}
       />
     </main>
     </div>
