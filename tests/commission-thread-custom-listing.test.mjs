@@ -1,25 +1,16 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
-import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as messageBodies from "../src/lib/messageBodies.ts";
+import { loadWithStubs } from "./helpers/load-with-stubs.mjs";
 
 function renderThread(meId, canCreateCustomListings = true) {
-  const { outputText } = ts.transpileModule(readFileSync("src/components/ThreadMessages.tsx", "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
-  });
-  const stub = () => null;
-  const modules = {
-    react: React,
+  const { default: ThreadMessages } = loadWithStubs("src/components/ThreadMessages.tsx", {
     "next/link": { __esModule: true, default: ({ href, children }) => React.createElement("a", { href }, children) },
     "@/lib/messageBodies": messageBodies,
-  };
-  const loaded = { exports: {} };
-  new Function("module", "exports", "require", outputText)(loaded, loaded.exports, (name) =>
-    modules[name] ?? new Proxy({ __esModule: true }, { get: (target, key) => target[key] ?? stub }));
-  return renderToStaticMarkup(React.createElement(loaded.exports.default, {
+  });
+  return renderToStaticMarkup(React.createElement(ThreadMessages, {
     convoId: "convo-1",
     meId,
     canCreateCustomListings,
