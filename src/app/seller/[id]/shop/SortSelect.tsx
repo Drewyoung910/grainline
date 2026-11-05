@@ -32,7 +32,7 @@ export default function SortSelect({
     <select
       value={currentSort}
       onChange={onChange}
-      className="h-8 shrink-0 rounded-full border border-neutral-200 bg-white px-2.5 pr-7 text-xs font-medium text-neutral-700 shadow-sm outline-none transition hover:bg-neutral-50 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
+      className="h-9 shrink-0 rounded-full border border-neutral-200 bg-white px-3 pr-8 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
       aria-label="Sort listings"
     >
       <option value="newest">Newest</option>
