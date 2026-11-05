@@ -39,34 +39,6 @@ import {
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
-// generateStaticParams — include both active metro slugs and open commission IDs
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const [metros, commissions] = await Promise.all([
-    prisma.metro.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { commissions: { some: openCommissionWhere() } },
-          { commissionCityMetros: { some: openCommissionWhere() } },
-        ],
-      },
-      select: { slug: true },
-    }),
-    prisma.commissionRequest.findMany({
-      where: openCommissionWhere(),
-      select: { id: true },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 500,
-    }),
-  ]);
-  return [
-    ...metros.map((m) => ({ param: m.slug })),
-    ...commissions.map((c) => ({ param: c.id })),
-  ];
-}
-
-// ---------------------------------------------------------------------------
 // generateMetadata
 // ---------------------------------------------------------------------------
 export async function generateMetadata({

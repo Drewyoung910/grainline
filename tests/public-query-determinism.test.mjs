@@ -423,7 +423,6 @@ describe("public query determinism", () => {
     assert.match(commissionPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*skip: \(page - 1\) \* pageSize,\s*take: pageSize/);
     assert.match(commissionPage, /cr\."createdAt" DESC,\s*cr\.id DESC/);
 
-    assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 500/);
     assert.match(commissionDetail, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 20/);
     assert.match(commissionDetail, /publicCommissionInterestCounts\(\[request\.id\], meId\)/);
     assert.match(commissionDetail, /publicCommissionInterestCards\(request\.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT\)/);
