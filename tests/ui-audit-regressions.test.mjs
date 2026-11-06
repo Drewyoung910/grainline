@@ -127,6 +127,15 @@ describe("Workshop overview", () => {
     assert.deepEqual(workshopAttentionRows({ ...quiet, liveListingCount: null }), []);
   });
 
+  it("names each waiting buyer once", () => {
+    const rows = workshopAttentionRows({
+      ...quiet,
+      ordersToShip: 4,
+      orderNames: ["Maya", "Maya", "Maya", "Leo"],
+    });
+    assert.equal(rows[0].detail, "Maya · Leo");
+  });
+
   it("points an empty shop at its first listing, but not when the count is unknown", () => {
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: 0 }).map((row) => row.key), ["first-listing"]);
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: null }), []);
