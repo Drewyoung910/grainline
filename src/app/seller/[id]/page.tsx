@@ -589,8 +589,11 @@ async function SellerPublicContent({
                 featuredListings.length > 0
                   ? featuredListings
                   : listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).slice(0, 3);
-              // One or two cards would only repeat the start of All Listings.
-              if (fallbackFeatured.length < 3) return null;
+              // The maker's own picks always show. The automatic fallback shows
+              // only when it fills a row, since one or two cards would just
+              // repeat the start of All Listings.
+              if (fallbackFeatured.length === 0) return null;
+              if (featuredListings.length === 0 && fallbackFeatured.length < 3) return null;
               const sellerChip = {
                 id: seller.id,
                 displayName: seller.displayName ?? null,
