@@ -101,7 +101,8 @@ export default function SellerRefundPanel({
 
       <p className="text-xs text-neutral-600">
         This refunds the entire order through Stripe. Eligible in-stock items are
-        returned to inventory automatically before handoff. This action cannot be undone.
+        returned to inventory automatically before handoff. If you have not shipped it yet,
+        do not ship it after refunding. This action cannot be undone.
       </p>
 
       <p className="text-xs text-neutral-500">
