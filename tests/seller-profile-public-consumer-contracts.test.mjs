@@ -18,11 +18,13 @@ test("every SellerProfile source consumer has a bounded authority contract", () 
   // Three direct EmailSuppression write arguments and the StockNotification
   // listing-availability query leave the opaque frontier when those checks
   // move behind their fixed SQL authorities.
-  assert.equal(result.reviewedOpaqueShapes, 149);
+  // The 2026-11-04 fix branch: C-1882 removes seven build-time factory reads,
+  // C-261 adds three to empty-page metadata, C-1890 removes one residual.
+  assert.equal(result.reviewedOpaqueShapes, 144);
   assert.equal(result.reviewedOpaqueFactoryShapes, 11);
   assert.equal(result.opaqueTargetPredicates, 0);
-  assert.equal(result.opaqueNonTargetFactoryCalls, 122);
-  assert.equal(result.opaqueNonTargetResiduals, 27);
+  assert.equal(result.opaqueNonTargetFactoryCalls, 118);
+  assert.equal(result.opaqueNonTargetResiduals, 26);
   assert.deepEqual(result.contractCounts, {
     PUBLIC_PROFILE: 0,
     PUBLIC_ELIGIBILITY: 0,
