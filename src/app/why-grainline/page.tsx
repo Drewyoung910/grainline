@@ -206,8 +206,8 @@ export default async function WhyGrainlinePage() {
             <h3 className="font-display font-semibold text-lg text-neutral-900 mb-1">Founding Maker</h3>
             <p className="text-xs uppercase tracking-wider text-amber-700 font-semibold mb-3">First 250 sellers</p>
             <p className="text-sm text-neutral-600 leading-relaxed">
-              Permanent recognition for the first 250 makers who posted an active listing on Grainline. There&apos;s
-              only one set of 250. Once granted, the number is theirs forever.
+              Recognition for the first 250 makers who posted an active listing on Grainline. There&apos;s only
+              one set of 250. The badge is permanent and its number is never reassigned.
             </p>
             <p className="mt-3 text-xs text-stone-500">
               {foundingCount} of 250 granted

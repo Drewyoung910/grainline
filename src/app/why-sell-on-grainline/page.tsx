@@ -176,8 +176,8 @@ export default async function WhySellOnGrainlinePage() {
             Founding Maker. 250 spots. Then it&apos;s closed forever.
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto">
-            The first 250 makers who post a public active listing on Grainline get a permanent Founding Maker
-            badge. The badge is numbered, never reassigned, and stays with the shop for as long as it exists.
+            The first 250 makers who post a public active listing on Grainline get a numbered Founding Maker
+            badge. The badge is permanent and its number is never reassigned.
           </p>
         </div>
 
@@ -219,7 +219,7 @@ export default async function WhySellOnGrainlinePage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                  <span>Your number is permanent and never reassigned.</span>
+                  <span>The badge is permanent and its number is never reassigned.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
