@@ -68,9 +68,6 @@ export default async function AccountSavedSearchesPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-      <Link href="/account" className="mb-4 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-700">
-        ← My Account
-      </Link>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display page-title text-neutral-900">Saved Searches</h1>

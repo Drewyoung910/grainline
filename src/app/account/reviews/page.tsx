@@ -43,8 +43,7 @@ export default async function MyReviewsPage({
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
       <div className="mb-6">
-        <Link href="/account" className="text-sm text-neutral-500 hover:underline">← My Account</Link>
-        <h1 className="font-display page-title text-neutral-900 mt-2">My Reviews</h1>
+        <h1 className="font-display page-title text-neutral-900">My Reviews</h1>
         <p className="text-sm text-neutral-500 mt-1">{totalReviews} review{totalReviews !== 1 ? "s" : ""}</p>
       </div>
 

@@ -67,9 +67,6 @@ export default async function MyCommissionsPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-16 pt-8 sm:px-6">
-      <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
-        ← My Account
-      </Link>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display page-title text-neutral-900">My Commission Requests</h1>

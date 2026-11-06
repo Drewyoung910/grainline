@@ -105,9 +105,6 @@ export default function FeedClient() {
 
   return (
     <div className="max-w-2xl pb-8">
-      <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
-        ← My Account
-      </Link>
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display page-title">Your Feed</h1>
         <Link href="/account/following" className="text-sm text-neutral-500 hover:underline">
