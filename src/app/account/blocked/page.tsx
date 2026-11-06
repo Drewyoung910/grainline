@@ -15,8 +15,7 @@ export default async function BlockedUsersPage() {
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
       <div className="mb-6">
-        <Link href="/account" className="text-sm text-neutral-500 hover:underline">← My Account</Link>
-        <h1 className="font-display page-title text-neutral-900 mt-2">Blocked Users</h1>
+        <h1 className="font-display page-title text-neutral-900">Blocked Users</h1>
         <p className="text-sm text-neutral-500 mt-1">{blocks.length} blocked user{blocks.length !== 1 ? "s" : ""}</p>
       </div>
 

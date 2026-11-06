@@ -67,11 +67,6 @@ export default async function AccountSettingsPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-6 md:p-8 space-y-8">
-      <div>
-        <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 inline-flex items-center gap-1">
-          ← My Account
-        </Link>
-      </div>
       <header>
         <h1 className="font-display page-title">Notification Preferences</h1>
         <p className="text-sm text-neutral-500 mt-1">

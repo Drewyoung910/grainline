@@ -647,12 +647,7 @@ export default function AnalyticsPage() {
     <main className="max-w-7xl mx-auto p-4 md:p-8 space-y-10">
       {/* ── Header ── */}
       <header>
-        <div className="flex items-center gap-4 mb-1">
-          <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-700">
-            ← Workshop
-          </Link>
-          <h1 className="font-display page-title">Analytics</h1>
-        </div>
+        <h1 className="font-display page-title">Analytics</h1>
 
         {/* Range selector */}
         <div className="scrollbar-hidden mt-4 flex overflow-x-auto gap-2 pb-1">
