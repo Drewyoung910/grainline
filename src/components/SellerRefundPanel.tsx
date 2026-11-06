@@ -121,7 +121,7 @@ export default function SellerRefundPanel({
             setConfirming(true);
             setError(null);
           }}
-          className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm justify-center"
         >
           Refund in full ({fmtMoney(orderTotalCents, currency)})
         </button>
@@ -142,7 +142,7 @@ export default function SellerRefundPanel({
             <button
               onClick={() => setConfirming(false)}
               disabled={loading}
-              className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+              className="btn btn-secondary btn-sm justify-center"
             >
               Go back
             </button>
