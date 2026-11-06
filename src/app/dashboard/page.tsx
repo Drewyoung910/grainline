@@ -227,7 +227,7 @@ async function DashboardPageContent({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium text-neutral-900">{row.title}</span>
-                      <span className="block truncate text-sm text-neutral-500">{row.detail}</span>
+                      <span className="block text-sm text-neutral-500 sm:truncate">{row.detail}</span>
                     </span>
                     <ChevronRight size={18} className="shrink-0 text-neutral-400 transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transition-none" />
                   </Link>
