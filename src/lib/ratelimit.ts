@@ -365,8 +365,8 @@ export const labelDownloadRatelimit = new Ratelimit({
   prefix: "rl:label_download",
 });
 
-// Counts only label buys. Getting rates uses labelQuoteRatelimit, so a
-// label (rates, then buy) spends one token here, not two.
+// Counts only label buys. Every label POST (getting rates or buying) also
+// spends labelRequestRatelimit, so a label spends one token here, not two.
 export const labelPurchaseRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(10, "60 m"),
@@ -374,11 +374,11 @@ export const labelPurchaseRatelimit = new Ratelimit({
   prefix: "rl:label_purchase",
 });
 
-export const labelQuoteRatelimit = new Ratelimit({
+export const labelRequestRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(30, "60 m"),
   analytics: true,
-  prefix: "rl:label_quote",
+  prefix: "rl:label_request",
 });
 
 export const adminActionRatelimit = new Ratelimit({

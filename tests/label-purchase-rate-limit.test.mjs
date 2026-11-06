@@ -13,11 +13,11 @@ const address = {
   name: "A", street1: "1 Main", street2: null, city: "Austin", state: "TX", zip: "78701", country: "US",
 };
 
-function fixture({ blocked = [] } = {}) {
+function fixture({ blocked = [], preflight = "ready" } = {}) {
   const spent = [];
-  const state = { quotes: 0, claims: 0 };
+  const state = { quotes: 0, claims: 0, preflights: 0 };
   const purchaseLimiter = { name: "purchase" };
-  const quoteLimiter = { name: "quote" };
+  const requestLimiter = { name: "request" };
   const stub = () => new Proxy(function () {}, { get: () => stub(), apply: () => undefined });
   const dependencies = {
     zod: require("zod"),
@@ -37,7 +37,7 @@ function fixture({ blocked = [] } = {}) {
     "@/lib/ratelimit": {
       labelDownloadRatelimit: {},
       labelPurchaseRatelimit: purchaseLimiter,
-      labelQuoteRatelimit: quoteLimiter,
+      labelRequestRatelimit: requestLimiter,
       safeRateLimit: async (limiter) => {
         spent.push(limiter.name);
         return { success: !blocked.includes(limiter.name), reset: 0 };
@@ -45,7 +45,9 @@ function fixture({ blocked = [] } = {}) {
       rateLimitResponse: (_reset, message) => Response.json({ error: message }, { status: 429 }),
     },
     "@/lib/orderLabelAuthority": {
-      sellerLabelPreflight: async () => ({
+      sellerLabelPreflight: async () => (state.preflights += 1, preflight === "conflict"
+        ? { outcome: "conflict", reason: "active_case" }
+        : {
         outcome: "ready", currency: "usd", storedRateUsable: false,
         packageWeightGrams: 500, packageLengthCm: 10, packageWidthCm: 10, packageHeightCm: 10,
         shipFrom: { ...address, phone: "5125550100" }, shipTo: address,
@@ -95,14 +97,24 @@ test("getting label rates does not use up the label purchase limit", async () =>
   const response = await subject.post({});
   assert.equal(response.status, 202);
   assert.equal(subject.state.quotes, 1);
-  assert.deepEqual(subject.spent, ["quote"]);
+  assert.deepEqual(subject.spent, ["request"]);
 });
 
-test("buying a chosen rate counts against the purchase limit only", async () => {
+test("buying a chosen rate spends one purchase token", async () => {
   const subject = fixture();
   await subject.post({ rateObjectId: "rate" });
   assert.equal(subject.state.claims, 1);
-  assert.deepEqual(subject.spent, ["purchase"]);
+  assert.deepEqual(subject.spent, ["request", "purchase"]);
+});
+
+test("a request the first check refuses is still rate limited", async () => {
+  const subject = fixture({ preflight: "conflict" });
+  const response = await subject.post({ rateObjectId: "rate" });
+  assert.equal(response.status, 409);
+  assert.deepEqual(subject.spent, ["request"]);
+  const limited = fixture({ blocked: ["request"] });
+  assert.equal((await limited.post({ rateObjectId: "rate" })).status, 429);
+  assert.equal(limited.state.preflights, 0);
 });
 
 test("a maker over the purchase limit cannot start a purchase", async () => {
@@ -112,8 +124,8 @@ test("a maker over the purchase limit cannot start a purchase", async () => {
   assert.equal(subject.state.claims, 0);
 });
 
-test("a maker over the quote limit makes no Shippo rate call", async () => {
-  const subject = fixture({ blocked: ["quote"] });
+test("a maker over the request limit makes no Shippo rate call", async () => {
+  const subject = fixture({ blocked: ["request"] });
   const response = await subject.post({});
   assert.equal(response.status, 429);
   assert.equal(subject.state.quotes, 0);
