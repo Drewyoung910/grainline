@@ -211,25 +211,7 @@ export default function LocationPicker({
         {mapUnavailable ? "Search a city or ZIP to set the general area." : "Search a city or ZIP, then drag the pin or click the map to choose the saved location."}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
-          <label className="block text-xs mb-1">Latitude</label>
-          <input
-            readOnly
-            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-            value={pos?.[0].toFixed(6) ?? ""}
-            placeholder="Not set"
-          />
-        </div>
-        <div>
-          <label className="block text-xs mb-1">Longitude</label>
-          <input
-            readOnly
-            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
-            value={pos?.[1].toFixed(6) ?? ""}
-            placeholder="Not set"
-          />
-        </div>
+      <div className="grid gap-3 sm:max-w-sm">
         <div>
           <label className="block text-xs mb-1">Approximate radius (miles)</label>
           <input
