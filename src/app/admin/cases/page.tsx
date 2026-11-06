@@ -127,7 +127,7 @@ export default async function AdminCasesPage({
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
+          <div className="relative rounded-xl border border-neutral-200 bg-white overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Cases requiring admin review</caption>
               <thead className="border-b border-neutral-100 bg-neutral-50 text-left">

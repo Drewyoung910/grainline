@@ -49,7 +49,7 @@ export default async function FlaggedOrdersPage({
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
+          <div className="relative rounded-xl border border-neutral-200 bg-white overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Orders needing staff reconciliation</caption>
               <thead className="border-b border-neutral-100 bg-neutral-50 text-left">
