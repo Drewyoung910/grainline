@@ -81,7 +81,7 @@ describe("seller route loading boundaries", () => {
     const shopStart = skeletons.indexOf("export function SellerShopSkeleton");
     const profileStart = skeletons.indexOf("export function SellerProfileSkeleton");
     const shop = skeletons.slice(shopStart, profileStart);
-    assert.match(shop, /aspect-\[4\/5\] w-full rounded-2xl/);
+    assert.match(shop, /aspect-\[4\/5\] w-full rounded-xl/);
     assert.match(shop, /flex items-center gap-3 pt-2\.5/);
     assert.doesNotMatch(shop, /card-listing/);
   });

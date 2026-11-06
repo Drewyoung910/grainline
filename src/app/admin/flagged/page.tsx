@@ -49,7 +49,7 @@ export default async function FlaggedOrdersPage({
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
+          <div className="relative rounded-xl border border-neutral-200 bg-white overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Orders needing staff reconciliation</caption>
               <thead className="border-b border-neutral-100 bg-neutral-50 text-left">
@@ -109,10 +109,10 @@ export default async function FlaggedOrdersPage({
                       <td className="px-4 py-3 text-neutral-600 max-w-xs">
                         <span className="line-clamp-2">{order.reviewNote ?? "—"}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="sticky right-0 bg-white px-4 py-3 md:static">
                         <Link
                           href={`/admin/orders/${order.id}`}
-                          className="text-blue-600 hover:underline text-xs whitespace-nowrap"
+                          className="inline-block py-1.5 text-blue-600 hover:underline text-xs whitespace-nowrap"
                         >
                           View →
                         </Link>

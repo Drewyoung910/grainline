@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { z } from "zod";
 import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { markOwnerNotificationsRead } from "@/lib/notificationOwnerAccess";
@@ -8,6 +9,7 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 
 export const runtime = "nodejs";
 const NOTIFICATION_READ_ALL_BODY_MAX_BYTES = 16 * 1024;
+const ReadAllSchema = z.object({ ids: z.array(z.string().min(1).max(191)).optional() });
 
 export async function POST(req: Request) {
   const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
@@ -40,10 +42,10 @@ export async function POST(req: Request) {
     }
     throw error;
   }
-  const bodyObject = body as { ids?: unknown };
-  const rawIds = Array.isArray(bodyObject.ids)
-    ? bodyObject.ids.filter((id: unknown): id is string => typeof id === "string")
-    : [];
+  // An empty list means "mark all read" downstream, so a bad list must not become one.
+  const parsed = ReadAllSchema.safeParse(body);
+  if (!parsed.success) return privateJson({ error: "Invalid input" }, { status: 400 });
+  const rawIds = parsed.data.ids ?? [];
   const ids = Array.from(new Set(rawIds)).slice(0, 100);
 
   const updated = await markOwnerNotificationsRead(me.id, ids);

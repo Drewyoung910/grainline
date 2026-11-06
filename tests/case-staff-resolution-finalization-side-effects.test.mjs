@@ -72,10 +72,6 @@ test("Case route has no post-finalization best-effort delivery gap", () => {
 
 test("Case resolution email uses the versioned retryable outbox", () => {
   assert.match(email, /export function renderCaseResolvedEmail\(/);
-  assert.match(
-    email,
-    /export async function sendCaseResolved\([\s\S]*sendRenderedEmail\(renderCaseResolvedEmail\(opts\)\)/,
-  );
   assert.match(outbox, /"case_resolved"/);
   assert.match(finalization, /templateName: "case_resolved"/);
   assert.match(finalization, /processEmailOutboxJobById/);

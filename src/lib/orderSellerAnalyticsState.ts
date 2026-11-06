@@ -1,3 +1,5 @@
+import { isTextWithinCodePointRange } from "./textLength.ts";
+
 const MAX_EPOCH_MILLIS = 253402300799999;
 const MAX_CENTS = Number.MAX_SAFE_INTEGER;
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/;
@@ -89,7 +91,7 @@ function finiteNumber(value: unknown, label: string, min = 0) {
 }
 
 function text(value: unknown, label: string, maxLength: number) {
-  if (typeof value !== "string" || value.length < 1 || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 1, maxLength)) {
     throw new TypeError(`${label} is invalid`);
   }
   return value;
@@ -97,7 +99,7 @@ function text(value: unknown, label: string, maxLength: number) {
 
 function optionalText(value: unknown, label: string, maxLength: number) {
   if (value == null) return null;
-  if (typeof value !== "string" || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 0, maxLength)) {
     throw new TypeError(`${label} is invalid`);
   }
   return value;

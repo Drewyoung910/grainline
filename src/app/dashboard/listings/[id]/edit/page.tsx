@@ -15,7 +15,7 @@ import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
-import { listingEditBlockReason } from "@/lib/listingEditState";
+import { approvedListingStatus, listingEditBlockReason, parseListingMaterials } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { listingPriceMaxError } from "@/lib/listingPrice";
@@ -34,7 +34,7 @@ import { logServerError } from "@/lib/serverErrorLogger";
 import type { Metadata } from "next";
 import { randomUUID } from "node:crypto";
 import InventoryQuantityControl from "@/components/InventoryQuantityControl";
-import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict } from "@/lib/listingStockMutation";
+import { lockListingStock, prepareListingStockMutation, recordListingStockMutation, StockMutationConflict, StockMutationExpired } from "@/lib/listingStockMutation";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { sellerOwnerCore, sellerOwnerListingReview } from "@/lib/sellerProfileOwnerAccess";
@@ -251,10 +251,7 @@ async function updateListing(
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
-  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
-  const materials = materialsRaw
-    ? materialsRaw.split(",").map((s: string) => s.trim()).filter(Boolean).slice(0, 20)
-    : [];
+  const materials = parseListingMaterials(formData.get("materials"));
 
   // Product dimensions (inches)
   const productLengthIn = toFloat(formData.get("productLengthIn"));
@@ -317,7 +314,8 @@ async function updateListing(
 
   const photoManifest = parsePhotoManifestField(formData.get("photoManifestJson"), listing.photos, userId);
   if (!photoManifest.ok) return { ok: false, error: photoManifest.error };
-  if (photoManifest.photos.length === 0) {
+  // Photos are optional on a private custom listing, as its create form says.
+  if (photoManifest.photos.length === 0 && !listing.isPrivate) {
     return { ok: false, error: "Add at least one listing photo before saving." };
   }
   const existingPhotoUrls = new Set(
@@ -367,12 +365,6 @@ async function updateListing(
   const needsPublicContentReview =
     listing.status === ListingStatus.ACTIVE ||
     listing.status === ListingStatus.SOLD_OUT;
-  let approvedPublicStatus =
-    listing.status === ListingStatus.ACTIVE &&
-    listingType === "IN_STOCK" &&
-    (stockQuantity ?? 0) <= 0
-      ? ListingStatus.SOLD_OUT
-      : listing.status;
 
   let updatedListing: { title: string; updatedAt: Date };
   try {
@@ -393,9 +385,6 @@ async function updateListing(
       }
       const lockedBlockReason = listingEditBlockReason({ ...locked, status: locked.status as ListingStatus });
       if (lockedBlockReason) throw new StockMutationConflict(lockedBlockReason);
-      const nextStock = listingType === stockContext.listingType ? locked.stockQuantity : stockQuantity;
-      approvedPublicStatus = locked.status === ListingStatus.ACTIVE && listingType === "IN_STOCK" && (nextStock ?? 0) <= 0
-        ? ListingStatus.SOLD_OUT : listing.status;
       const updated = await tx.listing.update({
         where: { id: listingId },
         data: {
@@ -495,6 +484,11 @@ async function updateListing(
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_pending_review");
     }
   } catch (error) {
+    // The token behind a listing-type change is issued by the server when this
+    // page loads, so the shared "check your device clock" text would be wrong.
+    if (error instanceof StockMutationExpired) {
+      return { ok: false, error: "This page has been open for more than a day. Reload it, then change the listing type again." };
+    }
     if (error instanceof ListingPhotoConflictError || error instanceof StockMutationConflict) {
       // The transaction left new uploads unreferenced. The fenced lifecycle
       // worker removes them without racing a valid public reuse.
@@ -538,11 +532,15 @@ async function updateListing(
           sellerName: sellerCore.displayName,
           listingCount: sellerReview.totalListingCount,
           imageUrls: photos.map((p) => p.url),
+          metaDescription,
+          materials,
+          variantLabels: variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+          photoAltTexts: photoManifest.photos.map((photo) => photo.altText),
         }).catch(() => ({
           approved: false,
           flags: ["AI review error"] as string[],
           confidence: 0,
-          reason: "AI error",
+          reason: "AI error, sending to staff review",
           altTexts: [] as string[],
         }));
 
@@ -559,6 +557,7 @@ async function updateListing(
               status: ListingStatus.PENDING_REVIEW,
               aiReviewFlags: aiResult.flags,
               aiReviewScore: aiResult.confidence,
+              rejectionReason: aiResult.reason,
             },
           });
           if (holdResult.count > 0) {
@@ -569,13 +568,26 @@ async function updateListing(
             );
           }
         } else {
-          // Stays in the current public status; refresh AI metadata for this pass.
+          // Return to a public status based on stock now, since a reservation
+          // restore can change it during the AI call. If stock moves again
+          // before this write, the listing stays in review rather than guess.
+          const current = await prisma.listing.findUniqueOrThrow({
+            where: { id: listingId },
+            select: { listingType: true, stockQuantity: true, isPrivate: true },
+          });
           await prisma.listing.updateMany({
-            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.PENDING_REVIEW, updatedAt: updatedListing.updatedAt },
+            where: {
+              id: listingId,
+              sellerId: listing.sellerId,
+              status: ListingStatus.PENDING_REVIEW,
+              updatedAt: updatedListing.updatedAt,
+              stockQuantity: current.stockQuantity,
+            },
             data: {
-              status: approvedPublicStatus,
+              status: approvedListingStatus(listing.status, current),
               aiReviewFlags: aiResult.flags,
               aiReviewScore: aiResult.confidence,
+              rejectionReason: null,
             },
           });
         }
@@ -607,6 +619,7 @@ async function updateListing(
           status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: ["AI review error"],
           aiReviewScore: 0,
+          rejectionReason: "AI error, sending to staff review",
         },
       });
       if (pendingResult.count > 0) {
@@ -665,7 +678,7 @@ async function updateListing(
     finalStatus === ListingStatus.SOLD ||
     finalStatus === ListingStatus.SOLD_OUT
   ) {
-    redirect(publicListingPath(listingId, finalTitle));
+    redirect(`${publicListingPath(listingId, finalTitle)}?saved=1`);
   }
 
   // PENDING_REVIEW: redirect to the preview URL so the seller sees how their
@@ -882,7 +895,7 @@ export default async function EditListingPage(props: {
           </div>
           <p className="text-xs text-neutral-500 mt-1">
             These should be the finished, ready-to-ship package size/weight per unit.
-            If left blank, your seller default package will be used.
+            If left blank, your shop&apos;s default package will be used.
           </p>
         </div>
 
@@ -891,9 +904,6 @@ export default async function EditListingPage(props: {
             explicit Save boundary. */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold">Photos</h2>
-          <p className="text-xs text-neutral-500">
-            Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
-          </p>
 
           <EditPhotoGrid
             photos={listing.photos.map((p) => ({ id: p.id, url: p.url, originalUrl: p.originalUrl, altText: p.altText }))}
@@ -906,7 +916,7 @@ export default async function EditListingPage(props: {
             name="publish"
             value="false"
             pendingLabel="Saving..."
-            className="btn btn-secondary flex-1 disabled:cursor-wait"
+            className={`btn ${canPublishFromEdit ? "btn-secondary" : "btn-primary"} flex-1 disabled:cursor-wait`}
           >
             Save changes
           </SubmitButton>

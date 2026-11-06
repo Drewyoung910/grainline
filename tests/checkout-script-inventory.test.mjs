@@ -61,6 +61,13 @@ describe("checkout script inventory", () => {
     assert.doesNotMatch(modal, /import EmbeddedCheckoutPanel from "\.\/EmbeddedCheckoutPanel"/);
   });
 
+  it("keeps Cart prefetches from loading Stripe.js before the payment step", () => {
+    const cart = source("src/app/cart/page.tsx");
+
+    assert.match(cart, /dynamic\(\(\) => import\("@\/components\/EmbeddedCheckoutPanel"\)/);
+    assert.doesNotMatch(cart, /import EmbeddedCheckoutPanel from "@\/components\/EmbeddedCheckoutPanel"/);
+  });
+
   it("keeps the security plan and launch checklist pointed at the inventory", () => {
     assert.match(source("docs/security-hardening-plan.md"), /docs\/checkout-script-inventory\.md/);
     assert.match(source("docs/launch-checklist.md"), /docs\/checkout-script-inventory\.md/);

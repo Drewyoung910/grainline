@@ -15,3 +15,10 @@ export function isListingVariantSelectionComplete(
     group.options.some((option) => option.inStock && selected.has(option.id)),
   );
 }
+
+// Every group is required, so one with nothing in stock means nobody can buy.
+export function hasSoldOutRequiredOption(
+  groups: ReadonlyArray<ListingVariantSelectionGroup>,
+): boolean {
+  return groups.some((group) => group.options.every((option) => !option.inStock));
+}

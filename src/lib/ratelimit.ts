@@ -1,7 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
-import { limitWithFailurePolicy } from "@/lib/ratelimitPolicy";
+import { limitWithFailurePolicy, type RateLimitResult } from "@/lib/ratelimitPolicy";
 import { requiredProductionEnv } from "@/lib/env";
 import * as Sentry from "@sentry/nextjs";
 import { HTTP_STATUS } from "./httpStatus.ts";
@@ -9,6 +9,11 @@ import { HTTP_STATUS } from "./httpStatus.ts";
 export const redis = new Redis({
   url: requiredProductionEnv("UPSTASH_REDIS_REST_URL"),
   token: requiredProductionEnv("UPSTASH_REDIS_REST_TOKEN"),
+  // Middleware reads Redis on every signed-in request, so a stalled Redis must fail
+  // quickly: the account-state read falls back to the database, and limiters follow
+  // their fail-open or fail-closed policy.
+  signal: () => AbortSignal.timeout(1500),
+  retry: { retries: 1, backoff: () => 100 },
 });
 
 // For public endpoints — limit by IP
@@ -274,6 +279,16 @@ export const profileViewRatelimit = new Ratelimit({
   prefix: "rl:profile_view",
 });
 
+// Commission posts, commission interest and custom-order requests: a short
+// attempt limiter checked first, so refused attempts are bounded even though
+// each route spends its daily quota only after validation.
+export const commissionAttemptRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "10 m"),
+  analytics: true,
+  prefix: "rl:commission_attempt",
+});
+
 // Broadcast — short attempt limiter before parse; weekly send limiter after validation/DB cooldown.
 export const broadcastAttemptRatelimit = new Ratelimit({
   redis,
@@ -347,11 +362,28 @@ export const refundRatelimit = new Ratelimit({
   prefix: "rl:refund",
 });
 
+// Each download makes one or two billable Shippo calls.
+export const labelDownloadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "60 m"),
+  analytics: true,
+  prefix: "rl:label_download",
+});
+
+// Counts only label buys. Every label POST (getting rates or buying) also
+// spends labelRequestRatelimit, so a label spends one token here, not two.
 export const labelPurchaseRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(10, "60 m"),
   analytics: true,
   prefix: "rl:label_purchase",
+});
+
+export const labelRequestRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "60 m"),
+  analytics: true,
+  prefix: "rl:label_request",
 });
 
 export const adminActionRatelimit = new Ratelimit({
@@ -422,6 +454,13 @@ export const newsletterRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(5, "60 s"),
   analytics: true,
   prefix: "rl:newsletter",
+});
+
+export const newsletterAddressRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "24 h"),
+  analytics: true,
+  prefix: "rl:newsletter-address",
 });
 
 export const supportRequestRatelimit = new Ratelimit({
@@ -548,7 +587,7 @@ export const clickDedupRatelimit = new Ratelimit({
 export async function safeRateLimit(
   limiter: Ratelimit,
   key: string
-): Promise<{ success: boolean; reset: number }> {
+): Promise<RateLimitResult> {
   return limitWithFailurePolicy(limiter, key, false, "Rate limit Redis error (fail closed):");
 }
 
@@ -561,7 +600,7 @@ export async function safeRateLimit(
 export async function safeRateLimitOpen(
   limiter: Ratelimit,
   key: string
-): Promise<{ success: boolean; reset: number }> {
+): Promise<RateLimitResult> {
   return limitWithFailurePolicy(limiter, key, true, "Rate limit Redis error (fail open):");
 }
 
@@ -619,6 +658,7 @@ export function rateLimitResponse(reset: number, customMessage?: string): Respon
   const diffMs = Math.max(0, reset - Date.now());
   const diffMins = Math.ceil(diffMs / 60000);
   const diffHours = Math.ceil(diffMs / 3600000);
+  const diffDays = Math.ceil(diffMs / 86400000);
   const resetDate = new Date(reset);
   const retryAfterSeconds = Math.max(1, Math.ceil(diffMs / 1000));
 
@@ -626,7 +666,8 @@ export function rateLimitResponse(reset: number, customMessage?: string): Respon
   if (diffMins < 2) timeStr = "a moment";
   else if (diffMins < 60) timeStr = `${diffMins} minutes`;
   else if (diffHours < 24) timeStr = `${diffHours} hour${diffHours === 1 ? "" : "s"}`;
-  else timeStr = `tomorrow at ${resetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  // Days, not a clock time: the server formats in UTC and the window can be a week.
+  else timeStr = `${diffDays} day${diffDays === 1 ? "" : "s"}`;
 
   return NextResponse.json(
     {

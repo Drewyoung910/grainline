@@ -13,12 +13,14 @@ import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { normalizeTag } from "@/lib/tags";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { publicTagPath } from "@/lib/publicPaths";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import {
   sellerPublicListingCards,
   type SellerPublicListingCard,
 } from "@/lib/sellerProfilePublicAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
 const TAG_PAGE_SIZE = 24;
@@ -77,9 +79,13 @@ export async function generateMetadata({
   const total = await prisma.listing.count({
     where: publicListingWhere({ tags: { has: tag } }),
   });
-  if (total === 0) return { robots: { index: false, follow: true } };
+  if (total === 0) notFound();
 
-  const page = parseBoundedPositiveIntParam(sp.page, 1, 500);
+  // A page past the end shows the last page, so it must not claim its own URL.
+  const page = Math.min(
+    parseBoundedPositiveIntParam(sp.page, 1, 500),
+    Math.max(1, Math.ceil(total / TAG_PAGE_SIZE)),
+  );
   const label = tagLabel(tag);
   const pageSuffix = page > 1 ? ` - Page ${page}` : "";
   const title = `Handmade ${label}${pageSuffix} | Grainline`;
@@ -89,7 +95,7 @@ export async function generateMetadata({
   return {
     title: { absolute: title },
     description,
-    openGraph: { title, description, url: canonical },
+    openGraph: { title, description, url: canonical, images: defaultOpenGraphImages() },
     alternates: { canonical },
   };
 }
@@ -210,7 +216,7 @@ export default async function TagLandingPage({
               Handmade {label}
             </h1>
             <p className="max-w-2xl text-sm text-neutral-600 sm:text-base">
-              {total} {total === 1 ? "piece" : "pieces"} tagged #{tag} from active Grainline makers.
+              {total} {total === 1 ? "piece" : "pieces"} tagged {label.toLowerCase()} from active Grainline makers.
             </p>
           </div>
           <Link
@@ -221,7 +227,7 @@ export default async function TagLandingPage({
           </Link>
         </div>
 
-        <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-8 lg:grid-cols-3 xl:grid-cols-4">
+        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
           {listings.map((listing) => (
             <GridCard key={listing.id} listing={listing} />
           ))}
@@ -263,7 +269,7 @@ export default async function TagLandingPage({
                   href={publicTagPath(relatedTag)}
                   className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700 hover:bg-amber-50"
                 >
-                  #{relatedTag}
+                  {humanizeSearchTag(relatedTag)}
                 </Link>
               ))}
             </div>

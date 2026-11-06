@@ -35,6 +35,12 @@ export function listingViewDailyRetentionCutoff(now = new Date()) {
   return new Date(now.getTime() - LISTING_VIEW_DAILY_RETENTION_DAYS * DAY_MS);
 }
 
+/** Rounds down for display, so a failing metric never reads as its threshold. */
+export function floorMetric(value: number, decimals = 1) {
+  const factor = 10 ** decimals;
+  return Math.floor(value * factor + 1e-9) / factor;
+}
+
 export function meetsGuildMasterRequirements(m: SellerMetricsResult): {
   ratingMet: boolean;
   reviewsMet: boolean;

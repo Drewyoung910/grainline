@@ -16,7 +16,7 @@ import {
   type CaseStaffResolution,
 } from "@/lib/caseStaffResolutionAuthority";
 import { finalizeCaseStaffResolutionWithSideEffects } from "@/lib/caseStaffResolutionFinalization";
-import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { rateLimitResponse, adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { releaseCaseLegacyRefundLock } from "@/lib/orderLegacyRefundLockAuthority";
 import {
   partialRefundInputError,
@@ -128,8 +128,9 @@ export async function POST(
     );
     if (pinResponse) return pinResponse;
 
+    // Staff work a queue, and a provider-retry 503 must not use up their allowance.
     const { success, reset } = await safeRateLimit(
-      refundRatelimit,
+      adminActionRatelimit,
       `case-resolve:${userId}`,
     );
     if (!success) {

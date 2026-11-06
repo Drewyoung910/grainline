@@ -32,6 +32,9 @@ export function BanUserButton({
         body: JSON.stringify({ reason: trimmedReason }),
       });
       if (res.ok) {
+        // An unban can succeed while the shop stays offline. Staff must see that.
+        const data = await res.json().catch(() => null) as { warning?: string } | null;
+        if (data?.warning) toast(data.warning, "info");
         setBanned(!banned);
         setOpen(false);
         setReason("");

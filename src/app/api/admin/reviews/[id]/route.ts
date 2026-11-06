@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { logAdminActionOrThrow } from "@/lib/audit";
@@ -6,19 +7,23 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await userClerkGate(prisma, userId);
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
     return privateJson({ error: "Forbidden" }, { status: HTTP_STATUS.FORBIDDEN });
   }
-  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
+  const pinResponse = await requireStaffAdminPinForApi(request, userId, sessionId);
+  if (pinResponse) return pinResponse;
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
 
   const { id } = await params;
@@ -45,5 +50,7 @@ export async function DELETE(
       metadata: { listingId: review.listingId, reviewerId: review.reviewerId },
     });
   });
+  revalidateFeaturedMakerCaches();
+  revalidatePath(`/listing/${review.listingId}`);
   return privateJson({ ok: true });
 }

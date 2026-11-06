@@ -51,7 +51,7 @@ export default async function SimilarMakers({
 
   return (
     <section className="mb-10">
-      <h2 className="font-semibold font-display text-neutral-900 mb-4">
+      <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-4">
         {scopeLabel ? `More makers ${scopePreposition} ${scopeLabel}` : "More makers to explore"}
       </h2>
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -68,7 +68,7 @@ export default async function SimilarMakers({
                       src={cover}
                       alt=""
                       loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                       fallbackClassName="h-full w-full bg-[#E3DCCB]/60"
                     />
                   )}

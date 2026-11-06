@@ -13,6 +13,8 @@ import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
 import SellerNotesForm from "@/components/SellerNotesForm";
+import FulfillmentActionForm from "@/components/FulfillmentActionForm";
+import { sellerRefundPreflightConflictResponse } from "@/lib/refundRouteState";
 import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
@@ -108,7 +110,6 @@ export default async function SellerOrderDetailPage({
   if (!seller) redirect("/dashboard/seller");
   const sellerPrivate = await sellerOwnerPrivateState(me.id, seller.sellerProfileId);
   if (!sellerPrivate) redirect("/dashboard/seller");
-  if (!sellerPrivate.onboardingComplete) redirect("/dashboard?setup=required");
 
   const order = await readSellerOrderDetail(me.id, orderId);
 
@@ -186,6 +187,9 @@ export default async function SellerOrderDetailPage({
     paymentState,
     status,
   );
+  // A Case (including one opened by a bank chargeback) is not a happy ending.
+  const caseUnresolved = activeCase != null
+    && activeCase.status !== "RESOLVED" && activeCase.status !== "CLOSED";
   const buyerId = order.buyerId ?? "";
   const meId = me.id;
   const caseReplyUnavailableReason =
@@ -197,17 +201,17 @@ export default async function SellerOrderDetailPage({
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
       <Link href="/dashboard/sales" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
-        <ArrowLeft size={14} /> Back to Sales
+        <ArrowLeft size={14} /> Back to Orders
       </Link>
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">
-          Order <span className="font-mono">#{order.id.slice(-8)}</span>
+        <h1 className="font-display page-title">
+          Order <span className="text-neutral-500">#{order.id.slice(-8)}</span>
         </h1>
-        <div className="flex items-center gap-2 text-sm text-neutral-600">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-600">
           <span>
             Placed <LocalDate date={order.createdAt} /> · {orderPaymentPresentationLabel(paymentState)}
           </span>
-          <Badge>{method}</Badge>
+          <Badge>{method === "PICKUP" ? "Local pickup" : "Shipping"}</Badge>
           <Badge>
             {suppressActiveFulfillment
               ? orderPaymentPresentationLabel(paymentState)
@@ -220,9 +224,13 @@ export default async function SellerOrderDetailPage({
         </div>
       </header>
 
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
+      <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-700 font-medium">
         {suppressActiveFulfillment ? (
           "Fully refunded — no fulfillment is required."
+        ) : caseUnresolved ? (
+          `${fulfillmentStatusLabel(status)}. This order has an open case.`
+        ) : order.reviewNeeded ? (
+          `${fulfillmentStatusLabel(status)}.`
         ) : (
           <>
             {status === "PENDING" && "New order — time to get crafting!"}
@@ -257,11 +265,13 @@ export default async function SellerOrderDetailPage({
 
       {deauthorizedReviewHold ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE} Check the review note or contact support before changing fulfillment.
+          {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE} Contact support before changing fulfillment.
         </div>
       ) : order.reviewNeeded && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          This order needs staff review before fulfillment. Check the review note or contact support before shipping.
+          {status === "PENDING" || status === "READY_FOR_PICKUP"
+            ? "This order needs staff review before fulfillment. Contact support before shipping."
+            : "This order needs staff review. Grainline staff will contact you if they need anything."}
         </div>
       )}
 
@@ -315,7 +325,7 @@ export default async function SellerOrderDetailPage({
       {activeCase?.status === "PENDING_CLOSE" && (
         <div className="rounded-md border border-teal-300 bg-teal-50 px-4 py-3 text-sm text-teal-900">
           <div className="font-semibold">Resolution pending confirmation</div>
-          <div>Both parties must confirm to close the case.</div>
+          <div>Reply if this isn&apos;t settled. With no reply for 7 days, the case closes with no refund.</div>
         </div>
       )}
 
@@ -627,10 +637,9 @@ export default async function SellerOrderDetailPage({
               </div>
             );
           })()}
-          {!suppressActiveFulfillment && order.processingDeadline && (() => {
-            const overdue =
-              order.processingDeadline < now &&
-              !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status);
+          {!suppressActiveFulfillment && order.processingDeadline &&
+            !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status) && (() => {
+            const overdue = order.processingDeadline < now;
             return (
               <div className={`mt-2 font-medium ${overdue ? "text-red-700" : "text-amber-700"}`}>
                 {overdue ? "Overdue — should have shipped by " : "Ship by "}
@@ -648,7 +657,16 @@ export default async function SellerOrderDetailPage({
       ) : null}
 
       {/* Refund panel — shown when order is paid and not already fully refunded (by seller or admin) */}
-      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund && (
+      {/* A purchased label always makes the seller refund refuse (LABEL_BLOCKED
+          in grainline_seller_refund_preflight), so say so instead of a button. */}
+      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund
+        && order.labelStatus === "PURCHASED" && (
+        <div className="card-section px-4 py-3 text-sm text-neutral-600">
+          {sellerRefundPreflightConflictResponse("LABEL_BLOCKED")?.error}
+        </div>
+      )}
+      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund
+        && order.labelStatus !== "PURCHASED" && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
@@ -682,27 +700,28 @@ export default async function SellerOrderDetailPage({
           <div className="font-medium">Fulfillment actions</div>
 
           {deauthorizedReviewHold ? (
-            <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+            <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
               {DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE}
             </div>
           ) : (
             <>
-              {method === "PICKUP" && status === "PENDING" && (
-                <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
-                  <input type="hidden" name="action" value="ready_for_pickup" />
-                  <button className="btn btn-secondary btn-sm">
-                    Mark ready for pickup
-                  </button>
-                </form>
+              {caseUnresolved && status === "PENDING" && (
+                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                  Shipping, labels and pickup are paused while the case on this order is open.
+                </div>
+              )}
+
+              {method === "PICKUP" && status === "PENDING" && !caseUnresolved && (
+                <FulfillmentActionForm orderId={order.id} action="ready_for_pickup" />
               )}
 
               {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
-                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
                   Waiting for the buyer to confirm pickup. This keeps the receipt date and case window buyer-controlled.
                 </div>
               )}
 
-              {method === "SHIPPING" && (status === "PENDING" || order.labelStatus === "PURCHASED") && (
+              {method === "SHIPPING" && ((status === "PENDING" && !caseUnresolved) || order.labelStatus === "PURCHASED") && (
                 <div className="space-y-4">
                   <LabelSection
                     orderId={order.id}
@@ -715,47 +734,17 @@ export default async function SellerOrderDetailPage({
                     currency={currency}
                   />
 
-                  {status === "PENDING" && <div className="border-t border-neutral-100 pt-3 space-y-2">
+                  {status === "PENDING" && !caseUnresolved && <div className="border-t border-neutral-100 pt-3 space-y-2">
                     <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
                       Already shipped? Enter tracking manually
                     </div>
-                    <form
-                      method="post"
-                      action={`/api/orders/${order.id}/fulfillment`}
-                      className="space-y-2"
-                    >
-                      <input type="hidden" name="action" value="shipped" />
-                      <div className="flex flex-wrap gap-2">
-                        <select
-                          name="trackingCarrier"
-                          required
-                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                          defaultValue=""
-                        >
-                          <option value="" disabled>Carrier</option>
-                          <option value="UPS">UPS</option>
-                          <option value="USPS">USPS</option>
-                          <option value="FedEx">FedEx</option>
-                          <option value="DHL">DHL</option>
-                          <option value="Other">Other</option>
-                        </select>
-                        <input
-                          name="trackingNumber"
-                          placeholder="Tracking number"
-                          required
-                          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
-                        />
-                        <button className="btn btn-secondary btn-sm">
-                          Mark shipped
-                        </button>
-                      </div>
-                    </form>
+                    <FulfillmentActionForm orderId={order.id} action="shipped" />
                   </div>}
                 </div>
               )}
 
               {method === "SHIPPING" && status === "SHIPPED" && (
-                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                <div className="rounded-md bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-600">
                   Waiting for buyer delivery confirmation. If tracking shows a problem, contact the buyer or support.
                 </div>
               )}
@@ -781,7 +770,7 @@ export default async function SellerOrderDetailPage({
           href="/dashboard/sales"
           className="btn btn-secondary btn-sm"
         >
-          Back to sales
+          Back to orders
         </Link>
         {order.buyerId ? (
           <Link

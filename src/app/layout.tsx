@@ -19,7 +19,6 @@ const newsreader = Newsreader({
   subsets: ["latin"],
   variable: "--font-newsreader",
   display: "swap",
-  style: ["normal", "italic"],
   axes: ["opsz"],
 });
 
@@ -101,7 +100,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div id="main-content" className="flex-1 bg-[#F7F5F0]">
           {children}
           </div>
-          <footer className="bg-[#EFEAE0] border-t border-stone-200/60 text-neutral-700 pt-14 pb-8 px-6 text-sm">
+          <footer className="bg-[#EFEAE0] border-t border-stone-200/60 text-neutral-700 pt-14 pb-8 px-4 sm:px-6 lg:px-8 text-sm">
             <div className="max-w-[1600px] mx-auto">
               {/* Top row: logo + 4-column nav. Stacks on mobile, grid on md+. */}
               <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-5 gap-8 mb-10">
@@ -117,7 +116,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {/* Shop */}
                 <nav aria-label="Shop">
                   <h2 className="font-semibold text-neutral-900 text-sm mb-3">Shop</h2>
-                  <ul className="space-y-2 text-xs">
+                  <ul className="space-y-2 text-[13px]">
                     <li><Link href="/browse" className="text-neutral-600 hover:text-neutral-900 hover:underline">Browse all</Link></li>
                     <li><Link href="/why-grainline" className="text-neutral-600 hover:text-neutral-900 hover:underline">Why Grainline</Link></li>
                     <li><Link href="/commission" className="text-neutral-600 hover:text-neutral-900 hover:underline">Commission a piece</Link></li>
@@ -129,7 +128,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {/* Sell */}
                 <nav aria-label="Sell">
                   <h2 className="font-semibold text-neutral-900 text-sm mb-3">Sell</h2>
-                  <ul className="space-y-2 text-xs">
+                  <ul className="space-y-2 text-[13px]">
                     <li><Link href="/why-sell-on-grainline" className="text-neutral-600 hover:text-neutral-900 hover:underline">Why sell on Grainline</Link></li>
                     <li><Link href="/become-a-maker" className="text-neutral-600 hover:text-neutral-900 hover:underline">Become a maker</Link></li>
                     <li><Link href="/seller-handbook" className="text-neutral-600 hover:text-neutral-900 hover:underline">Seller handbook</Link></li>
@@ -141,7 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {/* Help */}
                 <nav aria-label="Help">
                   <h2 className="font-semibold text-neutral-900 text-sm mb-3">Help</h2>
-                  <ul className="space-y-2 text-xs">
+                  <ul className="space-y-2 text-[13px]">
                     <li><Link href="/support" className="text-neutral-600 hover:text-neutral-900 hover:underline">Contact support</Link></li>
                     <li><Link href="/help/shipping-and-returns" className="text-neutral-600 hover:text-neutral-900 hover:underline">Shipping &amp; returns</Link></li>
                     <li><Link href="/help/trust-and-safety" className="text-neutral-600 hover:text-neutral-900 hover:underline">Trust &amp; safety</Link></li>
@@ -152,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {/* About / Legal */}
                 <nav aria-label="Grainline">
                   <h2 className="font-semibold text-neutral-900 text-sm mb-3">Grainline</h2>
-                  <ul className="space-y-2 text-xs">
+                  <ul className="space-y-2 text-[13px]">
                     <li><Link href="/about" className="text-neutral-600 hover:text-neutral-900 hover:underline">About</Link></li>
                     <li><Link href="/terms" className="text-neutral-600 hover:text-neutral-900 hover:underline">Terms of Service</Link></li>
                     <li><Link href="/privacy" className="text-neutral-600 hover:text-neutral-900 hover:underline">Privacy Policy</Link></li>
@@ -165,7 +164,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {footerMetros.length > 0 && (
                 <div className="border-t border-stone-300/60 pt-6 pb-6 mb-6">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 mb-3">Browse by city</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
                     {footerMetros.map((m) => (
                       <Link key={m.slug} href={`/browse/${m.slug}`} className="text-neutral-600 hover:text-neutral-900 hover:underline">
                         {m.name}

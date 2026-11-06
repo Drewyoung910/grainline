@@ -49,8 +49,8 @@ export default function AddToCartButton({
     }, 1800);
   };
   const router = useRouter();
-  // The toast sits at the bottom edge, clear of the photo flying to the
-  // header bag, so it can show straight away.
+  // The toast shows straight away: under the header on phones, at the
+  // bottom edge from 640px.
   const showAddedToast = () => {
     toast("Added to your cart", "success", { action: { label: "View cart", onClick: () => router.push("/cart") } });
   };

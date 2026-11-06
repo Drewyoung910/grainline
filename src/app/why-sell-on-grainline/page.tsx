@@ -27,7 +27,7 @@ export default async function WhySellOnGrainlinePage() {
   const foundingRemaining = Math.max(0, 250 - foundingCount);
 
   return (
-    <div className="bg-gradient-to-b from-amber-50/40 via-white to-white min-h-[100svh]">
+    <main className="min-h-[100svh]">
       {/* Hero */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 sm:pt-20 pb-12 text-center">
         <p className="text-xs uppercase tracking-wider text-amber-700 mb-4 font-semibold">
@@ -75,7 +75,7 @@ export default async function WhySellOnGrainlinePage() {
               <caption className="sr-only">Comparison of Grainline fees with other marketplace fee structures</caption>
               <thead>
                 <tr className="bg-amber-50 border-b border-stone-200">
-                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900 min-w-[160px]">Platform</th>
+                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900 min-w-[120px]">Platform</th>
                   <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Platform fee</th>
                   <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Listing fees</th>
                   <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Mandatory ads</th>
@@ -111,7 +111,7 @@ export default async function WhySellOnGrainlinePage() {
                     <div className="font-display font-semibold text-neutral-900">Faire</div>
                     <div className="text-xs text-stone-500 mt-0.5">Wholesale</div>
                   </td>
-                  <td className="p-4 text-neutral-700">15% (25% on direct shops)</td>
+                  <td className="p-4 text-neutral-700">15% on marketplace orders</td>
                   <td className="p-4 text-neutral-700">None</td>
                   <td className="p-4 text-neutral-700">None</td>
                   <td className="p-4 text-neutral-700">Free shipping required</td>
@@ -129,10 +129,13 @@ export default async function WhySellOnGrainlinePage() {
               </tbody>
             </table>
           </div>
+          <p className="px-4 pt-3 text-xs text-stone-500 sm:hidden">
+            Swipe the table sideways to see all five columns.
+          </p>
           <p className="text-xs text-stone-500 px-4 py-3 border-t border-stone-100">
             Stripe processing (~2.9% + $0.30) applies to card payments. Grainline currently absorbs it
             under our payout model; the numbers above compare platform fees. Competitor fees are as
-            publicly published and may change — check each platform for current rates.
+            publicly published and may change, so check each platform for current rates.
           </p>
         </div>
       </section>
@@ -173,8 +176,8 @@ export default async function WhySellOnGrainlinePage() {
             Founding Maker. 250 spots. Then it&apos;s closed forever.
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto">
-            The first 250 makers who post a public active listing on Grainline get a permanent Founding Maker
-            badge. The badge is numbered, never reassigned, and stays with the shop for as long as it exists.
+            The first 250 makers who post a public active listing on Grainline get a numbered Founding Maker
+            badge. The badge is permanent and its number is never reassigned.
           </p>
         </div>
 
@@ -216,7 +219,7 @@ export default async function WhySellOnGrainlinePage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
-                  <span>Permanent. Never revoked. Never reassigned.</span>
+                  <span>The badge is permanent and its number is never reassigned.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle size={16} className="text-amber-700 mt-0.5 flex-none" />
@@ -244,8 +247,8 @@ export default async function WhySellOnGrainlinePage() {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
-            <div className="card-section p-6 bg-white">
+          <div className="grid sm:grid-cols-2 gap-8">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No mandatory ads</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
@@ -253,7 +256,7 @@ export default async function WhySellOnGrainlinePage() {
                 additional percentage of your sales for ads you didn&apos;t opt into.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No listing fees</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
@@ -261,7 +264,7 @@ export default async function WhySellOnGrainlinePage() {
                 pay when something sells.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No shipping skim</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
@@ -269,12 +272,12 @@ export default async function WhySellOnGrainlinePage() {
                 carrier rate, you pay the carrier, we don&apos;t take a cut.
               </p>
             </div>
-            <div className="card-section p-6 bg-white">
+            <div>
               <XCircle size={28} className="text-red-600 mb-3" />
               <h3 className="font-display font-semibold text-lg text-neutral-900 mb-2">No surprise rate changes</h3>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                Fee changes are grandfathered. New fees apply only to orders placed after the change takes
-                effect. We&apos;ll never quietly raise rates on your existing orders or inventory.
+                New fees apply only to orders placed after the change takes effect, including orders for
+                pieces you have already listed. We&apos;ll never change the rate on an order you already have.
               </p>
             </div>
           </div>
@@ -292,8 +295,8 @@ export default async function WhySellOnGrainlinePage() {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          <div className="card-section p-6 bg-white">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div>
             <Truck size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Live carrier rates</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -301,15 +304,15 @@ export default async function WhySellOnGrainlinePage() {
               dashboard, deducted from your payout automatically.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Sparkles size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Direct Stripe payouts</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
               Connected directly to your bank account. Payouts arrive on Stripe&apos;s standard schedule, typically
-              2 business days after the order is paid.
+              2 to 7 business days after the order is paid.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Shield size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">AI listing review</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -317,7 +320,7 @@ export default async function WhySellOnGrainlinePage() {
               flagged goes to staff review so your work isn&apos;t buried next to imports.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <BarChart size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Real analytics</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -325,15 +328,15 @@ export default async function WhySellOnGrainlinePage() {
               you need to actually understand your shop.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Hammer size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">Custom orders + commissions</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
               Buyers request custom pieces. You quote, build a private listing reserved for them, they check out
-              normally. The commission room also matches buyer briefs with available makers.
+              normally. Buyers also post requests in the Commission Room, and you can reply to the ones you can build.
             </p>
           </div>
-          <div className="card-section p-6 bg-white">
+          <div>
             <Edit size={24} className="text-amber-700 mb-3" />
             <h3 className="font-display font-semibold text-base text-neutral-900 mb-2">A blog that features makers</h3>
             <p className="text-sm text-neutral-600 leading-relaxed">
@@ -359,7 +362,7 @@ export default async function WhySellOnGrainlinePage() {
             offering a second one, not asking you to abandon what works.
           </p>
           <p className="text-stone-700 leading-relaxed">
-            If after 6 months you don&apos;t see value, close the shop. No fee, no penalty, no fight.
+            If after 6 months you don&apos;t see value, close the shop once your open orders are done. No fee, no penalty.
           </p>
         </div>
       </section>
@@ -368,7 +371,7 @@ export default async function WhySellOnGrainlinePage() {
       <section className="bg-[#2C1F1A] text-white py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4">
-            Open your shop in 10 minutes.
+            Open your shop today.
           </h2>
           <p className="text-white/80 mb-8">
             Stripe Connect is the only verification step. After that you can list, customize your profile, and
@@ -390,6 +393,6 @@ export default async function WhySellOnGrainlinePage() {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

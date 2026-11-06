@@ -54,7 +54,7 @@ describe("seller profile and commission UI markup guardrails", () => {
       2,
     );
 
-    assert.equal(metroCommissions.match(/Post a Commission Request/g)?.length, 2);
+    assert.equal(metroCommissions.match(/Post a request/g)?.length, 2);
     assert.match(metroCommissions, /\{count > 0 && \(\s*<div className="mb-10">\s*<Link\s+href="\/commission\/new"/);
   });
 });

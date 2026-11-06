@@ -39,6 +39,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   isSignedIn: boolean;
+  resumeOnly?: boolean;
 };
 
 function sessionIdFromClientSecret(secret: string) {
@@ -75,6 +76,7 @@ export default function BuyNowCheckoutModal({
   isOpen,
   onClose,
   isSignedIn,
+  resumeOnly = false,
 }: Props) {
   const router = useRouter();
 
@@ -97,6 +99,7 @@ export default function BuyNowCheckoutModal({
   const completedRef = useRef(false);
   const isOpenRef = useRef(isOpen);
   const onCloseRef = useRef(onClose);
+  const resumeOnlyRef = useRef(resumeOnly);
   const mountedRef = useRef(true);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -104,7 +107,8 @@ export default function BuyNowCheckoutModal({
   // making the checkout-resume effect restart and refetch on every render.
   useEffect(() => {
     onCloseRef.current = onClose;
-  }, [onClose]);
+    resumeOnlyRef.current = resumeOnly;
+  }, [onClose, resumeOnly]);
 
   useDialogFocus(isOpen, dialogRef, onClose);
   useBodyScrollLock(isOpen);
@@ -192,7 +196,7 @@ export default function BuyNowCheckoutModal({
       if (typeof data.completedSessionId === "string" && data.completedSessionId) {
         completedRef.current = true;
         onCloseRef.current();
-        router.push(`/checkout/success?session_id=${data.completedSessionId}`);
+        router.replace(`/checkout/success?session_id=${data.completedSessionId}`);
         return;
       }
 
@@ -202,6 +206,14 @@ export default function BuyNowCheckoutModal({
         setClientSecret(data.clientSecret);
         setSessionId(data.sessionId);
         setStep("payment");
+        return;
+      }
+
+      // The held checkout ended before this click, and the page skipped option
+      // selection for it. Start again from the refreshed page.
+      if (resumeOnlyRef.current) {
+        onCloseRef.current();
+        router.refresh();
       }
     }).catch((resumeError: unknown) => {
       if (controller.signal.aborted || !mountedRef.current || !isOpenRef.current
@@ -303,9 +315,10 @@ export default function BuyNowCheckoutModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-[#14100D]/45 modal-backdrop-in p-4 pt-12 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[#14100D]/45 modal-backdrop-in p-4 pt-12 overflow-y-auto overscroll-contain"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        // Closing throws the payment session away, so at that step it takes the X.
+        if (e.target === e.currentTarget && step !== "payment") onClose();
       }}
     >
       <div
@@ -520,7 +533,8 @@ export default function BuyNowCheckoutModal({
                 completedRef.current = true;
                 sessionIdRef.current = null;
                 onClose();
-                router.push(
+                // Replace, so Back cannot land on the listing as it was before the sale.
+                router.replace(
                   `/checkout/success?session_id=${sessionId}`,
                 );
               }}

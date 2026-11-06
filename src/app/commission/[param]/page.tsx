@@ -20,6 +20,7 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
+import { closedCommissionLabel } from "@/lib/commissionState";
 import {
   publicCommissionInterestCards,
   publicCommissionInterestCounts,
@@ -28,6 +29,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { formatCommissionBudgetRange } from "@/lib/commissionBudget";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { Suspense } from "react";
 import {
@@ -36,34 +38,6 @@ import {
 } from "@/components/CommissionRouteSkeletons";
 
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
-
-// ---------------------------------------------------------------------------
-// generateStaticParams — include both active metro slugs and open commission IDs
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const [metros, commissions] = await Promise.all([
-    prisma.metro.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { commissions: { some: openCommissionWhere() } },
-          { commissionCityMetros: { some: openCommissionWhere() } },
-        ],
-      },
-      select: { slug: true },
-    }),
-    prisma.commissionRequest.findMany({
-      where: openCommissionWhere(),
-      select: { id: true },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 500,
-    }),
-  ]);
-  return [
-    ...metros.map((m) => ({ param: m.slug })),
-    ...commissions.map((c) => ({ param: c.id })),
-  ];
-}
 
 // ---------------------------------------------------------------------------
 // generateMetadata
@@ -78,17 +52,26 @@ export async function generateMetadata({
   if (isMetroSlug(param)) {
     const metro = await prisma.metro.findUnique({
       where: { slug: param },
-      select: { name: true, state: true },
+      select: { id: true, name: true, state: true, parentMetroId: true },
     });
     if (!metro) notFound();
     const cityName = formatCityState(metro.name, metro.state);
+    const openCount = await prisma.commissionRequest.count({
+      where: openCommissionWhere(metro.parentMetroId ? { cityMetroId: metro.id } : { metroId: metro.id }),
+    });
     const title = `Custom Woodworking Commissions in ${cityName} | Grainline`;
     const description = `Browse open custom woodworking commission requests in ${cityName}. Connect with local buyers looking for handmade furniture, decor, and more.`;
     return {
       title: { absolute: title },
       description,
+      robots: openCount === 0 ? { index: false, follow: true } : undefined,
       alternates: { canonical: `https://thegrainline.com/commission/${param}` },
-      openGraph: { title, description, url: `https://thegrainline.com/commission/${param}` },
+      openGraph: {
+        title,
+        description,
+        url: `https://thegrainline.com/commission/${param}`,
+        images: defaultOpenGraphImages(),
+      },
     };
   }
 
@@ -105,7 +88,9 @@ export async function generateMetadata({
       buyerSellerState: true,
     },
   });
-  if (!req) notFound();
+  // The page decides who may see a request that is no longer open, so this
+  // must not 404 for them. It reveals nothing and stays out of search.
+  if (!req) return { title: "Commission request", robots: { index: false, follow: false } };
 
   const location = req.isNational
     ? "Ships Anywhere"
@@ -126,7 +111,12 @@ export async function generateMetadata({
     title,
     description: truncateText(description, 160),
     alternates: { canonical: `https://thegrainline.com/commission/${param}` },
-    openGraph: { title, description: truncateText(description, 160), url: `https://thegrainline.com/commission/${param}` },
+    openGraph: {
+      title,
+      description: truncateText(description, 160),
+      url: `https://thegrainline.com/commission/${param}`,
+      images: defaultOpenGraphImages(),
+    },
   };
 }
 
@@ -227,8 +217,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://thegrainline.com" },
       { "@type": "ListItem", "position": 2, "name": "Commission Room", "item": "https://thegrainline.com/commission" },
-      { "@type": "ListItem", "position": 3, "name": stateLabel },
-      { "@type": "ListItem", "position": 4, "name": metro.name, "item": `https://thegrainline.com/commission/${metroSlug}` },
+      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `https://thegrainline.com/commission/${metroSlug}` },
     ],
   };
 
@@ -258,18 +247,18 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
         </p>
       ) : (
         <p className="text-neutral-600 text-sm mb-8">
-          Custom woodworking in {cityName} — makers coming soon. Post a commission request to attract local woodworkers, or sign up to be notified when makers join in your area.
+          Looking for custom woodworking in {cityName}? Post a commission request and woodworkers can reach out.
         </p>
       )}
 
       {count === 0 ? (
-        <div className="card-section p-8 text-center mb-10">
+        <div className="py-6 mb-6">
           <p className="text-neutral-500 mb-4">No open commission requests in {cityName} yet.</p>
           <Link
             href="/commission/new"
             className="btn btn-primary"
           >
-            Post a Commission Request
+            Post a request
           </Link>
         </div>
       ) : (
@@ -315,7 +304,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
             href="/commission/new"
             className="btn btn-primary"
           >
-            Post a Commission Request
+            Post a request
           </Link>
         </div>
       )}
@@ -371,37 +360,53 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
   const { blockedUserIds } = await getBlockedIdsFor(meId);
 
-  const request = await prisma.commissionRequest.findFirst({
+  const select = {
+    id: true,
+    title: true,
+    description: true,
+    category: true,
+    budgetMinCents: true,
+    budgetMaxCents: true,
+    timeline: true,
+    referenceImageUrls: true,
+    status: true,
+    isNational: true,
+    expiresAt: true,
+    createdAt: true,
+    buyerId: true,
+    metroId: true,
+    cityMetroId: true,
+    metro: { select: { slug: true, name: true, state: true } },
+    cityMetro: { select: { slug: true, name: true, state: true } },
+    buyerName: true,
+    buyerImageUrl: true,
+    buyerSellerCity: true,
+    buyerSellerState: true,
+  } as const;
+  const openRequest = await prisma.commissionRequest.findFirst({
     where: openCommissionWhere({
       id,
       ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
     }),
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      category: true,
-      budgetMinCents: true,
-      budgetMaxCents: true,
-      timeline: true,
-      referenceImageUrls: true,
-      status: true,
-      isNational: true,
-      expiresAt: true,
-      createdAt: true,
-      buyerId: true,
-      metroId: true,
-      cityMetroId: true,
-      metro: { select: { slug: true, name: true, state: true } },
-      cityMetro: { select: { slug: true, name: true, state: true } },
-      buyerName: true,
-      buyerImageUrl: true,
-      buyerSellerCity: true,
-      buyerSellerState: true,
-    },
+    select,
   });
+  // Fulfilled, closed and expired notices link here, so the buyer who posted
+  // the request and the makers who said they were interested can still read
+  // it. Everyone else gets a 404.
+  const request = openRequest ?? (meId
+    ? await prisma.commissionRequest.findFirst({
+        where: {
+          id,
+          // No seller profile: "" matches no interest row.
+          OR: [{ buyerId: meId }, { interests: { some: { sellerProfileId: sellerProfileId ?? "" } } }],
+          ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
+        },
+        select,
+      })
+    : null);
 
   if (!request) return notFound();
+  const readOnly = !openRequest;
   const [interestCounts, interests] = await Promise.all([
     publicCommissionInterestCounts([request.id], meId),
     publicCommissionInterestCards(request.id, meId, COMMISSION_INTEREST_DISPLAY_LIMIT),
@@ -444,31 +449,33 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
+      {!readOnly && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
+      )}
       <div className="mb-5 text-sm text-neutral-500">
         <Link href="/commission" className="hover:underline">Commission Room</Link>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{request.title}</span>
       </div>
 
-      {request.status !== "OPEN" && (
+      {readOnly && (
         <div className="mb-5 bg-neutral-100 border border-neutral-200 text-neutral-600 text-sm px-4 py-3">
-          This request is <strong>{request.status.toLowerCase().replace("_", " ")}</strong> and no longer accepting interest.
+          This request is <strong>{closedCommissionLabel(request)}</strong> and no longer accepting interest.
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <h1 className="font-display text-2xl font-semibold text-neutral-900 flex-1">{request.title}</h1>
-        {sellerProfileId && !isOwner && request.status === "OPEN" && (
+        {sellerProfileId && !isOwner && !readOnly && (
           <CommissionInterestButton
             requestId={request.id}
-            sellerProfileId={sellerProfileId}
             initialInterested={alreadyInterested}
           />
         )}
-        {!userId && request.status === "OPEN" && (
+        {!userId && !readOnly && (
           <Link
             href={`/sign-in?redirect_url=/commission/${id}`}
+            rel="nofollow"
             className="btn btn-primary"
           >
             Sign in to Express Interest
@@ -482,7 +489,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
             {CATEGORY_LABELS[request.category]}
           </span>
         )}
-        {(request.budgetMinCents || request.budgetMaxCents) && (
+        {formatCommissionBudgetRange(request.budgetMinCents, request.budgetMaxCents) && (
           <span>
             Budget:{" "}
             {formatCommissionBudgetRange(request.budgetMinCents, request.budgetMaxCents)}
@@ -493,20 +500,20 @@ async function CommissionDetailPage({ id }: { id: string }) {
         <span>{interestedCount} maker{interestedCount !== 1 ? "s" : ""} interested</span>
       </div>
 
-      <section className="mb-6">
-        <h2 className="font-semibold text-neutral-800 mb-2">Request Details</h2>
-        <p className="text-sm text-neutral-700 whitespace-pre-wrap">{request.description}</p>
-      </section>
-
       {request.referenceImageUrls.length > 0 && (
         <section className="mb-6">
-          <h2 className="font-semibold text-neutral-800 mb-3">Reference Images</h2>
-          <ImageLightbox images={request.referenceImageUrls} />
+          <h2 className="font-display text-xl text-neutral-900 mb-3">Reference Images</h2>
+          <ImageLightbox images={request.referenceImageUrls} thumbnailSize={160} />
         </section>
       )}
 
+      <section className="mb-6">
+        <h2 className="font-display text-xl text-neutral-900 mb-2">Request Details</h2>
+        <p className="text-sm text-neutral-700 whitespace-pre-wrap">{request.description}</p>
+      </section>
+
       <section className="mb-6 pb-6 border-b border-neutral-100">
-        <h2 className="font-semibold text-neutral-800 mb-2">Posted by</h2>
+        <h2 className="font-display text-xl text-neutral-900 mb-2">Posted by</h2>
         <div className="flex items-center gap-2">
           {request.buyerImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -530,7 +537,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
       {interests.length > 0 && (
         <section className="mb-6">
-          <h2 className="font-semibold text-neutral-800 mb-3">
+          <h2 className="font-display text-xl text-neutral-900 mb-3">
             Interested Maker{interests.length !== 1 ? "s" : ""}
           </h2>
           <div className="flex flex-wrap gap-3">
@@ -564,7 +571,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         </section>
       )}
 
-      {isOwner && request.status === "OPEN" && (
+      {isOwner && !readOnly && (
         <div className="flex gap-3 pt-4 border-t border-neutral-100">
           <MarkStatusButtons requestId={request.id} />
         </div>

@@ -11,6 +11,7 @@ import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { userAccountByClerkId } from "@/lib/userIdentityAccess";
 import {
   advanceSellerOwnerOnboardingStep,
@@ -70,6 +71,9 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
     const bio = cleanSellerProfileRichText(formData.get("bio"), SELLER_PROFILE_TEXT_LIMITS.bio);
     const taglineRaw = truncateText(String(formData.get("tagline") || "").trim(), 100);
     const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
+    if (containsSlur([displayName, bio, tagline].join("\n"))) {
+      return { ok: false, error: SHOP_TEXT_SLUR_MESSAGE };
+    }
     const avatarImageUrl = String(formData.get("avatarImageUrl") || "").trim() || null;
     if (avatarImageUrl) {
       const verification = await verifyFirstPartyMediaUrlForPersistence({
@@ -120,11 +124,14 @@ export async function saveStep2(formData: FormData): Promise<ActionResult> {
     const yearsRaw = formData.get("yearsInBusiness");
     const yearsNum = yearsRaw ? parseInt(String(yearsRaw), 10) : NaN;
     const yearsInBusiness = !Number.isNaN(yearsNum) ? Math.max(0, Math.min(100, yearsNum)) : null;
-    const city = truncateText(String(formData.get("city") || "").trim(), 100) || null;
-    const state = truncateText(String(formData.get("state") || "").trim(), 100) || null;
+    const city = truncateText(sanitizeText(String(formData.get("city") || "").trim()), 100) || null;
+    const state = truncateText(sanitizeText(String(formData.get("state") || "").trim()), 100) || null;
     const returnPolicy = cleanSellerProfileRichText(formData.get("returnPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
     const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
     const acceptsCustomOrders = formData.get("acceptsCustomOrders") === "on";
+    if (containsSlur([city, state, returnPolicy, shippingPolicy].join("\n"))) {
+      return { ok: false, error: SHOP_TEXT_SLUR_MESSAGE };
+    }
 
     await withDbUserContext(seller.userId, async (tx) => {
       await updateSellerOwnerOnboardingStepTwo(tx, {

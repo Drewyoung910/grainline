@@ -37,8 +37,14 @@ if (!process.env.RESEND_API_KEY) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// sanitizeText stores "&" as "&amp;", and a re-save can double it. Undo that once
+// here so email never shows the entity, in the body or the subject.
+function decodeStoredAmpersands(s: string) {
+  return s.replace(/&(?:amp;)+/g, "&");
+}
+
 function esc(s: string) {
-  return normalizeUserText(s)
+  return decodeStoredAmpersands(normalizeUserText(s))
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -46,11 +52,11 @@ function esc(s: string) {
     .replaceAll("'", "&#039;");
 }
 
-/** Strip HTML-like characters from user content in email subjects */
+/** Subjects are plain text: strip only line breaks, controls and angle brackets. */
 function safeSubject(s: string) {
-  return normalizeUserText(s)
+  return decodeStoredAmpersands(normalizeUserText(s))
     .replace(/[\r\n]+/g, " ")
-    .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
+    .replace(/[\x00-\x1F\x7F<>]/g, "")
     .trim();
 }
 
@@ -164,7 +170,7 @@ function baseTemplate(title: string, body: string): string {
 </table>
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 16px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;padding:36px 0 24px;">
-    <tr><td>
+    <tr><td style="overflow-wrap:anywhere;">
       <h1 style="margin:0 0 20px;font-size:20px;font-weight:700;color:#1C1C1A;">${esc(title)}</h1>
       ${body}
     </td></tr>
@@ -172,13 +178,13 @@ function baseTemplate(title: string, body: string): string {
 </td></tr></table>
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 16px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-top:1px solid #E2E0DC;padding:20px 0 48px;">
-    <tr><td style="font-size:11px;color:#9D9C97;line-height:1.6;">
+    <tr><td style="font-size:11px;color:#6B6A66;line-height:1.6;">
       © ${year} Grainline LLC &nbsp;·&nbsp;
-      <a href="${APP_URL}" style="color:#9D9C97;text-decoration:none;">thegrainline.com</a>
+      <a href="${APP_URL}" style="color:#6B6A66;text-decoration:none;">thegrainline.com</a>
       &nbsp;·&nbsp;
-      <a href="${UNSUBSCRIBE_HREF_PLACEHOLDER}" style="color:#9D9C97;text-decoration:none;">${EMAIL_PREFERENCE_LINK_TEXT_PLACEHOLDER}</a>
+      <a href="${UNSUBSCRIBE_HREF_PLACEHOLDER}" style="color:#6B6A66;text-decoration:none;">${EMAIL_PREFERENCE_LINK_TEXT_PLACEHOLDER}</a>
       &nbsp;·&nbsp;
-      <a href="mailto:${SUPPORT_EMAIL}" style="color:#9D9C97;text-decoration:none;">${SUPPORT_EMAIL}</a>
+      <a href="mailto:${SUPPORT_EMAIL}" style="color:#6B6A66;text-decoration:none;">${SUPPORT_EMAIL}</a>
       <br/>
       <span style="font-size:10px;">5900 Balcones Drive STE 100, Austin, TX 78731</span>
     </td></tr>
@@ -200,9 +206,9 @@ function itemTable(items: { title: string; quantity: number; priceCents: number 
     .join("");
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
     <thead><tr>
-      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:left;color:#9D9C97;text-transform:uppercase;letter-spacing:0.05em;">Item</th>
-      <th style="padding:6px 12px 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:center;color:#9D9C97;text-transform:uppercase;letter-spacing:0.05em;">Qty</th>
-      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:right;color:#9D9C97;text-transform:uppercase;letter-spacing:0.05em;">Price</th>
+      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:left;color:#6B6A66;text-transform:uppercase;letter-spacing:0.05em;">Item</th>
+      <th style="padding:6px 12px 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:center;color:#6B6A66;text-transform:uppercase;letter-spacing:0.05em;">Qty</th>
+      <th style="padding:6px 0 8px;border-bottom:2px solid #1C1C1A;font-size:11px;text-align:right;color:#6B6A66;text-transform:uppercase;letter-spacing:0.05em;">Price</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
@@ -219,16 +225,16 @@ function totalsTable(order: {
   const giftWrappingPriceCents = order.giftWrappingPriceCents ?? 0;
   const total = orderTotalCents(order);
   const shippingRow = order.shippingAmountCents > 0
-    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>`
+    ? `<tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>`
     : "";
   const taxRow = order.taxAmountCents > 0
-    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Tax</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>`
+    ? `<tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Tax</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>`
     : "";
   const giftWrappingRow = order.giftWrapping || giftWrappingPriceCents > 0
-    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Gift wrapping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${giftWrappingPriceCents > 0 ? fmtCents(giftWrappingPriceCents, order.currency) : "Included"}</td></tr>`
+    ? `<tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Gift wrapping</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${giftWrappingPriceCents > 0 ? fmtCents(giftWrappingPriceCents, order.currency) : "Included"}</td></tr>`
     : "";
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
-    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.itemsSubtotalCents, order.currency)}</td></tr>
+    <tr><td style="font-size:12px;color:#6B6A66;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#6B6A66;text-align:right;">${fmtCents(order.itemsSubtotalCents, order.currency)}</td></tr>
     ${shippingRow}
     ${taxRow}
     ${giftWrappingRow}
@@ -250,6 +256,7 @@ type EmailSendOptions = {
   idempotencyKey?: string;
   preferenceKey?: EmailNotificationPreferenceKey;
   unsubscribeIssuedAt?: Date;
+  replyTo?: string;
   // Internal outbox-only capability: the generation-fenced database authority
   // rechecked recipient eligibility while locking this exact job immediately
   // before the provider boundary.
@@ -347,7 +354,7 @@ async function send(
             from: EMAIL_FROM,
             to: recipient,
             subject: sanitizedSubject,
-            replyTo: EMAIL_REPLY_TO,
+            replyTo: opts.replyTo ?? EMAIL_REPLY_TO,
             html: htmlForRecipient,
             text: htmlToText(htmlForRecipient),
             headers: unsubscribeUrl
@@ -391,7 +398,7 @@ export function renderNewsletterConfirmationEmail(opts: { email: string; confirm
     "Confirm your Grainline newsletter subscription",
     `<p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Please confirm that you want to receive Grainline newsletter emails at ${esc(opts.email)}.</p>
     ${btn("Confirm subscription", opts.confirmationUrl)}
-    <p style="font-size:12px;line-height:1.6;color:#9D9C97;margin:18px 0 0;">If you did not request this, you can ignore this email and you will not be added to newsletter sends.</p>`,
+    <p style="font-size:12px;line-height:1.6;color:#6B6A66;margin:18px 0 0;">If you did not request this, you can ignore this email and you will not be added to newsletter sends.</p>`,
   );
   return {
     to: opts.email,
@@ -419,7 +426,9 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     giftWrappingPriceCents?: number | null;
     currency?: string | null;
     estimatedDeliveryDate?: Date | null;
+    shipToName?: string | null;
     shipToLine1?: string | null;
+    shipToLine2?: string | null;
     shipToCity?: string | null;
     shipToState?: string | null;
     shipToPostalCode?: string | null;
@@ -428,13 +437,15 @@ export function renderOrderConfirmedBuyerEmail(opts: {
   seller: { displayName?: string | null };
   items: { title: string; quantity: number; priceCents: number }[];
   multiSellerCheckout?: boolean;
+  isPickup?: boolean;
 }) {
   const { order, buyer, seller, items } = opts;
   const name = buyer.name || "there";
   const sellerName = seller.displayName || "your maker";
   const orderUrl = `${APP_URL}/dashboard/orders/${order.id}`;
 
-  const address = [order.shipToLine1, order.shipToCity, order.shipToState, order.shipToPostalCode]
+  const stateAndZip = [order.shipToState, order.shipToPostalCode].filter(Boolean).join(" ");
+  const address = [order.shipToName, order.shipToLine1, order.shipToLine2, order.shipToCity, stateAndZip]
     .filter(Boolean)
     .join(", ");
 
@@ -443,9 +454,11 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     ${itemTable(items, order.currency)}
     ${totalsTable(order)}
     <p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Order:</strong> #${esc(shortId(order.id))}</p>
-    ${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
-    ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}
-    ${opts.multiSellerCheckout ? `<p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>` : ""}
+    ${opts.isPickup
+      ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Local pickup:</strong> we'll email you when it's ready, and you can message ${esc(sellerName)} to arrange a time.</p>`
+      : `${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
+    ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}`}
+    ${opts.multiSellerCheckout ? `<p style="font-size:12px;color:#6B6A66;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>` : ""}
     ${btn("View your order", orderUrl)}
   `;
 
@@ -454,10 +467,6 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     subject: `Your Grainline order is confirmed${orderSubjectSuffix(order.id)}`,
     html: baseTemplate("Order Confirmed", body),
   };
-}
-
-export async function sendOrderConfirmedBuyer(opts: Parameters<typeof renderOrderConfirmedBuyerEmail>[0]) {
-  await sendRenderedEmail(renderOrderConfirmedBuyerEmail(opts));
 }
 
 export function renderOrderConfirmedSellerEmail(opts: {
@@ -474,6 +483,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
   buyer: { name?: string | null };
   seller: { displayName?: string | null; email: string };
   items: { title: string; quantity: number; priceCents: number }[];
+  isPickup?: boolean;
 }) {
   const { order, buyer, seller, items } = opts;
   const buyerName = buyer.name || "A buyer";
@@ -485,7 +495,8 @@ export function renderOrderConfirmedSellerEmail(opts: {
     <p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Order:</strong> #${esc(shortId(order.id))}</p>
     ${itemTable(items, order.currency)}
     ${totalsTable(order)}
-    ${order.processingDeadline ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0 16px;"><strong>Ship by:</strong> ${fmtDate(order.processingDeadline)}</p>` : ""}
+    ${opts.isPickup ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0;"><strong>Local pickup:</strong> the buyer will collect this order.</p>` : ""}
+    ${order.processingDeadline ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0 16px;"><strong>${opts.isPickup ? "Ready by" : "Ship by"}:</strong> ${fmtDate(order.processingDeadline)}</p>` : ""}
     ${btn("View order details", orderUrl)}
   `;
 
@@ -494,10 +505,6 @@ export function renderOrderConfirmedSellerEmail(opts: {
     subject: `New sale on Grainline${orderSubjectSuffix(order.id)}`,
     html: baseTemplate("New Sale!", body),
   };
-}
-
-export async function sendOrderConfirmedSeller(opts: Parameters<typeof renderOrderConfirmedSellerEmail>[0]) {
-  await sendRenderedEmail(renderOrderConfirmedSellerEmail(opts));
 }
 
 export function renderOrderShippedEmail(opts: {
@@ -512,7 +519,7 @@ export function renderOrderShippedEmail(opts: {
 
   const trackingSection =
     trackingNumber
-      ? `<p style="font-size:14px;margin:16px 0 8px;"><strong>Carrier:</strong> ${esc(carrier || "—")}</p>
+      ? `<p style="font-size:14px;margin:16px 0 8px;"><strong>Carrier:</strong> ${esc(carrier || "Not listed")}</p>
          <p style="font-size:14px;margin:0 0 8px;"><strong>Tracking number:</strong> ${esc(trackingNumber)}</p>
          ${btn("Track your package", trackingUrl(carrier, trackingNumber))}`
       : "";
@@ -521,6 +528,7 @@ export function renderOrderShippedEmail(opts: {
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order has been shipped!</p>
     ${trackingSection}
     ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:16px 0 8px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}
+    <p style="font-size:13px;color:#6B6A66;margin:16px 0 8px;">When it arrives, please confirm delivery on your order page.</p>
     ${btn("View order", orderUrl)}
   `;
 
@@ -529,10 +537,6 @@ export function renderOrderShippedEmail(opts: {
     subject: `Your piece is on its way${orderSubjectSuffix(order.id)}`,
     html: baseTemplate("Your order has shipped", body),
   };
-}
-
-export async function sendOrderShipped(opts: Parameters<typeof renderOrderShippedEmail>[0]) {
-  await sendRenderedEmail(renderOrderShippedEmail(opts));
 }
 
 export function renderReadyForPickupEmail(opts: {
@@ -547,7 +551,7 @@ export function renderReadyForPickupEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order from <strong>${esc(sellerName)}</strong> is ready to be picked up!</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Check the order details for pickup location and coordination.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Message ${esc(sellerName)} to arrange a time. You can start from your order page.</p>
     ${btn("View order details", orderUrl)}
   `;
 
@@ -556,27 +560,6 @@ export function renderReadyForPickupEmail(opts: {
     subject: `Your order is ready for pickup${orderSubjectSuffix(order.id)}`,
     html: baseTemplate("Ready for Pickup", body),
   };
-}
-
-export async function sendReadyForPickup(opts: Parameters<typeof renderReadyForPickupEmail>[0]) {
-  await sendRenderedEmail(renderReadyForPickupEmail(opts));
-}
-
-export async function sendOrderDelivered(opts: {
-  order: { id: string };
-  buyer: { name?: string | null; email: string };
-}) {
-  const { order, buyer } = opts;
-  const name = buyer.name || "there";
-  const orderUrl = `${APP_URL}/dashboard/orders/${order.id}`;
-
-  const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order has been delivered!</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">We hope you love your new piece. If you have a moment, leaving a review helps support the maker and other buyers.</p>
-    ${btn("View order & leave a review", orderUrl)}
-  `;
-
-  await send(buyer.email, `Your piece has been delivered${orderSubjectSuffix(order.id)}`, baseTemplate("Order Delivered", body));
 }
 
 export function renderCaseOpenedEmail(opts: {
@@ -593,7 +576,7 @@ export function renderCaseOpenedEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyerName)}</strong> has opened a case regarding order <strong>#${esc(shortId(orderId))}</strong>.</p>
     <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">The buyer's case details are available in Grainline so the thread stays attached to the order record.</p>
-    <p style="font-size:13px;color:#9D9C97;margin:0 0 16px;">You have 48 hours to respond before this is escalated to Grainline staff.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">You have 48 hours to respond before this is escalated to Grainline staff.</p>
     ${btn("Respond to case", orderUrl)}
   `;
 
@@ -604,36 +587,54 @@ export function renderCaseOpenedEmail(opts: {
   };
 }
 
-export async function sendCaseOpened(opts: Parameters<typeof renderCaseOpenedEmail>[0]) {
-  await sendRenderedEmail(renderCaseOpenedEmail(opts));
-}
-
 export function renderCaseMessageEmail(opts: {
   recipientName?: string | null;
   recipientEmail: string;
   senderName?: string | null;
   caseLink: string;
   messageSnippet: string;
+  orderId?: string;
+  fromStaff?: boolean;
 }): RenderedEmail {
-  const { recipientName, recipientEmail, senderName, caseLink } = opts;
+  const { recipientName, recipientEmail, senderName, caseLink, orderId, fromStaff } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent a message in your case.</p>
-    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read and reply in the case thread.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">${fromStaff ? "Open Grainline to read it in the case thread." : "Open Grainline to read and reply in the case thread."}</p>
     ${btn("View conversation", caseLink)}
   `;
 
   return {
     to: recipientEmail,
-    subject: `${safeSubject(sender)} sent a message in your case`,
+    subject: `${safeSubject(sender)} sent a message in your case${orderId ? orderSubjectSuffix(orderId) : ""}`,
     html: baseTemplate("New Case Message", body),
   };
 }
 
-export async function sendCaseMessage(opts: Parameters<typeof renderCaseMessageEmail>[0]) {
-  await sendRenderedEmail(renderCaseMessageEmail(opts));
+export function renderCaseUpdateEmail(opts: {
+  to: string;
+  recipientName?: string | null;
+  orderId: string;
+  side: "BUYER" | "SELLER";
+  heading: string;
+  message: string;
+}): RenderedEmail {
+  const { to, recipientName, orderId, side, heading, message } = opts;
+  const orderUrl = `${APP_URL}/dashboard/${side === "BUYER" ? "orders" : "sales"}/${orderId}`;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(recipientName || "there")}, this is about your case on order <strong>#${esc(shortId(orderId))}</strong>.</p>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(message)}</p>
+    ${btn("View case", orderUrl)}
+  `;
+
+  return {
+    to,
+    subject: `${heading}${orderSubjectSuffix(orderId)}`,
+    html: baseTemplate(heading, body),
+  };
 }
 
 export function renderCaseResolvedEmail(opts: {
@@ -667,12 +668,6 @@ export function renderCaseResolvedEmail(opts: {
   };
 }
 
-export async function sendCaseResolved(
-  opts: Parameters<typeof renderCaseResolvedEmail>[0],
-) {
-  await sendRenderedEmail(renderCaseResolvedEmail(opts));
-}
-
 export async function sendCustomOrderRequest(opts: {
   seller: { displayName?: string | null; email: string };
   buyerName?: string | null;
@@ -698,32 +693,37 @@ export async function sendCustomOrderRequest(opts: {
   );
 }
 
-export async function sendCustomOrderReady(opts: {
+export function renderCustomOrderReadyEmail(opts: {
   buyer: { name?: string | null; email: string };
   sellerName?: string | null;
   listingTitle: string;
   priceCents: number;
   currency?: string | null;
-  listingId: string;
-}) {
-  const { buyer, sellerName, listingTitle, priceCents, currency, listingId } = opts;
+  conversationId: string;
+}): RenderedEmail {
+  const { buyer, sellerName, listingTitle, priceCents, currency, conversationId } = opts;
   const name = buyer.name || "there";
   const seller = sellerName || "Your maker";
-  const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
+  // The private listing is a 404 for a signed-out visitor, and most people open
+  // email signed out on a phone. The thread sends them to sign in, then has the card.
+  const threadUrl = `${APP_URL}/messages/${conversationId}`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(seller)}</strong> has created your custom piece!</p>
     <p style="font-size:16px;font-weight:700;margin:0 0 4px;">${esc(listingTitle)}</p>
     <p style="font-size:18px;font-weight:700;color:#1C1C1A;margin:0 0 20px;">${fmtCents(priceCents, currency)}</p>
-    ${btn("Purchase your piece", listingUrl)}
+    ${btn("Purchase your piece", threadUrl)}
   `;
 
-  await send(
-    buyer.email,
-    `Your custom piece is ready: ${truncateSubjectText(listingTitle, 40)}`,
-    baseTemplate("Your Custom Piece is Ready", body),
-    { preferenceKey: "EMAIL_CUSTOM_ORDER" },
-  );
+  return {
+    to: buyer.email,
+    subject: `Your custom piece is ready: ${truncateSubjectText(listingTitle, 40)}`,
+    html: baseTemplate("Your Custom Piece is Ready", body),
+  };
+}
+
+export async function sendCustomOrderReady(opts: Parameters<typeof renderCustomOrderReadyEmail>[0]) {
+  await sendRenderedEmail(renderCustomOrderReadyEmail(opts), { preferenceKey: "EMAIL_CUSTOM_ORDER" });
 }
 
 export function renderBackInStockEmail(opts: {
@@ -736,7 +736,7 @@ export function renderBackInStockEmail(opts: {
   const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, good news — a piece you saved is back in stock!</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, good news: a piece you asked us to watch is back in stock!</p>
     <p style="font-size:16px;font-weight:700;margin:0 0 20px;">${esc(listingTitle)}</p>
     ${btn("Shop now", listingUrl)}
   `;
@@ -748,63 +748,73 @@ export function renderBackInStockEmail(opts: {
   };
 }
 
-export async function sendBackInStock(opts: {
-  buyer: { name?: string | null; email: string };
-  listingTitle: string;
-  listingId: string;
-}) {
-  const rendered = renderBackInStockEmail(opts);
-  await sendRenderedEmail(rendered, { preferenceKey: "EMAIL_BACK_IN_STOCK" });
+type GuildBadgeLevel = "GUILD_MEMBER" | "GUILD_MASTER";
+
+function guildBadgeLabel(level: GuildBadgeLevel) {
+  return level === "GUILD_MASTER" ? "Guild Master" : "Guild Member";
 }
 
-export async function sendVerificationApproved(opts: {
+export function renderVerificationApprovedEmail(opts: {
   seller: { displayName?: string | null; email: string };
   profileId: string;
-}) {
-  const { seller, profileId } = opts;
+  level?: GuildBadgeLevel;
+  reinstated?: boolean;
+}): RenderedEmail {
+  const { seller, profileId, level = "GUILD_MEMBER", reinstated = false } = opts;
   const name = seller.displayName || "there";
   const profileUrl = `${APP_URL}${publicSellerPath(profileId, name)}`;
+  const badge = guildBadgeLabel(level);
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Congratulations, ${esc(name)}! You are now a <strong>Guild Member</strong> on Grainline.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the Guild Member badge, letting buyers know your craft is authentic and recognized by our team.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">This badge builds trust with buyers and helps your work stand out in search results.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${reinstated
+      ? `Hi ${esc(name)}, your <strong>${badge}</strong> badge has been reinstated.`
+      : `Congratulations, ${esc(name)}! You are now a <strong>${badge}</strong> on Grainline.`}</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the ${badge} badge, which shows buyers your shop profile is complete and in good standing.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">Keep your listings active and your orders on time to keep it.</p>
     ${btn("View your profile", profileUrl)}
   `;
 
-  await send(
-    seller.email,
-    "You are now a Guild Member!",
-    baseTemplate("You're a Guild Member!", body),
-    { preferenceKey: "EMAIL_VERIFICATION_APPROVED" },
-  );
+  return {
+    to: seller.email,
+    subject: reinstated ? `Your ${badge} badge has been reinstated` : `You are now a ${badge}!`,
+    html: baseTemplate(reinstated ? `${badge} Badge Reinstated` : `You're a ${badge}!`, body),
+  };
 }
 
-export async function sendVerificationRejected(opts: {
+export async function sendVerificationApproved(opts: Parameters<typeof renderVerificationApprovedEmail>[0]) {
+  await sendRenderedEmail(renderVerificationApprovedEmail(opts), { preferenceKey: "EMAIL_VERIFICATION_APPROVED" });
+}
+
+export function renderVerificationRejectedEmail(opts: {
   seller: { displayName?: string | null; email: string };
   notes?: string | null;
-}) {
-  const { seller, notes } = opts;
+  level?: GuildBadgeLevel;
+}): RenderedEmail {
+  const { seller, notes, level = "GUILD_MEMBER" } = opts;
   const name = seller.displayName || "there";
   const applyUrl = `${APP_URL}/dashboard/verification`;
+  const badge = guildBadgeLabel(level);
 
   const notesSection = notes
     ? `<p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;"><strong>Reviewer notes:</strong> ${esc(notes)}</p>`
     : "";
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, we've reviewed your Guild Member application.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Unfortunately we weren't able to approve your application at this time. You're welcome to update your application and reapply whenever you're ready.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, we've reviewed your ${badge} application.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Unfortunately we weren't able to approve your application at this time. You can update your application and reapply after 30 days.</p>
     ${notesSection}
     ${btn("Reapply", applyUrl)}
   `;
 
-  await send(
-    seller.email,
-    "Update on your Guild Member application",
-    baseTemplate("Verification Update", body),
-    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
-  );
+  return {
+    to: seller.email,
+    subject: `Update on your ${badge} application`,
+    html: baseTemplate("Verification Update", body),
+  };
+}
+
+export async function sendVerificationRejected(opts: Parameters<typeof renderVerificationRejectedEmail>[0]) {
+  await sendRenderedEmail(renderVerificationRejectedEmail(opts), { preferenceKey: "EMAIL_VERIFICATION_REJECTED" });
 }
 
 export function renderRefundIssuedEmail(opts: {
@@ -812,13 +822,16 @@ export function renderRefundIssuedEmail(opts: {
   refundAmountCents: number;
   currency?: string | null;
   orderId: string;
+  checkoutNotCompleted?: boolean;
 }): RenderedEmail {
-  const { buyer, refundAmountCents, currency, orderId } = opts;
+  const { buyer, refundAmountCents, currency, orderId, checkoutNotCompleted } = opts;
   const name = buyer.name || "there";
   const orderUrl = `${APP_URL}/dashboard/orders/${orderId}`;
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, a refund has been issued for your order.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, ${checkoutNotCompleted
+      ? "we couldn't complete your order and have refunded you in full. You weren't charged for anything else."
+      : "a refund has been issued for your order."}</p>
     <p style="font-size:28px;font-weight:700;color:#1C1C1A;margin:0 0 8px;">${fmtCents(refundAmountCents, currency)}</p>
     <p style="font-size:13px;color:#6B6A66;margin:0 0 20px;">Refunds typically appear within 5–10 business days depending on your bank.</p>
     ${btn("View order", orderUrl)}
@@ -826,14 +839,9 @@ export function renderRefundIssuedEmail(opts: {
 
   return {
     to: buyer.email,
-    subject: `Your refund has been issued${orderSubjectSuffix(orderId)}`,
+    subject: `${checkoutNotCompleted ? "Your order could not be completed" : "Your refund has been issued"}${orderSubjectSuffix(orderId)}`,
     html: baseTemplate("Refund Issued", body),
   };
-}
-
-export async function sendRefundIssued(opts: Parameters<typeof renderRefundIssuedEmail>[0]) {
-  const rendered = renderRefundIssuedEmail(opts);
-  await send(rendered.to, rendered.subject, rendered.html);
 }
 
 // ─── Lifecycle emails ─────────────────────────────────────────────────────────
@@ -864,10 +872,6 @@ export function renderWelcomeBuyerEmail(opts: {
   };
 }
 
-export async function sendWelcomeBuyer(opts: Parameters<typeof renderWelcomeBuyerEmail>[0]) {
-  await sendRenderedEmail(renderWelcomeBuyerEmail(opts));
-}
-
 export function renderWelcomeSellerEmail(opts: {
   seller: { displayName?: string | null; email: string };
 }): RenderedEmail {
@@ -876,11 +880,11 @@ export function renderWelcomeSellerEmail(opts: {
   const profileUrl = `${APP_URL}/dashboard/profile`;
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, welcome to Grainline — let's get your shop set up!</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, welcome to Grainline! Let's get your shop set up.</p>
     <p style="font-size:14px;font-weight:600;margin:0 0 8px;">Your quick-start checklist:</p>
     <ol style="font-size:14px;line-height:1.8;color:#6B6A66;margin:0 0 20px;padding-left:20px;">
       <li>Add a banner photo to your profile</li>
-      <li>Write your story — buyers love knowing who made their piece</li>
+      <li>Write your story. Buyers love knowing who made their piece.</li>
       <li>List your first piece and start selling</li>
     </ol>
     ${btn("Complete your profile", profileUrl)}
@@ -893,8 +897,21 @@ export function renderWelcomeSellerEmail(opts: {
   };
 }
 
-export async function sendWelcomeSeller(opts: Parameters<typeof renderWelcomeSellerEmail>[0]) {
-  await sendRenderedEmail(renderWelcomeSellerEmail(opts));
+export function renderListingRemovedEmail(opts: {
+  to: string;
+  listingTitle: string;
+  reason: string;
+}): RenderedEmail {
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Grainline staff removed your listing <strong>${esc(opts.listingTitle)}</strong>.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Reason: ${esc(opts.reason)}</p>
+    <p style="font-size:15px;line-height:1.6;margin:0;">If you think this is a mistake, contact ${esc(SUPPORT_EMAIL)}.</p>
+  `;
+  return {
+    to: opts.to,
+    subject: "Your Grainline listing was removed",
+    html: baseTemplate("Your listing was removed", body),
+  };
 }
 
 export function renderFirstListingCongratsEmail(opts: {
@@ -911,7 +928,7 @@ export function renderFirstListingCongratsEmail(opts: {
     <p style="font-size:16px;color:#1C1C1A;margin:0 0 20px;">${fmtCents(listing.priceCents, listing.currency)}</p>
     <p style="font-size:14px;font-weight:600;margin:0 0 8px;">Tips for your first sale:</p>
     <ul style="font-size:14px;line-height:1.8;color:#6B6A66;margin:0 0 20px;padding-left:20px;">
-      <li>Add more photos — listings with 4+ photos get more views</li>
+      <li>Add more photos so buyers can see the details</li>
       <li>Share it on social media to drive your first traffic</li>
       <li>Enable custom orders to open another sales channel</li>
     </ul>
@@ -923,10 +940,6 @@ export function renderFirstListingCongratsEmail(opts: {
     subject: "Your first piece is live on Grainline!",
     html: baseTemplate("You're Live!", body),
   };
-}
-
-export async function sendFirstListingCongrats(opts: Parameters<typeof renderFirstListingCongratsEmail>[0]) {
-  await sendRenderedEmail(renderFirstListingCongratsEmail(opts));
 }
 
 export function renderFirstSaleCongratsEmail(opts: {
@@ -943,12 +956,12 @@ export function renderFirstSaleCongratsEmail(opts: {
   const { seller, order } = opts;
   const name = seller.displayName || "there";
   const orderUrl = `${APP_URL}/dashboard/sales/${order.id}`;
-  const total = orderTotalCents(order);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, you made your first sale! 🎉</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">This is just the beginning. Every great shop starts with one happy customer.</p>
-    <p style="font-size:26px;font-weight:700;color:#1C1C1A;margin:16px 0 20px;">${fmtCents(total, order.currency)}</p>
+    <p style="font-size:26px;font-weight:700;color:#1C1C1A;margin:16px 0 4px;">${fmtCents(order.itemsSubtotalCents, order.currency)}</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 20px;">Item total, before shipping and tax.</p>
     ${btn("View order details", orderUrl)}
   `;
 
@@ -957,10 +970,6 @@ export function renderFirstSaleCongratsEmail(opts: {
     subject: "You made your first sale!",
     html: baseTemplate("First Sale!", body),
   };
-}
-
-export async function sendFirstSaleCongrats(opts: Parameters<typeof renderFirstSaleCongratsEmail>[0]) {
-  await sendRenderedEmail(renderFirstSaleCongratsEmail(opts));
 }
 
 // ─── Guild verification emails ────────────────────────────────────────────────
@@ -993,25 +1002,32 @@ export async function sendGuildMasterWarningEmail(opts: {
   );
 }
 
-export async function sendGuildMasterRevokedEmail(opts: {
+export function renderGuildMasterRevokedEmail(opts: {
   seller: { displayName?: string | null; email: string };
-}) {
-  const { seller } = opts;
+  byStaff?: boolean;
+}): RenderedEmail {
+  const { seller, byStaff = false } = opts;
   const name = seller.displayName || "there";
   const dashUrl = `${APP_URL}/dashboard/verification`;
+  const why = byStaff
+    ? `Grainline staff removed this badge after reviewing your shop. Your <strong>Guild Member badge remains active</strong>, and you can reapply for Guild Master once the reapplication window reopens. If you have questions, contact ${esc(SUPPORT_EMAIL)}.`
+    : `Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong>, and you can reapply for Guild Master once your metrics are back above the required thresholds and the reapplication window reopens.`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Master badge has been revoked.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong> — you can reapply for Guild Master once your metrics are back above the required thresholds and the reapplication window reopens.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">${why}</p>
     ${btn("View your verification status", dashUrl)}
   `;
 
-  await send(
-    seller.email,
-    "Guild Master badge update - Grainline",
-    baseTemplate("Guild Master Badge Revoked", body),
-    { preferenceKey: "EMAIL_VERIFICATION_REJECTED" },
-  );
+  return {
+    to: seller.email,
+    subject: "Guild Master badge update - Grainline",
+    html: baseTemplate("Guild Master Badge Revoked", body),
+  };
+}
+
+export async function sendGuildMasterRevokedEmail(opts: Parameters<typeof renderGuildMasterRevokedEmail>[0]) {
+  await sendRenderedEmail(renderGuildMasterRevokedEmail(opts), { preferenceKey: "EMAIL_VERIFICATION_REJECTED" });
 }
 
 export async function sendGuildMemberRevokedEmail(opts: {
@@ -1037,6 +1053,44 @@ export async function sendGuildMemberRevokedEmail(opts: {
   );
 }
 
+// ─── Shop and listing notices ─────────────────────────────────────────────────
+
+export function renderShopPausedEmail(opts: { to: string; name?: string | null }): RenderedEmail {
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(opts.name || "there")}, Stripe has paused payments for your shop.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your listings are hidden from buyers until this is fixed. Open Shop Settings to see what Stripe needs from you. Open orders are not affected.</p>
+    ${btn("Open Shop Settings", `${APP_URL}/dashboard/seller`)}
+  `;
+  return {
+    to: opts.to,
+    subject: "Your Grainline shop is paused",
+    html: baseTemplate("Your Shop Is Paused", body),
+  };
+}
+
+export function renderListingDecisionEmail(opts: {
+  to: string;
+  name?: string | null;
+  listingTitle: string;
+  approved: boolean;
+  reason?: string | null;
+  listingUrl: string;
+}): RenderedEmail {
+  const { to, name, listingTitle, approved, reason, listingUrl } = opts;
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name || "there")}, ${approved
+      ? `your listing <strong>${esc(listingTitle)}</strong> was approved.`
+      : `your listing <strong>${esc(listingTitle)}</strong> needs changes before it can go live.`}</p>
+    ${!approved && reason ? `<p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;"><strong>Reason:</strong> ${esc(reason)}</p>` : ""}
+    ${btn(approved ? "View your listing" : "Edit your listing", listingUrl)}
+  `;
+  return {
+    to,
+    subject: approved ? "Your listing was approved" : "Your listing needs changes",
+    html: baseTemplate(approved ? "Listing Approved" : "Listing Needs Changes", body),
+  };
+}
+
 // ─── Following ────────────────────────────────────────────────────────────────
 
 export function renderNewListingFromFollowedMakerEmail(opts: {
@@ -1056,7 +1110,7 @@ export function renderNewListingFromFollowedMakerEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${esc(makerName)} just posted a new piece on Grainline.</p>
-    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline.</p>
+    <p style="font-size:12px;color:#6B6A66;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline.</p>
     ${imageSection}
     <p style="font-size:17px;font-weight:600;color:#1C1C1A;margin:0 0 4px;">${esc(listingTitle)}</p>
     <p style="font-size:15px;color:#6B6A66;margin:0 0 20px;">${esc(listingPrice)}</p>
@@ -1068,20 +1122,6 @@ export function renderNewListingFromFollowedMakerEmail(opts: {
     subject: `${safeSubject(makerName)} just posted a new listing on Grainline`,
     html: baseTemplate("New Listing", body),
   };
-}
-
-export async function sendNewListingFromFollowedMakerEmail(opts: {
-  to: string;
-  makerName: string;
-  listingTitle: string;
-  listingPrice: string;
-  listingUrl: string;
-  listingImageUrl?: string;
-}) {
-  const rendered = renderNewListingFromFollowedMakerEmail(opts);
-  await sendRenderedEmail(rendered, {
-    preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-  });
 }
 
 export function sellerBroadcastEmailSubject(makerName: string) {
@@ -1104,7 +1144,7 @@ export function renderSellerBroadcastEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${esc(makerName)} shared an update with their followers on Grainline.</p>
-    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline and opted into maker broadcast emails.</p>
+    <p style="font-size:12px;color:#6B6A66;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline and opted into maker broadcast emails.</p>
     ${imageSection}
     <p style="font-size:15px;line-height:1.6;color:#3D3D3A;margin:0 0 20px;">${messageHtml}</p>
     ${btn("View your feed", feedUrl)}
@@ -1159,7 +1199,7 @@ export async function sendNewReviewEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(buyer)}</strong> left a review on <strong>${esc(listingTitle)}</strong>.</p>
     <p style="font-size:18px;font-weight:600;margin:0 0 8px;">${esc(ratingDisplay)} out of 5 stars</p>
-    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read the full review and reply from your dashboard.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read the full review and reply on the listing page.</p>
     ${btn("View Review", reviewUrl)}
   `;
 

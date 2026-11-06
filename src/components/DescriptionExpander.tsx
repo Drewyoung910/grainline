@@ -13,14 +13,14 @@ export default function DescriptionExpander({ text }: { text: string }) {
   return (
     <div>
       {/* Desktop: always show full */}
-      <p className="hidden sm:block text-sm text-neutral-700 whitespace-pre-line leading-relaxed">
+      <p className="hidden sm:block whitespace-pre-line">
         {text}
       </p>
       {/* Mobile: truncated with expand */}
       <div className="sm:hidden">
         <p
           key={expanded ? "full" : "short"}
-          className={`text-sm text-neutral-700 whitespace-pre-line leading-relaxed${expanded ? " text-reveal-in" : ""}`}
+          className={`whitespace-pre-line${expanded ? " text-reveal-in" : ""}`}
         >
           {needsTruncation && !expanded ? text.slice(0, MOBILE_LIMIT) + "…" : text}
         </p>

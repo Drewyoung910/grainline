@@ -6,6 +6,7 @@
 // so footer + dashboard links can deep-link straight to the section.
 import Link from "next/link";
 import type { Metadata } from "next";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 export const metadata: Metadata = {
   title: "Seller Handbook",
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
       "How to sell handmade woodworking on Grainline. Fees, photos, shipping, Guild verification, and trust & safety.",
     url: "https://thegrainline.com/seller-handbook",
     type: "article",
+    images: defaultOpenGraphImages(),
   },
 };
 
@@ -78,7 +80,7 @@ export default function SellerHandbookPage() {
           <h2>2. Creating a great listing</h2>
           <p>
             Every listing on Grainline goes through AI moderation before going live (it&apos;s usually instant; flagged
-            listings go to staff review within 24 hours). The AI is checking for: clear product photos, an honest
+            listings wait for a person, usually within a few business days). The AI is checking for: clear product photos, an honest
             description, materials and dimensions, and that the piece is actually handmade woodworking.
           </p>
 
@@ -100,8 +102,8 @@ export default function SellerHandbookPage() {
             <li><strong>Care</strong>: how to maintain it (re-oil cutting boards every 3 months, dust with damp cloth, etc).</li>
           </ul>
           <p>
-            Aim for 200–500 words. Listings under 100 characters of description are flagged as low-quality and won&apos;t
-            rank well in search.
+            Aim for a few short paragraphs. The description holds up to 2,000 characters. Very short descriptions
+            rank lower in search and can be held for review.
           </p>
 
           <h3>Tags</h3>
@@ -139,8 +141,6 @@ export default function SellerHandbookPage() {
           <ul>
             <li>Shoot in daylight if you can. A north-facing window is ideal. Overhead workshop fluorescents make wood look orange.</li>
             <li>Aim for 2400px+ on the long edge. Higher resolution helps when buyers zoom on the listing page.</li>
-            <li>Use descriptive filenames (<code>walnut-cutting-board-mineral-oil.jpg</code> beats <code>IMG_4521.jpg</code>).
-              Google indexes them.</li>
             <li>Don&apos;t use stock photos, illustrations, or logos as listing photos. AI review rejects them.</li>
           </ul>
 
@@ -176,8 +176,7 @@ export default function SellerHandbookPage() {
           <h3>Variants</h3>
           <p>
             Use variants to surface upsells: wood species, finish options, hardware, size. Each option can carry its
-            own price adjustment. Buyers see the live total update as they pick. Done well, variants double your
-            average order value.
+            own price adjustment. Buyers see the live total update as they pick.
           </p>
         </section>
 
@@ -216,14 +215,14 @@ export default function SellerHandbookPage() {
             ads, no shipping markup, no recurring listing fees.
           </p>
           <p>
-            Faire takes 15% on first orders from a new buyer (25% on direct-from-store). Amazon Handmade is 15% plus
+            Faire, a wholesale marketplace, takes 15% on marketplace orders. Amazon Handmade is 15% plus
             their own ad ecosystem. Grainline&apos;s 5% is a fraction of any of these, by design.
           </p>
 
           <h3>Payouts</h3>
           <p>
             Stripe deposits your earnings (sale price minus the 5% Grainline fee) into your
-            connected bank account on a rolling schedule, typically 2 business days after the order is paid. You can
+            connected bank account on a rolling schedule, typically 2 to 7 business days after the order is paid. You can
             view your balance and payout history in your Stripe dashboard, linked from{" "}
             <Link href="/dashboard/seller">Shop Settings</Link>.
           </p>
@@ -259,8 +258,9 @@ export default function SellerHandbookPage() {
 
           <h3>Local pickup</h3>
           <p>
-            For heavy or oversized pieces, enable local pickup. Buyers within your area see a $0 pickup option at
-            checkout. You coordinate the handoff via Messages once payment clears.
+            For heavy or oversized pieces, enable local pickup. Buyers see a $0 pickup option at checkout wherever
+            they live, so say where pickup happens in your shipping policy. You coordinate the handoff via Messages
+            once payment clears.
           </p>
 
           <h3>Packaging</h3>
@@ -271,7 +271,7 @@ export default function SellerHandbookPage() {
             <li>Double-wall corrugated boxes for anything heavier than 5lb.</li>
             <li>Foam corners or air pillows on every edge. Don&apos;t cheap out on void fill.</li>
             <li>Wrap each piece in glassine or kraft paper before bubble wrap. It protects finished surfaces from sticking.</li>
-            <li>For furniture: blanket-wrap + cardboard corners + freight (not USPS). Use Shippo&apos;s LTL options.</li>
+            <li>For furniture: blanket-wrap + cardboard corners + freight (not USPS).</li>
             <li>Include a hand-written thank-you card. Drives repeat customers and reviews.</li>
           </ul>
 
@@ -305,23 +305,26 @@ export default function SellerHandbookPage() {
 
           <h3>Gift wrapping</h3>
           <p>
-            Enable gift wrapping in Shop Settings to offer it as an upsell at checkout. Set your price (suggestion:
-            $5–$15 for a thoughtful wrap including a card). Buyers can add a gift note that prints on the packing slip.
+            Enable gift wrapping in your <Link href="/dashboard/profile">Shop Profile</Link> to offer it as an upsell at
+            checkout. Set your price (suggestion: $5–$15 for a thoughtful wrap including a card). Buyers can add a gift
+            note, which shows on your order page.
           </p>
 
           <h3>Processing time</h3>
           <p>
-            Be honest. For made-to-order pieces, set min and max days in Shop Settings. Buyers see &quot;Ships in 14–21
-            days&quot; on every listing. Estimated delivery dates on order pages are calculated from this + shipping
-            transit time. Missing your stated time is the #1 reason cases get opened.
+            Be honest. For made-to-order pieces, set min and max days on each listing. Buyers see &quot;Ships in 14–21
+            days&quot; on that listing. Estimated delivery dates on order pages are calculated from this + shipping
+            transit time.
           </p>
         </section>
 
         <section id="guild">
           <h2>8. Guild verification</h2>
           <p>
-            The Guild is a two-tier badge program signaling that a maker has been verified and consistently delivers
-            quality work. Buyers see the badge on listings, your shop page, and in search results. Guild Members get
+            The Guild is a two-tier badge program. A Guild Member badge shows a complete profile and good standing
+            on Grainline; a Guild Master badge reflects a record of strong ratings, on-time shipping and quick
+            replies. Neither badge is a guarantee of product quality. Buyers see the badge on listings, your shop
+            page, and in search results. Guild Members get
             priority placement in browse relevance ranking and in Featured Maker rotations.
           </p>
 
@@ -347,8 +350,8 @@ export default function SellerHandbookPage() {
             demotion.
           </p>
           <p>
-            Guild Master listings get featured rotation on the homepage, an additional ranking boost in browse,
-            and access to the Maker of the Week spotlight.
+            Guild Master listings get an additional ranking boost in browse. Guild Members and Guild Masters
+            share the same Maker of the Week rotation, described below.
           </p>
 
           <h3>How the homepage spotlight is chosen</h3>
@@ -381,8 +384,9 @@ export default function SellerHandbookPage() {
 
           <h3>What you control</h3>
           <p>
-            From your sales dashboard you can issue a full or partial refund at any time before staff resolution. Doing
-            this proactively (within 48 hours of a case) tends to keep buyer reviews positive.
+            From your sales dashboard you can issue a full refund until you buy a shipping label. For a partial refund,
+            or once a label is bought, contact support. Doing this proactively (within 48 hours of a case) tends to keep
+            buyer reviews positive.
           </p>
 
           <h3>Chargebacks</h3>
@@ -410,14 +414,15 @@ export default function SellerHandbookPage() {
 
           <h3>The basics that compound</h3>
           <ul>
-            <li><strong>Reply fast.</strong> Sub-2-hour message response rates drive higher conversion. Set up email
-              notifications in your profile.</li>
-            <li><strong>Ask for reviews.</strong> A polite follow-up message 1 week after delivery doubles review
-              rates. Reviews are the single biggest signal for our quality-score ranking.</li>
+            <li><strong>Reply fast.</strong> Buyers often decide quickly, and your response rate counts toward Guild
+              Master. Turn on message emails in <Link href="/account/settings">account settings</Link>.</li>
+            <li><strong>Ask for reviews.</strong> Send a polite follow-up message about a week after delivery. Your
+              rating is one of the signals in our search ranking.</li>
             <li><strong>Write blog posts.</strong> Your maker page links to your blog. Each post is a Google-indexed
               page that drives organic discovery. Even short build journals help.</li>
-            <li><strong>Maintain your shop.</strong> Refresh listings every 2–4 weeks. New listings get a temporary
-              ranking boost in browse.</li>
+            <li><strong>Maintain your shop.</strong> Add new pieces when you have them. New listings get a temporary
+              ranking boost in browse. Editing a live listing sends it back through review, so edit when something
+              has changed.</li>
           </ul>
 
           <h3>Cross-promotion</h3>
@@ -444,7 +449,7 @@ export default function SellerHandbookPage() {
       <section className="mt-16 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-8 text-center">
         <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-3">Ready to start selling?</h2>
         <p className="text-neutral-700 mb-5 max-w-md mx-auto">
-          5% fees, no listing fees, real maker tools. Set up your shop in under 10 minutes.
+          5% fees, no listing fees, real maker tools. Set up your shop today.
         </p>
         <Link
           href="/become-a-maker"

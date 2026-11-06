@@ -149,7 +149,7 @@ function GuildPopup({
           : "This maker has met Grainline\u2019s highest performance standards including 4.5+ star ratings, consistent on-time shipping, and responsive communication. This badge reflects historical performance and does not guarantee future results."}
       </p>
       <Link
-        href="/terms#guild-verification-program"
+        href="/terms#guild"
         style={{ fontSize: 11, color, textDecoration: "underline" }}
         onClick={onClose}
       >

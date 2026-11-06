@@ -41,16 +41,10 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
-  if (!signature) {
-    Sentry.captureMessage("Stripe Connect webhook signature header missing", {
-      level: "warning",
-      tags: { source: "stripe_connect_webhook_signature" },
-    });
-    await recordWebhookFailureSpike({
-      webhook: "stripe_connect",
-      kind: "signature",
-      status: HTTP_STATUS.BAD_REQUEST,
-    });
+    // Nothing below this point has proved it came from the provider. Junk requests must
+  // not spend Sentry events or Redis commands, or a flood could blind monitoring and
+  // exhaust the budget the fail-closed limiters depend on.
+if (!signature) {
     return NextResponse.json(
       { error: "Missing Stripe signature" },
       { status: HTTP_STATUS.BAD_REQUEST },
@@ -62,16 +56,6 @@ export async function POST(req: Request) {
     body = await readBoundedText(req, STRIPE_CONNECT_WEBHOOK_BODY_MAX_BYTES);
   } catch (error) {
     if (isRequestBodyTooLargeError(error)) {
-      Sentry.captureMessage("Stripe Connect webhook payload is too large", {
-        level: "warning",
-        tags: { source: "stripe_connect_webhook_payload" },
-        extra: { maxBytes: error.maxBytes },
-      });
-      await recordWebhookFailureSpike({
-        webhook: "stripe_connect",
-        kind: "payload",
-        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
-      });
       return NextResponse.json(
         { error: "Payload too large" },
         { status: HTTP_STATUS.PAYLOAD_TOO_LARGE },
@@ -88,14 +72,6 @@ export async function POST(req: Request) {
       "Stripe Connect webhook signature verification failed:",
       sanitizeEmailOutboxError(error),
     );
-    Sentry.captureException(error, {
-      tags: { source: "stripe_connect_webhook_signature" },
-    });
-    await recordWebhookFailureSpike({
-      webhook: "stripe_connect",
-      kind: "signature",
-      status: HTTP_STATUS.BAD_REQUEST,
-    });
     return NextResponse.json(
       { error: "Invalid signature" },
       { status: HTTP_STATUS.BAD_REQUEST },

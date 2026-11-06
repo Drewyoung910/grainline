@@ -12,7 +12,7 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.doesNotMatch(header, /sign-in\?redirect_url=\/messages/);
   });
 
-  it("keeps a 44px favorite target around a smaller solid white circle", () => {
+  it("keeps a 44px favorite target around a centered solid white circle", () => {
     const favorite = source("src/components/FavoriteButton.tsx");
     assert.match(favorite, /h-11 w-11/);
     // Solid white circle so the heart reads on any photo (Drew, 2026-10-30).
@@ -24,7 +24,7 @@ describe("header, favorite, cart, and review regressions", () => {
     assert.doesNotMatch(favorite, /disabled=\{isPending\}/);
     assert.match(favorite, /saved \? "fill-red-500 stroke-red-500" : "fill-transparent stroke-neutral-900"/);
     assert.match(favorite, /toast\(next \? "Saved to favorites\." : "Removed from favorites\.", "success"\)/);
-    assert.match(favorite, /-translate-y-px/);
+    assert.doesNotMatch(favorite, /-translate-y-px/);
     assert.match(favorite, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
   });
 
@@ -32,6 +32,8 @@ describe("header, favorite, cart, and review regressions", () => {
     const savedPost = source("src/components/SaveBlogButton.tsx");
     assert.match(savedPost, /toast\(data\.saved \? "Post saved\." : "Removed from saved posts\.", "success"\)/);
     assert.match(savedPost, /0_0_0_1px_rgba\(44,31,26,0\.14\)/);
+    assert.match(savedPost, /const next = !saved;[\s\S]*setSaved\(next\)/);
+    assert.match(savedPost, /aria-pressed=\{saved\}/);
   });
 
   it("provides a leaf review loader that mirrors review cards", () => {

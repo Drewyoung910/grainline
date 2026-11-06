@@ -227,8 +227,7 @@ export async function sellerProfileStaffListingReviewTransition(
     !validId(input.actorId)
     || !validId(input.listingId)
     || (input.operation !== "APPROVE" && input.operation !== "REJECT")
-    || typeof input.reason !== "string"
-    || input.reason.length > 500
+    || !isTextWithinCodePointRange(input.reason, 0, 500)
   ) {
     throw new RangeError("Seller listing review transition input is invalid");
   }

@@ -56,6 +56,7 @@ export default async function AdminOrderDetailPage({
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
   const { id } = await params;
+  if (!/^[A-Za-z0-9._:-]{1,191}$/.test(id)) notFound();
 
   const order = await readStaffOrderDetail(
     staff.id,
@@ -139,7 +140,7 @@ export default async function AdminOrderDetailPage({
       )}
 
       {/* Buyer + Seller */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Section title="Buyer">
           <dl className="space-y-3">
             <Field label="Name" value={buyerName} />
@@ -363,7 +364,7 @@ export default async function AdminOrderDetailPage({
 
       {/* Quoted vs Actual Shipping */}
       <Section title="Quoted vs. Actual Shipping">
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid gap-6 sm:grid-cols-2">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
               Quoted (before checkout)

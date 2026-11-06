@@ -1,9 +1,10 @@
 // src/components/ListingGallery.tsx
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type CSSProperties, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import Image from "next/image";
-import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { createPortal } from "react-dom";
+import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { ChevronLeft, ChevronRight } from "@/components/icons";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { LISTING_GALLERY_FRAME_HEIGHT, LISTING_PHOTO_TARGET_ATTRIBUTE } from "@/lib/photoMotion";
@@ -14,14 +15,23 @@ type Photo = { id: string; url: string; altText?: string | null };
 export default function ListingGallery({
   photos,
   title,
+  saveControl,
 }: {
   photos: Photo[];
   title: string;
+  saveControl?: ReactNode;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  // The photo already on the page, shown in the viewer at the size the original
+  // will take, so opening is instant and the grow can measure it. The original
+  // replaces it once it has downloaded.
+  const [lightboxPreview, setLightboxPreview] = useState<{ url: string; src: string; ratio: number } | null>(null);
   const [optimizerFailures, setOptimizerFailures] = useState<ReadonlySet<string>>(() => new Set());
+  // Width over height of the photo on screen. From lg the photo sits in a box
+  // this shape. It keeps the last shape while the next photo loads.
+  const [activeRatio, setActiveRatio] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mainPhotoRef = useRef<HTMLDivElement>(null);
   const thumbnailListRef = useRef<HTMLDivElement>(null);
@@ -56,6 +66,20 @@ export default function ListingGallery({
   });
   useDialogFocus(lightboxOpen, dialogRef, closeViewer);
   useBodyScrollLock(lightboxOpen);
+
+  useEffect(() => {
+    if (!lightboxPreview) return;
+    let cancelled = false;
+    const original = new window.Image();
+    original.src = lightboxPreview.url;
+    // If the original fails, the preview stays rather than a broken image.
+    original.decode().then(() => {
+      if (!cancelled) setLightboxPreview(null);
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [lightboxPreview]);
 
   useEffect(() => {
     if (!lightboxOpen) return;
@@ -119,15 +143,22 @@ export default function ListingGallery({
     return cleanup;
   }, [lightboxOpen, photos.length]);
 
-  if (photos.length === 0) return null;
+  if (photos.length === 0) return saveControl ?? null;
 
   // Behind the viewer the page follows along, so the photo it shrinks back into
   // has already loaded instead of swapping in afterwards.
   const mainIndex = lightboxOpen ? lightboxIndex : activeIndex;
   const activeUrl = photos[mainIndex]?.url ?? "";
+  const showPreview = lightboxPreview !== null && lightboxPreview.url === photos[lightboxIndex]?.url;
 
   function openLightbox(i: number) {
     lightboxSwapRef.current = false;
+    const shown = mainPhotoRef.current?.querySelector("img");
+    setLightboxPreview(
+      shown?.complete && shown.naturalWidth > 0
+        ? { url: photos[i].url, src: shown.currentSrc, ratio: shown.naturalWidth / shown.naturalHeight }
+        : null,
+    );
     setLightboxIndex(i);
     setLightboxOpen(true);
   }
@@ -165,13 +196,14 @@ export default function ListingGallery({
     lightboxHorizontalLocked.current = false;
   }
   function handleTouchEnd(e: React.TouchEvent) {
+    lightboxHorizontalLocked.current = false;
+    if (e.touches.length > 0 || isPageZoomed()) return;
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 50) {
       if (diff > 0) showNextLightboxPhoto();
       else showPreviousLightboxPhoto();
     }
-    lightboxHorizontalLocked.current = false;
   }
 
   // Main photo swipe handlers — swipe changes index; tap (< 10px) opens lightbox
@@ -182,13 +214,14 @@ export default function ListingGallery({
     mainHorizontalLocked.current = false;
   }
   function handleMainTouchEnd(e: React.TouchEvent) {
+    mainHorizontalLocked.current = false;
+    if (e.touches.length > 0 || isPageZoomed()) return;
     const diff = mainTouchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) >= 50) {
       mainSwiped.current = true;
       if (diff > 0) showNextPhoto();
       else showPreviousPhoto();
     }
-    mainHorizontalLocked.current = false;
   }
 
   return (
@@ -200,7 +233,7 @@ export default function ListingGallery({
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y overflow-hidden rounded-lg bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900`}
+        className={`group/gallery relative isolate block ${LISTING_GALLERY_FRAME_HEIGHT} w-full touch-pan-y touch-pinch-zoom rounded-xl bg-[#EFEAE0] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 lg:flex lg:items-center lg:justify-center lg:bg-transparent lg:[container-type:size]`}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -214,6 +247,10 @@ export default function ListingGallery({
           }
         }}
       >
+        <div
+          className={`relative h-full w-full overflow-hidden rounded-xl${activeRatio ? " lg:h-auto lg:w-[min(100cqw,calc(100cqh*var(--photo-ratio)))] lg:[aspect-ratio:var(--photo-ratio)]" : ""}`}
+          style={activeRatio ? ({ "--photo-ratio": activeRatio } as CSSProperties) : undefined}
+        >
         <Image
           src={activeUrl}
           alt={photos[mainIndex]?.altText ?? title}
@@ -222,8 +259,12 @@ export default function ListingGallery({
           sizes="(max-width: 1023px) 100vw, 50vw"
           preload={mainIndex === 0}
           data-fly-to-cart-source=""
-          className="h-full w-full object-contain"
+          className="h-full w-full object-cover lg:object-contain"
           onLoad={(e) => {
+            const { naturalWidth, naturalHeight } = e.currentTarget;
+            if (naturalWidth > 0 && naturalHeight > 0) {
+              setActiveRatio(naturalWidth / naturalHeight);
+            }
             if (!mainSwapRef.current) return;
             mainSwapRef.current = false;
             playPhotoSwap(e.currentTarget);
@@ -233,11 +274,35 @@ export default function ListingGallery({
             setOptimizerFailures((current) => new Set(current).add(activeUrl));
           }}
         />
+        {/* Until the photo's shape is known the box fills the frame, so hide the
+            controls on desktop rather than have them jump onto the photo. */}
+        <div className={`transition-opacity duration-150${activeRatio ? "" : " lg:opacity-0"}`}>
+        {/* Keep the save control's press from also opening the viewer. */}
+        <div
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          {saveControl}
+        </div>
         {photos.length > 1 && (
           <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
             {activeIndex + 1} / {photos.length}
           </div>
         )}
+        {/* Expand and favorite use the same 44px corner cell and 36px visible
+            circle, so the gallery controls are optically symmetrical. */}
+        <div
+          className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
+          aria-hidden="true"
+        >
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </span>
+        </div>
+        </div>
+        </div>
         {photos.length > 1 && (
           <>
             <button
@@ -280,18 +345,6 @@ export default function ListingGallery({
             </button>
           </>
         )}
-        {/* Expand and favorite use the same 44px corner cell and 36px visible
-            circle, so the gallery controls are optically symmetrical. */}
-        <div
-          className="pointer-events-none absolute left-0 top-0 inline-flex h-11 w-11 items-center justify-center"
-          aria-hidden="true"
-        >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-            </svg>
-          </span>
-        </div>
       </div>
 
       {/* Thumbnails */}
@@ -337,15 +390,16 @@ export default function ListingGallery({
         </div>
       )}
 
-      {/* Lightbox */}
-      {lightboxOpen && (
+      {/* Lightbox. On body, so the sticky gallery column cannot trap it
+          under the site header. */}
+      {lightboxOpen && createPortal(
         <div
           ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black/90"
+          className="lightbox-backdrop-in fixed inset-0 z-[9999] flex touch-manipulation items-center justify-center bg-black/90"
           onClick={closeViewer}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -387,9 +441,12 @@ export default function ListingGallery({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={lightboxPhotoRef}
-              src={photos[lightboxIndex]?.url}
+              src={showPreview ? lightboxPreview.src : photos[lightboxIndex]?.url}
               alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85dvh] object-contain"
+              style={showPreview
+                ? { width: `min(56rem, 100vw - 2rem, 85dvh * ${lightboxPreview.ratio})`, aspectRatio: lightboxPreview.ratio }
+                : undefined}
               onLoad={(e) => {
                 if (!lightboxSwapRef.current) return;
                 lightboxSwapRef.current = false;
@@ -402,7 +459,8 @@ export default function ListingGallery({
               </p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
@@ -433,7 +491,7 @@ function attachHorizontalTouchLock(
 
   function handleTouchMove(event: TouchEvent) {
     const touch = event.touches[0];
-    if (!touch) return;
+    if (!touch || event.touches.length > 1 || isPageZoomed()) return;
 
     if (horizontalLockedRef.current) {
       if (event.cancelable) event.preventDefault();

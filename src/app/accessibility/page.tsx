@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Accessibility",
   description: "Grainline's commitment to digital accessibility and WCAG 2.1 AA conformance.",
+  alternates: { canonical: "https://thegrainline.com/accessibility" },
 };
 
 export const revalidate = 86400;

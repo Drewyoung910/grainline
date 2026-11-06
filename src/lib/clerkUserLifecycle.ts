@@ -5,7 +5,21 @@ import {
 } from "@/lib/clerkCurrentUserIdentity";
 import { revokeActiveClerkSessions } from "@/lib/clerkSessionRevocation";
 
-export { isClerkUserNotFoundError } from "@/lib/clerkCurrentUserIdentity";
+import { isClerkUserNotFoundError } from "@/lib/clerkCurrentUserIdentity";
+
+export { isClerkUserNotFoundError };
+
+/** False only for a definite 404. Any other failure throws, so callers stop. */
+export async function clerkUserExists(clerkUserId: string): Promise<boolean> {
+  const clerk = await clerkClient();
+  try {
+    await clerk.users.getUser(clerkUserId);
+    return true;
+  } catch (error) {
+    if (isClerkUserNotFoundError(error)) return false;
+    throw error;
+  }
+}
 
 export async function getCurrentClerkUserIdentity(
   clerkUserId: string,

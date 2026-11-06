@@ -17,11 +17,14 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
 
   async function toggle() {
     if (loading) return;
+    const next = !saved;
+    setSaved(next);
     setLoading(true);
-    const method = saved ? "DELETE" : "POST";
+    const method = next ? "POST" : "DELETE";
     try {
       const res = await fetch(`/api/blog/${slug}/save`, { method });
       if (res.status === 401) {
+        setSaved(!next);
         router.push(`/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
@@ -31,6 +34,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
         toast(data.saved ? "Post saved." : "Removed from saved posts.", "success");
         return;
       }
+      setSaved(!next);
       let message = "Couldn’t update saved post.";
       try {
         const data = (await res.json()) as { error?: string };
@@ -40,6 +44,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
       }
       toast(message, "error");
     } catch {
+      setSaved(!next);
       toast("Network error. Please try again.", "error");
     } finally {
       setLoading(false);
@@ -50,9 +55,11 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
     <button
       onClick={toggle}
       aria-busy={loading || undefined}
+      aria-pressed={saved}
       title={saved ? "Remove from saved" : "Save post"}
       aria-label={saved ? "Remove from saved" : "Save post"}
       data-saved={saved ? "true" : "false"}
+      onPointerUp={(event) => event.currentTarget.blur()}
       className="listing-save-control group/blog-save relative inline-flex h-11 w-11 transform-gpu items-center justify-center rounded-full transition-[opacity,translate,scale] duration-200 ease-out focus-visible:outline-none"
     >
       <span

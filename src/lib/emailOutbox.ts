@@ -19,6 +19,8 @@ import {
   rollbackEmailOutboxRecipientDailySendAllowance,
 } from "@/lib/emailOutboxQuota";
 import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { isOptionalEmailPreferenceKey } from "@/lib/emailPreferencePolicy";
+import { buildUnsubscribeUrl } from "@/lib/unsubscribeToken";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import {
   beginEmailOutboxProviderAttempt,
@@ -189,7 +191,7 @@ export async function enqueueEmailOutboxOnce(
     templateVersion: normalizeTemplateVersion(email.templateVersion),
     sourceType: email.sourceType ? truncateText(email.sourceType, 80) : null,
     sourceId: email.sourceId ? truncateText(email.sourceId, 191) : null,
-    subject: email.subject.slice(0, 300),
+    subject: truncateText(email.subject, 300),
     html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
     dedupKey,
   }, client);
@@ -208,8 +210,20 @@ export async function enqueueEmailOutbox(
 }
 
 async function processEmailOutboxClaim(claim: ClaimedEmailOutboxJob) {
+  // send() refuses optional mail with no unsubscribe link. Find that out here, so
+  // the row waits instead of starting the provider-attempt clock for nothing.
+  const missingUnsubscribeLink = isOptionalEmailPreferenceKey(claim.preferenceKey)
+    && buildUnsubscribeUrl(claim.recipientEmail, claim.createdAt.getTime()) === null;
+  if (missingUnsubscribeLink) {
+    // Each deferral pushes the row forward, so ops-health never sees it go stale.
+    Sentry.captureMessage("Optional email held: no unsubscribe link could be built", {
+      level: "error",
+      tags: { source: "email_outbox", reason: "missing_one_click_unsubscribe" },
+      extra: { emailOutboxId: claim.jobId },
+    });
+  }
   return processClaimedEmailOutboxJob(claim, {
-    providerConfigured: isEmailProviderConfigured(),
+    providerConfigured: isEmailProviderConfigured() && !missingUnsubscribeLink,
     reserveRecipient: reserveRecipientDailySendAllowance,
     reserveGlobal: reserveDailySendAllowance,
     rollbackRecipient: rollbackRecipientDailySendAllowance,
@@ -282,12 +296,23 @@ async function processEmailOutboxClaim(claim: ClaimedEmailOutboxJob) {
 
 /**
  * Attempts one exact durable job immediately. A process exit before this call
- * or a retryable send failure leaves the same row for the scheduled batch.
+ * or any failure in it leaves the same row for the scheduled batch. Callers run
+ * this after their transaction commits, so it must not throw: an error here would
+ * present a committed refund or label as failed and invite a second one.
  */
 export async function processEmailOutboxJobById(id: string) {
-  const claim = await claimEmailOutboxJob(id);
-  if (!claim) return "unclaimed" as const;
-  return processEmailOutboxClaim(claim);
+  try {
+    const claim = await claimEmailOutboxJob(id);
+    if (!claim) return "unclaimed" as const;
+    return await processEmailOutboxClaim(claim);
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "email_outbox", status: "immediate_attempt_failed" },
+      extra: { emailOutboxId: id },
+    });
+    return "failed" as const;
+  }
 }
 
 export async function processEmailOutboxBatch({

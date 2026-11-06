@@ -14,20 +14,12 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import {
   sellerPublicMetroCount,
   sellerPublicMetroMakers,
-  sellerPublicMetroStaticSlugs,
   sellerPublicNearbyMetros,
 } from "@/lib/sellerProfilePublicAccess";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
-
-// ---------------------------------------------------------------------------
-// generateStaticParams — only metros with at least one active seller
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const metros = await sellerPublicMetroStaticSlugs();
-  return metros.map(({ slug }) => ({ metroSlug: slug }));
-}
 
 // ---------------------------------------------------------------------------
 // generateMetadata
@@ -40,10 +32,11 @@ export async function generateMetadata({
   const { metroSlug } = await params;
   const metro = await prisma.metro.findUnique({
     where: { slug: metroSlug },
-    select: { name: true, state: true, parentMetroId: true },
+    select: { id: true, name: true, state: true, parentMetroId: true },
   });
-  if (!metro) return {};
+  if (!metro) notFound();
 
+  const makerCount = await sellerPublicMetroCount(null, metro.id, !metro.parentMetroId, true);
   const cityName = formatCityState(metro.name, metro.state);
   const title = `Woodworkers & Furniture Makers in ${cityName} | Grainline`;
   const description = `Meet local woodworkers and furniture makers in ${cityName}. Browse their handcrafted work, read reviews, and commission custom pieces directly.`;
@@ -51,8 +44,9 @@ export async function generateMetadata({
   return {
     title: { absolute: title },
     description,
+    robots: makerCount === 0 ? { index: false, follow: true } : undefined,
     alternates: { canonical: `${BASE_URL}/makers/${metroSlug}` },
-    openGraph: { title, description, url: `${BASE_URL}/makers/${metroSlug}` },
+    openGraph: { title, description, url: `${BASE_URL}/makers/${metroSlug}`, images: defaultOpenGraphImages() },
   };
 }
 
@@ -123,8 +117,7 @@ export default async function MakersMetroPage({
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
-      { "@type": "ListItem", "position": 2, "name": stateLabel },
-      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `${BASE_URL}/makers/${metroSlug}` },
+      { "@type": "ListItem", "position": 2, "name": metro.name, "item": `${BASE_URL}/makers/${metroSlug}` },
     ],
   };
 
@@ -152,7 +145,7 @@ export default async function MakersMetroPage({
         </p>
       ) : (
         <p className="text-neutral-600 text-sm mb-8">
-          Custom woodworking in {cityName} — makers coming soon. Post a commission request to attract local woodworkers, or sign up to be notified when makers join in your area.
+          Looking for custom woodworking in {cityName}? Post a commission request and woodworkers can reach out.
         </p>
       )}
 
@@ -242,7 +235,7 @@ export default async function MakersMetroPage({
         </Link>
         {metro.latitude != null && metro.longitude != null && (
           <Link
-            href={`/map?near=${metro.latitude},${metro.longitude}&zoom=10`}
+            href={`/map?near=${metro.latitude.toFixed(2)},${metro.longitude.toFixed(2)}&zoom=10`}
             className="text-sm text-neutral-600 hover:underline"
           >
             View makers on map →

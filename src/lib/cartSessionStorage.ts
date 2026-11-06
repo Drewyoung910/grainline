@@ -1,6 +1,7 @@
 export const CART_ADDRESS_KEY = "grainline_cart_shipping_address";
 export const CART_RATES_KEY = "grainline_cart_selected_rates";
 export const CART_CHECKOUTS_KEY = "grainline_checkouts";
+export const CART_GIFTS_KEY = "grainline_cart_gifts";
 
 export type CartSessionStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -65,6 +66,20 @@ export function clearCartCheckoutSecrets(
   if (!storage) return false;
   try {
     storage.removeItem(CART_CHECKOUTS_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Gift notes survive a reload, so clearCartSessionStorage (which runs on every
+// cart load and change) leaves them. They go at sign-out and after payment.
+export function clearCartGiftNotes(
+  storage: CartSessionStorage | null = getBrowserSessionStorage(),
+): boolean {
+  if (!storage) return false;
+  try {
+    storage.removeItem(CART_GIFTS_KEY);
     return true;
   } catch {
     return false;

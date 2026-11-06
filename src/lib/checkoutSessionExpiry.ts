@@ -2,7 +2,10 @@ import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { restoreSellerExpiredCheckoutStockOnce } from "@/lib/checkoutStockRestore";
+import {
+  restoreBuyerExpiredCheckoutStockOnce,
+  restoreSellerExpiredCheckoutStockOnce,
+} from "@/lib/checkoutStockRestore";
 import { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 import { expireClosedSellerAccountSessions } from "@/lib/orderSellerClosureSessions";
 import { expireBlockedPairCheckoutSessions } from "@/lib/blockedPairCheckoutSessions";
@@ -81,13 +84,14 @@ async function checkoutSessionBelongsToListing(session: Stripe.Checkout.Session,
   if (checkoutSessionMetadataReferencesListing(session.metadata, listingId)) return true;
 
   try {
-    const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
-      expand: ["line_items.data.price.product"],
+    // A retrieve expands only the first 10 lines, and a cart can hold 50 pieces.
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+      limit: 100,
+      expand: ["data.price.product"],
     });
-    const lineItems = (fullSession as { line_items?: { data?: Array<{ price?: { product?: Stripe.Product | string | null } | null }> } }).line_items?.data ?? [];
-    return lineItems.some((lineItem) => {
+    return lineItems.data.some((lineItem) => {
       const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
-      return product?.metadata?.listingId === listingId;
+      return (product as Stripe.Product | null)?.metadata?.listingId === listingId;
     });
   } catch (error) {
     Sentry.captureException(error, {
@@ -161,6 +165,71 @@ export async function expireOpenCheckoutSessionsForSeller({
         Sentry.captureException(error, {
           tags: { source: `${source}_checkout_session_expire` },
           extra: { sellerId, stripeAccountId, stripeSessionId: session.id },
+        });
+      }
+    }
+
+    pages += 1;
+    startingAfter = sessions.has_more ? sessions.data.at(-1)?.id : undefined;
+  } while (startingAfter && pages < 10);
+
+  return result;
+}
+
+// A banned buyer's open checkouts would otherwise keep stock off sale and could
+// still be paid, which only ends in an automatic refund.
+export async function expireOpenCheckoutSessionsForBuyer({
+  buyerId,
+  source,
+  lookbackSeconds = 2 * 60 * 60,
+}: {
+  buyerId: string;
+  source: string;
+  lookbackSeconds?: number;
+}): Promise<ExpireOpenCheckoutSessionsResult> {
+  let startingAfter: string | undefined;
+  let pages = 0;
+  const createdAfter = Math.floor(Date.now() / 1000) - lookbackSeconds;
+  const result: ExpireOpenCheckoutSessionsResult = { checked: 0, expired: 0, failed: 0 };
+
+  do {
+    let sessions: Stripe.ApiList<Stripe.Checkout.Session>;
+    try {
+      sessions = await stripe.checkout.sessions.list({
+        created: { gte: createdAfter },
+        limit: 100,
+        status: "open",
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      });
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: `${source}_buyer_checkout_session_list` },
+        extra: { buyerId },
+      });
+      return result;
+    }
+
+    for (const session of sessions.data) {
+      if (session.metadata?.buyerId !== buyerId) continue;
+      result.checked += 1;
+      try {
+        await stripe.checkout.sessions.expire(session.id);
+        await restoreBuyerExpiredCheckoutStockOnce({
+          buyerId,
+          sessionId: session.id,
+          metadata: session.metadata ?? {},
+        }).catch((error) => {
+          Sentry.captureException(error, {
+            tags: { source: `${source}_buyer_checkout_session_restore` },
+            extra: { buyerId, stripeSessionId: session.id },
+          });
+        });
+        result.expired += 1;
+      } catch (error) {
+        result.failed += 1;
+        Sentry.captureException(error, {
+          tags: { source: `${source}_buyer_checkout_session_expire` },
+          extra: { buyerId, stripeSessionId: session.id },
         });
       }
     }

@@ -26,6 +26,7 @@ type Props = {
   initialZoom?: number;
   mobileInitialZoom?: number;
   height?: CSSProperties["height"];
+  embedded?: boolean;
 };
 
 export default function AllSellersMap({
@@ -34,6 +35,7 @@ export default function AllSellersMap({
   initialZoom = 3,
   mobileInitialZoom,
   height = 520,
+  embedded = false,
 }: Props) {
   const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -99,10 +101,9 @@ export default function AllSellersMap({
         style: "https://tiles.openfreemap.org/styles/liberty",
         center,
         zoom: resolvedInitialZoom,
-        // Let the page keep scrolling over an embedded homepage map. Desktop
-        // visitors can zoom with Ctrl/Cmd + wheel; touch visitors use two
-        // fingers, matching MapLibre's cooperative interaction guidance.
-        cooperativeGestures: true,
+        // An embedded map lets the page keep scrolling: Ctrl/Cmd + wheel zooms
+        // and touch uses two fingers. The dedicated map page takes the gestures.
+        cooperativeGestures: embedded,
       });
     } catch {
       setMapUnavailable(true);
@@ -112,7 +113,24 @@ export default function AllSellersMap({
     paintGrainlineMapColors(map);
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
+    // On a phone MapLibre opens the map credit as a wide pill over the
+    // bottom of the map until the first drag. OSM's attribution guideline
+    // lets it collapse after five seconds; the "i" button still opens it.
+    let collapseCredit: ReturnType<typeof setTimeout> | undefined;
+    map.once("load", () => {
+      collapseCredit = setTimeout(() => {
+        map.getContainer().querySelector(".maplibregl-compact-show")?.classList.remove("maplibregl-compact-show");
+      }, 5000);
+    });
+
     map.on("load", () => {
+      // Open on the makers, not on two oceans and one cluster dot.
+      if (!initialCenter && points.length > 0) {
+        const bounds = new maplibregl.LngLatBounds();
+        for (const point of points) bounds.extend([point.lng, point.lat]);
+        map.fitBounds(bounds, { padding: 60, maxZoom: 9, duration: 0 });
+      }
+
       map.addSource("sellers", {
         type: "geojson",
         data: {
@@ -288,11 +306,12 @@ export default function AllSellersMap({
       ro.disconnect();
       cancelAnimationFrame(raf);
       clearTimeout(settle);
+      clearTimeout(collapseCredit);
       markers.forEach((marker) => marker.remove());
       markers.clear();
       map.remove();
     };
-  }, [points, initialCenter, initialZoom, mobileInitialZoom]);
+  }, [points, initialCenter, initialZoom, mobileInitialZoom, embedded]);
 
   if (mapUnavailable) {
     return (

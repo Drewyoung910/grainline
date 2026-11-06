@@ -1,9 +1,15 @@
 // src/app/sellers/map/page.tsx
+import type { Metadata } from "next";
 import { userIdByClerkId } from "@/lib/userIdentityAccess";
 import SellersMap from "@/components/SellersMap";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { sellerPublicMapPoints } from "@/lib/sellerProfilePublicAccess";
+
+export const metadata: Metadata = {
+  title: "Find Makers Near You",
+  alternates: { canonical: "https://thegrainline.com/map" },
+};
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +30,12 @@ export default async function SellersMapPage() {
   }));
 
   return (
-    <main className="max-w-7xl mx-auto p-8 space-y-6">
+    <main className="max-w-[1600px] mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="font-display text-2xl font-semibold">Find makers near you</h1>
           <p className="text-sm text-neutral-600 mt-1">
-            Makers choose an approximate pin or explicitly publish an exact one. Click a pin to preview a profile.
+            Click a pin to see the maker.
           </p>
         </div>
       </header>

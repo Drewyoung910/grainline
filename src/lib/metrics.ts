@@ -38,6 +38,7 @@ export type CachedSellerMetrics = Prisma.SellerMetricsGetPayload<{
 }>;
 
 export {
+  floorMetric,
   GUILD_MASTER_REQUIREMENTS,
   LISTING_VIEW_DAILY_RETENTION_DAYS,
   METRICS_PERIOD_DAYS_PER_MONTH,
@@ -194,7 +195,7 @@ async function calculateSellerMetricsWithoutLock(
   const [reviewAgg, orderFacts, activeCaseCount, responseRows] =
     await Promise.all([
       db.review.aggregate({
-        where: { listing: { sellerId: sellerProfileId } },
+        where: { listing: { sellerId: sellerProfileId }, reviewerAccountActive: true },
         _avg: { ratingX2: true },
         _count: { _all: true },
       }),

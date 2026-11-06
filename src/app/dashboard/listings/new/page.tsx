@@ -6,8 +6,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { renderFirstListingCongratsEmail } from "@/lib/email";
-import { enqueueEmailOutbox } from "@/lib/emailOutbox";
+import { sendFirstListingCongratsIfFirst } from "@/lib/firstListingEmail";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
@@ -26,6 +25,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { parseListingMaterials } from "@/lib/listingEditState";
 import { listingPriceMaxError } from "@/lib/listingPrice";
 import {
   normalizeVariantPriceAdjustCents,
@@ -37,8 +37,8 @@ import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
+import { applyListingCreationAIReviewResult } from "@/lib/listingCreationAIReview";
 import {
   sellerOwnerListingMetroSource,
   sellerOwnerListingReview,
@@ -139,10 +139,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
-  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
-  const materials = materialsRaw
-    ? materialsRaw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20)
-    : [];
+  const materials = parseListingMaterials(formData.get("materials"));
 
   // Product dimensions (inches — stored directly, separate from packaged dims)
   const productLengthIn = Number(String(formData.get("productLengthIn") ?? "").trim()) || null;
@@ -329,83 +326,84 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
 
   // Non-draft: run all side effects unchanged
+  // AI listing review + first-listing hold. Bind every verdict to the exact
+  // revision sent for review so an older request cannot publish a withdrawn,
+  // edited, and resubmitted listing.
+  let reviewedUpdatedAt: Date | null = null;
   try {
-    const firstListing = await prisma.listing.findFirst({
-      where: { sellerId: seller.id },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true },
-    });
-    if (firstListing?.id === created.id) {
-      const emailRecipient = await userEmailDeliveryRecipient(prisma, {
-        userId: seller.userId,
-      });
-      if (emailRecipient) {
-        const email = renderFirstListingCongratsEmail({
-          seller: { displayName: seller.displayName, email: emailRecipient.email },
-          listing: { id: created.id, title: created.title, priceCents: created.priceCents },
-        });
-        await enqueueEmailOutbox({
-          ...email,
-          dedupKey: `first-listing-congrats:${seller.id}`,
-          templateName: "first_listing_congrats",
-          userId: seller.userId,
-        });
-      }
-    }
-  } catch { /* non-fatal */ }
-
-  // AI listing review + first-listing hold
-  try {
-    const sellerInfo = await sellerOwnerListingReview(seller.userId);
-    if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
-      throw new Error("Seller listing-review authority returned a different seller");
-    }
-
-    const listingCount = sellerInfo?.totalListingCount ?? 0
-
-    const { reviewListingWithAI } = await import('@/lib/ai-review')
-
-    const aiResult = await reviewListingWithAI({
-      listingId: created.id,
-      sellerId: seller.id,
-      title: created.title,
-      description: created.description,
-      priceCents: created.priceCents,
-      currency: created.currency,
-      category: created.category ?? null,
-      tags: created.tags,
-      sellerName: sellerInfo?.displayName ?? seller.displayName ?? 'Unknown',
-      listingCount,
-      imageUrls,
-    }).catch((): AIReviewResult => ({
-      approved: false,
-      flags: ['AI review error'],
-      confidence: 0,
-      reason: 'AI error — sending to admin review',
-      altTexts: [],
-    }))
-
-    const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8
-
-    if (shouldHold) {
-      await prisma.listing.updateMany({
-        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-        data: {
+    creationReview: {
+      const reviewTarget = await prisma.listing.findFirst({
+        where: {
+          id: created.id,
+          sellerId: seller.id,
           status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
-        }
-      })
-    } else {
-      const updated = await prisma.listing.updateMany({
-        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-        data: {
-          status: ListingStatus.ACTIVE,
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
         },
-      })
-      if (updated.count === 1) {
+        select: {
+          updatedAt: true,
+          title: true,
+          description: true,
+          priceCents: true,
+          currency: true,
+          category: true,
+          tags: true,
+          metaDescription: true,
+          materials: true,
+          variantGroups: { select: { name: true, options: { select: { label: true } } } },
+          photos: {
+            select: { url: true, altText: true },
+            orderBy: { sortOrder: "asc" },
+            take: 10,
+          },
+        },
+      });
+      reviewedUpdatedAt = reviewTarget?.updatedAt ?? null;
+      if (!reviewTarget || !reviewedUpdatedAt) {
+        break creationReview;
+      }
+
+      const sellerInfo = await sellerOwnerListingReview(seller.userId);
+      if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
+        throw new Error("Seller listing-review authority returned a different seller");
+      }
+
+      const listingCount = sellerInfo?.totalListingCount ?? 0;
+
+      const { reviewListingWithAI } = await import("@/lib/ai-review");
+
+      const aiResult = await reviewListingWithAI({
+        listingId: created.id,
+        sellerId: seller.id,
+        title: reviewTarget.title,
+        description: reviewTarget.description,
+        priceCents: reviewTarget.priceCents,
+        currency: reviewTarget.currency,
+        category: reviewTarget.category ?? null,
+        tags: reviewTarget.tags,
+        sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
+        listingCount,
+        imageUrls: reviewTarget.photos.map((photo) => photo.url),
+        metaDescription: reviewTarget.metaDescription,
+        materials: reviewTarget.materials,
+        variantLabels: reviewTarget.variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+        photoAltTexts: reviewTarget.photos.map((photo) => photo.altText),
+      }).catch((): AIReviewResult => ({
+        approved: false,
+        flags: ["AI review error"],
+        confidence: 0,
+        reason: "AI error, sending to staff review",
+        altTexts: [],
+      }));
+
+      const transition = await applyListingCreationAIReviewResult(prisma, {
+        listingId: created.id,
+        sellerId: seller.id,
+        reviewedUpdatedAt,
+        approved: aiResult.approved,
+        flags: aiResult.flags,
+        confidence: aiResult.confidence,
+        reason: aiResult.reason,
+      });
+      if (transition.activated) {
         await prisma.$executeRaw`
           UPDATE "Listing"
           SET status = 'SOLD_OUT'
@@ -416,30 +414,35 @@ async function createListing(_prevState: unknown, formData: FormData) {
             AND status = 'ACTIVE'
         `;
       }
-    }
 
-    // Backfill AI-generated alt text through the shared non-fatal helper.
-    await backfillEmptyAltTexts(created.id, aiResult.altTexts);
+      // Never let an older review write alt text onto a newer photo revision.
+      if (transition.applied) {
+        await backfillEmptyAltTexts(created.id, aiResult.altTexts);
+      }
+    }
   } catch (error) {
     logServerError(error, {
       source: "listing_create_ai_review",
       level: "warning",
       extra: { listingId: created.id, sellerProfileId: seller.id },
     });
-    await prisma.listing.updateMany({
-      where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["AI review error"],
-        aiReviewScore: 0,
-      },
-    }).catch((updateError) => {
-      logServerError(updateError, {
-        source: "listing_create_ai_error_mark_failed",
-        level: "error",
-        extra: { listingId: created.id, sellerProfileId: seller.id },
+    if (reviewedUpdatedAt) {
+      await applyListingCreationAIReviewResult(prisma, {
+        listingId: created.id,
+        sellerId: seller.id,
+        reviewedUpdatedAt,
+        approved: false,
+        flags: ["AI review error"],
+        confidence: 0,
+        reason: "AI error, sending to staff review",
+      }).catch((updateError) => {
+        logServerError(updateError, {
+          source: "listing_create_ai_error_mark_failed",
+          level: "error",
+          extra: { listingId: created.id, sellerProfileId: seller.id },
+        });
       });
-    });
+    }
   }
 
   // Only notify followers if the listing went live (not held for review)
@@ -454,6 +457,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
     revalidateFooterMetrosCache();
     // First active listing might earn this seller the Founding Maker badge.
     await maybeGrantFoundingMaker(seller.id);
+    await sendFirstListingCongratsIfFirst({
+      sellerProfileId: seller.id,
+      sellerUserId: seller.userId,
+      sellerDisplayName: seller.displayName,
+      listing: { id: created.id, title: created.title, priceCents: created.priceCents, currency: created.currency },
+    });
     // Notify followers after the response so listing creation stays responsive.
     after(async () => {
       try {
@@ -461,7 +470,6 @@ async function createListing(_prevState: unknown, formData: FormData) {
           sellerProfileId: seller.id,
           sellerDisplayName: seller.displayName,
           listing: { id: created.id, title: created.title, priceCents: created.priceCents, currency: created.currency },
-          emailDedupKey: (followerId) => `followed-listing:${created.id}:${followerId}`,
         });
       } catch (error) {
         logServerError(error, {
@@ -594,9 +602,6 @@ export default async function NewListingPage({
         <div>
           <label className="block text-sm mb-1">Photos</label>
           <PhotoManager max={10} />
-          <p className="mt-1 text-xs text-neutral-500">
-            Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
-          </p>
         </div>
 
         <div>

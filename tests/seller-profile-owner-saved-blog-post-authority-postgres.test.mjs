@@ -273,10 +273,22 @@ test("SavedBlogPost RLS isolates owners and the insert guard rejects ineligible 
       (await database.query('SELECT id FROM public."SavedBlogPost" ORDER BY id')).rows,
       [{ id: "save-other" }],
     );
+    // Target the actor's live row ('save-active' was already deleted above,
+    // so deleting it again proved nothing about the policy).
     const deleted = await database.query(
-      `DELETE FROM public."SavedBlogPost" WHERE id = 'save-active' RETURNING id`,
+      `DELETE FROM public."SavedBlogPost" WHERE id = 'save-active-again' RETURNING id`,
     );
     assert.deepEqual(deleted.rows, []);
+    // With no WHERE or RETURNING, PostgreSQL applies only the DELETE policy
+    // (not the SELECT one), so this is what a loose DELETE policy would expose.
+    await database.exec('DELETE FROM public."SavedBlogPost"');
+    await database.exec("RESET ROLE");
+    assert.deepEqual(
+      (await database.query(
+        `SELECT id FROM public."SavedBlogPost" WHERE id = 'save-active-again'`,
+      )).rows,
+      [{ id: "save-active-again" }],
+    );
   } finally {
     await database.exec("RESET ROLE").catch(() => {});
     await database.close();

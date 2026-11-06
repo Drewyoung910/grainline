@@ -84,6 +84,11 @@ export default function Header() {
   // Bumps the cart badge when a cart change raises the count. Page loads and
   // signing in or out reload the count without a bump.
   const [cartBumpCount, setCartBumpCount] = React.useState(0);
+  // The badge is visual only, so the link name carries the count.
+  const cartLabel =
+    cartCount != null && cartCount > 0
+      ? `Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`
+      : "Cart";
   const cartCountRef = React.useRef<number | null>(null);
   const cartCountBeforeChangeRef = React.useRef<number | null>(null);
   React.useEffect(() => {
@@ -470,7 +475,7 @@ export default function Header() {
       />
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-[1600px] items-center gap-2 px-3 py-2.5 sm:px-6 lg:gap-6 lg:px-8 lg:py-3 xl:gap-8"
+        className="mx-auto flex max-w-[1600px] items-center gap-2 px-3 py-2.5 sm:px-6 lg:gap-5 lg:px-8 lg:py-3 xl:gap-6"
       >
         {/* Logo: one mask so its color can follow the header from cream over
             the photo to espresso on frosted paper. */}
@@ -489,12 +494,12 @@ export default function Header() {
         </Link>
 
         {/* ── Desktop (lg+): search, nav, tools ─────────────────────────── */}
-        <div className="hidden min-w-0 flex-1 items-center gap-6 lg:flex xl:gap-8">
-          <span data-header-search-slot className="flex min-w-[220px] max-w-[640px] flex-1">
+        <div className="hidden min-w-0 flex-1 items-center gap-4 lg:flex xl:gap-6">
+          <span data-header-search-slot className="flex min-w-[240px] max-w-[820px] flex-1">
             <SearchBar tone={clear ? "glass" : "solid"} />
           </span>
 
-          <div data-header-nav className="flex shrink-0 items-center gap-6">
+          <div data-header-nav className="flex shrink-0 items-center gap-5 xl:gap-6">
             <Link href="/browse" aria-current={navLinkCurrent("/browse")} className={navLinkClass("/browse")}>
               Browse
             </Link>
@@ -522,7 +527,7 @@ export default function Header() {
             </span>
 
             {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
-            <Link href="/cart" className={iconButtonClass} aria-label="Cart" data-cart-target="" onPointerUp={(event) => event.currentTarget.blur()}>
+            <Link href="/cart" className={iconButtonClass} aria-label={cartLabel} data-cart-target="" onPointerUp={(event) => event.currentTarget.blur()}>
               <ShoppingBag size={22} />
               <IconHoverTip label="Cart" />
               {cartCount != null && cartCount > 0 && (
@@ -535,14 +540,14 @@ export default function Header() {
             {/* Keep one stable auth slot while Clerk resolves. Without the
                 reserved width, the late Sign in pill shifted the cart and
                 search after first paint on every signed-out desktop load. */}
-            <span className="ml-1.5 inline-flex min-w-[76px] justify-end">
+            <span className="inline-flex w-[84px] shrink-0 justify-end">
               <Show
                 when="signed-in"
                 fallback={
                   isLoaded ? (
                     <Link
                       href="/sign-in"
-                      className="inline-flex h-10 items-center rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
+                      className="inline-flex h-10 items-center whitespace-nowrap rounded-full border border-current/35 px-4 text-sm font-medium text-current transition-[background-color,border-color,scale] duration-200 hover:bg-current/10 motion-safe:active:scale-[0.97]"
                     >
                       Sign in
                     </Link>
@@ -561,8 +566,16 @@ export default function Header() {
           </div>
         </div>
 
-        {/* ── Mobile/tablet right: search | bell | cart | menu (< lg) ───── */}
+        {/* ── Mobile/tablet right: bell | search | cart | menu (< lg) ───── */}
         <div className="ml-auto flex items-center gap-0.5 lg:hidden">
+          {/* The bell appears when Clerk loads. Leftmost in a right-aligned row,
+              it arrives without moving anything else. */}
+          <Show when="signed-in">
+            <span className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
+              <NotificationBell initialUnreadCount={unreadNotifCount} />
+            </span>
+          </Show>
+
           {/* Search toggle */}
           <button
             onClick={() => {
@@ -578,13 +591,6 @@ export default function Header() {
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
 
-          {/* Notification bell */}
-          <Show when="signed-in">
-            <span className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
-              <NotificationBell initialUnreadCount={unreadNotifCount} />
-            </span>
-          </Show>
-
           {/* Cart — always visible. Two-layer structure mirrors
               NotificationBell + MessageIconLink: outer Link is the 44×44
               tap target, inner span is the 40×40 visible hover circle.
@@ -594,7 +600,7 @@ export default function Header() {
           <Link
             href="/cart"
             className="group/cart inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full focus:outline-none"
-            aria-label="Cart"
+            aria-label={cartLabel}
             data-cart-target=""
             onPointerUp={(event) => event.currentTarget.blur()}
           >
@@ -692,7 +698,8 @@ export default function Header() {
                 Menu
               </span>
               <button
-                onClick={() => closeDrawer()}
+                // detail is 0 for a keyboard press: return focus to the hamburger.
+                onClick={(event) => closeDrawer(event.detail === 0)}
                 aria-label="Close menu"
                 className="relative z-[60] inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-600 hover:bg-black/10"
               >

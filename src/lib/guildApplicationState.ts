@@ -68,5 +68,9 @@ export function guildMasterApplicationBlockReason({
   if (verificationStatus === "GUILD_MASTER_REJECTED") {
     return cooldownBlockReason({ reviewedAt, now, label: "Guild Master" });
   }
+  // The apply authority accepts only APPROVED here. Do not offer a form it refuses.
+  if (verificationStatus !== "APPROVED") {
+    return "Your verification record cannot start a Guild Master application. Contact support.";
+  }
   return null;
 }

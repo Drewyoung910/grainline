@@ -20,8 +20,54 @@
   responsive `sizes`, preloads only the initial LCP photo, retains full-quality
   originals only for the user-opened lightbox, and permits the optimizer to
   fetch the current R2 origins plus historical UploadThing media.
+## 2026-11-01 — Unsupported marketplace trust claims
+
+- **[CLAUDE C-06/#915 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  The Why Grainline page promised identity verification, real names, American
+  workshops, US ship-from addresses and US workshop payouts that the product
+  does not prove. It also displayed a hard-coded "50 states shipped to" count.
+  The candidate retains enforceable claims about connected Stripe payment
+  accounts, listing review, and prohibited factory imports and reselling,
+  replaces unsupported identity and nationality claims with accurate copy,
+  and replaces the hard-coded number with the live founding-maker count.
 
 Last updated: 2026-10-18
+Last updated: 2026-10-27
+
+## 2026-11-01 — Signed-out public map-card middleware regression
+
+- **[CLAUDE #218/#344 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  The public map pages fetch `GET /api/seller/[id]/map-card`, and that route
+  already owns a bounded public projection plus an IP rate limit. The route was
+  present in the public API inventory but absent from middleware's signed-out
+  public matcher, so signed-out visitors received `401` instead of the maker
+  card. The candidate adds only the exact map-card route pattern. An executed
+  Clerk matcher test proves that the intended URL is public while a sibling
+  private seller API URL remains protected; the existing public-route inventory
+  and bounded-authority tests remain green.
+
+## 2026-11-01 — Public social preview image regressions
+
+- **[CLAUDE #213/#465 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  Next's file-based root Open Graph image is served at `/opengraph-image`, but
+  middleware treated that generated crawler asset as private and redirected it
+  to sign-in. Public browse, metro, maker, tag, map, handbook, and commission
+  pages also replace the root `openGraph` object without an `images` value, so
+  they lose the inherited preview. The candidate makes only the generated image
+  route public and uses one shared complete fallback image on every affected
+  metadata producer. Executed tests cover the real Clerk matcher and the shared
+  metadata value; a source guard inventories all affected page producers.
+
+## 2026-11-01 — Streamed crawler metadata outside the document head
+
+- **[CLAUDE #1519/C-03 VERIFIED; FIX PREPARED; NOT YET MERGED OR DEPLOYED]**
+  Dynamic listing and seller metadata can be streamed after the document head
+  for a generic Googlebot request because that user agent is not in Next.js's
+  default HTML-limited bot expression. That can leave canonical, robots and
+  social metadata outside the location some crawlers require. The candidate
+  uses Next's documented `htmlLimitedBots: /.*/` setting to keep generated
+  metadata in the head for every crawler. The focused configuration guard,
+  public-route regression suite, lint and TypeScript all pass.
 
 ## 2026-10-16 — Blocked-pair paid-checkout completion
 
@@ -4162,6 +4208,19 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   mutation-first schedules for ban, identity, preference and unsubscribe. This
   stacked draft must not merge or release until C-1180 and migration
   `20261027020000_correct_email_outbox_contracts` are both merged and live.
+## 2026-10-27 — C-1210 stale listing-creation AI verdict
+
+- **[FIX PREPARED; NOT YET MERGED OR DEPLOYED]** The listing-creation action
+  previously applied an AI approval to any row that was still
+  `PENDING_REVIEW`. A seller could withdraw, edit and resubmit the listing while
+  the first review was in flight, allowing that stale approval to publish the
+  newer content and clear its flags. The candidate reads the exact review
+  snapshot, binds the verdict to its `updatedAt` revision plus listing and
+  seller identity, and discards stale status, score, flag and generated-alt-text
+  writes. A behavior test proves that a verdict cannot mutate a newer revision
+  while the exact reviewed revision still activates normally. Focused behavior
+  and guardrail tests, TypeScript, lint and whitespace validation pass. Exact
+  CI, review, merge and deployment remain separate gates.
 
 ## 2026-10-26 — StockNotification compatible RLS preparation
 
@@ -4233,6 +4292,162 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
   This app correction does not by itself release the pending email migration or
   close C-1174/C-1177/C-1178/C-1185.
 
+## 2026-10-27 — C-1193 uncategorized candidate breaks similar listings
+
+- **[VERIFIED; HOTFIX PREPARED; NOT YET DEPLOYED]** The bounded
+  similar-listing database operation returns SQL NULL for `categoryMatch` when
+  a candidate listing has no category. Category is optional, but the TypeScript
+  result boundary required a boolean for every row and rejected the complete
+  candidate set, so `/api/listings/[id]/similar` returned 500 for affected
+  public listing pages.
+- The app hotfix accepts only boolean-or-null at that one display-ranking
+  field and normalizes NULL to `false`; malformed non-null values and every
+  security, identity, visibility, money and bounded-text field remain
+  fail-closed. Executed tests cover the nullable value, malformed values, the
+  database authority, reciprocal blocks and deterministic ranking. The later
+  reviewed database rewrite should coalesce the SQL comparison itself, but it
+  is not required to stop the live page failure.
+## 2026-10-27 — C-463 generated sitemap chunk selection
+
+- **[VERIFIED; FIX PREPARED; NOT YET DEPLOYED]** Next 16's metadata-route
+  loader passes each generated sitemap id to `src/app/sitemap.ts` as a
+  `Promise<string | undefined>`. The predecessor compared that Promise with
+  `0`, so every `/sitemap/N.xml` request fell through to the static base chunk
+  and the sitemap index exposed no listing, maker, customer-photo, blog or
+  commission rows. The candidate resolves and validates the promised segment
+  before calling `sitemapChunkForId()`. Behavior coverage proves chunk `0`, a
+  nonzero chunk, the base-route fallback, malformed ids and unsafe integers;
+  the existing entry-limit and public-visibility guardrails remain green.
+## 2026-10-27 — C-1231 case-message durable text bounds
+
+- **[FIX PREPARED; NOT MERGED OR LIVE]** The Case reply route previously
+  checked the submitted body with JavaScript UTF-16 `.length` before
+  sanitization, while `sanitizeRichText()` can expand entity text before the
+  database stores it. Page and account-export validation then applied the same
+  UTF-16 limit to the stored row. A 4,900-code-point, 7,600-byte message using
+  emoji and ampersands therefore passed the write authority but made every
+  Case-message reader throw. The isolated correction sanitizes first, enforces
+  the shared 5,000-code-point and 20,000-UTF-8-byte durable bounds before the
+  write, and applies those same bounds to page/export results. The behavior
+  regression fails on current `main` and passes with the correction; no schema,
+  grant, RLS, email, or provider behavior changes.
+- **[FOLLOW-UP FIX PREPARED; STACKED ON THE REPLY FIX]** Case opening had the
+  same boundary mismatch at its 20-to-2,000-character description: Zod and the
+  client counted UTF-16 units before sanitization, while the fixed database
+  authority counts the sanitized value in Unicode code points and rejects more
+  than 8,000 UTF-8 bytes. The follow-up uses the shared Case text boundary to
+  return a specific 400 before the authority, and makes the form's minimum and
+  maximum counter use code points. A failing-first behavior test covers a
+  19-emoji minimum, ampersand expansion, and the exact 2,000-emoji/8,000-byte
+  boundary. It remains a separate app-only draft until the reply fix lands.
+## 2026-10-27 — C-1194/C-1195 discovery-ranking integrity
+## 2026-10-27 — C-1194/C-1195/C-1197/C-1198 review and discovery integrity
+
+- **[FIX PREPARED; NOT YET MERGED OR DEPLOYED]** A retained rating-summary row
+  with `reviewCount = 0` previously supplied its stored zero as a real zero-star
+  rating, so removing a seller's last review ranked them below a seller who
+  retained a one-star review. The candidate treats every zero-review seller as
+  unrated and uses the marketplace rating baseline, matching the already-used
+  behavior when no summary row exists. Bayesian weighting of small nonzero
+  review samples remains a separate product-ranking decision.
+- Click-through rate previously accepted values above 100 percent, allowing
+  click-only traffic to consume the formula's maximum CTR weight and drive the
+  total score to its cap. The candidate bounds raw CTR to `[0, 1]` before its
+  existing dampening step. Failing-first behavior tests reproduce both defects
+  on the predecessor and pass after the two formula corrections. The complete
+  quality-score behavior suite, TypeScript, focused lint and whitespace checks
+  pass. Exact CI, review, merge and deployment remain separate gates.
+- **C-1197:** deleting a review through the admin moderation route now
+  invalidates the featured-maker cache and affected listing page after the
+  transaction commits, matching buyer-owned review update and deletion paths.
+- **C-1198:** review creation now rejects the request when upload-persistence
+  verification removes any requested photo instead of silently publishing the
+  review with fewer photos. Review editing already enforced this contract. A
+  behavior test covers complete and incomplete verification results; the
+  existing cache-invalidation guardrail now includes staff review deletion.
+## 2026-10-27 — C-1223 stale cart gift-wrap selection blocks checkout
+
+- **[VERIFIED; FIX PREPARED]** The cart retained a per-seller
+  `giftWrapping: true` selection after a refreshed cart response reported that
+  the seller no longer offered gift wrapping. The checkbox disappeared, but
+  the hidden value still contributed to the displayed total and was sent to
+  `/api/cart/checkout-seller`, whose server-side availability check correctly
+  rejected every attempt. The prepared app-only correction derives one
+  effective gift selection from the current seller capability for rendering,
+  totals and the request payload. It clears only the unavailable wrapping
+  choice and preserves the buyer's gift note.
+## 2026-10-27 — C-1220 checkout silently accepts a changed cart price
+
+- **[VERIFIED; FIX PREPARED]** Cart checkout detected a changed listing price
+  but wrote the new price and version into `CartItem` before returning its
+  `PRICE_CHANGED` response. The cart reload therefore found no remaining
+  difference and bypassed the existing explicit “Accept updated prices” step.
+  The prepared app-only correction returns the old/new price witness without
+  mutating the cart. The existing cart update action remains the sole path that
+  accepts the new price after the buyer reviews it.
+## 2026-10-27 — C-1251 Unicode order snapshot bounds break retained order views
+
+- **[VERIFIED; FIX PREPARED]** Order list, detail, export, staff, analytics,
+  receipt, label and historical-snapshot readers compared database character
+  limits with JavaScript UTF-16 length. A valid 100-character maker name or
+  50-character variant label containing an astral character could therefore
+  hide retained facts or fail whole order surfaces. The prepared correction
+  shares the existing code-point validator across the affected readers and
+  executes boundary behavior tests for summary rows, immutable snapshots, and
+  participant, export and staff variant projections.
+## 2026-10-27 — C-288 incomplete listing variants accepted by purchase controls
+
+- **[FIX PREPARED; APPLICATION DEPLOYMENT REQUIRED]** The listing panel knew
+  whether every variant group had a selected in-stock option, but its Add to
+  Cart and signed-in Buy Now controls only rejected a completely empty
+  selection. A buyer could therefore choose one of several required groups and
+  receive an Add to Cart success state for an invalid line. A failing-first
+  behavior test now proves that one valid in-stock option from every group is
+  required. Both purchase controls consume that shared result; server-side
+  checkout validation remains unchanged. Previously saved anonymous browser
+  lines are not rewritten because they are client-local and the account-cart
+  authority already rejects incomplete selections when they are merged.
+## 2026-10-27 — C-1238 NUL bytes crash public search and blog filters
+
+- **[FIX PREPARED; APPLICATION DEPLOYMENT REQUIRED]** A percent-encoded NUL in
+  public browse, blog, author, tag or suggestion query parameters reached
+  PostgreSQL-bound predicates, which PostgreSQL rejects. A failing-first
+  behavior test now covers decoded NULs in both query names and values. The
+  prepared app correction returns HTTP 400 from middleware before routing any
+  NUL-bearing query and also normalizes every affected database-bound search
+  parameter through one code-point-bounded helper. Ordinary Unicode queries,
+  pagination, visibility rules and database schema remain unchanged.
+## 2026-10-27 — C-1191 malformed messaging parameters return 500
+
+- **[VERIFIED; FIX PREPARED]** Messaging pages passed malformed listing and
+  recipient query parameters into strict database authorities, and the inbox
+  truncated searches by Unicode code points before an authority rejected the
+  same string by UTF-16 length. The prepared app-only correction validates
+  route ids before authority calls, redirects self-message attempts, rejects
+  malformed/self relationship targets without querying, and applies the same
+  code-point limit at both the inbox and authority boundaries.
+## 2026-10-27 — C-1309 forged Clerk deletion boundary
+
+- **[VERIFIED; FIX PREPARED; NOT YET DEPLOYED]** The signed Clerk
+  `user.deleted` handler proceeded directly from Svix verification to
+  irreversible local anonymization. A still-valid predecessor signing secret
+  could therefore forge deletion for any known Clerk user id. The candidate
+  re-reads the exact user from Clerk after event reservation: a current user is
+  a processed no-op with only a hashed id in security telemetry, definitive
+  Clerk not-found continues the existing anonymization path, and every other
+  provider failure leaves the event failed/retryable. Behavior tests exercise
+  all three states plus the existing replay, in-progress, blocker, and
+  absent-local-user behavior.
+- **[FOLLOW-UP; OPEN]** New public media object keys must stop embedding raw
+  Clerk user ids. Use the stable local user id or a keyed pseudonymous segment
+  for new uploads. Existing keys remain unchanged and require a separately
+  reviewed migration/redirect plan before any rename.
+- **[CREDENTIAL RECOVERY; STILL OPEN]** This application boundary reduces the
+  deletion impact of the exposed webhook secret but does not rotate it. The
+  documented parallel Clerk endpoint, genuine provider-signed delivery and
+  replay proof, predecessor drain, and removal of shared Vercel, GitHub, and
+  local copies remain required as a separately approved production operation.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
@@ -4269,3 +4484,21 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 - **#659, #660, #676–#680, #655, #657, #665, #710–#714 VERIFIED/FIXED/PRODUCTION LIVE:** protected run `39113321452` applied `20261016010000_correct_case_refund_recovery_core` and `20261016011000_correct_case_refund_followup_deadends` on exact main `30f13665fb156a0639fdae3685fc04d714232d89`. The postflight verified all 15 reviewed functions, both exact migration checksums, zero repairable claims, zero unrepairable claims, and `issueCount=0`. The release performed no app deployment or Stripe operation.
 - **Still open and deliberately outside those migrations:** #338, #428, #662, #703–#705, and #715. #662 now has its own behavior-first source candidate above. No RLS expansion resumes until that named launch-blocking money correction is merged and live.
+
+## 2026-10-27 — C-1189 reported-thread staff authorship
+
+- **[VERIFIED/FIX PREPARED; NOT YET MERGED OR PRODUCTION]** PIN-authorized
+  staff could open a reported conversation without becoming a participant, but
+  `ThreadMessages` compared every sender only with the staff viewer. Both real
+  participants therefore rendered as the same left-aligned anonymous “other”
+  user, including ordinary messages and all three structured card shapes. The
+  candidate passes the conversation's two durable participants into a pure
+  presentation boundary, labels every staff-review message as
+  `name · Participant A/B`, aligns the two sides separately, uses each sender's
+  own avatar, and labels any impossible third sender `Unknown participant`
+  instead of silently misattributing it. Participant-facing threads retain
+  their existing labels, alignment, live updates, and actions. The
+  failing-first behavior test had no participant-aware presentation module on
+  the predecessor; 39 focused staff-thread and messaging-policy checks now
+  pass, followed by TypeScript, focused lint, disk-headroom, and diff-integrity
+  checks. Merge and deployment remain separate later actions.

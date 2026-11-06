@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { renderCaseResolvedEmail } from "@/lib/email";
+import { sendCaseUpdateEmail } from "@/lib/caseEmail";
 import {
   enqueueEmailOutboxOnce,
   processEmailOutboxJobById,
@@ -15,6 +16,12 @@ import {
 import { createNotificationOrThrow } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import { getVisibleCaseById } from "@/lib/caseReadAuthority";
+
+// The Case the Stripe dispute webhook opens has reason OTHER and the fixed
+// description "Stripe payment dispute <dispute id>[: <reason>]" (see
+// grainline_case_stripe_dispute_apply). The buyer never opened it.
+const CHARGEBACK_CASE_DESCRIPTION = /^Stripe payment dispute [A-Za-z0-9_]+(?::|$)/;
 
 /**
  * Commits the Case transition and every durable participant-delivery record in
@@ -26,6 +33,14 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
   actorUserId: string,
   prepared: PreparedCaseStaffResolution,
 ) {
+  // Dismissing a chargeback Case tells the buyer nothing: "your case was
+  // dismissed" about a Case they never opened, mid-chargeback, misleads them.
+  let notifyBuyer = true;
+  if (prepared.resolution === "DISMISSED") {
+    const caseRow = await getVisibleCaseById({ actorUserId, caseId: prepared.caseId });
+    notifyBuyer = !(caseRow?.reason === "OTHER"
+      && CHARGEBACK_CASE_DESCRIPTION.test(caseRow.description));
+  }
   const committed = await prisma.$transaction(async (tx) => {
     const result = await finalizeCaseStaffResolution(
       actorUserId,
@@ -39,7 +54,7 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
       result.currency,
     );
 
-    if (result.buyerUserId) {
+    if (result.buyerUserId && notifyBuyer) {
       await createNotificationOrThrow({
         userId: result.buyerUserId,
         type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
@@ -66,7 +81,7 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
     }, tx);
 
     let emailOutboxId: string | null = null;
-    if (result.buyerUserId) {
+    if (result.buyerUserId && notifyBuyer) {
       const buyer = await userEmailDeliveryRecipient(tx, {
         userId: result.buyerUserId,
       });
@@ -104,6 +119,22 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
       committed.emailOutboxId,
     );
   }
+  // The maker needs the decision by email too, since money may have left their
+  // balance. It runs after commit so a mail problem can never undo a recorded refund.
+  await sendCaseUpdateEmail({
+    caseId: committed.result.caseId,
+    orderId: committed.result.orderId,
+    userId: committed.result.sellerUserId,
+    side: "SELLER",
+    dedupKey: `case-resolution-seller:${committed.result.claimId}`,
+    templateName: "case_resolved",
+    heading: "Grainline decided your case",
+    message: caseResolutionSellerMessage(
+      committed.result.resolution,
+      committed.result.refundAmountCents,
+      committed.result.currency,
+    ),
+  });
 
   return committed.result;
 }

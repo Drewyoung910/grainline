@@ -1,10 +1,10 @@
 // src/components/ImageLightbox.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { usePhotoViewerMotion } from "@/lib/usePhotoViewerMotion";
 
-export function ImageLightbox({ images }: { images: string[] }) {
+export function ImageLightbox({ images, thumbnailSize = 96 }: { images: string[]; thumbnailSize?: number }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -39,6 +39,7 @@ export function ImageLightbox({ images }: { images: string[] }) {
     touchStartX.current = e.targetTouches[0].clientX;
   }
   function handleTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length > 0 || isPageZoomed()) return;
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 50) {
@@ -60,11 +61,11 @@ export function ImageLightbox({ images }: { images: string[] }) {
             }}
             onClick={() => { setActiveIndex(i); setOpen(true); }}
             className="relative overflow-hidden border border-neutral-200 hover:border-neutral-400 transition-colors"
-            style={{ width: 96, height: 96 }}
+            style={{ width: thumbnailSize, height: thumbnailSize }}
             aria-label={`View reference image ${i + 1}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={`Reference ${i + 1}`} className="w-full h-full object-cover" />
+            <img src={url} alt="" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-black opacity-0 hover:opacity-10 transition-opacity" />
           </button>
         ))}

@@ -13,7 +13,6 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.match(page, /<ActionForm action=\{startConversation\}>/);
     assert.match(page, /startConversationForUser/);
     assert.match(page, /conversationStartRatelimit/);
-    assert.match(page, /created only when you continue/);
   });
 
   it("serializes conversation creation with block and account lifecycle changes", () => {

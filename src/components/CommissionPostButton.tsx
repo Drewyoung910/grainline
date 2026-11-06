@@ -74,7 +74,7 @@ export default function CommissionPostButton({
       </Link>
       {open && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto overscroll-contain bg-[#14100D]/45 modal-backdrop-in p-4"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto overscroll-contain bg-[#14100D]/45 p-4"
           onMouseDown={(event) => {
             // clientWidth stops short of the scrollbar, which also lands here.
             if (event.target === event.currentTarget && event.clientX < event.currentTarget.clientWidth) requestClose();
@@ -89,7 +89,7 @@ export default function CommissionPostButton({
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 id={titleId} className="font-display text-2xl leading-tight text-neutral-900">Post a commission</h2>
+                <h2 id={titleId} className="font-display text-2xl leading-tight text-neutral-900">Post a request</h2>
                 <p className="mt-1 text-sm text-neutral-500">Makers who can build it reach out, and you pick who to work with.</p>
               </div>
               <button

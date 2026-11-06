@@ -102,7 +102,7 @@ async function DashboardBlogContent({
 
   const posts = await prisma.blogPost.findMany({
     where: { authorId: me.id },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
     select: {

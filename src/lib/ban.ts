@@ -1,8 +1,11 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
 import { buildBanAuditMetadata } from './banAuditMetadata'
-import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
-import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
+import { banClerkUserAndRevokeSessions, clerkUserExists, unbanClerkUser } from './clerkUserLifecycle'
+import {
+  expireOpenCheckoutSessionsForBuyer,
+  expireOpenCheckoutSessionsForSeller,
+} from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
@@ -30,6 +33,7 @@ import {
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
 import * as Sentry from '@sentry/nextjs'
+import { refreshRatingSummariesForReviewer } from '@/lib/sellerRatingSummary'
 
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
 
@@ -433,6 +437,10 @@ export async function banUser({ userId, adminId, reason }: {
     }
   }
 
+  // Best effort, and it reports its own failures. A session it misses expires
+  // within 31 minutes, and a payment on one is refunded automatically.
+  await expireOpenCheckoutSessionsForBuyer({ buyerId: userId, source: 'ban_user' })
+
   await notifyBuyersOfBannedSellerOrders(
     clerkSync.flaggedOpenOrders,
     clerkSync.banAuditLogId,
@@ -468,6 +476,8 @@ export async function banUser({ userId, adminId, reason }: {
     })
     throw new BanUserExternalSyncError("User was banned locally, but active Clerk sessions could not be revoked. Try the ban action again or contact support.")
   }
+
+  await refreshRatingSummariesForReviewer(userId)
 }
 
 export async function unbanUser({ userId, adminId, reason }: {
@@ -481,6 +491,24 @@ export async function unbanUser({ userId, adminId, reason }: {
       clerkId: target.clerkId,
     })
     return { sellerRestoreWarning: null }
+  }
+  // A person who deleted their Clerk account while orders were open stays banned
+  // here until cleanup. Unbanning would reopen a buyable shop nobody can sign in to.
+  let hasLogin: boolean
+  try {
+    hasLogin = await clerkUserExists(target.clerkId)
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: 'unban_user_clerk_lookup' },
+      extra: { userId, adminId },
+    })
+    throw new BanUserExternalSyncError("Clerk could not be reached, so nothing was changed. Try again.")
+  }
+  if (!hasLogin) {
+    throw new BanUserPolicyError(
+      'This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.',
+      409,
+    )
   }
   const staffClient = getOrderStaffReadClient()
   const seller = await sellerStaffOrderabilityState(staffClient, {
@@ -514,6 +542,15 @@ export async function unbanUser({ userId, adminId, reason }: {
     select: { metadata: true },
   })
   const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
+  if (seller && !seller.stripeAccountId) {
+    // No Stripe account to read, and the ban forced vacation on. Put back what the
+    // maker had, or they stay hidden with no sign of why.
+    sellerRestore = {
+      id: seller.id,
+      chargesEnabled: false,
+      vacationMode: capabilityBanMetadata.previousSellerProfile?.vacationMode ?? false,
+    }
+  }
   const userUnbanCapability = await mintUserStaffCapability(staffClient, {
     actorId: adminId,
     targetId: userId,
@@ -564,6 +601,12 @@ export async function unbanUser({ userId, adminId, reason }: {
       })
     } catch (error) {
       throwSellerOrderabilityPolicyError(error)
+    }
+    for (const request of capabilityBanMetadata.previousCommissionRequests) {
+      await tx.commissionRequest.updateMany({
+        where: { id: request.id, buyerId: userId, status: 'CLOSED' },
+        data: { status: request.status },
+      })
     }
     const unbanAuditLog = await tx.adminAuditLog.create({
       data: {
@@ -625,6 +668,8 @@ export async function unbanUser({ userId, adminId, reason }: {
     })
     throw new BanUserExternalSyncError("User was unbanned locally, but Clerk still could not be updated. Try the unban action again or contact support.")
   }
+
+  await refreshRatingSummariesForReviewer(userId)
 
   return {
     sellerRestoreWarning: clerkSync.sellerRestoreWarning,

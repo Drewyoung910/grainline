@@ -9,11 +9,11 @@ describe("seller shipping settings guardrails", () => {
     assert.match(sellerSettings, /const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000/);
     assert.match(
       sellerSettings,
-      /parseMoneyInputToCents\(formData\.get\("shippingFlatRate"\), \{\s*maxCents: MAX_SELLER_SHIPPING_MONEY_CENTS,\s*\}\)/s,
+      /parseOptionalMoneyField\(\s*formData\.get\("shippingFlatRate"\),\s*"[^"]+",\s*MAX_SELLER_SHIPPING_MONEY_CENTS,\s*\)/s,
     );
     assert.match(
       sellerSettings,
-      /parseMoneyInputToCents\(formData\.get\("freeShippingOver"\), \{\s*maxCents: MAX_SELLER_SHIPPING_MONEY_CENTS,\s*\}\)/s,
+      /parseOptionalMoneyField\(\s*formData\.get\("freeShippingOver"\),\s*"[^"]+",\s*MAX_SELLER_SHIPPING_MONEY_CENTS,\s*\)/s,
     );
     assert.doesNotMatch(
       sellerSettings,

@@ -81,6 +81,15 @@ export async function POST(req: Request) {
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many account deletion attempts."));
 
   const blockers = await getAccountDeletionBlockers(me.id);
+  // Bans, undo and Case reconciliation are ADMIN-only and no screen can grant
+  // the role, so deleting an ADMIN (possibly the last one) is an owner task.
+  if (me.role === "ADMIN") {
+    blockers.unshift({
+      code: "admin_role",
+      count: 1,
+      message: "Admin accounts can't be deleted here. Ask the site owner to remove your admin role first.",
+    });
+  }
   if (blockers.length > 0) {
     return privateJson(
       { error: "Account deletion is blocked by open obligations.", blockers },

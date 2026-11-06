@@ -1,3 +1,4 @@
+import { formatCurrencyCents, parseMoneyInputToCents } from "./money.ts";
 import { SELLER_EXACT_MAP_CONSENT_VERSION } from "./sellerExactMapConsent.ts";
 
 export const MAX_SELLER_LOCATION_RADIUS_METERS = 8_047;
@@ -178,6 +179,25 @@ export function parseSellerLocationInput(
   };
 }
 
+// Blank means "not set". Anything else must parse and fit, or the save is
+// refused, because storing null here would silently erase the maker's amount.
+export function parseOptionalMoneyField(
+  input: unknown,
+  label: string,
+  maxCents: number,
+): InputResult<number | null> {
+  if (input === null || input === undefined) return { ok: true, value: null };
+  if (typeof input === "string" && input.trim() === "") return { ok: true, value: null };
+  const cents = parseMoneyInputToCents(input, { maxCents });
+  if (cents === null) {
+    return {
+      ok: false,
+      error: `${label} must be a dollar amount up to ${formatCurrencyCents(maxCents)}.`,
+    };
+  }
+  return { ok: true, value: cents };
+}
+
 export function validateSellerShippingInput(
   countryInput: unknown,
   carrierInputs: unknown[],
@@ -185,12 +205,12 @@ export function validateSellerShippingInput(
   if (countryInput !== null
     && countryInput !== undefined
     && typeof countryInput !== "string") {
-    return { ok: false, error: "Enter a two-letter ship-from country code, for example US." };
+    return { ok: false, error: "Ship-from addresses must be in the United States (US)." };
   }
   const rawCountry = typeof countryInput === "string" ? countryInput.trim() : "";
   const shipFromCountry = (rawCountry || "US").toUpperCase();
-  if (!/^[A-Z]{2}$/u.test(shipFromCountry)) {
-    return { ok: false, error: "Enter a two-letter ship-from country code, for example US." };
+  if (shipFromCountry !== "US") {
+    return { ok: false, error: "Ship-from addresses must be in the United States (US)." };
   }
   if (!carrierInputs.every((carrier) => typeof carrier === "string")) {
     return { ok: false, error: "The preferred carrier selection is invalid." };

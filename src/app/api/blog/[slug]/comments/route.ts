@@ -119,7 +119,6 @@ export async function GET(
     authorSellerAvatarUrl: string | null;
   }) {
     return {
-      id: row.authorId,
       name: row.authorName,
       imageUrl: row.authorImageUrl,
       sellerProfile: row.authorSellerProfilePresent
@@ -173,6 +172,11 @@ export async function POST(
     select: { id: true, authorId: true, title: true },
   });
   if (!post) return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
+  // Same rule as GET: a block either way hides the post and its comments.
+  const blockedUserIds = await getBlockedUserIdsFor(me.id);
+  if (post.authorId && blockedUserIds.has(post.authorId)) {
+    return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
+  }
 
   let parsed;
   try {
@@ -217,13 +221,15 @@ export async function POST(
         parentId: true,
         approved: true,
         authorAccountActive: true,
+        authorId: true,
       },
     });
     if (
       !parent ||
       parent.postId !== post.id ||
       !parent.approved ||
-      parent.authorAccountActive !== true
+      parent.authorAccountActive !== true ||
+      blockedUserIds.has(parent.authorId)
     ) {
       return privateJson({ error: "Invalid parent comment" }, { status: HTTP_STATUS.BAD_REQUEST });
     }

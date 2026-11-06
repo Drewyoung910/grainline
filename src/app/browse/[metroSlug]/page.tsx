@@ -19,40 +19,15 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import {
   sellerPublicListingCards,
   sellerPublicMetroCount,
-  sellerPublicMetroStaticSlugs,
 } from "@/lib/sellerProfilePublicAccess";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { Suspense } from "react";
 import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
-
-// ---------------------------------------------------------------------------
-// generateStaticParams — only metros with at least one active listing or seller
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const [metrosWithListings, sellerMetroSlugs] = await Promise.all([
-    prisma.metro.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { listings: { some: publicListingWhere() } },
-          { listingCityMetros: { some: publicListingWhere() } },
-        ],
-      },
-      select: { slug: true },
-    }),
-    sellerPublicMetroStaticSlugs(),
-  ]);
-  return [...new Set([
-    ...metrosWithListings.map(({ slug }) => slug),
-    ...sellerMetroSlugs.map(({ slug }) => slug),
-  ])]
-    .sort((left, right) => left.localeCompare(right))
-    .map((metroSlug) => ({ metroSlug }));
-}
 
 // ---------------------------------------------------------------------------
 // generateMetadata
@@ -67,7 +42,7 @@ export async function generateMetadata({
     where: { slug: metroSlug },
     select: { id: true, name: true, state: true, parentMetroId: true },
   });
-  if (!metro) return {};
+  if (!metro) notFound();
 
   const isMajor = !metro.parentMetroId;
   const cityName = formatCityState(metro.name, metro.state);
@@ -79,17 +54,17 @@ export async function generateMetadata({
     }),
     sellerPublicMetroCount(null, metro.id, isMajor, false),
   ]);
+  // The page itself 404s with no listings; say so here, before streaming starts.
+  if (listingCount === 0) notFound();
 
   const title = `Handmade Woodworking in ${cityName} | Grainline`;
-  const description = listingCount > 0
-    ? `Discover ${listingCount} handmade piece${listingCount !== 1 ? "s" : ""} from ${sellerCount} local maker${sellerCount !== 1 ? "s" : ""} in ${cityName}. Custom furniture, cutting boards, home decor and more from artisans near you.`
-    : `Custom woodworking in ${cityName} — browse handmade furniture, decor, and more from local artisans on Grainline.`;
+  const description = `Discover ${listingCount} handmade piece${listingCount !== 1 ? "s" : ""} from ${sellerCount} local maker${sellerCount !== 1 ? "s" : ""} in ${cityName}. Custom furniture, cutting boards, home decor and more from artisans near you.`;
 
   return {
     title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/browse/${metroSlug}` },
-    openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}` },
+    openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}`, images: defaultOpenGraphImages() },
   };
 }
 
@@ -238,8 +213,7 @@ async function BrowseMetroContent({
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
       { "@type": "ListItem", "position": 2, "name": "Browse", "item": `${BASE_URL}/browse` },
-      { "@type": "ListItem", "position": 3, "name": stateLabel },
-      { "@type": "ListItem", "position": 4, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
+      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
     ],
   };
 
@@ -263,15 +237,9 @@ async function BrowseMetroContent({
         Handmade Woodworking in {cityName}
       </h1>
 
-      {listingCount > 0 ? (
-        <p className="text-neutral-600 text-sm mb-6">
-          Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area. Every piece is crafted by hand in {stateLabel}.
-        </p>
-      ) : (
-        <p className="text-neutral-600 text-sm mb-6">
-          Custom woodworking in {cityName} — makers coming soon. Post a commission request to attract local woodworkers, or sign up to be notified when makers join in your area.
-        </p>
-      )}
+      <p className="text-neutral-600 text-sm mb-6">
+        Discover {listingCount} handmade piece{listingCount !== 1 ? "s" : ""} from {sellerCount} local maker{sellerCount !== 1 ? "s" : ""} in {cityName}. From custom furniture to kitchen accessories, connect directly with makers in the {metro.name} area.
+      </p>
 
       {/* Category filter tabs */}
       {categoryCounts.length > 0 && (
@@ -297,54 +265,42 @@ async function BrowseMetroContent({
         </div>
       )}
 
-      {/* Listings grid or empty state */}
-      {listingCount === 0 ? (
-        <div className="card-section p-8 text-center mb-10">
-          <p className="text-neutral-500 mb-4">No listings in {cityName} yet.</p>
-          <Link href="/commission/new" className="inline-block rounded-md bg-[#2C1F1A] text-white text-sm font-medium px-6 py-2.5 hover:bg-[#3A2A24] transition-colors mr-3">
-            Post a Commission Request
-          </Link>
-          <Link href="/browse" className="inline-block rounded-md border border-neutral-200 text-sm px-6 py-2.5 hover:bg-neutral-50 transition-colors">
-            Browse All
-          </Link>
-        </div>
-      ) : (
-        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
-          {listings.map((listing) => (
-            <ClickTracker key={listing.id} listingId={listing.id}>
-              <ListingCard
-                listing={{
-                  id: listing.id,
-                  title: listing.title,
-                  priceCents: listing.priceCents,
-                  currency: listing.currency,
-                  status: listing.status,
-                  listingType: listing.listingType,
-                  stockQuantity: listing.stockQuantity ?? null,
-                  photoUrl: listing.photos[0]?.url ?? null,
-                  photoAltText: listing.photos[0]?.altText ?? null,
-                  seller: {
-                    id: listing.seller.sellerProfileId,
-                    displayName: listing.seller.displayName ?? null,
-                    avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null,
-                    guildLevel: listing.seller.guildLevel ?? null,
-                    city: listing.seller.city ?? null,
-                    state: listing.seller.state ?? null,
-                    acceptingNewOrders: listing.seller.acceptingNewOrders ?? null,
-                  },
-                  rating: null,
-                }}
-                initialSaved={savedSet.has(listing.id)}
-                variant="grid"
-              />
-            </ClickTracker>
-          ))}
-        </ul>
-      )}
+      {/* Listings grid */}
+      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8 mb-10">
+        {listings.map((listing) => (
+          <ClickTracker key={listing.id} listingId={listing.id}>
+            <ListingCard
+              listing={{
+                id: listing.id,
+                title: listing.title,
+                priceCents: listing.priceCents,
+                currency: listing.currency,
+                status: listing.status,
+                listingType: listing.listingType,
+                stockQuantity: listing.stockQuantity ?? null,
+                photoUrl: listing.photos[0]?.url ?? null,
+                photoAltText: listing.photos[0]?.altText ?? null,
+                seller: {
+                  id: listing.seller.sellerProfileId,
+                  displayName: listing.seller.displayName ?? null,
+                  avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.ownerImageUrl ?? null,
+                  guildLevel: listing.seller.guildLevel ?? null,
+                  city: listing.seller.city ?? null,
+                  state: listing.seller.state ?? null,
+                  acceptingNewOrders: listing.seller.acceptingNewOrders ?? null,
+                },
+                rating: null,
+              }}
+              initialSaved={savedSet.has(listing.id)}
+              variant="grid"
+            />
+          </ClickTracker>
+        ))}
+      </ul>
 
       {listingCount > 24 && (
         <div className="text-center mb-10">
-          <Link href={`/browse?lat=${metro.latitude}&lng=${metro.longitude}&radius=50`} className="text-sm text-neutral-500 hover:underline">
+          <Link href={`/browse?lat=${metro.latitude.toFixed(2)}&lng=${metro.longitude.toFixed(2)}&radius=50`} className="text-sm text-neutral-500 hover:underline">
             Showing 24 of {listingCount} pieces — use filters on the main browse page for more
           </Link>
         </div>
@@ -353,7 +309,7 @@ async function BrowseMetroContent({
       {/* Nearby areas */}
       {nearbyWithContent.length > 0 && (
         <section className="border-t border-neutral-100 pt-8 mb-8">
-          <h2 className="text-sm font-semibold text-neutral-700 mb-3">Also see makers in</h2>
+          <h2 className="text-sm font-semibold text-neutral-700 mb-3">Nearby</h2>
           <div className="flex flex-wrap gap-2">
             {nearbyWithContent.map((m) => (
               <Link

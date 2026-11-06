@@ -37,6 +37,7 @@ import {
   EmailSuppressionReason,
 } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
+import { refreshRatingSummariesForReviewer } from "@/lib/sellerRatingSummary";
 import {
   markAccountDeletionAuditMetadata,
   redactAccountDeletionAuditMetadata,
@@ -120,7 +121,8 @@ export type AccountDeletionBlocker = {
     | "seller_orders"
     | "open_cases"
     | "active_commissions"
-    | "email_delivery_pending";
+    | "email_delivery_pending"
+    | "admin_role";
   count: number;
   message: string;
 };
@@ -1447,6 +1449,7 @@ export async function anonymizeUserAccount(
   if (!result.alreadyDeleted) {
     await invalidateAccountStateCache(account.clerkId, "account_delete_account_state_cache_invalidate");
     revalidateDeletedAccountSearchCaches(userId);
+    await refreshRatingSummariesForReviewer(userId);
 
     try {
       const redactionUpdates = await collectAdminAuditLogRedactionUpdates({

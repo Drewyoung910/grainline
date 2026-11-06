@@ -181,7 +181,7 @@ describe("client async guardrails", () => {
     assert.match(resumeRoute, /ownerCartForCheckoutResume\(me\.id\)/);
     assert.match(resumeRoute, /const cartId = cart\?\.id \?\? null/);
     assert.match(resumeRoute, /cartCheckoutLockKey\(cartId, sellerId\)/);
-    assert.match(resumeRoute, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId\)/);
+    assert.match(resumeRoute, /stripe\.checkout\.sessions\.retrieve\(lock\.sessionId, \{\}, \{/);
     assert.match(resumeRoute, /let activeCheckoutGroupId: string \| null = null/);
     assert.match(resumeRoute, /metadata\.buyerId !== me\.id/);
     assert.match(resumeRoute, /metadata\.cartId !== cartId/);

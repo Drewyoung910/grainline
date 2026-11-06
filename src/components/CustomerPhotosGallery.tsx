@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { isPageZoomed, useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { publicListingPath } from "@/lib/publicPaths";
 
 export type CustomerPhoto = {
@@ -45,7 +45,8 @@ export default function CustomerPhotosGallery({ photos }: Props) {
   function handleTouchMove(e: React.TouchEvent) {
     touchEndX.current = e.targetTouches[0].clientX;
   }
-  function handleTouchEnd() {
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length > 0 || isPageZoomed()) return;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) < 50) return;
     if (diff > 0) setOpenIndex((i) => (i === null ? 0 : (i + 1) % photos.length));

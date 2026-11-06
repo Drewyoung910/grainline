@@ -14,12 +14,14 @@ import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogAuthorPresentation, publicBlogPostWhere } from "@/lib/blogVisibility";
 import { safeJsonLd } from "@/lib/json-ld";
-import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
+import { firstSearchParams, parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { getPopularBlogTagRows } from "@/lib/popularBlogTags";
 import { ownerSavedBlogPostIdRows } from "@/lib/savedBlogPostOwnerAccess";
 import { Suspense } from "react";
 import { BlogIndexSkeleton } from "@/components/RouteSkeletons";
+import { normalizeSearchQueryParameter } from "@/lib/searchQueryState";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Spotlights, gift guides, build stories, and woodworking education from the Grainline community.";
@@ -58,17 +60,17 @@ export default function BlogIndexPage(props: BlogIndexPageProps) {
 async function BlogIndexPageContent({
   searchParams,
 }: BlogIndexPageProps) {
-  const sp = await searchParams;
-  const q = truncateText((sp.bq ?? "").trim(), BLOG_SEARCH_QUERY_MAX_CHARS);
+  const sp = firstSearchParams(await searchParams);
+  const q = normalizeSearchQueryParameter(sp.bq, BLOG_SEARCH_QUERY_MAX_CHARS);
   const typeFilter = sp.type ?? "";
   const tagsFilter = sp.tags
     ? sp.tags
         .split(",")
-        .map((tag) => truncateText(tag.trim(), BLOG_TAG_MAX_CHARS))
+        .map((tag) => normalizeSearchQueryParameter(tag, BLOG_TAG_MAX_CHARS))
         .filter(Boolean)
         .slice(0, BLOG_TAG_FILTER_MAX_COUNT)
     : [];
-  const authorFilter = truncateText((sp.author ?? "").trim(), BLOG_AUTHOR_FILTER_MAX_CHARS);
+  const authorFilter = normalizeSearchQueryParameter(sp.author, BLOG_AUTHOR_FILTER_MAX_CHARS);
   const sort = sp.sort ?? (q ? "relevant" : "newest");
   const page = parseBoundedPositiveIntParam(sp.page, 1, 1000);
   const pageSize = 12;
@@ -258,6 +260,7 @@ async function BlogIndexPageContent({
   }
 
   const isSearching = q || tagsFilter.length > 0 || authorFilter;
+  const showDiscoveryControls = Boolean(isSearching || typeFilter || total > 0);
   const blogLd = {
     "@context": "https://schema.org",
     "@type": "Blog",
@@ -278,7 +281,7 @@ async function BlogIndexPageContent({
   };
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(blogLd) }} />
       {/* Hero */}
       <section className="py-12 sm:py-16 text-center mb-8">
@@ -288,14 +291,15 @@ async function BlogIndexPageContent({
         <p className="text-lg text-neutral-600 max-w-xl mx-auto mb-6">
           Spotlights, gift guides, build stories, and practical education from the Grainline community.
         </p>
-        {/* Search bar */}
-        <div className="max-w-xl mx-auto">
-          <BlogSearchBar initialQ={q} />
-        </div>
+        {showDiscoveryControls && (
+          <div className="max-w-xl mx-auto">
+            <BlogSearchBar initialQ={q} />
+          </div>
+        )}
       </section>
 
       {/* Filter tabs + sort */}
-      <div className="flex flex-wrap items-center gap-2 mb-6">
+      {showDiscoveryControls && <div className="flex flex-wrap items-center gap-2 mb-6">
         {TYPE_TABS.map((tab) => {
           const active = typeFilter === tab.value;
           return (
@@ -329,14 +333,14 @@ async function BlogIndexPageContent({
             />
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Active tag filter chips */}
       {tagsFilter.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-5">
           {tagsFilter.map((tag) => (
             <span key={tag} className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full">
-              #{tag}
+              {humanizeSearchTag(tag)}
               <Link
                 href={buildHref({ tags: tagsFilter.filter((t) => t !== tag).join(","), page: "" })}
                 className="hover:text-amber-900 ml-0.5"
@@ -365,15 +369,19 @@ async function BlogIndexPageContent({
             </span>
           )}
           {!q && tagsFilter.length > 0 && (
-            <span>{total} post{total !== 1 ? "s" : ""} tagged {tagsFilter.map((t) => `#${t}`).join(", ")}</span>
+            <span>{total} post{total !== 1 ? "s" : ""} tagged {tagsFilter.map((t) => humanizeSearchTag(t)).join(", ")}</span>
           )}
         </div>
       )}
 
       {allPosts.length === 0 ? (
-        <div className="card-section p-12 text-center">
+        <div className="py-12 text-center">
           <p className="text-neutral-500 mb-4">
-            {q ? `No posts found for "${q}"` : "No posts yet — check back soon."}
+            {q
+              ? `No posts found for "${q}"`
+              : typeFilter
+                ? "No posts of this type yet."
+                : "The first workshop stories are coming soon."}
           </p>
           {q && tagCloud.length > 0 && (
             <>
@@ -383,9 +391,9 @@ async function BlogIndexPageContent({
                   <Link
                     key={t.tag}
                     href={buildHref({ tags: t.tag, bq: "", page: "" })}
-                    className="border rounded-full px-3 py-1 text-xs text-neutral-600 hover:bg-neutral-50"
+                    className="rounded-full bg-[#EFEAE0] px-3 py-1 text-xs text-neutral-700 hover:bg-[#E3DCCB]"
                   >
-                    #{t.tag}
+                    {humanizeSearchTag(t.tag)}
                   </Link>
                 ))}
               </div>
@@ -396,13 +404,13 @@ async function BlogIndexPageContent({
         <>
           {/* Featured post (only on first page, no search, no tag filter) */}
           {featured && (
-            <div className="card-listing mb-10 overflow-hidden transition-shadow hover:shadow-md md:flex">
-              <div className="photo-save-surface group/photo relative aspect-[16/9] overflow-hidden bg-neutral-100 md:w-1/2">
-                <Link href={`/blog/${featured.slug}`} className="block h-full w-full">
+            <div className="mb-10 md:flex md:items-center md:gap-8">
+              <div className="photo-save-surface group/photo relative aspect-[16/9] overflow-hidden rounded-xl bg-neutral-100 md:w-1/2">
+                <Link href={`/blog/${featured.slug}`} aria-label={featured.title} className="block h-full w-full">
                   <MediaImage
                     src={featured.coverImageUrl}
                     alt={featured.title}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                     fallbackClassName="w-full h-full bg-gradient-to-br from-amber-100 to-stone-200"
                   />
                 </Link>
@@ -410,7 +418,7 @@ async function BlogIndexPageContent({
                   <SaveBlogButton slug={featured.slug} initialSaved={savedSet.has(featured.id)} />
                 </div>
               </div>
-              <Link href={`/blog/${featured.slug}`} className="group flex flex-col justify-center space-y-3 p-6 sm:p-8 md:w-1/2">
+              <Link href={`/blog/${featured.slug}`} className="group flex flex-col justify-center space-y-3 pt-4 md:w-1/2 md:pt-0">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-semibold">
                       Featured
@@ -462,13 +470,13 @@ async function BlogIndexPageContent({
                 const { imageUrl: avatar, name } = publicBlogAuthorPresentation(post, "Staff");
                 const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
-                  <li key={post.id} className="card-listing">
-                    <div className="photo-save-surface relative overflow-hidden bg-neutral-100">
-                      <Link href={`/blog/${post.slug}`} className="block aspect-[4/3]">
+                  <li key={post.id}>
+                    <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100">
+                      <Link href={`/blog/${post.slug}`} aria-label={post.title} className="block aspect-[4/3]">
                         <MediaImage
                           src={post.coverImageUrl}
                           alt={post.title}
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </Link>
@@ -477,7 +485,7 @@ async function BlogIndexPageContent({
                       </div>
                     </div>
                     <Link href={`/blog/${post.slug}`} className="block">
-                      <div className="p-4 space-y-2">
+                      <div className="pt-3 space-y-2">
                         <div className="flex items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[post.type]}`}>
                             {BLOG_TYPE_LABELS[post.type]}
@@ -486,7 +494,7 @@ async function BlogIndexPageContent({
                             <span className="text-xs text-neutral-500">{post.readingTimeMinutes} min</span>
                           )}
                         </div>
-                        <h3 className="font-semibold text-neutral-900 line-clamp-2">{post.title}</h3>
+                        <h2 className="font-semibold text-neutral-900 line-clamp-2">{post.title}</h2>
                         {excerpt && <p className="text-sm text-neutral-500 line-clamp-2">{excerpt}</p>}
                         <div className="flex items-center gap-1.5 pt-1">
                           {avatar ? (
@@ -548,9 +556,9 @@ async function BlogIndexPageContent({
               <Link
                 key={t.tag}
                 href={buildHref({ tags: t.tag, page: "" })}
-                className={`border border-neutral-200 rounded-full px-3 py-1 hover:bg-neutral-50 transition-colors ${tagSizeClass(t.count)}`}
+                className={`rounded-full bg-[#EFEAE0] px-3 py-1 text-neutral-700 hover:bg-[#E3DCCB] transition-colors ${tagSizeClass(t.count)}`}
               >
-                #{t.tag}
+                {humanizeSearchTag(t.tag)}
               </Link>
             ))}
           </div>

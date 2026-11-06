@@ -126,16 +126,22 @@ async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParam
 }
 
 async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html") {
-  const rate = await safeRateLimit(unsubscribeRatelimit, getIP(req));
-  if (!rate.success) {
-    if (mode === "html") {
-      return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", HTTP_STATUS.TOO_MANY_REQUESTS) };
+  const { email, token, issuedAt } = await readUnsubscribeParams(req);
+  const tokenValid = !!email && !!token && !!issuedAt && verifyUnsubscribeToken(email, token, issuedAt);
+
+  // Gmail and Yahoo send one-click POSTs from shared IPs. A correctly signed POST
+  // is limited per address in handlePost, so it must not spend the IP budget.
+  if (!tokenValid || req.method !== "POST") {
+    const rate = await safeRateLimit(unsubscribeRatelimit, getIP(req));
+    if (!rate.success) {
+      if (mode === "html") {
+        return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", HTTP_STATUS.TOO_MANY_REQUESTS) };
+      }
+      return { response: privateResponse(rateLimitResponse(rate.reset, "Too many unsubscribe attempts.")) };
     }
-    return { response: privateResponse(rateLimitResponse(rate.reset, "Too many unsubscribe attempts.")) };
   }
 
-  const { email, token, issuedAt } = await readUnsubscribeParams(req);
-  if (!email || !token || !issuedAt || !verifyUnsubscribeToken(email, token, issuedAt)) {
+  if (!tokenValid) {
     logSecurityEvent("token_rejected", {
       ip: getIP(req),
       route: "/api/email/unsubscribe",
@@ -164,7 +170,13 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
       tokenLength: token.length,
     });
     if (mode === "html") {
-      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", HTTP_STATUS.BAD_REQUEST) };
+      return {
+        response: htmlDocument(
+          "This link is out of date",
+          `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">You changed your email choices after this message was sent, so this link no longer applies. You can turn emails off in <a href="/account/settings" style="color:#1c1c1a;">your settings</a>.</p>`,
+          HTTP_STATUS.BAD_REQUEST,
+        ),
+      };
     }
     return { response: privateJson({ ok: false, error: "Invalid unsubscribe link" }, { status: HTTP_STATUS.BAD_REQUEST }) };
   }

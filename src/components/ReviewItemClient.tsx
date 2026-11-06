@@ -5,6 +5,17 @@ import * as React from "react";
 import { useToast } from "@/components/Toast";
 import RollingNumber from "@/components/RollingNumber";
 
+// The reviews stream in after the browser has already looked for a #reviews
+// anchor, so "View review" links landed at the top of the listing. Scroll once
+// when the section mounts.
+export function ReviewsAnchorScroll() {
+  React.useEffect(() => {
+    if (window.location.hash !== "#reviews") return;
+    document.getElementById("reviews")?.scrollIntoView();
+  }, []);
+  return null;
+}
+
 export function HelpfulButton({
   reviewId,
   initialCount,
@@ -158,7 +169,7 @@ export function SellerReplyForm({
       onClick={() => setOpen(true)}
       className="inline-flex items-center rounded-full bg-[#EFEAE0] hover:bg-[#E3DCCB] px-3 py-1 text-xs font-medium text-neutral-800 transition-colors"
     >
-      Reply as seller
+      Reply as maker
     </button>
   );
 }

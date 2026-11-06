@@ -110,7 +110,7 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /projectedDistinctItems > MAX_CART_DISTINCT_ITEMS/);
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
     assert.match(text, /projectedItemQuantity > \(listingForCart\.stockQuantity \?\? 0\)/);
-    assert.match(text, /Only \$\{listingForCart\.stockQuantity \?\? 0\} available/);
+    assert.match(text, /Only \$\{available\} available/);
   });
 
   it("keeps cart quantity updates under the cart-wide total item cap", () => {
@@ -128,7 +128,8 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /updateOwnerCartItemQuantity\(\s*me\.id,\s*lockedItem\.cartId,\s*lockedItem\.id,/s);
     assert.match(text, /deleteOwnerCartItem\(me\.id, lockedItem\.cartId, lockedItem\.id, tx\)/);
     assert.match(text, /quantity > \(listing\.stockQuantity \?\? 0\)/);
-    assert.match(text, /Only \$\{listing\.stockQuantity \?\? 0\} available/);
+    assert.match(text, /Only \$\{available\} available/);
+    assert.match(text, /This piece is held in a checkout right now/);
     assert.match(text, /logServerError\(err, \{[\s\S]*source: "cart_update_route"/);
     assert.doesNotMatch(text, /console\.error\("POST \/api\/cart\/update error:", err\)/);
   });

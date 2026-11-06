@@ -50,7 +50,7 @@ export default function BlogReplyToggle({
       {replies.map((r) => {
         const rAvatarUrl = r.authorSellerAvatarUrl ?? r.authorImageUrl;
         return (
-          <div key={r.id} className="space-y-2">
+          <div key={r.id} id={`comment-${r.id}`} data-scroll-anchor className="space-y-2">
             {/* Level-2 reply content */}
             <div className="flex gap-3">
               {rAvatarUrl ? (
@@ -94,7 +94,7 @@ export default function BlogReplyToggle({
                 {r.replies.map((r3) => {
                   const r3AvatarUrl = r3.authorSellerAvatarUrl ?? r3.authorImageUrl;
                   return (
-                    <div key={r3.id} className="flex gap-3">
+                    <div key={r3.id} id={`comment-${r3.id}`} data-scroll-anchor className="flex gap-3">
                       {r3AvatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

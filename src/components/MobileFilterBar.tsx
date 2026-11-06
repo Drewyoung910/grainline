@@ -284,7 +284,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         <legend className={filterLegendClass}>Ships within</legend>
         <input type="hidden" name="ships" value={draftShips} />
         <div className="flex flex-wrap gap-2" role="group" aria-label="Ships within">
-          <button type="button" aria-pressed={!draftShips} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftShips("")} className={choicePillClass(!draftShips)}>
+          <button type="button" aria-pressed={!draftShips} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftShips("")} className={choicePillClass(false)}>
             Any time
           </button>
           {SHIPS_WITHIN_OPTIONS.map((days) => (
@@ -303,12 +303,12 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         <legend className={filterLegendClass}>Shop rating</legend>
         <input type="hidden" name="rating" value={draftRating} />
         <div className="flex flex-wrap gap-2" role="group" aria-label="Minimum shop rating">
-          <button type="button" aria-pressed={!draftRating} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating("")} className={choicePillClass(!draftRating)}>
+          <button type="button" aria-pressed={!draftRating} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating("")} className={choicePillClass(false)}>
             Any
           </button>
           {RATING_OPTIONS.map((stars) => (
-            <button key={stars} type="button" aria-label={`${stars} stars and up`} aria-pressed={draftRating === stars} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating(stars)} className={choicePillClass(draftRating === stars)}>
-              {stars}★ and up
+            <button key={stars} type="button" aria-pressed={draftRating === stars} onPointerUp={(event) => event.currentTarget.blur()} onClick={() => setDraftRating(stars)} className={choicePillClass(draftRating === stars)}>
+              <span>{stars}<span aria-hidden="true">★</span><span className="sr-only"> stars</span> and up</span>
             </button>
           ))}
         </div>
@@ -570,7 +570,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   return (
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
-      {/* top-[2px] + pt-3 pulls bar 2px below viewport top so button outlines aren't clipped */}
+      {/* Sticks just under the site header while the listings scroll */}
       <div className="md:hidden sticky top-[var(--site-header-offset)] z-30 -mx-4 -mt-4 flex items-center gap-3 border-b border-neutral-200 bg-[#F7F5F0] px-4 py-3 sm:-mx-6 sm:-mt-6 sm:px-6">
           <button
             onPointerUp={(event) => event.currentTarget.blur()}

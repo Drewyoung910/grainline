@@ -16,57 +16,12 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
-import { displayUsState, formatCityState } from "@/lib/locationDisplay";
+import { formatCityState } from "@/lib/locationDisplay";
 import { sellerPublicListingCards } from "@/lib/sellerProfilePublicAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
-
-// ---------------------------------------------------------------------------
-// generateStaticParams — metro × category combos that have listings
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const [metros, majorGroups, cityGroups] = await Promise.all([
-    prisma.metro.findMany({
-      where: { isActive: true },
-      select: { id: true, slug: true },
-    }),
-    prisma.listing.groupBy({
-      by: ["metroId", "category"],
-      where: publicListingWhere({ metroId: { not: null }, category: { not: null } }),
-      _count: { _all: true },
-    }),
-    prisma.listing.groupBy({
-      by: ["cityMetroId", "category"],
-      where: publicListingWhere({ cityMetroId: { not: null }, category: { not: null } }),
-      _count: { _all: true },
-    }),
-  ]);
-
-  const metroById = new Map(metros.map((metro) => [metro.id, metro]));
-  const results: { metroSlug: string; category: string }[] = [];
-  const seen = new Set<string>();
-  for (const group of majorGroups) {
-    if (!group.metroId || !group.category || group._count._all <= 0) continue;
-    const metro = metroById.get(group.metroId);
-    if (!metro) continue;
-    const key = `${metro.slug}/${group.category}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({ metroSlug: metro.slug, category: group.category.toLowerCase() });
-  }
-  for (const group of cityGroups) {
-    if (!group.cityMetroId || !group.category || group._count._all <= 0) continue;
-    const metro = metroById.get(group.cityMetroId);
-    if (!metro) continue;
-    const key = `${metro.slug}/${group.category}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({ metroSlug: metro.slug, category: group.category.toLowerCase() });
-  }
-
-  return results;
-}
 
 // ---------------------------------------------------------------------------
 // generateMetadata
@@ -79,13 +34,21 @@ export async function generateMetadata({
   const { metroSlug, category } = await params;
 
   const categoryKey = category.toUpperCase();
-  if (!CATEGORY_VALUES.includes(categoryKey)) return {};
+  if (!CATEGORY_VALUES.includes(categoryKey)) notFound();
 
   const metro = await prisma.metro.findUnique({
     where: { slug: metroSlug },
-    select: { name: true, state: true },
+    select: { id: true, name: true, state: true, parentMetroId: true },
   });
-  if (!metro) return {};
+  if (!metro) notFound();
+
+  // Nothing to show: keep the page usable but out of the search index.
+  const listingCount = await prisma.listing.count({
+    where: publicListingWhere({
+      category: categoryKey as Category,
+      ...(metro.parentMetroId ? { cityMetroId: metro.id } : { metroId: metro.id }),
+    }),
+  });
 
   const label = CATEGORY_LABELS[categoryKey] ?? categoryKey;
   const cityName = formatCityState(metro.name, metro.state);
@@ -95,8 +58,14 @@ export async function generateMetadata({
   return {
     title: { absolute: title },
     description,
+    robots: listingCount === 0 ? { index: false, follow: true } : undefined,
     alternates: { canonical: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
-    openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
+    openGraph: {
+      title,
+      description,
+      url: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}`,
+      images: defaultOpenGraphImages(),
+    },
   };
 }
 
@@ -194,9 +163,8 @@ export default async function BrowseMetroCategoryPage({
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
       { "@type": "ListItem", "position": 2, "name": "Browse", "item": `${BASE_URL}/browse` },
-      { "@type": "ListItem", "position": 3, "name": displayUsState(metro.state) },
-      { "@type": "ListItem", "position": 4, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
-      { "@type": "ListItem", "position": 5, "name": categoryLabel, "item": `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
+      { "@type": "ListItem", "position": 3, "name": metro.name, "item": `${BASE_URL}/browse/${metroSlug}` },
+      { "@type": "ListItem", "position": 4, "name": categoryLabel, "item": `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
     ],
   };
 
@@ -254,7 +222,7 @@ export default async function BrowseMetroCategoryPage({
           </Link>
         </div>
       ) : (
-        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
           {listings.map((listing) => (
             <ClickTracker key={listing.id} listingId={listing.id}>
               <ListingCard

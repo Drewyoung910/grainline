@@ -1,3 +1,4 @@
+import { isDefinitiveStripeRefundRejection } from "./stripeRefundProviderErrors.ts";
 export const CHECKOUT_LOCK_TTL_SECONDS = 32 * 60;
 
 export type CheckoutLock = {
@@ -89,4 +90,11 @@ export function checkoutSessionCreateIdempotencyKey(ownerToken: string): string 
     throw new Error("Checkout session idempotency owner token is invalid");
   }
   return `grainline-checkout-session-v1:${ownerToken}`;
+}
+
+// Stripe rejected the request (400 or 404, without asking for a retry), so it
+// created no session. Anything else, including a 429, may follow an earlier SDK
+// attempt that did create one, so it keeps the hold. Same rule as refunds.
+export function stripeRefusedCheckoutSessionCreate(error: unknown) {
+  return isDefinitiveStripeRefundRejection(error);
 }

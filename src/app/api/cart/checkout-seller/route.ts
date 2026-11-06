@@ -17,6 +17,7 @@ import {
   markCheckoutLockReady,
   releaseCheckoutLock,
   releasePreparingCheckoutLock,
+  stripeRefusedCheckoutSessionCreate,
 } from "@/lib/checkoutSessionLock";
 import {
   checkoutStockReservationMetadata,
@@ -35,7 +36,8 @@ import {
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
-import { ownerCartForCheckoutSeller, updateOwnerCartItemPrice } from "@/lib/cartOwnerAccess";
+import { ownerCartForCheckoutSeller } from "@/lib/cartOwnerAccess";
+import { cartPriceReviewState } from "@/lib/cartPriceReviewState";
 import { isPickupRateObjectId } from "@/lib/shippingQuoteState";
 import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
 import { normalizeCheckoutShippingAddress } from "@/lib/addressFields";
@@ -45,6 +47,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -94,6 +97,8 @@ const CheckoutSellerSchema = z.object({
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const CHECKOUT_BODY_MAX_BYTES = 64 * 1024;
+const CHECKOUT_SESSION_CREATE_TIMEOUT_MS = 20_000;
+const CHECKOUT_NOT_STARTED_MESSAGE = "Your last checkout didn't start. Try again in a few minutes.";
 
 export async function POST(req: Request) {
   let checkoutReservationId: string | null = null;
@@ -313,21 +318,20 @@ export async function POST(req: Request) {
           { status: HTTP_STATUS.BAD_REQUEST },
         );
       }
-      if (unitPriceCents !== item.priceCents || item.priceVersion !== item.listing.priceVersion) {
-        await updateOwnerCartItemPrice(me.id, cart.id, item.id, {
-          priceCents: unitPriceCents,
-          priceVersion: item.listing.priceVersion,
-        });
+      const priceReview = cartPriceReviewState({
+        oldPriceCents: item.priceCents,
+        newPriceCents: unitPriceCents,
+        oldPriceVersion: item.priceVersion,
+        newPriceVersion: item.listing.priceVersion,
+      });
+      if (priceReview) {
         return privateJson(
           {
             error: "Price changed since this item was added to your cart. Review your cart before checking out.",
             code: "PRICE_CHANGED",
             cartItemId: item.id,
             listingId: item.listingId,
-            oldPriceCents: item.priceCents,
-            newPriceCents: unitPriceCents,
-            oldPriceVersion: item.priceVersion,
-            newPriceVersion: item.listing.priceVersion,
+            ...priceReview,
           },
           { status: HTTP_STATUS.CONFLICT },
         );
@@ -472,7 +476,7 @@ export async function POST(req: Request) {
 
     if (checkoutAmounts.belowMinimumSellerTransfer) {
       return privateJson(
-        { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
+        { error: "This order is too small to process. Add another piece to continue." },
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
@@ -515,8 +519,14 @@ export async function POST(req: Request) {
           reused: true,
         });
       }
+      // A preparing lock has no session behind it: Stripe's answer was lost, so
+      // there is nothing to finish. It clears when the lock expires.
       return privateJson(
-        { error: "A checkout session is already open for this seller. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
+        {
+          error: existingCheckoutLock.state === "preparing"
+            ? CHECKOUT_NOT_STARTED_MESSAGE
+            : "These pieces are held by a checkout you already started. Finish it, or try again in about 30 minutes.",
+        },
         { status: HTTP_STATUS.CONFLICT },
       );
     }
@@ -604,6 +614,13 @@ export async function POST(req: Request) {
           { status: HTTP_STATUS.CONFLICT },
         );
       }
+      // The last attempt's reservation is still active after its lock expired.
+      if (getPrismaRawSqlState(reservationError) === "23505") {
+        return privateJson(
+          { error: CHECKOUT_NOT_STARTED_MESSAGE },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
       if (isCheckoutStockUnavailableDatabaseError(reservationError)) {
         return privateJson(
           { error: "One or more items do not have enough stock." },
@@ -686,6 +703,13 @@ export async function POST(req: Request) {
       metadata: checkoutMetadata,
     }, {
       idempotencyKey: checkoutSessionCreateIdempotencyKey(checkoutLockOwnerTokenValue),
+      // Two attempts must fail inside maxDuration, or the catch below never runs.
+      timeout: CHECKOUT_SESSION_CREATE_TIMEOUT_MS,
+      maxNetworkRetries: 1,
+    }).catch((createError: unknown) => {
+      // A refusal created nothing, so the catch below can release the stock.
+      if (stripeRefusedCheckoutSessionCreate(createError)) checkoutSessionCreateAttempted = false;
+      throw createError;
     });
     createdCheckoutSessionId = session.id;
 

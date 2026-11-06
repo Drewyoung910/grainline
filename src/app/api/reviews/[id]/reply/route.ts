@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
-import { containsProfanity } from "@/lib/profanity";
+import { containsProfanity, containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import {
@@ -56,7 +56,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const body = sanitizeRichText(rawBody);
   if (!body) return privateJson({ error: "Empty reply" }, { status: HTTP_STATUS.BAD_REQUEST });
 
-  // Profanity check (log-only — does not block submission)
+  if (containsSlur(body)) {
+    return privateJson({ error: SHOP_TEXT_SLUR_MESSAGE }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
+  // Mild words are log-only and do not block submission
   {
     const profanityResult = containsProfanity(body);
     if (profanityResult.flagged) {

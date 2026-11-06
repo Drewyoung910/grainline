@@ -24,6 +24,46 @@ describe("unicode sanitization", () => {
     assert.equal(sanitizeText("f\u200bu\u200dc\uFEFFk\u0000"), "fuck");
   });
 
+  it("keeps the joiners that shape emoji and Persian or Indic text", () => {
+    for (const text of [
+      "🤷\u200D♀\uFE0F",
+      "👨\u200D👩\u200D👧",
+      "👩🏽\u200D💻",
+      "🏳\uFE0F\u200D🌈",
+      "می\u200Cخواهم",
+      "क्\u200Dष",
+      "क्\u200Cष",
+    ]) {
+      assert.equal(sanitizeText(text), text);
+    }
+    // Between Latin letters a joiner only hides characters.
+    assert.equal(sanitizeText("ad\u200Dmin a\u200Cb ad\u2060min"), "admin ab admin");
+    assert.equal(sanitizeText("🤷\u200Dx"), "🤷x");
+  });
+
+  it("empties text made only of blank characters and drops control characters", () => {
+    for (const blank of ["\u2800", "\u3164\u3164", "\u115F\u1160", "\uFFA0", " \u2800 "]) {
+      assert.equal(sanitizeUserName(blank), "");
+    }
+    assert.equal(sanitizeUserName("Oak\u2800Works"), "Oak Works");
+    // Review RO-01: invisible line breaks, format characters, variation
+    // selectors and tag characters on their own are blank too.
+    for (const blank of [
+      "\u0085", "\u180E", "\u206A\u206F", "\uFE0F\uFE0F", "\uFE00",
+      "\u{E0041}\u{E007F}", "\u{E0100}", " \u0085\uFE0F ",
+    ]) {
+      assert.equal(sanitizeUserName(blank), "", JSON.stringify(blank));
+    }
+    assert.equal(sanitizeText("ad\u180Emin ad\u206Fmin"), "admin admin");
+    assert.equal(sanitizeRichText("line one\u0085line two"), "line one\nline two");
+    assert.equal(sanitizeUserName("Oak\u0085Works"), "Oak Works");
+    // An emoji keeps its presentation selector and its tag sequence.
+    const englandFlag = "🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}";
+    assert.equal(sanitizeUserName(`Oak ❤\uFE0F ${englandFlag}`), `Oak ❤\uFE0F ${englandFlag}`);
+    assert.equal(sanitizeText("a\u0007b\u001Bc\u007Fd\u009Fe"), "abcde");
+    assert.equal(sanitizeRichText("line one\nline\ttwo\r\nthree"), "line one\nline\ttwo\r\nthree");
+  });
+
   it("strips nested or malformed HTML from plain text", () => {
     assert.equal(sanitizeText("<<script>alert(1)</script>Chair"), "Chair");
     assert.equal(sanitizeText("hello <b onclick=alert(1)>world</b>"), "hello world");
@@ -40,6 +80,12 @@ describe("unicode sanitization", () => {
   it("uses the user-name sanitizer as the seller display-name lookup key", () => {
     assert.equal(normalizeDisplayNameForLookup("\u0410cm\u0435 Woodworks"), "Acme Woodworks");
     assert.equal(normalizeDisplayNameForLookup("  Maker\u200B   Shop  "), "Maker Shop");
+    // Review RO-04: names keep their joiners, but the lookup key drops them so
+    // two names that look the same still collide in the duplicate warning.
+    assert.equal(sanitizeUserName("ب\u200Dب"), "ب\u200Dب");
+    assert.equal(normalizeDisplayNameForLookup("ب\u200Dب"), "بب");
+    assert.equal(normalizeDisplayNameForLookup("😀\u200D😀"), "😀😀");
+    assert.equal(normalizeDisplayNameForLookup("می\u200Cخواهم"), "میخواهم");
   });
 
   it("does not split surrogate-pair characters while truncating text", () => {

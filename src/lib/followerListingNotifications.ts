@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { renderNewListingFromFollowedMakerEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
@@ -24,12 +25,10 @@ export async function fanOutListingToFollowers({
   sellerProfileId,
   sellerDisplayName,
   listing,
-  emailDedupKey,
 }: {
   sellerProfileId: string;
   sellerDisplayName: string | null;
   listing: ListingForFanout;
-  emailDedupKey: (followerId: string) => string;
 }) {
   const publicListing = await sellerPublicFollowerListingTarget(
     listing.id,
@@ -41,6 +40,11 @@ export async function fanOutListingToFollowers({
   const listingPath = publicListingPath(publicListing.id, publicListing.title);
   const listingUrl = `${EMAIL_APP_URL}${listingPath}`;
   const listingPrice = formatCurrencyCents(publicListing.priceCents, publicListing.currency);
+  const coverPhoto = await prisma.photo.findFirst({
+    where: { listingId: publicListing.id },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    select: { url: true },
+  });
   let cursor: string | undefined;
 
   while (true) {
@@ -53,7 +57,7 @@ export async function fanOutListingToFollowers({
 
     if (followers.length === 0) return;
 
-    await mapWithConcurrency(followers, 10, (f) =>
+    const notificationResults = await mapWithConcurrency(followers, 10, (f) =>
       createNotification({
         userId: f.followerId,
         type: "FOLLOWED_MAKER_NEW_LISTING",
@@ -74,17 +78,20 @@ export async function fanOutListingToFollowers({
         }),
       ),
     )).flat();
-    await mapWithConcurrency(emailRecipients, 5, async (recipient) => {
+    const emailResults = await mapWithConcurrency(emailRecipients, 5, async (recipient) => {
       const email = renderNewListingFromFollowedMakerEmail({
         to: recipient.email,
         makerName: sellerDisplay,
         listingTitle: publicListing.title,
         listingPrice,
         listingUrl,
+        listingImageUrl: coverPhoto?.url,
       });
       await enqueueEmailOutbox({
         ...email,
-        dedupKey: emailDedupKey(recipient.userId),
+        // One key per follower and listing, so re-listing an old piece cannot email
+        // the same follower "just posted a new listing" again from another path.
+        dedupKey: `followed-listing:${publicListing.id}:${recipient.userId}`,
         templateName: "followed_maker_new_listing",
         userId: recipient.userId,
         preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
@@ -92,6 +99,16 @@ export async function fanOutListingToFollowers({
         sourceId: publicListing.id,
       });
     });
+
+    const failed = [...notificationResults, ...emailResults]
+      .filter((result) => result.status === "rejected");
+    if (failed.length > 0) {
+      Sentry.captureException(failed[0].reason, {
+        level: "warning",
+        tags: { source: "followed_maker_listing_fanout" },
+        extra: { listingId: publicListing.id, failedCount: failed.length },
+      });
+    }
 
     if (followers.length < FOLLOWER_FANOUT_PAGE_SIZE) return;
     cursor = followers[followers.length - 1].followId;

@@ -105,12 +105,7 @@ export default async function AccountOrdersPage({
 
   return (
     <main className="max-w-7xl mx-auto p-6 md:p-8">
-      <div className="mb-6 flex items-center gap-4">
-        <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700">
-          ← My Account
-        </Link>
-        <h1 className="font-display page-title">My Orders</h1>
-      </div>
+      <h1 className="font-display page-title mb-6">My Orders</h1>
 
       {orders.length === 0 ? (
         <div className="card-section p-8 text-center space-y-3">
@@ -175,9 +170,9 @@ export default async function AccountOrdersPage({
                       <li key={item.id} className="flex items-center gap-3 px-4 py-3">
                         {thumb ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={thumb} alt="" className="h-12 w-12 shrink-0 rounded-lg border border-neutral-200 object-cover" />
+                          <img src={thumb} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
                         ) : (
-                          <div className="h-12 w-12 shrink-0 rounded-lg border border-neutral-200 bg-neutral-100" />
+                          <div className="h-12 w-12 shrink-0 rounded-lg bg-neutral-100" />
                         )}
                         <div className="flex-1 min-w-0">
                           <Link

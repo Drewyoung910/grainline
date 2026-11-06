@@ -6,8 +6,11 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { sendCaseMessage } from "@/lib/email";
+import { renderCaseMessageEmail } from "@/lib/email";
+import { queueCaseEmail } from "@/lib/caseEmail";
+import { sellerOwnerCore } from "@/lib/sellerProfileOwnerAccess";
 import {
+  adminActionRatelimit,
   caseMessageRatelimit,
   rateLimitResponse,
   safeRateLimit,
@@ -15,7 +18,8 @@ import {
 import {
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
-import { sanitizeRichText, truncateText } from "@/lib/sanitize";
+import { normalizeCaseMessageBody } from "@/lib/caseMessageBody";
+import { truncateText } from "@/lib/sanitize";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -39,7 +43,7 @@ import { z } from "zod";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 const CaseMessageSchema = z.object({
-  body: z.string().min(1).max(5000),
+  body: z.string(),
   attachmentKeys: z
     .array(z.string().min(1).max(500))
     .max(MAX_CASE_MESSAGE_ATTACHMENTS)
@@ -104,16 +108,27 @@ export async function POST(
     const { userId, sessionId } = await auth();
     if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
+    // Staff reply across the whole queue, so the first limit is staff-sized and
+    // runs before any lookup. A participant writes in one Case and gets the
+    // smaller limit once we know who they are.
     const { success, reset } = await safeRateLimit(
-      caseMessageRatelimit,
-      userId,
+      adminActionRatelimit,
+      `case-message:${userId}`,
     );
     if (!success)
       return privateResponse(
-        rateLimitResponse(reset, "Too many messages. Slow down and try again."),
+        rateLimitResponse(reset, "Too many messages."),
       );
 
     const me = await ensureUserByClerkId(userId);
+
+    if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") {
+      const participantLimit = await safeRateLimit(caseMessageRatelimit, userId);
+      if (!participantLimit.success)
+        return privateResponse(
+          rateLimitResponse(participantLimit.reset, "Too many messages. Slow down and try again."),
+        );
+    }
 
     let parsed;
     try {
@@ -138,7 +153,18 @@ export async function POST(
       }
       throw e;
     }
-    const messageBody = sanitizeRichText(parsed.body.trim());
+    const normalizedMessageBody = normalizeCaseMessageBody(parsed.body);
+    if (!normalizedMessageBody.ok) {
+      return privateJson(
+        {
+          error: normalizedMessageBody.reason === "required"
+            ? "body is required."
+            : "Case messages must be at most 5,000 characters.",
+        },
+        { status: 400 },
+      );
+    }
+    const messageBody = normalizedMessageBody.body;
     const attachmentKeys = [...new Set(parsed.attachmentKeys)];
     if (
       attachmentKeys.length > 0
@@ -155,9 +181,6 @@ export async function POST(
         { status: 400 },
       );
     }
-    if (!messageBody)
-      return privateJson({ error: "body is required." }, { status: 400 });
-
     let preflight;
     try {
       preflight = await getCaseMessagePreflight({
@@ -235,12 +258,17 @@ export async function POST(
     const committedActsAsStaff = result.actsAsStaff;
 
     // Notify the appropriate party/parties
+    // A maker appears under their shop name, as they do in the thread.
+    const senderShop = result.authorUserId === committedCaseRecord.sellerId
+      ? await sellerOwnerCore(result.authorUserId).catch(() => null)
+      : null;
     const senderName =
+      senderShop?.displayName ??
       me.name ??
       (result.authorUserId === committedCaseRecord.buyerId
         ? "A buyer"
         : result.authorUserId === committedCaseRecord.sellerId
-          ? "The seller"
+          ? "The maker"
           : "Someone");
     const appUrl = EMAIL_APP_URL;
 
@@ -303,21 +331,39 @@ export async function POST(
           }),
         ]);
         if (committedCaseRecord.buyerId && buyer) {
-          await sendCaseMessage({
-            recipientName: buyer.name,
-            recipientEmail: buyer.email,
-            senderName: "Grainline Staff",
-            caseLink: `${appUrl}/dashboard/orders/${committedCaseRecord.orderId}`,
-            messageSnippet: messageBody,
+          await queueCaseEmail({
+            email: renderCaseMessageEmail({
+              recipientName: buyer.name,
+              recipientEmail: buyer.email,
+              senderName: "Grainline Staff",
+              caseLink: `${appUrl}/dashboard/orders/${committedCaseRecord.orderId}`,
+              messageSnippet: messageBody,
+              orderId: committedCaseRecord.orderId,
+              fromStaff: true,
+            }),
+            caseId: result.caseId,
+            dedupKey: `case-message:${message.id}:${committedCaseRecord.buyerId}`,
+            templateName: "case_message",
+            userId: committedCaseRecord.buyerId,
+            preferenceKey: "EMAIL_CASE_MESSAGE",
           });
         }
         if (seller) {
-          await sendCaseMessage({
-            recipientName: seller.name,
-            recipientEmail: seller.email,
-            senderName: "Grainline Staff",
-            caseLink: `${appUrl}/dashboard/sales/${committedCaseRecord.orderId}`,
-            messageSnippet: messageBody,
+          await queueCaseEmail({
+            email: renderCaseMessageEmail({
+              recipientName: seller.name,
+              recipientEmail: seller.email,
+              senderName: "Grainline Staff",
+              caseLink: `${appUrl}/dashboard/sales/${committedCaseRecord.orderId}`,
+              messageSnippet: messageBody,
+              orderId: committedCaseRecord.orderId,
+              fromStaff: true,
+            }),
+            caseId: result.caseId,
+            dedupKey: `case-message:${message.id}:${committedCaseRecord.sellerId}`,
+            templateName: "case_message",
+            userId: committedCaseRecord.sellerId,
+            preferenceKey: "EMAIL_CASE_MESSAGE",
           });
         }
       } catch (emailError) {
@@ -368,12 +414,20 @@ export async function POST(
             preferenceKey: "EMAIL_CASE_MESSAGE",
           });
           if (recipient) {
-            await sendCaseMessage({
-              recipientName: recipient.name,
-              recipientEmail: recipient.email,
-              senderName: me.name,
-              caseLink: `${appUrl}${caseLink}`,
-              messageSnippet: messageBody,
+            await queueCaseEmail({
+              email: renderCaseMessageEmail({
+                recipientName: recipient.name,
+                recipientEmail: recipient.email,
+                senderName,
+                caseLink: `${appUrl}${caseLink}`,
+                messageSnippet: messageBody,
+                orderId: committedCaseRecord.orderId,
+              }),
+              caseId: result.caseId,
+              dedupKey: `case-message:${message.id}:${recipientId}`,
+              templateName: "case_message",
+              userId: recipientId,
+              preferenceKey: "EMAIL_CASE_MESSAGE",
             });
           }
         } catch (emailError) {

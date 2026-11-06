@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       to: supportRequestRecipient(normalized.request.kind),
       subject: supportRequestSubject(normalized.request, record.id),
       html: supportRequestHtml(normalized.request, { requestId: record.id, slaDueAt: record.slaDueAt }),
-    }, { throwOnFailure: true });
+    }, { throwOnFailure: true, replyTo: normalized.request.email });
   } catch (error) {
     const emailLastError = sanitizeEmailOutboxError(error);
     await recordSupportRequestDelivery({

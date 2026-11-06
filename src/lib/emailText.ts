@@ -1,5 +1,5 @@
-const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
-const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
+import { stripBidiControls, stripInvisibleChars } from "./textNormalization.ts";
+
 const NULL_BYTES = /\u0000/g;
 
 const ENTITY_MAP: Record<string, string> = {
@@ -47,9 +47,7 @@ function safeCodePoint(fallback: string, codePoint: number): string {
 }
 
 function normalizeDecodedEmailText(text: string): string {
-  return text.normalize("NFKC")
-    .replace(BIDI_CONTROL_CHARS, "")
-    .replace(ZERO_WIDTH_CHARS, "")
+  return stripInvisibleChars(stripBidiControls(text.normalize("NFKC")))
     .replace(NULL_BYTES, "");
 }
 
@@ -59,6 +57,8 @@ export function htmlToText(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
+    // Source newlines between cells would otherwise split one row across lines.
+    .replace(/<\/(td|th)>\s+(?=<t[dh]\b)/gi, "</$1>")
     .replace(/<\/(td|th)>/gi, "\t")
     .replace(/<\/(p|div|h1|h2|h3|li|tr)>/gi, "\n")
     .replace(/<[^>]+>/g, "");

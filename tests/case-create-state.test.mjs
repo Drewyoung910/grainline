@@ -84,7 +84,7 @@ describe("case create state", () => {
       buyerOrderPage,
       /const caseWindowClosed =\s*!deauthorizedPendingCaseAccess && isOrderCaseWindowClosed\(order, now\)/,
     );
-    assert.match(buyerOrderPage, /\(deliveryPassed \|\| order\.deauthorizedCaseAccess\)/);
+    assert.match(buyerOrderPage, /\(deliveryPassed \|\| order\.deauthorizedCaseAccess \|\| order\.sellerUserId === null\)/);
     assert.match(buyerOrderPage, /!caseWindowClosed/);
     assert.match(buyerOrderPage, /!hasRefund/);
     assert.match(buyerOrderPage, /caseWindowClosedMessage\(caseWindowClosedAt\)/);

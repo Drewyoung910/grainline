@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { geocodePublicLocality } from "@/lib/reverse-geocode";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { slugifyPathSegment } from "@/lib/publicPaths";
 
 // ---------------------------------------------------------------------------
 // Haversine distance in miles between two lat/lng points
@@ -125,14 +126,8 @@ export async function findOrCreateMetro(
     const geo = await geocodePublicLocality(publicLocality.city, publicLocality.state);
     if (!geo) return { metroId: null, cityMetroId: null };
 
-    // Build slug: "city-name-st" (lowercase, spaces→hyphens)
-    const citySlug = geo.city
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-    const slug = `${citySlug}-${geo.stateCode}`;
+    // "Cañon City" -> "canon-city-co". A name with no Latin letters gets a stable hash.
+    const slug = `${slugifyPathSegment(geo.city, "city")}-${geo.stateCode}`;
 
     const metro = await prisma.metro.upsert({
       where: { slug },

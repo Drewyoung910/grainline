@@ -9,6 +9,7 @@ import {
   getFreshSellerMetrics,
   meetsGuildMasterRequirements,
   GUILD_MASTER_REQUIREMENTS,
+  floorMetric,
 } from "@/lib/metrics";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
@@ -483,7 +484,7 @@ export default async function VerificationPage() {
                   <span className={masterCriteria.ratingMet ? "text-green-600" : "text-red-500"}>{masterCriteria.ratingMet ? "✓" : "✗"}</span>
                   <span className={masterCriteria.ratingMet ? "text-green-800" : "text-neutral-700"}>
                     Average rating:{" "}
-                    <span className="font-medium">{masterMetrics.averageRating.toFixed(1)} ★</span>
+                    <span className="font-medium">{floorMetric(masterMetrics.averageRating)} ★</span>
                     {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.averageRating}+ required</span>
                   </span>
                 </li>
@@ -499,7 +500,7 @@ export default async function VerificationPage() {
                   <span className={masterCriteria.shippingMet ? "text-green-600" : "text-red-500"}>{masterCriteria.shippingMet ? "✓" : "✗"}</span>
                   <span className={masterCriteria.shippingMet ? "text-green-800" : "text-neutral-700"}>
                     On-time shipping:{" "}
-                    <span className="font-medium">{(masterMetrics.onTimeShippingRate * 100).toFixed(0)}%</span>
+                    <span className="font-medium">{floorMetric(masterMetrics.onTimeShippingRate * 100)}%</span>
                     {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%+ required</span>
                   </span>
                 </li>
@@ -507,7 +508,7 @@ export default async function VerificationPage() {
                   <span className={masterCriteria.responseMet ? "text-green-600" : "text-red-500"}>{masterCriteria.responseMet ? "✓" : "✗"}</span>
                   <span className={masterCriteria.responseMet ? "text-green-800" : "text-neutral-700"}>
                     Response rate:{" "}
-                    <span className="font-medium">{(masterMetrics.responseRate * 100).toFixed(0)}%</span>
+                    <span className="font-medium">{floorMetric(masterMetrics.responseRate * 100)}%</span>
                     {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.responseRate * 100}%+ required</span>
                   </span>
                 </li>

@@ -13,6 +13,7 @@ import {
   SITEMAP_ENTRY_LIMIT,
   sitemapChunkCount,
   sitemapChunkForId,
+  sitemapRequestId,
 } from "@/lib/sitemapIndex";
 import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 import {
@@ -52,9 +53,14 @@ export async function generateSitemaps() {
   return Array.from({ length: chunkCount }, (_, id) => ({ id }));
 }
 
-export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise<MetadataRoute.Sitemap> {
-  if (id > 0) {
-    const chunk = sitemapChunkForId(id, await sitemapSourceCounts());
+export default async function sitemap(
+  { id }: { id: Promise<string | undefined> },
+): Promise<MetadataRoute.Sitemap> {
+  const requestedId = await sitemapRequestId(id);
+  if (requestedId === null) return [];
+
+  if (requestedId > 0) {
+    const chunk = sitemapChunkForId(requestedId, await sitemapSourceCounts());
     if (!chunk || chunk.kind === "base") return [];
 
     if (chunk.kind === "sellers") {
@@ -155,7 +161,6 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     { url: `${BASE_URL}/why-sell-on-grainline`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/help/shipping-and-returns`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/help/trust-and-safety`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${BASE_URL}/become-a-maker`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.6 },
     { url: `${BASE_URL}/terms`, lastModified: TERMS_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/privacy`, lastModified: PRIVACY_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/map`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.5 },

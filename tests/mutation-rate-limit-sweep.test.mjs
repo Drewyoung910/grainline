@@ -75,14 +75,14 @@ describe("mutating API route rate-limit sweep", () => {
     assert.match(route, /openCommissionMutationWhere\(id, new Date\(\), \{ buyerId: me\.id \}\)/);
   });
 
-  it("rate-limits destructive admin moderation routes by acting admin", () => {
+  it("rate-limits destructive admin moderation routes by acting admin, on one identity", () => {
     for (const path of [
       "src/app/api/admin/reviews/[id]/route.ts",
       "src/app/api/admin/users/[id]/ban/route.ts",
     ]) {
       const route = source(path);
       assert.match(route, /adminActionRatelimit/, `${path} must import/use adminActionRatelimit`);
-      assert.match(route, /safeRateLimit\(adminActionRatelimit, admin\.id\)/, `${path} must key by admin.id`);
+      assert.match(route, /safeRateLimit\(adminActionRatelimit, userId\)/, `${path} must key by the Clerk id, like the server actions`);
       assert.match(route, /rateLimitResponse\(reset, ['"]Too many admin actions\./, `${path} must return standard 429s`);
     }
   });

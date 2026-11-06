@@ -363,6 +363,22 @@ html {
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+/* The same for rows of product cards, except that a wheel mouse can't scroll
+   sideways, so those visitors get a thin scrollbar to reach the rest. */
+@media (hover: none), (pointer: coarse) {
+  .card-row-scroll {
+    scrollbar-width: none;
+  }
+  .card-row-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .card-row-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(44 31 26 / 0.25) transparent;
+  }
+}
 @layer base {
   /* Offset actual in-page destinations instead of the root scroll container.
      Root scroll-padding made focusing a control inside the pinned header
@@ -452,16 +468,7 @@ input, textarea, select {
   }
 }
 
-/* Mobile drawer slide-in animation */
-@keyframes slide-in-right {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
-}
-.animate-slide-in-right {
-  animation: slide-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Mobile menu floating card pop in/out + backdrop fade. The -out variants
+/* Mobile menu floating card pop in/out. The -out variants
    use `forwards` so the final frame holds while the close timer runs, then
    React unmounts — no single-frame flash on close. */
 @keyframes menu-pop-in {
@@ -473,14 +480,6 @@ input, textarea, select {
   from { opacity: 1; transform: translateY(0) scale(1); }
   to   { opacity: 0; transform: translateY(-6px) scale(0.97); }
 }
-@keyframes backdrop-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes backdrop-fade-out {
-  from { opacity: 1; }
-  to   { opacity: 0; }
-}
 .animate-menu-in {
   /* Gentle spring, matching the motion prototype's menu card. */
   animation: menu-pop-in 0.34s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -490,8 +489,6 @@ input, textarea, select {
   animation: menu-pop-out 0.15s ease-in forwards;
   transform-origin: top right;
 }
-.animate-backdrop-in { animation: backdrop-fade-in 0.18s ease-out; }
-.animate-backdrop-out { animation: backdrop-fade-out 0.15s ease-in forwards; }
 
 @keyframes search-pop-in {
   from { opacity: 0; transform: translateY(-6px) scale(0.98); }
@@ -530,16 +527,6 @@ input, textarea, select {
 }
 .animate-slide-up {
   animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Search dropdown slide-down animation */
-@keyframes slide-down {
-  from { transform: translateY(-12px) scale(0.96); opacity: 0; }
-  55%  { opacity: 1; }
-  to   { transform: translateY(0) scale(1); opacity: 1; }
-}
-.animate-slide-down {
-  animation: slide-down 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Toasts: espresso pills that spring up from the bottom edge and slide back
@@ -603,18 +590,14 @@ input, textarea, select {
 
 /* Accessibility: respect user motion preferences */
 @media (prefers-reduced-motion: reduce) {
-  .animate-slide-in-right,
-  .animate-slide-up,
-  .animate-slide-down {
+  .animate-slide-up {
     animation: none !important;
   }
   .animate-pulse,
   .animate-menu-in,
   .animate-menu-out,
   .animate-search-pop-in,
-  .animate-search-pop-out,
-  .animate-backdrop-in,
-  .animate-backdrop-out {
+  .animate-search-pop-out {
     animation: none !important;
   }
   *,
@@ -662,7 +645,6 @@ input, textarea, select {
 .scroll-fade-edges {
   mask-image: linear-gradient(to right, black, black calc(100% - 16px), transparent);
   -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 16px), transparent);
-  transition: mask-image 0.2s ease;
 }
 .scroll-fade-edges[data-scrolled="true"] {
   mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
@@ -686,7 +668,6 @@ input, textarea, select {
 .scroll-fade-edges-sm {
   mask-image: linear-gradient(to right, black, black calc(100% - 16px), transparent);
   -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 16px), transparent);
-  transition: mask-image 0.2s ease;
 }
 .scroll-fade-edges-sm[data-scrolled="true"] {
   mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
@@ -712,7 +693,6 @@ input, textarea, select {
 .scroll-fade-edges-lg {
   mask-image: linear-gradient(to right, black, black calc(100% - 16px), transparent);
   -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 16px), transparent);
-  transition: mask-image 0.2s ease;
 }
 .scroll-fade-edges-lg[data-scrolled="true"] {
   mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
@@ -743,32 +723,6 @@ input, textarea, select {
 :root {
   --motion-ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --motion-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Animate only the homepage copy on a fresh visit. The photo and header stay
-   still, avoiding the large composited layer that lagged and separated from
-   its shade during Safari elastic scrolling. */
-@media (prefers-reduced-motion: no-preference) {
-  .home-hero-intro [data-hero-intro-heading] {
-    animation: home-hero-copy-in 480ms var(--motion-ease-out) both;
-  }
-  .home-hero-intro [data-hero-intro-copy] {
-    animation: home-hero-copy-in 520ms 70ms var(--motion-ease-out) both;
-  }
-  .home-hero-intro [data-hero-intro-actions] {
-    animation: home-hero-copy-in 560ms 125ms var(--motion-ease-out) both;
-  }
-}
-
-@keyframes home-hero-copy-in {
-  from {
-    opacity: 0;
-    translate: 0 10px;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
 }
 
 /* Listing card photos that had not started rendering at hydration stay

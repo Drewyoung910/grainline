@@ -116,7 +116,7 @@ export default function FavoriteButton({
         height={size - 2}
         viewBox="0 0 24 24"
         aria-hidden="true"
-        className={`relative block -translate-y-px transform-gpu overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
+        className={`relative block transform-gpu overflow-visible${popCount > 0 ? " heart-pop" : ""}`}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path

@@ -62,7 +62,7 @@ describe("accessibility follow-ups", () => {
 
   it("keeps the image crop modal a real dialog with focus and scroll management", () => {
     const modal = source("src/components/ImageCropModal.tsx");
-    assert.match(modal, /useDialogFocus\(mounted, dialogRef, onCancel\)/);
+    assert.match(modal, /useDialogFocus\(mounted, dialogRef, \(\) => \{\s*if \(!processing\) onCancel\(\);\s*\}\)/);
     assert.match(modal, /useBodyScrollLock\(mounted\)/);
     assert.match(modal, /role="dialog"/);
     assert.match(modal, /aria-modal="true"/);
@@ -462,7 +462,7 @@ describe("accessibility follow-ups", () => {
     assert.doesNotMatch(home, /animate-bounce motion-reduce:animate-none/);
     assert.match(globals, /@media \(prefers-reduced-motion: reduce\)/);
     assert.doesNotMatch(globals, /animate-scroll-left|animate-scroll-right|@keyframes scroll-left|@keyframes scroll-right/);
-    assert.match(globals, /\.animate-slide-in-right,[\s\S]*\.animate-slide-down \{[\s\S]*animation: none !important/);
+    assert.match(globals, /\.animate-slide-up \{[\s\S]*animation: none !important/);
     assert.match(globals, /transition-duration: 0\.01ms !important/);
   });
 

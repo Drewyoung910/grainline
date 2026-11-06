@@ -13,6 +13,7 @@ import { shouldRequireTermsAcceptance } from "@/lib/termsAcceptance";
 import { getCachedAccountStateForMiddleware } from "@/lib/accountStateCache";
 import { privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { searchParamsContainNullByte } from "@/lib/searchQueryState";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -47,6 +48,7 @@ const isPublic = createRouteMatcher([
   "/accept-terms(.*)",    // full-page terms gate; page redirects signed-out users to sign-in
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
+  "/opengraph-image(.*)", // generated root social preview image — public crawler asset
   "/account/deleted",     // terminal account deletion page after Clerk sign-out
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
@@ -71,6 +73,7 @@ const isPublic = createRouteMatcher([
   "/api/listings/([^/]+)/view",   // listing view tracking — fire-and-forget analytics
   "/api/listings/([^/]+)/click",  // listing click tracking — fire-and-forget analytics
   "/api/seller/([^/]+)/view",     // seller profile view tracking — fire-and-forget analytics
+  "/api/seller/([^/]+)/map-card", // public map marker card — bounded authority + IP rate limit in route
   "/api/listings/([^/]+)/similar",       // similar listings — public
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
   "/api/cases/([^/]+)/escalate",       // case escalation — route verifies session or CRON_SECRET
@@ -222,6 +225,20 @@ export default clerkMiddleware(async (auth, req) => {
   const requestId = normalizeRequestId(req.headers.get(REQUEST_ID_HEADER));
   const requestHeaders = requestHeadersWithRequestId(req.headers, requestId);
   Sentry.setTag("requestId", requestId);
+
+  if (searchParamsContainNullByte(req.nextUrl.searchParams)) {
+    if (req.nextUrl.pathname.startsWith("/api/")) {
+      return privateApiJson(
+        { error: "Invalid query parameters" },
+        { status: HTTP_STATUS.BAD_REQUEST },
+        requestId,
+      );
+    }
+    return withRequestId(
+      privateResponse(new NextResponse("Bad Request", { status: HTTP_STATUS.BAD_REQUEST })),
+      requestId,
+    );
+  }
 
   // Geo-blocking — US only. Next 16 no longer exposes request.geo, so use
   // Vercel's country header when present. This header is only trusted behind

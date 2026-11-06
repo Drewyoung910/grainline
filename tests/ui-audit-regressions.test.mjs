@@ -92,6 +92,50 @@ describe("Workshop overview", () => {
     assert.equal(rows[0].href, "/dashboard/sales");
   });
 
+  it("never says all caught up while a case is open on the maker's orders", () => {
+    const rows = workshopAttentionRows({ ...quiet, ordersToShip: 1, orderNames: ["Maya"], openCases: 2 });
+    assert.deepEqual(rows.map((row) => row.key), ["cases", "orders"]);
+    assert.equal(rows[0].title, "2 open cases");
+    assert.equal(rows[0].href, "/dashboard/sales");
+    assert.deepEqual(workshopAttentionRows({ ...quiet, openCases: 0 }), []);
+    assert.deepEqual(workshopAttentionRows({ ...quiet, openCases: null }), []);
+  });
+
+  it("tells a maker without payouts or live listings what to do next", () => {
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, chargesEnabled: false }).map((row) => row.key),
+      ["payouts"],
+    );
+    assert.equal(workshopAttentionRows({ ...quiet, chargesEnabled: false })[0].href, "/dashboard/seller");
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, liveListingCount: 0, unpublishedCount: 1 }).map((row) => row.key),
+      ["nothing-live"],
+    );
+    // Without payouts, publishing is impossible, so only the payouts row shows.
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, chargesEnabled: false, liveListingCount: 0, unpublishedCount: 1 })
+        .map((row) => row.key),
+      ["payouts"],
+    );
+    // Only sold-out, sold, in-review or private custom pieces: no draft to publish.
+    assert.deepEqual(workshopAttentionRows({ ...quiet, liveListingCount: 0, unpublishedCount: 0 }), []);
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, liveListingCount: 0, underReview: 1, unpublishedCount: 0 }).map((row) => row.key),
+      ["review"],
+    );
+    assert.deepEqual(workshopAttentionRows({ ...quiet, chargesEnabled: true, liveListingCount: 2 }), []);
+    assert.deepEqual(workshopAttentionRows({ ...quiet, liveListingCount: null }), []);
+  });
+
+  it("names each waiting buyer once", () => {
+    const rows = workshopAttentionRows({
+      ...quiet,
+      ordersToShip: 4,
+      orderNames: ["Maya", "Maya", "Maya", "Leo"],
+    });
+    assert.equal(rows[0].detail, "Maya · Leo");
+  });
+
   it("points an empty shop at its first listing, but not when the count is unknown", () => {
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: 0 }).map((row) => row.key), ["first-listing"]);
     assert.deepEqual(workshopAttentionRows({ ...quiet, listingCount: null }), []);
@@ -116,7 +160,7 @@ describe("Workshop overview", () => {
     assert.match(page, /readOptional\("listing_attention"/);
     assert.match(page, /readOptional\("unread_messages"/);
     assert.match(page, /attentionIncomplete \? "Your shop" : "All caught up"/);
-    assert.match(page, /\{onboardingComplete && <WorkshopStats \/>\}/);
+    assert.match(page, /\(onboardingComplete \|\| chargesEnabled \|\| \(orderQueue\?\.recent\.length \?\? 0\) > 0\) && <WorkshopStats \/>/);
   });
 });
 
@@ -174,8 +218,8 @@ describe("guards behind the browser checks", () => {
 
   it("closes dialogs before Buy Now success navigation", () => {
     const checkout = source("src/components/BuyNowCheckoutModal.tsx");
-    assert.match(checkout, /completedRef\.current = true;\s*onCloseRef\.current\(\);\s*router\.push/);
-    assert.match(checkout, /sessionIdRef\.current = null;\s*onClose\(\);\s*router\.push/);
+    assert.match(checkout, /completedRef\.current = true;\s*onCloseRef\.current\(\);\s*router\.replace/);
+    assert.match(checkout, /sessionIdRef\.current = null;\s*onClose\(\);\s*\/\/[^\n]*\s*router\.replace/);
   });
 
   it("keeps small-screen controls stable while async work runs", () => {

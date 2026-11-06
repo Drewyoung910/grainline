@@ -17,19 +17,19 @@ export default function NotFound() {
           Looks like this page got sanded down.
         </h1>
         <p className="text-neutral-500 max-w-md mx-auto">
-          We couldn&apos;t find what you were looking for — it may have been moved or never existed.
+          We couldn&apos;t find that page. It may have moved or never existed.
         </p>
       </div>
       <div className="flex gap-3">
         <Link
           href="/browse"
-          className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
+          className="btn btn-primary btn-sm"
         >
           Browse the Workshop
         </Link>
         <Link
           href="/"
-          className="inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="btn btn-secondary btn-sm"
         >
           Go Home
         </Link>

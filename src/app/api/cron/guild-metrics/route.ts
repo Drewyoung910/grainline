@@ -11,6 +11,7 @@ import {
   meetsGuildMasterRequirements,
   GUILD_MASTER_REQUIREMENTS,
   listingViewDailyRetentionCutoff,
+  floorMetric,
 } from "@/lib/metrics";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
@@ -296,7 +297,7 @@ function buildFailedLabels(
   const labels: string[] = [];
   if (!criteria.ratingMet)
     labels.push(
-      `Average rating ${metrics.averageRating.toFixed(1)} (need ${GUILD_MASTER_REQUIREMENTS.averageRating}+)`
+      `Average rating ${floorMetric(metrics.averageRating)} (need ${GUILD_MASTER_REQUIREMENTS.averageRating}+)`
     );
   if (!criteria.reviewsMet)
     labels.push(
@@ -304,11 +305,11 @@ function buildFailedLabels(
     );
   if (!criteria.shippingMet)
     labels.push(
-      `On-time shipping ${(metrics.onTimeShippingRate * 100).toFixed(0)}% (need ${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%+)`
+      `On-time shipping ${floorMetric(metrics.onTimeShippingRate * 100)}% (need ${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%+)`
     );
   if (!criteria.responseMet)
     labels.push(
-      `Response rate ${(metrics.responseRate * 100).toFixed(0)}% (need ${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%+)`
+      `Response rate ${floorMetric(metrics.responseRate * 100)}% (need ${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%+)`
     );
   if (!criteria.ageMet)
     labels.push(

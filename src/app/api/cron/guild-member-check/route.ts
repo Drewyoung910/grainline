@@ -96,7 +96,18 @@ async function checkGuildMemberSeller(
     || !revocation.auditId
     || !revocation.reason
     || !revocation.sellerUserId
-  ) return 0;
+  ) {
+    // The badge should have gone, but the rows were in a state that blocks it. Left
+    // unreported, this seller would keep the badge and be retried silently forever.
+    if (revocation?.guardKind) {
+      Sentry.captureMessage("Guild Member revocation guard fired but nothing was revoked", {
+        level: "warning",
+        tags: { source: "cron_guild_member_check" },
+        extra: { sellerId: seller.id, guardKind: revocation.guardKind },
+      });
+    }
+    return 0;
+  }
   revalidateFeaturedMakerCaches();
 
   await createNotification({

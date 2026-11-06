@@ -49,7 +49,7 @@ describe("buyer Case-open application authority", () => {
       ["rate limit", "await safeRateLimit(caseCreateRatelimit, userId)"],
       ["local actor", "await ensureUserByClerkId(userId)"],
       ["bounded body", "await readBoundedJson(req, CASE_CREATE_BODY_MAX_BYTES)"],
-      ["sanitization", "sanitizeRichText(parsed.description.trim())"],
+      ["sanitization and stored bounds", "normalizeCaseDescriptionBody(parsed.description)"],
       ["fixed authority", "await openCaseWithFixedAuthority({"],
       ["replay stop", 'if (result.action === "replay")'],
       ["notification", "await createNotification({"],

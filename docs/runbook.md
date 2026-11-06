@@ -429,6 +429,8 @@ If rollback follows a schema migration, verify the older deploy is compatible wi
 ## Secret Rotation
 
 Rotate one dependency at a time and verify before moving to the next one.
+Owner database credentials are the exception: they never go in Vercel. Rotate
+them through `docs/runtime-db-credential-separation.md`.
 
 1. Create the new secret in the provider dashboard.
 2. Add it to Vercel Production, Preview, and Development as appropriate.
@@ -485,7 +487,7 @@ Current `SHIPPING_RATE_SECRET` exposure recovery:
 High-risk secrets:
 
 - `DATABASE_URL`: runtime Neon pooled URL. Must use the `-pooler` host.
-- `DIRECT_URL`: Neon direct URL for migrations and restore operations.
+- `DIRECT_URL`: Neon direct owner URL for migrations and restore operations. Never in Vercel: the build guard fails if it is present. Production's copy is the protected GitHub `Production` environment secret `PRODUCTION_MIGRATION_DIRECT_URL`.
 - `CLERK_SECRET_KEY` and `CLERK_WEBHOOK_SECRET`.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and Connect-related Stripe settings.
 - `RESEND_API_KEY`, `EMAIL_FROM`, and `RESEND_WEBHOOK_SECRET`.
@@ -844,13 +846,15 @@ Production migration rules:
   must prove `public."SavedSearch"` has `relrowsecurity=false`,
   `relforcerowsecurity=false`, and zero policies both after migration and before
   application traffic is promoted.
-- For the current `SavedSearch` Release 0, deploy
+- Historical record of the July 2026 rollout (Vercel builds no longer run
+  migrations; see `docs/runtime-db-credential-separation.md`). For the
+  `SavedSearch` Release 0, deploy
   `20260717024500_add_saved_search_owner_rpcs` followed by
   `20260717025000_harden_saved_search_owner_rpc_projection` while RLS is still
   off and verify both. This production step remains blocked until both corrected
   synthetic provider repeats described below pass with independent deployment
   attestation. Then deploy the app release that calls those RPCs. `vercel.json`
-  automatically runs every pending
+  then ran every pending
   migration, so the exact Release 0 artifact/cherry-pick must exclude the later
   `SavedSearch` RLS policy migration, temporary runner route, exact middleware
   exemption, and runner-only test. Release-0 CI must assert those are absent; do
@@ -858,8 +862,8 @@ Production migration rules:
   accidental side effect. The temporary provider-proof branch must fail that
   clean-artifact CI step while the runner remains and is never mergeable; only
   its later cleaned Release-0 derivative may pass and promote.
-  Production builds run `scripts/guard-saved-search-rls-deploy.mjs` before
-  `prisma migrate deploy`, then run `audit:db-grants` before the application
+  Production builds then ran `scripts/guard-saved-search-rls-deploy.mjs` before
+  `prisma migrate deploy`, then ran `audit:db-grants` before the application
   build. Before any migration runs, its source guard requires both
   `DATABASE_URL` and `DIRECT_URL`, exact role declarations
   `RUNTIME_DB_ROLE=grainline_app_runtime` and
@@ -1202,8 +1206,8 @@ RLS staging context proof:
   `sfo1` app code using the pooled non-owner role; (A) exact policies plus
   `NO FORCE` and `ENABLE`; then (B) a separate validated `FORCE` migration.
   Phase B remains a separate reviewed migration.
-  Because `vercel.json` runs every pending migration, the Release 0
-  artifact/cherry-pick must exclude the later phase-A RLS policy migration. A
+  Because `vercel.json` then ran every pending migration, the Release 0
+  artifact/cherry-pick had to exclude the later phase-A RLS policy migration. A
   12-hour wait is only a minimum observation window, not a
   drain proof: disable superseded callable deployments or rotate/revoke their
   owner runtime credentials, and retain `pg_stat_activity` evidence that no
@@ -1321,10 +1325,11 @@ RLS staging context proof:
   catches missing query scoping and absent context; it does not catch a wrong
   asserted id and is not database-authenticated isolation against that
   principal.
-- Record a second deployment-credential residual: `vercel.json` currently runs
+- Historical second deployment-credential residual, closed 2026-07-21 by the
+  successor below: `vercel.json` then ran
   owner migrations during the production build, and Vercel project environment
   variables are available to Function execution as well as the Build Step.
-  Consequently `DIRECT_URL`/the migration-owner credential remains available to
+  Consequently `DIRECT_URL`/the migration-owner credential remained available to
   production application functions after the build. Release 0/Phase A still
   reduce accidental context omission and wrong-scoped queries issued through
   the non-owner `DATABASE_URL`; they do not isolate arbitrary application code

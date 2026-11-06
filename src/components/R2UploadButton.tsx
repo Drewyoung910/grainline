@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useR2Upload, type UploadedFile } from "@/hooks/useR2Upload";
 import ImageCropModal from "@/components/ImageCropModal";
-import { validateUploadFile } from "@/lib/uploadRules";
+import { validateUploadSelection } from "@/lib/uploadRules";
 
 type Endpoint =
   | "listingImage" | "messageImage" | "messageFile" | "messageAny"
@@ -89,7 +89,7 @@ export default function R2UploadButton({
     const files = Array.from(e.target.files ?? []);
     if (files.length > 0) {
       try {
-        files.forEach((file, index) => validateUploadFile(endpoint, file, index));
+        files.forEach((file, index) => validateUploadSelection(endpoint, file, index));
       } catch (error) {
         const err = error instanceof Error ? error : new Error("Upload failed");
         setUploadError(err.message);

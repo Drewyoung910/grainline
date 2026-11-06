@@ -23,14 +23,18 @@ import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
+import CardMediaImage from "@/components/CardMediaImage";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Wrench } from "@/components/icons";
+import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
+import { STAFF_REMOVAL_REJECTION_REASON } from "@/lib/listingActionState";
 import { canViewListingDetail, isPublicListingDetail, publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicTagPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
+import { publicReviewerName } from "@/lib/reviewAuthorPrivacy";
 import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { sellerPublicLocation } from "@/lib/sellerProfilePublicAccess";
@@ -40,10 +44,13 @@ import {
 } from "@/lib/sellerProfileListingDetailAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import { stockNotificationAvailable } from "@/lib/stockNotificationState";
+import { hasSoldOutRequiredOption } from "@/lib/listingVariantSelection";
 import { findOwnerStockNotification } from "@/lib/stockNotificationAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 import { sellerPublicFollowState } from "@/lib/sellerFollowAccess";
 import { formatCityState } from "@/lib/locationDisplay";
+import { getCheckoutLock, singleCheckoutLockKey } from "@/lib/checkoutSessionLock";
+import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -61,6 +68,7 @@ const getListingForDetailPage = cache(async (listingId: string) =>
       priceCents: true,
       currency: true,
       status: true,
+      rejectionReason: true,
       isPrivate: true,
       archivedAt: true,
       reservedForUserId: true,
@@ -125,7 +133,10 @@ export async function generateMetadata(
     };
   }
   const sellerName = listing.seller.displayName ?? "Maker";
-  const title = `${listing.title} by ${sellerName}`;
+  // Many titles already name the shop; do not repeat it in search results.
+  const title = listing.title.toLowerCase().includes(sellerName.toLowerCase())
+    ? listing.title
+    : `${listing.title} by ${sellerName}`;
   const desc = listing.metaDescription || truncateText(listing.description ?? "", 160);
   const img = listing.photos[0]?.url;
   const price = formatCurrencyMinorUnitAmount(listing.priceCents, listing.currency);
@@ -184,7 +195,7 @@ export default async function ListingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ rsort?: string; redit?: string; preview?: string }>;
+  searchParams: Promise<{ rsort?: string; redit?: string; preview?: string; saved?: string }>;
 }) {
   const { id } = await params;
   const listingId = extractRouteId(id);
@@ -264,7 +275,8 @@ export default async function ListingPage({
 
   const isOutOfStock =
     listing.status === "SOLD_OUT" ||
-    (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
+    (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0) ||
+    hasSoldOutRequiredOption(listing.variantGroups);
   const canSubscribeForStockNotification = stockNotificationAvailable({
     ...listing,
     publicListingDetail: isPublicListingDetail(listing),
@@ -304,7 +316,7 @@ export default async function ListingPage({
         title: true,
         priceCents: true,
         currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
     }),
     prisma.review.findMany({
@@ -358,6 +370,7 @@ export default async function ListingPage({
   const initials = avatarInitials(sellerName, "S");
 
   const cityState = formatCityState(listing.seller.city, listing.seller.state);
+  const shipsFromMetro = listing.cityMetro ?? listing.metro;
   const showPickupMap = listing.seller.allowLocalPickup && pickupMapPoint != null;
 
   const signedInMessageHref =
@@ -373,10 +386,20 @@ export default async function ListingPage({
   const reservedForMe = isPrivate && !!meId && listing.reservedForUserId === meId;
   const reservedForOther = isPrivate && (!meId || listing.reservedForUserId !== meId);
 
+  // A Buy Now this buyer left open can be what holds the last unit. Its dialog
+  // resumes that session, so they need the button rather than "Out of Stock".
+  const checkoutHeldForViewer =
+    isActive &&
+    listing.listingType === "IN_STOCK" &&
+    isOutOfStock &&
+    !!meId &&
+    !isOwnListing &&
+    (await getCheckoutLock(singleCheckoutLockKey(meId, listingId)).catch(() => null))?.state === "ready";
+
   const canBuy =
     isActive &&
     !isOwnListing &&
-    !isOutOfStock &&
+    (!isOutOfStock || checkoutHeldForViewer) &&
     !reservedForOther &&
     listing.seller.chargesEnabled &&
     listing.seller.stripeAccountSupported &&
@@ -408,34 +431,24 @@ export default async function ListingPage({
       priceCurrency: (listing.currency || DEFAULT_CURRENCY).toUpperCase(),
       price: formatCurrencyMinorUnitAmount(listing.priceCents, listing.currency),
       priceValidUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      availability: isOutOfStock
-        ? "https://schema.org/OutOfStock"
-        : listing.listingType === "MADE_TO_ORDER"
-        ? "https://schema.org/PreOrder"
-        : "https://schema.org/InStock",
+      // Made to order is orderable now, so it is InStock. PreOrder means not yet released.
+      availability: isOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
       url: siteUrl(publicListingPath(listing.id, listing.title)),
       seller: { "@type": "Organization", name: sellerName, url: `https://thegrainline.com${sellerHref}` },
     },
   };
+  // Only this listing's own reviews: Google requires the rating to be about the item.
   if (countReviews > 0 && avgStarsRaw != null) {
-    // Listing-specific rating
     productLd.aggregateRating = {
       "@type": "AggregateRating",
       ratingValue: (Math.round(avgStarsRaw * 10) / 10).toFixed(1),
       reviewCount: countReviews,
     };
-  } else if (sellerAvgRaw != null && sellerReviewCount > 0) {
-    // Fallback to seller rating
-    productLd.aggregateRating = {
-      "@type": "AggregateRating",
-      ratingValue: sellerAvgRaw.toFixed(1),
-      reviewCount: sellerReviewCount,
-    };
   }
   if (topReviews.length > 0) {
     productLd.review = topReviews.map((r) => ({
       "@type": "Review",
-      author: { "@type": "Person", name: r.reviewerName ?? "Grainline Buyer" },
+      author: { "@type": "Person", name: publicReviewerName(r.reviewerName) },
       datePublished: r.createdAt.toISOString(),
       reviewRating: {
         "@type": "Rating",
@@ -484,6 +497,17 @@ export default async function ListingPage({
         {listing.status === "PENDING_REVIEW"
           ? "Under review — your listing will go live once our team approves it. This is the buyer-facing preview."
           : "Preview mode — this is how your listing appears to buyers. It is not yet published."}
+        {listing.status === "PENDING_REVIEW" && listing.rejectionReason && (
+          <p className="mt-1">Why it was held: {listing.rejectionReason}</p>
+        )}
+        {staffPreview && me?.role === "ADMIN" && !listing.rejectionReason?.startsWith(STAFF_REMOVAL_REJECTION_REASON) && (
+          <div className="mt-2"><DeleteListingButton listingId={listing.id} /></div>
+        )}
+      </div>
+    )}
+    {sp.saved === "1" && viewerIsSeller && (
+      <div role="status" className="border-b border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-800">
+        Changes saved.
       </div>
     )}
     <main className="max-w-[1600px] mx-auto overflow-x-clip px-4 sm:px-6 lg:px-8 pb-16 pt-6">
@@ -513,22 +537,22 @@ export default async function ListingPage({
             </Link>
           </>
         )}
-        <span>›</span>
-        <span className="text-neutral-800 truncate max-w-[200px]">{listing.title}</span>
       </nav>
 
       {/* ── Two-column layout ─────────────────────────────────────────────── */}
       <div className="grid min-w-0 gap-8 mb-10 lg:grid-cols-2">
-        {/* Left: gallery */}
-        <div className="relative min-w-0">
-          {/* Favorite button overlaid */}
-          <FavoriteButton listingId={listingId} initialSaved={isFavorited} size={22} />
-          <ListingGallery photos={listing.photos} title={listing.title} />
+        {/* Left: gallery. Stays on screen while a tall buying column scrolls. */}
+        <div className="relative min-w-0 lg:sticky lg:top-[calc(var(--site-header-offset)+1.5rem)] lg:self-start">
+          <ListingGallery
+            photos={listing.photos}
+            title={listing.title}
+            saveControl={<FavoriteButton listingId={listingId} initialSaved={isFavorited} />}
+          />
         </div>
 
         {/* Right: purchase panel */}
-        <div className="rounded-lg border border-stone-200/60 shadow-sm min-w-0 overflow-x-hidden bg-[#EFEAE0] p-6 space-y-4">
-          <h1 className="text-2xl font-bold text-neutral-900 leading-snug">{listing.title}</h1>
+        <div className="-mx-1 space-y-5 px-1 min-w-0 overflow-x-hidden">
+          <h1 className="font-display text-[clamp(1.75rem,2.6vw,2.2rem)] font-normal leading-tight text-neutral-900">{listing.title}</h1>
 
           {/* Private listing banners */}
           {reservedForMe && (
@@ -566,6 +590,7 @@ export default async function ListingPage({
             sellerAcceptingNewOrders={listing.seller.acceptingNewOrders !== false}
             isOwnListing={isOwnListing}
             isOutOfStock={isOutOfStock}
+            checkoutHeld={checkoutHeldForViewer}
             canSubscribeForStockNotification={canSubscribeForStockNotification}
             isNotified={isNotified}
             listingType={listing.listingType}
@@ -580,13 +605,12 @@ export default async function ListingPage({
           {/* Custom order */}
           {!isOwnListing && !reservedForOther && listing.seller.acceptsCustomOrders && (
             <div className="border-t border-stone-200/60 pt-4 space-y-2">
-              <div className="text-sm font-medium">Want something custom?</div>
-              <p className="text-xs text-neutral-500">
-                Want this in a different size, wood, or finish? Ask the maker. Or{" "}
-                <Link href="/commission" className="underline hover:text-neutral-700">
-                  post a request in the Commission Room
-                </Link>{" "}
-                to reach all makers at once.
+              <p className="text-sm text-neutral-600">
+                Want it in a different size, wood or finish? Ask the maker, or{" "}
+                <Link href="/commission" className="underline hover:text-neutral-800">
+                  post a request
+                </Link>
+                .
               </p>
               {meId ? (
                 <CustomOrderRequestForm
@@ -600,6 +624,7 @@ export default async function ListingPage({
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
+                  rel="nofollow"
                   className="btn btn-sm btn-secondary"
                 >
                   <Wrench size={15} />
@@ -620,7 +645,7 @@ export default async function ListingPage({
                     alt={sellerName}
                     width={56}
                     height={56}
-                    className="h-14 w-14 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
+                    className="h-14 w-14 rounded-full object-cover"
                   />
                 ) : (
                   <div className="h-14 w-14 rounded-full bg-neutral-200 flex items-center justify-center">
@@ -642,7 +667,7 @@ export default async function ListingPage({
                   )}
                 </div>
                 {listing.seller.tagline && (
-                  <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>
+                  <p className="text-[13px] text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>
                 )}
                 {sellerStars && sellerReviewCount > 0 && (
                   <div className="flex items-center gap-1.5 mt-1">
@@ -653,7 +678,7 @@ export default async function ListingPage({
                   </div>
                 )}
                 {cityState && (
-                  <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1">
+                  <p className="text-[13px] text-neutral-500 mt-0.5 flex items-center gap-1">
                     <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -677,7 +702,7 @@ export default async function ListingPage({
             )}
 
             <div className="flex items-center gap-2 flex-wrap">
-              {!isOwnListing && sellerUserId && (
+              {!isOwnListing && !staffPreview && sellerUserId && (
                 <FollowButton
                   sellerProfileId={listing.sellerId}
                   initialFollowing={isFollowingSeller}
@@ -688,6 +713,7 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
+                  rel="nofollow"
                   className="btn btn-sm btn-secondary"
                 >
                   Message maker
@@ -711,27 +737,13 @@ export default async function ListingPage({
             </div>
           </div>
 
-          {/* Tags */}
-          {listing.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {listing.tags.map((t) => (
-                <Link
-                  key={t}
-                  href={publicTagPath(t.toLowerCase())}
-                  className="rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-[11px] text-neutral-600 hover:bg-white transition-colors"
-                >
-                  #{t}
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
       {/* ── Story and details ─────────────────────────────────────────────── */}
       {(listing.description || listing.category || cityState || processingLabel || listing.listingType
         || listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
-        <section className="mb-12 grid min-w-0 gap-9 border-y border-stone-200/80 py-9 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] lg:gap-14 lg:py-12">
+        <section className="mb-12 grid min-w-0 gap-9 border-t border-stone-200/80 pt-9 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] lg:gap-14 lg:pt-12">
           {listing.description && (
             <div className="min-w-0">
               <h2 className="mb-4 font-display text-[clamp(1.75rem,2.6vw,2.2rem)] font-normal leading-tight text-neutral-900">
@@ -794,7 +806,34 @@ export default async function ListingPage({
                   {cityState && (
                     <>
                       <dt className="text-neutral-500">Ships from</dt>
-                      <dd className="text-neutral-800">{cityState}</dd>
+                      <dd className="text-neutral-800">
+                        {shipsFromMetro ? (
+                          <Link
+                            href={`/browse/${shipsFromMetro.slug}`}
+                            className="text-neutral-800 underline decoration-stone-300 underline-offset-4 transition-colors hover:decoration-neutral-700"
+                          >
+                            {cityState}
+                          </Link>
+                        ) : (
+                          cityState
+                        )}
+                      </dd>
+                    </>
+                  )}
+                  {listing.tags.length > 0 && (
+                    <>
+                      <dt className="text-neutral-500">Tags</dt>
+                      <dd className="flex flex-wrap gap-x-3 gap-y-1">
+                        {listing.tags.map((t) => (
+                          <Link
+                            key={t}
+                            href={publicTagPath(t.toLowerCase())}
+                            className="text-neutral-800 underline decoration-stone-300 underline-offset-4 transition-colors hover:decoration-neutral-700"
+                          >
+                            {humanizeSearchTag(t)}
+                          </Link>
+                        ))}
+                      </dd>
                     </>
                   )}
                 </dl>
@@ -807,73 +846,78 @@ export default async function ListingPage({
                 {listing.seller.returnPolicy && (
                   <details className="border-b border-stone-200/80 last:border-b-0">
                     <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Return policy</summary>
-                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.returnPolicy}</p>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line break-words">{listing.seller.returnPolicy}</p>
                   </details>
                 )}
                 {listing.seller.shippingPolicy && (
                   <details className="border-b border-stone-200/80 last:border-b-0">
                     <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Shipping policy</summary>
-                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.shippingPolicy}</p>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line break-words">{listing.seller.shippingPolicy}</p>
                   </details>
                 )}
                 {listing.seller.customOrderPolicy && (
                   <details className="border-b border-stone-200/80 last:border-b-0">
                     <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">Custom order policy</summary>
-                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line">{listing.seller.customOrderPolicy}</p>
+                    <p className="pb-4 text-sm leading-6 text-neutral-600 whitespace-pre-line break-words">{listing.seller.customOrderPolicy}</p>
                   </details>
                 )}
+              </div>
+            )}
+
+            {/* Pickup area map */}
+            {showPickupMap && pickupMapPoint && (
+              <div className="mt-8" style={{ position: "relative", zIndex: 0 }}>
+                <DynamicMapCard
+                  displayLat={pickupMapPoint.publicLat}
+                  displayLng={pickupMapPoint.publicLng}
+                  radiusMeters={pickupMapPoint.displayRadiusMeters}
+                  label={cityState || sellerName}
+                />
               </div>
             )}
           </div>
         </section>
       )}
 
-      {/* ── Pickup area map ───────────────────────────────────────────────── */}
-      {showPickupMap && pickupMapPoint && (
-        <section className="mb-10 max-w-2xl">
-          <div style={{ position: "relative", zIndex: 0 }}>
-            <DynamicMapCard
-              displayLat={pickupMapPoint.publicLat}
-              displayLng={pickupMapPoint.publicLng}
-              radiusMeters={pickupMapPoint.displayRadiusMeters}
-              label={cityState || sellerName}
-            />
-          </div>
-        </section>
-      )}
-
-      {/* ── More in this city ─────────────────────────────────────────────── */}
-      {(listing.cityMetro ?? listing.metro) && (() => {
-        const m = listing.cityMetro ?? listing.metro!;
-        return (
-          <div className="mb-8">
-            <Link
-              href={`/browse/${m.slug}`}
-              className="text-sm text-neutral-600 hover:underline"
-            >
-              More handmade pieces in {formatCityState(m.name, m.state)} →
-            </Link>
-          </div>
-        );
-      })()}
+      {/* Reviews are purchase evidence, not a recommendation rail. Keep them
+          with the listing's core information so they are not buried below
+          three unrelated discovery sections. */}
+      <ReviewsSection
+        listingId={listingId}
+        listingTitle={listing.title}
+        meId={meId}
+        sellerName={sellerName}
+        sellerAvatarUrl={sellerAvatar}
+        viewerIsSeller={viewerIsSeller}
+        initialSort={sortKey}
+        edit={editingMine}
+        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
+        staffPreview={staffPreview}
+      />
 
       {/* ── More from this maker ────────────────────────────────────────── */}
       {moreFromSeller.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-xl font-semibold font-display mb-4">
+          <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-4">
             More from {sellerName}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
               <div key={ml.id} className="relative">
-                <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+                <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-black/[0.05] shadow-[0_2px_8px_-7px_rgba(44,31,26,0.42)] transition-[box-shadow] duration-300 ease-out hover:shadow-[0_18px_34px_-14px_rgba(44,31,26,0.42),0_4px_10px_-4px_rgba(44,31,26,0.22)]">
                   <Link href={publicListingPath(ml.id, ml.title)} className="block aspect-[4/5]">
                     {ml.photos[0]?.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
-                        width={320}
-                        height={400}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" />
+                      <span className="relative block h-full w-full">
+                        <CardMediaImage
+                          src={ml.photos[0].url}
+                          fallbackSrc={ml.photos[1]?.url}
+                          alt={ml.title}
+                          sizes="(max-width: 639px) 50vw, 25vw"
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
+                          fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
+                      </span>
                     ) : (
                       <div className="w-full h-full bg-neutral-200" />
                     )}
@@ -894,7 +938,7 @@ export default async function ListingPage({
 
       {/* ── Similar items ─────────────────────────────────────────────────── */}
       <section className="mb-10">
-        <h2 className="font-semibold font-display text-neutral-900 mb-4">You might also like</h2>
+        <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-4">You might also like</h2>
         <SimilarItems listingId={listingId} />
       </section>
 
@@ -907,18 +951,6 @@ export default async function ListingPage({
         viewerUserId={meId}
       />
 
-      {/* ── Reviews ───────────────────────────────────────────────────────── */}
-      <ReviewsSection
-        listingId={listingId}
-        listingTitle={listing.title}
-        meId={meId}
-        sellerName={sellerName}
-        sellerAvatarUrl={sellerAvatar}
-        viewerIsSeller={viewerIsSeller}
-        initialSort={sortKey}
-        edit={editingMine}
-        blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
-      />
     </main>
     </div>
   );

@@ -73,9 +73,9 @@ describe("motion stability guardrails", () => {
     const header = source("src/components/Header.tsx");
     const map = source("src/components/AllSellersMap.tsx");
     const mapSection = source("src/components/MakersMapSection.tsx");
-    assert.match(header, /inline-flex min-w-\[76px\] justify-end/);
+    assert.match(header, /inline-flex w-\[84px\] shrink-0 justify-end/);
     assert.match(header, /fallback=\{[\s\S]*isLoaded \? \(/);
-    assert.match(map, /cooperativeGestures: true/);
+    assert.match(map, /cooperativeGestures: embedded/);
     assert.match(mapSection, /w-full min-w-0 lg:flex-1/);
     assert.doesNotMatch(mapSection, /w-full min-w-0 flex-1/);
   });
@@ -254,7 +254,7 @@ describe("motion stability guardrails", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
     const composition = listing.slice(
       listing.indexOf("{/* ── Story and details"),
-      listing.indexOf("{/* ── Pickup area map"),
+      listing.indexOf("<ReviewsSection"),
     );
 
     assert.match(
@@ -271,6 +271,7 @@ describe("motion stability guardrails", () => {
 
   it("makes the review breakdown prominent while preserving review behavior", () => {
     const reviews = source("src/components/ReviewsSection.tsx");
+    const listing = source("src/app/listing/[id]/page.tsx");
 
     assert.match(reviews, /lg:grid-cols-\[17rem_minmax\(0,1fr\)\]/);
     assert.match(reviews, /aria-label="Rating breakdown"/);
@@ -278,6 +279,10 @@ describe("motion stability guardrails", () => {
     assert.match(reviews, /My review/);
     assert.match(reviews, /<ImageLightbox[\s\S]*?images=\{mine\.photos/);
     assert.match(reviews, /<ImageLightbox[\s\S]*?images=\{r\.photos/);
+    assert.ok(
+      listing.indexOf("<ReviewsSection") < listing.indexOf("You might also like"),
+      "reviews should remain ahead of recommendation rails",
+    );
     assert.match(reviews, /reply=\{mine\.sellerReply\}/);
     assert.match(reviews, /<SellerReplyForm[\s\S]*?reviewId=\{r\.id\}/);
     assert.match(reviews, /<HelpfulButton/);

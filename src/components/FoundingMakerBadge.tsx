@@ -59,7 +59,9 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
     const maxLeft = viewportW - popWidth - 8;
     if (left < minLeft) left = minLeft;
     if (left > maxLeft) left = maxLeft;
-    setCoords({ top: r.bottom + 8, left, width: popWidth });
+    // Page coordinates, so the popup moves with the page instead of chasing the
+    // badge from scroll events and trailing behind it.
+    setCoords({ top: r.bottom + window.scrollY + 8, left: left + window.scrollX, width: popWidth });
   };
 
   function handleOpen() {
@@ -67,17 +69,11 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
     setOpen(true);
   }
 
-  // Keep the popup glued to the badge while open — scroll-reveal animations
-  // and resizes can move the trigger after the initial measurement.
   useEffect(() => {
     if (!open) return;
-    const onMove = () => recomputeCoords();
-    window.addEventListener("scroll", onMove, { passive: true, capture: true });
-    window.addEventListener("resize", onMove);
-    return () => {
-      window.removeEventListener("scroll", onMove, { capture: true } as EventListenerOptions);
-      window.removeEventListener("resize", onMove);
-    };
+    const onResize = () => recomputeCoords();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, [open]);
 
   return (
@@ -143,7 +139,7 @@ export default function FoundingMakerBadge({ number, showLabel = false, size = 2
           aria-label="Founding Maker"
           className="popover-spring-in z-[1000] rounded-2xl bg-white p-3.5 text-left popover-shadow"
           style={{
-            position: "fixed",
+            position: "absolute",
             top: coords.top,
             left: coords.left,
             width: coords.width,
