@@ -59,11 +59,11 @@ export default async function InventoryPage() {
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-neutral-800">
-          Active ({active.length})
+          Listings ({active.length})
         </h2>
         {active.length === 0 ? (
           <div className="card-section px-4 py-6 text-sm text-neutral-500">
-            No active in-stock listings.
+            No in-stock listings.
           </div>
         ) : (
           <ul className="divide-y divide-neutral-100 card-section">
@@ -76,7 +76,7 @@ export default async function InventoryPage() {
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-neutral-800">
-          Out of Stock ({outOfStock.length})
+          Out of stock ({outOfStock.length})
         </h2>
         {outOfStock.length === 0 ? (
           <div className="card-section px-4 py-6 text-sm text-neutral-500">
