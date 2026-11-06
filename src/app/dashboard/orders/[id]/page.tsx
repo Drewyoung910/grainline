@@ -254,7 +254,7 @@ export default async function BuyerOrderDetailPage({
     order.estimatedDeliveryDate != null && order.estimatedDeliveryDate >= now;
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
-      <Link href="/dashboard/orders" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+      <Link href="/account/orders" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
         <ArrowLeft size={14} /> Back to Orders
       </Link>
       <header className="space-y-1">
@@ -690,7 +690,7 @@ export default async function BuyerOrderDetailPage({
 
       <div className="flex gap-3">
         <Link
-          href="/dashboard/orders"
+          href="/account/orders"
           className="btn btn-secondary btn-sm"
         >
           Back to orders
