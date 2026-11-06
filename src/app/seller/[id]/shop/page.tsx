@@ -252,21 +252,25 @@ export default async function SellerShopPage({
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-3xl font-semibold">
+            <h1 className="font-display text-2xl font-semibold sm:text-3xl">
               {seller.displayName ? `${seller.displayName}'s Shop` : "Shop"}
             </h1>
-            <GuildBadge level={seller.guildLevel} showLabel={true} size={28} />
-            {seller.isFoundingMaker && (
-              <FoundingMakerBadge
-                number={seller.foundingMakerNumber}
-                showLabel={true}
-                size={26}
-              />
-            )}
+            {/* Badge labels move as a whole rather than breaking word by word. */}
+            <span className="inline-flex flex-wrap items-center gap-2 whitespace-nowrap">
+              <GuildBadge level={seller.guildLevel} showLabel={true} size={28} />
+              {seller.isFoundingMaker && (
+                <FoundingMakerBadge
+                  number={seller.foundingMakerNumber}
+                  showLabel={true}
+                  size={26}
+                />
+              )}
+            </span>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
+        {/* Its own row on phones, so it cannot squeeze the shop name. */}
+        <div className="flex w-full items-center gap-3 sm:w-auto sm:shrink-0">
           {!isOwner && (
             <FollowButton
               sellerProfileId={seller.id}
