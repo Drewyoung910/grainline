@@ -22,7 +22,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import {
   labelDownloadRatelimit,
   labelPurchaseRatelimit,
-  labelQuoteRatelimit,
+  labelRequestRatelimit,
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
@@ -174,6 +174,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (isAccountAccessError(actor)) {
       return privateJson({ error: actor.message, code: actor.code }, { status: actor.status });
     }
+    // Every request, including ones the preflight refuses. A purchase also
+    // spends a token from the purchase limit just before the claim.
+    const requestLimit = await safeRateLimit(labelRequestRatelimit, actor.id);
+    if (!requestLimit.success) {
+      return privateResponse(rateLimitResponse(requestLimit.reset, "Too many label requests."));
+    }
+
     const { id: orderId } = await params;
     let payload: z.infer<typeof LabelSchema>;
     try {
@@ -201,10 +208,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const selectedRateId = payload.rateObjectId ?? null;
     if (!selectedRateId && !preflight.storedRateUsable) {
-      const quoteLimit = await safeRateLimit(labelQuoteRatelimit, actor.id);
-      if (!quoteLimit.success) {
-        return privateResponse(rateLimitResponse(quoteLimit.reset, "Too many shipping rate requests."));
-      }
       const { rates, shipmentId } = await shippoRatesMultiPiece({
         from: {
           ...preflight.shipFrom,
