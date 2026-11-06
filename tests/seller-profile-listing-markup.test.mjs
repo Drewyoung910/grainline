@@ -58,7 +58,7 @@ describe("seller profile and commission UI markup guardrails", () => {
     assert.match(metroCommissions, /\{count > 0 && \(\s*<div className="mb-10">\s*<Link\s+href="\/commission\/new"/);
   });
 
-  it("keeps Featured Work available to shops with fewer than three pieces", () => {
+  it("keeps a maker's curated Featured Work when they pick fewer than three pieces", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
 
     assert.match(
@@ -66,6 +66,10 @@ describe("seller profile and commission UI markup guardrails", () => {
       /if \(fallbackFeatured\.length === 0\) return null;/,
       "a maker's curated one- or two-piece feature set should not disappear",
     );
-    assert.doesNotMatch(sellerPage, /fallbackFeatured\.length < 3/);
+    assert.match(
+      sellerPage,
+      /if \(featuredListings\.length === 0 && fallbackFeatured\.length < 3\) return null;/,
+      "only the automatic repeated-listings fallback should wait for a full row",
+    );
   });
 });
