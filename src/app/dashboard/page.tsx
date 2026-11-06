@@ -179,7 +179,7 @@ async function DashboardPageContent({
 
       {/* Vacation mode active banner */}
       {vacationMode && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-medium text-amber-900 text-sm">Vacation mode is active</p>
             <p className="text-amber-800 text-sm mt-0.5">
@@ -192,7 +192,7 @@ async function DashboardPageContent({
           </div>
           <a
             href="/dashboard/seller"
-            className="shrink-0 text-xs border border-amber-400 bg-white px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors"
+            className="shrink-0 self-start rounded-md text-xs border border-amber-400 bg-white px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors sm:self-auto"
           >
             Turn off vacation mode →
           </a>
