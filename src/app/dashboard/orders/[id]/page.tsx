@@ -261,11 +261,11 @@ export default async function BuyerOrderDetailPage({
         <h1 className="font-display page-title">
           Order <span className="text-neutral-500">#{order.id.slice(-8)}</span>
         </h1>
-        <div className="flex items-center gap-2 text-sm text-neutral-600">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-600">
           <span>
             Placed <LocalDate date={order.createdAt} /> · {orderPaymentPresentationLabel(paymentState)}
           </span>
-          <Badge>{method}</Badge>
+          <Badge>{method === "PICKUP" ? "Local pickup" : "Shipping"}</Badge>
           <Badge>
             {suppressActiveFulfillment
               ? orderPaymentPresentationLabel(paymentState)
