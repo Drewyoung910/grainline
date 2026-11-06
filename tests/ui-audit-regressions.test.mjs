@@ -108,12 +108,19 @@ describe("Workshop overview", () => {
     );
     assert.equal(workshopAttentionRows({ ...quiet, chargesEnabled: false })[0].href, "/dashboard/seller");
     assert.deepEqual(
-      workshopAttentionRows({ ...quiet, liveListingCount: 0 }).map((row) => row.key),
+      workshopAttentionRows({ ...quiet, liveListingCount: 0, unpublishedCount: 1 }).map((row) => row.key),
       ["nothing-live"],
     );
-    // Listings waiting on review or sent back already have their own rows.
+    // Without payouts, publishing is impossible, so only the payouts row shows.
     assert.deepEqual(
-      workshopAttentionRows({ ...quiet, liveListingCount: 0, underReview: 1 }).map((row) => row.key),
+      workshopAttentionRows({ ...quiet, chargesEnabled: false, liveListingCount: 0, unpublishedCount: 1 })
+        .map((row) => row.key),
+      ["payouts"],
+    );
+    // Only sold-out, sold, in-review or private custom pieces: no draft to publish.
+    assert.deepEqual(workshopAttentionRows({ ...quiet, liveListingCount: 0, unpublishedCount: 0 }), []);
+    assert.deepEqual(
+      workshopAttentionRows({ ...quiet, liveListingCount: 0, underReview: 1, unpublishedCount: 0 }).map((row) => row.key),
       ["review"],
     );
     assert.deepEqual(workshopAttentionRows({ ...quiet, chargesEnabled: true, liveListingCount: 2 }), []);

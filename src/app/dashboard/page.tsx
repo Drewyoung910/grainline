@@ -97,6 +97,7 @@ async function DashboardPageContent({
     openCases,
     chargesEnabled,
     liveListingCount: listingAttention?.liveListingCount ?? null,
+    unpublishedCount: listingAttention?.unpublishedCount ?? null,
   });
   // Never claim there's nothing to do when part of the answer failed to load.
   const attentionIncomplete = !orderQueue || !listingAttention || unreadMessages === null || openCases === null;

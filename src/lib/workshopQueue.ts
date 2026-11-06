@@ -88,6 +88,8 @@ export type WorkshopAttentionInput = Readonly<{
   // Shop state. Undefined or null means unknown, which adds no row.
   chargesEnabled?: boolean | null;
   liveListingCount?: number | null;
+  // Drafts and hidden listings, the ones Publish or Unhide can put on sale.
+  unpublishedCount?: number | null;
 }>;
 
 export type WorkshopAttentionRow = Readonly<{
@@ -177,11 +179,13 @@ export function workshopAttentionRows(input: WorkshopAttentionInput): WorkshopAt
       href: "/dashboard/seller",
     });
   }
+  // Only when publishing is possible and there is something to publish: not
+  // without payouts, and not for a shop that is only sold out, sold, in review
+  // or private custom pieces.
   if (
-    input.liveListingCount === 0
-    && (input.listingCount ?? 0) > 0
-    && input.underReview === 0
-    && input.rejected === 0
+    input.chargesEnabled !== false
+    && input.liveListingCount === 0
+    && (input.unpublishedCount ?? 0) > 0
   ) {
     rows.push({
       key: "nothing-live",
