@@ -287,7 +287,7 @@ export default async function WhyGrainlinePage() {
       <section className="max-w-4xl mx-auto px-4 sm:px-6 py-16">
         <div className="text-center mb-10">
           <h2 className="text-3xl sm:text-4xl font-display font-bold text-neutral-900 mb-4">
-            You&apos;re protected on every purchase.
+            If something goes wrong, open a case.
           </h2>
           <p className="text-stone-600 max-w-2xl mx-auto">
             Stripe handles the payment. Grainline handles the disputes.
@@ -314,7 +314,8 @@ export default async function WhyGrainlinePage() {
               <div>
                 <p className="font-semibold text-neutral-900 mb-1">Open a case from your order page.</p>
                 <p className="text-sm text-neutral-600">
-                  The maker is notified instantly and has 48 hours to respond.
+                  You have 30 days from delivery, pickup or the estimated delivery date. The maker is notified
+                  and has 48 hours to respond.
                 </p>
               </div>
             </li>
@@ -323,7 +324,7 @@ export default async function WhyGrainlinePage() {
                 3
               </span>
               <div>
-                <p className="font-semibold text-neutral-900 mb-1">Most cases resolve directly.</p>
+                <p className="font-semibold text-neutral-900 mb-1">You and the maker can settle it.</p>
                 <p className="text-sm text-neutral-600">
                   Full refund, partial refund, replacement, or another resolution you both agree on.
                 </p>
@@ -336,8 +337,8 @@ export default async function WhyGrainlinePage() {
               <div>
                 <p className="font-semibold text-neutral-900 mb-1">If not, Grainline staff step in.</p>
                 <p className="text-sm text-neutral-600">
-                  Either side can escalate after 48 hours. We review the case, make a binding decision, and issue
-                  the refund through Stripe. Your FCBA chargeback rights remain intact throughout.
+                  Either side can escalate after 48 hours. Staff review the case and decide it, and any refund they
+                  award goes back through Stripe. Your FCBA chargeback rights remain intact throughout.
                 </p>
               </div>
             </li>
