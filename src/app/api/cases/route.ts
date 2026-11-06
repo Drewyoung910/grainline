@@ -11,7 +11,7 @@ import {
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import { truncateText } from "@/lib/sanitize";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import { normalizeCaseDescriptionBody } from "@/lib/caseMessageBody";
 import {
   isInvalidJsonBodyError,
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
         userId: result.sellerUserId,
         type: "CASE_OPENED",
         title: `${me.name ?? "A buyer"} opened a case`,
-        body: truncateText(description, 60),
+        body: truncateTextWithEllipsis(description, 80),
         link: `/dashboard/sales/${result.orderId}`,
         relatedUserId: result.buyerUserId,
         sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
