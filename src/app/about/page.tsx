@@ -59,13 +59,13 @@ export default async function AboutPage() {
           <div>
             <h2 className="text-2xl font-display font-semibold text-neutral-900 mb-2">Why Grainline exists</h2>
             <p className="text-neutral-600 leading-relaxed">
-              Most online marketplaces treat woodworking like any other product category, lost between mass-produced furniture and factory goods. We built Grainline specifically for the woodworking community, with features that matter: local maker maps, made-to-order workflows, and Guild badges for makers with a strong record on Grainline.
+              Most online marketplaces treat woodworking like any other product category, lost between mass-produced furniture and factory goods. We built Grainline specifically for the woodworking community, with features that matter: local maker maps, made-to-order workflows, and Guild badges that confirm a maker&apos;s complete profile and good standing on Grainline.
             </p>
           </div>
           <div>
             <h2 className="text-2xl font-display font-semibold text-neutral-900 mb-2">For makers</h2>
             <p className="text-neutral-600 leading-relaxed">
-              We charge a simple 5% fee on sales, with no listing fees and no subscription. You set your own policies, prices, and shipping. Guild badges show buyers which shops have a complete profile and a good track record here.
+              We charge a simple 5% fee on sales, with no listing fees and no subscription. You set your own policies, prices, and shipping. Guild badges show buyers which shops have a complete profile and good standing here.
             </p>
           </div>
           <div>
