@@ -90,13 +90,11 @@ export default function SellerNotesForm({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700">
-        {notes ? (
+      {notes ? (
+        <div className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700">
           <div className="whitespace-pre-wrap leading-relaxed">{notes}</div>
-        ) : (
-          <p className="text-neutral-500">No seller notes yet.</p>
-        )}
-      </div>
+        </div>
+      ) : null}
       <textarea
         value={draft}
         onChange={(e) => {
