@@ -56,7 +56,7 @@ export default function ReviewComposer(props: {
   // If user cannot create AND not editing, just show the info box.
   if (creating && (!canReview || hasReview)) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-neutral-600">
         Buyers can review this piece within 90 days of a completed purchase.
       </p>
     );
