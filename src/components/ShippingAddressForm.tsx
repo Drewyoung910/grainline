@@ -277,7 +277,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           <button
             type="button"
             onClick={onBack}
-            className="text-sm text-neutral-500 hover:text-neutral-700"
+            className="shrink-0 whitespace-nowrap text-sm text-neutral-500 hover:text-neutral-700"
           >
             ← Back
           </button>
