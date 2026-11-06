@@ -909,7 +909,7 @@ export default async function EditListingPage(props: {
             name="publish"
             value="false"
             pendingLabel="Saving..."
-            className="btn btn-secondary flex-1 disabled:cursor-wait"
+            className={`btn ${canPublishFromEdit ? "btn-secondary" : "btn-primary"} flex-1 disabled:cursor-wait`}
           >
             Save changes
           </SubmitButton>
