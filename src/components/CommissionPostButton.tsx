@@ -89,7 +89,7 @@ export default function CommissionPostButton({
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 id={titleId} className="font-display text-2xl leading-tight text-neutral-900">Post a commission</h2>
+                <h2 id={titleId} className="font-display text-2xl leading-tight text-neutral-900">Post a request</h2>
                 <p className="mt-1 text-sm text-neutral-500">Makers who can build it reach out, and you pick who to work with.</p>
               </div>
               <button
