@@ -104,7 +104,6 @@ async function DashboardPageContent({
   const shopStatus = workshopShopStatus({
     vacationMode,
     chargesEnabled,
-    onboardingComplete,
     acceptingNewOrders: shopEditorState?.acceptingNewOrders ?? null,
     liveListingCount: listingAttention?.liveListingCount ?? null,
   });

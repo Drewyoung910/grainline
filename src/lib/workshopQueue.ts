@@ -52,16 +52,16 @@ export function orderRefundedAway(order: QueueOrder, refundOutcome: RefundOutcom
 }
 
 // The Workshop header pill. Null means that read failed, which must not change it.
+// Each closed label names what is missing. The setup wizard is not one of them:
+// publishing needs only Stripe.
 export function workshopShopStatus(input: Readonly<{
   vacationMode: boolean;
   chargesEnabled: boolean;
-  onboardingComplete: boolean;
   acceptingNewOrders: boolean | null;
   liveListingCount: number | null;
 }>): { label: string; open: boolean } {
   if (input.vacationMode) return { label: "On vacation", open: false };
-  if (!input.chargesEnabled) return { label: "Not visible yet", open: false };
-  if (!input.onboardingComplete) return { label: "Finish setup", open: false };
+  if (!input.chargesEnabled) return { label: "Payouts not connected", open: false };
   if (input.acceptingNewOrders === false) return { label: "Not taking orders", open: false };
   if (input.liveListingCount === 0) return { label: "No live listings", open: false };
   return { label: "Shop open", open: true };
