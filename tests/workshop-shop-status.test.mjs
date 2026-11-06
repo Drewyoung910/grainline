@@ -16,8 +16,12 @@ test("the Workshop pill says open only when buyers can actually order", () => {
   assert.equal(workshopShopStatus({ ...open, acceptingNewOrders: false }).open, false);
   assert.equal(workshopShopStatus({ ...open, liveListingCount: 0 }).label, "No live listings");
   assert.equal(workshopShopStatus({ ...open, vacationMode: true }).label, "On vacation");
-  assert.equal(workshopShopStatus({ ...open, chargesEnabled: false }).label, "Not visible yet");
-  assert.equal(workshopShopStatus({ ...open, onboardingComplete: false }).label, "Finish setup");
+  assert.equal(workshopShopStatus({ ...open, chargesEnabled: false }).label, "Payouts not connected");
+});
+
+test("the setup wizard alone does not close the shop", () => {
+  // Publishing needs only Stripe; a maker who skipped the wizard is open.
+  assert.deepEqual(workshopShopStatus({ ...open, onboardingComplete: false }), { label: "Shop open", open: true });
 });
 
 test("a failed read does not change the pill", () => {
