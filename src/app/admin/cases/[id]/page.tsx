@@ -175,7 +175,7 @@ export default async function AdminCaseDetailPage({
       </div>
 
       {/* Parties + Order summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Section title="Buyer">
           <dl className="space-y-3">
             <Field label="Name" value={caseRecord.order.buyerName ?? "Deleted buyer"} />

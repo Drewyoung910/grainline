@@ -177,7 +177,7 @@ export default async function AdminBroadcastsPage({
               <div key={b.id} className="card-section p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
                       {sellerTarget && sellerShopLinkable ? (
                         <Link
                           href={publicSellerPath(sellerTarget.sellerProfileId, sellerTarget.sellerDisplayName)}
@@ -210,7 +210,7 @@ export default async function AdminBroadcastsPage({
                         {b.recipientCount} recipient{b.recipientCount !== 1 ? "s" : ""}
                       </span>
                     </div>
-                    <p className="text-sm text-neutral-700 whitespace-pre-line">{b.message}</p>
+                    <p className="text-sm text-neutral-700 whitespace-pre-line break-words">{b.message}</p>
                     {b.imageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
