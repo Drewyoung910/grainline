@@ -9,7 +9,7 @@ export const SLUR_WORDS = [
   // Racial slurs with no other meaning
   "nigger", "nigga", "wetback",
   // Slurs and a self-harm phrase whose ordinary uses are too rare to justify letting them through
-  "faggot", "kike", "kill yourself",
+  "faggot", "kill yourself",
 ];
 
 export const MILD_WORDS = [
@@ -19,6 +19,9 @@ export const MILD_WORDS = [
   "porn", "pornography", "xxx",
   // Abbreviation that can also be a shop's initials
   "kys",
+  // Hateful in some contexts, but also a common Spanish-language name. Keep it
+  // available for contextual moderation without refusing legitimate names.
+  "kike",
   // Hateful in some uses, but also ordinary English or a trade term.
   // A whole-word match cannot tell which, so these never refuse a save. On a
   // listing, the AI's hateful-language rule judges them in context.

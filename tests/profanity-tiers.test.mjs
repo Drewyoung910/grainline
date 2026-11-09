@@ -34,6 +34,10 @@ describe("profanity tiers", () => {
     assert.equal(containsProfanity(benign).flagged, false);
   });
 
+  it("does not hard-refuse a legitimate personal name", () => {
+    assert.equal(containsSlur("Kike's custom furniture workshop"), false);
+  });
+
   it("empty input is clean", () => {
     assert.equal(containsSlur(""), false);
     assert.equal(containsSlur(null), false);
