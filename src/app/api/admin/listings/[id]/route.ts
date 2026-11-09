@@ -18,7 +18,7 @@ import { deleteStockNotificationsForAdminListing } from "@/lib/stockNotification
 import { deleteFavoritesForAdminListing } from "@/lib/favoriteAccess";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId, sessionId } = await auth();
