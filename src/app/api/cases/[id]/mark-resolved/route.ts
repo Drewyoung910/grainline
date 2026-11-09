@@ -4,6 +4,7 @@
 // When only one party → PENDING_CLOSE.
 // Note: a cron job should auto-close PENDING_CLOSE cases with no new messages after 48h.
 import { auth } from "@clerk/nextjs/server";
+import { sendCaseUpdateEmail } from "@/lib/caseEmail";
 import * as Sentry from "@sentry/nextjs";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -100,6 +101,19 @@ async function notifyCounterpartyOfResolutionMark({
       extra: { caseId, orderId, recipientId, status },
     });
   }
+
+  await sendCaseUpdateEmail({
+    caseId,
+    orderId,
+    userId: recipientId,
+    side: recipientIsBuyer ? "BUYER" : "SELLER",
+    dedupKey: `case-resolution-mark:${authoritySourceId}:${recipientId}`,
+    templateName: resolved ? "case_resolved" : "case_message",
+    heading: resolved ? "Your case is closed" : "Your case will close soon",
+    message: resolved
+      ? "You both marked this case resolved, so it is now closed."
+      : "The other party marked this case resolved. If you still need help, reply in the case within 7 days. Otherwise it will close automatically.",
+  });
 }
 
 export async function POST(
