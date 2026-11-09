@@ -689,7 +689,7 @@ export default async function ListingPage({
             )}
 
             <div className="flex items-center gap-2 flex-wrap">
-              {!isOwnListing && sellerUserId && (
+              {!isOwnListing && !staffPreview && sellerUserId && (
                 <FollowButton
                   sellerProfileId={listing.sellerId}
                   initialFollowing={isFollowingSeller}

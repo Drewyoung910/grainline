@@ -141,6 +141,7 @@ export default async function ReviewsSection({
   initialSort = "top",
   edit = false, // ?redit=1 toggles edit UI
   blockedUserIds,
+  staffPreview = false,
 }: {
   listingId: string;
   listingTitle?: string | null;
@@ -148,6 +149,7 @@ export default async function ReviewsSection({
   sellerName: string;
   sellerAvatarUrl: string | null;
   viewerIsSeller: boolean;
+  staffPreview?: boolean;
   initialSort?: "top" | "new" | "rating" | "photos";
   edit?: boolean;
   blockedUserIds?: string[];
@@ -542,6 +544,7 @@ export default async function ReviewsSection({
                               canVote={
                                 !!meId &&
                                 !viewerIsSeller &&
+                                !staffPreview &&
                                 meId !== r.reviewerId
                               }
                               signedIn={!!meId}
