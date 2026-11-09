@@ -589,8 +589,11 @@ async function SellerPublicContent({
                 featuredListings.length > 0
                   ? featuredListings
                   : listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).slice(0, 3);
-              // One or two cards would only repeat the start of All Listings.
-              if (fallbackFeatured.length < 3) return null;
+              // Keep the curated section even for a small shop. A maker may
+              // deliberately feature their only one or two pieces, and hiding
+              // that choice would remove a profile feature rather than merely
+              // simplify the layout.
+              if (fallbackFeatured.length === 0) return null;
               const sellerChip = {
                 id: seller.id,
                 displayName: seller.displayName ?? null,

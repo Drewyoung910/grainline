@@ -57,4 +57,15 @@ describe("seller profile and commission UI markup guardrails", () => {
     assert.equal(metroCommissions.match(/Post a request/g)?.length, 2);
     assert.match(metroCommissions, /\{count > 0 && \(\s*<div className="mb-10">\s*<Link\s+href="\/commission\/new"/);
   });
+
+  it("keeps Featured Work available to shops with fewer than three pieces", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+
+    assert.match(
+      sellerPage,
+      /if \(fallbackFeatured\.length === 0\) return null;/,
+      "a maker's curated one- or two-piece feature set should not disappear",
+    );
+    assert.doesNotMatch(sellerPage, /fallbackFeatured\.length < 3/);
+  });
 });
