@@ -39,6 +39,7 @@ import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
+import { applyListingCreationAIReviewResult } from "@/lib/listingCreationAIReview";
 import {
   sellerOwnerListingMetroSource,
   sellerOwnerListingReview,
@@ -354,58 +355,76 @@ async function createListing(_prevState: unknown, formData: FormData) {
     }
   } catch { /* non-fatal */ }
 
-  // AI listing review + first-listing hold
+  // AI listing review + first-listing hold. Bind every verdict to the exact
+  // revision sent for review so an older request cannot publish a withdrawn,
+  // edited, and resubmitted listing.
+  let reviewedUpdatedAt: Date | null = null;
   try {
-    const sellerInfo = await sellerOwnerListingReview(seller.userId);
-    if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
-      throw new Error("Seller listing-review authority returned a different seller");
-    }
-
-    const listingCount = sellerInfo?.totalListingCount ?? 0
-
-    const { reviewListingWithAI } = await import('@/lib/ai-review')
-
-    const aiResult = await reviewListingWithAI({
-      listingId: created.id,
-      sellerId: seller.id,
-      title: created.title,
-      description: created.description,
-      priceCents: created.priceCents,
-      currency: created.currency,
-      category: created.category ?? null,
-      tags: created.tags,
-      sellerName: sellerInfo?.displayName ?? seller.displayName ?? 'Unknown',
-      listingCount,
-      imageUrls,
-    }).catch((): AIReviewResult => ({
-      approved: false,
-      flags: ['AI review error'],
-      confidence: 0,
-      reason: 'AI error — sending to admin review',
-      altTexts: [],
-    }))
-
-    const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8
-
-    if (shouldHold) {
-      await prisma.listing.updateMany({
-        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-        data: {
+    creationReview: {
+      const reviewTarget = await prisma.listing.findFirst({
+        where: {
+          id: created.id,
+          sellerId: seller.id,
           status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
-        }
-      })
-    } else {
-      const updated = await prisma.listing.updateMany({
-        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-        data: {
-          status: ListingStatus.ACTIVE,
-          aiReviewFlags: aiResult.flags,
-          aiReviewScore: aiResult.confidence,
         },
-      })
-      if (updated.count === 1) {
+        select: {
+          updatedAt: true,
+          title: true,
+          description: true,
+          priceCents: true,
+          currency: true,
+          category: true,
+          tags: true,
+          photos: {
+            select: { url: true },
+            orderBy: { sortOrder: "asc" },
+            take: 10,
+          },
+        },
+      });
+      reviewedUpdatedAt = reviewTarget?.updatedAt ?? null;
+      if (!reviewTarget || !reviewedUpdatedAt) {
+        break creationReview;
+      }
+
+      const sellerInfo = await sellerOwnerListingReview(seller.userId);
+      if (sellerInfo && sellerInfo.sellerProfileId !== seller.id) {
+        throw new Error("Seller listing-review authority returned a different seller");
+      }
+
+      const listingCount = sellerInfo?.totalListingCount ?? 0;
+
+      const { reviewListingWithAI } = await import("@/lib/ai-review");
+
+      const aiResult = await reviewListingWithAI({
+        listingId: created.id,
+        sellerId: seller.id,
+        title: reviewTarget.title,
+        description: reviewTarget.description,
+        priceCents: reviewTarget.priceCents,
+        currency: reviewTarget.currency,
+        category: reviewTarget.category ?? null,
+        tags: reviewTarget.tags,
+        sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
+        listingCount,
+        imageUrls: reviewTarget.photos.map((photo) => photo.url),
+      }).catch((): AIReviewResult => ({
+        approved: false,
+        flags: ["AI review error"],
+        confidence: 0,
+        reason: "AI error — sending to admin review",
+        altTexts: [],
+      }));
+
+      const transition = await applyListingCreationAIReviewResult(prisma, {
+        listingId: created.id,
+        sellerId: seller.id,
+        reviewedUpdatedAt,
+        approved: aiResult.approved,
+        flags: aiResult.flags,
+        confidence: aiResult.confidence,
+      });
+      if (transition.activated) {
         await prisma.$executeRaw`
           UPDATE "Listing"
           SET status = 'SOLD_OUT'
@@ -416,30 +435,34 @@ async function createListing(_prevState: unknown, formData: FormData) {
             AND status = 'ACTIVE'
         `;
       }
-    }
 
-    // Backfill AI-generated alt text through the shared non-fatal helper.
-    await backfillEmptyAltTexts(created.id, aiResult.altTexts);
+      // Never let an older review write alt text onto a newer photo revision.
+      if (transition.applied) {
+        await backfillEmptyAltTexts(created.id, aiResult.altTexts);
+      }
+    }
   } catch (error) {
     logServerError(error, {
       source: "listing_create_ai_review",
       level: "warning",
       extra: { listingId: created.id, sellerProfileId: seller.id },
     });
-    await prisma.listing.updateMany({
-      where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["AI review error"],
-        aiReviewScore: 0,
-      },
-    }).catch((updateError) => {
-      logServerError(updateError, {
-        source: "listing_create_ai_error_mark_failed",
-        level: "error",
-        extra: { listingId: created.id, sellerProfileId: seller.id },
+    if (reviewedUpdatedAt) {
+      await applyListingCreationAIReviewResult(prisma, {
+        listingId: created.id,
+        sellerId: seller.id,
+        reviewedUpdatedAt,
+        approved: false,
+        flags: ["AI review error"],
+        confidence: 0,
+      }).catch((updateError) => {
+        logServerError(updateError, {
+          source: "listing_create_ai_error_mark_failed",
+          level: "error",
+          extra: { listingId: created.id, sellerProfileId: seller.id },
+        });
       });
-    });
+    }
   }
 
   // Only notify followers if the listing went live (not held for review)
