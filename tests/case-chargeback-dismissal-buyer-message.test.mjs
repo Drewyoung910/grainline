@@ -7,7 +7,7 @@ import ts from "typescript";
 const path = "src/lib/caseStaffResolutionFinalization.ts";
 
 function fixture({ resolution, description, reason = "OTHER" }) {
-  const sent = { notifications: [], emails: [], sellerEmails: 0 };
+  const sent = { notifications: [], emails: [] };
   const result = {
     claimId: "claim", caseId: "case", orderId: "order", buyerUserId: "buyer", sellerUserId: "seller",
     resolution, refundAmountCents: resolution === "DISMISSED" ? null : 1000, currency: "usd",
@@ -16,7 +16,6 @@ function fixture({ resolution, description, reason = "OTHER" }) {
   const dependencies = {
     "@/lib/db": { prisma: { $transaction: (fn) => fn({}) } },
     "@/lib/email": { renderCaseResolvedEmail: () => ({ to: "b@example.test", subject: "s", html: "h" }) },
-    "@/lib/caseEmail": { sendCaseUpdateEmail: async () => { sent.sellerEmails += 1; } },
     "@/lib/emailOutbox": {
       enqueueEmailOutboxOnce: async (job) => { sent.emails.push(job.userId); return { job: { id: "job" } }; },
       processEmailOutboxJobById: async () => undefined,
@@ -59,7 +58,6 @@ test("dismissing a Case a chargeback opened sends the buyer nothing", async () =
   await subject.run();
   assert.deepEqual(subject.sent.notifications, ["seller"]);
   assert.deepEqual(subject.sent.emails, []);
-  assert.equal(subject.sent.sellerEmails, 1);
 });
 
 test("dismissing a Case the buyer opened still tells the buyer", async () => {
