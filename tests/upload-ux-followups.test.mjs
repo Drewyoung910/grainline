@@ -141,7 +141,7 @@ describe("upload UX follow-ups", () => {
     assert.match(imageRoute, /safeRateLimit\(uploadHourlyRatelimit, userId\)/);
     assert.match(verifyRoute, /safeRateLimit\(uploadHourlyRatelimit, userId\)/);
 
-    assert.match(presignRoute, /ContentLength: size/);
+    assert.match(source("src/lib/r2.ts"), /ContentLength: input\.size/);
     assert.match(presignRoute, /expectedSize: size/);
     assert.match(presignRoute, /verificationToken/);
     assert.match(presignRoute, /Sentry\.captureMessage\("Upload verification token creation failed"/);
