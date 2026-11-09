@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
-import { renderCaseResolvedEmail } from "@/lib/email";
-import { sendCaseUpdateEmail } from "@/lib/caseEmail";
+import { renderCaseResolvedEmail, renderCaseUpdateEmail } from "@/lib/email";
 import {
   enqueueEmailOutboxOnce,
   processEmailOutboxJobById,
@@ -66,7 +65,7 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
       relatedUserId: actorUserId,
     }, tx);
 
-    let emailOutboxId: string | null = null;
+    const emailOutboxIds: string[] = [];
     if (result.buyerUserId) {
       const buyer = await userEmailDeliveryRecipient(tx, {
         userId: result.buyerUserId,
@@ -93,34 +92,48 @@ export async function finalizeCaseStaffResolutionWithSideEffects(
           },
           tx,
         );
-        emailOutboxId = enqueued.job?.id ?? null;
+        if (enqueued.job?.id) emailOutboxIds.push(enqueued.job.id);
       }
     }
 
-    return { result, emailOutboxId };
+    const seller = await userEmailDeliveryRecipient(tx, {
+      userId: result.sellerUserId,
+      preferenceKey: "EMAIL_CASE_RESOLVED",
+    });
+    if (seller?.email) {
+      const email = renderCaseUpdateEmail({
+        to: seller.email,
+        recipientName: seller.name,
+        orderId: result.orderId,
+        side: "SELLER",
+        heading: "Grainline decided your case",
+        message: caseResolutionSellerMessage(
+          result.resolution,
+          result.refundAmountCents,
+          result.currency,
+        ),
+      });
+      const enqueued = await enqueueEmailOutboxOnce(
+        {
+          ...email,
+          dedupKey: `case-resolution-seller:${result.claimId}`,
+          templateName: "case_resolved",
+          userId: result.sellerUserId,
+          preferenceKey: "EMAIL_CASE_RESOLVED",
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
+          sourceId: result.claimId,
+        },
+        tx,
+      );
+      if (enqueued.job?.id) emailOutboxIds.push(enqueued.job.id);
+    }
+
+    return { result, emailOutboxIds };
   });
 
-  if (committed.emailOutboxId) {
-    await processEmailOutboxJobById(
-      committed.emailOutboxId,
-    );
+  for (const emailOutboxId of committed.emailOutboxIds) {
+    await processEmailOutboxJobById(emailOutboxId);
   }
-  // The maker needs the decision by email too, since money may have left their
-  // balance. It runs after commit so a mail problem can never undo a recorded refund.
-  await sendCaseUpdateEmail({
-    caseId: committed.result.caseId,
-    orderId: committed.result.orderId,
-    userId: committed.result.sellerUserId,
-    side: "SELLER",
-    dedupKey: `case-resolution-seller:${committed.result.claimId}`,
-    templateName: "case_resolved",
-    heading: "Grainline decided your case",
-    message: caseResolutionSellerMessage(
-      committed.result.resolution,
-      committed.result.refundAmountCents,
-      committed.result.currency,
-    ),
-  });
 
   return committed.result;
 }
