@@ -15,7 +15,10 @@ function fixture({ resolution, description, reason = "OTHER" }) {
   };
   const dependencies = {
     "@/lib/db": { prisma: { $transaction: (fn) => fn({}) } },
-    "@/lib/email": { renderCaseResolvedEmail: () => ({ to: "b@example.test", subject: "s", html: "h" }) },
+    "@/lib/email": {
+      renderCaseResolvedEmail: () => ({ to: "b@example.test", subject: "s", html: "h" }),
+      renderCaseUpdateEmail: () => ({ to: "s@example.test", subject: "s", html: "h" }),
+    },
     "@/lib/emailOutbox": {
       enqueueEmailOutboxOnce: async (job) => { sent.emails.push(job.userId); return { job: { id: "job" } }; },
       processEmailOutboxJobById: async () => undefined,
@@ -57,19 +60,19 @@ test("dismissing a Case a chargeback opened sends the buyer nothing", async () =
   const subject = fixture({ resolution: "DISMISSED", description: chargeback });
   await subject.run();
   assert.deepEqual(subject.sent.notifications, ["seller"]);
-  assert.deepEqual(subject.sent.emails, []);
+  assert.deepEqual(subject.sent.emails, ["seller"]);
 });
 
 test("dismissing a Case the buyer opened still tells the buyer", async () => {
   const subject = fixture({ resolution: "DISMISSED", description: "The chair arrived broken", reason: "DAMAGED" });
   await subject.run();
   assert.deepEqual(subject.sent.notifications, ["buyer", "seller"]);
-  assert.deepEqual(subject.sent.emails, ["buyer"]);
+  assert.deepEqual(subject.sent.emails, ["buyer", "seller"]);
 });
 
 test("a refund on a chargeback Case still tells the buyer about the money", async () => {
   const subject = fixture({ resolution: "REFUND_FULL", description: chargeback });
   await subject.run();
   assert.deepEqual(subject.sent.notifications, ["buyer", "seller"]);
-  assert.deepEqual(subject.sent.emails, ["buyer"]);
+  assert.deepEqual(subject.sent.emails, ["buyer", "seller"]);
 });
