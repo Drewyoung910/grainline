@@ -15,7 +15,8 @@ import {
 import {
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
-import { sanitizeRichText, truncateText } from "@/lib/sanitize";
+import { normalizeCaseMessageBody } from "@/lib/caseMessageBody";
+import { truncateText } from "@/lib/sanitize";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -39,7 +40,7 @@ import { z } from "zod";
 import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 
 const CaseMessageSchema = z.object({
-  body: z.string().min(1).max(5000),
+  body: z.string(),
   attachmentKeys: z
     .array(z.string().min(1).max(500))
     .max(MAX_CASE_MESSAGE_ATTACHMENTS)
@@ -138,7 +139,18 @@ export async function POST(
       }
       throw e;
     }
-    const messageBody = sanitizeRichText(parsed.body.trim());
+    const normalizedMessageBody = normalizeCaseMessageBody(parsed.body);
+    if (!normalizedMessageBody.ok) {
+      return privateJson(
+        {
+          error: normalizedMessageBody.reason === "required"
+            ? "body is required."
+            : "Case messages must be at most 5,000 characters.",
+        },
+        { status: 400 },
+      );
+    }
+    const messageBody = normalizedMessageBody.body;
     const attachmentKeys = [...new Set(parsed.attachmentKeys)];
     if (
       attachmentKeys.length > 0
@@ -155,9 +167,6 @@ export async function POST(
         { status: 400 },
       );
     }
-    if (!messageBody)
-      return privateJson({ error: "body is required." }, { status: 400 });
-
     let preflight;
     try {
       preflight = await getCaseMessagePreflight({

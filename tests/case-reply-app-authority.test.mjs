@@ -64,7 +64,7 @@ describe("Case-reply application authority", () => {
       ["rate limit", "await safeRateLimit("],
       ["local actor", "await ensureUserByClerkId(userId)"],
       ["bounded body", "await readBoundedJson(req, CASE_MESSAGE_BODY_MAX_BYTES)"],
-      ["sanitization", "sanitizeRichText(parsed.body.trim())"],
+      ["sanitization and stored bounds", "normalizeCaseMessageBody(parsed.body)"],
       ["preflight", "await getCaseMessagePreflight({"],
       ["staff PIN", "await requireStaffAdminPinForApi(req, userId, sessionId)"],
       ["R2 verification", "await verifyPrivateCaseEvidenceForReply({"],

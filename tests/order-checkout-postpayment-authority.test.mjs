@@ -172,4 +172,25 @@ describe("Order checkout post-payment authority", () => {
       projection: projection({ items: [{ ...projection().items[0], listingSnapshot: {} }] }),
     }]), /incomplete item snapshot/);
   });
+
+  it("applies database text limits by Unicode code point", () => {
+    const hundredEmoji = "🪵".repeat(100);
+    const ready = checkoutPostpaymentResultFromRows([{
+      outcome: "ready",
+      order_id: "order-1",
+      projection: projection({
+        buyerName: hundredEmoji,
+        sellerDisplayName: hundredEmoji,
+      }),
+    }]);
+
+    assert.equal(ready.outcome, "ready");
+    assert.equal(ready.projection.buyerName, hundredEmoji);
+    assert.equal(ready.projection.sellerDisplayName, hundredEmoji);
+    assert.throws(() => checkoutPostpaymentResultFromRows([{
+      outcome: "ready",
+      order_id: "order-1",
+      projection: projection({ sellerDisplayName: `${hundredEmoji}🪵` }),
+    }]), /seller display name/);
+  });
 });

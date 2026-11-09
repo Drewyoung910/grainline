@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import {
   validateCaseMessagePageRows,
 } from "../src/lib/caseMessagePageResult.ts";
+import { sanitizeRichText } from "../src/lib/sanitize.ts";
+import { codePointLength } from "../src/lib/textLength.ts";
 
 const MESSAGE_TIME = new Date("2026-07-29T05:40:02.000Z");
 
@@ -52,6 +54,14 @@ describe("Case-message page application authority", () => {
       ])[0].authorKind,
       null,
     );
+  });
+
+  it("accepts a stored message bounded by code points and database bytes", () => {
+    const body = sanitizeRichText(`${"😀".repeat(900)}${"&".repeat(800)}`);
+    assert.equal(codePointLength(body), 4900);
+    assert.equal(new TextEncoder().encode(body).byteLength, 7600);
+    assert.ok(body.length > 5000, "the fixture must exceed the old UTF-16 limit");
+    assert.equal(validateCaseMessagePageRows([message({ body })])[0].body, body);
   });
 
   it("rejects row count, shape, field, and ordering drift", () => {
