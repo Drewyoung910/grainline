@@ -152,12 +152,10 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
+  // Nothing below this point has proved it came from the provider. Junk requests must
+  // not spend Sentry events or Redis commands, or a flood could blind monitoring and
+  // exhaust the budget the fail-closed limiters depend on.
   if (!signature) {
-    Sentry.captureMessage("Stripe webhook signature header missing", {
-      level: "warning",
-      tags: { source: "stripe_webhook_signature" },
-    });
-    await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Missing Stripe signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
@@ -166,16 +164,6 @@ export async function POST(req: Request) {
     body = await readBoundedText(req, STRIPE_WEBHOOK_BODY_MAX_BYTES);
   } catch (err) {
     if (isRequestBodyTooLargeError(err)) {
-      Sentry.captureMessage("Stripe webhook payload is too large", {
-        level: "warning",
-        tags: { source: "stripe_webhook_payload" },
-        extra: { maxBytes: err.maxBytes },
-      });
-      await recordWebhookFailureSpike({
-        webhook: "stripe",
-        kind: "payload",
-        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
-      });
       return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw err;
@@ -186,8 +174,6 @@ export async function POST(req: Request) {
       nextSecret, constructEvent: (payload, header, key) => stripe.webhooks.constructEvent(payload, header, key) });
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", sanitizeEmailOutboxError(err));
-    Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });
-    await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 

@@ -50,12 +50,10 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.INTERNAL_SERVER_ERROR },
     );
   }
+  // Nothing below this point has proved it came from the provider. Junk requests must
+  // not spend Sentry events or Redis commands, or a flood could blind monitoring and
+  // exhaust the budget the fail-closed limiters depend on.
   if (!signature) {
-    Sentry.captureMessage("Stripe v2 webhook signature header missing", {
-      level: "warning",
-      tags: { source: "stripe_v2_webhook_signature" },
-    });
-    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Missing Stripe signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
@@ -64,16 +62,6 @@ export async function POST(req: Request) {
     body = await readBoundedText(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES);
   } catch (err) {
     if (isRequestBodyTooLargeError(err)) {
-      Sentry.captureMessage("Stripe v2 webhook payload is too large", {
-        level: "warning",
-        tags: { source: "stripe_v2_webhook_payload" },
-        extra: { maxBytes: err.maxBytes },
-      });
-      await recordWebhookFailureSpike({
-        webhook: "stripe_v2",
-        kind: "payload",
-        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
-      });
       return NextResponse.json({ error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw err;
@@ -84,8 +72,6 @@ export async function POST(req: Request) {
     notification = stripe.parseEventNotification(body, signature, secret) as StripeConnectV2NotificationEnvelope;
   } catch (err: unknown) {
     console.error("Stripe v2 webhook signature verification failed:", sanitizeEmailOutboxError(err));
-    Sentry.captureException(err, { tags: { source: "stripe_v2_webhook_signature" } });
-    await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json({ error: "Invalid signature" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 

@@ -135,17 +135,10 @@ export async function POST(request: Request) {
   const id = request.headers.get("svix-id");
   const timestamp = request.headers.get("svix-timestamp");
   const signature = request.headers.get("svix-signature");
+  // Nothing below this point has proved it came from the provider. Junk requests must
+  // not spend Sentry events or Redis commands, or a flood could blind monitoring and
+  // exhaust the budget the fail-closed limiters depend on.
   if (!id || !timestamp || !signature) {
-    Sentry.captureMessage("Resend webhook signature headers missing", {
-      level: "warning",
-      tags: { source: "resend_webhook_signature" },
-      extra: {
-        hasSvixId: Boolean(id),
-        hasSvixTimestamp: Boolean(timestamp),
-        hasSvixSignature: Boolean(signature),
-      },
-    });
-    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
     return NextResponse.json(
       { ok: false, error: "Missing webhook signature headers" },
       { status: HTTP_STATUS.BAD_REQUEST },
@@ -158,16 +151,6 @@ export async function POST(request: Request) {
     payload = await readBoundedText(request, RESEND_WEBHOOK_BODY_MAX_BYTES);
   } catch (err) {
     if (isRequestBodyTooLargeError(err)) {
-      Sentry.captureMessage("Resend webhook payload is too large", {
-        level: "warning",
-        tags: { source: "resend_webhook_payload" },
-        extra: { maxBytes: err.maxBytes, webhookId: id },
-      });
-      await recordWebhookFailureSpike({
-        webhook: "resend",
-        kind: "payload",
-        status: HTTP_STATUS.PAYLOAD_TOO_LARGE,
-      });
       return NextResponse.json({ ok: false, error: "Payload too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
     }
     throw err;
@@ -179,9 +162,7 @@ export async function POST(request: Request) {
       payload,
       headers: { id, timestamp, signature },
     });
-  } catch (err) {
-    Sentry.captureException(err, { tags: { source: "resend_webhook_verify" } });
-    await recordWebhookFailureSpike({ webhook: "resend", kind: "signature", status: HTTP_STATUS.BAD_REQUEST });
+  } catch {
     return NextResponse.json(
       { ok: false, error: "Invalid webhook signature" },
       { status: HTTP_STATUS.BAD_REQUEST },
