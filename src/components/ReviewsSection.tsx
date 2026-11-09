@@ -8,6 +8,7 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import BlockReportButton from "@/components/BlockReportButton";
 import { publicListingPath } from "@/lib/publicPaths";
 import { avatarInitials } from "@/lib/avatarInitials";
+import { publicReviewerName } from "@/lib/reviewAuthorPrivacy";
 import { lockReviewEligibleOrderItem } from "@/lib/orderEligibilityAuthority";
 import { ownerReviewVoteIds } from "@/lib/reviewVoteAccess";
 
@@ -463,20 +464,27 @@ export default async function ReviewsSection({
           {/* Others */}
           {others.length === 0 ? (
             mine ? null : (
-              <p className="text-sm text-neutral-600">No reviews yet.</p>
+              <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">
+                No reviews yet. Be the first to share your experience.
+              </div>
             )
           ) : (
             <ul className="space-y-4">
               {others.map((r) => {
                 const stars = r.ratingX2 / 2;
-                const displayName = reviewerName(r);
-                const initials = reviewerInitials(r);
+                // Only the maker sees the account name and photo. Other shoppers
+                // see a first name and last initial.
+                const displayName = viewerIsSeller || reviewerUnavailable(r)
+                  ? reviewerName(r)
+                  : publicReviewerName(r.reviewerName);
+                const initials = avatarInitials(displayName, "B");
+                const showPhoto = viewerIsSeller && !reviewerUnavailable(r) && !!r.reviewerImageUrl;
 
                 return (
                   <li key={r.id} className="border-b border-stone-200/70 pb-4 last:border-b-0">
                     <div className="flex items-start gap-3">
                       <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
-                        {!reviewerUnavailable(r) && r.reviewerImageUrl ? (
+                        {showPhoto && r.reviewerImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={r.reviewerImageUrl}

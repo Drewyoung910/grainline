@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import {
   emailSuppressionAddressKeys,
   emailSuppressionLookupForEmails,
+  emailSuppressionMatchWhereSql,
   normalizeEmailSuppressionAddress,
 } from "@/lib/emailSuppression";
 import {
@@ -31,23 +32,6 @@ type EmailSuppressionClient = Pick<
 >;
 type EmailSuppressionLookupClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 type EmailSuppressionLookup = ReturnType<typeof emailSuppressionLookupForEmails>;
-
-function emailSuppressionMatchWhereSql(
-  lookup: EmailSuppressionLookup,
-  emailColumn: Prisma.Sql = Prisma.sql`"email"`,
-) {
-  const exactMatch = lookup.exactEmails.length > 0
-    ? Prisma.sql`${emailColumn} IN (${Prisma.join(lookup.exactEmails)})`
-    : Prisma.sql`false`;
-  const gmailMatch = lookup.gmailLocalParts.length > 0
-    ? Prisma.sql`(
-        split_part(${emailColumn}, '@', 2) IN ('gmail.com', 'googlemail.com')
-        AND replace(split_part(split_part(${emailColumn}, '@', 1), '+', 1), '.', '') IN (${Prisma.join(lookup.gmailLocalParts)})
-      )`
-    : Prisma.sql`false`;
-
-  return Prisma.sql`(${exactMatch} OR ${gmailMatch})`;
-}
 
 async function newsletterIdsMatchingSuppressionLookup(
   client: EmailSuppressionLookupClient,

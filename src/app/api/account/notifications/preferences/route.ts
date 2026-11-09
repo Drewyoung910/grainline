@@ -6,7 +6,11 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
+import {
+  isAlwaysOnInAppPreferenceKey,
+  isValidEmailPreferenceKey,
+  VALID_PREFERENCE_KEYS,
+} from "@/lib/notificationPreferenceKeys";
 import { isAlwaysOnEmailPreferenceKey } from "@/lib/emailPreferencePolicy";
 import { notificationPreferenceRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -59,6 +63,13 @@ export async function POST(request: NextRequest) {
   if (isAlwaysOnEmailPreferenceKey(type)) {
     return privateJson(
       { error: "Order, case, and refund emails are always sent." },
+      { status: HTTP_STATUS.BAD_REQUEST },
+    );
+  }
+  // A person who switched one off before this rule can still switch it back on.
+  if (!enabled && isAlwaysOnInAppPreferenceKey(type)) {
+    return privateJson(
+      { error: "Order, case, refund, payout and account notices can't be turned off." },
       { status: HTTP_STATUS.BAD_REQUEST },
     );
   }

@@ -1,7 +1,7 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
 import { buildBanAuditMetadata } from './banAuditMetadata'
-import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
+import { banClerkUserAndRevokeSessions, clerkUserExists, unbanClerkUser } from './clerkUserLifecycle'
 import {
   expireOpenCheckoutSessionsForBuyer,
   expireOpenCheckoutSessionsForSeller,
@@ -492,6 +492,24 @@ export async function unbanUser({ userId, adminId, reason }: {
     })
     return { sellerRestoreWarning: null }
   }
+  // A person who deleted their Clerk account while orders were open stays banned
+  // here until cleanup. Unbanning would reopen a buyable shop nobody can sign in to.
+  let hasLogin: boolean
+  try {
+    hasLogin = await clerkUserExists(target.clerkId)
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: 'unban_user_clerk_lookup' },
+      extra: { userId, adminId },
+    })
+    throw new BanUserExternalSyncError("Clerk could not be reached, so nothing was changed. Try again.")
+  }
+  if (!hasLogin) {
+    throw new BanUserPolicyError(
+      'This person deleted their account and it is waiting for cleanup, so it cannot be unbanned.',
+      409,
+    )
+  }
   const staffClient = getOrderStaffReadClient()
   const seller = await sellerStaffOrderabilityState(staffClient, {
     actorId: adminId,
@@ -524,6 +542,15 @@ export async function unbanUser({ userId, adminId, reason }: {
     select: { metadata: true },
   })
   const capabilityBanMetadata = readBanAuditMetadata(latestBanForCapability?.metadata)
+  if (seller && !seller.stripeAccountId) {
+    // No Stripe account to read, and the ban forced vacation on. Put back what the
+    // maker had, or they stay hidden with no sign of why.
+    sellerRestore = {
+      id: seller.id,
+      chargesEnabled: false,
+      vacationMode: capabilityBanMetadata.previousSellerProfile?.vacationMode ?? false,
+    }
+  }
   const userUnbanCapability = await mintUserStaffCapability(staffClient, {
     actorId: adminId,
     targetId: userId,
@@ -574,6 +601,12 @@ export async function unbanUser({ userId, adminId, reason }: {
       })
     } catch (error) {
       throwSellerOrderabilityPolicyError(error)
+    }
+    for (const request of capabilityBanMetadata.previousCommissionRequests) {
+      await tx.commissionRequest.updateMany({
+        where: { id: request.id, buyerId: userId, status: 'CLOSED' },
+        data: { status: request.status },
+      })
     }
     const unbanAuditLog = await tx.adminAuditLog.create({
       data: {

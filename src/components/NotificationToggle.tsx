@@ -6,9 +6,11 @@ import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys
 export function NotificationToggle({
   type,
   enabled: initialEnabled,
+  label,
 }: {
   type: NotificationPreferenceKey;
   enabled: boolean;
+  label: string;
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [loading, setLoading] = useState(false);
@@ -47,7 +49,8 @@ export function NotificationToggle({
     <button
       onClick={toggle}
       disabled={loading}
-      className={`relative inline-flex h-6 w-11 min-w-[44px] shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+      aria-label={label}
+      className={`relative inline-flex h-6 w-11 min-w-[44px] shrink-0 items-center rounded-full transition-colors ${
         enabled ? "bg-[#2C1F1A]" : "bg-neutral-200"
       } ${loading ? "opacity-50" : ""}`}
       role="switch"

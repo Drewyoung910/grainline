@@ -11,6 +11,7 @@ import {
 } from "@/lib/adminPin";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { logServerError } from "@/lib/serverErrorLogger";
+import { adminPinExpiredActionState } from "@/lib/adminPinApi";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
 import {
   appendStaffOrderNote,
@@ -66,6 +67,8 @@ export async function markReviewed(orderId: string, _prevState?: unknown): Promi
     revalidatePath("/admin/orders");
     return { ok: true };
   } catch (error) {
+    const pinExpired = adminPinExpiredActionState(error);
+    if (pinExpired) return pinExpired;
     logServerError(error, {
       source: "admin_order_mark_reviewed",
       extra: { orderId },
@@ -99,6 +102,8 @@ export async function recordLabelVoided(orderId: string, _prevState?: unknown): 
     revalidatePath("/admin/orders");
     return { ok: true };
   } catch (error) {
+    const pinExpired = adminPinExpiredActionState(error);
+    if (pinExpired) return pinExpired;
     logServerError(error, {
       source: "admin_order_record_label_voided",
       extra: { orderId },
@@ -133,6 +138,8 @@ export async function appendNote(orderId: string, _prevState: unknown, formData:
     revalidatePath(`/admin/orders/${orderId}`);
     return { ok: true };
   } catch (error) {
+    const pinExpired = adminPinExpiredActionState(error);
+    if (pinExpired) return pinExpired;
     logServerError(error, {
       source: "admin_order_append_note",
       extra: { orderId },

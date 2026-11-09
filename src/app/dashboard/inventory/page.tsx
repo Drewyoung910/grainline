@@ -53,7 +53,7 @@ export default async function InventoryPage() {
           <span className="font-medium">
             {pendingReviewCount === 1 ? "1 listing is under review." : `${pendingReviewCount} listings are under review.`}
           </span>{" "}
-          Most reviews finish within 1-2 business days. Your saved stock changes are kept, and we&apos;ll notify you when a listing goes live or needs edits.
+          Most reviews finish within a few business days. Your saved stock changes are kept, and we&apos;ll notify you when a listing goes live or needs edits.
         </div>
       )}
 

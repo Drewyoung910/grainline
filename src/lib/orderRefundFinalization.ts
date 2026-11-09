@@ -138,6 +138,7 @@ export async function finalizeBlockedCheckoutOrderRefund(input: {
         refundAmountCents: result.refundAmountCents,
         currency: input.claim.currency,
         orderId: result.orderId,
+        checkoutNotCompleted: true,
       });
       const enqueued = await enqueueEmailOutboxOnce(
         {

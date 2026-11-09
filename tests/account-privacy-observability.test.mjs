@@ -182,7 +182,7 @@ describe("account and privacy route observability guardrails", () => {
 
     assert.match(
       route,
-      /import \{ isValidEmailPreferenceKey, VALID_PREFERENCE_KEYS \}/,
+      /isValidEmailPreferenceKey,\s*VALID_PREFERENCE_KEYS/,
     );
     assert.match(route, /updateUserOwnerNotificationPreference\(tx, \{/);
     assert.match(route, /clearOneClickEmailSuppression\(me\.email, tx\)/);
@@ -241,15 +241,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(suppression, /"reason"::text = \$\{EmailSuppressionReason\.MANUAL\} AND "source" <> 'one_click_unsubscribe'/);
     assert.match(
       adminEmailRoute,
-      /isEmailSuppressed\(normalizedRecipientEmail\)/,
-    );
-    assert.match(
-      adminEmailRoute,
-      /Recipient email is suppressed or unsubscribed/,
-    );
-    assert.doesNotMatch(
-      adminEmailRoute,
-      /Recipient email is suppressed after a bounce or complaint/,
+      /isEmailDeliverySuppressed\(normalizedRecipientEmail\)/,
     );
   });
 
@@ -377,9 +369,7 @@ describe("account and privacy route observability guardrails", () => {
     );
     assert.match(unsubscribe, /emailSuppressionAddressKeys\(normalized\)/);
     assert.match(unsubscribe, /emailSuppressionLookupForEmails\(emails\)/);
-    assert.match(unsubscribe, /function emailSuppressionMatchWhereSql/);
-    assert.match(unsubscribe, /split_part\(\$\{emailColumn\}, '@', 2\) IN \('gmail\.com', 'googlemail\.com'\)/);
-    assert.match(unsubscribe, /replace\(split_part\(split_part\(\$\{emailColumn\}, '@', 1\), '\+', 1\), '\.', ''\) IN/);
+    assert.match(unsubscribe, /emailSuppressionMatchWhereSql\(lookup\)/);
     assert.match(unsubscribe, /userSignedUnsubscribeTokenSuperseded\(prisma, \{/);
     assert.match(unsubscribe, /suppressionKeys: emails/);
     assert.match(unsubscribe, /issuedAt: new Date\(issuedAt\)/);

@@ -20,6 +20,7 @@ import {
   meetsGuildMasterRequirements,
   metricsPeriodStart,
   type SellerMetricsResult,
+  floorMetric,
 } from "@/lib/metrics";
 import { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
@@ -208,16 +209,16 @@ function guildMasterFailureDetails(
 ) {
   return [
     !criteria.ratingMet
-      ? `${metrics.averageRating.toFixed(1)}/${GUILD_MASTER_REQUIREMENTS.averageRating} average rating`
+      ? `${floorMetric(metrics.averageRating)}/${GUILD_MASTER_REQUIREMENTS.averageRating} average rating`
       : null,
     !criteria.reviewsMet
       ? `${metrics.reviewCount}/${GUILD_MASTER_REQUIREMENTS.reviewCount} reviews`
       : null,
     !criteria.shippingMet
-      ? `${(metrics.onTimeShippingRate * 100).toFixed(0)}%/${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}% on-time shipping`
+      ? `${floorMetric(metrics.onTimeShippingRate * 100)}%/${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}% on-time shipping`
       : null,
     !criteria.responseMet
-      ? `${(metrics.responseRate * 100).toFixed(0)}%/${GUILD_MASTER_REQUIREMENTS.responseRate * 100}% response rate`
+      ? `${floorMetric(metrics.responseRate * 100)}%/${GUILD_MASTER_REQUIREMENTS.responseRate * 100}% response rate`
       : null,
     !criteria.ageMet
       ? `${metrics.accountAgeDays}/${GUILD_MASTER_REQUIREMENTS.accountAgeDays} account age days`
@@ -465,7 +466,7 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
     try {
       await sendGuildMemberRevokedEmail({
         seller: { displayName: revocation.sellerDisplayName, email: emailRecipient.email },
-        reason: "Your Guild Member badge was revoked by Grainline staff.",
+        reason: "Grainline staff removed this badge after reviewing your shop. If you have questions, contact support@thegrainline.com.",
       });
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {
@@ -556,6 +557,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
           email: emailRecipient.email,
         },
         profileId: verification.sellerProfile.id,
+        level: "GUILD_MASTER",
       });
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {
@@ -600,6 +602,25 @@ async function rejectGuildMaster(formData: FormData) {
     sourceId: rejection.auditId,
   });
 
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: rejection.sellerUserId,
+    preferenceKey: "EMAIL_VERIFICATION_REJECTED",
+  });
+  if (emailRecipient) {
+    try {
+      await sendVerificationRejected({
+        seller: { displayName: rejection.sellerDisplayName, email: emailRecipient.email },
+        notes: reviewNotes,
+        level: "GUILD_MASTER",
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: rejection.sellerProfileId,
+      });
+    }
+  }
+
   revalidatePath("/admin/verification");
 }
 
@@ -640,6 +661,7 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
     try {
       await sendGuildMasterRevokedEmail({
         seller: { displayName: revocation.sellerDisplayName, email: emailRecipient.email },
+        byStaff: true,
       });
     } catch (error) {
       captureVerificationEmailFailure(error, "admin_verification_email", {
@@ -686,6 +708,26 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
     sourceType: NOTIFICATION_SOURCE_TYPES.GUILD_ADMIN_ACTION,
     sourceId: reinstatement.auditId,
   });
+
+  const emailRecipient = await userEmailDeliveryRecipient(prisma, {
+    userId: reinstatement.sellerUserId,
+    preferenceKey: "EMAIL_VERIFICATION_APPROVED",
+  });
+  if (emailRecipient) {
+    try {
+      await sendVerificationApproved({
+        seller: { displayName: reinstatement.sellerDisplayName, email: emailRecipient.email },
+        profileId: sellerProfileId,
+        level: "GUILD_MEMBER",
+        reinstated: true,
+      });
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        sellerProfileId,
+        verificationId: null,
+      });
+    }
+  }
 
   revalidatePath("/admin/verification");
   return { ok: true };
@@ -1037,10 +1079,10 @@ export default async function AdminVerificationPage({
                     </div>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                       {[
-                        { label: "Avg Rating", value: `${m.averageRating.toFixed(1)} ★`, req: `≥${GUILD_MASTER_REQUIREMENTS.averageRating}`, met: mc.ratingMet },
+                        { label: "Avg Rating", value: `${floorMetric(m.averageRating)} ★`, req: `≥${GUILD_MASTER_REQUIREMENTS.averageRating}`, met: mc.ratingMet },
                         { label: "Reviews", value: String(m.reviewCount), req: `≥${GUILD_MASTER_REQUIREMENTS.reviewCount}`, met: mc.reviewsMet },
-                        { label: "On-Time Shipping", value: `${(m.onTimeShippingRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%`, met: mc.shippingMet },
-                        { label: "Response Rate", value: `${(m.responseRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%`, met: mc.responseMet },
+                        { label: "On-Time Shipping", value: `${floorMetric(m.onTimeShippingRate * 100)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%`, met: mc.shippingMet },
+                        { label: "Response Rate", value: `${floorMetric(m.responseRate * 100)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%`, met: mc.responseMet },
                         { label: "Account Age", value: `${m.accountAgeDays}d`, req: `≥${GUILD_MASTER_REQUIREMENTS.accountAgeDays}d`, met: mc.ageMet },
                         { label: "Total Sales", value: formatUsd(m.totalSalesCents), req: "≥$1,000", met: mc.salesMet },
                         { label: "Open Cases", value: String(m.activeCaseCount), req: "0", met: mc.casesMet },

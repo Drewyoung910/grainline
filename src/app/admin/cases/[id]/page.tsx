@@ -97,6 +97,7 @@ export default async function AdminCaseDetailPage({
   const staff = await requireAdminPageAccess();
   if (!staff) return <AdminPinGate />;
   const [{ id }, { caseBefore }] = await Promise.all([params, searchParams]);
+  if (!/^[A-Za-z0-9._:-]{1,191}$/.test(id)) notFound();
 
   const visibleCase = await getVisibleCaseById({
     actorUserId: staff.id,

@@ -12,10 +12,6 @@ export type NormalizedSupportRequest = {
   listingId: string | null;
 };
 
-type SupportRequestAccountExportWhere =
-  | { userId: string }
-  | { OR: Array<{ userId: string } | { email: { in: string[] } }> };
-
 export const SUPPORT_REQUEST_EMAIL_PENDING_MARKER =
   "Notification email delivery is pending confirmation; check Sentry or email provider logs if this remains after intake.";
 export const SUPPORT_REQUEST_CLOSURE_EVIDENCE_MIN_CHARS = 40;
@@ -124,30 +120,6 @@ export function supportRequestRecipient(kind: SupportRequestKind) {
   return kind === "data_request" ? "legal@thegrainline.com" : "support@thegrainline.com";
 }
 
-export function supportRequestStorageKind(kind: SupportRequestKind) {
-  return kind === "data_request" ? "DATA_REQUEST" : "SUPPORT";
-}
-
-export function supportRequestSlaDueAt(createdAt = new Date()) {
-  return new Date(createdAt.getTime() + 45 * 24 * 60 * 60 * 1000);
-}
-
-export function supportRequestAccountExportWhere(
-  userId: string,
-  accountEmails: readonly string[] | string | null,
-): SupportRequestAccountExportWhere {
-  let emails: string[];
-  if (Array.isArray(accountEmails)) {
-    emails = [...new Set(accountEmails.filter((email): email is string => Boolean(email)))];
-  } else if (typeof accountEmails === "string" && accountEmails) {
-    emails = [accountEmails];
-  } else {
-    emails = [];
-  }
-  if (emails.length === 0) return { userId };
-  return { OR: [{ userId }, { email: { in: emails } }] };
-}
-
 export function supportRequestEmailNotificationState(input: {
   emailSentAt: Date | null;
   emailLastError: string | null;
@@ -199,7 +171,7 @@ export function supportRequestHtml(
     ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Request ID</td><td style="padding:6px 0;">${esc(context.requestId)}</td></tr>`
     : "";
   const slaRow = context.slaDueAt
-    ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">SLA due</td><td style="padding:6px 0;">${esc(context.slaDueAt.toISOString())}</td></tr>`
+    ? `<tr><td style="padding:6px 24px 6px 0;color:#6B6A66;">Respond by</td><td style="padding:6px 0;">${esc(context.slaDueAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }))}</td></tr>`
     : "";
   return `<!DOCTYPE html>
 <html lang="en">

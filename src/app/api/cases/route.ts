@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { sendCaseOpened } from "@/lib/email";
+import { renderCaseOpenedEmail } from "@/lib/email";
+import { queueCaseEmail, sendCaseUpdateEmail } from "@/lib/caseEmail";
 import {
   caseCreateRatelimit,
   rateLimitResponse,
@@ -176,11 +177,18 @@ export async function POST(req: Request) {
         preferenceKey: "EMAIL_CASE_OPENED",
       });
       if (sellerRecipient) {
-        await sendCaseOpened({
-          orderId: result.orderId,
-          seller: { name: sellerRecipient.name, email: sellerRecipient.email },
-          buyer: { name: me.name },
-          caseDescription: description,
+        await queueCaseEmail({
+          email: renderCaseOpenedEmail({
+            orderId: result.orderId,
+            seller: { name: sellerRecipient.name, email: sellerRecipient.email },
+            buyer: { name: me.name },
+            caseDescription: description,
+          }),
+          caseId: result.caseId,
+          dedupKey: `case-opened:${result.caseId}`,
+          templateName: "case_opened",
+          userId: result.sellerUserId,
+          preferenceKey: "EMAIL_CASE_OPENED",
         });
       }
     } catch (emailError) {
@@ -194,6 +202,18 @@ export async function POST(req: Request) {
         },
       });
     }
+
+    await sendCaseUpdateEmail({
+      caseId: result.caseId,
+      orderId: result.orderId,
+      userId: result.buyerUserId,
+      side: "BUYER",
+      dedupKey: `case-opened-buyer:${result.caseId}`,
+      heading: "Your case is open",
+      message:
+        "We've told the maker. They have 48 hours to respond. If they don't, Grainline staff will step in.",
+      templateName: "case_opened",
+    });
 
     return privateJson(
       {

@@ -82,7 +82,7 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
             id={`reject-reason-${listingId}`}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            maxLength={1000}
+            maxLength={500}
             rows={3}
             className="w-full rounded border border-red-200 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
           />

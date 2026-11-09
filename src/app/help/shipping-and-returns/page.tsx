@@ -102,7 +102,7 @@ export default function ShippingAndReturnsHelpPage() {
         <h2>Still need help?</h2>
         <p>
           Email <a href="mailto:support@thegrainline.com">support@thegrainline.com</a> or use our{" "}
-          <Link href="/support">support form</Link>. We typically respond within one business day.
+          <Link href="/support">support form</Link>. We typically respond within a few business days.
         </p>
       </div>
 

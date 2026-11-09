@@ -104,11 +104,12 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // First page: 90-day cutoff. Subsequent pages: use cursor (fetch items older than cursor).
+  // The Terms say the feed covers up to 90 days, so every page stops at the cutoff.
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const timestampCursorWhere = (kind: AccountFeedKind, dateField: "createdAt" | "publishedAt" | "sentAt") => {
-    if (!parsedCursor) return { [dateField]: { gte: cutoff } };
-    if (parsedCursor.legacy) return { [dateField]: { lt: parsedCursor.date } };
+    const withinWindow = { [dateField]: { gte: cutoff } };
+    if (!parsedCursor) return withinWindow;
+    if (parsedCursor.legacy) return { AND: [withinWindow, { [dateField]: { lt: parsedCursor.date } }] };
 
     const sameTimestampMode = accountFeedCursorTieMode(kind, parsedCursor);
     const sameTimestamp =
@@ -117,7 +118,7 @@ export async function GET(req: NextRequest) {
         : sameTimestampMode === "after-id" && parsedCursor.id
           ? [{ [dateField]: parsedCursor.date, id: { lt: parsedCursor.id } }]
           : [];
-    return { OR: [{ [dateField]: { lt: parsedCursor.date } }, ...sameTimestamp] };
+    return { AND: [withinWindow, { OR: [{ [dateField]: { lt: parsedCursor.date } }, ...sameTimestamp] }] };
   };
 
   const [listings, blogPosts, broadcasts] = await Promise.all([

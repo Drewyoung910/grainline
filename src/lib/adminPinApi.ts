@@ -25,3 +25,10 @@ export async function requireStaffAdminPinForApi(
   if (pinVerified) return null;
   return privateJson({ error: "Admin PIN required" }, { status: HTTP_STATUS.FORBIDDEN });
 }
+
+/** For server actions: the PIN cookie lasts 4 hours, which is routine, not an error. */
+export function adminPinExpiredActionState(error: unknown): { ok: false; error: string } | null {
+  return error instanceof Error && error.message === "Admin PIN required"
+    ? { ok: false, error: "Your admin PIN has expired. Reload the page and enter it again." }
+    : null;
+}

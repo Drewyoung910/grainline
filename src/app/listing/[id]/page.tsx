@@ -33,6 +33,7 @@ import { extractRouteId, publicListingPath, publicSellerPath, publicTagPath, rou
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
+import { publicReviewerName } from "@/lib/reviewAuthorPrivacy";
 import { DEFAULT_CURRENCY, formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { sellerPublicLocation } from "@/lib/sellerProfilePublicAccess";
@@ -446,7 +447,7 @@ export default async function ListingPage({
   if (topReviews.length > 0) {
     productLd.review = topReviews.map((r) => ({
       "@type": "Review",
-      author: { "@type": "Person", name: r.reviewerName ?? "Grainline Buyer" },
+      author: { "@type": "Person", name: publicReviewerName(r.reviewerName) },
       datePublished: r.createdAt.toISOString(),
       reviewRating: {
         "@type": "Rating",

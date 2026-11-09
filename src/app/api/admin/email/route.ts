@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { userClerkGate } from "@/lib/userIdentityAccess";
 import { z } from "zod";
 import { adminEmailRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { isEmailDeliverySuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { createNotification } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/sanitize";
@@ -23,6 +23,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { userStaffEmailRecipient } from "@/lib/userStaffAccess";
 import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 
 const APP_URL = EMAIL_APP_URL;
 const ADMIN_EMAIL_BODY_MAX_BYTES = 64 * 1024;
@@ -39,18 +40,21 @@ const Schema = z.object({
 function safeSubject(subject: string) {
   return stripBidiControls(subject.normalize("NFKC"))
     .replace(/[\r\n]+/g, " ")
-    .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
+    .replace(/[\x00-\x1F\x7F<>]/g, "")
     .trim();
 }
 
 export async function POST(request: Request) {
-  const { userId: clerkId } = await auth();
+  const { userId: clerkId, sessionId } = await auth();
   if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: HTTP_STATUS.UNAUTHORIZED });
 
   const admin = await userClerkGate(prisma, clerkId);
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
     return privateJson({ error: "Forbidden — ADMIN only" }, { status: HTTP_STATUS.FORBIDDEN });
   }
+
+  const pinResponse = await requireStaffAdminPinForApi(request, clerkId, sessionId);
+  if (pinResponse) return pinResponse;
 
   const rl = await safeRateLimit(adminEmailRatelimit, admin.id);
   if (!rl.success) return privateResponse(rateLimitResponse(rl.reset, "Too many admin email attempts."));
@@ -114,8 +118,10 @@ export async function POST(request: Request) {
   if (!normalizedRecipientEmail) {
     return privateJson({ error: "Invalid recipient email" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
-  if (await isEmailSuppressed(normalizedRecipientEmail)) {
-    return privateJson({ error: "Recipient email is suppressed or unsubscribed" }, { status: HTTP_STATUS.CONFLICT });
+  // An unsubscribe covers optional mail. A message from staff about the account is
+  // not optional, so only a bounce, complaint or deletion stops it.
+  if (await isEmailDeliverySuppressed(normalizedRecipientEmail)) {
+    return privateJson({ error: "This address bounced or marked our mail as spam, so email cannot reach it." }, { status: HTTP_STATUS.CONFLICT });
   }
 
   const recipientAccount = await userStaffEmailRecipient(staffClient, {
@@ -155,7 +161,6 @@ export async function POST(request: Request) {
   `;
 
   const sanitizedSubject = safeSubject(body.subject);
-  const emailConfigured = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 
   try {
     await sendRenderedEmail({
@@ -213,5 +218,5 @@ export async function POST(request: Request) {
     });
   }
 
-  return privateJson({ ok: true, skipped: !emailConfigured });
+  return privateJson({ ok: true });
 }
