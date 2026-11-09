@@ -82,5 +82,6 @@ test("a long subject is not cut through the middle of an emoji", async () => {
     dedupKey: "key",
     templateName: "order_shipped",
   });
-  assert.equal(subject.state.enqueued.subject.at(-1), "\uDE00");
+  assert.equal(Array.from(subject.state.enqueued.subject).at(-1), "😀");
+  assert.equal(Array.from(subject.state.enqueued.subject).length, 300);
 });
