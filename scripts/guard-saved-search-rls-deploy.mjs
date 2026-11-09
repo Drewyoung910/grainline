@@ -246,7 +246,7 @@ export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
 export const REVIEWED_PRODUCTION_MIDDLEWARE_SHA256 =
-  "b582f466e70d843021fadde75a1cdf21e38a45b0b42ba1b665917e2326bf70eb";
+  "d5d1e798613f56e5ed5844ea5a221aabc899ebec36f9b9251db71c8c29bcbe85";
 export const RLS_CONTEXT_GATE_ROUTE_DIRECTORY =
   "src/app/api/internal/rls-context-gate";
 export const RLS_CONTEXT_GATE_ROUTE_PATH =
