@@ -147,7 +147,10 @@ test("changing a held line releases the hold before the server judges the change
     setError() {},
     setPendingQuantities() {},
     setHeldCheckout: (value) => calls.push(["setHeld", value]),
-    rollbackCheckoutSessions: async (ids) => calls.push(["rollback", ids]),
+    rollbackCheckoutSessions: async (ids) => {
+      calls.push(["rollback", ids]);
+      return true;
+    },
     fetch: async (url) => {
       calls.push(["update", url]);
       return { ok: true, json: async () => ({}) };
@@ -215,7 +218,10 @@ test("accepting new prices ends a checkout built on the old ones, before the upd
     heldCheckout: { sellerIds: ["seller"], sessionIds: ["cs_1"] },
     setError() {},
     setHeldCheckout: (value) => calls.push(["setHeld", value]),
-    rollbackCheckoutSessions: async (ids) => calls.push(["rollback", ids]),
+    rollbackCheckoutSessions: async (ids) => {
+      calls.push(["rollback", ids]);
+      return true;
+    },
     fetch: async (url) => {
       calls.push(["update", url]);
       return { ok: true, json: async () => ({}) };
@@ -236,4 +242,39 @@ test("accepting new prices ends a checkout built on the old ones, before the upd
   await refresh();
   assert.deepEqual(calls[0], ["rollback", ["cs_1"]]);
   assert.deepEqual(calls[2], ["update", "/api/cart/update"]);
+});
+
+test("a failed hold release keeps the hold visible and does not mutate the cart", async () => {
+  const calls = [];
+  const scope = {
+    needsSignIn: false,
+    heldCheckout: { sellerIds: ["seller"], sessionIds: ["cs_1"] },
+    setError: (message) => calls.push(["error", message]),
+    setPendingQuantities() {},
+    setHeldCheckout: (value) => calls.push(["setHeld", value]),
+    rollbackCheckoutSessions: async (ids) => {
+      calls.push(["rollback", ids]);
+      return false;
+    },
+    fetch: async (url) => {
+      calls.push(["update", url]);
+      return { ok: true, json: async () => ({}) };
+    },
+    load: async () => {},
+    notifyCartUpdated() {},
+    clearCartSessionStorage() {},
+    setSelectedRates() {},
+    setClientSecrets() {},
+    setCurrentPaymentIndex() {},
+    clearCompletedCheckoutSessions() {},
+  };
+  const names = Object.keys(scope);
+  const setQuantity = new Function(...names, `${compile(cartPageFunction("setQuantity"))}; return setQuantity;`)(
+    ...names.map((name) => scope[name]),
+  );
+  assert.equal(await setQuantity("line", 2), false);
+  assert.deepEqual(calls[1], ["rollback", ["cs_1"]]);
+  assert.match(calls[2][1], /checkout is still open/i);
+  assert.equal(calls.some(([kind]) => kind === "update"), false);
+  assert.equal(calls.some(([kind]) => kind === "setHeld"), false);
 });

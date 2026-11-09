@@ -256,16 +256,20 @@ async function mergeAnonymousCartIntoAccount(items: AnonymousCartItem[]): Promis
 
 async function rollbackCheckoutSessions(sessionIds: string[]) {
   const uniqueSessionIds = [...new Set(sessionIds.filter(Boolean))];
-  if (uniqueSessionIds.length === 0) return;
+  if (uniqueSessionIds.length === 0) return true;
   try {
-    await fetch("/api/cart/checkout/rollback", {
+    const response = await fetch("/api/cart/checkout/rollback", {
       method: "POST",
       keepalive: true,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionIds: uniqueSessionIds }),
     });
+    if (!response.ok) return false;
+    const result = await response.json().catch(() => null);
+    return result?.ok === true;
   } catch {
     // Best effort; the Stripe expiration webhook is still a fallback.
+    return false;
   }
 }
 
@@ -439,11 +443,19 @@ function CartPage() {
   async function cancelHeldCheckout() {
     if (!heldCheckout || cancellingHeldCheckout) return;
     setCancellingHeldCheckout(true);
-    await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
-    setHeldCheckout(null);
-    await load();
-    notifyCartUpdated();
-    setCancellingHeldCheckout(false);
+    setError(null);
+    try {
+      const released = await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+      if (!released) {
+        setError("We couldn't cancel that checkout yet. Your pieces are still held; try again shortly.");
+        return;
+      }
+      setHeldCheckout(null);
+      await load();
+      notifyCartUpdated();
+    } finally {
+      setCancellingHeldCheckout(false);
+    }
   }
 
   // Mount-time URL restoration
@@ -607,7 +619,10 @@ function CartPage() {
       // Changing the cart ends the checkout built from it. Release its hold
       // first, or the update is judged against stock this buyer is holding.
       if (heldCheckout) {
-        await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        const released = await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        if (!released) {
+          throw new Error("We couldn't update this cart while its checkout is still open. Try again shortly.");
+        }
         setHeldCheckout(null);
       }
       const res = await fetch("/api/cart/update", {
@@ -687,7 +702,10 @@ function CartPage() {
     try {
       // The open checkout has the old price, and it holds the stock this is judged against.
       if (heldCheckout) {
-        await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        const released = await rollbackCheckoutSessions([...heldCheckout.sessionIds]);
+        if (!released) {
+          throw new Error("We couldn't update prices while this checkout is still open. Try again shortly.");
+        }
         setHeldCheckout(null);
       }
       for (const item of changedItems) {
