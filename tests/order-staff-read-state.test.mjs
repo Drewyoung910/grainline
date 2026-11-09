@@ -133,4 +133,22 @@ describe("Order staff read state", () => {
       /purged buyer data is inconsistent/i,
     );
   });
+
+  it("keeps database-valid variant labels at Unicode code-point limits", () => {
+    const label = `${"v".repeat(49)}😀`;
+    const detail = staffOrderDetailFromRows([{
+      ...detailRow(),
+      items: [{
+        ...detailRow().items[0],
+        selectedVariants: [{
+          groupName: label,
+          optionLabel: label,
+          priceAdjustCents: 0,
+        }],
+      }],
+    }]);
+
+    assert.equal(detail?.items[0].selectedVariants?.[0].groupName, label);
+    assert.equal(detail?.items[0].selectedVariants?.[0].optionLabel, label);
+  });
 });

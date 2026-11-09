@@ -57,6 +57,36 @@ describe("smart search", () => {
     assert.equal(parseSmartSearch("tablet pinewood"), null);
   });
 
+  it("does not turn a size or a count into a hidden price limit on Enter", () => {
+    for (const term of [
+      "dining table up to 10 people",
+      "table under 24x36",
+      "bench up to 6 seats",
+      "walnut bookcase less than 5 shelves",
+      "oak sign under 20 characters",
+      "ash table under 30 by 60",
+      "cedar bench under 48w",
+    ]) {
+      const smart = parseSmartSearch(term);
+      if (smart === null) continue;
+      assert.equal(smart.explicitFilter, false, term);
+      assert.equal(new URL(smart.enterHref, "https://example.test").searchParams.has("max"), false, term);
+    }
+  });
+
+  it("keeps real budgets on Enter, with or without a dollar sign", () => {
+    for (const [term, max] of [
+      ["walnut desk under 900", "900"],
+      ["walnut desk under $900 for an office", "900"],
+      ["oak table up to 500 dollars", "500"],
+      ["cherry shelf less than 200, ready to ship", "200"],
+    ]) {
+      const smart = parseSmartSearch(term);
+      assert.equal(smart.explicitFilter, true, term);
+      assert.equal(new URL(smart.enterHref, "https://example.test").searchParams.get("max"), max, term);
+    }
+  });
+
   it("ignores prices it cannot honor", () => {
     const smart = parseSmartSearch("walnut table under 99999999");
     assert.equal(new URL(smart.href, "https://example.test").searchParams.has("max"), false);

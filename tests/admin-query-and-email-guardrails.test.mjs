@@ -78,7 +78,7 @@ describe("admin query and email guardrails", () => {
     assert.match(users, /maxLength=\{200\}/);
     assert.match(broadcasts, /const q = truncateText\(\(sp\.q \?\? ""\)\.trim\(\), 200\)/);
     assert.match(broadcasts, /maxLength=\{200\}/);
-    assert.match(messages, /const q = truncateText\(qParam\.trim\(\), 200\)/);
+    assert.match(messages, /const q = messageSearchQuery\(qParam\)/);
     assert.match(messages, /import MessageInboxControls/);
     assert.match(messages, /<MessageInboxControls/);
     assert.match(messageControls, /maxLength=\{200\}/);

@@ -25,6 +25,10 @@ const MEASUREMENT_AFTER =
 // "toys for kids under 10" is an age. Only small numbers can be one.
 const AGE_WORDS = /\b(?:kids?|child|children|toddlers?|bab(?:y|ies)|boys?|girls?|teens?|ages?|aged)\b/i;
 const OLDEST_AGE_PHRASE = 18;
+// A bare number is a budget only where a budget normally ends the phrase. "up to 10
+// people", "under 24x36" and "up to 6 seats" describe the piece, and Enter shows no
+// chips, so a wrong guess there would silently hide nearly everything.
+const BUDGET_ENDS_HERE = /^\s*(?:$|[,.;:!?)]|dollars?\b|bucks?\b|usd\b|or less\b|ready to ship\b|in stock\b|ships now\b)/i;
 const READY_PHRASE = /\b(?:ready to ship|in stock|ships now)\b/i;
 const MAX_PRICE_DOLLARS = 500_000;
 
@@ -47,7 +51,7 @@ function titleCase(word: string): string {
 }
 
 // The budget in whole dollars, or null when the words only look like one.
-function budgetIn(term: string): { dollars: number; phrase: string } | null {
+function budgetIn(term: string): { dollars: number; phrase: string; certain: boolean } | null {
   const match = PRICE_PHRASE.exec(term);
   if (!match) return null;
   const hasDollarSign = match[1] === "$";
@@ -56,7 +60,7 @@ function budgetIn(term: string): { dollars: number; phrase: string } | null {
   const dollars = Math.ceil(Number(match[2].replace(/,/g, "") + (match[3] ?? "")));
   if (!Number.isSafeInteger(dollars) || dollars <= 0 || dollars > MAX_PRICE_DOLLARS) return null;
   if (!hasDollarSign && dollars <= OLDEST_AGE_PHRASE && AGE_WORDS.test(term)) return null;
-  return { dollars, phrase: match[0] };
+  return { dollars, phrase: match[0], certain: hasDollarSign || BUDGET_ENDS_HERE.test(after) };
 }
 
 export function parseSmartSearch(raw: string): SmartSearch | null {
@@ -81,7 +85,7 @@ export function parseSmartSearch(raw: string): SmartSearch | null {
   if (budget) {
     params.set("max", String(budget.dollars));
     chips.push(`Under ${formatCurrencyCents(budget.dollars * 100, DEFAULT_CURRENCY).replace(/\.00$/, "")}`);
-    explicitFilter = true;
+    if (budget.certain) explicitFilter = true;
     remaining = remaining.replace(budget.phrase, " ");
   }
 
@@ -99,6 +103,11 @@ export function parseSmartSearch(raw: string): SmartSearch | null {
   if (query) params.set("q", query);
   const enterParams = new URLSearchParams(params);
   enterParams.delete("category");
+  if (budget && !budget.certain) {
+    // The row shows its guess as a chip. Enter shows nothing, so it keeps the words.
+    enterParams.delete("max");
+    enterParams.set("q", term.replace(READY_PHRASE, " ").replace(/\s+/g, " ").trim());
+  }
   return Object.freeze({
     chips: Object.freeze(chips),
     href: `/browse?${params.toString()}`,
