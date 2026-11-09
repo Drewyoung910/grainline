@@ -21,10 +21,10 @@ function requestWithBody(body, headers = {}) {
 }
 
 describe("bounded request body helpers", () => {
-  it("never returns NUL, which PostgreSQL text cannot store", async () => {
-    assert.deepEqual(
-      await readBoundedJson(requestWithBody('{"id":"a\\u0000b","list":["ok","\\u0000"]}'), 1024),
-      { id: "ab", list: ["ok", ""] },
+  it("rejects NUL instead of changing the identity of a JSON value", async () => {
+    await assert.rejects(
+      () => readBoundedJson(requestWithBody('{"id":"a\\u0000b","list":["ok","\\u0000"]}'), 1024),
+      (error) => error instanceof InvalidJsonBodyError,
     );
     await assert.rejects(
       () => readBoundedJson(requestWithBody('{"a\\u0000":1}'), 1024),
