@@ -28,6 +28,7 @@ const correction = migrationSource([
 // #702 lived in the reservation finalizer, so this test must run its live
 // body, not the fixture's trivial stand-in.
 const completion = migrationSource([
+  process.env.BLOCKED_PAIR_PAID_CHECKOUT_COMPLETION_MIGRATION_PATH,
   process.env.ORDER_BLOCKED_PAIR_COMPLETION_MIGRATION_PATH,
   "prisma/migrations/20261016000000_correct_blocked_pair_paid_checkout_completion/migration.sql",
 ], "blocked-pair checkout completion");
