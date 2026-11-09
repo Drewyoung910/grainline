@@ -27,6 +27,7 @@ import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { effectiveCartGiftSelection, type CartGiftSelection } from "@/lib/cartGiftSelection";
 import { ShoppingBag } from "@/components/icons";
 import RollingAmount from "@/components/RollingAmount";
 import RollingNumber from "@/components/RollingNumber";
@@ -150,11 +151,6 @@ type Group = {
   currency: string;
   items: CartItem[];
   subtotalCents: number;
-};
-
-type GiftForm = {
-  giftNote: string;
-  giftWrapping: boolean;
 };
 
 type CheckoutStep = "review" | "address" | "shipping" | "payment";
@@ -286,7 +282,7 @@ function CartPage() {
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
 
   // per-seller gift state
-  const [giftBySeller, setGiftBySeller] = React.useState<Record<string, GiftForm>>({});
+  const [giftBySeller, setGiftBySeller] = React.useState<Record<string, CartGiftSelection>>({});
 
   // Checkout step state
   const [step, setStep] = React.useState<CheckoutStep>("review");
@@ -891,8 +887,14 @@ function CartPage() {
           <GiftNoteSection
             offersGiftWrapping={!!(g.items[0]?.listing.offersGiftWrapping)}
             giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
-            giftNote={giftBySeller[g.sellerId]?.giftNote ?? ""}
-            giftWrapping={giftBySeller[g.sellerId]?.giftWrapping ?? false}
+            giftNote={effectiveCartGiftSelection(
+              giftBySeller[g.sellerId],
+              !!g.items[0]?.listing.offersGiftWrapping,
+            ).giftNote}
+            giftWrapping={effectiveCartGiftSelection(
+              giftBySeller[g.sellerId],
+              !!g.items[0]?.listing.offersGiftWrapping,
+            ).giftWrapping}
             currency={g.currency}
             onChange={(note, wrapping) =>
               setGiftBySeller((prev) => ({
@@ -911,7 +913,11 @@ function CartPage() {
     return sum + (rate ? rate.amountCents : 0);
   }, 0);
   const totalGiftWrappingCents = groups.reduce((sum, g) => {
-    if (!giftBySeller[g.sellerId]?.giftWrapping) return sum;
+    const gift = effectiveCartGiftSelection(
+      giftBySeller[g.sellerId],
+      !!g.items[0]?.listing.offersGiftWrapping,
+    );
+    if (!gift.giftWrapping) return sum;
     return sum + (g.items[0]?.listing.giftWrappingPriceCents ?? 0);
   }, 0);
 
@@ -938,7 +944,10 @@ function CartPage() {
         const rate = selectedRates[g.sellerId];
         if (!rate) throw new Error(`No shipping rate selected for ${g.sellerName}`);
 
-        const gift = giftBySeller[g.sellerId];
+        const gift = effectiveCartGiftSelection(
+          giftBySeller[g.sellerId],
+          !!g.items[0]?.listing.offersGiftWrapping,
+        );
 
         const res = await fetch("/api/cart/checkout-seller", {
           method: "POST",
@@ -948,8 +957,8 @@ function CartPage() {
             checkoutGroupId,
             shippingAddress,
             selectedRate: rate,
-            giftNote: gift?.giftNote ?? "",
-            giftWrapping: gift?.giftWrapping ?? false,
+            giftNote: gift.giftNote,
+            giftWrapping: gift.giftWrapping,
           }),
         });
         const data = await res.json();
@@ -1220,7 +1229,10 @@ function CartPage() {
                   <span className="text-neutral-600">Items</span>
                   <span className="font-medium">{formatCurrencyCents(grandTotal, cartCurrency)}</span>
                 </div>
-                {groups.some((g) => giftBySeller[g.sellerId]?.giftWrapping) && (
+                {groups.some((g) => effectiveCartGiftSelection(
+                  giftBySeller[g.sellerId],
+                  !!g.items[0]?.listing.offersGiftWrapping,
+                ).giftWrapping) && (
                   <div className="flex justify-between text-sm text-neutral-600">
                     <span>Gift wrapping</span>
                     <RollingAmount cents={totalGiftWrappingCents} currency={cartCurrency} />
