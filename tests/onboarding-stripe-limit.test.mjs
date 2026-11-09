@@ -4,6 +4,7 @@ import { loadWithStubs } from "./helpers/load-with-stubs.mjs";
 
 async function renderOnboarding({ allowed, localChargesEnabled = false }) {
   let stripeCalls = 0;
+  const rateLimitKeys = [];
   const page = loadWithStubs("src/app/dashboard/onboarding/page.tsx", {
     "next/navigation": { redirect: (path) => { throw new Error(`redirect:${path}`); } },
     "@/lib/ensureSeller": { ensureSeller: async () => ({ seller: { id: "seller-1", userId: "user-1" } }) },
@@ -24,16 +25,20 @@ async function renderOnboarding({ allowed, localChargesEnabled = false }) {
     },
     "@/lib/ratelimit": {
       stripeConnectRatelimit: "stripe-connect",
-      safeRateLimit: async () => ({ success: allowed }),
+      safeRateLimit: async (_limiter, key) => {
+        rateLimitKeys.push(key);
+        return { success: allowed };
+      },
     },
   });
   const element = await page.default({ searchParams: Promise.resolve({}) });
-  return { stripeCalls, props: element.props };
+  return { stripeCalls, rateLimitKeys, props: element.props };
 }
 
 test("onboarding asks Stripe when within the limit", async () => {
-  const { stripeCalls, props } = await renderOnboarding({ allowed: true });
+  const { stripeCalls, rateLimitKeys, props } = await renderOnboarding({ allowed: true });
   assert.equal(stripeCalls, 1);
+  assert.deepEqual(rateLimitKeys, ["onboarding:user-1"]);
   assert.equal(props.chargesEnabled, true);
 });
 

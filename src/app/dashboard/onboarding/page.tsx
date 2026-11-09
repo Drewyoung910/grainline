@@ -32,7 +32,9 @@ export default async function OnboardingPage({
   let hasStripeAccount = !!sp.stripeAccountId;
   // Over the limit, show the saved status rather than calling Stripe on every load.
   const mayAskStripe = !!sp.stripeAccountId
-    && (await safeRateLimit(stripeConnectRatelimit, seller.userId)).success;
+    // Keep passive page refreshes from consuming the account-creation/status
+    // endpoint's allowance for the same user.
+    && (await safeRateLimit(stripeConnectRatelimit, `onboarding:${seller.userId}`)).success;
   if (sp.stripeAccountId && mayAskStripe) {
     try {
       const account = await stripe.accounts.retrieve(sp.stripeAccountId);
