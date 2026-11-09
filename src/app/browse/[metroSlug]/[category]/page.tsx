@@ -19,6 +19,7 @@ import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
 import { sellerPublicListingCards } from "@/lib/sellerProfilePublicAccess";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
+import { defaultOpenGraphImages } from "@/lib/siteMetadata";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -96,7 +97,12 @@ export async function generateMetadata({
     title: { absolute: title },
     description,
     alternates: { canonical: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
-    openGraph: { title, description, url: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}` },
+    openGraph: {
+      title,
+      description,
+      url: `${BASE_URL}/browse/${metroSlug}/${category.toLowerCase()}`,
+      images: defaultOpenGraphImages(),
+    },
   };
 }
 
