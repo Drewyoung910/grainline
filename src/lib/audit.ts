@@ -14,6 +14,7 @@ import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
 import { sanitizeEmailOutboxError } from './emailOutboxSanitize'
 import { withDbUserContext } from './dbUserContext'
+import { refreshRatingSummariesForReviewer } from './sellerRatingSummary'
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -462,5 +463,6 @@ export async function undoAdminAction({
       })
       throw new Error('Database undo succeeded, but Clerk could not be unbanned. Retry the undo or contact support.')
     }
+    await refreshRatingSummariesForReviewer(log.targetId)
   }
 }

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
@@ -18,6 +19,7 @@ async function refreshSellerRatingSummaryInTransaction(
     FROM "Review" r
     JOIN "Listing" l ON l.id = r."listingId"
     WHERE l."sellerId" = ${sellerProfileId}
+      AND r."reviewerAccountActive" = true
   `;
 
   const reviewCount = Number(rows[0]?.reviewCount ?? 0);
@@ -40,6 +42,29 @@ export async function refreshSellerRatingSummary(
     return prisma.$transaction((tx) => refreshSellerRatingSummaryInTransaction(sellerProfileId, tx));
   }
   return refreshSellerRatingSummaryInTransaction(sellerProfileId, db as Prisma.TransactionClient);
+}
+
+// A ban or deletion hides the reviewer's reviews, so the stars must follow. Runs
+// after the account change commits and never fails it; the next review on that
+// seller also corrects the summary.
+export async function refreshRatingSummariesForReviewer(reviewerId: string) {
+  try {
+    const sellers = await prisma.$queryRaw<Array<{ sellerId: string }>>`
+      SELECT DISTINCT l."sellerId"
+      FROM "Review" r
+      JOIN "Listing" l ON l.id = r."listingId"
+      WHERE r."reviewerId" = ${reviewerId}
+    `;
+    for (const { sellerId } of sellers) {
+      await refreshSellerRatingSummary(sellerId);
+    }
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "reviewer_rating_summary_refresh" },
+      extra: { reviewerId },
+    });
+  }
 }
 
 export async function getSellerRatingMap(sellerIds: string[]) {

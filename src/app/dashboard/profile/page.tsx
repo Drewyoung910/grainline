@@ -18,6 +18,7 @@ import CharCounter from "@/components/CharCounter";
 import ConfirmButton from "@/components/ConfirmButton";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { normalizeDisplayNameForLookup, sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { containsSlur, SHOP_TEXT_SLUR_MESSAGE } from "@/lib/profanity";
 import {
   filterVerifiedFirstPartyMediaUrlsForUser,
   verifyFirstPartyMediaUrlForPersistence,
@@ -184,6 +185,13 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   if (!giftWrappingPriceResult.ok) return giftWrappingPriceResult;
   const giftWrappingPriceCents = giftWrappingPriceResult.value;
 
+  if (containsSlur([
+    displayName, tagline, bio, storyTitle, storyBody,
+    returnPolicy, customOrderPolicy, shippingPolicy, ...galleryAltTexts,
+  ].join("\n"))) {
+    return { ok: false, error: SHOP_TEXT_SLUR_MESSAGE };
+  }
+
   let duplicateDisplayName = false;
   await withDbUserContext(seller.userId, async (tx) => {
     const result = await updateSellerOwnerProfile(tx, {
@@ -245,6 +253,7 @@ async function addFaq(formData: FormData) {
   const question = truncateText(sanitizeText(String(formData.get("question") ?? "")), 200).trim();
   const answer = truncateText(sanitizeRichText(String(formData.get("answer") ?? "")), 2000).trim();
   if (!question || !answer) return;
+  if (containsSlur(`${question}\n${answer}`)) redirect("/dashboard/profile?warning=blocked-language");
 
   await withSerializableRetry(() => prisma.$transaction(async (tx) => {
     const faqCount = await tx.sellerFaq.count({
@@ -370,6 +379,12 @@ export default async function ProfilePage({
       {sp.warning === "invalid-url" && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Enter valid https:// links for your website/social profiles, and use uploaded Grainline images for profile photos.
+        </div>
+      )}
+
+      {sp.warning === "blocked-language" && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {SHOP_TEXT_SLUR_MESSAGE}
         </div>
       )}
 

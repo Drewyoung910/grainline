@@ -121,7 +121,7 @@ describe("public query determinism", () => {
     assert.match(metroPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(metroPage, /orderBy: \[\{ _count: \{ category: "desc" \} \}, \{ category: "asc" \}\]/);
     assert.match(metroPage, /orderBy: \[\{ name: "asc" \}, \{ slug: "asc" \}\]/);
-    assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\}&lng=\$\{metro\.longitude\}&radius=50`\}/);
+    assert.match(metroPage, /href=\{`\/browse\?lat=\$\{metro\.latitude\.toFixed\(2\)\}&lng=\$\{metro\.longitude\.toFixed\(2\)\}&radius=50`\}/);
     assert.doesNotMatch(metroPage, /\/browse\?lat=\$\{metro\.id\}/);
     assert.match(metroPage, /const blockedSellerListingWhere: Prisma\.ListingWhereInput/);
     assert.match(metroPage, /const listingWhere = publicListingWhere\(\{[\s\S]*\.\.\.blockedSellerListingWhere/);

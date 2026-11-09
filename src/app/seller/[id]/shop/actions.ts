@@ -285,13 +285,16 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     const listingCount = sellerReview.publishReviewListingCount;
 
     const { reviewListingWithAI } = await import("@/lib/ai-review");
-    const { logAdminAction } = await import("@/lib/audit");
 
     const photos = await prisma.photo.findMany({
       where: { listingId: listing.id },
-      select: { url: true },
+      select: { url: true, altText: true },
       orderBy: { sortOrder: "asc" },
       take: 10,
+    });
+    const variantGroups = await prisma.listingVariantGroup.findMany({
+      where: { listingId: listing.id },
+      select: { name: true, options: { select: { label: true } } },
     });
 
     const aiResult = await reviewListingWithAI({
@@ -306,6 +309,10 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       sellerName: sellerReview.displayName,
       listingCount,
       imageUrls: photos.map((p) => p.url),
+      metaDescription: listing.metaDescription,
+      materials: listing.materials,
+      variantLabels: variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+      photoAltTexts: photos.map((p) => p.altText),
     }).catch((error) => {
       logServerError(error, {
         source: "listing_publish_ai_review",
@@ -316,7 +323,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         approved: false,
         flags: ["AI review error"],
         confidence: 0,
-        reason: "AI error — sending to admin review",
+        reason: "AI error, sending to staff review",
         altTexts: [] as string[],
       };
     });
@@ -335,26 +342,18 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: listing.status,
           updatedAt: listing.updatedAt,
           ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+          OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
         },
         data: {
           status: "PENDING_REVIEW",
           aiReviewFlags: aiResult.flags,
           aiReviewScore: aiResult.confidence,
-          rejectionReason: null,
+          rejectionReason: aiResult.reason,
         },
       });
       if (updateResult.count === 0) {
         return { error: "Listing state changed; refresh and try again." };
       }
-      await logAdminAction({
-        adminId: listing.seller.userId,
-        action: "AI_HOLD_LISTING",
-        targetType: "LISTING",
-        targetId: listingId,
-        reason: aiResult.reason,
-        metadata: { flags: aiResult.flags, confidence: aiResult.confidence },
-      });
       queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_ai_hold");
       revalidateListingSurfaces(listingId, listing.sellerId);
       return { status: "PENDING_REVIEW" };
@@ -367,7 +366,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: listing.status,
           updatedAt: listing.updatedAt,
           ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
-          OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+          OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
         },
         data: {
           status: "ACTIVE",
@@ -416,13 +415,13 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         sellerId: listing.sellerId,
         status: listing.status,
         updatedAt: listing.updatedAt,
-        OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
+        OR: [{ rejectionReason: null }, { rejectionReason: { not: { startsWith: STAFF_REMOVAL_REJECTION_REASON } } }],
       },
       data: {
         status: "PENDING_REVIEW",
         aiReviewFlags: ["AI review error"],
         aiReviewScore: 0,
-        rejectionReason: null,
+        rejectionReason: "AI error, sending to staff review",
       },
     }).catch((updateError) => {
       logServerError(updateError, {

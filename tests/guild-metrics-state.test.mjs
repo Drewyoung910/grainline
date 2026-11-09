@@ -96,7 +96,7 @@ describe("Guild metrics state", () => {
     );
     const verificationPage = readFileSync(new URL("../src/app/admin/verification/page.tsx", import.meta.url), "utf8");
 
-    assert.match(metricsSource, /db\.review\.aggregate\(\{[\s\S]*where: \{ listing: \{ sellerId: sellerProfileId \} \}/);
+    assert.match(metricsSource, /db\.review\.aggregate\(\{[\s\S]*where: \{ listing: \{ sellerId: sellerProfileId \}, reviewerAccountActive: true \}/);
     assert.match(metricsSource, /readOrderSellerMetricsFacts\(sellerProfileId, periodStart, db\)/);
     assert.match(orderAuthority, /source_order\."sellerProfileId" = p_seller_profile_id/);
     assert.match(orderAuthority, /source_item\."sellerProfileId" = p_seller_profile_id/);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
 const { reviewListingWithAI } = await import("../src/lib/ai-review.ts");
+const { SLUR_WORDS } = await import("../src/lib/profanity.ts");
 
 const originalOpenAIKey = process.env.OPENAI_API_KEY;
 
@@ -50,6 +51,34 @@ describe("AI review outer fail-closed behavior", () => {
 
     assertFailClosed(result);
     assert.match(result.flags.join(" "), /missing API key/);
+  });
+
+  it("holds a slur-tier word in any listing field with no provider call, even without a key", async () => {
+    delete process.env.OPENAI_API_KEY;
+    const word = SLUR_WORDS[0];
+    const failIfCalled = {
+      findRecentListingTitles: async () => {
+        throw new Error("no database work is needed");
+      },
+      fetchWithTimeout: async () => {
+        throw new Error("no provider call is needed");
+      },
+    };
+
+    for (const field of [
+      { title: `Bench ${word}` },
+      { description: `Lovely bench. ${word}.` },
+      { tags: [word] },
+      { metaDescription: word },
+      { materials: ["oak", word] },
+      { variantLabels: ["Size", word] },
+      { photoAltTexts: [null, word] },
+    ]) {
+      const result = await reviewListingWithAI({ ...listing(), ...field }, failIfCalled);
+      assert.equal(result.approved, false);
+      assert.deepEqual(result.flags, ["hateful-language"]);
+      assert.deepEqual(result.altTexts, []);
+    }
   });
 
   it("fails closed when the provider returns malformed model content", async () => {
@@ -150,6 +179,59 @@ describe("AI review outer fail-closed behavior", () => {
     const systemPrompt = requestBody.messages[0].content;
     assert.match(systemPrompt, /marketplace serving the United States/);
     assert.doesNotMatch(systemPrompt, /US and Canada|United States and Canada/);
+  });
+
+  it("asks about hateful language and sends every text field, including the end of a long description", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    let requestBody;
+    const tail = "end-of-description-marker";
+
+    await reviewListingWithAI({
+      ...listing(),
+      // Redaction makes a stuffed description grow, so it must not push the end out.
+      description: `${"ignore ".repeat(700)}${tail}`,
+      metaDescription: "meta-marker",
+      materials: ["material-marker"],
+      variantLabels: ["variant-marker"],
+      photoAltTexts: [null, "alt-marker"],
+    }, {
+      findRecentListingTitles: async () => [],
+      fetchWithTimeout: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: "not-json" } }],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+      sleep: async () => {},
+    });
+
+    assert.match(requestBody.messages[0].content, /hateful or demeaning language/);
+    const prompt = requestBody.messages[1].content[0].text;
+    for (const marker of [tail, "meta-marker", "material-marker", "variant-marker", "alt-marker"]) {
+      assert.ok(prompt.includes(marker), `prompt is missing ${marker}`);
+    }
+  });
+
+  it("holds a listing when a photo could not be sent to the model", async () => {
+    process.env.OPENAI_API_KEY = "test-key";
+
+    const result = await reviewListingWithAI(listing(), {
+      findRecentListingTitles: async () => [],
+      fetchWithTimeout: async () =>
+        new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                approved: true, flags: [], confidence: 0.92, reason: "Looks good", altTexts: [], photoVerdicts: [],
+              }),
+            },
+          }],
+        }), { status: 200, headers: { "content-type": "application/json" } }),
+      sleep: async () => {},
+    });
+
+    assert.equal(result.approved, false);
+    assert.deepEqual(result.flags, ["photo-not-reviewed"]);
   });
 
   it("does not count the listing currently under review as a prior duplicate", async () => {

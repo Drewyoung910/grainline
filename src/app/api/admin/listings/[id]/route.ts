@@ -15,9 +15,20 @@ import { withDbUserContext } from "@/lib/dbUserContext";
 import { deleteCartItemsForAdminListing } from "@/lib/cartServiceAccess";
 import { deleteStockNotificationsForAdminListing } from "@/lib/stockNotificationAccess";
 import { deleteFavoritesForAdminListing } from "@/lib/favoriteAccess";
+import { renderListingRemovedEmail, sendRenderedEmail } from "@/lib/email";
+import { STAFF_REMOVAL_REJECTION_REASON } from "@/lib/listingActionState";
+import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
+import { getOrderStaffReadClient } from "@/lib/orderStaffReadDb";
+import { sellerStaffListingDetailProfile } from "@/lib/sellerProfileListingDetailAccess";
+import { isInvalidJsonBodyError, isRequestBodyTooLargeError, readBoundedJson } from "@/lib/requestBody";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { z } from "zod";
+
+const RemoveListingSchema = z.object({ reason: z.string().max(500) });
+const REMOVE_LISTING_BODY_MAX_BYTES = 16 * 1024;
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
@@ -30,6 +41,21 @@ export async function DELETE(
 
   const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
   if (!success) return privateResponse(rateLimitResponse(reset, "Too many admin actions."));
+
+  let reason: string;
+  try {
+    const body = RemoveListingSchema.parse(await readBoundedJson(request, REMOVE_LISTING_BODY_MAX_BYTES));
+    reason = truncateText(sanitizeText(body.reason), 500).trim();
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+    }
+    if (isInvalidJsonBodyError(error) || error instanceof z.ZodError) {
+      return privateJson({ error: "A reason is required." }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+    throw error;
+  }
+  if (!reason) return privateJson({ error: "A reason is required." }, { status: HTTP_STATUS.BAD_REQUEST });
 
   const { id } = await params;
   const listing = await prisma.listing.findUnique({
@@ -47,7 +73,7 @@ export async function DELETE(
       data: {
         status: "REJECTED",
         isPrivate: true,
-        rejectionReason: "Removed by Grainline staff.",
+        rejectionReason: `${STAFF_REMOVAL_REJECTION_REASON} Reason: ${reason}`,
       },
     });
     await deleteFavoritesForAdminListing(tx, id);
@@ -59,6 +85,7 @@ export async function DELETE(
       action: "REMOVE_LISTING",
       targetType: "Listing",
       targetId: id,
+      reason,
       metadata: {
         title: listing.title,
         sellerId: listing.sellerId,
@@ -91,6 +118,25 @@ export async function DELETE(
       source: "admin_listing_remove",
     });
   });
+
+  // The edit page shows the stored reason. The email tells the maker to look.
+  try {
+    const seller = await sellerStaffListingDetailProfile(getOrderStaffReadClient(), admin.id, id);
+    const recipient = seller && await userEmailDeliveryRecipient(prisma, { userId: seller.userId });
+    if (recipient) {
+      await sendRenderedEmail(renderListingRemovedEmail({
+        to: recipient.email,
+        listingTitle: listing.title,
+        reason,
+      }));
+    }
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "admin_listing_remove_email" },
+      extra: { listingId: id, sellerId: listing.sellerId },
+    });
+  }
 
   return privateJson({ ok: true });
 }

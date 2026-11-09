@@ -532,11 +532,15 @@ async function updateListing(
           sellerName: sellerCore.displayName,
           listingCount: sellerReview.totalListingCount,
           imageUrls: photos.map((p) => p.url),
+          metaDescription,
+          materials,
+          variantLabels: variantGroups.flatMap((group) => [group.name, ...group.options.map((option) => option.label)]),
+          photoAltTexts: photoManifest.photos.map((photo) => photo.altText),
         }).catch(() => ({
           approved: false,
           flags: ["AI review error"] as string[],
           confidence: 0,
-          reason: "AI error",
+          reason: "AI error, sending to staff review",
           altTexts: [] as string[],
         }));
 
@@ -553,6 +557,7 @@ async function updateListing(
               status: ListingStatus.PENDING_REVIEW,
               aiReviewFlags: aiResult.flags,
               aiReviewScore: aiResult.confidence,
+              rejectionReason: aiResult.reason,
             },
           });
           if (holdResult.count > 0) {
@@ -582,6 +587,7 @@ async function updateListing(
               status: approvedListingStatus(listing.status, current),
               aiReviewFlags: aiResult.flags,
               aiReviewScore: aiResult.confidence,
+              rejectionReason: null,
             },
           });
         }
@@ -613,6 +619,7 @@ async function updateListing(
           status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: ["AI review error"],
           aiReviewScore: 0,
+          rejectionReason: "AI error, sending to staff review",
         },
       });
       if (pendingResult.count > 0) {

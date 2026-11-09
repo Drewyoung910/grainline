@@ -33,6 +33,7 @@ import {
   transitionSellerStaffOrderability,
 } from './sellerStaffPrivateAccess'
 import * as Sentry from '@sentry/nextjs'
+import { refreshRatingSummariesForReviewer } from '@/lib/sellerRatingSummary'
 
 const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
 
@@ -475,6 +476,8 @@ export async function banUser({ userId, adminId, reason }: {
     })
     throw new BanUserExternalSyncError("User was banned locally, but active Clerk sessions could not be revoked. Try the ban action again or contact support.")
   }
+
+  await refreshRatingSummariesForReviewer(userId)
 }
 
 export async function unbanUser({ userId, adminId, reason }: {
@@ -632,6 +635,8 @@ export async function unbanUser({ userId, adminId, reason }: {
     })
     throw new BanUserExternalSyncError("User was unbanned locally, but Clerk still could not be updated. Try the unban action again or contact support.")
   }
+
+  await refreshRatingSummariesForReviewer(userId)
 
   return {
     sellerRestoreWarning: clerkSync.sellerRestoreWarning,

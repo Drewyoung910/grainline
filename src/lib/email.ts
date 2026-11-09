@@ -897,6 +897,23 @@ export async function sendWelcomeSeller(opts: Parameters<typeof renderWelcomeSel
   await sendRenderedEmail(renderWelcomeSellerEmail(opts));
 }
 
+export function renderListingRemovedEmail(opts: {
+  to: string;
+  listingTitle: string;
+  reason: string;
+}): RenderedEmail {
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Grainline staff removed your listing <strong>${esc(opts.listingTitle)}</strong>.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Reason: ${esc(opts.reason)}</p>
+    <p style="font-size:15px;line-height:1.6;margin:0;">If you think this is a mistake, contact ${esc(SUPPORT_EMAIL)}.</p>
+  `;
+  return {
+    to: opts.to,
+    subject: "Your Grainline listing was removed",
+    html: baseTemplate("Your listing was removed", body),
+  };
+}
+
 export function renderFirstListingCongratsEmail(opts: {
   seller: { displayName?: string | null; email: string };
   listing: { id: string; title: string; priceCents: number; currency?: string | null };

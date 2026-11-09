@@ -24,6 +24,8 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { isActorMessageReportTarget } from "@/lib/conversationMessageAuthority";
 import { canReportOrderTarget } from "@/lib/orderEligibilityAuthority";
 import { userRelationshipTargetState } from "@/lib/userRelationshipAccess";
+import { sendRenderedEmail } from "@/lib/email";
+import { EMAIL_APP_URL } from "@/lib/emailBaseUrl";
 
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
@@ -186,6 +188,22 @@ export async function POST(
         level: "warning",
         tags: { source: "user_report_listing_notification" },
         extra: { reporterId: me.id, reportedId, targetId: body.targetId },
+      });
+    });
+  }
+
+  // Nothing else tells staff that a report is waiting. The details stay in the
+  // queue, behind the admin PIN.
+  if (body.reason === "HARASSMENT" || body.reason === "INAPPROPRIATE") {
+    await sendRenderedEmail({
+      to: "abuse@thegrainline.com",
+      subject: `New ${body.reason.toLowerCase()} report on Grainline`,
+      html: `<p>A new report is waiting in the <a href="${EMAIL_APP_URL}/admin/reports">reports queue</a>.</p>`,
+    }).catch((emailError) => {
+      Sentry.captureException(emailError, {
+        level: "warning",
+        tags: { source: "user_report_staff_email" },
+        extra: { reportId: report.id },
       });
     });
   }

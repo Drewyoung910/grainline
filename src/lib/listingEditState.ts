@@ -25,9 +25,10 @@ export function listingEditBlockReason(listing: EditableListingState): string | 
 
   if (
     listing.status === ListingStatus.REJECTED &&
-    listing.rejectionReason === STAFF_REMOVAL_REJECTION_REASON
+    listing.rejectionReason?.startsWith(STAFF_REMOVAL_REJECTION_REASON)
   ) {
-    return "This listing was removed by Grainline staff and cannot be edited.";
+    // The stored text is the marker followed by the reason staff gave.
+    return `This listing was removed by Grainline staff and cannot be edited.${listing.rejectionReason.slice(STAFF_REMOVAL_REJECTION_REASON.length)}`;
   }
 
   return null;
