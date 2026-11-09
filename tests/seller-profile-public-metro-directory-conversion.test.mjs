@@ -12,7 +12,6 @@ const migration = readFileSync(
 );
 
 test("metro maker page uses only bounded SellerProfile authorities", () => {
-  assert.match(page, /sellerPublicMetroStaticSlugs\(\)/u);
   assert.match(page, /sellerPublicMetroMakers\(meDbId, metro\.id, isMajorMetro, 24\)/u);
   assert.match(page, /sellerPublicNearbyMetros\(meDbId, metro\.id\)/u);
   assert.doesNotMatch(page, /prisma\.sellerProfile|activeSellerProfileWhere|publicListingWhere/u);
@@ -22,13 +21,12 @@ test("metro maker page uses only bounded SellerProfile authorities", () => {
 });
 
 test("browse and sitemap combine seller authority results with listing metros", () => {
+  assert.match(sitemap, /sellerPublicMetroStaticSlugs\(\)/u);
   for (const source of [browsePage, sitemap]) {
-    assert.match(source, /sellerPublicMetroStaticSlugs\(\)/u);
     assert.doesNotMatch(source, /activeSellerProfileWhere/u);
     assert.doesNotMatch(source, /sellerProfiles:\s*\{\s*some:/u);
     assert.doesNotMatch(source, /sellerCityProfiles:\s*\{\s*some:/u);
   }
-  assert.match(browsePage, /new Set\(\[/u);
   assert.match(sitemap, /const metroRouteMap = new Map/u);
 });
 

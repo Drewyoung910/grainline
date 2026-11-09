@@ -2138,8 +2138,8 @@ Built on top of the metro geography infrastructure. All pages are public (middle
 - **Major metro** (no `parentMetroId`): queries by `metroId = metro.id` — captures all listings in the area including child cities
 - **Child metro**: queries by `cityMetroId = metro.id` — shows only items mapped to that specific city
 
-### generateStaticParams — content-gated
-Each route only generates static params for metros that have at least 1 active listing/seller/commission. Empty metros are excluded from static generation and the sitemap. If navigated to directly, the page renders an empty-city variant with a commission CTA.
+### No generateStaticParams on per-viewer pages
+Commission, metro browse and metro maker pages read the signed-in viewer, so they are dynamic. An empty static-params list at build time would leave them static, and `auth()` would then answer 500 at request time. Do not add it back. If navigated to directly, an empty metro renders the empty-city variant with a commission CTA.
 
 ### Metadata per city page
 

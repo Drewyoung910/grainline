@@ -19,7 +19,6 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import {
   sellerPublicListingCards,
   sellerPublicMetroCount,
-  sellerPublicMetroStaticSlugs,
 } from "@/lib/sellerProfilePublicAccess";
 import { formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { displayUsState, formatCityState } from "@/lib/locationDisplay";
@@ -28,31 +27,6 @@ import { BrowseCitySkeleton } from "@/components/LocalDiscoverySkeletons";
 import { ownerFavoriteListingIds } from "@/lib/favoriteAccess";
 
 const BASE_URL = "https://thegrainline.com";
-
-// ---------------------------------------------------------------------------
-// generateStaticParams — only metros with at least one active listing or seller
-// ---------------------------------------------------------------------------
-export async function generateStaticParams() {
-  const [metrosWithListings, sellerMetroSlugs] = await Promise.all([
-    prisma.metro.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { listings: { some: publicListingWhere() } },
-          { listingCityMetros: { some: publicListingWhere() } },
-        ],
-      },
-      select: { slug: true },
-    }),
-    sellerPublicMetroStaticSlugs(),
-  ]);
-  return [...new Set([
-    ...metrosWithListings.map(({ slug }) => slug),
-    ...sellerMetroSlugs.map(({ slug }) => slug),
-  ])]
-    .sort((left, right) => left.localeCompare(right))
-    .map((metroSlug) => ({ metroSlug }));
-}
 
 // ---------------------------------------------------------------------------
 // generateMetadata
