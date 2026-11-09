@@ -13,6 +13,7 @@ import { shouldRequireTermsAcceptance } from "@/lib/termsAcceptance";
 import { getCachedAccountStateForMiddleware } from "@/lib/accountStateCache";
 import { privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
+import { searchParamsContainNullByte } from "@/lib/searchQueryState";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -222,6 +223,20 @@ export default clerkMiddleware(async (auth, req) => {
   const requestId = normalizeRequestId(req.headers.get(REQUEST_ID_HEADER));
   const requestHeaders = requestHeadersWithRequestId(req.headers, requestId);
   Sentry.setTag("requestId", requestId);
+
+  if (searchParamsContainNullByte(req.nextUrl.searchParams)) {
+    if (req.nextUrl.pathname.startsWith("/api/")) {
+      return privateApiJson(
+        { error: "Invalid query parameters" },
+        { status: HTTP_STATUS.BAD_REQUEST },
+        requestId,
+      );
+    }
+    return withRequestId(
+      privateResponse(new NextResponse("Bad Request", { status: HTTP_STATUS.BAD_REQUEST })),
+      requestId,
+    );
+  }
 
   // Geo-blocking — US only. Next 16 no longer exposes request.geo, so use
   // Vercel's country header when present. This header is only trusted behind
