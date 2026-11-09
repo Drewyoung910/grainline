@@ -11,6 +11,7 @@ describe("message UI consistency", () => {
     const rail = source("src/components/ConversationRail.tsx");
     assert.match(inbox, /<MessageInboxControls/);
     assert.match(rail, /<MessageInboxControls/);
+    assert.doesNotMatch(inbox, />\s*Back to browse\s*</);
     assert.doesNotMatch(rail, /className="sticky/);
     assert.match(source("src/components/MessagesShell.tsx"), /grid-cols-\[400px_minmax\(0,1fr\)\]/);
   });

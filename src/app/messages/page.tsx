@@ -153,11 +153,8 @@ async function MessagesInbox({
   return (
     <main className="mx-auto max-w-4xl p-8 lg:grid lg:max-w-[1280px] lg:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-8 lg:px-6">
       <div className="min-w-0">
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6">
         <h1 className="text-2xl font-semibold font-display">Messages</h1>
-        <Link href="/browse" className="text-sm underline">
-          Back to browse
-        </Link>
       </div>
 
       <div className="mb-4">
