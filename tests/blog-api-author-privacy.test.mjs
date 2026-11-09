@@ -51,9 +51,9 @@ function loadRoute(path) {
       safeRateLimit: async () => ({ success: true }),
       searchRatelimit: {},
     },
+    "@/lib/sanitize": { truncateText: (value) => value },
     "@/lib/tags": { normalizeTags: () => [] },
     "@/lib/queryParams": { parseBoundedPositiveIntParam: () => 1 },
-    "@/lib/searchQueryState": { normalizeSearchQueryParameter: () => "" },
   };
   const javascript = ts.transpileModule(readFileSync(path, "utf8"), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },

@@ -264,7 +264,7 @@ async function BrowseContent({
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const q = truncateText(sp.q ?? "", 200);
+  const q = normalizeSearchQueryParameter(sp.q, 200);
   const normalizedDisplayNameQuery = normalizeDisplayNameForLookup(q);
   const min = sp.min ?? "";
   const max = sp.max ?? "";
