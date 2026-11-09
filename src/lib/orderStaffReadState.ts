@@ -4,6 +4,7 @@ import {
   type HistoricalOrderItemSnapshot,
 } from "./orderItemSnapshot.ts";
 import type { SelectedVariantSnapshot } from "./listingVariants.ts";
+import { isTextWithinCodePointRange } from "./textLength.ts";
 
 const ID_PATTERN = /^[A-Za-z0-9._:-]{1,191}$/;
 const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
@@ -31,7 +32,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function text(value: unknown, label: string, maxLength: number) {
-  if (typeof value !== "string" || value.length < 1 || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 1, maxLength)) {
     throw new TypeError(`Staff Order ${label} is invalid`);
   }
   return value;
@@ -39,7 +40,7 @@ function text(value: unknown, label: string, maxLength: number) {
 
 function optionalText(value: unknown, label: string, maxLength: number) {
   if (value == null) return null;
-  if (typeof value !== "string" || value.length > maxLength) {
+  if (!isTextWithinCodePointRange(value, 0, maxLength)) {
     throw new TypeError(`Staff Order ${label} is invalid`);
   }
   return value;
@@ -179,8 +180,8 @@ function selectedVariants(value: unknown): SelectedVariantSnapshot[] | null {
   for (const candidate of value) {
     if (!isRecord(candidate)) return null;
     if (
-      typeof candidate.groupName !== "string" || candidate.groupName.length < 1 || candidate.groupName.length > 50
-      || typeof candidate.optionLabel !== "string" || candidate.optionLabel.length < 1 || candidate.optionLabel.length > 50
+      !isTextWithinCodePointRange(candidate.groupName, 1, 50)
+      || !isTextWithinCodePointRange(candidate.optionLabel, 1, 50)
       || !Number.isSafeInteger(candidate.priceAdjustCents)
     ) return null;
     result.push({
