@@ -76,8 +76,11 @@ export async function sendCaseUpdateEmail({
   templateName?: CaseTemplate;
   sendNow?: boolean;
 }) {
-  const preferenceKey: CasePreference =
-    templateName === "case_resolved" ? "EMAIL_CASE_RESOLVED" : "EMAIL_CASE_MESSAGE";
+  const preferenceKey: CasePreference = templateName === "case_opened"
+    ? "EMAIL_CASE_OPENED"
+    : templateName === "case_resolved"
+      ? "EMAIL_CASE_RESOLVED"
+      : "EMAIL_CASE_MESSAGE";
   try {
     const recipient = await userEmailDeliveryRecipient(prisma, { userId, preferenceKey });
     if (!recipient) return;

@@ -206,6 +206,7 @@ export async function POST(req: Request) {
       heading: "Your case is open",
       message:
         "We've told the maker. They have 48 hours to respond. If they don't, Grainline staff will step in.",
+      templateName: "case_opened",
     });
 
     return privateJson(

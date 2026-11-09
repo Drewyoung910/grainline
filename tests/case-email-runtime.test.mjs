@@ -52,9 +52,11 @@ const update = {
 
 test("a Case update is queued durably and attempted at once", async () => {
   const subject = helperFixture();
-  await subject.exports.sendCaseUpdateEmail(update);
+  await subject.exports.sendCaseUpdateEmail({ ...update, templateName: "case_opened" });
   assert.equal(subject.state.enqueued[0].dedupKey, "key");
   assert.equal(subject.state.enqueued[0].sourceType, "case");
+  assert.equal(subject.state.enqueued[0].templateName, "case_opened");
+  assert.equal(subject.state.enqueued[0].preferenceKey, "EMAIL_CASE_OPENED");
   assert.deepEqual(subject.state.sent, ["job"]);
 });
 
@@ -86,7 +88,10 @@ test("opening a Case queues the maker's 48-hour notice and acknowledges the buye
   const exports = loadModule("src/app/api/cases/route.ts", {
     zod: require("zod"),
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk" }) },
-    "@/lib/ensureUser": { ensureUserByClerkId: async () => ({ id: "buyer", name: "Bea" }) },
+    "@/lib/ensureUser": {
+      ensureUserByClerkId: async () => ({ id: "buyer", name: "Bea" }),
+      isAccountAccessError: () => false,
+    },
     "@/lib/ratelimit": {
       safeRateLimit: async () => ({ success: true, reset: 0 }),
       rateLimitResponse: () => new Response(null, { status: 429 }),
@@ -125,7 +130,10 @@ test("opening a Case queues the maker's 48-hour notice and acknowledges the buye
     "@/lib/caseMessageBody": {
       normalizeCaseDescriptionBody: (body) => ({ ok: true, body }),
     },
-    "@/lib/sanitize": { truncateText: (text) => text },
+    "@/lib/sanitize": {
+      sanitizeRichText: (text) => text,
+      truncateText: (text) => text,
+    },
   }, { Error });
   const response = await exports.POST(new Request("https://example.test/api/cases", {
     method: "POST",
@@ -136,4 +144,5 @@ test("opening a Case queues the maker's 48-hour notice and acknowledges the buye
   assert.equal(state.queued[0].userId, "seller");
   assert.equal(state.updates[0].userId, "buyer");
   assert.equal(state.updates[0].side, "BUYER");
+  assert.equal(state.updates[0].templateName, "case_opened");
 });
