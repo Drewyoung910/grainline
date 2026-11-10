@@ -8,6 +8,7 @@ import { humanizeSearchTag } from "@/lib/searchSuggestionResults";
 import SegmentedControl from "@/components/SegmentedControl";
 import { ChevronDown } from "@/components/icons";
 import { cleanBrowsePriceInput } from "@/lib/browsePriceInput";
+import { isPlainClick } from "@/lib/photoMotion";
 
 // Every change applies at once and glides the page back to the top of the
 // results (the motion study's floating filter column).
@@ -195,9 +196,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     distanceGroupRef.current?.querySelector<HTMLElement>("a")?.focus();
   }, [geo]);
 
-  // Price applies on Enter, or when focus leaves both price fields with a new
-  // value. Moving from Min to Max does not navigate.
-  const priceFormRef = React.useRef<HTMLFormElement>(null);
+  // Price applies only on Enter or Go. Blur used to move the page underneath
+  // the visitor's next click and applied half-typed values on tab switches.
   const applyPrice = () => {
     if (pendingMin === null || pendingMax === null) {
       setPriceError("Enter a price like 50 or 49.99.");
@@ -209,11 +209,6 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     if (pendingMin === currentMin && pendingMax === currentMax) return;
     navigateWith({ min: pendingMin, max: pendingMax });
   };
-  const onPriceBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    if (priceFormRef.current?.contains(event.relatedTarget as Node | null)) return;
-    applyPrice();
-  };
-
   const hasLocation = Boolean(lat && lng);
 
   const closeCategoryMenu = React.useCallback((returnFocus = false) => {
@@ -253,7 +248,15 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         {/* Category */}
         <div>
           <div id={`${baseId}-category`} className={legendClass}>Category</div>
-          <div ref={categoryMenuRef} className="relative">
+          <div
+            ref={categoryMenuRef}
+            className="relative"
+            onBlur={(event) => {
+              if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) {
+                closeCategoryMenu();
+              }
+            }}
+          >
             <button
               ref={categoryButtonRef}
               type="button"
@@ -297,7 +300,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                       data-filter-changes={JSON.stringify({ category: value || null })}
                       onPointerUp={(event) => event.currentTarget.blur()}
                       onClick={(event) => {
-                        setPendingCategory(value);
+                        // A new-tab click must not repaint this page's selection.
+                        if (isPlainClick(event)) setPendingCategory(value);
                         handleFilterLinkClick(event);
                         setCategoryClosing(false);
                         setCategoryOpen(false);
@@ -383,7 +387,6 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <fieldset>
           <legend className={legendClass}>Price (USD)</legend>
           <form
-            ref={priceFormRef}
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
@@ -401,10 +404,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               value={minInput}
               onChange={(event) => setMinInput(event.target.value)}
               placeholder="$ Min"
-              onBlur={onPriceBlur}
               aria-invalid={pendingMin === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm"
             />
             <span className="shrink-0 text-neutral-400" aria-hidden="true">–</span>
             <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
@@ -417,13 +419,11 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               value={maxInput}
               onChange={(event) => setMaxInput(event.target.value)}
               placeholder="$ Max"
-              onBlur={onPriceBlur}
               aria-invalid={pendingMax === null || undefined}
               aria-describedby={priceError ? `${baseId}-price-error` : undefined}
-              className="h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm"
             />
-            {/* Lets Enter submit from either field; not a Tab stop. */}
-            <button type="submit" tabIndex={-1} className="sr-only">Apply price</button>
+            <button type="submit" aria-label="Apply price" className="btn btn-sm btn-secondary shrink-0">Go</button>
           </form>
           {priceError && (
             <p id={`${baseId}-price-error`} role="alert" className="mt-1.5 text-xs text-red-700">
@@ -508,7 +508,13 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <Link
           href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
           scroll={false}
-          onClick={scrollResultsToTop}
+          onClick={() => {
+            setMinInput("");
+            setMaxInput("");
+            setPriceError(null);
+            setGeo(null);
+            scrollResultsToTop();
+          }}
           className="inline-flex min-h-11 items-center text-sm text-neutral-500 underline underline-offset-2 hover:text-neutral-800"
         >
           Reset filters

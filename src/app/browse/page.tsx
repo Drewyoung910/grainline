@@ -484,6 +484,95 @@ async function BrowseContent({
     return `/browse?${p.toString()}`;
   }
 
+  // Build removable filters before the empty-results return too; otherwise a
+  // visitor can see that filters caused zero results but cannot remove them.
+  function currentBrowseParams() {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (min) p.set("min", min);
+    if (max) p.set("max", max);
+    if (sort !== (q ? "relevant" : "newest")) p.set("sort", sort);
+    if (categoryFilter) p.set("category", categoryFilter);
+    if (typeFilter) p.set("type", typeFilter);
+    if (shipsFilter) p.set("ships", String(shipsFilter));
+    if (ratingFilter) p.set("rating", String(ratingFilter));
+    if (hasLocationFilter) {
+      p.set("lat", String(latFilter));
+      p.set("lng", String(lngFilter));
+      p.set("radius", String(radiusFilter));
+    }
+    for (const t of selectedTags) p.append("tag", t);
+    if (view !== "grid") p.set("view", view);
+    return p;
+  }
+  function browseHrefWithout(keys: string[], tag?: string) {
+    const p = currentBrowseParams();
+    for (const key of keys) p.delete(key);
+    if (tag !== undefined) {
+      const remaining = p.getAll("tag").filter((t) => t !== tag);
+      p.delete("tag");
+      for (const t of remaining) p.append("tag", t);
+    }
+    const query = p.toString();
+    return query ? `/browse?${query}` : "/browse";
+  }
+  const appliedMinLabel = priceFilter.gte !== undefined
+    ? formatCurrencyCents(priceFilter.gte, DEFAULT_CURRENCY)
+    : null;
+  const appliedMaxLabel = priceFilter.lte !== undefined
+    ? formatCurrencyCents(priceFilter.lte, DEFAULT_CURRENCY)
+    : null;
+  const priceChipLabel = appliedMinLabel && appliedMaxLabel
+    ? `${appliedMinLabel}–${appliedMaxLabel}`
+    : appliedMinLabel
+      ? `${appliedMinLabel} and up`
+      : appliedMaxLabel
+        ? `Under ${appliedMaxLabel}`
+        : "";
+  const activeFilterChips: Array<{ key: string; label: string; href: string }> = [
+    ...(categoryFilter
+      ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]
+      : []),
+    ...(typeFilter
+      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In stock" : "Made to order", href: browseHrefWithout(["type"]) }]
+      : []),
+    ...(shipsFilter
+      ? [{ key: "ships", label: `Ships within ${shipsFilter} days`, href: browseHrefWithout(["ships"]) }]
+      : []),
+    ...(ratingFilter
+      ? [{ key: "rating", label: `${ratingFilter}+ stars`, href: browseHrefWithout(["rating"]) }]
+      : []),
+    ...(hasLocationFilter
+      ? [{ key: "location", label: `Within ${radiusFilter} mi`, href: browseHrefWithout(["lat", "lng", "radius"]) }]
+      : []),
+    ...(priceChipLabel
+      ? [{ key: "price", label: priceChipLabel, href: browseHrefWithout(["min", "max"]) }]
+      : []),
+    ...selectedTags.map((tag) => ({
+      key: `tag:${tag}`,
+      label: humanizeSearchTag(tag),
+      href: browseHrefWithout([], tag),
+    })),
+  ];
+  const clearFiltersHref = browseHrefWithout(
+    ["category", "type", "ships", "rating", "lat", "lng", "radius", "min", "max", "tag"],
+  );
+  const activeFiltersRow = activeFilterChips.length > 0 && (
+    <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
+      {activeFilterChips.map((chip) => (
+        <FilterChipLink key={chip.key} href={chip.href} label={chip.label} />
+      ))}
+      {activeFilterChips.length > 1 && (
+        <Link
+          href={clearFiltersHref}
+          className="text-[13.5px] text-neutral-600 underline underline-offset-[3px] hover:text-neutral-900"
+        >
+          Clear all
+        </Link>
+      )}
+    </div>
+  );
+
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
     const featuredRows = await fetchListings(
@@ -521,6 +610,8 @@ async function BrowseContent({
                 Try broadening your search or browse all makers.
               </p>
             </div>
+
+            {activeFiltersRow}
 
             {visiblePopularTags.length > 0 && (
               <div>
@@ -686,78 +777,6 @@ async function BrowseContent({
     );
   }
 
-  // Active filters as removable chips (motion prototype): each chip links to
-  // the same results without that filter; new chips pop in.
-  function currentBrowseParams() {
-    const p = new URLSearchParams();
-    if (q) p.set("q", q);
-    if (min) p.set("min", min);
-    if (max) p.set("max", max);
-    if (sort !== (q ? "relevant" : "newest")) p.set("sort", sort);
-    if (categoryFilter) p.set("category", categoryFilter);
-    if (typeFilter) p.set("type", typeFilter);
-    if (shipsFilter) p.set("ships", String(shipsFilter));
-    if (ratingFilter) p.set("rating", String(ratingFilter));
-    if (hasLocationFilter) {
-      p.set("lat", String(latFilter));
-      p.set("lng", String(lngFilter));
-      p.set("radius", String(radiusFilter));
-    }
-    for (const t of selectedTags) p.append("tag", t);
-    if (view !== "grid") p.set("view", view);
-    return p;
-  }
-  function browseHrefWithout(keys: string[], tag?: string) {
-    const p = currentBrowseParams();
-    for (const key of keys) p.delete(key);
-    if (tag !== undefined) {
-      const remaining = p.getAll("tag").filter((t) => t !== tag);
-      p.delete("tag");
-      for (const t of remaining) p.append("tag", t);
-    }
-    const query = p.toString();
-    return query ? `/browse?${query}` : "/browse";
-  }
-  // Label the price chip from the amounts actually applied, not the raw URL
-  // text (?min=abc applies nothing and shows no chip).
-  const appliedMinLabel = priceFilter.gte !== undefined ? formatCurrencyCents(priceFilter.gte, DEFAULT_CURRENCY) : null;
-  const appliedMaxLabel = priceFilter.lte !== undefined ? formatCurrencyCents(priceFilter.lte, DEFAULT_CURRENCY) : null;
-  const priceChipLabel = appliedMinLabel && appliedMaxLabel
-    ? `${appliedMinLabel}–${appliedMaxLabel}`
-    : appliedMinLabel
-      ? `${appliedMinLabel} and up`
-      : appliedMaxLabel
-        ? `Under ${appliedMaxLabel}`
-        : "";
-  const activeFilterChips: Array<{ key: string; label: string; href: string }> = [
-    ...(categoryFilter
-      ? [{ key: "category", label: CATEGORY_LABELS[categoryFilter] ?? categoryFilter, href: browseHrefWithout(["category"]) }]
-      : []),
-    ...(typeFilter
-      ? [{ key: "type", label: typeFilter === ListingType.IN_STOCK ? "In stock" : "Made to order", href: browseHrefWithout(["type"]) }]
-      : []),
-    ...(shipsFilter
-      ? [{ key: "ships", label: `Ships within ${shipsFilter} days`, href: browseHrefWithout(["ships"]) }]
-      : []),
-    ...(ratingFilter
-      ? [{ key: "rating", label: `${ratingFilter}+ stars`, href: browseHrefWithout(["rating"]) }]
-      : []),
-    ...(hasLocationFilter
-      ? [{ key: "location", label: `Within ${radiusFilter} mi`, href: browseHrefWithout(["lat", "lng", "radius"]) }]
-      : []),
-    ...(priceChipLabel
-      ? [{ key: "price", label: priceChipLabel, href: browseHrefWithout(["min", "max"]) }]
-      : []),
-    ...selectedTags.map((tag) => ({
-      key: `tag:${tag}`,
-      label: tag.replace(/[-_]/g, " "),
-      href: browseHrefWithout([], tag),
-    })),
-  ];
-  const clearFiltersHref = browseHrefWithout(
-    ["category", "type", "ships", "rating", "lat", "lng", "radius", "min", "max", "tag"],
-  );
-
   // ── Page render ────────────────────────────────────────────────────────────
   const activeFilterCount = [
     categoryFilter, typeFilter, shipsFilter, ratingFilter, hasLocationFilter ? "loc" : null,
@@ -825,21 +844,7 @@ async function BrowseContent({
             </div>
           </div>
 
-          {activeFilterChips.length > 0 && (
-            <div role="group" aria-label="Active filters" className="flex flex-wrap items-center gap-2">
-              {activeFilterChips.map((chip) => (
-                <FilterChipLink key={chip.key} href={chip.href} label={chip.label} />
-              ))}
-              {activeFilterChips.length > 1 && (
-                <Link
-                  href={clearFiltersHref}
-                  className="text-[13.5px] text-neutral-600 underline underline-offset-[3px] hover:text-neutral-900"
-                >
-                  Clear all
-                </Link>
-              )}
-            </div>
-          )}
+          {activeFiltersRow}
 
           {/* Listings */}
           <FlipList
