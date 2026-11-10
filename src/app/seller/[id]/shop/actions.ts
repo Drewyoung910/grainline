@@ -109,12 +109,10 @@ function queueFollowerFanoutForActiveListing(listing: {
 }) {
   after(async () => {
     try {
-      const emailBucket = new Date().toISOString().slice(0, 10);
       await fanOutListingToFollowers({
         sellerProfileId: listing.sellerId,
         sellerDisplayName: listing.seller.displayName,
         listing,
-        emailDedupKey: (followerId) => `followed-listing-active:${listing.id}:${followerId}:${emailBucket}`,
       });
     } catch (error) {
       // Non-fatal: listing activation should not roll back if follower fan-out fails.

@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notifications'
 import { NOTIFICATION_SOURCE_TYPES } from '@/lib/notificationSources'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
+import { sendFirstListingCongratsIfFirst } from '@/lib/firstListingEmail'
 import { requireStaffAdminPinForApi } from '@/lib/adminPinApi'
 import { renderListingDecisionEmail, sendRenderedEmail } from '@/lib/email'
 import { EMAIL_APP_URL } from '@/lib/emailBaseUrl'
@@ -71,7 +72,6 @@ function queueAdminApprovedListingFollowerFanout(listing: {
         sellerProfileId: listing.sellerId,
         sellerDisplayName: listing.seller.displayName,
         listing,
-        emailDedupKey: (followerId) => `admin-approved-listing:${listing.id}:${followerId}`,
       })
     } catch (error) {
       Sentry.captureException(error, {
@@ -198,6 +198,14 @@ export async function PATCH(
         })
       }
       queueAdminApprovedListingFollowerFanout(listing)
+      if (!listing.reservedForUserId) {
+        await sendFirstListingCongratsIfFirst({
+          sellerProfileId: listing.sellerId,
+          sellerUserId: listing.seller.userId,
+          sellerDisplayName: listing.seller.displayName,
+          listing,
+        })
+      }
       if (listing.customOrderConversationId && listing.reservedForUserId) {
         await sendCustomOrderReadyLink({
           listingId: listing.id,

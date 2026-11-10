@@ -6,8 +6,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { renderFirstListingCongratsEmail } from "@/lib/email";
-import { enqueueEmailOutbox } from "@/lib/emailOutbox";
+import { sendFirstListingCongratsIfFirst } from "@/lib/firstListingEmail";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { verifyFirstPartyMediaUrlPairsForUser } from "@/lib/uploadPersistenceVerification";
@@ -38,7 +37,6 @@ import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { userEmailDeliveryRecipient } from "@/lib/userEmailDeliveryAccess";
 import { listingProcessingWindowError, parseListingFulfillmentDays } from "@/lib/listingFulfillmentDays";
 import { applyListingCreationAIReviewResult } from "@/lib/listingCreationAIReview";
 import {
@@ -327,32 +325,6 @@ async function createListing(_prevState: unknown, formData: FormData) {
     redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
 
-  // Non-draft: run all side effects unchanged
-  try {
-    const firstListing = await prisma.listing.findFirst({
-      where: { sellerId: seller.id },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: { id: true },
-    });
-    if (firstListing?.id === created.id) {
-      const emailRecipient = await userEmailDeliveryRecipient(prisma, {
-        userId: seller.userId,
-      });
-      if (emailRecipient) {
-        const email = renderFirstListingCongratsEmail({
-          seller: { displayName: seller.displayName, email: emailRecipient.email },
-          listing: { id: created.id, title: created.title, priceCents: created.priceCents },
-        });
-        await enqueueEmailOutbox({
-          ...email,
-          dedupKey: `first-listing-congrats:${seller.id}`,
-          templateName: "first_listing_congrats",
-          userId: seller.userId,
-        });
-      }
-    }
-  } catch { /* non-fatal */ }
-
   // AI listing review + first-listing hold. Bind every verdict to the exact
   // revision sent for review so an older request cannot publish a withdrawn,
   // edited, and resubmitted listing.
@@ -484,6 +456,17 @@ async function createListing(_prevState: unknown, formData: FormData) {
     revalidateFooterMetrosCache();
     // First active listing might earn this seller the Founding Maker badge.
     await maybeGrantFoundingMaker(seller.id);
+    await sendFirstListingCongratsIfFirst({
+      sellerProfileId: seller.id,
+      sellerUserId: seller.userId,
+      sellerDisplayName: seller.displayName,
+      listing: {
+        id: created.id,
+        title: created.title,
+        priceCents: created.priceCents,
+        currency: created.currency,
+      },
+    });
     // Notify followers after the response so listing creation stays responsive.
     after(async () => {
       try {
@@ -491,7 +474,6 @@ async function createListing(_prevState: unknown, formData: FormData) {
           sellerProfileId: seller.id,
           sellerDisplayName: seller.displayName,
           listing: { id: created.id, title: created.title, priceCents: created.priceCents, currency: created.currency },
-          emailDedupKey: (followerId) => `followed-listing:${created.id}:${followerId}`,
         });
       } catch (error) {
         logServerError(error, {
