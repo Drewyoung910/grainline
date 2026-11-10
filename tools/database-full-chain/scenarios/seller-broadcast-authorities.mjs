@@ -6,7 +6,7 @@ import pg from "pg";
 import { seedSellerProfilePrivateFixture } from "./seller-profile-private-fixture.mjs";
 
 export const SELLER_BROADCAST_PREPARATION_MIGRATION =
-  "20261101010000_prepare_seller_broadcast_authorities";
+  "20261101100000_prepare_seller_broadcast_authorities";
 
 function rowsOf(result) {
   return Array.isArray(result) ? result : (result?.rows ?? []);
@@ -148,21 +148,37 @@ export async function seedSellerBroadcastPredecessorEligibilityGap({
     sourceType: "seller_broadcast",
     sourceId: broadcastId,
   });
+  // Reproduce the dangerous ambiguous-provider window: this generation was
+  // already marked as handed to the provider, but completion has not yet been
+  // recorded locally. A relationship change must not turn its replay into a
+  // terminal skip, because the provider may already have accepted the email.
+  await database.query(
+    `UPDATE public."EmailOutbox"
+        SET "providerAttemptGeneration" = "claimGeneration"
+      WHERE id = $1`,
+    [claim.jobId],
+  );
   await database.query(
     `DELETE FROM public."Follow"
       WHERE "followerId" = $1 AND "sellerProfileId" = $2`,
     [followerId, seller.sellerProfileId],
   );
-  const predecessorResult = (await database.query(
-    `SELECT public.grainline_email_outbox_begin_provider_attempt(
-       $1, $2::bigint, $3::uuid
-     ) AS result`,
-    [claim.jobId, claim.claimGeneration, claim.claimToken],
-  )).rows[0]?.result;
+  await database.query("BEGIN");
+  let predecessorResult;
+  try {
+    predecessorResult = (await database.query(
+      `SELECT public.grainline_email_outbox_begin_provider_attempt(
+         $1, $2::bigint, $3::uuid
+       ) AS result`,
+      [claim.jobId, claim.claimGeneration, claim.claimToken],
+    )).rows[0]?.result;
+  } finally {
+    await database.query("ROLLBACK");
+  }
   assert.equal(
     predecessorResult,
-    "ready",
-    "the predecessor must reproduce the queued-email eligibility gap",
+    "ineligible",
+    "the predecessor must reproduce the ambiguous provider-attempt gap",
   );
   return Object.freeze({ followerId, broadcastId, claim });
 }
