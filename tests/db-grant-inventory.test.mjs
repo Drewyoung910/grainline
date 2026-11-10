@@ -297,6 +297,8 @@ const FOLLOW_PREPARATION_FUNCTION_NAMES = [
 ];
 const SELLER_BROADCAST_PREPARATION_MIGRATION =
   "prisma/migrations/20261101100000_prepare_seller_broadcast_authorities/migration.sql";
+const SELLER_BROADCAST_ACTIVATION_MIGRATION =
+  "prisma/migrations/20261101110000_activate_seller_broadcast_rls/migration.sql";
 const SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES = [
   "grainline_seller_broadcast_owner_cooldown",
   "grainline_seller_broadcast_owner_create",
@@ -4041,6 +4043,11 @@ describe("database grant inventory guardrails", () => {
       source(SELLER_BROADCAST_PREPARATION_MIGRATION).includes(
         `FUNCTION public.${functionName}(`,
       ));
+    const sellerBroadcastRlsActivationPresent = existsSync(
+      SELLER_BROADCAST_ACTIVATION_MIGRATION,
+    ) && source(SELLER_BROADCAST_ACTIVATION_MIGRATION).includes(
+      'REVOKE ALL PRIVILEGES ON TABLE public."SellerBroadcast"',
+    );
     const reviewVoteAuthorityPrepared = existsSync(
       REVIEW_VOTE_PREPARATION_MIGRATION,
     ) && REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.every((functionName) =>
@@ -4417,6 +4424,7 @@ describe("database grant inventory guardrails", () => {
           ? SELLER_BROADCAST_PREPARATION_FUNCTION_NAMES.length
             + 1 // reasserted provider-attempt PUBLIC/runtime revoke
           : 0)
+        + (sellerBroadcastRlsActivationPresent ? 1 : 0)
         + (reviewVoteAuthorityPrepared
           ? REVIEW_VOTE_PREPARATION_FUNCTION_NAMES.length
           : 0)
@@ -4932,6 +4940,7 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
         ...(typeof sellerFaqRlsActivationExpected === "function"
           && sellerFaqRlsActivationExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
@@ -5000,6 +5009,7 @@ describe("database grant inventory guardrails", () => {
           ? ["SavedBlogPost"]
           : []),
         "SavedSearch",
+        ...(sellerBroadcastRlsActivationPresent ? ["SellerBroadcast"] : []),
         "SellerDeauthorizationApplication",
         ...(typeof sellerFaqRlsForceExpected === "function"
           && sellerFaqRlsForceExpected(inventory) ? [SELLER_FAQ_TABLE] : []),
@@ -6642,6 +6652,9 @@ describe("database grant inventory guardrails", () => {
     const reviewVoteProvisioningPresent = provision.includes(
       "review_vote_rls_active",
     );
+    const sellerBroadcastProvisioningPresent = provision.includes(
+      "seller_broadcast_rls_active",
+    );
     const serviceReferenceLeastPrivilegeProvisioningPresent = provision.includes(
       "grainline_service_reference_least_privilege_applied",
     );
@@ -6659,6 +6672,7 @@ describe("database grant inventory guardrails", () => {
         + Number(favoriteProvisioningPresent)
         + Number(followProvisioningPresent)
         + Number(reviewVoteProvisioningPresent)
+        + Number(sellerBroadcastProvisioningPresent)
         + Number(serviceReferenceLeastPrivilegeProvisioningPresent)
         + Number(emailServiceLeastPrivilegeProvisioningPresent),
     );

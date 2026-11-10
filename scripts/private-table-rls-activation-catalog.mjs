@@ -22,6 +22,8 @@ const OWNER_SOCIAL_MINIMUM_COMPATIBLE_COMMIT =
   "0c0e9e67081c2ad7b27d97bc3f5956ecd2090549";
 const BLOCK_REPORT_FAQ_MINIMUM_COMPATIBLE_COMMIT =
   "47cec35f29d3bdea3376e10a52659f6587ca7af5";
+const SELLER_BROADCAST_MINIMUM_COMPATIBLE_COMMIT =
+  "125703575794479a6ef4dcb0d7aec92000c6af5f";
 const PREDECESSOR_CRUD = Object.freeze([
   "SELECT",
   "INSERT",
@@ -43,6 +45,7 @@ const PREPARATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_PREPARATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_PREPARATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_PREPARATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_PREPARATION_MIGRATION_PATH",
 });
 const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   favorite_v1: "FAVORITE_RLS_ACTIVATION_MIGRATION_PATH",
@@ -52,6 +55,7 @@ const ACTIVATION_MIGRATION_PATH_ENV_BY_RELEASE = Object.freeze({
   block_v1: "BLOCK_RLS_ACTIVATION_MIGRATION_PATH",
   user_report_v1: "USER_REPORT_RLS_ACTIVATION_MIGRATION_PATH",
   seller_faq_v1: "SELLER_FAQ_RLS_ACTIVATION_MIGRATION_PATH",
+  seller_broadcast_v1: "SELLER_BROADCAST_RLS_ACTIVATION_MIGRATION_PATH",
 });
 
 export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
@@ -267,6 +271,28 @@ export const PRIVATE_TABLE_RLS_ACTIVATIONS = Object.freeze({
     activatedPublicPrivileges: NO_PRIVILEGES,
     sourceTests: Object.freeze([
       "tests/block-report-seller-faq-rls-activation.test.mjs",
+    ]),
+    rollbackTriggerDrops: Object.freeze([]),
+    functionChanges: NO_FUNCTION_CHANGES,
+  }),
+  seller_broadcast_v1: Object.freeze({
+    preparationReleaseId: "seller_broadcast_v1",
+    minimumCompatibleAppCommit: SELLER_BROADCAST_MINIMUM_COMPATIBLE_COMMIT,
+    migration: "20261101110000_activate_seller_broadcast_rls",
+    migrationSha256:
+      "72a24346ffc61d4822384b77160cd4c5780c9d2d392b7b826af7f351bc5831cb",
+    rollbackPath: "docs/rls-drafts/seller-broadcast-activation-rollback.sql",
+    rollbackSha256:
+      "62641c309e51d3b9ded6c99c8c421c1ceed697e67de40eed375ec189296a8714",
+    table: "SellerBroadcast",
+    mode: "policyless_combined_enable_force",
+    policies: NO_POLICIES,
+    predecessorRuntimePrivileges: PREDECESSOR_CRUD,
+    activatedRuntimePrivileges: NO_PRIVILEGES,
+    activatedStaffPrivileges: NO_PRIVILEGES,
+    activatedPublicPrivileges: NO_PRIVILEGES,
+    sourceTests: Object.freeze([
+      "tests/seller-broadcast-rls-activation.test.mjs",
     ]),
     rollbackTriggerDrops: Object.freeze([]),
     functionChanges: NO_FUNCTION_CHANGES,
