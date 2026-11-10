@@ -928,6 +928,9 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
   const redactedLegacyId = `${fixture.actorId}_seller_redact_legacy`;
   const redactedStructuredId = `${fixture.actorId}_seller_redact_structured`;
   const foreignOutboxId = `${fixture.actorId}_seller_redact_foreign`;
+  const legacyBroadcastOutboxId = `${fixture.actorId}_seller_redact_legacy_broadcast`;
+  const legacyListingOutboxId = `${fixture.actorId}_seller_redact_legacy_listing`;
+  const incompleteLegacyOutboxId = `${fixture.actorId}_seller_redact_incomplete_legacy`;
   await database.query(
     `INSERT INTO public."EmailOutbox"
        (id, "recipientEmail", "templateName", "sourceType", "sourceId",
@@ -955,6 +958,29 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
       fixture.now,
     ],
   );
+  await database.query(
+    `INSERT INTO public."EmailOutbox"
+       (id, "recipientEmail", "preferenceKey", "templateName", "sourceType",
+        "sourceId", subject, html, "dedupKey", status, attempts,
+        "claimGeneration", "nextAttemptAt", "createdAt", "updatedAt")
+     VALUES
+       ($1, $7, 'EMAIL_SELLER_BROADCAST', 'seller_broadcast', NULL, NULL,
+        'Legacy broadcast', '<p>Legacy broadcast</p>', $2, 'PENDING', 0, 0, $8, $8, $8),
+       ($3, $7, 'EMAIL_FOLLOWED_MAKER_NEW_LISTING', 'followed_maker_new_listing', NULL, NULL,
+        'Legacy listing', '<p>Legacy listing</p>', $4, 'PENDING', 0, 0, $8, $8, $8),
+       ($5, $7, 'EMAIL_SELLER_BROADCAST', 'seller_broadcast', NULL, NULL,
+        'Incomplete legacy key', '<p>Incomplete legacy key</p>', $6, 'PENDING', 0, 0, $8, $8, $8)`,
+    [
+      legacyBroadcastOutboxId,
+      `seller-broadcast:${fixture.broadcastId}:legacy`,
+      legacyListingOutboxId,
+      `admin-approved-listing:${fixture.listingId}:legacy`,
+      incompleteLegacyOutboxId,
+      `seller-broadcast:${fixture.broadcastId}`,
+      fixture.plainEmail,
+      fixture.now,
+    ],
+  );
   await assert.rejects(
     runtimeActorQuery(
       database,
@@ -964,7 +990,7 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
     ),
     /invalid/u,
   );
-  const expectedSellerRows = Number(rowsOf(await database.query(
+  const expectedStructuredSellerRows = Number(rowsOf(await database.query(
     `SELECT pg_catalog.count(*)::integer AS count
        FROM public."EmailOutbox" AS outbox
       WHERE (outbox."sourceType" = 'seller_broadcast'
@@ -978,7 +1004,7 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
     fixture.sellerUserId,
     `SELECT public.grainline_email_outbox_redact_deleted_seller($1)::integer AS result`,
     [fixture.sellerProfileId],
-  ))[0]?.result, expectedSellerRows);
+  ))[0]?.result, expectedStructuredSellerRows + 2);
   const sellerRedactionRows = rowsOf(await database.query(
     `SELECT id, status, subject, html, payload
        FROM public."EmailOutbox"
@@ -1009,6 +1035,33 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
       payload: {},
     },
   ].sort((left, right) => left.id.localeCompare(right.id)));
+  const legacySellerRedactionRows = rowsOf(await database.query(
+    `SELECT id, status, subject, html
+       FROM public."EmailOutbox"
+      WHERE id = ANY($1::text[])
+      ORDER BY id`,
+    [[legacyBroadcastOutboxId, legacyListingOutboxId, incompleteLegacyOutboxId]],
+  ));
+  assert.deepEqual(legacySellerRedactionRows, [
+    {
+      id: incompleteLegacyOutboxId,
+      status: "PENDING",
+      subject: "Incomplete legacy key",
+      html: "<p>Incomplete legacy key</p>",
+    },
+    {
+      id: legacyBroadcastOutboxId,
+      status: "SKIPPED",
+      subject: "Email removed after maker deletion",
+      html: "[Email removed after maker deletion]",
+    },
+    {
+      id: legacyListingOutboxId,
+      status: "SKIPPED",
+      subject: "Email removed after maker deletion",
+      html: "[Email removed after maker deletion]",
+    },
+  ].sort((left, right) => left.id.localeCompare(right.id)));
 
   await database.query(
     `DELETE FROM public."EmailOutbox"
@@ -1024,6 +1077,9 @@ export async function proveEmailServiceLeastPrivilegeAuthorities({ database, fix
         deadOutboxId,
         acknowledgedDeadId,
         foreignOutboxId,
+        legacyBroadcastOutboxId,
+        legacyListingOutboxId,
+        incompleteLegacyOutboxId,
       ],
     ],
   );

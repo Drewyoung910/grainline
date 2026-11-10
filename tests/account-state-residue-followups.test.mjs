@@ -186,9 +186,22 @@ describe("account-state residue hardening", () => {
     assert.match(emailServiceAccess, /public\.grainline_email_outbox_redact_deleted_seller/);
     assert.match(migration, /'seller_broadcast'::text AS source_type/);
     assert.match(migration, /'followed_maker_new_listing'::text, listing\.id/);
-    assert.match(migration, /'seller-broadcast:' \|\| source\.source_id \|\| ':'/);
-    assert.match(migration, /'admin-approved-listing:' \|\| source\.source_id \|\| ':'/);
-    assert.match(migration, /'followed-listing-active:' \|\| source\.source_id \|\| ':'/);
+    assert.match(
+      migration,
+      /JOIN public\."EmailOutbox" AS outbox\s+ON outbox\."sourceType" = source\.source_type\s+AND outbox\."sourceId" = source\.source_id/u,
+    );
+    assert.match(
+      migration,
+      /source\.source_id = pg_catalog\.split_part\(outbox\."dedupKey", ':', 2\)/u,
+    );
+    assert.match(migration, /'seller-broadcast'/);
+    assert.match(migration, /'admin-approved-listing'/);
+    assert.match(migration, /'followed-listing-active'/);
+    assert.doesNotMatch(
+      migration,
+      /FROM source_rows AS source\s+WHERE \(/u,
+      "deleted-seller cleanup must not scan every outbox row against every seller source",
+    );
     assert.match(migration, /THEN 'SKIPPED'/);
     assert.match(migration, /THEN 'Email removed after maker deletion'/);
     assert.match(migration, /ELSE '{}'::jsonb/);

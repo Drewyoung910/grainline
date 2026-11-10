@@ -1435,44 +1435,47 @@ BEGIN
     SELECT 'followed_maker_new_listing'::text, listing.id
       FROM public."Listing" AS listing
      WHERE listing."sellerId" = p_seller_profile_id
+  ), candidate_ids AS MATERIALIZED (
+    SELECT outbox.id
+      FROM source_rows AS source
+      JOIN public."EmailOutbox" AS outbox
+        ON outbox."sourceType" = source.source_type
+       AND outbox."sourceId" = source.source_id
+    UNION
+    SELECT outbox.id
+      FROM public."EmailOutbox" AS outbox
+      JOIN source_rows AS source
+        ON source.source_type = 'seller_broadcast'
+       AND source.source_id = pg_catalog.split_part(outbox."dedupKey", ':', 2)
+     WHERE outbox."templateName" = 'seller_broadcast'
+       AND outbox."preferenceKey" = 'EMAIL_SELLER_BROADCAST'
+       AND pg_catalog.split_part(outbox."dedupKey", ':', 1) = 'seller-broadcast'
+       AND pg_catalog.char_length(outbox."dedupKey")
+             > pg_catalog.char_length('seller-broadcast:' || source.source_id)
+    UNION
+    SELECT outbox.id
+      FROM public."EmailOutbox" AS outbox
+      JOIN source_rows AS source
+        ON source.source_type = 'followed_maker_new_listing'
+       AND source.source_id = pg_catalog.split_part(outbox."dedupKey", ':', 2)
+     WHERE outbox."templateName" = 'followed_maker_new_listing'
+       AND outbox."preferenceKey" = 'EMAIL_FOLLOWED_MAKER_NEW_LISTING'
+       AND pg_catalog.split_part(outbox."dedupKey", ':', 1) IN (
+         'followed-listing',
+         'admin-approved-listing',
+         'followed-listing-active'
+       )
+       AND pg_catalog.char_length(outbox."dedupKey")
+             > pg_catalog.char_length(
+                 pg_catalog.split_part(outbox."dedupKey", ':', 1)
+                 || ':' || source.source_id
+               )
   ), candidates AS (
     SELECT outbox.id
       FROM public."EmailOutbox" AS outbox
-     WHERE EXISTS (
-       SELECT 1
-         FROM source_rows AS source
-        WHERE (
-          outbox."sourceType" = source.source_type
-          AND outbox."sourceId" = source.source_id
-        ) OR (
-          source.source_type = 'seller_broadcast'
-          AND outbox."templateName" = 'seller_broadcast'
-          AND outbox."preferenceKey" = 'EMAIL_SELLER_BROADCAST'
-          AND pg_catalog.left(
-            outbox."dedupKey",
-            pg_catalog.char_length('seller-broadcast:' || source.source_id || ':')
-          ) = 'seller-broadcast:' || source.source_id || ':'
-        ) OR (
-          source.source_type = 'followed_maker_new_listing'
-          AND outbox."templateName" = 'followed_maker_new_listing'
-          AND outbox."preferenceKey" = 'EMAIL_FOLLOWED_MAKER_NEW_LISTING'
-          AND (
-            pg_catalog.left(
-              outbox."dedupKey",
-              pg_catalog.char_length('followed-listing:' || source.source_id || ':')
-            ) = 'followed-listing:' || source.source_id || ':'
-            OR pg_catalog.left(
-              outbox."dedupKey",
-              pg_catalog.char_length('admin-approved-listing:' || source.source_id || ':')
-            ) = 'admin-approved-listing:' || source.source_id || ':'
-            OR pg_catalog.left(
-              outbox."dedupKey",
-              pg_catalog.char_length('followed-listing-active:' || source.source_id || ':')
-            ) = 'followed-listing-active:' || source.source_id || ':'
-          )
-        )
-     )
-     FOR UPDATE
+      JOIN candidate_ids AS candidate
+        ON candidate.id = outbox.id
+     FOR UPDATE OF outbox
   )
   UPDATE public."EmailOutbox" AS outbox
      SET status = CASE
