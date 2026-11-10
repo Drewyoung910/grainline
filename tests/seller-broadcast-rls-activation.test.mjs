@@ -19,7 +19,7 @@ test("SellerBroadcast uses one byte-sealed policyless activation", () => {
   assert.equal(release.table, "SellerBroadcast");
   assert.equal(
     release.minimumCompatibleAppCommit,
-    "5a5f96021aa700a7d018168c66d0b269ea7d7e57",
+    "30cbe693f9469329f0f95a6bf88d69708c4213a1",
   );
   assert.equal(release.mode, "policyless_combined_enable_force");
   assert.deepEqual(release.policies, []);
