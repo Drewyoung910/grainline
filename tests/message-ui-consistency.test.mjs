@@ -9,8 +9,15 @@ describe("message UI consistency", () => {
   it("shares the inbox controls between the inbox and an open thread", () => {
     const inbox = source("src/app/messages/page.tsx");
     const rail = source("src/components/ConversationRail.tsx");
+    const controls = source("src/components/MessageInboxControls.tsx");
     assert.match(inbox, /<MessageInboxControls/);
     assert.match(rail, /<MessageInboxControls/);
+    assert.match(inbox, /<ConversationListItem/);
+    assert.match(rail, /<ConversationListItem/);
+    assert.match(rail, /onTabChange=\{setTab\}/);
+    assert.match(rail, /onQueryChange=\{setQuery\}/);
+    assert.match(controls, /const controlled = Boolean\(onTabChange \|\| onQueryChange\)/);
+    assert.match(controls, /event\.preventDefault\(\)/);
     assert.doesNotMatch(inbox, />\s*Back to browse\s*</);
     assert.doesNotMatch(rail, /className="sticky/);
     assert.match(source("src/components/MessagesShell.tsx"), /grid-cols-\[400px_minmax\(0,1fr\)\]/);
@@ -27,8 +34,9 @@ describe("message UI consistency", () => {
 
   it("keeps active inbox counts when archived or searched results are selected", () => {
     const inbox = source("src/app/messages/page.tsx");
-    assert.match(inbox, /isArchivedTab \|\| q/);
+    assert.match(inbox, /isArchivedTab \|\| q \|\| pageCursor/);
     assert.match(inbox, /archived: false, query: "", cursor: null, limit: 51/);
+    assert.match(inbox, /countActorUnreadMessages\(me\.id\)/);
     assert.match(inbox, /unreadTotal=\{unreadTotal\}/);
     assert.match(inbox, /awaitingReplyTotal=\{sentTotal\}/);
   });
@@ -38,6 +46,9 @@ describe("message UI consistency", () => {
     const rail = source("src/components/ConversationRail.tsx");
     assert.match(route, /limit: RAIL_CONVERSATIONS \+ 1/);
     assert.match(route, /hasMore: conversations\.length > RAIL_CONVERSATIONS/);
+    assert.match(route, /url\.searchParams\.get\("tab"\)/);
+    assert.match(route, /url\.searchParams\.get\("q"\)/);
+    assert.match(route, /countActorUnreadMessages\(me\.id\)/);
     assert.match(rail, /Older conversations/);
   });
 
