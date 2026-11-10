@@ -8,15 +8,14 @@ import * as React from "react";
 let introPlayed = false;
 
 export default function HomeHeroIntro({ children }: { children: React.ReactNode }) {
-  // Keep server markup deterministic. A module-scoped flag on the server can
-  // outlive one request and would otherwise make the entrance disappear for
-  // later visitors handled by the same warm process.
-  const [animate, setAnimate] = React.useState(false);
+  // Render the entrance class in the first HTML paint. Adding it after
+  // hydration made the already-visible copy blink out on slow phones. The
+  // client-only module flag suppresses replays during soft navigation; it is
+  // never mutated by the server, so separate requests stay deterministic.
+  const [animate] = React.useState(() => !introPlayed);
 
-  React.useLayoutEffect(() => {
-    if (introPlayed) return;
+  React.useEffect(() => {
     introPlayed = true;
-    setAnimate(true);
   }, []);
 
   return (

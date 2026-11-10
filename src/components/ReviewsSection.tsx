@@ -464,9 +464,7 @@ export default async function ReviewsSection({
           {/* Others */}
           {others.length === 0 ? (
             mine ? null : (
-              <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">
-                No reviews yet. Be the first to share your experience.
-              </div>
+              <p className="text-sm text-neutral-600">No reviews yet.</p>
             )
           ) : (
             <ul className="space-y-4">

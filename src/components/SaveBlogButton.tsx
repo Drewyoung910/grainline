@@ -64,7 +64,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
     >
       <span
         aria-hidden="true"
-        className="absolute h-8 w-8 rounded-full bg-neutral-950/55 shadow-[0_6px_18px_-7px_rgba(0,0,0,0.72),0_0_0_1px_rgba(255,255,255,0.28)] backdrop-blur-md transition-[background-color,scale,box-shadow] duration-180 ease-out motion-safe:group-hover/blog-save:scale-[1.07] group-hover/blog-save:bg-neutral-950/65 group-hover/blog-save:shadow-[0_8px_22px_-7px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,255,255,0.36)] motion-safe:group-active/blog-save:scale-[0.92] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-neutral-900 group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-white"
+        className="absolute h-8 w-8 rounded-full bg-white/92 shadow-[0_5px_16px_-6px_rgba(44,31,26,0.62),0_0_0_1px_rgba(44,31,26,0.16)] backdrop-blur-md transition-[background-color,scale,box-shadow] duration-180 ease-out motion-safe:group-hover/blog-save:scale-[1.06] group-hover/blog-save:bg-white group-hover/blog-save:shadow-[0_7px_20px_-7px_rgba(44,31,26,0.7),0_0_0_1px_rgba(44,31,26,0.22)] motion-safe:group-active/blog-save:scale-[0.92] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-neutral-900 group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-white"
       />
       {/* Match FavoriteButton geometry so the two card actions stay visually
           stable and share the same hover/focus reveal treatment. */}
@@ -88,7 +88,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
           height={18}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#FFFFFF"
+          stroke="#171717"
           strokeWidth={1.8}
           strokeLinecap="round"
           strokeLinejoin="round"

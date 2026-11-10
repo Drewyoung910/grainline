@@ -303,7 +303,7 @@ describe("accessibility follow-ups", () => {
     assert.match(favorite, /h-8 w-8 rounded-full/);
     assert.match(saveBlog, /h-11 w-11/);
     assert.match(saveBlog, /h-8 w-8 rounded-full/);
-    assert.match(saveBlog, /0_0_0_1px_rgba\(255,255,255,0\.28\)/);
+    assert.match(saveBlog, /0_0_0_1px_rgba\(44,31,26,0\.16\)/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.doesNotMatch(home, /<span aria-hidden="true">★<\/span>/);
