@@ -9,7 +9,7 @@ function ListingGridSkeleton({ count = 8 }: { count?: number }) {
     <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8" aria-hidden="true">
       {Array.from({ length: count }).map((_, index) => (
         <li key={index}>
-          <Pulse className="aspect-[4/5] w-full rounded-2xl" />
+          <Pulse className="aspect-[4/5] w-full rounded-xl" />
           <div className="space-y-2 pt-2.5">
             <Pulse className="h-4 w-4/5" />
             <Pulse className="h-4 w-1/3" />

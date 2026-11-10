@@ -60,7 +60,7 @@ export function BrowseIndexSkeleton() {
           <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-8 lg:grid-cols-3 xl:grid-cols-4" aria-hidden="true">
             {Array.from({ length: 8 }).map((_, index) => (
               <li key={index}>
-                <Pulse className="aspect-[4/5] w-full rounded-2xl" />
+                <Pulse className="aspect-[4/5] w-full rounded-xl" />
                 <div className="mt-3 space-y-2 px-1">
                   <Pulse className="h-4 w-3/4" />
                   <Pulse className="h-4 w-1/3" />
@@ -97,7 +97,7 @@ export function BrowseCitySkeleton() {
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-hidden="true">
         {Array.from({ length: 8 }).map((_, index) => (
           <li key={index}>
-            <Pulse className="aspect-[4/5] w-full rounded-2xl" />
+            <Pulse className="aspect-[4/5] w-full rounded-xl" />
             <div className="flex items-start gap-3 pt-2.5">
               <div className="min-w-0 flex-1 space-y-2">
                 <Pulse className="h-4 w-4/5" />

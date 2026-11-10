@@ -57,7 +57,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
     >
       <span
         aria-hidden="true"
-        className="absolute h-9 w-9 rounded-full bg-white/95 shadow-[0_5px_16px_-6px_rgba(44,31,26,0.62),0_0_0_1px_rgba(44,31,26,0.14)] transition-[background-color,scale,box-shadow] duration-150 ease-out group-hover/blog-save:bg-white group-hover/blog-save:shadow-[0_6px_18px_-6px_rgba(44,31,26,0.68),0_0_0_1px_rgba(44,31,26,0.2)] motion-safe:group-active/blog-save:scale-[0.92] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-neutral-900 group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-white"
+        className="absolute h-8 w-8 rounded-full bg-neutral-950/55 shadow-[0_6px_18px_-7px_rgba(0,0,0,0.72),0_0_0_1px_rgba(255,255,255,0.28)] backdrop-blur-md transition-[background-color,scale,box-shadow] duration-180 ease-out motion-safe:group-hover/blog-save:scale-[1.07] group-hover/blog-save:bg-neutral-950/65 group-hover/blog-save:shadow-[0_8px_22px_-7px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,255,255,0.36)] motion-safe:group-active/blog-save:scale-[0.92] group-focus-visible/blog-save:ring-2 group-focus-visible/blog-save:ring-neutral-900 group-focus-visible/blog-save:ring-offset-2 group-focus-visible/blog-save:ring-offset-white"
       />
       {/* Match FavoriteButton geometry so the two card actions stay visually
           stable and share the same hover/focus reveal treatment. */}
@@ -75,13 +75,13 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
           <path d="M5 3a2 2 0 0 0-2 2v16l9-4 9 4V5a2 2 0 0 0-2-2H5z" />
         </svg>
       ) : (
-        // Unsaved bookmark sits on the same white surface as listing hearts.
+        // Unsaved bookmark sits on the same frosted surface as listing hearts.
         <svg
           width={18}
           height={18}
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#171717"
+          stroke="#FFFFFF"
           strokeWidth={1.8}
           strokeLinecap="round"
           strokeLinejoin="round"

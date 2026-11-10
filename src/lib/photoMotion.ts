@@ -179,7 +179,9 @@ export function startPhotoTravel(photo: HTMLImageElement | null, frame: Element 
     width: `${from.width}px`,
     height: `${from.height}px`,
     overflow: "hidden",
-    borderRadius: "16px",
+    // Match the clickable listing card so its corners do not snap at the
+    // beginning of the card-to-gallery transition.
+    borderRadius: "12px",
     zIndex: "40",
     pointerEvents: "none",
     transformOrigin: "center",

@@ -51,6 +51,8 @@ describe("photo continuity motion", () => {
     assert.match(hook, /latestRef\.current\.onClosed\(\)/);
     assert.match(card, /if \(!isPlainClick\(event\)\) return/);
     assert.match(card, /startPhotoTravel\(frame\?\.querySelector<HTMLImageElement>\("img\[data-card-photo\]"\) \?\? null, frame, l\.id\)/);
+    assert.match(card, /overflow-hidden rounded-xl/);
+    assert.match(motion, /borderRadius: "12px"/);
     assert.match(gallery, /useDialogFocus\(lightboxOpen, dialogRef, closeViewer\)/);
     assert.match(gallery, /useBodyScrollLock\(lightboxOpen\)/);
 
