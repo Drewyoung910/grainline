@@ -16,10 +16,12 @@ describe("R62 performance guardrails", () => {
     assert.doesNotMatch(text, /where:\s*\{\s*listing:\s*\{\s*sellerId: listing\.sellerId/s);
   });
 
-  it("keeps high-traffic raw images dimensioned to reduce layout shift", () => {
+  it("keeps high-traffic card images responsive and dimensionally stable", () => {
     const listing = source("src/app/listing/[id]/page.tsx");
+    const moreFrom = listing.slice(listing.indexOf("More from this maker"), listing.indexOf("Similar items"));
     assert.match(listing, /width=\{56\}[\s\S]*height=\{56\}[\s\S]*h-14 w-14/);
-    assert.match(listing, /width=\{320\}[\s\S]*height=\{400\}[\s\S]*w-full h-full object-cover/);
+    assert.match(moreFrom, /<CardMediaImage[\s\S]*sizes="\(max-width: 639px\) 50vw, 25vw"/);
+    assert.doesNotMatch(moreFrom, /originalUrl/);
 
     const home = source("src/app/page.tsx");
     // Spotlight avatar beside the name + also-featured avatar
@@ -31,8 +33,12 @@ describe("R62 performance guardrails", () => {
 
     const browse = source("src/app/browse/page.tsx");
     const listingCard = source("src/components/ListingCard.tsx");
+    const cardMedia = source("src/components/CardMediaImage.tsx");
     assert.match(browse, /<ListingCard[\s\S]*variant="grid"/);
-    assert.match(listingCard, /className="w-full aspect-\[4\/5\] object-cover/);
+    assert.match(listingCard, /<CardMediaImage/);
+    assert.match(listingCard, /sizes="\(max-width: 639px\) 50vw, \(max-width: 1023px\) 33vw, 25vw"/);
+    assert.match(cardMedia, /<Image[\s\S]*fill[\s\S]*sizes=\{sizes\}/);
+    assert.match(cardMedia, /onError=\{\(\) => setBypassOptimizer\(true\)\}/);
     assert.match(browse, /width=\{176\} height=\{220\} className="h-full w-full/);
   });
 });

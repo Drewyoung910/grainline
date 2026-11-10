@@ -17,6 +17,7 @@ import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
+import CardMediaImage from "@/components/CardMediaImage";
 import SimilarMakers from "@/components/SimilarMakers";
 import GuildBadge from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
@@ -315,7 +316,7 @@ export default async function ListingPage({
         title: true,
         priceCents: true,
         currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
       },
     }),
     prisma.review.findMany({
@@ -901,14 +902,20 @@ export default async function ListingPage({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
               <div key={ml.id} className="relative">
-                <div className="photo-save-surface group/photo relative overflow-hidden rounded-2xl bg-neutral-100">
+                <div className="photo-save-surface group/photo relative overflow-hidden rounded-xl bg-neutral-100 shadow-[0_1px_0_rgba(44,31,26,0.08)] ring-1 ring-black/[0.04] transition-[box-shadow] duration-300 hover:shadow-[0_16px_34px_-18px_rgba(44,31,26,0.58)]">
                   <Link href={publicListingPath(ml.id, ml.title)} className="block aspect-[4/5]">
                     {ml.photos[0]?.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
-                        width={320}
-                        height={400}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" />
+                      <span className="relative block h-full w-full">
+                        <CardMediaImage
+                          src={ml.photos[0].url}
+                          fallbackSrc={ml.photos[1]?.url}
+                          alt={ml.title}
+                          sizes="(max-width: 639px) 50vw, 25vw"
+                          loading="lazy"
+                          className="h-full w-full object-cover transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
+                          fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
+                      </span>
                     ) : (
                       <div className="w-full h-full bg-neutral-200" />
                     )}

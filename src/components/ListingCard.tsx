@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "re
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
-import MediaImage from "@/components/MediaImage";
+import CardMediaImage from "@/components/CardMediaImage";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { formatCurrencyCents } from "@/lib/money";
 import { formatCityState } from "@/lib/locationDisplay";
@@ -84,26 +84,30 @@ export default function ListingCard({ listing: l, initialSaved = false, href, hi
 
   const photo = (
     <>
-      <MediaImage
-        alt={l.photoAltText || l.title}
-        src={img}
-        fallbackSrc={l.secondPhotoUrl}
-        loading="lazy"
-        data-card-photo=""
-        data-photo-state={photoState}
-        onLoad={() => finishPhoto(true)}
-        onError={() => finishPhoto(false)}
-        className="w-full aspect-[4/5] object-cover listing-photo backface-hidden transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
-        fallbackClassName="w-full aspect-[4/5] bg-gradient-to-br from-amber-50 to-stone-100"
-      />
+      <span className="relative block aspect-[4/5] w-full">
+        <CardMediaImage
+          alt={l.photoAltText || l.title}
+          src={img}
+          fallbackSrc={l.secondPhotoUrl}
+          sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, 25vw"
+          loading="lazy"
+          dataCardPhoto
+          dataPhotoState={photoState}
+          onLoad={() => finishPhoto(true)}
+          onError={() => finishPhoto(false)}
+          className="h-full w-full object-cover listing-photo backface-hidden transition-transform duration-[600ms] ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035]"
+          fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
+        />
+      </span>
       {/* Second photo: requested on first hover, then swaps in quickly
           (a short fade, not a slow dissolve) while hovered. */}
       {altRequested && altSrc && (
-        <MediaImage
+        <CardMediaImage
           alt=""
-          aria-hidden="true"
+          ariaHidden
           src={altSrc}
-          data-ready={altReady ? "true" : "false"}
+          sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, 25vw"
+          dataReady={altReady}
           onLoad={() => setAltReady(true)}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-0 backface-hidden motion-safe:[transition:opacity_150ms_ease-out,scale_600ms_cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover/photo:scale-[1.035] group-hover/photo:data-[ready=true]:opacity-100"
           fallbackClassName="hidden"
