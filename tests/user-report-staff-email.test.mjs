@@ -15,7 +15,19 @@ async function report(reason, { emailFails = false } = {}) {
   const dependencies = {
     zod: require("zod"),
     "@clerk/nextjs/server": { auth: async () => ({ userId: "clerk" }) },
-    "@/lib/db": { prisma: { userReport: { create: async () => { state.reports += 1; return { id: "report" }; } } } },
+    "@/lib/userReportAccess": {
+      USER_REPORT_TARGET_TYPES: [
+        "LISTING",
+        "MESSAGE_THREAD",
+        "REVIEW",
+        "BLOG_COMMENT",
+        "SELLER_PROFILE",
+      ],
+      createUserReport: async () => {
+        state.reports += 1;
+        return { reportId: "report" };
+      },
+    },
     "@/lib/ensureUser": { ensureUser: async () => ({ id: "reporter" }) },
     "@/lib/privateResponse": {
       privateJson: (body, init) => Response.json(body, init),
@@ -29,6 +41,7 @@ async function report(reason, { emailFails = false } = {}) {
       isRequestBodyTooLargeError: () => false,
       isInvalidJsonBodyError: () => false,
     },
+    "@/lib/textLength": { codePointLength: (text) => [...text].length },
     "@/lib/sanitize": { sanitizeText: (text) => text, truncateText: (text) => text },
     "@/lib/emailBaseUrl": { EMAIL_APP_URL: "https://grainline.test" },
     "@/lib/email": {
