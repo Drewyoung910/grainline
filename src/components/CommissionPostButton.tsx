@@ -74,7 +74,7 @@ export default function CommissionPostButton({
       </Link>
       {open && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto overscroll-contain bg-[#14100D]/45 modal-backdrop-in p-4"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto overscroll-contain bg-[#14100D]/45 p-4"
           onMouseDown={(event) => {
             // clientWidth stops short of the scrollbar, which also lands here.
             if (event.target === event.currentTarget && event.clientX < event.currentTarget.clientWidth) requestClose();

@@ -30,7 +30,11 @@ describe("header, favorite, cart, and review regressions", () => {
 
   it("confirms saved blog changes with the same durable toast system", () => {
     const savedPost = source("src/components/SaveBlogButton.tsx");
+    assert.match(savedPost, /const next = !saved;\s*setSaved\(next\);/);
+    assert.match(savedPost, /setSaved\(!next\);\s*router\.push/);
     assert.match(savedPost, /toast\(data\.saved \? "Post saved\." : "Removed from saved posts\.", "success"\)/);
+    assert.match(savedPost, /aria-pressed=\{saved\}/);
+    assert.match(savedPost, /onPointerUp=\{\(event\) => event\.currentTarget\.blur\(\)\}/);
     assert.match(savedPost, /absolute h-8 w-8 rounded-full bg-neutral-950\/55/);
     assert.match(savedPost, /stroke="#FFFFFF"/);
   });

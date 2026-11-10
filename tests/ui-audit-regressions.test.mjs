@@ -206,6 +206,7 @@ describe("guards behind the browser checks", () => {
     const form = source("src/components/CommissionRequestForm.tsx");
     assert.match(dialog, /if \(submittingRef\.current\) return;/);
     assert.match(dialog, /event\.clientX < event\.currentTarget\.clientWidth/);
+    assert.doesNotMatch(dialog, /bg-\[#14100D\]\/45 modal-backdrop-in/);
     assert.match(form, /onSubmittingChange\?\.\(true\);\s*setSubmitting\(true\)/);
     assert.match(form, /finally \{\s*onSubmittingChange\?\.\(false\);\s*setSubmitting\(false\)/);
     assert.match(form, /disabled=\{submitting \|\| uploading \|\|/);

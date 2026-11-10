@@ -229,7 +229,7 @@ export default function ReviewComposer(props: {
       />
 
       <div className="text-xs text-neutral-600">
-        Photos are optional (up to 6). Star rating allows half-stars. Reviews lock if the seller replies.
+        Photos are optional (up to 6). Star rating allows half-stars. Reviews lock if the maker replies.
       </div>
       <div className="text-xs text-neutral-600">
         Your review and photos will be public, with your first name and last initial. The maker can see your full account name.
