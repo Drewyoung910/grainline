@@ -52,6 +52,9 @@ function loadRoute(path) {
       searchRatelimit: {},
     },
     "@/lib/sanitize": { truncateText: (value) => value },
+    "@/lib/searchQueryState": {
+      normalizeSearchQueryParameter: (value) => value?.trim() ?? "",
+    },
     "@/lib/tags": { normalizeTags: () => [] },
     "@/lib/queryParams": { parseBoundedPositiveIntParam: () => 1 },
   };

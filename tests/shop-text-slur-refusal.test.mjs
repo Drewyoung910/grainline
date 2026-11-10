@@ -61,6 +61,9 @@ function load(path, exportName) {
     },
     "@/lib/httpStatus": { HTTP_STATUS: { BAD_REQUEST: 400, INTERNAL_SERVER_ERROR: 500 } },
     "@/lib/sellerProfileOwnerAccess": { sellerOwnerVacationUpdate: write },
+    "@/lib/sellerShopSettingsInput": {
+      parseOptionalMoneyField: () => ({ ok: true, value: null }),
+    },
     "next/navigation": {
       redirect: (target) => {
         calls.redirects.push(target);
