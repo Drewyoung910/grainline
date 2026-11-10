@@ -248,13 +248,14 @@ describe("Round 10 state-machine guardrails", () => {
       "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
     );
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const followerFanout = source("src/lib/followerListingNotifications.ts");
     const markResolved = source("src/app/api/cases/[id]/mark-resolved/route.ts");
 
     assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
     assert.match(fulfillmentAuthority, /locked_order\."labelStatus"::text = 'PURCHASED'/);
     assert.match(fulfillmentAuthority, /'reason', 'label_purchased'/);
     assert.match(adminReview, /fanOutListingToFollowers/);
-    assert.match(adminReview, /admin-approved-listing:\$\{listing\.id\}:\$\{followerId\}/);
+    assert.match(followerFanout, /followed-listing:\$\{publicListing\.id\}:\$\{recipient\.userId\}/);
     assert.match(adminReview, /source: 'admin_listing_review_follower_fanout'/);
     assert.match(markResolved, /notifyCounterpartyOfResolutionMark/);
     assert.match(markResolved, /type: resolved \? "CASE_RESOLVED" : "CASE_MESSAGE"/);
