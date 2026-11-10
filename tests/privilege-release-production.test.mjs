@@ -106,6 +106,10 @@ test("catalog byte-seals the reviewed reusable privilege release", () => {
   assert.deepEqual(release.sourceTests, [
     "tests/service-reference-least-privilege.test.mjs",
   ]);
+  assert.equal(
+    release.minimumCompatibleAppCommit,
+    "b56e226d327347fe155aa07ded0bde999ca929be",
+  );
   assert.deepEqual(release.tables, {
     FoundingMakerGrant: ["SELECT"],
     Metro: ["INSERT", "SELECT", "UPDATE"],
@@ -189,6 +193,14 @@ test("workflow is exact-main, serialized, restart-safe, and evidence preserving"
   assert.match(source, /github\.ref == 'refs\/heads\/main'/u);
   assert.match(source, /main\.commit\.sha !== sha/u);
   assert.match(source, /Exact-main push workflows are not all green/u);
+  assert.match(source, /compatible_app_commit:/u);
+  assert.match(source, /production_deployment_id:/u);
+  assert.match(source, /superseded_app_deployment_id:/u);
+  assert.match(source, /superseded_app_commit:/u);
+  assert.match(source, /Compatible app predates the reviewed privilege minimum/u);
+  assert.match(source, /Compatible app commit is not an ancestor of privilege release/u);
+  assert.match(source, /Compatible app does not succeed the reviewed predecessor/u);
+  assert.match(source, /verify-order-email-free-deployment-surface\.mjs/u);
   assert.match(source, /guard-production-migration-runner\.mjs/u);
   assert.match(source, /assert-reviewed-pending-migrations\.mjs/u);
   assert.match(source, /steps\.preflight\.outputs\.state == 'pending'/u);

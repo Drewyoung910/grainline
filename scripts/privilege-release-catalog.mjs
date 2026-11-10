@@ -10,6 +10,8 @@ const RELEASE_ID = /^[a-z0-9_]+$/u;
 
 export const PRIVILEGE_RELEASES = Object.freeze({
   service_reference_v1: Object.freeze({
+    minimumCompatibleAppCommit:
+      "b56e226d327347fe155aa07ded0bde999ca929be",
     migration: "20261101020000_narrow_service_reference_runtime_privileges",
     migrationSha256:
       "5ae6d88826690ae5f0a653c02c87ae28fc76bb9f3609119402b2590594edbc6c",
@@ -71,6 +73,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const option = process.argv[2];
     if (option === "--tests") {
       process.stdout.write(`${verified.release.sourceTests.join("\n")}\n`);
+    } else if (option === "--minimum-compatible-app-commit") {
+      process.stdout.write(`${verified.release.minimumCompatibleAppCommit}\n`);
     } else if (option === undefined) {
       process.stdout.write(`${verified.release.migration}\n`);
     } else {
